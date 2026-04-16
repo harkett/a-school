@@ -10,16 +10,18 @@ from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
 
-# ── Réduire le vide en haut ───────────────────────────────────────────────────
+# ── Styles ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; }
     [data-testid="stFileUploader"] label { display: none; }
+    [data-testid="stFileUploader"] { border: 2px solid #1976D2; border-radius: 8px; padding: 0.5rem; }
+    .mic-zone { border: 2px solid #1976D2; border-radius: 8px; padding: 0.6rem 0.8rem; text-align: center; color: #1976D2; font-size: 0.85rem; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📚 A-SCHOOL — Générateur d'activités pédagogiques")
-st.caption("Collez un texte, choisissez une activité, générez en quelques secondes.")
+st.title("A-SCHOOL — Générateur d'activités pédagogiques")
+st.caption("Choisissez une activité et fournissez un texte — l'IA génère l'activité en quelques secondes.")
 
 # ── Configuration des activités ───────────────────────────────────────────────
 ACTIVITES = {
@@ -142,12 +144,13 @@ with col1:
         fichier = st.file_uploader(
             "Importer",
             type=["txt"],
-            help="Importer un fichier texte (.txt)",
             label_visibility="collapsed",
+            help="Cliquez pour choisir un fichier .txt depuis votre ordinateur",
         )
     with c_micro:
+        st.markdown('<div class="mic-zone">🎤 Cliquez sur le bouton, puis parlez. Arrêtez quand vous avez terminé.</div>', unsafe_allow_html=True)
         audio = mic_recorder(
-            start_prompt="Dicter",
+            start_prompt="Démarrer la dictée",
             stop_prompt="Arrêter",
             key="micro",
             use_container_width=True,
@@ -170,15 +173,15 @@ with col1:
         texte = st.text_area(
             "Texte",
             value=st.session_state.get("texte_dicte", ""),
-            height=300,
-            placeholder="Collez un extrait de texte ici...",
+            height=270,
+            placeholder="Collez un extrait de texte ici\n— ou téléchargez un fichier .txt (bouton ci-dessus)\n— ou dictez avec le micro",
             label_visibility="collapsed",
         )
 
 with col2:
     st.subheader("Paramètres")
 
-    niveau = st.selectbox("Niveau", ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Supérieur"], index=2)
+    niveau = st.selectbox("Niveau de la classe", ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Supérieur"], index=2)
 
     activite_label = st.selectbox("Type d'activité", list(ACTIVITES.keys()))
     activite_cfg = ACTIVITES[activite_label]
@@ -188,7 +191,7 @@ with col2:
     nb = None
 
     if activite_cfg["sous_types"]:
-        sous_type = st.selectbox("Sous-type", activite_cfg["sous_types"])
+        sous_type = st.selectbox("Précision", activite_cfg["sous_types"])
 
     if "nb" in activite_cfg["params"]:
         nb = st.slider("Nombre de questions", 2, 15, 5)
