@@ -15,8 +15,8 @@ st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; }
     [data-testid="stFileUploader"] label { display: none; }
-    [data-testid="stFileUploader"] { border: 2px solid #1976D2; border-radius: 8px; padding: 0.5rem; }
-    .mic-zone { border: 2px solid #1976D2; border-radius: 8px; padding: 0.6rem 0.8rem; text-align: center; color: #1976D2; font-size: 0.85rem; }
+    .block-container { padding-top: 1.5rem; }
+    [data-testid="stFileUploader"] label { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,13 +148,13 @@ with col1:
             help="Cliquez pour choisir un fichier .txt depuis votre ordinateur",
         )
     with c_micro:
-        st.markdown('<div class="mic-zone">🎤 Cliquez sur le bouton, puis parlez. Arrêtez quand vous avez terminé.</div>', unsafe_allow_html=True)
-        audio = mic_recorder(
-            start_prompt="Démarrer la dictée",
-            stop_prompt="Arrêter",
-            key="micro",
-            use_container_width=True,
-        )
+        with st.container(border=True):
+            audio = mic_recorder(
+                start_prompt="Dicter",
+                stop_prompt="Arrêter",
+                key="micro",
+                use_container_width=True,
+            )
 
     if fichier:
         texte = fichier.read().decode("utf-8")
@@ -222,33 +222,50 @@ if generer:
                 prompt = build_prompt(activite_key, texte, avec_correction=avec_correction, **kwargs)
                 resultat = generate(prompt)
                 md_content = to_markdown(activite_key, niveau, resultat)
-
-                st.success("Activité générée !")
-                st.subheader("Résultat")
-                st.markdown(resultat)
-
                 today = date.today().strftime("%Y%m%d")
-                chemin = f"outputs/{activite_key}_{today}.md"
-                Path("outputs").mkdir(exist_ok=True)
-                save(md_content, chemin)
 
-                col_dl1, col_dl2 = st.columns(2)
-                with col_dl1:
-                    st.download_button(
-                        label="Télécharger en Word (.docx)",
-                        data=to_docx(resultat),
-                        file_name=f"{activite_key}_{today}.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True,
-                    )
-                with col_dl2:
-                    st.download_button(
-                        label="Télécharger en texte (.txt)",
-                        data=resultat.encode("utf-8"),
-                        file_name=f"{activite_key}_{today}.txt",
-                        mime="text/plain",
-                        use_container_width=True,
-                    )
+                Path("outputs").mkdir(exist_ok=True)
+                save(md_content, f"outputs/{activite_key}_{today}.md")
+
+                st.session_state["resultat"] = resultat
+                st.session_state["resultat_key"] = activite_key
+                st.session_state["resultat_today"] = today
 
             except Exception as e:
                 st.error(f"Erreur : {e}")
+
+# ── Affichage du résultat (persiste jusqu'à fermeture) ────────────────────────
+if st.session_state.get("resultat"):
+    resultat = st.session_state["resultat"]
+    activite_key_dl = st.session_state["resultat_key"]
+    today_dl = st.session_state["resultat_today"]
+
+    st.divider()
+    col_titre, col_fermer = st.columns([5, 1])
+    with col_titre:
+        st.subheader("Résultat")
+    with col_fermer:
+        if st.button("Fermer", use_container_width=True):
+            st.session_state["resultat"] = None
+            st.rerun()
+
+    st.markdown(resultat)
+
+    st.divider()
+    col_dl1, col_dl2 = st.columns(2)
+    with col_dl1:
+        st.download_button(
+            label="Télécharger en Word (.docx)",
+            data=to_docx(resultat),
+            file_name=f"{activite_key_dl}_{today_dl}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True,
+        )
+    with col_dl2:
+        st.download_button(
+            label="Télécharger en texte (.txt)",
+            data=resultat.encode("utf-8"),
+            file_name=f"{activite_key_dl}_{today_dl}.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
