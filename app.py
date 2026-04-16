@@ -14,9 +14,41 @@ st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; }
+
+    /* Cache le label du file uploader */
     [data-testid="stFileUploader"] label { display: none; }
-    .block-container { padding-top: 1.5rem; }
-    [data-testid="stFileUploader"] label { display: none; }
+
+    /* Zone micro : même fond gris que le file uploader */
+    div.mic-zone {
+        background-color: rgb(240, 242, 246);
+        border-radius: 8px;
+        padding: 1rem 1rem 0.4rem 1rem;
+        text-align: center;
+    }
+
+    /* Bouton micro : même style que le bouton Upload */
+    div.mic-zone button {
+        background-color: white !important;
+        color: rgb(49, 51, 63) !important;
+        border: 1px solid rgba(49, 51, 63, 0.2) !important;
+        border-radius: 4px !important;
+        padding: 0.4rem 1rem !important;
+        font-size: 0.875rem !important;
+        font-weight: 400 !important;
+        width: auto !important;
+    }
+
+    div.mic-zone button:hover {
+        border-color: rgb(49, 51, 63) !important;
+        color: rgb(49, 51, 63) !important;
+    }
+
+    /* Texte sous le bouton micro */
+    div.mic-zone .mic-hint {
+        color: rgb(163, 168, 184);
+        font-size: 0.75rem;
+        margin-top: 0.4rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,13 +180,15 @@ with col1:
             help="Cliquez pour choisir un fichier .txt depuis votre ordinateur",
         )
     with c_micro:
-        with st.container(border=True):
-            audio = mic_recorder(
-                start_prompt="Dicter",
-                stop_prompt="Arrêter",
-                key="micro",
-                use_container_width=True,
-            )
+        st.markdown('<div class="mic-zone">', unsafe_allow_html=True)
+        audio = mic_recorder(
+            start_prompt="🎤  Dicter",
+            stop_prompt="⏹  Arrêter",
+            key="micro",
+            use_container_width=False,
+        )
+        st.markdown('<div class="mic-hint">Cliquez puis parlez — arrêtez quand vous avez terminé</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     if fichier:
         texte = fichier.read().decode("utf-8")
