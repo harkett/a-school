@@ -35,7 +35,17 @@ ACTIVITES = {
     },
     "🟦 Exercices de réécriture": {
         "key": "reecriture",
-        "sous_types": ["style direct vers style indirect", "passé simple vers présent", "changement de point de vue", "simplifier le vocabulaire", "enrichir le texte"],
+        "sous_types": [
+            "style direct vers style indirect",
+            "passé simple vers présent",
+            "présent vers passé simple",
+            "présent vers conditionnel présent",
+            "1ère personne du singulier vers 1ère personne du pluriel",
+            "3ème personne du singulier vers 1ère personne du pluriel",
+            "changement de point de vue",
+            "simplifier le vocabulaire",
+            "enrichir le texte",
+        ],
         "params": ["sous_type"],
     },
     "🟦 Étude de vocabulaire": {
@@ -45,7 +55,7 @@ ACTIVITES = {
     },
     "🟦 Production d'écrit": {
         "key": "production_ecrit",
-        "sous_types": ["paragraphe argumenté", "continuer le texte", "décrire un personnage", "imaginer la suite d'une scène"],
+        "sous_types": ["paragraphe argumenté", "continuer le texte", "décrire un personnage", "imaginer la suite d'une scène", "texte poétique"],
         "params": ["sous_type"],
     },
     "🟦 Questions pour l'oral": {
@@ -62,6 +72,31 @@ ACTIVITES = {
         "key": "grammaire",
         "sous_types": ["temps verbaux", "types de phrases", "transformer des phrases", "accords"],
         "params": ["sous_type"],
+    },
+    "🟦 Recherche de séquences": {
+        "key": "recherche_sequences",
+        "sous_types": [],
+        "params": [],
+    },
+    "🟦 Séquence détaillée": {
+        "key": "sequence_detaillee",
+        "sous_types": [],
+        "params": [],
+    },
+    "🟦 Questionnaire sur un roman": {
+        "key": "questionnaire_roman",
+        "sous_types": [],
+        "params": [],
+    },
+    "🟦 Évaluation de grammaire": {
+        "key": "evaluation_grammaire",
+        "sous_types": [],
+        "params": [],
+    },
+    "🟦 Évaluation d'orthographe": {
+        "key": "evaluation_orthographe",
+        "sous_types": [],
+        "params": [],
     },
 }
 

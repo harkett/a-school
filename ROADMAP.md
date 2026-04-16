@@ -13,88 +13,118 @@ Plateforme web permettant à **tous les enseignants** (collège → université)
 
 ---
 
-## Architecture cible
+## Architecture cible (validée 16/04/2026)
 
 ```
-┌─────────────────────────────────────────┐
-│              VPS (Linux)                │
-│                                         │
-│  ┌──────────────┐  ┌─────────────────┐  │
-│  │   Frontend   │  │    Backend      │  │
-│  │   React ou   │  │   FastAPI       │  │
-│  │   Streamlit  │  │   Python        │  │
-│  └──────┬───────┘  └────────┬────────┘  │
-│         └─────────┬─────────┘           │
-│            ┌──────┴──────┐              │
-│            │   Base de   │              │
-│            │   données   │              │
-│            │  (SQLite →  │              │
-│            │  Postgres)  │              │
-│            └─────────────┘              │
-└─────────────────────────────────────────┘
-         │
-         ▼
-    Groq API / Claude API (Anthropic)
+┌─────────────────────────────────────────────┐
+│                VPS (Linux)                  │
+│                                             │
+│  ┌─────────────┐      ┌──────────────────┐  │
+│  │  Frontend   │      │  Backend FastAPI  │  │
+│  │  React/Vue  │◄────►│  + Interface Admin│  │
+│  └─────────────┘      └────────┬─────────┘  │
+│                                │             │
+│                      ┌─────────┴────────┐    │
+│                      │  Base de données  │    │
+│                      │  SQLite → Postgres│    │
+│                      │                   │    │
+│                      │  activites        │    │
+│                      │  utilisateurs     │    │
+│                      │  historique       │    │
+│                      └──────────────────┘    │
+└─────────────────────────────────────────────┘
+              │
+              ▼
+        Groq API → Claude API (production)
+```
+
+**Principe clé — Backend Admin :**
+Les prompts et types d'activités sont stockés en **base de données**, pas dans le code.
+L'admin ajoute/modifie une activité via formulaire web → elle apparaît immédiatement dans l'interface prof. **Zéro code requis.**
+
+```
+Table "activites" :
+| id | nom           | prompt_template   | sous_types       |
+|----|---------------|-------------------|------------------|
+| 1  | comprehension | "Tu es un prof..." | simples, QCM...  |
+| 2  | reecriture    | "Tu es un prof..." | direct→indirect  |
 ```
 
 **Stack retenu :**
-- Backend : FastAPI (Python)
+- Backend : **FastAPI** (Python)
 - Frontend : Streamlit (Phase 2) → React/Vue (Phase 4)
-- IA : Groq (gratuit) → Claude Anthropic (production)
-- VPS : Ubuntu 22.04, 5€/mois (Hetzner / OVH / DigitalOcean)
+- Admin : Interface FastAPI intégrée
+- IA texte : Groq (gratuit) → Claude Anthropic (production)
+- IA voix : **Whisper local** (faster-whisper, gratuit pour toujours)
+- BDD : SQLite → PostgreSQL
+- VPS : **AfiaCloud** — Ubuntu 24.04 LTS, 4 CPU, 12 Go RAM, 250 Go stockage
+- URL : **https://school.afia.fr**
 - Déploiement : Docker + Nginx + HTTPS (Let's Encrypt)
 
 ---
 
 ## Phases de développement
 
-### Phase 1 — Prototype local ✅ TERMINÉ
+### Phase 1 — Prototype local ✅ TERMINÉ (16/04/2026)
 **Objectif :** Valider le concept avec un outil fonctionnel en local.
 
 - [x] CLI Python (Typer + Rich)
-- [x] 3 types d'activités : compréhension, pistes de lecture, réécriture
+- [x] 15 types d'activités avec sous-types
+- [x] Option correction intégrée
 - [x] Export Markdown automatique dans `outputs/`
-- [x] Interface Streamlit locale (`streamlit run app.py`)
+- [x] Interface Streamlit locale
 - [x] Intégration Groq API (llama-3.3-70b-versatile)
-- [x] Fichier `.env` pour la configuration
+- [x] Push GitHub — https://github.com/harkett/a-school
 
-**Commande de lancement :**
-```bash
-streamlit run app.py --server.port 8080
-```
+**15 activités disponibles :**
+1. Questions de compréhension (6 sous-types)
+2. Pistes de lecture (5 sous-types)
+3. Résumés (3 sous-types)
+4. Analyse de texte (4 sous-types)
+5. Exercices de réécriture (9 transformations)
+6. Étude de vocabulaire (4 sous-types)
+7. Production d'écrit (5 sous-types dont texte poétique)
+8. Questions pour l'oral (3 sous-types)
+9. Fiche pédagogique
+10. Exercices de grammaire (4 sous-types)
+11. Recherche de séquences
+12. Séquence détaillée
+13. Questionnaire sur un roman
+14. Évaluation de grammaire
+15. Évaluation d'orthographe
 
 ---
 
 ### Phase 2 — App web hébergée 🔜 EN COURS (16/04/2026)
-**Objectif :** Rendre l'outil accessible en ligne depuis n'importe quel navigateur.
+**Objectif :** Rendre l'outil accessible depuis n'importe quel navigateur.
 
 - [x] Nginx installé sur VPS ✅
 - [x] Accès SSH disponible ✅
-- [x] Code sur GitHub ✅
+- [x] Code pushé sur GitHub ✅
 - [ ] Cloner le repo sur le VPS
 - [ ] Créer le `.env` sur le VPS
 - [ ] Lancer Streamlit en arrière-plan
-- [ ] Configurer Nginx + sous-domaine
-- [ ] Obtenir certificat HTTPS (Let's Encrypt)
-- [ ] Tester avec la prof pilote
+- [ ] Configurer Nginx → `school.afia.fr`
+- [ ] HTTPS (Let's Encrypt)
+- [ ] Test avec la prof pilote
 
 ---
 
-### 📋 Commandes de déploiement VPS (à conserver)
+### 📋 Commandes de déploiement VPS
 
 **URL cible :** `https://school.afia.fr`
 
 **1. Cloner et installer**
 ```bash
 cd /var/www
-git clone TON_REPO_GITHUB a-school
+git clone https://github.com/harkett/a-school.git a-school
 cd a-school
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**2. Créer le `.env` sur le VPS**
+**2. Créer le `.env`**
 ```bash
 cat > .env << 'EOF'
 AI_PROVIDER=groq
@@ -103,7 +133,7 @@ AI_MODEL=llama-3.3-70b-versatile
 EOF
 ```
 
-**3. Lancer Streamlit en arrière-plan**
+**3. Lancer Streamlit**
 ```bash
 nohup streamlit run app.py \
   --server.port 8501 \
@@ -112,7 +142,7 @@ nohup streamlit run app.py \
   > streamlit.log 2>&1 &
 ```
 
-**4. Config Nginx** → fichier `/etc/nginx/sites-available/school`
+**4. Config Nginx** → `/etc/nginx/sites-available/school`
 ```nginx
 server {
     server_name school.afia.fr;
@@ -128,67 +158,115 @@ server {
 ```bash
 ln -s /etc/nginx/sites-available/school /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-```
-
-**5. HTTPS**
-```bash
 certbot --nginx -d school.afia.fr
 ```
 
-**6. Vérifier**
+**Mise à jour après push GitHub :**
 ```bash
-curl http://localhost:8501
+cd /var/www/a-school && git pull && pkill -f streamlit
+nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &
 ```
 
-**⚠️ DNS** : ajouter entrée `school.afia.fr → IP du VPS` dans le gestionnaire de domaine **avant** le déploiement (propagation 10-30 min).
+---
+
+### Phase 2b — Saisie vocale 🎤 PLANIFIÉE (après déploiement VPS)
+**Objectif :** Permettre au prof de dicter son texte à la volée via le micro du navigateur.
+
+**Principe :**
+```
+Micro navigateur → streamlit-mic-recorder (capture audio)
+                        ↓
+              faster-whisper sur VPS (transcription locale)
+                        ↓
+              Texte affiché dans la zone de saisie
+```
+
+**Pourquoi Whisper local (pas API externe) :**
+- Gratuit pour toujours — aucun fournisseur, aucun piège tarifaire
+- Données audio restent sur le serveur (confidentialité)
+- AfiaCloud 12 Go RAM largement suffisant (modèle medium = 1.5 Go)
+
+**Librairies à ajouter :**
+- `streamlit-mic-recorder` — capture audio navigateur
+- `faster-whisper` — transcription sur VPS (modèle `medium`, meilleur en français)
+
+**Interface :**
+```
+[📁 Importer .txt]  [🎤 Dicter]
+┌─────────────────────────────┐
+│ Ou collez votre texte...    │
+└─────────────────────────────┘
+```
+
+- [ ] Installer faster-whisper sur VPS
+- [ ] Télécharger modèle Whisper medium (français)
+- [ ] Ajouter bouton micro dans app.py
+- [ ] Ajouter **sélecteur de micro** (liste des périphériques via MediaDevices.enumerateDevices())
+- [ ] Ajouter fonction transcription dans generator.py
+- [ ] Tester avec la prof pilote
 
 ---
 
-### Phase 3 — Multi-matières & multi-utilisateurs
-**Objectif :** Ouvrir l'outil à plusieurs enseignants et matières.
+### Phase 3 — Backend FastAPI + Admin ⏳ PLANIFIÉE
+**Objectif :** Architecture indépendante, admin autonome, multi-utilisateurs.
 
-- [ ] Authentification (login / mot de passe)
-- [ ] Profils enseignant (matière, niveau, établissement)
-- [ ] Historique des activités générées
-- [ ] Toutes matières : maths, histoire, sciences, langues...
-- [ ] Base de données (SQLite puis PostgreSQL)
-- [ ] Backend FastAPI séparé du frontend
+- [ ] Backend FastAPI (Python)
+- [ ] Base de données SQLite (migration PostgreSQL prévue)
+- [ ] Table `activites` — prompts gérés en BDD, plus dans le code
+- [ ] Interface admin web — ajouter/modifier/supprimer des activités sans code
+- [ ] Authentification enseignants (login/mot de passe)
+- [ ] Profils : matière, niveau, établissement
+- [ ] Historique des activités générées par prof
+- [ ] API REST documentée (Swagger auto FastAPI)
+- [ ] Docker pour isoler backend/frontend/BDD
 
 ---
 
-### Phase 4 — Produit complet
-**Objectif :** Produit finalisé, soigné, partageable.
+### Phase 4 — Produit complet ⏳ PLANIFIÉE
+**Objectif :** Produit finalisé, multi-matières, partageable.
 
-- [ ] Interface React ou Vue.js
-- [ ] Export Word (.docx) en plus du Markdown
+- [ ] Frontend React ou Vue.js
+- [ ] Export Word (.docx)
 - [ ] Partage d'activités entre collègues
 - [ ] Tableau de bord par établissement
-- [ ] Gestion des abonnements (freemium ?)
+- [ ] Toutes matières (maths, histoire, sciences, langues...)
+- [ ] Import PDF (extraits de manuels)
+- [ ] Mode "séquence complète" (toutes activités en une fois)
+- [ ] Application mobile (PWA)
+- [ ] Intégration ENT (Pronote, etc.)
+- [ ] Gestion abonnements (freemium ?)
 - [ ] Documentation utilisateur
 
 ---
 
-## Stack technique détaillée
-
-| Composant | Phase 1-2 | Phase 3-4 |
-|---|---|---|
-| Interface | Streamlit | React / Vue |
-| Backend | — | FastAPI |
-| Base de données | — | SQLite → PostgreSQL |
-| IA | Groq (gratuit) | Groq + Claude |
-| Hébergement | Local | VPS Linux |
-| Déploiement | — | Docker + Nginx |
-| HTTPS | — | Let's Encrypt |
-
----
-
-## Décisions techniques prises
+## Décisions techniques
 
 | Date | Décision | Raison |
 |---|---|---|
-| 16/04/2026 | Groq comme fournisseur IA | Compte Google Workspace (afia.fr) incompatible free tier Gemini |
-| 16/04/2026 | Streamlit pour le frontend Phase 1-2 | Simple, Python, rapide à déployer |
+| 16/04/2026 | Groq comme fournisseur IA | Compte Google Workspace incompatible free tier Gemini |
+| 16/04/2026 | Streamlit Phase 1-2 | Simple, Python, rapide à déployer |
 | 16/04/2026 | Appel HTTP direct (requests) | SDK Google instable sur Windows |
+| 16/04/2026 | Backend FastAPI + BDD Phase 3 | Prompts en base = admin autonome, zéro code pour modifications |
+
+---
+
+## Workflow de modification (validé)
+
+```
+Prof identifie un besoin
+        ↓
+harketti transmet à Claude
+        ↓
+Claude code (prompts.py ou app.py)
+        ↓
+harketti : .\push.ps1 "description"
+        ↓
+VPS : git pull + restart
+        ↓
+Disponible en ligne (~15 min)
+```
+
+**Phase 3 :** Ce workflow devient un simple formulaire admin. Plus de code du tout.
 
 ---
 
@@ -197,26 +275,17 @@ curl http://localhost:8501
 ```
 d:\A-SCHOOL\
 ├── app.py               # Interface Streamlit
+├── push.ps1             # Script push GitHub
 ├── src/
 │   ├── main.py          # CLI
 │   ├── config.py        # Configuration
-│   ├── prompts.py       # Templates de prompts IA
+│   ├── prompts.py       # 15 types d'activités + prompts
 │   ├── generator.py     # Appel API (Groq / Anthropic)
 │   └── formats.py       # Mise en forme Markdown
-├── outputs/             # Activités générées
-├── .env                 # Clé API (ne pas versionner)
+├── outputs/             # Activités générées (non versionné)
+├── .env                 # Clé API (non versionné)
 ├── .env.example         # Template .env
 ├── requirements.txt
 ├── SPEC.md              # Spécification fonctionnelle initiale
 └── ROADMAP.md           # Ce fichier
 ```
-
----
-
-## Notes & idées futures
-
-- Permettre l'import de fichiers PDF (extraits de manuels)
-- Générer des corrigés en option
-- Mode "séquence complète" : générer toutes les activités d'une séquence en une fois
-- Application mobile (PWA)
-- Intégration ENT (Pronote, etc.)
