@@ -1,0 +1,31 @@
+EXEMPLE D’UTILISATION DE L’OUTIL
+--------------------------------
+
+Contexte :
+Un professeur de français de 4e prépare une séquence sur la Nouvelle Réaliste. 
+Il souhaite obtenir rapidement 10 questions de compréhension sur un extrait des Misérables.
+
+Entrée utilisateur :
+- Niveau : 4e
+- Type d’activité : Questions de compréhension
+- Nombre de questions : 10
+- Texte : [extrait fourni par le professeur]
+
+Sortie générée (exemple) :
+1. Où se déroule la scène décrite dans cet extrait ?
+2. Quel est l’état d’esprit du personnage principal au début du passage ?
+3. Quels éléments du texte montrent la pauvreté ou la misère sociale ?
+4. Comment l’auteur décrit-il l’attitude des passants ou des personnages secondaires ?
+5. Quel détail du texte permet de comprendre la situation du personnage ?
+6. Quelle émotion principale se dégage de ce passage ?
+7. Comment le narrateur présente-t-il la ville ou le décor ?
+8. Quel est l’objectif du personnage dans cet extrait ?
+9. Relevez un passage qui illustre le réalisme de la scène.
+10. Selon toi, que veut faire ressentir Victor Hugo au lecteur dans ce passage ?
+
+Utilité pour l’enseignant :
+- Gain de temps immédiat
+- Questions cohérentes et adaptées au niveau
+- Activité prête à l’emploi
+- Possibilité d’affiner ou régénérer les questions
+- Compatible avec n’importe quel texte fourni
