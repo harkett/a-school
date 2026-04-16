@@ -42,6 +42,18 @@ def _gemini(prompt: str) -> str:
     return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
+def transcribe_audio(audio_bytes: bytes) -> str:
+    import requests
+    url = "https://api.groq.com/openai/v1/audio/transcriptions"
+    headers = {"Authorization": f"Bearer {AI_API_KEY}"}
+    files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
+    data = {"model": "whisper-large-v3", "language": "fr"}
+    response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+    if not response.ok:
+        raise RuntimeError(f"Erreur transcription {response.status_code}: {response.text}")
+    return response.json()["text"]
+
+
 def _anthropic(prompt: str) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=AI_API_KEY)

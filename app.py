@@ -3,8 +3,9 @@ from pathlib import Path
 from datetime import date
 
 from src.prompts import build_prompt
-from src.generator import generate
+from src.generator import generate, transcribe_audio
 from src.formats import to_markdown, save
+from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
 
@@ -111,8 +112,23 @@ with col1:
         st.success(f"Fichier chargé : {fichier.name}")
         st.text_area("Contenu du fichier", texte, height=250, disabled=True)
     else:
-        texte = st.text_area("Ou collez votre texte ici", height=300,
-                             placeholder="Extrait des Misérables, d'un poème, d'une nouvelle réaliste...")
+        st.caption("🎤 Dicter le texte (ou coller ci-dessous)")
+        audio = mic_recorder(start_prompt="⏺ Démarrer la dictée", stop_prompt="⏹ Arrêter", key="micro")
+        if audio:
+            with st.spinner("Transcription en cours..."):
+                try:
+                    texte_dicte = transcribe_audio(audio["bytes"])
+                    st.session_state["texte_dicte"] = texte_dicte
+                    st.success("Transcription terminée.")
+                except Exception as e:
+                    st.error(f"Erreur transcription : {e}")
+
+        texte = st.text_area(
+            "Ou collez votre texte ici",
+            value=st.session_state.get("texte_dicte", ""),
+            height=250,
+            placeholder="Extrait des Misérables, d'un poème, d'une nouvelle réaliste...",
+        )
 
 with col2:
     st.subheader("Paramètres")
