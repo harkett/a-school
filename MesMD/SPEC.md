@@ -1,6 +1,9 @@
 # Spécification fonctionnelle et technique  
 ## Outil Python sous VS Code pour générer des activités de français (IA)
 
+> **Vérifié le : 21/04/2026 — État : DOCUMENT HISTORIQUE (Phase 1)**  
+> Ce document décrit les choix initiaux avant développement. La réalité actuelle est dans [ROADMAP.md](ROADMAP.md) et [README.md](README.md). Ne pas utiliser comme référence technique.
+
 ---
 
 ## 1. Objectif général

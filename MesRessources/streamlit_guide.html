@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>streamlit_guide.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="-guide-streamlit--de-zéro-à-une-vraie-app">📘 Guide Streamlit — De zéro à une vraie app</h1>
+<blockquote>
+<p><strong>Version couverte :</strong> Streamlit 1.56.0 (avril 2026)<br>
+<strong>Public :</strong> débutant Python avec expérience en programmation</p>
+</blockquote>
+<hr>
+<h2 id="1-cest-quoi-streamlit-">1. C'est quoi Streamlit ?</h2>
+<p>Streamlit est une bibliothèque Python open source qui transforme un script Python ordinaire en <strong>application web interactive</strong>, sans écrire une seule ligne de HTML, CSS ou JavaScript.</p>
+<p>Tu écris du Python → Streamlit génère l'interface.</p>
+<p><strong>Cas d'usage typiques :</strong></p>
+<ul>
+<li>Tableaux de bord de données</li>
+<li>Démos de modèles de machine learning</li>
+<li>Outils internes (rapports, explorations de données)</li>
+<li>Prototypes d'applications IA</li>
+</ul>
+<p><strong>Philosophie :</strong> <em>&quot;Un script = une app.&quot;</em><br>
+À chaque modification du script, l'app se recharge automatiquement dans le navigateur.</p>
+<hr>
+<h2 id="2-installation">2. Installation</h2>
+<pre class="hljs"><code><div>pip install streamlit
+</div></code></pre>
+<p>Vérifier l'installation :</p>
+<pre class="hljs"><code><div>streamlit hello
+</div></code></pre>
+<p>Cela ouvre une app de démonstration dans le navigateur. Si ça s'affiche, c'est bon.</p>
+<p><strong>Prérequis :</strong> Python 3.10 ou supérieur (depuis la v1.56.0).</p>
+<hr>
+<h2 id="3-lancer-une-app">3. Lancer une app</h2>
+<p>Crée un fichier <code>app.py</code>, puis lance :</p>
+<pre class="hljs"><code><div>streamlit run app.py
+</div></code></pre>
+<p>L'app s'ouvre à l'adresse <code>http://localhost:8501</code>.<br>
+Streamlit surveille le fichier : chaque sauvegarde recharge l'app.</p>
+<hr>
+<h2 id="4-les-bases--afficher-du-contenu">4. Les bases — afficher du contenu</h2>
+<h3 id="texte">Texte</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> streamlit <span class="hljs-keyword">as</span> st
+
+st.title(<span class="hljs-string">&quot;Mon titre principal&quot;</span>)
+st.header(<span class="hljs-string">&quot;Un sous-titre&quot;</span>)
+st.subheader(<span class="hljs-string">&quot;Un sous-sous-titre&quot;</span>)
+st.text(<span class="hljs-string">&quot;Du texte brut, sans mise en forme.&quot;</span>)
+st.markdown(<span class="hljs-string">&quot;Du texte avec **gras**, *italique*, et [liens](https://streamlit.io)&quot;</span>)
+st.write(<span class="hljs-string">&quot;st.write() accepte à peu près n&#x27;importe quoi : texte, données, graphiques...&quot;</span>)
+</div></code></pre>
+<h3 id="données">Données</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+
+df = pd.DataFrame({<span class="hljs-string">&quot;Nom&quot;</span>: [<span class="hljs-string">&quot;Alice&quot;</span>, <span class="hljs-string">&quot;Bob&quot;</span>], <span class="hljs-string">&quot;Age&quot;</span>: [<span class="hljs-number">30</span>, <span class="hljs-number">25</span>]})
+
+st.dataframe(df)        <span class="hljs-comment"># Tableau interactif (tri, scroll)</span>
+st.table(df)            <span class="hljs-comment"># Tableau statique</span>
+st.metric(<span class="hljs-string">&quot;Score&quot;</span>, <span class="hljs-number">42</span>, delta=+<span class="hljs-number">5</span>)   <span class="hljs-comment"># Métrique avec variation</span>
+</div></code></pre>
+<h3 id="médias">Médias</h3>
+<pre class="hljs"><code><div>st.image(<span class="hljs-string">&quot;photo.jpg&quot;</span>, caption=<span class="hljs-string">&quot;Une image&quot;</span>)
+st.audio(<span class="hljs-string">&quot;son.mp3&quot;</span>)
+st.video(<span class="hljs-string">&quot;video.mp4&quot;</span>)
+</div></code></pre>
+<hr>
+<h2 id="5-les-widgets--interactivité">5. Les widgets — interactivité</h2>
+<p>Les widgets captent les actions de l'utilisateur et retournent une valeur Python.</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Bouton</span>
+<span class="hljs-keyword">if</span> st.button(<span class="hljs-string">&quot;Clique ici&quot;</span>):
+    st.write(<span class="hljs-string">&quot;Bouton cliqué !&quot;</span>)
+
+<span class="hljs-comment"># Zone de texte</span>
+nom = st.text_input(<span class="hljs-string">&quot;Ton prénom :&quot;</span>)
+st.write(<span class="hljs-string">f&quot;Bonjour, <span class="hljs-subst">{nom}</span>&quot;</span>)
+
+<span class="hljs-comment"># Curseur</span>
+age = st.slider(<span class="hljs-string">&quot;Ton âge&quot;</span>, min_value=<span class="hljs-number">0</span>, max_value=<span class="hljs-number">100</span>, value=<span class="hljs-number">25</span>)
+
+<span class="hljs-comment"># Menu déroulant</span>
+couleur = st.selectbox(<span class="hljs-string">&quot;Couleur préférée&quot;</span>, [<span class="hljs-string">&quot;Rouge&quot;</span>, <span class="hljs-string">&quot;Vert&quot;</span>, <span class="hljs-string">&quot;Bleu&quot;</span>])
+
+<span class="hljs-comment"># Cases à cocher</span>
+actif = st.checkbox(<span class="hljs-string">&quot;Activer l&#x27;option&quot;</span>)
+
+<span class="hljs-comment"># Boutons radio</span>
+choix = st.radio(<span class="hljs-string">&quot;Choisis&quot;</span>, [<span class="hljs-string">&quot;Option A&quot;</span>, <span class="hljs-string">&quot;Option B&quot;</span>])
+
+<span class="hljs-comment"># Sélection multiple</span>
+tags = st.multiselect(<span class="hljs-string">&quot;Tags&quot;</span>, [<span class="hljs-string">&quot;Python&quot;</span>, <span class="hljs-string">&quot;Data&quot;</span>, <span class="hljs-string">&quot;IA&quot;</span>, <span class="hljs-string">&quot;Web&quot;</span>])
+
+<span class="hljs-comment"># Téléversement de fichier</span>
+fichier = st.file_uploader(<span class="hljs-string">&quot;Importe un CSV&quot;</span>)
+
+<span class="hljs-comment"># Saisie de date</span>
+<span class="hljs-keyword">from</span> datetime <span class="hljs-keyword">import</span> date
+jour = st.date_input(<span class="hljs-string">&quot;Date&quot;</span>, value=date.today())
+
+<span class="hljs-comment"># Saisie date + heure (nouveau en v1.52.0)</span>
+moment = st.datetime_input(<span class="hljs-string">&quot;Date et heure&quot;</span>)
+</div></code></pre>
+<p><strong>Principe fondamental :</strong> Streamlit réexécute tout le script de haut en bas à chaque interaction. Les widgets retournent leur valeur courante à chaque passage.</p>
+<hr>
+<h2 id="6-mise-en-page">6. Mise en page</h2>
+<h3 id="colonnes">Colonnes</h3>
+<pre class="hljs"><code><div>col1, col2, col3 = st.columns(<span class="hljs-number">3</span>)
+
+<span class="hljs-keyword">with</span> col1:
+    st.write(<span class="hljs-string">&quot;Colonne 1&quot;</span>)
+<span class="hljs-keyword">with</span> col2:
+    st.write(<span class="hljs-string">&quot;Colonne 2&quot;</span>)
+<span class="hljs-keyword">with</span> col3:
+    st.write(<span class="hljs-string">&quot;Colonne 3&quot;</span>)
+</div></code></pre>
+<h3 id="sidebar-barre-latérale">Sidebar (barre latérale)</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">with</span> st.sidebar:
+    st.title(<span class="hljs-string">&quot;Menu&quot;</span>)
+    page = st.selectbox(<span class="hljs-string">&quot;Navigation&quot;</span>, [<span class="hljs-string">&quot;Accueil&quot;</span>, <span class="hljs-string">&quot;Données&quot;</span>, <span class="hljs-string">&quot;Graphiques&quot;</span>])
+</div></code></pre>
+<h3 id="expander-section-repliable">Expander (section repliable)</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">with</span> st.expander(<span class="hljs-string">&quot;Voir les détails&quot;</span>, on_change=ma_fonction):
+    st.write(<span class="hljs-string">&quot;Contenu caché au départ.&quot;</span>)
+</div></code></pre>
+<blockquote>
+<p>💡 <strong>Nouveau en v1.55.0 :</strong> <code>on_change</code> sur les expanders, tabs et popovers permet de déclencher du code quand l'utilisateur ouvre/ferme le panneau.</p>
+</blockquote>
+<h3 id="tabs-onglets">Tabs (onglets)</h3>
+<pre class="hljs"><code><div>tab1, tab2 = st.tabs([<span class="hljs-string">&quot;Résultats&quot;</span>, <span class="hljs-string">&quot;Paramètres&quot;</span>])
+
+<span class="hljs-keyword">with</span> tab1:
+    st.write(<span class="hljs-string">&quot;Contenu de l&#x27;onglet 1&quot;</span>)
+<span class="hljs-keyword">with</span> tab2:
+    st.write(<span class="hljs-string">&quot;Contenu de l&#x27;onglet 2&quot;</span>)
+</div></code></pre>
+<h3 id="popover">Popover</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">with</span> st.popover(<span class="hljs-string">&quot;ℹ️ Aide&quot;</span>):
+    st.write(<span class="hljs-string">&quot;Explication contextuelle qui s&#x27;affiche en popup.&quot;</span>)
+</div></code></pre>
+<hr>
+<h2 id="7-graphiques">7. Graphiques</h2>
+<p>Streamlit s'intègre nativement avec les grandes bibliothèques de visualisation.</p>
+<h3 id="graphiques-natifs-simples">Graphiques natifs (simples)</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd
+<span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np
+
+df = pd.DataFrame(np.random.randn(<span class="hljs-number">50</span>, <span class="hljs-number">2</span>), columns=[<span class="hljs-string">&quot;x&quot;</span>, <span class="hljs-string">&quot;y&quot;</span>])
+
+st.line_chart(df)
+st.bar_chart(df)
+st.area_chart(df)
+st.scatter_chart(df)
+</div></code></pre>
+<h3 id="matplotlib--seaborn">Matplotlib / Seaborn</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> matplotlib.pyplot <span class="hljs-keyword">as</span> plt
+
+fig, ax = plt.subplots()
+ax.plot([<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>], [<span class="hljs-number">4</span>, <span class="hljs-number">5</span>, <span class="hljs-number">6</span>])
+st.pyplot(fig)
+</div></code></pre>
+<h3 id="plotly-interactif">Plotly (interactif)</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> plotly.express <span class="hljs-keyword">as</span> px
+
+fig = px.scatter(df, x=<span class="hljs-string">&quot;x&quot;</span>, y=<span class="hljs-string">&quot;y&quot;</span>, title=<span class="hljs-string">&quot;Mon nuage de points&quot;</span>)
+st.plotly_chart(fig)
+</div></code></pre>
+<h3 id="altair">Altair</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> altair <span class="hljs-keyword">as</span> alt
+
+chart = alt.Chart(df).mark_circle().encode(x=<span class="hljs-string">&quot;x&quot;</span>, y=<span class="hljs-string">&quot;y&quot;</span>)
+st.altair_chart(chart, use_container_width=<span class="hljs-literal">True</span>)
+</div></code></pre>
+<hr>
+<h2 id="8-formulaires">8. Formulaires</h2>
+<p>Un formulaire regroupe plusieurs widgets et n'envoie les valeurs qu'au clic du bouton de soumission.</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">with</span> st.form(<span class="hljs-string">&quot;mon_formulaire&quot;</span>):
+    nom = st.text_input(<span class="hljs-string">&quot;Nom&quot;</span>)
+    age = st.slider(<span class="hljs-string">&quot;Âge&quot;</span>, <span class="hljs-number">0</span>, <span class="hljs-number">100</span>)
+    soumettre = st.form_submit_button(<span class="hljs-string">&quot;Envoyer&quot;</span>)
+
+<span class="hljs-keyword">if</span> soumettre:
+    st.write(<span class="hljs-string">f&quot;Reçu : <span class="hljs-subst">{nom}</span>, <span class="hljs-subst">{age}</span> ans&quot;</span>)
+</div></code></pre>
+<hr>
+<h2 id="9-le-cache--optimiser-les-performances">9. Le cache — optimiser les performances</h2>
+<p>Par défaut, Streamlit réexécute tout le script à chaque interaction. Pour éviter de recharger des données lourdes à chaque fois, on utilise le cache.</p>
+<pre class="hljs"><code><div><span class="hljs-meta">@st.cache_data</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">charger_donnees</span>():
+    <span class="hljs-comment"># Exécuté une seule fois, résultat mis en cache</span>
+    df = pd.read_csv(<span class="hljs-string">&quot;gros_fichier.csv&quot;</span>)
+    <span class="hljs-keyword">return</span> df
+
+df = charger_donnees()
+</div></code></pre>
+<pre class="hljs"><code><div><span class="hljs-meta">@st.cache_resource</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">charger_modele</span>():
+    <span class="hljs-comment"># Pour les ressources partagées (modèles ML, connexions BD...)</span>
+    <span class="hljs-keyword">import</span> pickle
+    <span class="hljs-keyword">with</span> <span class="hljs-built_in">open</span>(<span class="hljs-string">&quot;modele.pkl&quot;</span>, <span class="hljs-string">&quot;rb&quot;</span>) <span class="hljs-keyword">as</span> f:
+        <span class="hljs-keyword">return</span> pickle.load(f)
+</div></code></pre>
+<p><strong>Règle simple :</strong></p>
+<ul>
+<li><code>@st.cache_data</code> → pour les données (DataFrames, listes, dicts)</li>
+<li><code>@st.cache_resource</code> → pour les ressources lourdes partagées (modèles, connexions)</li>
+</ul>
+<hr>
+<h2 id="10-le-session-state--mémoriser-des-valeurs">10. Le Session State — mémoriser des valeurs</h2>
+<p>Par défaut, les variables Python sont réinitialisées à chaque réexécution. Pour conserver une valeur entre deux interactions, on utilise <code>st.session_state</code>.</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Initialiser</span>
+<span class="hljs-keyword">if</span> <span class="hljs-string">&quot;compteur&quot;</span> <span class="hljs-keyword">not</span> <span class="hljs-keyword">in</span> st.session_state:
+    st.session_state.compteur = <span class="hljs-number">0</span>
+
+<span class="hljs-comment"># Modifier</span>
+<span class="hljs-keyword">if</span> st.button(<span class="hljs-string">&quot;Incrémenter&quot;</span>):
+    st.session_state.compteur += <span class="hljs-number">1</span>
+
+st.write(<span class="hljs-string">f&quot;Compteur : <span class="hljs-subst">{st.session_state.compteur}</span>&quot;</span>)
+</div></code></pre>
+<p>C'est essentiel pour : les conversations (chatbots), les workflows multi-étapes, les paniers, etc.</p>
+<hr>
+<h2 id="11-applications-multi-pages">11. Applications multi-pages</h2>
+<p>Depuis la v1.36.0+, Streamlit gère nativement les apps multi-pages.</p>
+<p><strong>Structure recommandée :</strong></p>
+<pre class="hljs"><code><div>mon_app/
+├── app.py          ← point d'entrée principal
+└── pages/
+    ├── 1_accueil.py
+    ├── 2_donnees.py
+    └── 3_graphiques.py
+</div></code></pre>
+<p>Streamlit crée automatiquement un menu de navigation dans la sidebar.</p>
+<p><strong>Navigation programmatique avec <code>st.navigation</code> (depuis v1.36.0) :</strong></p>
+<pre class="hljs"><code><div><span class="hljs-comment"># app.py</span>
+<span class="hljs-keyword">import</span> streamlit <span class="hljs-keyword">as</span> st
+
+pages = [
+    st.Page(<span class="hljs-string">&quot;pages/accueil.py&quot;</span>, title=<span class="hljs-string">&quot;Accueil&quot;</span>),
+    st.Page(<span class="hljs-string">&quot;pages/donnees.py&quot;</span>, title=<span class="hljs-string">&quot;Données&quot;</span>),
+]
+
+pg = st.navigation(pages, position=<span class="hljs-string">&quot;top&quot;</span>)  <span class="hljs-comment"># position=&quot;top&quot; : nav en haut</span>
+pg.run()
+</div></code></pre>
+<blockquote>
+<p>💡 <strong>Nouveau en v1.55.0 :</strong> <code>st.Page</code> a un paramètre <code>visibility</code> pour cacher des pages du menu tout en les gardant accessibles par URL.</p>
+</blockquote>
+<hr>
+<h2 id="12-authentification-v1420">12. Authentification (v1.42.0+)</h2>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> streamlit <span class="hljs-keyword">as</span> st
+
+st.login()   <span class="hljs-comment"># Redirige vers un fournisseur OpenID Connect (Google, GitHub, etc.)</span>
+
+<span class="hljs-keyword">if</span> st.user.is_logged_in:
+    st.write(<span class="hljs-string">f&quot;Bienvenue, <span class="hljs-subst">{st.user.name}</span> !&quot;</span>)
+    <span class="hljs-keyword">if</span> st.button(<span class="hljs-string">&quot;Déconnexion&quot;</span>):
+        st.logout()
+</div></code></pre>
+<p>La configuration du fournisseur se fait dans <code>.streamlit/secrets.toml</code>.</p>
+<hr>
+<h2 id="13-chat-et-ia">13. Chat et IA</h2>
+<p>Streamlit a des composants dédiés aux interfaces de type chatbot.</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> streamlit <span class="hljs-keyword">as</span> st
+
+st.title(<span class="hljs-string">&quot;Mon Chatbot&quot;</span>)
+
+<span class="hljs-comment"># Afficher l&#x27;historique</span>
+<span class="hljs-keyword">for</span> message <span class="hljs-keyword">in</span> st.session_state.get(<span class="hljs-string">&quot;messages&quot;</span>, []):
+    <span class="hljs-keyword">with</span> st.chat_message(message[<span class="hljs-string">&quot;role&quot;</span>]):
+        st.write(message[<span class="hljs-string">&quot;content&quot;</span>])
+
+<span class="hljs-comment"># Saisie utilisateur</span>
+<span class="hljs-keyword">if</span> prompt := st.chat_input(<span class="hljs-string">&quot;Écris ton message...&quot;</span>):
+    <span class="hljs-comment"># Sauvegarder et afficher le message utilisateur</span>
+    st.session_state.messages = st.session_state.get(<span class="hljs-string">&quot;messages&quot;</span>, [])
+    st.session_state.messages.append({<span class="hljs-string">&quot;role&quot;</span>: <span class="hljs-string">&quot;user&quot;</span>, <span class="hljs-string">&quot;content&quot;</span>: prompt})
+
+    <span class="hljs-keyword">with</span> st.chat_message(<span class="hljs-string">&quot;user&quot;</span>):
+        st.write(prompt)
+
+    <span class="hljs-comment"># Réponse de l&#x27;assistant</span>
+    <span class="hljs-keyword">with</span> st.chat_message(<span class="hljs-string">&quot;assistant&quot;</span>):
+        reponse = <span class="hljs-string">f&quot;Tu as dit : <span class="hljs-subst">{prompt}</span>&quot;</span>  <span class="hljs-comment"># Remplace par ton modèle ici</span>
+        st.write(reponse)
+        st.session_state.messages.append({<span class="hljs-string">&quot;role&quot;</span>: <span class="hljs-string">&quot;assistant&quot;</span>, <span class="hljs-string">&quot;content&quot;</span>: reponse})
+</div></code></pre>
+<blockquote>
+<p>💡 <strong>Depuis v1.52.0 :</strong> <code>st.chat_input</code> accepte aussi des <strong>fichiers audio</strong> en entrée.</p>
+</blockquote>
+<hr>
+<h2 id="14-nouveautés-importantes--v1550-et-v1560">14. Nouveautés importantes — v1.55.0 et v1.56.0</h2>
+<h3 id="widget-binding-v1550">Widget Binding (v1.55.0)</h3>
+<p>Synchronise automatiquement un widget avec les query parameters de l'URL :</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># La valeur du slider est reflétée dans l&#x27;URL : ?age=30</span>
+age = st.slider(<span class="hljs-string">&quot;Âge&quot;</span>, <span class="hljs-number">0</span>, <span class="hljs-number">100</span>, bind=<span class="hljs-string">&quot;age&quot;</span>)
+</div></code></pre>
+<p>Très utile pour partager un état d'app via un lien.</p>
+<h3 id="images-cliquables-v1550">Images cliquables (v1.55.0)</h3>
+<pre class="hljs"><code><div>st.image(<span class="hljs-string">&quot;photo.jpg&quot;</span>, link=<span class="hljs-string">&quot;https://exemple.com&quot;</span>)
+</div></code></pre>
+<h3 id="couleurs-css-arbitraires-dans-le-markdown-v1550">Couleurs CSS arbitraires dans le Markdown (v1.55.0)</h3>
+<pre class="hljs"><code><div>st.markdown(<span class="hljs-string">&quot;Texte en :color[red]{rouge} et :background-color[yellow]{surligné}&quot;</span>)
+</div></code></pre>
+<h3 id="stmetric-amélioré-v1550">st.metric amélioré (v1.55.0)</h3>
+<pre class="hljs"><code><div>st.metric(
+    label=<span class="hljs-string">&quot;Chiffre d&#x27;affaires&quot;</span>,
+    value=<span class="hljs-string">&quot;120 000 €&quot;</span>,
+    delta=<span class="hljs-string">&quot;+15%&quot;</span>,
+    delta_description=<span class="hljs-string">&quot;par rapport au mois dernier&quot;</span>  <span class="hljs-comment"># nouveau</span>
+)
+</div></code></pre>
+<h3 id="sélection-multiple-en-un-clic-v1550">Sélection multiple en un clic (v1.55.0)</h3>
+<p><code>st.multiselect</code> affiche désormais un bouton &quot;Tout sélectionner&quot;.</p>
+<hr>
+<h2 id="15-configuration-et-thème">15. Configuration et thème</h2>
+<p>Crée un fichier <code>.streamlit/config.toml</code> à la racine du projet :</p>
+<pre class="hljs"><code><div><span class="hljs-section">[theme]</span>
+<span class="hljs-attr">primaryColor</span> = <span class="hljs-string">&quot;#F63366&quot;</span>
+<span class="hljs-attr">backgroundColor</span> = <span class="hljs-string">&quot;#FFFFFF&quot;</span>
+<span class="hljs-attr">secondaryBackgroundColor</span> = <span class="hljs-string">&quot;#F0F2F6&quot;</span>
+<span class="hljs-attr">textColor</span> = <span class="hljs-string">&quot;#262730&quot;</span>
+<span class="hljs-attr">font</span> = <span class="hljs-string">&quot;sans serif&quot;</span>
+
+<span class="hljs-section">[server]</span>
+<span class="hljs-attr">port</span> = <span class="hljs-number">8501</span>
+<span class="hljs-attr">headless</span> = <span class="hljs-literal">true</span>   <span class="hljs-comment"># utile pour le déploiement</span>
+</div></code></pre>
+<hr>
+<h2 id="16-déploiement">16. Déploiement</h2>
+<h3 id="streamlit-community-cloud-gratuit">Streamlit Community Cloud (gratuit)</h3>
+<ol>
+<li>Pousse ton code sur GitHub</li>
+<li>Va sur <a href="https://share.streamlit.io">share.streamlit.io</a></li>
+<li>Connecte ton dépôt → l'app est en ligne en 2 minutes</li>
+</ol>
+<h3 id="docker">Docker</h3>
+<pre class="hljs"><code><div><span class="hljs-keyword">FROM</span> python:<span class="hljs-number">3.11</span>-slim
+<span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span>
+<span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span>
+<span class="hljs-keyword">RUN</span><span class="language-bash"> pip install -r requirements.txt</span>
+<span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span>
+<span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8501</span>
+<span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;streamlit&quot;</span>, <span class="hljs-string">&quot;run&quot;</span>, <span class="hljs-string">&quot;app.py&quot;</span>, <span class="hljs-string">&quot;--server.headless=true&quot;</span>]</span>
+</div></code></pre>
+<h3 id="autres-options">Autres options</h3>
+<ul>
+<li><strong>Snowflake</strong> (intégration native depuis 2024)</li>
+<li><strong>Heroku, Render, Railway</strong> (via Docker ou buildpack Python)</li>
+<li><strong>AWS / GCP / Azure</strong> (via conteneur)</li>
+</ul>
+<hr>
+<h2 id="17-bonnes-pratiques">17. Bonnes pratiques</h2>
+<table>
+<thead>
+<tr>
+<th>✅ À faire</th>
+<th>❌ À éviter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mettre le cache sur les fonctions lentes</td>
+<td>Lire un gros fichier sans cache</td>
+</tr>
+<tr>
+<td>Utiliser <code>st.session_state</code> pour l'état</td>
+<td>Utiliser des variables globales</td>
+</tr>
+<tr>
+<td>Organiser en pages pour les grandes apps</td>
+<td>Tout mettre dans un seul fichier de 500 lignes</td>
+</tr>
+<tr>
+<td>Tester avec <code>AppTest</code> (framework de test intégré)</td>
+<td>Ne jamais tester</td>
+</tr>
+<tr>
+<td>Garder les secrets dans <code>secrets.toml</code></td>
+<td>Hardcoder des mots de passe dans le code</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="18-ressources-utiles">18. Ressources utiles</h2>
+<table>
+<thead>
+<tr>
+<th>Ressource</th>
+<th>Lien</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Documentation officielle</td>
+<td>https://docs.streamlit.io</td>
+</tr>
+<tr>
+<td>Cheat sheet (référence rapide)</td>
+<td>https://docs.streamlit.io/develop/quick-reference/cheat-sheet</td>
+</tr>
+<tr>
+<td>Galerie d'exemples</td>
+<td>https://streamlit.io/gallery</td>
+</tr>
+<tr>
+<td>Forum communautaire</td>
+<td>https://discuss.streamlit.io</td>
+</tr>
+<tr>
+<td>Code source (GitHub)</td>
+<td>https://github.com/streamlit/streamlit</td>
+</tr>
+<tr>
+<td>Déploiement gratuit</td>
+<td>https://share.streamlit.io</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><em>Document généré pour Streamlit 1.56.0 — Avril 2026</em></p>
+
+</body>
+</html>

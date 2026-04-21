@@ -1,6 +1,7 @@
 # A-SCHOOL Platform — Roadmap & Suivi de projet
 
-**Dernière mise à jour :** 16/04/2026  
+> **Vérifié le : 21/04/2026 — État : à jour**
+
 **Responsable :** harketti@afia.fr
 
 ---
@@ -60,6 +61,16 @@ Table "activites" :
 - VPS : **AfiaCloud** — Ubuntu 24.04 LTS, 4 CPU, 12 Go RAM, 250 Go stockage
 - URL : **https://school.afia.fr**
 - Déploiement : Docker + Nginx + HTTPS (Let's Encrypt)
+
+---
+
+## À propos de Streamlit
+
+Streamlit est une bibliothèque Python open source qui transforme un script Python ordinaire en application web interactive, sans écrire une seule ligne de HTML, CSS ou JavaScript.
+
+C'est la technologie d'interface retenue pour les phases 1 et 2 du projet A-SCHOOL : elle permet de livrer rapidement une interface utilisable par les enseignants sans infrastructure front-end complexe.
+
+Pour plus de détails, voir [streamlit_guide.md](../../A-GUIDE/streamlit_guide.md) dans le dossier `D:\A-GUIDE`.
 
 ---
 

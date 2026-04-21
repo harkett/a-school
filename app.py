@@ -13,38 +13,136 @@ st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_
 # ── Styles ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .block-container { padding-top: 1.5rem; }
+    /* Layout général */
+    .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; }
 
-    /* Cache le label du file uploader */
+    /* Header custom */
+    .aschool-header {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+        color: white;
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+    .aschool-header h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: white !important;
+    }
+    .aschool-header p {
+        margin: 0.3rem 0 0 0;
+        font-size: 0.95rem;
+        opacity: 0.85;
+        color: white !important;
+    }
+    .aschool-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.15rem 0.6rem;
+        border-radius: 20px;
+        margin-bottom: 0.6rem;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    /* Cartes panneaux */
+    .aschool-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        margin-bottom: 1rem;
+    }
+    .aschool-card h3 {
+        margin: 0 0 1rem 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #64748b;
+    }
+
+    /* Résultat */
+    .aschool-result {
+        background: #f8faff;
+        border: 1px solid #bfdbfe;
+        border-left: 4px solid #1e3a8a;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    /* Widgets */
     [data-testid="stFileUploader"] label { display: none; }
-
-    /* Désactive la saisie dans les combos */
     [data-testid="stSelectbox"] input { pointer-events: none !important; caret-color: transparent !important; }
 
-    /* Zone micro : même fond gris que Upload */
+    /* Sélects et sliders */
+    [data-testid="stSelectbox"] > div > div {
+        border-radius: 8px !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    /* Zone micro */
     [data-testid="stColumn"]:has(audio) [data-testid="stVerticalBlock"] {
-        background-color: rgb(240, 242, 246);
+        background-color: #f0f4f8;
         border-radius: 8px;
         padding: 0.75rem 1rem;
         min-height: 88px;
     }
-
-    /* Bouton micro : même style que bouton Upload */
     [data-testid="stColumn"]:has(audio) button {
         background-color: white !important;
-        color: rgb(49, 51, 63) !important;
-        border: 1px solid rgba(49, 51, 63, 0.2) !important;
-        border-radius: 4px !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
         padding: 0.25rem 0.75rem !important;
         font-size: 0.875rem !important;
         font-weight: 400 !important;
         box-shadow: none !important;
     }
+
+    /* Bouton générer */
+    [data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, #1e3a8a, #2563eb) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.3px !important;
+        padding: 0.6rem 1.5rem !important;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.3) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    /* Boutons téléchargement */
+    [data-testid="stDownloadButton"] > button {
+        border-radius: 8px !important;
+        border-color: #1e3a8a !important;
+        color: #1e3a8a !important;
+        font-weight: 500 !important;
+    }
+
+    /* Séparateurs */
+    hr { border-color: #e2e8f0 !important; margin: 1.25rem 0 !important; }
+
+    /* Captions */
+    [data-testid="stCaptionContainer"] { color: #94a3b8 !important; font-size: 0.8rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("A-SCHOOL — Générateur d'activités pédagogiques")
-st.caption("Choisissez une activité et fournissez un texte — l'IA génère l'activité en quelques secondes.")
+# Header custom
+st.markdown("""
+<div class="aschool-header">
+    <div class="aschool-badge">Bêta — Français</div>
+    <h1>A-SCHOOL</h1>
+    <p>Générateur d'activités pédagogiques par IA — Collez un texte, choisissez une activité, générez en quelques secondes.</p>
+</div>
+""", unsafe_allow_html=True)
 
 # ── Configuration des activités ───────────────────────────────────────────────
 ACTIVITES = {
@@ -160,7 +258,7 @@ def to_docx(texte: str) -> bytes:
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.subheader("Texte")
+    st.markdown('<div class="aschool-card"><h3>Texte source</h3>', unsafe_allow_html=True)
 
     c_upload, c_micro = st.columns([1, 1])
     with c_upload:
@@ -202,7 +300,7 @@ with col1:
         )
 
 with col2:
-    st.subheader("Paramètres")
+    st.markdown('<div class="aschool-card"><h3>Paramètres</h3>', unsafe_allow_html=True)
 
     niveau = st.selectbox("Niveau de la classe", ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Supérieur"], index=2)
 
@@ -266,13 +364,13 @@ if st.session_state.get("resultat"):
     st.divider()
     col_titre, col_fermer = st.columns([5, 1])
     with col_titre:
-        st.subheader("Résultat")
+        st.markdown("### Résultat généré")
     with col_fermer:
         if st.button("Fermer", use_container_width=True):
             st.session_state["resultat"] = None
             st.rerun()
 
-    st.markdown(resultat)
+    st.markdown(f'<div class="aschool-result">{resultat}</div>', unsafe_allow_html=True)
 
     st.divider()
     col_dl1, col_dl2 = st.columns(2)

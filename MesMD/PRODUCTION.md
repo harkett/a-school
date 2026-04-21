@@ -1,6 +1,7 @@
 # A-SCHOOL — Guide de Production
 
-**Mis en production le :** 16/04/2026  
+> **Vérifié le : 21/04/2026 — État : à jour**
+
 **URL :** https://school.afia.fr  
 **Responsable :** harketti@afia.fr
 
