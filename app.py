@@ -6,46 +6,15 @@ from datetime import date
 from src.prompts import build_prompt
 from src.generator import generate, transcribe_audio, transcribe_image
 from src.formats import to_markdown, save
-from src.auth import (generate_magic_token, verify_magic_token,
+from src.auth import (generate_magic_token, verify_magic_token, peek_magic_token,
                       send_magic_link, get_current_user, notify_admin_connexion,
                       create_session, get_session, delete_session)
+from streamlit_cookies_controller import CookieController
 from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
 
-SESSION_COOKIE = "aschool_session"
-SESSION_MAX_AGE = 30 * 24 * 3600
-
-
-def _read_cookie() -> str | None:
-    """Lit le cookie de session depuis les headers HTTP — aucun rerun parasite."""
-    try:
-        raw = st.context.headers.get("Cookie", "")
-        for part in raw.split(";"):
-            part = part.strip()
-            if "=" in part:
-                k, v = part.split("=", 1)
-                if k.strip() == SESSION_COOKIE:
-                    return v.strip()
-    except Exception:
-        pass
-    return None
-
-
-def _set_cookie(token: str):
-    """Pose le cookie via JS — effet au prochain chargement de page."""
-    st.components.v1.html(
-        f'<script>document.cookie="{SESSION_COOKIE}={token}; max-age={SESSION_MAX_AGE}; path=/; SameSite=Lax";</script>',
-        height=0,
-    )
-
-
-def _delete_cookie():
-    """Supprime le cookie via JS."""
-    st.components.v1.html(
-        f'<script>document.cookie="{SESSION_COOKIE}=; max-age=0; path=/";</script>',
-        height=0,
-    )
+_cookies = CookieController()
 
 
 def _get_webmail_url(email: str) -> str | None:
@@ -62,46 +31,72 @@ def _get_webmail_url(email: str) -> str | None:
         return "https://messagerie.orange.fr"
     return None
 
-# ── 1. Restauration session depuis cookie (headers HTTP, sans rerun) ─────────
+# ── Restauration session depuis cookie ───────────────────────────────────────
 if not st.session_state.get("user_email"):
-    _raw_token = _read_cookie()
-    if _raw_token:
-        _session_data = get_session(_raw_token)
+    try:
+        _session_token = _cookies.get("aschool_session")
+    except Exception:
+        _session_token = None
+    if _session_token:
+        _session_data = get_session(_session_token)
         if _session_data:
             st.session_state["user_email"] = _session_data["email"]
             st.session_state["matiere"] = _session_data["matiere"]
-            st.session_state["session_token"] = _raw_token
+            st.session_state["session_token"] = _session_token
 
-# ── 2. Logout via URL ────────────────────────────────────────────────────────
+# ── Logout via URL ────────────────────────────────────────────────────────────
 if "logout" in st.query_params:
-    _tok = st.session_state.pop("session_token", None)
-    if _tok:
-        delete_session(_tok)
-    _delete_cookie()
+    _token = st.session_state.pop("session_token", None)
+    if _token:
+        delete_session(_token)
+        _cookies.remove("aschool_session")
     st.session_state.pop("user_email", None)
     st.session_state.pop("user_name", None)
     st.query_params.clear()
     st.rerun()
 
-# ── 3. Token Magic link ───────────────────────────────────────────────────────
+# ── Page de confirmation Magic link (token jamais consommé au chargement) ─────
 params = st.query_params
 if "token" in params and not st.session_state.get("user_email"):
-    result = verify_magic_token(params["token"])
-    if result:
-        st.session_state["user_email"] = result["email"]
-        st.session_state["matiere"] = result["matiere"]
-        _tok = create_session(result["email"], result["matiere"])
-        st.session_state["session_token"] = _tok
-        _set_cookie(_tok)
-        st.query_params.clear()
-        try:
-            notify_admin_connexion(result["email"], "A-SCHOOL : Générateur d'activités pédagogiques")
-        except Exception as e:
-            st.session_state["notif_error"] = str(e)
-        st.rerun()
-    else:
+    _token_val = params["token"]
+    _preview = peek_magic_token(_token_val)
+    if not _preview:
         st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
         st.stop()
+    # Affiche une page de confirmation — évite la consommation par les previews email
+    st.markdown("""
+    <style>
+        .block-container { padding-top: 5rem; max-width: 480px; }
+        #MainMenu, header, [data-testid="stToolbar"],
+        [data-testid="stSidebar"], [data-testid="collapsedControl"] { display: none !important; }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);
+                border-radius:12px; padding:2rem; text-align:center; margin-bottom:2rem;">
+        <h1 style="color:white; margin:0; font-size:2rem;">A-SCHOOL</h1>
+        <p style="color:rgba(255,255,255,0.85); margin:0.5rem 0 0 0;">
+            Connexion pour <strong>{_preview["email"]}</strong>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Se connecter", type="primary", use_container_width=True):
+        result = verify_magic_token(_token_val)
+        if result:
+            st.session_state["user_email"] = result["email"]
+            st.session_state["matiere"] = result["matiere"]
+            _tok = create_session(result["email"], result["matiere"])
+            st.session_state["session_token"] = _tok
+            _cookies.set("aschool_session", _tok, max_age=30 * 24 * 3600)
+            st.query_params.clear()
+            try:
+                notify_admin_connexion(result["email"], "A-SCHOOL : Générateur d'activités pédagogiques")
+            except Exception:
+                pass
+            st.rerun()
+        else:
+            st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
+    st.stop()
     st.rerun()
 
 # ── Page de connexion ─────────────────────────────────────────────────────────

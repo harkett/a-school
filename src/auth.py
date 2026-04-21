@@ -39,7 +39,19 @@ def generate_magic_token(email: str, matiere: str = "Français") -> str:
     return token
 
 
+def peek_magic_token(token: str) -> dict | None:
+    """Vérifie que le token est valide SANS le consommer."""
+    tokens = _load_tokens()
+    entry = tokens.get(token)
+    if not entry:
+        return None
+    if datetime.fromisoformat(entry["expires"]) < datetime.now():
+        return None
+    return {"email": entry["email"], "matiere": entry.get("matiere", "Français")}
+
+
 def verify_magic_token(token: str) -> dict | None:
+    """Vérifie et consomme le token (usage unique)."""
     tokens = _load_tokens()
     entry = tokens.get(token)
     if not entry:
