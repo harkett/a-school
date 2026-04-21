@@ -14,8 +14,6 @@ from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
 
-_cookies = CookieController()
-
 
 def _get_webmail_url(email: str) -> str | None:
     domain = email.split("@")[-1].lower()
@@ -31,7 +29,34 @@ def _get_webmail_url(email: str) -> str | None:
         return "https://messagerie.orange.fr"
     return None
 
-# ── Restauration session depuis cookie ───────────────────────────────────────
+# ── 1. Token Magic link — vérifié AVANT le CookieController ─────────────────
+params = st.query_params
+if "token" in params and not st.session_state.get("user_email"):
+    result = verify_magic_token(params["token"])
+    if result:
+        st.session_state["user_email"] = result["email"]
+        st.session_state["matiere"] = result["matiere"]
+        _tok = create_session(result["email"], result["matiere"])
+        st.session_state["session_token"] = _tok
+        st.session_state["_pending_cookie"] = _tok
+        st.query_params.clear()
+        try:
+            notify_admin_connexion(result["email"], "A-SCHOOL : Générateur d'activités pédagogiques")
+        except Exception as e:
+            st.session_state["notif_error"] = str(e)
+        st.rerun()
+    else:
+        st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
+        st.stop()
+
+# ── 2. CookieController — initialisé après le token check ───────────────────
+_cookies = CookieController()
+
+# ── 3. Poser le cookie si un token vient d'être validé ──────────────────────
+if st.session_state.get("_pending_cookie"):
+    _cookies.set("aschool_session", st.session_state.pop("_pending_cookie"), max_age=30 * 24 * 3600)
+
+# ── 4. Restauration session depuis cookie ────────────────────────────────────
 if not st.session_state.get("user_email"):
     try:
         _session_token = _cookies.get("aschool_session")
@@ -44,7 +69,7 @@ if not st.session_state.get("user_email"):
             st.session_state["matiere"] = _session_data["matiere"]
             st.session_state["session_token"] = _session_token
 
-# ── Logout via URL ────────────────────────────────────────────────────────────
+# ── 5. Logout via URL ────────────────────────────────────────────────────────
 if "logout" in st.query_params:
     _token = st.session_state.pop("session_token", None)
     if _token:
@@ -54,26 +79,6 @@ if "logout" in st.query_params:
     st.session_state.pop("user_name", None)
     st.query_params.clear()
     st.rerun()
-
-# ── Vérification token Magic link dans l'URL ──────────────────────────────────
-params = st.query_params
-if "token" in params and not st.session_state.get("user_email"):
-    result = verify_magic_token(params["token"])
-    if result:
-        st.session_state["user_email"] = result["email"]
-        st.session_state["matiere"] = result["matiere"]
-        _token = create_session(result["email"], result["matiere"])
-        st.session_state["session_token"] = _token
-        _cookies.set("aschool_session", _token, max_age=30 * 24 * 3600)
-        st.query_params.clear()
-        try:
-            notify_admin_connexion(result["email"], "A-SCHOOL : Générateur d'activités pédagogiques")
-        except Exception as e:
-            st.session_state["notif_error"] = str(e)
-        st.rerun()
-    else:
-        st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
-        st.stop()
 
 # ── Page de connexion ─────────────────────────────────────────────────────────
 user = get_current_user()
