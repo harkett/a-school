@@ -9,10 +9,43 @@ from src.formats import to_markdown, save
 from src.auth import (generate_magic_token, verify_magic_token,
                       send_magic_link, get_current_user, notify_admin_connexion,
                       create_session, get_session, delete_session)
-from streamlit_cookies_controller import CookieController
 from streamlit_mic_recorder import mic_recorder
 
 st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
+
+SESSION_COOKIE = "aschool_session"
+SESSION_MAX_AGE = 30 * 24 * 3600
+
+
+def _read_cookie() -> str | None:
+    """Lit le cookie de session depuis les headers HTTP — aucun rerun parasite."""
+    try:
+        raw = st.context.headers.get("Cookie", "")
+        for part in raw.split(";"):
+            part = part.strip()
+            if "=" in part:
+                k, v = part.split("=", 1)
+                if k.strip() == SESSION_COOKIE:
+                    return v.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _set_cookie(token: str):
+    """Pose le cookie via JS — effet au prochain chargement de page."""
+    st.components.v1.html(
+        f'<script>document.cookie="{SESSION_COOKIE}={token}; max-age={SESSION_MAX_AGE}; path=/; SameSite=Lax";</script>',
+        height=0,
+    )
+
+
+def _delete_cookie():
+    """Supprime le cookie via JS."""
+    st.components.v1.html(
+        f'<script>document.cookie="{SESSION_COOKIE}=; max-age=0; path=/";</script>',
+        height=0,
+    )
 
 
 def _get_webmail_url(email: str) -> str | None:
@@ -29,7 +62,28 @@ def _get_webmail_url(email: str) -> str | None:
         return "https://messagerie.orange.fr"
     return None
 
-# ── 1. Token Magic link — vérifié AVANT le CookieController ─────────────────
+# ── 1. Restauration session depuis cookie (headers HTTP, sans rerun) ─────────
+if not st.session_state.get("user_email"):
+    _raw_token = _read_cookie()
+    if _raw_token:
+        _session_data = get_session(_raw_token)
+        if _session_data:
+            st.session_state["user_email"] = _session_data["email"]
+            st.session_state["matiere"] = _session_data["matiere"]
+            st.session_state["session_token"] = _raw_token
+
+# ── 2. Logout via URL ────────────────────────────────────────────────────────
+if "logout" in st.query_params:
+    _tok = st.session_state.pop("session_token", None)
+    if _tok:
+        delete_session(_tok)
+    _delete_cookie()
+    st.session_state.pop("user_email", None)
+    st.session_state.pop("user_name", None)
+    st.query_params.clear()
+    st.rerun()
+
+# ── 3. Token Magic link ───────────────────────────────────────────────────────
 params = st.query_params
 if "token" in params and not st.session_state.get("user_email"):
     result = verify_magic_token(params["token"])
@@ -38,7 +92,7 @@ if "token" in params and not st.session_state.get("user_email"):
         st.session_state["matiere"] = result["matiere"]
         _tok = create_session(result["email"], result["matiere"])
         st.session_state["session_token"] = _tok
-        st.session_state["_pending_cookie"] = _tok
+        _set_cookie(_tok)
         st.query_params.clear()
         try:
             notify_admin_connexion(result["email"], "A-SCHOOL : Générateur d'activités pédagogiques")
@@ -48,36 +102,6 @@ if "token" in params and not st.session_state.get("user_email"):
     else:
         st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
         st.stop()
-
-# ── 2. CookieController — initialisé après le token check ───────────────────
-_cookies = CookieController()
-
-# ── 3. Poser le cookie si un token vient d'être validé ──────────────────────
-if st.session_state.get("_pending_cookie"):
-    _cookies.set("aschool_session", st.session_state.pop("_pending_cookie"), max_age=30 * 24 * 3600)
-
-# ── 4. Restauration session depuis cookie ────────────────────────────────────
-if not st.session_state.get("user_email"):
-    try:
-        _session_token = _cookies.get("aschool_session")
-    except Exception:
-        _session_token = None
-    if _session_token:
-        _session_data = get_session(_session_token)
-        if _session_data:
-            st.session_state["user_email"] = _session_data["email"]
-            st.session_state["matiere"] = _session_data["matiere"]
-            st.session_state["session_token"] = _session_token
-
-# ── 5. Logout via URL ────────────────────────────────────────────────────────
-if "logout" in st.query_params:
-    _token = st.session_state.pop("session_token", None)
-    if _token:
-        delete_session(_token)
-        _cookies.remove("aschool_session")
-    st.session_state.pop("user_email", None)
-    st.session_state.pop("user_name", None)
-    st.query_params.clear()
     st.rerun()
 
 # ── Page de connexion ─────────────────────────────────────────────────────────
