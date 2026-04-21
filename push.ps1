@@ -34,7 +34,7 @@ Write-Host "     GitHub OK" -ForegroundColor Green
 # ── 2. Déploiement VPS ───────────────────────────────────────
 Write-Host "2/2  Déploiement sur $VPS_HOST..." -ForegroundColor Cyan
 
-$cmd = "cd $VPS_PATH && git pull && pkill -f streamlit; nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &"
+$cmd = "cd $VPS_PATH && git pull && pkill -f streamlit || true; nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &"
 ssh "$VPS_USER@$VPS_HOST" $cmd
 
 if ($LASTEXITCODE -ne 0) {
