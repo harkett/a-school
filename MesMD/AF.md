@@ -1,6 +1,6 @@
 # A-SCHOOL — À Faire
 
-> **Vérifié le : 21/04/2026 — État : à jour** — déploiement automatisé coché, 3 tâches stratégiques ajoutées
+> **Vérifié le : 21/04/2026 — État : à jour**
 
 ---
 
@@ -13,6 +13,12 @@
 - [x] Résultat persistant avec bouton Fermer
 - [x] Saisie libre désactivée dans les combos
 - [x] Interface nettoyée (emojis supprimés, zones Upload/Micro côte à côte)
+- [x] Nouveau design (header bleu dégradé, curseur main sur combos, nombre de questions libre)
+- [x] `push.ps1` automatisé — push GitHub + restart VPS en une commande
+- [x] `run.ps1` créé — lancer en local en une commande
+- [x] Magic link email — fonctionne (lien reçu + connexion OK)
+- [x] Notification admin `harketti@afia.fr` à chaque connexion — fonctionne avec `from_email = "contact@afia.fr"` (compte SMTP authentifié)
+- [ ] Google OAuth — en attente (config secrets.toml à corriger, provider "google" non reconnu)
 
 ---
 

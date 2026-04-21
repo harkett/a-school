@@ -1,6 +1,6 @@
 # A-SCHOOL — Générateur d'activités pédagogiques
 
-> **Vérifié le : 21/04/2026 — État : à jour**
+> **Vérifié le : 21/04/2026 — État : à jour** — auth + design + scripts run/push mis à jour
 
 Outil web de génération d'activités de français (collège → supérieur) par IA.  
 Interface Streamlit — déployé sur VPS AfiaCloud.
@@ -18,6 +18,7 @@ Interface Streamlit — déployé sur VPS AfiaCloud.
 | IA texte | Groq API — `llama-3.3-70b-versatile` |
 | IA voix | Groq Whisper API (dictée) |
 | Export | Word (.docx) + texte (.txt) |
+| Auth | Google OAuth + Magic link email (`src/auth.py`) |
 | Hébergement | VPS AfiaCloud — Ubuntu 24.04 LTS |
 | Accès | Nginx + HTTPS Let's Encrypt |
 
@@ -37,9 +38,7 @@ pip install -r requirements.txt
 ## Lancer en mode DEV (usage quotidien)
 
 ```powershell
-cd d:\A-SCHOOL
-.venv\Scripts\activate
-streamlit run app.py
+.\run.ps1
 ```
 
 L'app s'ouvre automatiquement sur http://localhost:8501  

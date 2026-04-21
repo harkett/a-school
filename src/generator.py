@@ -54,6 +54,38 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     return response.json()["text"]
 
 
+def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    import base64
+    import requests
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {AI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    body = {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
+                },
+                {
+                    "type": "text",
+                    "text": "Extrais tout le texte visible sur ce document de façon fidèle, sans reformuler ni résumer. Retourne uniquement le texte brut.",
+                },
+            ],
+        }],
+        "max_tokens": 2048,
+    }
+    response = requests.post(url, headers=headers, json=body, timeout=60)
+    if not response.ok:
+        raise RuntimeError(f"Erreur OCR {response.status_code}: {response.text}")
+    return response.json()["choices"][0]["message"]["content"]
+
+
 def _anthropic(prompt: str) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=AI_API_KEY)

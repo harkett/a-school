@@ -3,5 +3,6 @@
 __pycache__/
 *.pyc
 outputs/
+data/*.json
 streamlit.log
 .streamlit/

@@ -300,6 +300,242 @@ Texte :
 }
 
 
+PROMPTS_HISTGEO = {
+
+    "hg_comprehension": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du document ci-dessous, génère {nb} questions de compréhension pour des élèves de {niveau}.
+Type de questions : {sous_type}.
+
+Types possibles :
+- "identification" : qui, quoi, quand, où — repérage direct dans le document
+- "contexte" : replacer le document dans son contexte historique ou géographique
+- "analyse" : dégager les idées principales, l'intention de l'auteur
+- "mise en relation" : lier le document à d'autres connaissances du cours
+- "mélange" : combiner les types ci-dessus
+
+Formule des questions progressives. Adapte le vocabulaire au niveau {niveau}.
+
+Document :
+---
+{texte}
+---
+Réponds uniquement avec les questions numérotées.
+""",
+
+    "hg_analyse_source": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du document ci-dessous, rédige une analyse de source complète pour des élèves de {niveau}.
+
+L'analyse doit suivre cette structure :
+1. **Présentation du document** : nature, auteur, date, destinataire, contexte de production
+2. **Idées principales** : résumé structuré en 3-4 points
+3. **Intérêt historique / géographique** : apport du document pour comprendre la période ou le territoire
+4. **Limites et précautions** : ce que le document ne dit pas, biais éventuels
+
+Document :
+---
+{texte}
+---
+""",
+
+    "hg_questions_cours": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du contenu de cours ci-dessous, génère {nb} questions de cours pour des élèves de {niveau}.
+Type : {sous_type}.
+
+Types possibles :
+- "connaissances" : questions factuelles sur les dates, acteurs, lieux clés
+- "définitions" : demander de définir des notions importantes
+- "explication" : expliquer un mécanisme, une cause, une conséquence
+- "mélange" : combiner les types
+
+Document :
+---
+{texte}
+---
+Réponds uniquement avec les questions numérotées.
+""",
+
+    "hg_frise": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du texte ci-dessous, construis une frise chronologique pédagogique pour des élèves de {niveau}.
+
+La frise doit contenir :
+1. **Les dates clés** à placer (minimum 8, maximum 15)
+2. **Un événement court** associé à chaque date (1 ligne)
+3. **Les périodes** à délimiter (ex. : Antiquité, Moyen Âge...)
+4. **Une consigne élève** : comment compléter ou utiliser la frise en classe
+
+Texte :
+---
+{texte}
+---
+""",
+
+    "hg_paragraphe": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du document ou cours ci-dessous, crée un sujet de paragraphe argumenté pour des élèves de {niveau}.
+Type : {sous_type}.
+
+Types possibles :
+- "réponse organisée" : paragraphe structuré avec introduction, développement, conclusion
+- "SEUL" : méthode Situation / Explication / Utilisation / Lien
+- "bilan de séquence" : synthèse des notions essentielles de la séquence
+
+Fournis :
+1. Le sujet complet avec la question posée
+2. Les critères de réussite
+3. Un plan détaillé attendu (titres de parties + arguments)
+
+Texte :
+---
+{texte}
+---
+""",
+
+    "hg_fiche_revision": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du cours ci-dessous, génère une fiche de révision structurée pour des élèves de {niveau}.
+
+La fiche doit contenir :
+1. **Titre et thème** du chapitre
+2. **Dates et repères clés** (tableau dates / événements)
+3. **Acteurs importants** (nom + rôle en 1 ligne)
+4. **Notions et définitions** à retenir
+5. **Cartes mentales / mots-clés** pour mémoriser
+6. **Questions type bac / brevet** pour s'entraîner (3 questions)
+
+Cours :
+---
+{texte}
+---
+""",
+
+    # ── 7. COMPOSITION / DISSERTATION ─────────────────────────────────────────
+    "hg_composition": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du sujet ou document ci-dessous, aide des élèves de {niveau} à construire une composition.
+Type d'aide demandée : {sous_type}.
+
+Types possibles :
+- "introduction seule" : accroche + contextualisation + problématique + annonce du plan
+- "plan détaillé" : 2 ou 3 parties avec sous-parties titrées et arguments clés
+- "développement complet" : composition rédigée intégralement avec introduction et conclusion
+- "plan avec transitions" : plan détaillé + phrases de transition entre chaque partie
+
+Adapte le niveau de langue et la complexité au niveau {niveau}.
+Pour le lycée (2nde, 1ère, Terminale) : respecte les exigences du bac (problématique, 3 parties, conclusion).
+Pour le collège (3e) : structure simplifiée en 2 parties, vocabulaire accessible.
+
+Sujet / Document :
+---
+{texte}
+---
+""",
+
+    # ── 8. LECTURE DE CARTE / CROQUIS ─────────────────────────────────────────
+    "hg_carte": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir de la description ou légende de carte ci-dessous, crée une activité de lecture de carte pour des élèves de {niveau}.
+Type d'activité : {sous_type}.
+
+Types possibles :
+- "décrire et expliquer une carte" : guide méthodologique + questions progressives sur la carte
+- "questions sur un croquis" : questions de compréhension du croquis avec éléments de légende à identifier
+- "légende à compléter" : liste des figurés à placer dans la bonne catégorie de légende
+
+Fournis :
+1. Une méthode de lecture claire adaptée au niveau {niveau}
+2. Les questions ou exercices
+3. Les éléments de correction
+
+Description / Légende de la carte :
+---
+{texte}
+---
+""",
+
+    # ── 9. ÉTUDE D'UN DOCUMENT ICONOGRAPHIQUE ────────────────────────────────
+    "hg_iconographie": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir de la description du document iconographique ci-dessous, construis une étude complète pour des élèves de {niveau}.
+Type de document : {sous_type}.
+
+Types possibles :
+- "affiche de propagande" : contexte politique, messages explicites et implicites, procédés rhétoriques
+- "dessin de presse" : auteur, journal, contexte, symboles, message, point de vue
+- "photographie historique" : date, lieu, sujet, contexte, ce que montre / ne montre pas l'image
+- "œuvre d'art" : nature, auteur, époque, description, interprétation historique
+
+L'étude doit contenir :
+1. **Présentation du document** (nature, auteur, date, contexte)
+2. **Description** (ce qu'on voit — plan, personnages, symboles, couleurs, texte)
+3. **Interprétation** (message, intention, mise en relation avec le cours)
+4. **Limites** (ce que le document ne montre pas, biais)
+5. **Questions élèves** (3 questions progressives avec correction)
+
+Description du document :
+---
+{texte}
+---
+""",
+
+    # ── 10. EXERCICE DE REPÈRES ───────────────────────────────────────────────
+    "hg_reperes": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du cours ou document ci-dessous, crée un exercice de repères pour des élèves de {niveau}.
+Type d'exercice : {sous_type}.
+Nombre d'items : {nb}.
+
+Types possibles :
+- "QCM de repères" : questions à choix multiples sur des dates, lieux ou acteurs clés
+- "définir des notions clés" : liste de notions à définir en 2-3 lignes
+- "placer des événements sur une frise" : liste d'événements à ordonner chronologiquement avec leur date
+- "situer des lieux" : liste de lieux à associer à leur description géographique ou historique
+
+Fournis :
+1. L'exercice complet ({nb} items)
+2. Le corrigé détaillé
+
+Cours / Document :
+---
+{texte}
+---
+""",
+
+    # ── 11. MISE EN RELATION DE DOCUMENTS ────────────────────────────────────
+    "hg_mise_en_relation": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir des documents ci-dessous, construis un exercice de mise en relation pour des élèves de {niveau}.
+Approche : {sous_type}.
+
+Types possibles :
+- "confronter deux sources" : comparer l'origine, le point de vue et les informations de deux documents
+- "dégager complémentarité / contradiction" : identifier ce que les documents partagent ou se contredisent
+- "synthèse de documents" : rédiger un paragraphe de synthèse croisant les apports des documents
+
+Fournis :
+1. Une consigne claire pour l'élève
+2. Les questions guidantes (3 à 5 questions)
+3. Un exemple de réponse rédigée attendue
+
+Documents :
+---
+{texte}
+---
+""",
+
+    # ── 12. PRÉPARATION À L'ORAL ──────────────────────────────────────────────
+    "hg_oral": """Tu es un professeur d'histoire-géographie expérimenté.
+À partir du sujet ou document ci-dessous, génère {nb} questions pour préparer une activité orale avec des élèves de {niveau}.
+Type d'oral : {sous_type}.
+
+Types possibles :
+- "exposé" : questions structurantes pour préparer une présentation organisée (introduction, développement, conclusion)
+- "débat" : questions ouvertes qui suscitent des prises de position argumentées
+- "Grand Oral Terminale" : questions type Grand Oral bac, avec conseils de formulation et de posture
+- "échange en classe" : questions courtes pour lancer une discussion collective
+
+Formule des questions claires, progressives, adaptées à la prise de parole en classe de {niveau}.
+
+Sujet / Document :
+---
+{texte}
+---
+""",
+}
+
+
 SUFFIXE_CORRECTION = """
 
 ---
@@ -312,7 +548,8 @@ Ces réponses doivent être claires, précises, et directement utilisables comme
 
 
 def build_prompt(activite: str, texte: str, avec_correction: bool = False, **kwargs) -> str:
-    template = PROMPTS[activite]
+    all_prompts = {**PROMPTS, **PROMPTS_HISTGEO}
+    template = all_prompts[activite]
     prompt = template.format(texte=texte, **kwargs)
     if avec_correction:
         prompt += SUFFIXE_CORRECTION

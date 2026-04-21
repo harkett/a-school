@@ -41,6 +41,8 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && .venv/bin/pip install -r requirements.txt -q"
+
 ssh "$VPS_USER@$VPS_HOST" "pkill -f streamlit; true"
 ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && nohup .venv/bin/streamlit run app.py --server.port 8501 --server.headless true < /dev/null > streamlit.log 2>&1 & disown"
 

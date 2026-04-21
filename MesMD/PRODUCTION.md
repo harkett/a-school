@@ -117,11 +117,20 @@ AI_MODEL=llama-3.3-70b-versatile
 - Dictée vocale via `streamlit-mic-recorder` + Groq Whisper API
 - Export Word (.docx) et texte (.txt)
 - Résultat persistant avec bouton Fermer
+- Nouveau design (header bleu, curseur main, nombre de questions libre)
+
+## En cours de déploiement (testé local, pas encore pushé)
+
+- **Magic link email** : fonctionnel en local — lien reçu, connexion OK
+- **Notification admin** : code OK, email non reçu sur harketti@afia.fr — vérifier spam + config Infomaniak (envoi afia.fr → afia.fr)
+- **Google OAuth** : en attente — erreur `provider "google" not found` dans secrets.toml
+- Fichiers modifiés : `src/auth.py`, `app.py`, `.streamlit/secrets.toml`, `requirements.txt`
+- `secrets.toml` non versionné — à copier manuellement sur VPS après validation
+- Commande VPS après push : `scp .streamlit/secrets.toml ubuntu@83.228.245.163:/var/www/a-school/.streamlit/secrets.toml`
+- Créer dossier data sur VPS : `ssh ubuntu@83.228.245.163 "mkdir -p /var/www/a-school/data"`
 
 ## Prochaine étape — Phase 2b
 
-Basculer la dictée de Groq Whisper API vers **faster-whisper local** sur le VPS :
-- Gratuit illimité, données audio restent sur le serveur
-- Modèle `medium` (~1.5 Go RAM), meilleur en français
+Basculer la dictée de Groq Whisper API vers **faster-whisper local** sur le VPS.
 
 Voir [ROADMAP.md](ROADMAP.md) et [AF.md](AF.md) pour le détail.
