@@ -55,32 +55,14 @@ if "logout" in st.query_params:
     st.query_params.clear()
     st.rerun()
 
-# ── Page de confirmation Magic link (token jamais consommé au chargement) ─────
+# ── Magic link : confirmation via lien URL (robuste aux reruns et aux scanners) ─
 params = st.query_params
-if "token" in params and not st.session_state.get("user_email"):
-    _token_val = params["token"]
-    _preview = peek_magic_token(_token_val)
-    if not _preview:
-        st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
-        st.stop()
-    # Affiche une page de confirmation — évite la consommation par les previews email
-    st.markdown("""
-    <style>
-        .block-container { padding-top: 5rem; max-width: 480px; }
-        #MainMenu, header, [data-testid="stToolbar"],
-        [data-testid="stSidebar"], [data-testid="collapsedControl"] { display: none !important; }
-    </style>
-    """, unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);
-                border-radius:12px; padding:2rem; text-align:center; margin-bottom:2rem;">
-        <h1 style="color:white; margin:0; font-size:2rem;">A-SCHOOL</h1>
-        <p style="color:rgba(255,255,255,0.85); margin:0.5rem 0 0 0;">
-            Connexion pour <strong>{_preview["email"]}</strong>
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    if st.button("Se connecter", type="primary", use_container_width=True):
+_token_val = params.get("token")
+_confirmed = params.get("confirm") == "1"
+
+if _token_val and not st.session_state.get("user_email"):
+    if _confirmed:
+        # L'utilisateur a cliqué le lien de confirmation → on consomme le token
         result = verify_magic_token(_token_val)
         if result:
             st.session_state["user_email"] = result["email"]
@@ -96,7 +78,42 @@ if "token" in params and not st.session_state.get("user_email"):
             st.rerun()
         else:
             st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
-    st.stop()
+            st.stop()
+    else:
+        # Chargement initial du lien email → on vérifie sans consommer
+        _preview = peek_magic_token(_token_val)
+        if not _preview:
+            st.error("Lien invalide ou expiré. Demandez un nouveau lien.")
+            st.stop()
+        # Lien de confirmation généré dynamiquement — Outlook ne peut pas le pré-scanner
+        _confirm_url = f"?token={_token_val}&confirm=1"
+        st.markdown("""
+        <style>
+            .block-container { padding-top: 5rem; max-width: 480px; }
+            #MainMenu, header, [data-testid="stToolbar"],
+            [data-testid="stSidebar"], [data-testid="collapsedControl"] { display: none !important; }
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);
+                    border-radius:12px; padding:2rem; text-align:center; margin-bottom:2rem;">
+            <h1 style="color:white; margin:0; font-size:2rem;">A-SCHOOL</h1>
+            <p style="color:rgba(255,255,255,0.85); margin:0.5rem 0 0 0;">
+                Connexion pour <strong>{_preview["email"]}</strong>
+            </p>
+        </div>
+        <div style="text-align:center;">
+            <a href="{_confirm_url}"
+               style="display:inline-block; background:linear-gradient(135deg,#1e3a8a,#2563eb);
+                      color:white !important; text-decoration:none; padding:0.7rem 2rem;
+                      border-radius:8px; font-size:1rem; font-weight:600;
+                      box-shadow:0 2px 8px rgba(37,99,235,0.3);"
+               title="Cliquez pour accéder à A-SCHOOL">
+                Se connecter
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
     st.rerun()
 
 # ── Page de connexion ─────────────────────────────────────────────────────────
