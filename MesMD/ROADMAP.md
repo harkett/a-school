@@ -1,6 +1,6 @@
 # A-SCHOOL Platform — Roadmap & Suivi de projet
 
-> **Vérifié le : 21/04/2026 — État : à jour**
+> **Vérifié le : 21/04/2026 — État : à jour** — Phase 2 passée TERMINÉ, stack IA voix et déploiement corrigés
 
 **Responsable :** harketti@afia.fr
 
@@ -56,11 +56,11 @@ Table "activites" :
 - Frontend : Streamlit (Phase 2) → React/Vue (Phase 4)
 - Admin : Interface FastAPI intégrée
 - IA texte : Groq (gratuit) → Claude Anthropic (production)
-- IA voix : **Whisper local** (faster-whisper, gratuit pour toujours)
+- IA voix : **Groq Whisper API** (Phase 2) → faster-whisper local (Phase 2b)
 - BDD : SQLite → PostgreSQL
 - VPS : **AfiaCloud** — Ubuntu 24.04 LTS, 4 CPU, 12 Go RAM, 250 Go stockage
 - URL : **https://school.afia.fr**
-- Déploiement : Docker + Nginx + HTTPS (Let's Encrypt)
+- Déploiement : Nginx + HTTPS Let's Encrypt (Phase 2) → Docker (Phase 3)
 
 ---
 
@@ -106,17 +106,20 @@ Pour plus de détails, voir [streamlit_guide.md](../../A-GUIDE/streamlit_guide.m
 
 ---
 
-### Phase 2 — App web hébergée 🔜 EN COURS (16/04/2026)
+### Phase 2 — App web hébergée ✅ TERMINÉ (21/04/2026)
 **Objectif :** Rendre l'outil accessible depuis n'importe quel navigateur.
 
-- [x] Nginx installé sur VPS ✅
-- [x] Accès SSH disponible ✅
-- [x] Code pushé sur GitHub ✅
-- [ ] Cloner le repo sur le VPS
-- [ ] Créer le `.env` sur le VPS
-- [ ] Lancer Streamlit en arrière-plan
-- [ ] Configurer Nginx → `school.afia.fr`
-- [ ] HTTPS (Let's Encrypt)
+- [x] Nginx installé sur VPS
+- [x] Accès SSH disponible
+- [x] Code pushé sur GitHub
+- [x] Repo cloné sur le VPS
+- [x] `.env` créé sur le VPS
+- [x] Streamlit lancé en arrière-plan
+- [x] Nginx configuré → `school.afia.fr`
+- [x] HTTPS (Let's Encrypt)
+- [x] Dictée vocale (Groq Whisper API)
+- [x] Export Word (.docx) et texte (.txt)
+- [x] Déploiement automatisé via `push.ps1` (push + restart VPS en une commande)
 - [ ] Test avec la prof pilote
 
 ---

@@ -44,16 +44,11 @@ sudo certbot --nginx -d school.afia.fr
 
 ## Mise à jour du site
 
-**Étape 1 — Sur le PC local :**
 ```powershell
 .\push.ps1 "description des modifications"
 ```
 
-**Étape 2 — Sur le VPS (SSH) :**
-```bash
-cd /var/www/a-school && git pull && pkill -f streamlit
-nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &
-```
+Le script fait tout : push GitHub + `git pull` + redémarrage Streamlit sur le VPS via SSH. Une seule commande suffit.
 
 ---
 
@@ -117,10 +112,16 @@ AI_MODEL=llama-3.3-70b-versatile
 
 ---
 
+## Fonctionnalités en production
+
+- Dictée vocale via `streamlit-mic-recorder` + Groq Whisper API
+- Export Word (.docx) et texte (.txt)
+- Résultat persistant avec bouton Fermer
+
 ## Prochaine étape — Phase 2b
 
-Ajouter la saisie vocale (Whisper local) :
-- `streamlit-mic-recorder` — capture audio navigateur
-- `faster-whisper` — transcription sur VPS (modèle medium, français)
+Basculer la dictée de Groq Whisper API vers **faster-whisper local** sur le VPS :
+- Gratuit illimité, données audio restent sur le serveur
+- Modèle `medium` (~1.5 Go RAM), meilleur en français
 
-Voir [ROADMAP.md](ROADMAP.md) pour le détail.
+Voir [ROADMAP.md](ROADMAP.md) et [AF.md](AF.md) pour le détail.

@@ -14,7 +14,7 @@ st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_
 st.markdown("""
 <style>
     /* Layout général */
-    .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1200px; }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
 
     /* Header custom */
     .aschool-header {
@@ -22,6 +22,7 @@ st.markdown("""
         color: white;
         padding: 1.5rem 2rem;
         border-radius: 12px;
+        margin-top: 1rem;
         margin-bottom: 1.5rem;
     }
     .aschool-header h1 {
@@ -81,6 +82,8 @@ st.markdown("""
     /* Widgets */
     [data-testid="stFileUploader"] label { display: none; }
     [data-testid="stSelectbox"] input { pointer-events: none !important; caret-color: transparent !important; }
+    [data-testid="stSelectbox"] > div { cursor: pointer !important; }
+    [data-testid="stSelectbox"] > div > div { cursor: pointer !important; }
 
     /* Sélects et sliders */
     [data-testid="stSelectbox"] > div > div {
@@ -138,9 +141,8 @@ st.markdown("""
 # Header custom
 st.markdown("""
 <div class="aschool-header">
-    <div class="aschool-badge">Bêta — Français</div>
-    <h1>A-SCHOOL</h1>
-    <p>Générateur d'activités pédagogiques par IA — Collez un texte, choisissez une activité, générez en quelques secondes.</p>
+    <h1>A-SCHOOL — Générateur d'activités pédagogiques</h1>
+    <p>Collez un texte, choisissez une activité, générez en quelques secondes.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -258,7 +260,7 @@ def to_docx(texte: str) -> bytes:
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.markdown('<div class="aschool-card"><h3>Texte source</h3>', unsafe_allow_html=True)
+    st.subheader("Texte")
 
     c_upload, c_micro = st.columns([1, 1])
     with c_upload:
@@ -300,7 +302,7 @@ with col1:
         )
 
 with col2:
-    st.markdown('<div class="aschool-card"><h3>Paramètres</h3>', unsafe_allow_html=True)
+    st.subheader("Paramètres")
 
     niveau = st.selectbox("Niveau de la classe", ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Supérieur"], index=2)
 
@@ -315,7 +317,7 @@ with col2:
         sous_type = st.selectbox("Précision", activite_cfg["sous_types"])
 
     if "nb" in activite_cfg["params"]:
-        nb = st.slider("Nombre de questions", 2, 15, 5)
+        nb = st.number_input("Nombre de questions", min_value=1, value=5, step=1)
 
     st.divider()
     avec_correction = st.checkbox(

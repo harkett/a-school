@@ -1,6 +1,6 @@
 # A-SCHOOL — À Faire
 
-> **Vérifié le : 21/04/2026 — État : à jour** — 3 nouvelles tâches stratégiques ajoutées
+> **Vérifié le : 21/04/2026 — État : à jour** — déploiement automatisé coché, 3 tâches stratégiques ajoutées
 
 ---
 
@@ -48,7 +48,7 @@
 - [ ] **Authentification enseignants** — HAUTE / Moyenne — Login/mot de passe par établissement
 - [ ] **Historique des activités par prof** — MOYENNE / Moyenne — Retrouver ses activités passées
 - [ ] **Docker (backend + frontend + BDD)** — MOYENNE / Haute — Isolation, déploiement propre
-- [ ] **Procédure de mise à jour automatisée** — BASSE / Moyenne — Actuellement : 2 étapes manuelles (push + VPS)
+- [x] **Procédure de mise à jour automatisée** — `push.ps1` gère push GitHub + restart VPS en une seule commande
 
 ---
 

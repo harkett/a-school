@@ -67,14 +67,11 @@ AI_MODEL=llama-3.3-70b-versatile
 
 ## Déployer une mise à jour sur le VPS
 
-```bash
-# 1. Pusher depuis le PC
+```powershell
 .\push.ps1 "description de la modif"
-
-# 2. Sur le VPS (school.afia.fr)
-cd /var/www/a-school && git pull && pkill -f streamlit
-nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &
 ```
+
+C'est tout. Le script pousse sur GitHub **et** redémarre l'app sur le VPS automatiquement.
 
 ---
 
