@@ -57,7 +57,7 @@ export default function AdminLayout() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/" className="text-xs text-gray-400 hover:text-gray-600 transition-colors" title="Retour à l'application">
+          <Link to="/login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors" title="Retour à A-SCHOOL">
             ← A-SCHOOL
           </Link>
           <button
