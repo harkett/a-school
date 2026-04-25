@@ -1,11 +1,12 @@
 import os
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.database import get_db
+from backend.models_db import ConnexionLog
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ class LoginBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/auth/signup", status_code=201)
-def signup(body: SignupBody, db: Session = Depends(get_db)):
+def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
     if body.password != body.password_confirm:
         raise HTTPException(400, "Les mots de passe ne correspondent pas.")
     if len(body.password) < 8:
@@ -71,11 +72,13 @@ def signup(body: SignupBody, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
 
+    db.add(ConnexionLog(email=user.email, action="signup", ip=request.client.host if request.client else None))
+    db.commit()
     return {"status": "ok", "message": "Vérifiez votre boîte mail pour activer votre compte."}
 
 
 @router.post("/auth/login")
-def login(body: LoginBody, response: Response, db: Session = Depends(get_db)):
+def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)):
     try:
         user = auth_lib.authenticate_user(db, body.email, body.password)
     except ValueError as e:
@@ -84,6 +87,8 @@ def login(body: LoginBody, response: Response, db: Session = Depends(get_db)):
     access = auth_lib.create_access_token(user.email)
     refresh = auth_lib.create_refresh_token(db, user.email)
     _set_cookies(response, access, refresh)
+    db.add(ConnexionLog(email=user.email, action="login", ip=request.client.host if request.client else None))
+    db.commit()
     return {"email": user.email}
 
 
