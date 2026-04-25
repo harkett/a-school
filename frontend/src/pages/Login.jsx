@@ -132,6 +132,8 @@ export default function Login() {
 
       <footer className="py-3 text-center text-xs text-gray-400">
         A-SCHOOL · harketti@afia.fr
+        {' · '}
+        <Link to="/admin/login" style={{ color: '#e2e8f0' }} title="Administration">admin</Link>
       </footer>
     </div>
   )
