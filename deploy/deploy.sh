@@ -32,6 +32,7 @@ if ! grep -q "JWT_SECRET" .env; then
 fi
 grep -q "APP_URL" .env         || echo "APP_URL=https://school.afia.fr"   >> .env
 grep -q "ADMIN_EMAIL" .env     || echo "ADMIN_EMAIL=harketti@afia.fr"     >> .env
+# ALLOWED_EMAILS volontairement absent — comportement identique au dev (tout le monde peut s'inscrire)
 
 echo ""
 echo "=== [5/7] Service systemd ==="
