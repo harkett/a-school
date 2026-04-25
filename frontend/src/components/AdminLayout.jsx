@@ -56,14 +56,19 @@ export default function AdminLayout() {
             ))}
           </nav>
         </div>
-        <button
-          onClick={logout}
-          title="Se déconnecter de l'administration"
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-        >
-          Déconnexion
-        </button>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="text-xs text-gray-400 hover:text-gray-600 transition-colors" title="Retour à l'application">
+            ← A-SCHOOL
+          </Link>
+          <button
+            onClick={logout}
+            title="Se déconnecter de l'administration"
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            Déconnexion
+          </button>
+        </div>
       </header>
 
       {/* Contenu */}
