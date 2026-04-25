@@ -1,0 +1,272 @@
+import hashlib
+import os
+import secrets
+import smtplib
+from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional
+
+import bcrypt as _bcrypt
+from jose import JWTError, jwt
+from sqlalchemy.orm import Session
+
+from backend.models_db import EmailToken, RefreshToken, User
+
+SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 30
+LOCKOUT_ATTEMPTS = 5
+LOCKOUT_MINUTES = 30
+
+def _hash_password(password: str) -> str:
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt(12)).decode("utf-8")
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    try:
+        return _bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def _now() -> datetime:
+    return datetime.utcnow()
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# User management
+# ---------------------------------------------------------------------------
+
+def _validate_password(password: str) -> str:
+    password = password.strip()
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Mot de passe trop long (72 caractères maximum).")
+    return password
+
+
+def create_user(db: Session, email: str, password: str) -> User:
+    email = email.strip().lower()
+    password = _validate_password(password)
+    if db.query(User).filter(User.email == email).first():
+        raise ValueError("Un compte existe déjà avec cet email.")
+    user = User(email=email, password_hash=_hash_password(password))
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> User:
+    email = email.strip().lower()
+    password = password.strip()
+    user = db.query(User).filter(User.email == email).first()
+
+    _GENERIC = "Email ou mot de passe incorrect."
+
+    if not user:
+        _bcrypt.hashpw(b"dummy", _bcrypt.gensalt())  # constant-time même si email inconnu
+        raise ValueError(_GENERIC)
+
+    now = _now()
+    if user.locked_until and user.locked_until > now:
+        remaining = int((user.locked_until - now).total_seconds() / 60) + 1
+        raise ValueError(f"Compte bloqué. Réessayez dans {remaining} min.")
+
+    if not _verify_password(password, user.password_hash):
+        user.failed_attempts += 1
+        if user.failed_attempts >= LOCKOUT_ATTEMPTS:
+            user.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
+            user.failed_attempts = 0
+        db.commit()
+        raise ValueError(_GENERIC)
+
+    if not user.is_verified:
+        raise ValueError("Email non vérifié. Vérifiez votre boîte mail.")
+
+    user.failed_attempts = 0
+    user.locked_until = None
+    user.last_login = now
+    db.commit()
+    return user
+
+
+def mark_user_verified(db: Session, email: str):
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.is_verified = True
+        db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Email tokens (verify_email, reset_password)
+# ---------------------------------------------------------------------------
+
+def generate_email_token(db: Session, email: str, purpose: str) -> str:
+    email = email.strip().lower()
+    # Invalidate any previous unused token for same email + purpose
+    db.query(EmailToken).filter(
+        EmailToken.email == email,
+        EmailToken.purpose == purpose,
+        EmailToken.used == False,
+    ).update({"used": True})
+
+    token = secrets.token_urlsafe(32)
+    db.add(EmailToken(
+        token=token,
+        email=email,
+        purpose=purpose,
+        expires_at=_now() + timedelta(minutes=60),
+    ))
+    db.commit()
+    return token
+
+
+def verify_email_token(db: Session, token: str, purpose: str) -> Optional[str]:
+    entry = db.query(EmailToken).filter(
+        EmailToken.token == token,
+        EmailToken.purpose == purpose,
+        EmailToken.used == False,
+    ).first()
+    if not entry or entry.expires_at < _now():
+        return None
+    entry.used = True
+    db.commit()
+    return entry.email
+
+
+# ---------------------------------------------------------------------------
+# JWT
+# ---------------------------------------------------------------------------
+
+def create_access_token(email: str) -> str:
+    return jwt.encode(
+        {"sub": email, "type": "access",
+         "exp": _now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
+        SECRET_KEY, algorithm=ALGORITHM,
+    )
+
+
+def create_refresh_token(db: Session, email: str) -> str:
+    token = jwt.encode(
+        {"sub": email, "type": "refresh",
+         "exp": _now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)},
+        SECRET_KEY, algorithm=ALGORITHM,
+    )
+    db.add(RefreshToken(
+        user_email=email,
+        token_hash=_hash_token(token),
+        expires_at=_now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    ))
+    db.commit()
+    return token
+
+
+def verify_access_token(token: str) -> Optional[str]:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "access":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def rotate_refresh_token(db: Session, token: str) -> tuple[str, str]:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise ValueError("Token invalide.")
+    if payload.get("type") != "refresh":
+        raise ValueError("Token invalide.")
+
+    db_token = db.query(RefreshToken).filter(
+        RefreshToken.token_hash == _hash_token(token),
+        RefreshToken.revoked == False,
+    ).first()
+    if not db_token or db_token.expires_at < _now():
+        raise ValueError("Session expirée. Reconnectez-vous.")
+
+    db_token.revoked = True
+    db.commit()
+
+    email = payload["sub"]
+    return create_access_token(email), create_refresh_token(db, email)
+
+
+def revoke_refresh_token(db: Session, token: str):
+    db_token = db.query(RefreshToken).filter(
+        RefreshToken.token_hash == _hash_token(token),
+    ).first()
+    if db_token:
+        db_token.revoked = True
+        db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Email sending
+# ---------------------------------------------------------------------------
+
+def _smtp_send(msg):
+    host = os.getenv("SMTP_HOST", "")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    user = os.getenv("SMTP_USERNAME", "")
+    pwd = os.getenv("SMTP_PASSWORD", "")
+    with smtplib.SMTP(host, port) as s:
+        s.ehlo()
+        s.starttls()
+        s.login(user, pwd)
+        s.send_message(msg)
+
+
+def send_verification_email(email: str, token: str):
+    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
+    link = f"{app_url}/verify-email?token={token}"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Activez votre compte A-SCHOOL"
+    msg["From"] = from_addr
+    msg["To"] = email
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#1F6EEB);
+                  border-radius:12px;padding:1.5rem 2rem;margin-bottom:2rem;">
+        <h1 style="color:white;margin:0;font-size:1.5rem;">
+          <span style="color:#A63045;">A</span>-SCHOOL
+        </h1>
+        <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.9rem;">
+          Générateur d'activités pédagogiques
+        </p>
+      </div>
+      <p>Bonjour,</p>
+      <p>Cliquez sur le bouton ci-dessous pour activer votre compte A-SCHOOL.
+         Ce lien est valable <strong>60 minutes</strong>.</p>
+      <div style="text-align:center;margin:2rem 0;">
+        <a href="{link}"
+           style="background:#1F6EEB;color:white;padding:14px 32px;
+                  border-radius:8px;text-decoration:none;
+                  font-weight:600;font-size:1rem;">
+          Activer mon compte
+        </a>
+      </div>
+      <p style="color:#94a3b8;font-size:0.8rem;">
+        Si vous n'avez pas créé de compte, ignorez cet email.<br>
+        Ce lien ne peut être utilisé qu'une seule fois.
+      </p>
+    </div>
+    """
+    plain = (
+        f"Bonjour,\n\nActivez votre compte A-SCHOOL en cliquant sur ce lien :\n{link}\n\n"
+        f"Ce lien est valable 60 minutes et ne peut être utilisé qu'une seule fois.\n\n"
+        f"Si vous n'avez pas créé de compte, ignorez cet email."
+    )
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)

@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --bordeaux: #A63045;
+  --bordeaux-dark: #832538;
+  --bleu: #1F6EEB;
+  --bleu-dark: #1558C0;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  background: #f3f4f6;
+}
+
+select:focus, textarea:focus, input[type="number"]:focus {
+  outline: 2px solid var(--bordeaux);
+  outline-offset: 1px;
+  border-color: var(--bordeaux) !important;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--bordeaux);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  background-color: var(--bleu); color: white;
+  border-radius: 6px; font-weight: 500; font-size: 0.875rem;
+  padding: 0.45rem 1.1rem; transition: background 0.15s;
+  border: none; cursor: pointer;
+}
+.btn-primary:hover { background-color: var(--bleu-dark); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-action {
+  display: inline-flex; align-items: center; gap: 6px;
+  background-color: #E5E7EB; color: #374151;
+  border: 1px solid #D1D5DB; border-radius: 6px;
+  font-size: 0.8rem; font-weight: 500;
+  padding: 0.45rem 0.85rem; transition: background 0.15s;
+  cursor: pointer;
+}
+.btn-action:hover { background-color: #D1D5DB; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: white; color: #374151;
+  border: 1px solid #D1D5DB; border-radius: 6px;
+  font-size: 0.8rem; font-weight: 500;
+  padding: 0.4rem 0.85rem; transition: background 0.15s;
+  cursor: pointer;
+}
+.btn-secondary:hover { background: #F9FAFB; }
+
+.section-title {
+  border-left: 3px solid var(--bordeaux);
+  padding-left: 8px;
+  font-size: 0.75rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  color: #64748b;
+}
+
+.nav-link-active {
+  color: var(--bordeaux) !important; font-weight: 600;
+  border-left: 3px solid var(--bordeaux); padding-left: 9px;
+}
+
+select { appearance: auto; cursor: pointer; }

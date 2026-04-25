@@ -3,6 +3,14 @@
 __pycache__/
 *.pyc
 outputs/
-data/*.json
+data/
 streamlit.log
 .streamlit/
+# Frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+# Runtime
+backend.pid
+frontend.pid
+.run_pids
