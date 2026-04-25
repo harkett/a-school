@@ -14,6 +14,9 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import VerifyEmail from './pages/VerifyEmail'
 import MentionsLegales from './pages/MentionsLegales'
+import AdminLogin from './pages/AdminLogin'
+import AdminLogs from './pages/AdminLogs'
+import AdminLayout from './components/AdminLayout'
 import './index.css'
 
 const MATIERE_DEFAUT = 'Français'
@@ -211,6 +214,11 @@ export default function App() {
             }
           />
           <Route path="/mentions-legales" element={<MentionsLegales />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/logs" replace />} />
+            <Route path="logs" element={<AdminLogs />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

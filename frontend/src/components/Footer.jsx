@@ -12,7 +12,11 @@ export default function Footer() {
           {' · '}
           <Link to="/mentions-legales" className="hover:underline" style={{ color: '#94a3b8' }} title="Consulter les mentions légales">Mentions légales</Link>
         </span>
-        <span>v3.0-dev · harketti@afia.fr</span>
+        <span>
+          v3.0-dev · harketti@afia.fr
+          {' · '}
+          <Link to="/admin" style={{ color: '#e2e8f0' }} title="Administration">admin</Link>
+        </span>
       </div>
     </footer>
   )
