@@ -57,9 +57,17 @@ export default function AdminLayout() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/login" className="text-xs text-gray-400 hover:text-gray-600 transition-colors" title="Retour à A-SCHOOL">
+          <button
+            onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+              navigate('/login')
+            }}
+            title="Retour à A-SCHOOL"
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          >
             ← A-SCHOOL
-          </Link>
+          </button>
           <button
             onClick={logout}
             title="Se déconnecter de l'administration"
