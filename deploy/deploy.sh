@@ -54,7 +54,7 @@ sudo systemctl reload nginx
 echo ""
 echo "=== [7/7] Test API ==="
 sleep 1
-curl -sf http://127.0.0.1:8000/api/health && echo " → Backend OK" || echo " → ERREUR backend"
+curl -sf http://127.0.0.1:8001/api/health && echo " → Backend OK" || echo " → ERREUR backend"
 
 echo ""
 echo "================================================"

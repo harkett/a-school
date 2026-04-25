@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/var/www/a-school
-ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
+ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8001
 Restart=always
 RestartSec=3
 
