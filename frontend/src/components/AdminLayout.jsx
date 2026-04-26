@@ -39,7 +39,7 @@ export default function AdminLayout() {
             <span style={{ color: 'var(--bordeaux)', fontWeight: 700 }}>A</span>-SCHOOL
             <span className="ml-2 text-xs font-normal text-gray-400">Administration</span>
           </span>
-          <nav className="flex gap-1">
+          <nav className="flex gap-1 items-center">
             {navItems.map(item => (
               <Link
                 key={item.to}
@@ -54,6 +54,16 @@ export default function AdminLayout() {
                 {item.label}
               </Link>
             ))}
+            <a
+              href="https://feedback.afia.fr/admin?app=a-school"
+              target="afeedback"
+              rel="noopener noreferrer"
+              title="Ouvrir le panneau A-FEEDBACK pour A-SCHOOL"
+              className="px-3 py-1.5 rounded text-xs font-medium transition-colors"
+              style={{ color: '#6b7280' }}
+            >
+              Feedbacks
+            </a>
           </nav>
         </div>
         <div className="flex items-center gap-4">

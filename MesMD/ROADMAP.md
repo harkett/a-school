@@ -1,6 +1,6 @@
 # A-SCHOOL Platform — Roadmap & Suivi de projet
 
-> **Vérifié le : 21/04/2026 — État : à jour** — Phase 2 passée TERMINÉ, stack IA voix et déploiement corrigés
+> **Vérifié le : 24/04/2026 — État : à jour** — Streamlit abandonné, migration stack PRO démarrée, prototype UI validé
 
 **Responsable :** harketti@afia.fr
 
@@ -261,6 +261,29 @@ Micro navigateur → streamlit-mic-recorder (capture audio)
 | 16/04/2026 | Streamlit Phase 1-2 | Simple, Python, rapide à déployer |
 | 16/04/2026 | Appel HTTP direct (requests) | SDK Google instable sur Windows |
 | 16/04/2026 | Backend FastAPI + BDD Phase 3 | Prompts en base = admin autonome, zéro code pour modifications |
+| 24/04/2026 | **Streamlit abandonné** | Outil de bricolage inadapté à une plateforme PRO multi-enseignants mondiale |
+| 24/04/2026 | **Stack : FastAPI + React + Tailwind + PostgreSQL** | Fondations solides, UI libre, scalable |
+| 24/04/2026 | **Prototype UI validé** (`frontend/index.html`) | Base HTML/Tailwind fidèle au SchemaUI.json — à migrer en React |
+
+## Règles interface (validées 24/04/2026)
+
+| Règle | Détail |
+|---|---|
+| Pas de "IA" | Remplacer par "A-SCHOOL" partout |
+| Couleurs | Bordeaux `#A63045` (accent) + Bleu `#1F6EEB` (primaire) |
+| Boutons | Icône SVG + texte + `title=` obligatoires |
+| Menu sidebar | Rétractable, items secondaires (Aide, À propos) en bas |
+| Footer | Slogan centré : *"Plus le monde s'ouvre, plus nous avons besoin de proximité..."* |
+
+## Étapes migration (en cours)
+
+- [x] Décision stack PRO (24/04/2026)
+- [x] Prototype UI HTML validé — `frontend/index.html`
+- [ ] Backend FastAPI — squelette + `/api/generate`
+- [ ] React + Vite scaffolding sur base du prototype
+- [ ] Auth JWT + Google OAuth + Magic link
+- [ ] Historique PostgreSQL
+- [ ] Déploiement VPS nouvelle stack
 
 ---
 

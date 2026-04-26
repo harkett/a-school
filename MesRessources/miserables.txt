@@ -6,10 +6,12 @@ Un professeur de français de 4e prépare une séquence sur la Nouvelle Réalist
 Il souhaite obtenir rapidement 10 questions de compréhension sur un extrait des Misérables.
 
 Entrée utilisateur :
+
 - Niveau : 4e
 - Type d’activité : Questions de compréhension
-- Nombre de questions : 10
-- Texte : [extrait fourni par le professeur]
+- précision : Interpretation
+- Nombre de questions : 10Il est pris sous le toit de l’évêque mais lui vole son argenterie. L’évêque va couvrir Jean Valjean en faisant croire à un cadeau. En fin de chapitre, il vole une pièce de quarante sous à un ramoneur de 10 ans du nom de Petit-Gervais. Il est pris de remords mais ne parvient pas à retrouver le petit. Désormais, il sera considéré comme récidiviste et méritera à sa prochaine arrestation le bagne à vie.]
+- Texte : [
 
 Sortie générée (exemple) :
 1. Où se déroule la scène décrite dans cet extrait ?

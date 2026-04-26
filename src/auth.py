@@ -79,7 +79,7 @@ def send_magic_link(email: str, token: str):
                     border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 2rem;">
             <h1 style="color:white; margin:0; font-size:1.5rem;">A-SCHOOL</h1>
             <p style="color:rgba(255,255,255,0.85); margin:0.3rem 0 0 0; font-size:0.9rem;">
-                Générateur d'activités pédagogiques par IA
+                Générateur d'activités pédagogiques
             </p>
         </div>
         <p>Bonjour,</p>

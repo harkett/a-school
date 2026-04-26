@@ -1,4 +1,9 @@
+import { useState } from 'react'
+import Feedback from './Feedback'
+
 export default function APropos({ email }) {
+  const [showFeedback, setShowFeedback] = useState(false)
+
   return (
     <div className="max-w-lg">
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -39,15 +44,16 @@ export default function APropos({ email }) {
           </table>
         </div>
 
-        {/* Bloc 3 — Liens */}
-        <div className="px-8 py-5 border-b border-gray-100 flex flex-col gap-2">
-          <a
-            href="mailto:harketti@afia.fr"
-            title="Envoyer un email pour signaler un problème"
+        {/* Bloc 3 — Feedback */}
+        <div className="px-8 py-5 border-b border-gray-100">
+          <button
+            onClick={() => setShowFeedback(true)}
+            title="Envoyer un retour ou signaler un problème"
             className="text-sm text-gray-500 hover:text-gray-800 underline"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
-            Signaler un problème
-          </a>
+            Envoyer un feedback
+          </button>
         </div>
 
         {/* Bloc 4 — Copyright */}
@@ -56,6 +62,8 @@ export default function APropos({ email }) {
         </div>
 
       </div>
+
+      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
     </div>
   )
 }

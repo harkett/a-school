@@ -1,0 +1,27 @@
+{
+  "name": "a-school",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "concurrently -n BACK,FRONT -c cyan,green \".venv/Scripts/uvicorn backend.main:app --reload --port 8000\" \"cd frontend && npm run dev\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harkett/a-school.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/harkett/a-school/issues"
+  },
+  "homepage": "https://github.com/harkett/a-school#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

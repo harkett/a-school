@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import engine
 from backend import models_db
-from backend.routers import generate, activites, auth, mes_activites, admin
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -29,6 +29,7 @@ app.include_router(activites.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(mes_activites.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(feedback.router, prefix="/api")
 
 
 @app.get("/api/health")

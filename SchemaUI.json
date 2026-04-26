@@ -1,0 +1,165 @@
+{
+  "type": "FRAME",
+  "name": "Interface IA - Version PRO",
+  "layoutMode": "VERTICAL",
+  "primaryAxisSizingMode": "AUTO",
+  "counterAxisSizingMode": "AUTO",
+  "itemSpacing": 16,
+  "paddingLeft": 0,
+  "paddingRight": 0,
+  "paddingTop": 0,
+  "paddingBottom": 0,
+  "children": [
+    {
+      "type": "FRAME",
+      "name": "HEADER",
+      "layoutMode": "HORIZONTAL",
+      "primaryAxisSizingMode": "AUTO",
+      "counterAxisSizingMode": "AUTO",
+      "itemSpacing": 16,
+      "paddingLeft": 24,
+      "paddingRight": 24,
+      "paddingTop": 16,
+      "paddingBottom": 16,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.12, "g": 0.43, "b": 0.92 } }],
+      "children": [
+        {
+          "type": "TEXT",
+          "name": "LOGO",
+          "characters": "LOGO",
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }]
+        },
+        {
+          "type": "TEXT",
+          "name": "SLOGAN",
+          "characters": "SLOGAN",
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }]
+        },
+        {
+          "type": "TEXT",
+          "name": "Connexion",
+          "characters": "[Connexion]",
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+          "layoutAlign": "STRETCH"
+        }
+      ]
+    },
+
+    {
+      "type": "FRAME",
+      "name": "TITLE + ACTION",
+      "layoutMode": "HORIZONTAL",
+      "primaryAxisSizingMode": "AUTO",
+      "counterAxisSizingMode": "AUTO",
+      "itemSpacing": 16,
+      "paddingLeft": 24,
+      "paddingRight": 24,
+      "paddingTop": 16,
+      "paddingBottom": 16,
+      "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+      "children": [
+        {
+          "type": "TEXT",
+          "name": "Titre",
+          "characters": "Titre de la page"
+        },
+        {
+          "type": "TEXT",
+          "name": "GenerateTop",
+          "characters": "[Générer]"
+        }
+      ]
+    },
+
+    {
+      "type": "FRAME",
+      "name": "LAYOUT PRINCIPAL",
+      "layoutMode": "HORIZONTAL",
+      "primaryAxisSizingMode": "AUTO",
+      "counterAxisSizingMode": "AUTO",
+      "itemSpacing": 0,
+      "children": [
+        {
+          "type": "FRAME",
+          "name": "SIDEBAR",
+          "layoutMode": "VERTICAL",
+          "primaryAxisSizingMode": "AUTO",
+          "counterAxisSizingMode": "AUTO",
+          "paddingLeft": 16,
+          "paddingRight": 16,
+          "paddingTop": 16,
+          "paddingBottom": 16,
+          "width": 180,
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+          "children": [
+            { "type": "TEXT", "characters": "≡ Menu" },
+            { "type": "TEXT", "characters": "Accueil" },
+            { "type": "TEXT", "characters": "Historique" },
+            { "type": "TEXT", "characters": "(rétractable)" }
+          ]
+        },
+
+        {
+          "type": "FRAME",
+          "name": "MAIN",
+          "layoutMode": "VERTICAL",
+          "primaryAxisSizingMode": "AUTO",
+          "counterAxisSizingMode": "AUTO",
+          "paddingLeft": 24,
+          "paddingRight": 24,
+          "paddingTop": 24,
+          "paddingBottom": 24,
+          "itemSpacing": 24,
+          "children": [
+            {
+              "type": "FRAME",
+              "name": "Zone Texte",
+              "layoutMode": "VERTICAL",
+              "primaryAxisSizingMode": "AUTO",
+              "counterAxisSizingMode": "AUTO",
+              "padding": 16,
+              "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+              "children": [
+                { "type": "TEXT", "characters": "Zone Texte" },
+                { "type": "TEXT", "characters": "textarea (input user)" }
+              ]
+            },
+
+            {
+              "type": "FRAME",
+              "name": "Paramètres IA",
+              "layoutMode": "VERTICAL",
+              "primaryAxisSizingMode": "AUTO",
+              "counterAxisSizingMode": "AUTO",
+              "padding": 16,
+              "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+              "children": [
+                { "type": "TEXT", "characters": "Modèle IA (dropdown)" },
+                { "type": "TEXT", "characters": "Température (slider)" },
+                { "type": "TEXT", "characters": "Longueur max (input number)" },
+                { "type": "TEXT", "characters": "Style (dropdown)" },
+                { "type": "TEXT", "characters": "[Générer]" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type": "FRAME",
+      "name": "FOOTER",
+      "layoutMode": "HORIZONTAL",
+      "primaryAxisSizingMode": "AUTO",
+      "counterAxisSizingMode": "AUTO",
+      "paddingLeft": 24,
+      "paddingRight": 24,
+      "paddingTop": 16,
+      "paddingBottom": 16,
+      "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }],
+      "children": [
+        { "type": "TEXT", "characters": "FOOTER — mentions légales / version / contact" }
+      ]
+    }
+  ]
+}

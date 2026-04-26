@@ -1,6 +1,6 @@
 # A-SCHOOL — À Faire
 
-> **Vérifié le : 21/04/2026 — État : à jour**
+> **Vérifié le : 25/04/2026 — État : à jour**
 
 ---
 
@@ -82,3 +82,45 @@ Streamlit ne permet pas d'envelopper un composant externe (comme le micro) dans 
 1. **Test prof pilote** — faire tester school.afia.fr à la professeure de français 4e
 2. **Recueillir les retours** — noter ce qui manque, ce qui gêne
 3. **Décider** : corriger les retours pilote OU démarrer Phase 2b (dictée locale)
+
+---
+
+## Architecture Auth — implémentée le 25/04/2026
+
+Flow : `Signup → Email vérification → Login → JWT cookies`
+
+### Endpoints
+| Méthode | Route | Description |
+|---|---|---|
+| POST | `/api/auth/signup` | Inscription (email + mot de passe) |
+| POST | `/api/auth/login` | Connexion → cookies JWT httpOnly |
+| GET | `/api/auth/verify-email?token=` | Activation compte depuis email |
+| POST | `/api/auth/refresh` | Renouvellement access token |
+| GET | `/api/auth/me` | Utilisateur courant |
+| POST | `/api/auth/logout` | Révocation + suppression cookies |
+
+### Sécurité intégrée
+- Mots de passe : **bcrypt** (passlib)
+- JWT : **HS256** (python-jose) — secret via `JWT_SECRET` dans `.env`
+- Access token : **15 min** — cookie httpOnly `aschool_access`
+- Refresh token : **30 jours** — cookie httpOnly `aschool_refresh`, **hash SHA-256 stocké en base** (révocable)
+- Brute force : **5 tentatives → blocage 30 min**
+- Email normalisé **lowercase** avant stockage et comparaison
+- Token email : **usage unique** (`used=True`), expiration 60 min
+- Message d'erreur générique (jamais "email inconnu")
+
+### Tables SQLite (`data/aschool.db`)
+- `users` — id, email (UNIQUE), password_hash, is_verified, created_at, **last_login**, **failed_attempts**, **locked_until**
+- `email_tokens` — token (UNIQUE), email, purpose, expires_at, **used**
+- `refresh_tokens` — user_email, **token_hash** (SHA-256), expires_at, **revoked**
+
+### À ajouter en Phase 3
+- Mot de passe oublié (réutilise `email_tokens` avec `purpose=reset_password`)
+- Rate limiting Nginx sur `/api/auth/login` et `/api/auth/signup`
+- Nettoyage automatique des tokens expirés (cron)
+- Migration SQLite → PostgreSQL si montée en charge
+
+### 2FA — décision 25/04/2026 : non nécessaire
+La sécurité actuelle (email vérifié + bcrypt + JWT + brute force bloqué) est suffisante pour une plateforme pédagogique.
+La 2FA ajouterait une friction inutile pour des enseignants peu habitués aux apps d'authentification.
+À reconsidérer uniquement si : données élèves sensibles ou exigence contractuelle d'un établissement.

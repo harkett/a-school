@@ -12,7 +12,7 @@ from src.auth import (generate_magic_token, verify_magic_token, peek_magic_token
 from streamlit_cookies_controller import CookieController
 from streamlit_mic_recorder import mic_recorder
 
-st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique IA", page_icon="📚", layout="wide")
+st.set_page_config(page_title="A-SCHOOL — Générateur pédagogique", page_icon="📚", layout="wide")
 
 _cookies = CookieController()
 
@@ -32,6 +32,8 @@ def _get_webmail_url(email: str) -> str | None:
     return None
 
 # ── Restauration session depuis cookie ───────────────────────────────────────
+# CookieController est asynchrone : les cookies ne sont disponibles qu'au 2e cycle.
+# On force un rerun unique au démarrage pour les charger avant d'afficher le login.
 if not st.session_state.get("user_email"):
     try:
         _session_token = _cookies.get("aschool_session")
@@ -43,6 +45,9 @@ if not st.session_state.get("user_email"):
             st.session_state["user_email"] = _session_data["email"]
             st.session_state["matiere"] = _session_data["matiere"]
             st.session_state["session_token"] = _session_token
+    elif not st.session_state.get("_cookie_init_done"):
+        st.session_state["_cookie_init_done"] = True
+        st.rerun()
 
 # ── Logout via URL ────────────────────────────────────────────────────────────
 if "logout" in st.query_params:
@@ -79,7 +84,6 @@ if "token" in params and not st.session_state.get("user_email"):
 # ── Page de connexion ─────────────────────────────────────────────────────────
 user = get_current_user()
 
-# Notification admin à la première connexion Google de la session
 if user and user["method"] == "google" and not st.session_state.get("google_notified"):
     try:
         notify_admin_connexion(user["email"], "google")
@@ -94,41 +98,32 @@ if not user:
         #MainMenu, header, [data-testid="stToolbar"],
         [data-testid="stSidebar"], [data-testid="collapsedControl"] { display: none !important; }
         .aschool-navbar {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            z-index: 1000;
-            background: #1e2d4d;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 2rem;
-            height: 56px;
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #1F6EEB;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 2rem; height: 56px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         .aschool-navbar-logo { font-size:1.1rem; font-weight:700; color:white; letter-spacing:-0.3px; }
-        .aschool-navbar-logo span { color:#f97316; }
+        .aschool-navbar-logo span { color:#A63045; }
         .aschool-navbar-btn {
-            color: white !important;
-            text-decoration: none !important;
-            border: 1px solid rgba(255,255,255,0.35);
-            border-radius: 6px;
-            padding: 0.3rem 1rem;
-            font-size: 0.875rem;
-            font-weight: 500;
+            color: white !important; text-decoration: none !important;
+            border: 1px solid rgba(255,255,255,0.35); border-radius: 6px;
+            padding: 0.3rem 1rem; font-size: 0.875rem; font-weight: 500;
         }
         .aschool-navbar-btn:hover { background: rgba(255,255,255,0.1); }
     </style>
     <nav class="aschool-navbar">
-        <div class="aschool-navbar-logo">A-<span>SCHOOL</span></div>
+        <div class="aschool-navbar-logo"><span>A</span>-SCHOOL</div>
         <a href="#" class="aschool-navbar-btn" title="Entrez votre email pour recevoir un lien de connexion">Connexion</a>
     </nav>
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div style="background:linear-gradient(135deg,#1e3a8a,#2563eb);
+    <div style="background:linear-gradient(135deg,#1558C0,#1F6EEB);
                 border-radius:12px; padding:2rem; text-align:center; margin-bottom:2rem;
                 max-width:420px; margin-left:auto; margin-right:auto;">
-        <h1 style="color:white; margin:0; font-size:2rem;">A-SCHOOL</h1>
+        <h1 style="color:white; margin:0; font-size:2rem;"><span style="color:#A63045;">A</span>-SCHOOL</h1>
         <p style="color:rgba(255,255,255,0.85); margin:0.5rem 0 0 0;">
             Générateur d'activités pédagogiques
         </p>
@@ -156,7 +151,7 @@ if not user:
                     webmail = _get_webmail_url(email_input)
                     email_display = f'<a href="{webmail}" target="_blank">{email_input}</a>' if webmail else email_input
                     st.markdown(
-                        f'<div class="stAlert" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;color:#166534;">'
+                        f'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:0.75rem 1rem;color:#166534;">'
                         f'Lien envoyé à {email_display} — vérifiez votre boîte mail (valable 15 min).</div>',
                         unsafe_allow_html=True
                     )
@@ -167,198 +162,153 @@ if not user:
 # ── Styles ───────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* Layout général */
-    .block-container { padding-top: 5rem; padding-bottom: 2rem; max-width: 1200px; }
+    .block-container { padding-top: 4.5rem; padding-bottom: 4.5rem; max-width: 960px; }
     #MainMenu, header, [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="collapsedControl"] { display: none !important; }
 
     /* Navbar */
     .aschool-navbar {
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        z-index: 1000;
-        background: #1e2d4d;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 2rem;
-        height: 56px;
+        position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+        background: #1F6EEB;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 2rem; height: 56px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
-    .aschool-navbar-logo {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: white;
-        letter-spacing: -0.3px;
-    }
-    .aschool-navbar-logo span {
-        color: #f97316;
-    }
-    .aschool-navbar-right {
-        display: flex;
-        align-items: center;
-        gap: 1.5rem;
-        font-size: 0.875rem;
-    }
-    .aschool-navbar-email {
-        color: rgba(255,255,255,0.6);
-    }
+    .aschool-navbar-left { display: flex; align-items: center; gap: 0.75rem; }
+    .aschool-navbar-logo { font-size: 1.1rem; font-weight: 700; color: white; letter-spacing: -0.3px; }
+    .aschool-navbar-logo span { color: #A63045; }
+    .aschool-navbar-slogan { color: rgba(255,255,255,0.65); font-size: 0.875rem; }
+    .aschool-navbar-right { display: flex; align-items: center; gap: 1.5rem; font-size: 0.875rem; }
+    .aschool-navbar-email { color: rgba(255,255,255,0.6); }
+    .aschool-navbar-matiere { color: #A63045; font-weight: 600; }
     .aschool-navbar-logout {
-        color: white !important;
-        text-decoration: none !important;
-        border: 1px solid rgba(255,255,255,0.35);
-        border-radius: 6px;
-        padding: 0.3rem 1rem;
-        font-weight: 500;
+        color: white !important; text-decoration: none !important;
+        border: 1px solid rgba(255,255,255,0.35); border-radius: 6px;
+        padding: 0.3rem 1rem; font-weight: 500;
+        display: inline-flex; align-items: center; gap: 5px;
         transition: background 0.15s;
     }
-    .aschool-navbar-logout:hover {
-        background: rgba(255,255,255,0.1);
-    }
+    .aschool-navbar-logout:hover { background: rgba(255,255,255,0.1); }
 
-    /* Header custom */
-    .aschool-header {
-        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-        color: white;
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        margin-top: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .aschool-header h1 {
-        margin: 0;
-        font-size: 1.8rem;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-        color: white !important;
-    }
-    .aschool-header p {
-        margin: 0.3rem 0 0 0;
-        font-size: 0.95rem;
-        opacity: 0.85;
-        color: white !important;
-    }
-    .aschool-badge {
-        display: inline-block;
-        background: rgba(255,255,255,0.2);
-        color: white;
-        font-size: 0.75rem;
-        padding: 0.15rem 0.6rem;
-        border-radius: 20px;
-        margin-bottom: 0.6rem;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-    }
-
-    /* Cartes panneaux */
-    .aschool-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 1.25rem 1.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-        margin-bottom: 1rem;
-    }
-    .aschool-card h3 {
-        margin: 0 0 1rem 0;
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
+    /* Section title */
+    .aschool-section-title {
+        border-left: 3px solid #A63045;
+        padding-left: 8px;
+        font-size: 0.75rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.6px;
         color: #64748b;
-    }
-
-    /* Résultat */
-    .aschool-result {
-        background: #f8faff;
-        border: 1px solid #bfdbfe;
-        border-left: 4px solid #1e3a8a;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-top: 1rem;
-    }
-
-    /* Widgets */
-    [data-testid="stFileUploader"] label { display: none; }
-    [data-testid="stSelectbox"] input { pointer-events: none !important; caret-color: transparent !important; }
-    [data-testid="stSelectbox"] > div { cursor: pointer !important; }
-    [data-testid="stSelectbox"] > div > div { cursor: pointer !important; }
-
-    /* Sélects et sliders */
-    [data-testid="stSelectbox"] > div > div {
-        border-radius: 8px !important;
-        border-color: #cbd5e1 !important;
-    }
-
-    /* Zone micro */
-    [data-testid="stColumn"]:has(audio) [data-testid="stVerticalBlock"] {
-        background-color: #f0f4f8;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        min-height: 88px;
-    }
-    [data-testid="stColumn"]:has(audio) button {
-        background-color: white !important;
-        color: #1e293b !important;
-        border: 1px solid #cbd5e1 !important;
-        border-radius: 6px !important;
-        padding: 0.25rem 0.75rem !important;
-        font-size: 0.875rem !important;
-        font-weight: 400 !important;
-        box-shadow: none !important;
-    }
-
-    /* Bouton générer */
-    [data-testid="stButton"] > button[kind="primary"] {
-        background: linear-gradient(135deg, #1e3a8a, #2563eb) !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-size: 1rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.3px !important;
-        padding: 0.6rem 1.5rem !important;
-        box-shadow: 0 2px 8px rgba(37,99,235,0.3) !important;
-        transition: all 0.2s ease !important;
-    }
-
-    /* Boutons téléchargement */
-    [data-testid="stDownloadButton"] > button {
-        border-radius: 8px !important;
-        border-color: #1e3a8a !important;
-        color: #1e3a8a !important;
-        font-weight: 500 !important;
+        margin-bottom: 1rem;
     }
 
     /* Séparateurs */
     hr { border-color: #e2e8f0 !important; margin: 1.25rem 0 !important; }
 
+    /* Résultat */
+    .aschool-result {
+        background: #f8faff;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #A63045;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    /* Bouton Générer */
+    [data-testid="stButton"] > button[kind="primary"] {
+        background: #1F6EEB !important;
+        border: none !important; border-radius: 6px !important;
+        font-size: 1rem !important; font-weight: 600 !important;
+        letter-spacing: 0.3px !important; padding: 0.6rem 1.5rem !important;
+        box-shadow: 0 2px 8px rgba(31,110,235,0.3) !important;
+        transition: all 0.15s ease !important;
+    }
+    [data-testid="stButton"] > button[kind="primary"]:hover {
+        background: #1558C0 !important;
+    }
+
+    /* Boutons téléchargement */
+    [data-testid="stDownloadButton"] > button {
+        border-radius: 6px !important;
+        border-color: #A63045 !important;
+        color: #A63045 !important;
+        font-weight: 500 !important;
+    }
+
+    /* File uploader */
+    [data-testid="stFileUploader"] label { display: none; }
+
+    /* Selectbox */
+    [data-testid="stSelectbox"] input { pointer-events: none !important; caret-color: transparent !important; }
+    [data-testid="stSelectbox"] > div { cursor: pointer !important; }
+    [data-testid="stSelectbox"] > div > div { cursor: pointer !important; border-radius: 6px !important; border-color: #cbd5e1 !important; }
+
+    /* Focus bordeaux */
+    [data-testid="stSelectbox"] > div > div:focus-within { border-color: #A63045 !important; }
+
     /* Captions */
     [data-testid="stCaptionContainer"] { color: #94a3b8 !important; font-size: 0.8rem !important; }
+
+    /* Zone micro */
+    [data-testid="stColumn"]:has(audio) [data-testid="stVerticalBlock"] {
+        background-color: #f0f4f8; border-radius: 8px;
+        padding: 0.75rem 1rem; min-height: 88px;
+    }
+    [data-testid="stColumn"]:has(audio) button {
+        background-color: white !important; color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important; border-radius: 6px !important;
+        padding: 0.25rem 0.75rem !important; font-size: 0.875rem !important;
+        font-weight: 400 !important; box-shadow: none !important;
+    }
+
+    /* Footer */
+    .aschool-footer {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: white; border-top: 1px solid #e2e8f0;
+        padding: 0.4rem 2rem; z-index: 999;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Navbar fixe
+# ── Navbar ────────────────────────────────────────────────────────────────────
+matiere_nav = st.session_state.get("matiere", "Français")
 st.markdown(f"""
 <nav class="aschool-navbar">
-    <div class="aschool-navbar-logo">A-<span>SCHOOL</span></div>
+    <div class="aschool-navbar-left">
+        <div class="aschool-navbar-logo"><span>A</span>-SCHOOL</div>
+        <span class="aschool-navbar-slogan">| Générateur d'activités pédagogiques</span>
+    </div>
     <div class="aschool-navbar-right">
-        <span style="color:rgba(255,255,255,0.45); font-size:0.8rem;">|</span>
-        <span style="color:#f97316; font-size:0.85rem; font-weight:600;">{st.session_state.get('matiere', 'Français')}</span>
-        <span style="color:rgba(255,255,255,0.45); font-size:0.8rem;">|</span>
+        <span style="color:rgba(255,255,255,0.3);">|</span>
+        <span class="aschool-navbar-matiere">{matiere_nav}</span>
+        <span style="color:rgba(255,255,255,0.3);">|</span>
         <span class="aschool-navbar-email">{user['email']}</span>
-        <a href="?logout=1" class="aschool-navbar-logout" title="Fermer votre session et revenir à la page de connexion">Se déconnecter</a>
+        <a href="?logout=1" class="aschool-navbar-logout"
+           title="Fermer votre session et revenir à la page de connexion">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Se déconnecter
+        </a>
     </div>
 </nav>
 """, unsafe_allow_html=True)
 
-# Header page
+# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="aschool-header">
-    <h1>Générateur d'activités pédagogiques</h1>
-    <p>Collez un texte, choisissez une activité, générez en quelques secondes.</p>
-</div>
+<footer class="aschool-footer">
+    <p style="text-align:center; font-size:0.72rem; font-style:italic; color:#94a3b8; margin:0 0 0.15rem 0;">
+        "Plus le monde s'ouvre, plus nous avons besoin de proximité..."
+    </p>
+    <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#94a3b8;">
+        <span><span style="color:#A63045; font-weight:600;">A</span>-SCHOOL
+              &nbsp;·&nbsp;<a href="#" style="color:#94a3b8; text-decoration:none;">Mentions légales</a></span>
+        <span>v3.0-dev &nbsp;·&nbsp; harketti@afia.fr</span>
+    </div>
+</footer>
 """, unsafe_allow_html=True)
 
 # ── Configuration des activités ───────────────────────────────────────────────
@@ -536,93 +486,100 @@ def to_docx(texte: str) -> bytes:
     return buf.getvalue()
 
 
-# ── Mise en page ──────────────────────────────────────────────────────────────
-col1, col2 = st.columns([1, 1])
+# ── Section Texte source ──────────────────────────────────────────────────────
+st.markdown('<div class="aschool-section-title">Texte source</div>', unsafe_allow_html=True)
 
-with col1:
-    st.subheader("Texte")
-
-    c_upload, c_micro = st.columns([1, 1])
-    with c_upload:
-        fichier = st.file_uploader(
-            "Importer",
-            type=["txt", "jpg", "jpeg", "png"],
-            label_visibility="collapsed",
-            help="Fichier texte (.txt) ou image scannée (JPG/PNG) — le texte sera extrait automatiquement",
-        )
-        st.caption("Texte .txt ou scan JPG/PNG")
-    with c_micro:
-        audio = mic_recorder(
-            start_prompt="🎤  Dicter",
-            stop_prompt="⏹  Arrêter",
-            key="micro",
-            use_container_width=False,
-        )
-        st.caption("Cliquez puis parlez — arrêtez quand vous avez terminé")
-
-    if fichier:
-        ext = fichier.name.lower().split(".")[-1]
-        if ext == "txt":
-            st.session_state["texte_dicte"] = fichier.read().decode("utf-8")
-            st.session_state["last_image_name"] = None
-        elif fichier.name != st.session_state.get("last_image_name"):
-            st.session_state["last_image_name"] = fichier.name
-            with st.spinner("Lecture du document en cours..."):
-                try:
-                    mime = "image/png" if ext == "png" else "image/jpeg"
-                    st.session_state["texte_dicte"] = transcribe_image(fichier.getvalue(), mime)
-                    st.success(f"Texte extrait de {fichier.name}")
-                except Exception as e:
-                    st.error(f"Erreur extraction : {e}")
-    else:
-        if audio:
-            with st.spinner("Transcription en cours..."):
-                try:
-                    st.session_state["texte_dicte"] = transcribe_audio(audio["bytes"])
-                    st.success("Transcription terminée.")
-                except Exception as e:
-                    st.error(f"Erreur transcription : {e}")
-
-    texte = st.text_area(
-        "Texte",
-        value=st.session_state.get("texte_dicte", ""),
-        height=270,
-        placeholder="Collez un extrait de texte ici\n— ou téléchargez un fichier .txt\n— ou dictez avec le micro\n— ou importez un scan JPG/PNG",
+c_upload, c_micro = st.columns([1, 1])
+with c_upload:
+    fichier = st.file_uploader(
+        "Importer",
+        type=["txt", "jpg", "jpeg", "png"],
         label_visibility="collapsed",
+        help="Fichier texte (.txt) ou image scannée (JPG/PNG) — le texte sera extrait automatiquement",
     )
+    st.caption("Texte .txt ou scan JPG/PNG")
+with c_micro:
+    audio = mic_recorder(
+        start_prompt="Dicter",
+        stop_prompt="Arrêter",
+        key="micro",
+        use_container_width=False,
+    )
+    st.caption("Cliquez puis parlez — arrêtez quand vous avez terminé")
 
-with col2:
-    st.subheader("Paramètres")
+if fichier:
+    ext = fichier.name.lower().split(".")[-1]
+    if ext == "txt":
+        st.session_state["texte_dicte"] = fichier.read().decode("utf-8")
+        st.session_state["last_image_name"] = None
+    elif fichier.name != st.session_state.get("last_image_name"):
+        st.session_state["last_image_name"] = fichier.name
+        with st.spinner("Lecture du document en cours..."):
+            try:
+                mime = "image/png" if ext == "png" else "image/jpeg"
+                st.session_state["texte_dicte"] = transcribe_image(fichier.getvalue(), mime)
+                st.success(f"Texte extrait de {fichier.name}")
+            except Exception as e:
+                st.error(f"Erreur extraction : {e}")
+else:
+    if audio:
+        with st.spinner("Transcription en cours..."):
+            try:
+                st.session_state["texte_dicte"] = transcribe_audio(audio["bytes"])
+                st.success("Transcription terminée.")
+            except Exception as e:
+                st.error(f"Erreur transcription : {e}")
 
+texte = st.text_area(
+    "Texte",
+    value=st.session_state.get("texte_dicte", ""),
+    height=220,
+    placeholder="Collez un extrait de texte ici\n— ou téléchargez un fichier .txt\n— ou dictez avec le micro\n— ou importez un scan JPG/PNG",
+    label_visibility="collapsed",
+)
+
+st.divider()
+
+# ── Section Paramètres ────────────────────────────────────────────────────────
+st.markdown('<div class="aschool-section-title">Paramètres de l\'activité</div>', unsafe_allow_html=True)
+
+matiere = st.session_state.get("matiere", "Français")
+ACTIVITES = ACTIVITES_PAR_MATIERE.get(matiere, ACTIVITES_PAR_MATIERE["Français"])
+
+col_act, col_niv = st.columns([1, 1])
+with col_act:
+    activite_label = st.selectbox("Type d'activité", list(ACTIVITES.keys()))
+with col_niv:
     niveau = st.selectbox("Niveau de la classe", ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale", "Supérieur"], index=2)
 
-    matiere = st.session_state.get("matiere", "Français")
-    ACTIVITES = ACTIVITES_PAR_MATIERE.get(matiere, ACTIVITES_PAR_MATIERE["Français"])
+activite_cfg = ACTIVITES[activite_label]
+activite_key = activite_cfg["key"]
 
-    activite_label = st.selectbox("Type d'activité", list(ACTIVITES.keys()))
-    activite_cfg = ACTIVITES[activite_label]
-    activite_key = activite_cfg["key"]
+sous_type = None
+nb = None
 
-    sous_type = None
-    nb = None
-
+col_st, col_nb = st.columns([1, 1])
+with col_st:
     if activite_cfg["sous_types"]:
         sous_type = st.selectbox("Précision", activite_cfg["sous_types"])
-
+with col_nb:
     if "nb" in activite_cfg["params"]:
         nb = st.number_input("Nombre de questions", min_value=1, value=5, step=1)
 
-    st.divider()
-    avec_correction = st.checkbox(
-        "Inclure une proposition de correction",
-        value=False,
-        help="L'IA génère une réponse-type après chaque question, que le professeur adapte à sa classe.",
-    )
+avec_correction = st.checkbox(
+    "Inclure une proposition de correction",
+    value=False,
+    help="A-SCHOOL génère une réponse-type après chaque question, que le professeur adapte à sa classe.",
+)
 
-# ── Génération ────────────────────────────────────────────────────────────────
 st.divider()
-generer = st.button("Générer l'activité", type="primary", use_container_width=True,
-                    help="Cliquez pour générer l'activité pédagogique avec l'IA")
+
+generer = st.button(
+    "Générer l'activité",
+    type="primary",
+    use_container_width=True,
+    help="Lancer la génération de l'activité avec A-SCHOOL",
+)
 
 if generer:
     if not texte or not texte.strip():
@@ -651,25 +608,16 @@ if generer:
             except Exception as e:
                 st.error(f"Erreur : {e}")
 
-# ── Affichage du résultat (persiste jusqu'à fermeture) ────────────────────────
+# ── Section Résultat ──────────────────────────────────────────────────────────
 if st.session_state.get("resultat"):
     resultat = st.session_state["resultat"]
     activite_key_dl = st.session_state["resultat_key"]
     today_dl = st.session_state["resultat_today"]
 
     st.divider()
-    col_titre, col_fermer = st.columns([5, 1])
-    with col_titre:
-        st.markdown("### Résultat généré")
-    with col_fermer:
-        if st.button("Fermer", use_container_width=True):
-            st.session_state["resultat"] = None
-            st.rerun()
+    st.markdown('<div class="aschool-section-title">Résultat généré</div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div class="aschool-result">{resultat}</div>', unsafe_allow_html=True)
-
-    st.divider()
-    col_dl1, col_dl2 = st.columns(2)
+    col_dl1, col_dl2, col_fermer = st.columns([2, 2, 1])
     with col_dl1:
         st.download_button(
             label="Télécharger en Word (.docx)",
@@ -677,6 +625,7 @@ if st.session_state.get("resultat"):
             file_name=f"{activite_key_dl}_{today_dl}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True,
+            help="Télécharger le résultat au format Word",
         )
     with col_dl2:
         st.download_button(
@@ -685,4 +634,11 @@ if st.session_state.get("resultat"):
             file_name=f"{activite_key_dl}_{today_dl}.txt",
             mime="text/plain",
             use_container_width=True,
+            help="Télécharger le résultat en fichier texte",
         )
+    with col_fermer:
+        if st.button("Fermer", use_container_width=True, help="Fermer le résultat"):
+            st.session_state["resultat"] = None
+            st.rerun()
+
+    st.markdown(f'<div class="aschool-result">{resultat}</div>', unsafe_allow_html=True)
