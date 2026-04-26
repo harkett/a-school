@@ -47,7 +47,7 @@ export default function AdminLayout() {
                 className="px-3 py-1.5 rounded text-xs font-medium transition-colors"
                 style={
                   location.pathname === item.to
-                    ? { background: 'var(--bleu)', color: 'white' }
+                    ? { color: 'var(--bleu)', fontWeight: 600, borderBottom: '2px solid var(--bleu)', borderRadius: 0, paddingBottom: 4 }
                     : { color: '#6b7280' }
                 }
               >
