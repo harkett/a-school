@@ -34,17 +34,12 @@ Write-Host "     GitHub OK" -ForegroundColor Green
 # ── 2. Déploiement VPS ───────────────────────────────────────
 Write-Host "2/2  Déploiement sur $VPS_HOST..." -ForegroundColor Cyan
 
-ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && git pull"
+ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && bash deploy/deploy.sh"
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Erreur git pull sur le VPS." -ForegroundColor Red
+    Write-Host "Erreur lors du déploiement VPS." -ForegroundColor Red
     exit 1
 }
-
-ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && .venv/bin/pip install -r requirements.txt -q"
-
-ssh "$VPS_USER@$VPS_HOST" "pkill -f streamlit; true"
-ssh "$VPS_USER@$VPS_HOST" "cd $VPS_PATH && nohup .venv/bin/streamlit run app.py --server.port 8501 --server.headless true < /dev/null > streamlit.log 2>&1 & disown"
 
 Write-Host "     VPS OK" -ForegroundColor Green
 Write-Host ""
