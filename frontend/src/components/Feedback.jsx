@@ -1,8 +1,15 @@
 import { useState } from 'react'
 
+const CATEGORIES = [
+  { key: 'bug',        label: 'Problème' },
+  { key: 'suggestion', label: 'Suggestion' },
+  { key: 'question',   label: 'Question' },
+]
+
 const STARS = [1, 2, 3, 4, 5]
 
 export default function Feedback({ onClose }) {
+  const [category, setCategory] = useState('')
   const [message, setMessage] = useState('')
   const [rating, setRating] = useState(0)
   const [hover, setHover] = useState(0)
@@ -10,7 +17,7 @@ export default function Feedback({ onClose }) {
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
 
-  const canSubmit = message.trim().length >= 5 && rating > 0
+  const canSubmit = category && message.trim().length >= 5 && rating > 0
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -22,7 +29,7 @@ export default function Feedback({ onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: message.trim(), rating }),
+        body: JSON.stringify({ message: message.trim(), rating, category }),
       })
       if (!res.ok) throw new Error()
       setDone(true)
@@ -57,14 +64,49 @@ export default function Feedback({ onClose }) {
             <p className="text-sm text-gray-400 mb-6">Votre message a bien été transmis.</p>
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded text-sm font-medium text-white"
-              style={{ background: 'var(--bleu)', border: 'none', cursor: 'pointer' }}
+              className="px-5 py-2 rounded text-sm font-medium"
+              style={{ background: 'var(--bleu)', border: 'none', cursor: 'pointer', color: 'white' }}
             >
               Fermer
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-2">Type</label>
+              <div className="flex gap-2">
+                {CATEGORIES.map(c => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCategory(c.key)}
+                    className="px-4 py-1.5 rounded-full text-sm font-medium border transition-colors"
+                    style={
+                      category === c.key
+                        ? { background: 'var(--bleu)', color: 'white', border: '1px solid var(--bleu)' }
+                        : { background: 'white', color: '#6b7280', border: '1px solid #e5e7eb', cursor: 'pointer' }
+                    }
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Message</label>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="Décrivez votre retour, problème ou suggestion…"
+                rows={4}
+                maxLength={2000}
+                className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400"
+              />
+              <p className="text-xs text-gray-400 text-right mt-0.5">{message.length}/2000</p>
+            </div>
+
             <div>
               <label className="block text-sm text-gray-600 mb-1">Note</label>
               <div className="flex gap-1">
@@ -88,19 +130,6 @@ export default function Feedback({ onClose }) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Message</label>
-              <textarea
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder="Décrivez votre retour, problème ou suggestion…"
-                rows={4}
-                maxLength={2000}
-                className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400"
-              />
-              <p className="text-xs text-gray-400 text-right mt-0.5">{message.length}/2000</p>
-            </div>
-
             {error && <p className="text-sm text-red-500">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-1">
@@ -116,7 +145,7 @@ export default function Feedback({ onClose }) {
                 type="submit"
                 disabled={!canSubmit || loading}
                 title="Envoyer votre feedback"
-                className="px-5 py-2 text-sm font-medium text-white rounded"
+                className="px-5 py-2 text-sm font-medium rounded"
                 style={{
                   background: canSubmit && !loading ? 'var(--bleu)' : '#9ca3af',
                   border: 'none',

@@ -9,6 +9,7 @@ import Parametres from './components/Parametres'
 import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
+import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -37,6 +38,7 @@ function MainApp() {
   const { user, logout } = useAuth()
 
   const [page, setPage] = useState('accueil')
+  const [showFeedback, setShowFeedback] = useState(false)
   const [activites, setActivites] = useState([])
   const [texte, setTexte] = useState('')
   const [resultat, setResultat] = useState(null)
@@ -144,7 +146,7 @@ function MainApp() {
       />
 
       <div className="flex flex-1 min-h-0">
-        <Sidebar page={page} onNavigate={setPage} />
+        <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} />
 
         <main className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
           {erreur && (
@@ -193,6 +195,7 @@ function MainApp() {
       </div>
 
       <Footer />
+      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
     </div>
   )
 }

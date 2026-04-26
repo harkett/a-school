@@ -10,6 +10,7 @@ router = APIRouter()
 class FeedbackBody(BaseModel):
     message: str = Field(min_length=5, max_length=2000)
     rating: int = Field(ge=1, le=5)
+    category: str | None = None
 
 
 @router.post("/feedback", status_code=200)
@@ -28,5 +29,7 @@ async def submit_feedback(
         user_id=email,
         message=body.message,
         rating=body.rating,
+        category=body.category,
+        user_email=email,
     )
     return {"status": "ok"}
