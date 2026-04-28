@@ -32,6 +32,14 @@ const IconAlert = () => (
   </svg>
 )
 
+const IconUser = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
 const ChevronDown = ({ open }) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="2"
@@ -49,15 +57,23 @@ const sections = [
       <ol className="flex flex-col gap-3 text-sm text-gray-600">
         <li className="flex gap-3">
           <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>1.</span>
-          <span><strong>Collez un texte source</strong> dans la zone de texte principale — un extrait de manuel, un document élève, un article.</span>
+          <span><strong>Configurez votre profil</strong> (menu "Mon profil") — renseignez votre prénom, nom, matière et niveau habituel. Ces informations personnalisent l'interface à chaque connexion.</span>
         </li>
         <li className="flex gap-3">
           <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>2.</span>
-          <span><strong>Choisissez les paramètres</strong> : niveau scolaire, type d'activité, nombre de questions.</span>
+          <span><strong>Collez un texte source</strong> dans la zone principale — un extrait de manuel, un document élève, un article de presse.</span>
         </li>
         <li className="flex gap-3">
           <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>3.</span>
+          <span><strong>Choisissez les paramètres</strong> : niveau scolaire, type d'activité, nombre de questions, avec ou sans correction.</span>
+        </li>
+        <li className="flex gap-3">
+          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>4.</span>
           <span><strong>Cliquez sur "Générer"</strong> — A-SCHOOL produit l'activité en quelques secondes.</span>
+        </li>
+        <li className="flex gap-3">
+          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>5.</span>
+          <span><strong>Retrouvez vos activités</strong> dans "Mes activités" — chaque génération est sauvegardée automatiquement et peut être rechargée en un clic.</span>
         </li>
       </ol>
     ),
@@ -69,12 +85,16 @@ const sections = [
     contenu: (
       <dl className="flex flex-col gap-4 text-sm text-gray-600">
         <div>
+          <dt className="font-semibold text-gray-700">Matière</dt>
+          <dd className="mt-0.5">Définie dans votre profil à l'inscription et modifiable via "Mon profil". A-SCHOOL propose 12 matières : Français, Histoire-Géographie, Mathématiques, Physique-Chimie, SVT, SES, NSI, Philosophie, Langues vivantes, Technologie, Arts et EPS.</dd>
+        </div>
+        <div>
           <dt className="font-semibold text-gray-700">Niveau</dt>
-          <dd className="mt-0.5">Le niveau scolaire de vos élèves, de la 6e à la Terminale. Influence le vocabulaire et la complexité de l'activité générée.</dd>
+          <dd className="mt-0.5">Le niveau scolaire de vos élèves, de la 6e à la Terminale. Influence le vocabulaire et la complexité de l'activité. Votre niveau habituel est mémorisé d'une session à l'autre. Le niveau Supérieur (BTS, prépa) est en cours de développement.</dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Type d'activité</dt>
-          <dd className="mt-0.5">Le genre d'exercice à produire (compréhension, vocabulaire, résumé…). Chaque type génère un format différent.</dd>
+          <dd className="mt-0.5">Le genre d'exercice à produire — varie selon la matière (compréhension, vocabulaire, résumé, exercices…). Chaque type génère un format différent.</dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Nombre de questions</dt>
@@ -82,7 +102,7 @@ const sections = [
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Avec correction</dt>
-          <dd className="mt-0.5">Si activé, A-SCHOOL ajoute la correction complète sous l'activité — pratique pour préparer votre cours.</dd>
+          <dd className="mt-0.5">Si activé, A-SCHOOL ajoute la correction complète sous l'activité — pratique pour préparer votre cours ou gagner du temps sur la correction.</dd>
         </div>
       </dl>
     ),
@@ -97,7 +117,33 @@ const sections = [
         <li className="flex gap-2"><span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span><span><strong>Texte structuré</strong> — préférez des paragraphes rédigés à des listes ou des tableaux.</span></li>
         <li className="flex gap-2"><span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span><span><strong>Langue française</strong> — A-SCHOOL est optimisé pour les textes en français.</span></li>
         <li className="flex gap-2"><span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span><span><strong>Sujet cohérent</strong> — un extrait avec un thème clair donne de meilleurs résultats qu'un assemblage de fragments.</span></li>
+        <li className="flex gap-2"><span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span><span><strong>Régénérez si nécessaire</strong> — le bouton "Régénérer" relance une nouvelle génération avec les mêmes paramètres, sans ressaisir le texte.</span></li>
       </ul>
+    ),
+  },
+  {
+    id: 'espace',
+    titre: 'Votre espace & retours',
+    Icon: IconUser,
+    contenu: (
+      <dl className="flex flex-col gap-4 text-sm text-gray-600">
+        <div>
+          <dt className="font-semibold text-gray-700">Mon profil</dt>
+          <dd className="mt-0.5">Modifiez votre prénom, nom, matière et niveau par défaut depuis le menu latéral. Ces données sont enregistrées sur votre compte et persistent d'une session à l'autre.</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-gray-700">Mes activités</dt>
+          <dd className="mt-0.5">Toutes vos générations sont sauvegardées automatiquement. Cliquez sur une activité pour recharger le texte source, les paramètres et le résultat en un clic.</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-gray-700">Notez A-SCHOOL</dt>
+          <dd className="mt-0.5">Donnez votre avis en 30 secondes — de 1 à 5 étoiles, avec un commentaire optionnel. Vos retours nous aident directement à améliorer la plateforme.</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-gray-700">Envoyer un feedback</dt>
+          <dd className="mt-0.5">Signalez un problème, proposez une amélioration ou posez une question. Si un type d'activité vous manque, c'est ici que vous pouvez le suggérer.</dd>
+        </div>
+      </dl>
     ),
   },
   {
@@ -115,8 +161,16 @@ const sections = [
           <dd className="mt-0.5">Essayez un autre type d'activité, ajustez le niveau, ou utilisez un texte source plus clair et mieux structuré. Le bouton "Régénérer" relance une nouvelle génération avec les mêmes paramètres.</dd>
         </div>
         <div>
+          <dt className="font-semibold text-gray-700">Un type d'activité est absent ou incorrect</dt>
+          <dd className="mt-0.5">Utilisez "Envoyer un feedback" dans le menu latéral pour le signaler. C'est directement intégré au développement de la plateforme.</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-gray-700">Le niveau Supérieur affiche un message de développement</dt>
+          <dd className="mt-0.5">Les activités pour le niveau Supérieur (BTS, prépa, licence) sont en cours de développement. Les autres niveaux (6e à Terminale) sont pleinement opérationnels.</dd>
+        </div>
+        <div>
           <dt className="font-semibold text-gray-700">Erreur lors de la génération</dt>
-          <dd className="mt-0.5">Vérifiez votre connexion internet. Si le problème persiste, contactez <a href="mailto:harketti@afia.fr" className="underline hover:text-gray-800">harketti@afia.fr</a>.</dd>
+          <dd className="mt-0.5">Vérifiez votre connexion internet. Si le problème persiste, contactez <a href="mailto:contact@afia.fr" className="underline hover:text-gray-800">contact@afia.fr</a>.</dd>
         </div>
       </dl>
     ),

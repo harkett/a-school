@@ -30,8 +30,9 @@ if ! grep -q "JWT_SECRET" .env; then
     echo "JWT_SECRET=$JWT" >> .env
     echo "  → JWT_SECRET généré et ajouté"
 fi
-grep -q "APP_URL" .env         || echo "APP_URL=https://school.afia.fr"   >> .env
-grep -q "ADMIN_EMAIL" .env     || echo "ADMIN_EMAIL=harketti@afia.fr"     >> .env
+grep -q "APP_URL" .env              || echo "APP_URL=https://school.afia.fr"        >> .env
+grep -q "ADMIN_EMAIL" .env          || echo "ADMIN_EMAIL=harketti@afia.fr"           >> .env
+grep -q "FEEDBACK_NOTIFY_EMAIL" .env || echo "FEEDBACK_NOTIFY_EMAIL=contact@afia.fr" >> .env
 # ALLOWED_EMAILS volontairement absent — comportement identique au dev (tout le monde peut s'inscrire)
 
 echo ""

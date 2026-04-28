@@ -1,14 +1,35 @@
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(override=True)
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from backend.database import engine
 from backend import models_db
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil
 
 models_db.Base.metadata.create_all(bind=engine)
+
+# Migrations colonnes ajoutées après création initiale
+with engine.connect() as _conn:
+    for _col in [
+        "ALTER TABLE users ADD COLUMN subject VARCHAR(64)",
+        "ALTER TABLE users ADD COLUMN prenom VARCHAR(64)",
+        "ALTER TABLE users ADD COLUMN nom VARCHAR(64)",
+        "ALTER TABLE users ADD COLUMN niveau VARCHAR(16)",
+        "ALTER TABLE feedbacks ADD COLUMN type VARCHAR(16) DEFAULT 'feedback'",
+    ]:
+        try:
+            _conn.execute(text(_col))
+            _conn.commit()
+        except Exception:
+            pass
+
+import os as _os
+if not _os.getenv("ADMIN_USERNAME") or not _os.getenv("ADMIN_PASSWORD"):
+    print("\n⚠️  ATTENTION : ADMIN_USERNAME ou ADMIN_PASSWORD non chargés — connexion admin impossible.\n")
 
 app = FastAPI(title="A-SCHOOL API", version="2.0.0")
 
@@ -20,7 +41,7 @@ app.add_middleware(
         "https://school.afia.fr",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],
 )
 
@@ -30,6 +51,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(mes_activites.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
+app.include_router(profil.router, prefix="/api")
 
 
 @app.get("/api/health")

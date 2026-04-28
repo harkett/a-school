@@ -1,8 +1,82 @@
 # A-SCHOOL Platform — Roadmap & Suivi de projet
 
-> **Vérifié le : 24/04/2026 — État : à jour** — Streamlit abandonné, migration stack PRO démarrée, prototype UI validé
+> **Vérifié le : 28/04/2026** — Stack FastAPI + React en production, Phase 3 largement livrée, push vers prod imminent
 
-**Responsable :** harketti@afia.fr
+---
+
+## État actuel — 28/04/2026
+
+Phase 3 est **fonctionnelle et en production**. Les fondations sont solides.
+
+| Composant | État |
+|---|---|
+| Backend FastAPI | ✅ Opérationnel |
+| Frontend React + Tailwind | ✅ Opérationnel |
+| Auth JWT (signup/login/verify) | ✅ Opérationnel |
+| 12 matières | ✅ Opérationnel |
+| Profil prof (BDD) | ✅ Livré 28/04/2026 |
+| Admin panel complet | ✅ Opérationnel |
+| Feedback + Notation séparés | ✅ Livré 28/04/2026 |
+| SMTP direct (A-FEEDBACK retiré) | ✅ Livré 28/04/2026 |
+| Few-shot adaptation style prof | ⏳ PRIORITÉ #1 |
+| PostgreSQL | ⏳ Phase 4 |
+
+---
+
+## Prochaine priorité — Few-shot adaptation au style prof
+
+**Ce que ça fait** : à partir de 3 activités du même type, A-SCHOOL injecte les 2 derniers exemples du prof dans le prompt. Le modèle imite son style sans être ré-entraîné.
+
+**Étapes dans l'ordre** :
+
+**1. Auth sur `/api/generate`** *(bug sécurité + prérequis obligatoire)*
+- `backend/routers/generate.py` : lire le cookie `aschool_access`
+- Pattern identique à `mes_activites.py` ligne 24
+
+**2. Requête few-shot en base**
+```python
+exemples = db.query(ActiviteSauvegardee)
+    .filter_by(user_email=email, activite_key=req.activite_key)
+    .order_by(id.desc()).limit(2).all()
+# Si total pour ce type < 3 → génération normale
+```
+
+**3. Injection dans le prompt** (`src/prompts.py`)
+```
+Voici comment ce professeur formule ses exercices :
+--- Exemple 1 ---
+Texte source : [texte_source]
+Activité produite : [resultat]
+--- Exemple 2 ---
+[...]
+---
+Génère le nouvel exercice dans le même style.
+```
+
+**Seuil cold start** : `< 3` activités du type → génération normale, invisible pour le prof.
+
+---
+
+## Planning
+
+| Quand | Action |
+|---|---|
+| **Maintenant** | Push prod — nouvelles fonctionnalités (profil, notation, SMTP) |
+| **Semaine 1-2** | Coder few-shot (pendant que les pilotes génèrent) |
+| **Semaine 2-3** | Tester l'adaptation avec les pilotes, ajuster |
+| **Semaine 3** | Assets comm (captures, vidéo 60s) — seulement après validation few-shot |
+| **Semaine 4** | Premier post Facebook dans un groupe de profs |
+| **Mai → Août** | LinkedIn → associations → campagne rentrée |
+
+---
+
+## Règle de communication
+
+| Moment | Message autorisé |
+|---|---|
+| Avant livraison few-shot | Ne pas mentionner l'adaptation |
+| Livraison validée avec pilotes | *"A-SCHOOL s'adapte à votre façon de travailler"* |
+| Communication externe | *"Plus vous l'utilisez, moins vous corrigez"* |
 
 ---
 
@@ -10,319 +84,96 @@
 
 Plateforme web permettant à **tous les enseignants** (collège → université) de générer des activités pédagogiques via IA, accessible depuis un navigateur, sans aucune compétence technique.
 
-**Cas pilote :** Professeur de français, classe de 4e, séquence sur la Nouvelle Réaliste (*Les Misérables*).
+**Cas pilote :** Professeur de français, classe de 4e.
 
 ---
 
-## Architecture cible (validée 16/04/2026)
+## Stack technique (définitif depuis 24/04/2026)
 
-```
-┌─────────────────────────────────────────────┐
-│                VPS (Linux)                  │
-│                                             │
-│  ┌─────────────┐      ┌──────────────────┐  │
-│  │  Frontend   │      │  Backend FastAPI  │  │
-│  │  React/Vue  │◄────►│  + Interface Admin│  │
-│  └─────────────┘      └────────┬─────────┘  │
-│                                │             │
-│                      ┌─────────┴────────┐    │
-│                      │  Base de données  │    │
-│                      │  SQLite → Postgres│    │
-│                      │                   │    │
-│                      │  activites        │    │
-│                      │  utilisateurs     │    │
-│                      │  historique       │    │
-│                      └──────────────────┘    │
-└─────────────────────────────────────────────┘
-              │
-              ▼
-        Groq API → Claude API (production)
-```
-
-**Principe clé — Backend Admin :**
-Les prompts et types d'activités sont stockés en **base de données**, pas dans le code.
-L'admin ajoute/modifie une activité via formulaire web → elle apparaît immédiatement dans l'interface prof. **Zéro code requis.**
-
-```
-Table "activites" :
-| id | nom           | prompt_template   | sous_types       |
-|----|---------------|-------------------|------------------|
-| 1  | comprehension | "Tu es un prof..." | simples, QCM...  |
-| 2  | reecriture    | "Tu es un prof..." | direct→indirect  |
-```
-
-**Stack retenu :**
-- Backend : **FastAPI** (Python)
-- Frontend : Streamlit (Phase 2) → React/Vue (Phase 4)
-- Admin : Interface FastAPI intégrée
-- IA texte : Groq (gratuit) → Claude Anthropic (production)
-- IA voix : **Groq Whisper API** (Phase 2) → faster-whisper local (Phase 2b)
-- BDD : SQLite → PostgreSQL
-- VPS : **AfiaCloud** — Ubuntu 24.04 LTS, 4 CPU, 12 Go RAM, 250 Go stockage
-- URL : **https://school.afia.fr**
-- Déploiement : Nginx + HTTPS Let's Encrypt (Phase 2) → Docker (Phase 3)
-
----
-
-## À propos de Streamlit
-
-Streamlit est une bibliothèque Python open source qui transforme un script Python ordinaire en application web interactive, sans écrire une seule ligne de HTML, CSS ou JavaScript.
-
-C'est la technologie d'interface retenue pour les phases 1 et 2 du projet A-SCHOOL : elle permet de livrer rapidement une interface utilisable par les enseignants sans infrastructure front-end complexe.
-
-Pour plus de détails, voir [streamlit_guide.md](../../A-GUIDE/streamlit_guide.md) dans le dossier `D:\A-GUIDE`.
-
----
-
-## Phases de développement
-
-### Phase 1 — Prototype local ✅ TERMINÉ (16/04/2026)
-**Objectif :** Valider le concept avec un outil fonctionnel en local.
-
-- [x] CLI Python (Typer + Rich)
-- [x] 15 types d'activités avec sous-types
-- [x] Option correction intégrée
-- [x] Export Markdown automatique dans `outputs/`
-- [x] Interface Streamlit locale
-- [x] Intégration Groq API (llama-3.3-70b-versatile)
-- [x] Push GitHub — https://github.com/harkett/a-school
-
-**15 activités disponibles :**
-1. Questions de compréhension (6 sous-types)
-2. Pistes de lecture (5 sous-types)
-3. Résumés (3 sous-types)
-4. Analyse de texte (4 sous-types)
-5. Exercices de réécriture (9 transformations)
-6. Étude de vocabulaire (4 sous-types)
-7. Production d'écrit (5 sous-types dont texte poétique)
-8. Questions pour l'oral (3 sous-types)
-9. Fiche pédagogique
-10. Exercices de grammaire (4 sous-types)
-11. Recherche de séquences
-12. Séquence détaillée
-13. Questionnaire sur un roman
-14. Évaluation de grammaire
-15. Évaluation d'orthographe
-
----
-
-### Phase 2 — App web hébergée ✅ TERMINÉ (21/04/2026)
-**Objectif :** Rendre l'outil accessible depuis n'importe quel navigateur.
-
-- [x] Nginx installé sur VPS
-- [x] Accès SSH disponible
-- [x] Code pushé sur GitHub
-- [x] Repo cloné sur le VPS
-- [x] `.env` créé sur le VPS
-- [x] Streamlit lancé en arrière-plan
-- [x] Nginx configuré → `school.afia.fr`
-- [x] HTTPS (Let's Encrypt)
-- [x] Dictée vocale (Groq Whisper API)
-- [x] Export Word (.docx) et texte (.txt)
-- [x] Déploiement automatisé via `push.ps1` (push + restart VPS en une commande)
-- [ ] Test avec la prof pilote
-
----
-
-### 📋 Commandes de déploiement VPS
-
-**URL cible :** `https://school.afia.fr`
-
-**1. Cloner et installer**
-```bash
-cd /var/www
-git clone https://github.com/harkett/a-school.git a-school
-cd a-school
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-**2. Créer le `.env`**
-```bash
-cat > .env << 'EOF'
-AI_PROVIDER=groq
-AI_API_KEY=TA_CLE_GROQ
-AI_MODEL=llama-3.3-70b-versatile
-EOF
-```
-
-**3. Lancer Streamlit**
-```bash
-nohup streamlit run app.py \
-  --server.port 8501 \
-  --server.headless true \
-  --server.enableCORS false \
-  > streamlit.log 2>&1 &
-```
-
-**4. Config Nginx** → `/etc/nginx/sites-available/school`
-```nginx
-server {
-    server_name school.afia.fr;
-    location / {
-        proxy_pass http://localhost:8501;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-}
-```
-```bash
-ln -s /etc/nginx/sites-available/school /etc/nginx/sites-enabled/
-nginx -t && systemctl reload nginx
-certbot --nginx -d school.afia.fr
-```
-
-**Mise à jour après push GitHub :**
-```bash
-cd /var/www/a-school && git pull && pkill -f streamlit
-nohup streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &
-```
-
----
-
-### Phase 2b — Saisie vocale 🎤 PLANIFIÉE (après déploiement VPS)
-**Objectif :** Permettre au prof de dicter son texte à la volée via le micro du navigateur.
-
-**Principe :**
-```
-Micro navigateur → streamlit-mic-recorder (capture audio)
-                        ↓
-              faster-whisper sur VPS (transcription locale)
-                        ↓
-              Texte affiché dans la zone de saisie
-```
-
-**Pourquoi Whisper local (pas API externe) :**
-- Gratuit pour toujours — aucun fournisseur, aucun piège tarifaire
-- Données audio restent sur le serveur (confidentialité)
-- AfiaCloud 12 Go RAM largement suffisant (modèle medium = 1.5 Go)
-
-**Librairies à ajouter :**
-- `streamlit-mic-recorder` — capture audio navigateur
-- `faster-whisper` — transcription sur VPS (modèle `medium`, meilleur en français)
-
-**Interface :**
-```
-[📁 Importer .txt]  [🎤 Dicter]
-┌─────────────────────────────┐
-│ Ou collez votre texte...    │
-└─────────────────────────────┘
-```
-
-- [ ] Installer faster-whisper sur VPS
-- [ ] Télécharger modèle Whisper medium (français)
-- [ ] Ajouter bouton micro dans app.py
-- [ ] Ajouter **sélecteur de micro** (liste des périphériques via MediaDevices.enumerateDevices())
-- [ ] Ajouter fonction transcription dans generator.py
-- [ ] Tester avec la prof pilote
-
----
-
-### Phase 3 — Backend FastAPI + Admin ⏳ PLANIFIÉE
-**Objectif :** Architecture indépendante, admin autonome, multi-utilisateurs.
-
-- [ ] Backend FastAPI (Python)
-- [ ] Base de données SQLite (migration PostgreSQL prévue)
-- [ ] Table `activites` — prompts gérés en BDD, plus dans le code
-- [ ] Interface admin web — ajouter/modifier/supprimer des activités sans code
-- [ ] Authentification enseignants (login/mot de passe)
-- [ ] Profils : matière, niveau, établissement
-- [ ] Historique des activités générées par prof
-- [ ] API REST documentée (Swagger auto FastAPI)
-- [ ] Docker pour isoler backend/frontend/BDD
-
----
-
-### Phase 4 — Produit complet ⏳ PLANIFIÉE
-**Objectif :** Produit finalisé, multi-matières, partageable.
-
-- [ ] Frontend React ou Vue.js
-- [ ] Export Word (.docx)
-- [ ] Partage d'activités entre collègues
-- [ ] Tableau de bord par établissement
-- [ ] Toutes matières (maths, histoire, sciences, langues...)
-- [ ] Import PDF (extraits de manuels)
-- [ ] Mode "séquence complète" (toutes activités en une fois)
-- [ ] Application mobile (PWA)
-- [ ] Intégration ENT (Pronote, etc.)
-- [ ] Gestion abonnements (freemium ?)
-- [ ] Documentation utilisateur
-
----
-
-## Décisions techniques
-
-| Date | Décision | Raison |
-|---|---|---|
-| 16/04/2026 | Groq comme fournisseur IA | Compte Google Workspace incompatible free tier Gemini |
-| 16/04/2026 | Streamlit Phase 1-2 | Simple, Python, rapide à déployer |
-| 16/04/2026 | Appel HTTP direct (requests) | SDK Google instable sur Windows |
-| 16/04/2026 | Backend FastAPI + BDD Phase 3 | Prompts en base = admin autonome, zéro code pour modifications |
-| 24/04/2026 | **Streamlit abandonné** | Outil de bricolage inadapté à une plateforme PRO multi-enseignants mondiale |
-| 24/04/2026 | **Stack : FastAPI + React + Tailwind + PostgreSQL** | Fondations solides, UI libre, scalable |
-| 24/04/2026 | **Prototype UI validé** (`frontend/index.html`) | Base HTML/Tailwind fidèle au SchemaUI.json — à migrer en React |
-
-## Règles interface (validées 24/04/2026)
-
-| Règle | Détail |
+| Composant | Technologie |
 |---|---|
-| Pas de "IA" | Remplacer par "A-SCHOOL" partout |
-| Couleurs | Bordeaux `#A63045` (accent) + Bleu `#1F6EEB` (primaire) |
-| Boutons | Icône SVG + texte + `title=` obligatoires |
-| Menu sidebar | Rétractable, items secondaires (Aide, À propos) en bas |
-| Footer | Slogan centré : *"Plus le monde s'ouvre, plus nous avons besoin de proximité..."* |
-
-## Étapes migration (en cours)
-
-- [x] Décision stack PRO (24/04/2026)
-- [x] Prototype UI HTML validé — `frontend/index.html`
-- [ ] Backend FastAPI — squelette + `/api/generate`
-- [ ] React + Vite scaffolding sur base du prototype
-- [ ] Auth JWT + Google OAuth + Magic link
-- [ ] Historique PostgreSQL
-- [ ] Déploiement VPS nouvelle stack
+| Backend | FastAPI (Python) |
+| Frontend | React + Vite + Tailwind CSS |
+| Base de données | SQLite → PostgreSQL (Phase 4) |
+| IA texte | Groq (llama-3.3-70b-versatile) |
+| Auth | JWT httpOnly cookies (bcrypt + python-jose) |
+| Email | SMTP Infomaniak (mail.infomaniak.com:587) |
+| VPS | AfiaCloud — Ubuntu 24.04 LTS, 4 CPU, 12 Go RAM |
+| URL | https://school.afia.fr |
+| Déploiement | Nginx + HTTPS Let's Encrypt + systemd |
 
 ---
 
-## Workflow de modification (validé)
+## Déploiement VPS
 
-```
-Prof identifie un besoin
-        ↓
-harketti transmet à Claude
-        ↓
-Claude code (prompts.py ou app.py)
-        ↓
-harketti : .\push.ps1 "description"
-        ↓
-VPS : git pull + restart
-        ↓
-Disponible en ligne (~15 min)
+```bash
+# Depuis /var/www/a-school sur le VPS
+git pull && bash deploy/deploy.sh
 ```
 
-**Phase 3 :** Ce workflow devient un simple formulaire admin. Plus de code du tout.
+Le script gère : pip install, npm build, variables .env manquantes, restart systemd, reload nginx, test santé API.
 
 ---
 
-## Fichiers du projet
+## Architecture fichiers (état 28/04/2026)
 
 ```
 d:\A-SCHOOL\
-├── app.py               # Interface Streamlit
-├── push.ps1             # Script push GitHub
+├── backend/
+│   ├── main.py              # FastAPI app + migrations BDD auto
+│   ├── auth.py              # bcrypt, JWT, SMTP (vérification + feedback)
+│   ├── database.py          # SQLAlchemy engine + session
+│   ├── models_db.py         # User, Feedback, ActiviteSauvegardee...
+│   └── routers/
+│       ├── auth.py          # /api/auth/*
+│       ├── generate.py      # /api/generate
+│       ├── activites.py     # /api/activites/{matiere}
+│       ├── profil.py        # /api/user/profile (GET + PATCH)
+│       ├── mes_activites.py # /api/mes-activites
+│       ├── feedback.py      # /api/feedback (feedback + notation)
+│       └── admin.py         # /api/admin/*
+├── frontend/src/
+│   ├── App.jsx              # Router principal
+│   ├── context/AuthContext.jsx
+│   ├── components/
+│   │   ├── Header.jsx
+│   │   ├── Sidebar.jsx      # Nav + Feedback + Notation + Mon profil
+│   │   ├── Parametres.jsx   # Sélecteurs + encart feedback + bandeau Supérieur
+│   │   ├── MonProfil.jsx    # Formulaire profil prof
+│   │   ├── Feedback.jsx     # Modale feedback (catégorie + message)
+│   │   ├── Notation.jsx     # Modale notation (étoiles + commentaire optionnel)
+│   │   ├── APropos.jsx      # Notez A-SCHOOL + Envoyer un feedback
+│   │   └── ...
+│   └── pages/
+│       ├── Login.jsx / Signup.jsx / VerifyEmail.jsx
+│       ├── AdminLogs.jsx    # Connexions + colonne Matière
+│       ├── AdminActivites.jsx
+│       ├── AdminFeedbacks.jsx  # Onglets Notations (CSAT) / Feedbacks
+│       └── AdminProfils.jsx    # Liste profs + filtre + édition inline
 ├── src/
-│   ├── main.py          # CLI
-│   ├── config.py        # Configuration
-│   ├── prompts.py       # 15 types d'activités + prompts
-│   ├── generator.py     # Appel API (Groq / Anthropic)
-│   └── formats.py       # Mise en forme Markdown
-├── outputs/             # Activités générées (non versionné)
-├── .env                 # Clé API (non versionné)
-├── .env.example         # Template .env
-├── requirements.txt
-├── SPEC.md              # Spécification fonctionnelle initiale
-└── ROADMAP.md           # Ce fichier
+│   ├── activities.py        # FR + HG (hardcodé)
+│   ├── generated_activities.py  # 10 matières générées depuis markdown
+│   └── prompts.py           # Templates prompts par activité
+├── deploy/
+│   ├── deploy.sh            # Script déploiement VPS
+│   ├── aschool.service      # Systemd unit
+│   └── nginx-aschool.conf   # Config Nginx
+├── data/aschool.db          # SQLite (non versionné)
+├── run.ps1                  # Lancement dev local
+└── requirements.txt
 ```
+
+---
+
+## Décisions techniques clés
+
+| Date | Décision |
+|---|---|
+| 16/04/2026 | Groq comme fournisseur IA (Gemini banni — compte Workspace incompatible) |
+| 24/04/2026 | Streamlit abandonné — migration FastAPI + React |
+| 25/04/2026 | Auth JWT opérationnelle en local |
+| 27/04/2026 | 12 matières + admin panel complet livré |
+| 27/04/2026 | A-FEEDBACK comme notification secondaire |
+| 28/04/2026 | A-FEEDBACK retiré — SMTP direct uniquement |
+| 28/04/2026 | Profil prof en BDD (prenom, nom, subject, niveau) |
+| 28/04/2026 | Feedback ≠ Notation — deux flux séparés, CSAT admin |

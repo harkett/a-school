@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import Feedback from './Feedback'
+import Notation from './Notation'
 
 export default function APropos({ email }) {
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showNotation, setShowNotation] = useState(false)
 
   return (
     <div className="max-w-lg">
@@ -44,15 +46,23 @@ export default function APropos({ email }) {
           </table>
         </div>
 
-        {/* Bloc 3 — Feedback */}
-        <div className="px-8 py-5 border-b border-gray-100">
+        {/* Bloc 3 — Actions */}
+        <div className="px-8 py-5 border-b border-gray-100 flex flex-col gap-3">
+          <button
+            onClick={() => setShowNotation(true)}
+            title="Donnez une note à A-SCHOOL"
+            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', padding: '10px 16px', textAlign: 'left', width: '100%' }}
+          >
+            <div className="text-sm font-medium text-gray-700">Notez A-SCHOOL</div>
+            <div className="text-xs text-gray-400 mt-0.5">Donnez votre avis sur la plateforme — 30 secondes</div>
+          </button>
           <button
             onClick={() => setShowFeedback(true)}
-            title="Envoyer un retour ou signaler un problème"
-            className="text-sm text-gray-500 hover:text-gray-800 underline"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            title="Signaler un problème ou suggérer une amélioration"
+            style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', padding: '10px 16px', textAlign: 'left', width: '100%' }}
           >
-            Envoyer un feedback
+            <div className="text-sm font-medium text-gray-700">Envoyer un feedback</div>
+            <div className="text-xs text-gray-400 mt-0.5">Signaler un problème ou suggérer une amélioration</div>
           </button>
         </div>
 
@@ -64,6 +74,7 @@ export default function APropos({ email }) {
       </div>
 
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
+      {showNotation && <Notation onClose={() => setShowNotation(false)} />}
     </div>
   )
 }

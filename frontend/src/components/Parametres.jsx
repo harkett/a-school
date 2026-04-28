@@ -6,7 +6,7 @@ const IconGenerer = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer }) {
+export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
 
   function set(field, value) {
@@ -78,6 +78,17 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
         )}
       </div>
 
+      {params.niveau === 'Supérieur' && (
+        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="text-sm font-semibold text-blue-800 mb-1">Niveau Supérieur — fonctionnalité en cours de développement</div>
+          <p className="text-xs text-blue-700 leading-relaxed">
+            A-SCHOOL peut déjà générer des activités adaptées à ce niveau, mais cette option n'est pas encore complètement développée.
+            La version complète proposera des activités spécifiques au supérieur : synthèse de documents, fiche de TD, commentaire composé CPGE,
+            plan de dissertation, annotation de corpus, préparation Grand Oral post-bac, et bien plus.
+          </p>
+        </div>
+      )}
+
       <div className="mt-4 flex items-start gap-2">
         <input
           type="checkbox" id="avec-correction"
@@ -93,6 +104,25 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             A-SCHOOL génère une réponse-type après chaque question, que le professeur adapte à sa classe.
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 rounded border border-gray-200 bg-gray-50 px-4 py-3 flex items-start gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="mt-0.5 shrink-0">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
+          <button
+            type="button"
+            onClick={onFeedback}
+            title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
+            className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
+            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+          >
+            Signalez-la via le Feedback
+          </button>
+          {' '}— nous l'ajouterons pour vous et pour tous les profs.
+        </p>
       </div>
 
       {!hasResultat && (

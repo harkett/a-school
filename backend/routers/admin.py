@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models_db import ConnexionLog
+from backend.models_db import ConnexionLog, Feedback, User
 
 router = APIRouter()
 
@@ -67,21 +67,121 @@ def admin_check(_: None = Depends(_require_admin)):
     return {"status": "ok"}
 
 
+@router.get("/admin/feedbacks")
+def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(Feedback)
+        .order_by(Feedback.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id":       f.id,
+            "email":    f.user_email,
+            "message":  f.message,
+            "rating":   f.rating,
+            "category": f.category,
+            "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
+        }
+        for f in rows
+    ]
+
+
+@router.get("/admin/activites")
+def get_activites_admin(_: None = Depends(_require_admin)):
+    from src.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_PAR_ACTIVITE
+
+    matieres = list(ACTIVITES_PAR_MATIERE.keys())
+    total_entrees = sum(len(a) for a in ACTIVITES_PAR_MATIERE.values())
+
+    par_matiere = {
+        matiere: [
+            {
+                "nom": nom,
+                "key": data["key"],
+                "sous_types": data["sous_types"],
+                "nb_sous_types": len(data["sous_types"]),
+            }
+            for nom, data in activites.items()
+        ]
+        for matiere, activites in ACTIVITES_PAR_MATIERE.items()
+    }
+
+    matrice = [
+        {
+            "activite": activite,
+            "matieres": list(matieres_data.keys()),
+        }
+        for activite, matieres_data in ACTIVITES_PAR_ACTIVITE.items()
+    ]
+
+    return {
+        "stats": {
+            "nb_matieres": len(matieres),
+            "nb_activites_uniques": len(ACTIVITES_PAR_ACTIVITE),
+            "nb_entrees": total_entrees,
+        },
+        "matieres": matieres,
+        "par_matiere": par_matiere,
+        "matrice": matrice,
+    }
+
+
+class UpdateUserBody(BaseModel):
+    prenom: str = ""
+    nom: str = ""
+    subject: str = ""
+    niveau: str = ""
+
+
+@router.get("/admin/users")
+def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    users = db.query(User).filter(User.is_verified == True).order_by(User.created_at.desc()).all()
+    return [
+        {
+            "email":       u.email,
+            "prenom":      u.prenom or "",
+            "nom":         u.nom or "",
+            "subject":     u.subject or "",
+            "niveau":      u.niveau or "",
+            "created_at":  u.created_at.strftime("%d/%m/%Y"),
+            "last_login":  u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
+        }
+        for u in users
+    ]
+
+
+@router.patch("/admin/user/{email}")
+def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    user.prenom  = body.prenom or None
+    user.nom     = body.nom or None
+    user.subject = body.subject or None
+    user.niveau  = body.niveau or None
+    db.commit()
+    return {"status": "ok"}
+
+
 @router.get("/admin/logs")
 def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    logs = (
-        db.query(ConnexionLog)
+    rows = (
+        db.query(ConnexionLog, User.subject)
+        .outerjoin(User, User.email == ConnexionLog.email)
         .order_by(ConnexionLog.created_at.desc())
         .limit(200)
         .all()
     )
     return [
         {
-            "id":     l.id,
-            "email":  l.email,
-            "action": l.action,
-            "ip":     l.ip,
-            "date":   l.created_at.strftime("%d/%m/%Y %H:%M"),
+            "id":      l.id,
+            "email":   l.email,
+            "subject": subject or "—",
+            "action":  l.action,
+            "ip":      l.ip,
+            "date":    l.created_at.strftime("%d/%m/%Y %H:%M"),
         }
-        for l in logs
+        for l, subject in rows
     ]

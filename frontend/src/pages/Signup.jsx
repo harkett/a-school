@@ -108,8 +108,18 @@ export default function Signup() {
                     required
                   >
                     <option value="" disabled>— Choisissez une matière —</option>
-                    <option value="francais">Français</option>
-                    <option value="histoire_geo">Histoire-Géographie</option>
+                    <option value="Français">Français</option>
+                    <option value="Histoire-Géographie">Histoire-Géographie</option>
+                    <option value="Mathématiques">Mathématiques</option>
+                    <option value="Physique-Chimie">Physique-Chimie</option>
+                    <option value="SVT">SVT</option>
+                    <option value="SES">SES</option>
+                    <option value="NSI">NSI</option>
+                    <option value="Philosophie">Philosophie</option>
+                    <option value="Langues Vivantes (LV)">Langues Vivantes (LV)</option>
+                    <option value="Technologie">Technologie</option>
+                    <option value="Arts">Arts</option>
+                    <option value="EPS">EPS</option>
                   </select>
                 </div>
                 <div>

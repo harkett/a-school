@@ -149,3 +149,21 @@ ACTIVITES_PAR_MATIERE = {
         },
     },
 }
+
+# --- Matières générées automatiquement depuis le markdown ---
+try:
+    from src.generated_activities import NOUVELLES_MATIERES
+except ImportError:
+    from generated_activities import NOUVELLES_MATIERES
+
+ACTIVITES_PAR_MATIERE.update(NOUVELLES_MATIERES)
+
+# --- Index dérivé : activité → matière → données (calculé au démarrage) ---
+def build_index(source: dict) -> dict:
+    index = {}
+    for matiere, activites in source.items():
+        for nom, data in activites.items():
+            index.setdefault(nom, {})[matiere] = data
+    return index
+
+ACTIVITES_PAR_ACTIVITE = build_index(ACTIVITES_PAR_MATIERE)

@@ -44,6 +44,10 @@ async function telechargerWord(texte) {
   const paragraphs = texte.split('\n').map(line =>
     new Paragraph({ children: [new TextRun(line || ' ')] })
   )
+  paragraphs.push(new Paragraph({ children: [] }))
+  paragraphs.push(new Paragraph({
+    children: [new TextRun({ text: 'Généré avec A-SCHOOL — school.afia.fr', color: '999999', size: 16 })],
+  }))
   const doc = new Document({
     sections: [{ properties: {}, children: paragraphs }],
   })
@@ -59,8 +63,12 @@ function imprimer(texte) {
   const escaped = texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   win.document.write(`
     <html><head><title>Activité A-SCHOOL</title>
-    <style>body{font-family:Arial,sans-serif;padding:2rem;white-space:pre-wrap;line-height:1.8;font-size:13px}</style>
-    </head><body>${escaped}</body></html>
+    <style>
+      body{font-family:Arial,sans-serif;padding:2rem 2rem 4rem;white-space:pre-wrap;line-height:1.8;font-size:13px}
+      @media print{.pied-aschool{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:10px;color:#aaa;padding:6px;border-top:1px solid #eee}}
+      .pied-aschool{display:none}
+    </style>
+    </head><body>${escaped}<div class="pied-aschool">Généré avec A-SCHOOL — school.afia.fr</div></body></html>
   `)
   win.document.close()
   win.print()
@@ -68,7 +76,8 @@ function imprimer(texte) {
 
 function envoyerMail(texte, email) {
   const sujet = encodeURIComponent(`Activité A-SCHOOL — ${new Date().toLocaleDateString('fr-FR')}`)
-  const corps = encodeURIComponent(texte)
+  const signature = '\n\n---\nGénéré avec A-SCHOOL — school.afia.fr — Créez votre compte gratuit'
+  const corps = encodeURIComponent(texte + signature)
   window.location.href = `mailto:${email}?subject=${sujet}&body=${corps}`
 }
 

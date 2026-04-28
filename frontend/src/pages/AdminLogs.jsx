@@ -34,6 +34,7 @@ export default function AdminLogs() {
               <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wide">
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Matière</th>
                 <th className="px-4 py-3 font-medium">Action</th>
                 <th className="px-4 py-3 font-medium">IP</th>
               </tr>
@@ -43,6 +44,7 @@ export default function AdminLogs() {
                 <tr key={l.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{l.date}</td>
                   <td className="px-4 py-3 text-gray-800">{l.email}</td>
+                  <td className="px-4 py-3 text-gray-600">{l.subject}</td>
                   <td className="px-4 py-3">
                     <span
                       className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"

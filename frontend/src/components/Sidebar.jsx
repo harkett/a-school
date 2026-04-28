@@ -25,6 +25,11 @@ const IconInfo = () => (
     <line x1="12" y1="16" x2="12.01" y2="16"/>
   </svg>
 )
+const IconStar = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+  </svg>
+)
 const IconFeedback = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -39,6 +44,12 @@ const IconActivites = () => (
     <polyline points="10 9 9 9 8 9"/>
   </svg>
 )
+const IconUser = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
+  </svg>
+)
 const IconMenu = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -47,7 +58,7 @@ const IconMenu = () => (
   </svg>
 )
 
-export default function Sidebar({ page, onNavigate, onFeedback }) {
+export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(false)
 
   const navItem = (id, label, Icon, title) => (
@@ -94,6 +105,7 @@ export default function Sidebar({ page, onNavigate, onFeedback }) {
       <nav className={`flex flex-col gap-1 flex-1 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Page principale — générer une activité')}
         {navItem('mes-activites', 'Mes activités', IconActivites, 'Retrouver et recharger une activité précédemment générée')}
+        {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
         {navItem('historique', 'Historique', IconHistory, 'Voir vos générations précédentes')}
       </nav>
 
@@ -106,7 +118,16 @@ export default function Sidebar({ page, onNavigate, onFeedback }) {
           className={`py-1.5 flex items-center gap-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} text-gray-500 hover:text-gray-800`}
         >
           <IconFeedback />
-          {!collapsed && <span>Feedback</span>}
+          {!collapsed && <span>Envoyer un feedback</span>}
+        </a>
+        <a
+          href="#"
+          title="Notez A-SCHOOL — donnez votre avis sur la plateforme en 30 secondes"
+          onClick={e => { e.preventDefault(); onNotation() }}
+          className={`py-1.5 flex items-center gap-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} text-gray-500 hover:text-gray-800`}
+        >
+          <IconStar />
+          {!collapsed && <span>Notez A-SCHOOL</span>}
         </a>
         {navItem('apropos', 'À propos', IconInfo, 'Informations sur A-SCHOOL — version, contact')}
       </nav>

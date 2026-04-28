@@ -17,6 +17,10 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prenom: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    nom: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class EmailToken(Base):
@@ -47,6 +51,18 @@ class ConnexionLog(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(16), nullable=False)  # signup | login
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    type: Mapped[str] = mapped_column(String(16), nullable=False, default="feedback")  # feedback | notation
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

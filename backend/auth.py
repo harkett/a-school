@@ -50,12 +50,12 @@ def _validate_password(password: str) -> str:
     return password
 
 
-def create_user(db: Session, email: str, password: str) -> User:
+def create_user(db: Session, email: str, password: str, subject: str = "") -> User:
     email = email.strip().lower()
     password = _validate_password(password)
     if db.query(User).filter(User.email == email).first():
         raise ValueError("Un compte existe déjà avec cet email.")
-    user = User(email=email, password_hash=_hash_password(password))
+    user = User(email=email, password_hash=_hash_password(password), subject=subject or None)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -222,6 +222,88 @@ def _smtp_send(msg):
         s.starttls()
         s.login(user, pwd)
         s.send_message(msg)
+
+
+def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback"):
+    """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK."""
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
+    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@afia.fr")
+    stars     = "★" * rating + "☆" * (5 - rating)
+
+    prenom  = prof.get("prenom") or ""
+    nom     = prof.get("nom") or ""
+    nom_complet = f"{prenom} {nom}".strip() or "—"
+    matiere = prof.get("subject") or "—"
+    niveau  = prof.get("niveau") or "—"
+    email   = prof.get("email") or "—"
+    cat     = category or "—"
+
+    msg = MIMEMultipart("alternative")
+    sujet_email = f"[A-SCHOOL] Nouvelle notation — {rating}/5" if type == "notation" else "[A-SCHOOL] Nouveau feedback"
+    msg["Subject"] = sujet_email
+    msg["From"]    = from_addr
+    msg["To"]      = to_addr
+
+    plain = (
+        f"Nouveau feedback A-SCHOOL\n\n"
+        f"Prénom / Nom : {nom_complet}\n"
+        f"Email        : {email}\n"
+        f"Matière      : {matiere}\n"
+        f"Niveau       : {niveau}\n"
+        f"Note         : {rating}/5  {stars}\n"
+        f"Catégorie    : {cat}\n\n"
+        f"Message :\n{message}\n"
+    )
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#1F6EEB);border-radius:12px;padding:1.2rem 2rem;margin-bottom:1.5rem;">
+        <h1 style="color:white;margin:0;font-size:1.3rem;">
+          <span style="color:#e05a6e;">A</span>-SCHOOL — Nouveau feedback
+        </h1>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1.5rem;">
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;width:140px;">Prénom / Nom</td>
+          <td style="padding:8px 12px;color:#1e293b;">{nom_complet}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Email</td>
+          <td style="padding:8px 12px;"><a href="mailto:{email}" style="color:#1F6EEB;">{email}</a></td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Matière</td>
+          <td style="padding:8px 12px;color:#1e293b;">{matiere}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Niveau</td>
+          <td style="padding:8px 12px;color:#1e293b;">{niveau}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Note</td>
+          <td style="padding:8px 12px;color:#1e293b;font-size:1.1rem;">{stars} <span style="font-size:0.85rem;color:#64748b;">({rating}/5)</span></td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Catégorie</td>
+          <td style="padding:8px 12px;color:#1e293b;">{cat}</td>
+        </tr>
+      </table>
+
+      <div style="background:#f1f5f9;border-left:4px solid #1F6EEB;border-radius:4px;padding:1rem 1.2rem;">
+        <div style="color:#64748b;font-size:0.75rem;font-weight:600;margin-bottom:6px;">MESSAGE</div>
+        <p style="color:#1e293b;margin:0;line-height:1.6;white-space:pre-wrap;">{message}</p>
+      </div>
+
+      <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
+        A-SCHOOL · school.afia.fr · feedback enregistré en base de données
+      </p>
+    </div>
+    """
+
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)
 
 
 def send_verification_email(email: str, token: str):

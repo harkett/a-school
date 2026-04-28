@@ -27,15 +27,20 @@ foreach ($port in @(8000, 5173)) {
 
 Start-Sleep -Milliseconds 600
 
-# 3. Démarrer le backend FastAPI et sauvegarder son PID
+# 3. Régénérer les activités depuis la matrice markdown
+Write-Host "  Regeneration activities..." -ForegroundColor Yellow
+& "$root\.venv\Scripts\python.exe" "$root\parse_markdown.py"
+Write-Host ""
+
+# 4. Démarrer le backend FastAPI et sauvegarder son PID
 $backend = Start-Process powershell -PassThru -ArgumentList "-Command",
     "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Backend'; cd '$root'; Write-Host '=== BACKEND FastAPI ===' -ForegroundColor Cyan; .\.venv\Scripts\uvicorn backend.main:app --reload --port 8000; pause"
 
-# 4. Démarrer le frontend React + Vite et sauvegarder son PID
+# 5. Démarrer le frontend React + Vite et sauvegarder son PID
 $frontend = Start-Process powershell -PassThru -ArgumentList "-Command",
     "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Frontend'; cd '$root\frontend'; Write-Host '=== FRONTEND React ===' -ForegroundColor Green; npm run dev; pause"
 
-# 5. Sauvegarder les PIDs pour le prochain lancement
+# 6. Sauvegarder les PIDs pour le prochain lancement
 @($backend.Id, $frontend.Id) | Set-Content $pidFile
 
 Write-Host ""

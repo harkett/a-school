@@ -6,18 +6,14 @@ const CATEGORIES = [
   { key: 'question',   label: 'Question' },
 ]
 
-const STARS = [1, 2, 3, 4, 5]
-
 export default function Feedback({ onClose }) {
   const [category, setCategory] = useState('')
   const [message, setMessage] = useState('')
-  const [rating, setRating] = useState(0)
-  const [hover, setHover] = useState(0)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
 
-  const canSubmit = category && message.trim().length >= 5 && rating > 0
+  const canSubmit = category && message.trim().length >= 5
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -29,7 +25,7 @@ export default function Feedback({ onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: message.trim(), rating, category }),
+        body: JSON.stringify({ type: 'feedback', message: message.trim(), rating: 0, category }),
       })
       if (!res.ok) throw new Error()
       setDone(true)
@@ -105,29 +101,6 @@ export default function Feedback({ onClose }) {
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400"
               />
               <p className="text-xs text-gray-400 text-right mt-0.5">{message.length}/2000</p>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Note</label>
-              <div className="flex gap-1">
-                {STARS.map(s => (
-                  <button
-                    key={s}
-                    type="button"
-                    title={`${s} étoile${s > 1 ? 's' : ''}`}
-                    onMouseEnter={() => setHover(s)}
-                    onMouseLeave={() => setHover(0)}
-                    onClick={() => setRating(s)}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      fontSize: 24,
-                      color: s <= (hover || rating) ? '#f59e0b' : '#d1d5db',
-                    }}
-                  >
-                    ★
-                  </button>
-                ))}
-              </div>
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

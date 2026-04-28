@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.database import get_db
-from backend.models_db import ConnexionLog
+from backend.models_db import ConnexionLog, User
 
 router = APIRouter()
 
@@ -33,6 +33,7 @@ def _clear_cookies(response: Response):
 
 class SignupBody(BaseModel):
     email: str
+    subject: str = ""
     password: str
     password_confirm: str
 
@@ -62,7 +63,7 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
             raise HTTPException(403, "Inscription réservée aux membres autorisés.")
 
     try:
-        user = auth_lib.create_user(db, body.email, body.password)
+        user = auth_lib.create_user(db, body.email, body.password, body.subject)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -119,13 +120,20 @@ def refresh(
 
 
 @router.get("/auth/me")
-def get_me(aschool_access: str = Cookie(default=None)):
+def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
     email = auth_lib.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
-    return {"email": email}
+    user = db.query(User).filter(User.email == email).first()
+    return {
+        "email":   email,
+        "subject": user.subject if user else None,
+        "prenom":  user.prenom if user else None,
+        "nom":     user.nom if user else None,
+        "niveau":  user.niveau if user else None,
+    }
 
 
 @router.post("/auth/logout")

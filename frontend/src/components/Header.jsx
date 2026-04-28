@@ -11,7 +11,7 @@ export default function Header({ matiere, email, onLogout }) {
       </div>
       <div className="flex items-center gap-4 text-sm">
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-        <span style={{ color: 'var(--bordeaux)', fontWeight: 600 }}>{matiere}</span>
+        <span style={{ color: 'white', fontWeight: 600 }}>{matiere}</span>
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
         <span style={{ color: 'rgba(255,255,255,0.6)' }}>{email}</span>
         <button

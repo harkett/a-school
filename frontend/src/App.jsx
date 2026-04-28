@@ -11,16 +11,19 @@ import Aide from './components/Aide'
 import APropos from './components/APropos'
 import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
+import MonProfil from './components/MonProfil'
+import Notation from './components/Notation'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import VerifyEmail from './pages/VerifyEmail'
 import MentionsLegales from './pages/MentionsLegales'
 import AdminLogin from './pages/AdminLogin'
 import AdminLogs from './pages/AdminLogs'
+import AdminActivites from './pages/AdminActivites'
+import AdminFeedbacks from './pages/AdminFeedbacks'
+import AdminProfils from './pages/AdminProfils'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
-
-const MATIERE_DEFAUT = 'Français'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -36,9 +39,11 @@ function ProtectedRoute({ children }) {
 
 function MainApp() {
   const { user, logout } = useAuth()
+  const matiere = user?.subject || 'Français'
 
   const [page, setPage] = useState('accueil')
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showNotation, setShowNotation] = useState(false)
   const [activites, setActivites] = useState([])
   const [texte, setTexte] = useState('')
   const [resultat, setResultat] = useState(null)
@@ -47,7 +52,7 @@ function MainApp() {
 
   const [params, setParams] = useState({
     activite_key: '',
-    niveau: localStorage.getItem('aschool_niveau') || '4e',
+    niveau: user?.niveau || localStorage.getItem('aschool_niveau') || '4e',
     sous_type: null,
     nb: 5,
     avec_correction: false,
@@ -61,7 +66,7 @@ function MainApp() {
   }
 
   useEffect(() => {
-    fetch(`/api/activites/${MATIERE_DEFAUT}`)
+    fetch(`/api/activites/${encodeURIComponent(matiere)}`)
       .then(r => r.json())
       .then(data => {
         setActivites(data)
@@ -75,7 +80,7 @@ function MainApp() {
         }
       })
       .catch(() => setErreur('Impossible de charger les activités — vérifiez que le backend tourne.'))
-  }, [])
+  }, [matiere])
 
   async function generer() {
     if (!texte.trim()) {
@@ -140,13 +145,13 @@ function MainApp() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header
-        matiere={MATIERE_DEFAUT}
+        matiere={matiere}
         email={user?.email}
         onLogout={logout}
       />
 
       <div className="flex flex-1 min-h-0">
-        <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} />
+        <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
 
         <main className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
           {erreur && (
@@ -167,6 +172,7 @@ function MainApp() {
                   loading={loading}
                   hasResultat={!!resultat}
                   canGenerer={!!texte.trim() && !!params.activite_key}
+                  onFeedback={() => setShowFeedback(true)}
                 />
               )}
               <ZoneResultat
@@ -182,6 +188,8 @@ function MainApp() {
             <MesActivites onCharger={chargerActivite} />
           )}
 
+          {page === 'mon-profil' && <MonProfil />}
+
           {page === 'historique' && (
             <div className="bg-white rounded border border-gray-200 p-8 text-center text-gray-400 text-sm">
               Historique — disponible en Phase 3 (base de données)
@@ -196,6 +204,7 @@ function MainApp() {
 
       <Footer />
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
+      {showNotation && <Notation onClose={() => setShowNotation(false)} />}
     </div>
   )
 }
@@ -221,6 +230,9 @@ export default function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/logs" replace />} />
             <Route path="logs" element={<AdminLogs />} />
+            <Route path="activites"  element={<AdminActivites />} />
+            <Route path="feedbacks"  element={<AdminFeedbacks />} />
+            <Route path="profils"    element={<AdminProfils />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
