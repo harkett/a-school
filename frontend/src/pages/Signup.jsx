@@ -15,6 +15,7 @@ const EyeIcon = ({ open }) => open ? (
 export default function Signup() {
   const [email, setEmail] = useState('')
   const [subject, setSubject] = useState('')
+  const [langueLv, setLangueLv] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -39,6 +40,7 @@ export default function Signup() {
         body: JSON.stringify({
           email: email.trim(),
           subject,
+          langue_lv: subject === 'Langues Vivantes (LV)' ? langueLv : '',
           password,
           password_confirm: passwordConfirm,
         }),
@@ -104,7 +106,7 @@ export default function Signup() {
                   <select
                     className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
                     value={subject}
-                    onChange={e => setSubject(e.target.value)}
+                    onChange={e => { setSubject(e.target.value); setLangueLv('') }}
                     required
                   >
                     <option value="" disabled>— Choisissez une matière —</option>
@@ -122,6 +124,28 @@ export default function Signup() {
                     <option value="EPS">EPS</option>
                   </select>
                 </div>
+
+                {subject === 'Langues Vivantes (LV)' && (
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Langue enseignée :</label>
+                    <select
+                      className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
+                      value={langueLv}
+                      onChange={e => setLangueLv(e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>— Précisez la langue —</option>
+                      <option value="Anglais">Anglais</option>
+                      <option value="Espagnol">Espagnol</option>
+                      <option value="Allemand">Allemand</option>
+                      <option value="Italien">Italien</option>
+                      <option value="Portugais">Portugais</option>
+                      <option value="Arabe">Arabe</option>
+                      <option value="Chinois">Chinois</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">
                     Mot de passe <span className="text-gray-400">(8 caractères minimum)</span>

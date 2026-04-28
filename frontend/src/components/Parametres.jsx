@@ -1,4 +1,5 @@
-const NIVEAUX = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
+const NIVEAUX   = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
+const MATIERES  = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -6,7 +7,7 @@ const IconGenerer = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback }) {
+export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
 
   function set(field, value) {
@@ -26,6 +27,24 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
       <div className="section-title mb-4">Paramètres de l'activité</div>
+
+      <div className="mb-4 pb-4 border-b border-gray-100">
+        <label className="block text-xs text-gray-500 mb-1">
+          Matière{' '}
+          <span className="text-gray-400" title="Change la matière pour cette session seulement — votre profil reste inchangé">
+            (cette session — votre profil reste inchangé)
+          </span>
+        </label>
+        <select
+          className="w-full border border-gray-300 rounded p-2 text-sm"
+          value={sessionMatiere}
+          onChange={e => onMatiereChange(e.target.value)}
+          title="Changer la matière pour cette session de génération uniquement"
+        >
+          {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
 
         <div>

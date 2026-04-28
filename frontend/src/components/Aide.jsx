@@ -86,7 +86,11 @@ const sections = [
       <dl className="flex flex-col gap-4 text-sm text-gray-600">
         <div>
           <dt className="font-semibold text-gray-700">Matière</dt>
-          <dd className="mt-0.5">Définie dans votre profil à l'inscription et modifiable via "Mon profil". A-SCHOOL propose 12 matières : Français, Histoire-Géographie, Mathématiques, Physique-Chimie, SVT, SES, NSI, Philosophie, Langues vivantes, Technologie, Arts et EPS.</dd>
+          <dd className="mt-0.5 flex flex-col gap-2">
+            <span>A-SCHOOL propose 12 matières : Français, Histoire-Géographie, Mathématiques, Physique-Chimie, SVT, SES, NSI, Philosophie, Langues vivantes, Technologie, Arts et EPS.</span>
+            <span><strong>Votre matière de profil</strong> est définie à l'inscription et modifiable via "Mon profil" — c'est votre identité par défaut, elle persiste d'une connexion à l'autre.</span>
+            <span><strong>Le sélecteur de matière dans les paramètres</strong> vous permet de changer de matière pour la session en cours uniquement, sans toucher à votre profil. Utile si vous intervenez ponctuellement dans une autre discipline ou souhaitez tester des activités d'une autre matière.</span>
+          </dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Niveau</dt>

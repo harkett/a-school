@@ -34,6 +34,7 @@ def _clear_cookies(response: Response):
 class SignupBody(BaseModel):
     email: str
     subject: str = ""
+    langue_lv: str = ""
     password: str
     password_confirm: str
 
@@ -63,7 +64,7 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
             raise HTTPException(403, "Inscription réservée aux membres autorisés.")
 
     try:
-        user = auth_lib.create_user(db, body.email, body.password, body.subject)
+        user = auth_lib.create_user(db, body.email, body.password, body.subject, body.langue_lv)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -99,6 +100,18 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     if not email:
         raise HTTPException(400, "Lien invalide ou expiré.")
     auth_lib.mark_user_verified(db, email)
+    user = db.query(User).filter(User.email == email).first()
+    try:
+        from backend.routers.admin import get_settings_dict
+        settings = get_settings_dict(db)
+        auth_lib.send_custom_email(
+            email,
+            user.prenom if user else None,
+            settings["welcome_email_subject"],
+            settings["welcome_email_body"],
+        )
+    except Exception:
+        pass
     return {"status": "ok", "email": email}
 
 
@@ -128,11 +141,12 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()
     return {
-        "email":   email,
-        "subject": user.subject if user else None,
-        "prenom":  user.prenom if user else None,
-        "nom":     user.nom if user else None,
-        "niveau":  user.niveau if user else None,
+        "email":     email,
+        "subject":   user.subject   if user else None,
+        "prenom":    user.prenom    if user else None,
+        "nom":       user.nom       if user else None,
+        "niveau":    user.niveau    if user else None,
+        "langue_lv": user.langue_lv if user else None,
     }
 
 

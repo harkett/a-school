@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models_db import ConnexionLog, Feedback, User
+from backend.models_db import ActiviteSauvegardee, ConnexionLog, EmailToken, Feedback, RefreshToken, Setting, User
 
 router = APIRouter()
 
@@ -34,6 +34,28 @@ def _verify_admin_token(token: str) -> bool:
 def _require_admin(aschool_admin: str = Cookie(default=None)):
     if not aschool_admin or not _verify_admin_token(aschool_admin):
         raise HTTPException(401, "Accès réservé à l'administrateur.")
+
+
+SETTING_DEFAULTS = {
+    "welcome_email_subject": "Bienvenue sur A-SCHOOL !",
+    "welcome_email_body": (
+        "Bonjour {prenom},\n\n"
+        "Votre compte A-SCHOOL est maintenant actif !\n\n"
+        "A-SCHOOL est votre assistant pédagogique : générez des activités adaptées à votre matière "
+        "et à vos élèves en quelques secondes.\n\n"
+        "Connectez-vous dès maintenant sur school.afia.fr\n\n"
+        "Parlez-en à vos collègues — plus on est nombreux, plus A-SCHOOL s'améliore !\n\n"
+        "Bonne utilisation,\nL'équipe A-SCHOOL"
+    ),
+}
+
+
+def get_settings_dict(db: Session) -> dict:
+    rows = db.query(Setting).all()
+    result = dict(SETTING_DEFAULTS)
+    for row in rows:
+        result[row.key] = row.value
+    return result
 
 
 class AdminLoginBody(BaseModel):
@@ -79,6 +101,7 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
         {
             "id":       f.id,
             "email":    f.user_email,
+            "type":     f.type,
             "message":  f.message,
             "rating":   f.rating,
             "category": f.category,
@@ -162,6 +185,77 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
     user.subject = body.subject or None
     user.niveau  = body.niveau or None
     db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/admin/user/{email}")
+def delete_user(email: str, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    db.query(EmailToken).filter(EmailToken.email == email).delete()
+    db.query(RefreshToken).filter(RefreshToken.user_email == email).delete()
+    db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_email == email).delete()
+    db.query(ConnexionLog).filter(ConnexionLog.email == email).delete()
+    db.query(Feedback).filter(Feedback.user_email == email).delete()
+    db.delete(user)
+    db.commit()
+    return {"status": "ok"}
+
+
+class SettingsBody(BaseModel):
+    welcome_email_subject: str = ""
+    welcome_email_body: str = ""
+
+
+@router.get("/admin/settings")
+def get_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    return get_settings_dict(db)
+
+
+@router.put("/admin/settings")
+def save_settings(body: SettingsBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    for key, value in body.dict().items():
+        row = db.query(Setting).filter(Setting.key == key).first()
+        if row:
+            row.value = value
+        else:
+            db.add(Setting(key=key, value=value))
+    db.commit()
+    return {"status": "ok"}
+
+
+class SendEmailBody(BaseModel):
+    subject: str
+    body: str
+
+
+@router.post("/admin/user/{email}/send-email")
+def send_email_to_user(email: str, body: SendEmailBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    from backend import auth as auth_lib
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    try:
+        auth_lib.send_custom_email(email, user.prenom, body.subject, body.body)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur envoi email : {e}")
+    return {"status": "ok"}
+
+
+@router.post("/admin/settings/test-email")
+def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    from backend import auth as auth_lib
+    admin_email = os.getenv("SMTP_USERNAME", "")
+    if not admin_email:
+        raise HTTPException(500, "SMTP_USERNAME non configuré.")
+    settings = get_settings_dict(db)
+    subject = body.welcome_email_subject or settings["welcome_email_subject"]
+    content = body.welcome_email_body    or settings["welcome_email_body"]
+    try:
+        auth_lib.send_custom_email(admin_email, "Admin", subject, content)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}
 
 

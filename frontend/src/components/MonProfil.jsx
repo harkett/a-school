@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
+const MATIERES   = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+const NIVEAUX    = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
+const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
 
 export default function MonProfil() {
   const { user, setUser } = useAuth()
   const [form, setForm] = useState({
-    prenom:  user?.prenom  || '',
-    nom:     user?.nom     || '',
-    subject: user?.subject || '',
-    niveau:  user?.niveau  || '',
+    prenom:    user?.prenom    || '',
+    nom:       user?.nom       || '',
+    subject:   user?.subject   || '',
+    niveau:    user?.niveau    || '',
+    langue_lv: user?.langue_lv || '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
@@ -99,6 +101,20 @@ export default function MonProfil() {
             {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
+
+        {form.subject === 'Langues Vivantes (LV)' && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Langue enseignée</label>
+            <select
+              className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
+              value={form.langue_lv}
+              onChange={e => set('langue_lv', e.target.value)}
+            >
+              <option value="">— Précisez la langue —</option>
+              {LANGUES_LV.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">Niveau par défaut</label>

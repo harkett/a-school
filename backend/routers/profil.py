@@ -23,6 +23,7 @@ class ProfileBody(BaseModel):
     nom: str = ""
     subject: str = ""
     niveau: str = ""
+    langue_lv: str = ""
 
 
 @router.get("/user/profile")
@@ -32,11 +33,12 @@ def get_profile(aschool_access: str = Cookie(default=None), db: Session = Depend
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
     return {
-        "email":   user.email,
-        "prenom":  user.prenom or "",
-        "nom":     user.nom or "",
-        "subject": user.subject or "",
-        "niveau":  user.niveau or "",
+        "email":     user.email,
+        "prenom":    user.prenom    or "",
+        "nom":       user.nom       or "",
+        "subject":   user.subject   or "",
+        "niveau":    user.niveau    or "",
+        "langue_lv": user.langue_lv or "",
     }
 
 
@@ -46,9 +48,10 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    user.prenom  = body.prenom or None
-    user.nom     = body.nom or None
-    user.subject = body.subject or None
-    user.niveau  = body.niveau or None
+    user.prenom    = body.prenom    or None
+    user.nom       = body.nom       or None
+    user.subject   = body.subject   or None
+    user.niveau    = body.niveau    or None
+    user.langue_lv = body.langue_lv or None
     db.commit()
     return {"status": "ok"}

@@ -54,7 +54,7 @@ def submit_feedback(
     }
     try:
         auth_lib.send_feedback_notification(prof, body.message, body.rating, body.category, body.type)
-    except Exception:
-        logger.warning("Notification feedback non envoyée — feedback sauvegardé en BDD.")
+    except Exception as e:
+        logger.error(f"Notification feedback non envoyée : {type(e).__name__}: {e}")
 
     return {"status": "ok"}

@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from backend.database import engine
 from backend import models_db
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -20,6 +20,7 @@ with engine.connect() as _conn:
         "ALTER TABLE users ADD COLUMN nom VARCHAR(64)",
         "ALTER TABLE users ADD COLUMN niveau VARCHAR(16)",
         "ALTER TABLE feedbacks ADD COLUMN type VARCHAR(16) DEFAULT 'feedback'",
+        "ALTER TABLE users ADD COLUMN langue_lv VARCHAR(32)",
     ]:
         try:
             _conn.execute(text(_col))
@@ -41,7 +42,7 @@ app.add_middleware(
         "https://school.afia.fr",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -52,6 +53,7 @@ app.include_router(mes_activites.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
+app.include_router(ocr.router, prefix="/api")
 
 
 @app.get("/api/health")

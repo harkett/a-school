@@ -96,3 +96,21 @@ on peut ajouter : current_activite = current_activite.replace(" / ", " - ")
 Pour éviter les clés instables.
 
 
+
+### 28/04/2026 - 17:00 Dire à Claude Code
+La prod est déployée, on est exactement là où on voulait être. La prochaine session, c'est le few-shot — la fonctionnalité qui fait qu'A-SCHOOL s'adapte au style du prof.
+
+3 étapes dans l'ordre, 2-3h de travail :
+
+1. Sécuriser /api/generate (petit bug de sécurité)
+Ajouter la lecture du cookie JWT dans backend/routers/generate.py — même pattern que mes_activites.py ligne 24. Sans ça, n'importe qui peut appeler l'API sans être connecté.
+
+2. Requête few-shot en base
+Après une génération, chercher les 2 dernières activités du même type pour ce prof dans activites_sauvegardees. Si le prof en a moins de 3 pour ce type → génération normale, rien ne change pour lui.
+
+3. Injection dans le prompt
+Dans src/prompts.py, injecter les 2 exemples du prof avant la consigne : "Voici comment ce professeur formule ses exercices… Génère dans le même style."
+
+Après ça : laisser les pilotes générer quelques activités, observer si le style s'adapte, puis préparer les assets de communication (captures d'écran, vidéo 60s) — mais seulement une fois le few-shot validé avec les pilotes.
+
+

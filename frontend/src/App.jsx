@@ -22,6 +22,7 @@ import AdminLogs from './pages/AdminLogs'
 import AdminActivites from './pages/AdminActivites'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
+import AdminParametres from './pages/AdminParametres'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -40,6 +41,9 @@ function ProtectedRoute({ children }) {
 function MainApp() {
   const { user, logout } = useAuth()
   const matiere = user?.subject || 'Français'
+  const matiereLabel = matiere === 'Langues Vivantes (LV)' && user?.langue_lv
+    ? `LV - ${user.langue_lv}`
+    : matiere
 
   const [page, setPage] = useState('accueil')
   const [showFeedback, setShowFeedback] = useState(false)
@@ -49,6 +53,11 @@ function MainApp() {
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
+  const [sessionMatiere, setSessionMatiere] = useState(matiere)
+
+  useEffect(() => {
+    setSessionMatiere(matiere)
+  }, [matiere])
 
   const [params, setParams] = useState({
     activite_key: '',
@@ -66,7 +75,7 @@ function MainApp() {
   }
 
   useEffect(() => {
-    fetch(`/api/activites/${encodeURIComponent(matiere)}`)
+    fetch(`/api/activites/${encodeURIComponent(sessionMatiere)}`)
       .then(r => r.json())
       .then(data => {
         setActivites(data)
@@ -80,7 +89,7 @@ function MainApp() {
         }
       })
       .catch(() => setErreur('Impossible de charger les activités — vérifiez que le backend tourne.'))
-  }, [matiere])
+  }, [sessionMatiere])
 
   async function generer() {
     if (!texte.trim()) {
@@ -145,7 +154,7 @@ function MainApp() {
   return (
     <div className="flex flex-col min-h-screen">
       <Header
-        matiere={matiere}
+        matiere={matiereLabel}
         email={user?.email}
         onLogout={logout}
       />
@@ -173,6 +182,8 @@ function MainApp() {
                   hasResultat={!!resultat}
                   canGenerer={!!texte.trim() && !!params.activite_key}
                   onFeedback={() => setShowFeedback(true)}
+                  sessionMatiere={sessionMatiere}
+                  onMatiereChange={setSessionMatiere}
                 />
               )}
               <ZoneResultat
@@ -232,7 +243,8 @@ export default function App() {
             <Route path="logs" element={<AdminLogs />} />
             <Route path="activites"  element={<AdminActivites />} />
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
-            <Route path="profils"    element={<AdminProfils />} />
+            <Route path="profils"     element={<AdminProfils />} />
+            <Route path="parametres" element={<AdminParametres />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

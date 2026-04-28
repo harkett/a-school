@@ -21,6 +21,7 @@ class User(Base):
     prenom: Mapped[str | None] = mapped_column(String(64), nullable=True)
     nom: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class EmailToken(Base):
@@ -64,6 +65,13 @@ class Feedback(Base):
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Setting(Base):
+    __tablename__ = "settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
 class ActiviteSauvegardee(Base):

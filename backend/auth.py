@@ -50,12 +50,17 @@ def _validate_password(password: str) -> str:
     return password
 
 
-def create_user(db: Session, email: str, password: str, subject: str = "") -> User:
+def create_user(db: Session, email: str, password: str, subject: str = "", langue_lv: str = "") -> User:
     email = email.strip().lower()
     password = _validate_password(password)
     if db.query(User).filter(User.email == email).first():
         raise ValueError("Un compte existe déjà avec cet email.")
-    user = User(email=email, password_hash=_hash_password(password), subject=subject or None)
+    user = User(
+        email=email,
+        password_hash=_hash_password(password),
+        subject=subject or None,
+        langue_lv=langue_lv or None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -302,6 +307,51 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
     """
 
     msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)
+
+
+def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
+    """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels."""
+    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
+    nom_prenom = prenom or "cher(e) enseignant(e)"
+    body_rendered = body.replace("{prenom}", nom_prenom).replace("{email}", email)
+    body_html = body_rendered.replace("\n", "<br>")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = email
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#1F6EEB);border-radius:12px;padding:1.5rem 2rem;margin-bottom:2rem;">
+        <h1 style="color:white;margin:0;font-size:1.5rem;">
+          <span style="color:#A63045;">A</span>-SCHOOL
+        </h1>
+        <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.9rem;">
+          Générateur d'activités pédagogiques
+        </p>
+      </div>
+      <div style="font-size:0.95rem;color:#1e293b;line-height:1.75;">
+        {body_html}
+      </div>
+      <div style="text-align:center;margin:2.5rem 0;">
+        <a href="{app_url}"
+           style="background:#1F6EEB;color:white;padding:14px 32px;
+                  border-radius:8px;text-decoration:none;
+                  font-weight:600;font-size:1rem;display:inline-block;">
+          Accéder à A-SCHOOL
+        </a>
+      </div>
+      <p style="color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:1rem;">
+        A-SCHOOL · school.afia.fr
+      </p>
+    </div>
+    """
+
+    msg.attach(MIMEText(body_rendered, "plain"))
     msg.attach(MIMEText(html, "html"))
     _smtp_send(msg)
 
