@@ -59,3 +59,40 @@ Mot de passe oublié (flow reset_password)
 # 6- L'historique et la base de données viennent après (Phase 3), une fois que le pilote tourne.
 
 
+### 27/04/2026 - 14:45 Dire à Claude Code
+## Priorité de la prochaine session
+Commencer par les 3 tâches de visibilité — pas par le few-shot.
+
+Pourquoi ce choix
+Le few-shot a besoin que les profs pilotes aient déjà généré 3+ activités du même type pour fonctionner. En ce moment leur historique est encore mince. Si tu codes le few-shot maintenant, il ne sera testable que dans 2 semaines.
+
+Les tâches de visibilité, elles, sont utiles dès la prochaine impression.
+
+Ordre exact pour la prochaine session
+# Bloc 1 — ½ journée max (impact immédiat)
+
+1- Pied de page à l'impression — "Généré avec A-SCHOOL — school.afia.fr" — visible sur papier, invisible à l'écran
+2- Même pied de page dans les exports .docx
+Signature dans les mails envoyés depuis l'app
+Ces 3 tâches sont du code simple, chacune 1 à 2 heures. Dès que les profs impriment ou partagent un fichier, l'outil se diffuse tout seul.
+
+# Bloc 2 — dans la même session si le temps le permet
+
+Auth JWT sur /api/generate — c'est un bug sécurité, 30 minutes, et c'est le prérequis obligatoire du few-shot
+# Bloc 3 — session suivante
+
+Few-shot adaptation au style du prof — une fois que les profs pilotes ont suffisamment d'historique et que l'auth est en place
+En résumé : les tâches rapides et à fort impact de diffusion d'abord, pendant que les profs accumulent l'historique nécessaire au few-shot. Les deux fronts avancent en parallèle sans se bloquer.
+
+
+
+Je ne changerais rien à ton architecture. mais je te propse quelques ajustements dans la détection des activités et des matières, pour éviter les bugs de parsing et les clés instables :
+Je changerais juste 3 lignes :
+
+✔️ 1. Détection des matières : if line.startswith('# '):
+✔️ 2. Détection du début de la section sous‑types : idx = text.lower().find("sous-types")
+✔️ 3. Normalisation des activités (optionnel) : current_activite = current_activite.replace(" / ", " - ")
+on peut ajouter : current_activite = current_activite.replace(" / ", " - ")
+Pour éviter les clés instables.
+
+
