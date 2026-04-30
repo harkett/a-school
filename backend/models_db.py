@@ -22,6 +22,7 @@ class User(Base):
     nom: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
     langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class EmailToken(Base):
@@ -64,6 +65,7 @@ class Feedback(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    statut: Mapped[str] = mapped_column(String(16), nullable=False, default="nouveau")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

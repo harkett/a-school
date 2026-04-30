@@ -5,7 +5,7 @@ const MATIERES   = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Phys
 const NIVEAUX    = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
 
-export default function MonProfil() {
+export default function MonProfil({ onNavigate }) {
   const { user, setUser } = useAuth()
   const [form, setForm] = useState({
     prenom:    user?.prenom    || '',
@@ -13,17 +13,16 @@ export default function MonProfil() {
     subject:   user?.subject   || '',
     niveau:    user?.niveau    || '',
     langue_lv: user?.langue_lv || '',
+    mobile:    user?.mobile    || '',
   })
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved]   = useState(false)
   const [erreur, setErreur] = useState(null)
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
-    setSaved(false)
   }
 
-  async function handleSave(e) {
+  async function handleValider(e) {
     e.preventDefault()
     setSaving(true)
     setErreur(null)
@@ -36,10 +35,9 @@ export default function MonProfil() {
       })
       if (!res.ok) throw new Error('Erreur lors de la sauvegarde.')
       setUser({ ...user, ...form })
-      setSaved(true)
+      onNavigate('accueil')
     } catch (e) {
       setErreur(e.message)
-    } finally {
       setSaving(false)
     }
   }
@@ -51,11 +49,8 @@ export default function MonProfil() {
       {erreur && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">{erreur}</div>
       )}
-      {saved && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded p-3 text-sm mb-4">Profil mis à jour.</div>
-      )}
 
-      <form onSubmit={handleSave} className="flex flex-col gap-4">
+      <form onSubmit={handleValider} className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Prénom</label>
@@ -87,6 +82,19 @@ export default function MonProfil() {
             value={user?.email || ''}
             readOnly
             style={{ background: '#f8fafc', color: '#94a3b8' }}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">
+            Mobile <span className="text-gray-400">(optionnel)</span>
+          </label>
+          <input
+            type="tel"
+            className="w-full border border-gray-300 rounded p-2 text-sm"
+            value={form.mobile}
+            onChange={e => set('mobile', e.target.value)}
+            placeholder="06 00 00 00 00"
           />
         </div>
 
@@ -128,9 +136,23 @@ export default function MonProfil() {
           </select>
         </div>
 
-        <div className="flex justify-end">
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
+        <div className="flex justify-end gap-3 pt-1">
+          <button
+            type="button"
+            title="Annuler les modifications et revenir à l'accueil"
+            onClick={() => onNavigate('accueil')}
+            className="btn-secondary"
+            disabled={saving}
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            title="Enregistrer le profil et revenir à l'accueil"
+            className="btn-primary"
+            disabled={saving}
+          >
+            {saving ? 'Enregistrement…' : 'Valider'}
           </button>
         </div>
       </form>

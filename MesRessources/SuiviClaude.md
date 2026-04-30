@@ -114,3 +114,23 @@ Dans src/prompts.py, injecter les 2 exemples du prof avant la consigne : "Voici 
 Après ça : laisser les pilotes générer quelques activités, observer si le style s'adapte, puis préparer les assets de communication (captures d'écran, vidéo 60s) — mais seulement une fois le few-shot validé avec les pilotes.
 
 
+### Direction pour la session suivante
+J'ai une proposition à faire Concernant les allers-retours entre le profil Et la page d'accueil pour gérer les paramètres d'une activité (Trop de clics, risque de confusion pour les profs): 
+Je propose donc Lors Nouvelle activité demandée par le professeur, 
+1- on affiche dans les paramètres de l'activité e qui est déjà configuré dans le profil (Mais juste en affichage, pas en mode modification) 
+2- Le prof vérifie si les paramètres lui conviennent Il continue , si les paramètres ne lui conviennent pas Il va pas surtout sur le profil, il clique juste sur un bouton. qui lui ouvre une petite fenêtre Et dans cette fenêtre, il selectionne ce qui l'interesse pour l'occasion  valide çà remplit la zone paramètres d'activité
+ Qu'est-ce que tu en penses ?
+ Dis-moi ce que tu comprends de ce que je propose .?
+
+
+### 29/04/2026 - 23:27  Dire à Claude Code 
+Etudie le document Analyse-CGPT.md que je t'ai partagé, et dis-moi ce que tu en retiens. Quels sont les points clés à garder en tête pour la suite du projet ?
+
+### 29/04/2026 - 09:30 Dire à Claude Code de la part de Copilot
+Résumé du brief :
+Objectif : Implémenter les prompts pour 10 matières manquantes
+
+À faire	Détail
+Ajouter prompts	Philosophie, Maths, NSI, Phys-Chimie, SVT, Techno, SES, LV, Arts, EPS
+Fichiers cibles	prompts.py, activities.py
+Référence	MATRICE_ACTIVITES_ASCHOOL.md

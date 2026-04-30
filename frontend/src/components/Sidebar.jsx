@@ -127,7 +127,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
           className={`py-1.5 flex items-center gap-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} text-gray-500 hover:text-gray-800`}
         >
           <IconStar />
-          {!collapsed && <span>Notez</span>}
+          {!collapsed && <span>Avis</span>}
         </a>
         {navItem('apropos', 'À propos', IconInfo, 'Informations sur A-SCHOOL — version, contact')}
       </nav>

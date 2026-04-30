@@ -105,10 +105,33 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "message":  f.message,
             "rating":   f.rating,
             "category": f.category,
+            "statut":   f.statut,
             "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
         }
         for f in rows
     ]
+
+
+class StatutBody(BaseModel):
+    statut: str
+
+_STATUTS_VALIDES = {"nouveau", "en_cours", "traite", "archive"}
+
+@router.patch("/admin/feedbacks/{feedback_id}/statut")
+def update_feedback_statut(
+    feedback_id: int,
+    body: StatutBody,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    if body.statut not in _STATUTS_VALIDES:
+        raise HTTPException(400, "Statut invalide.")
+    fb = db.get(Feedback, feedback_id)
+    if not fb:
+        raise HTTPException(404, "Feedback introuvable.")
+    fb.statut = body.statut
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.get("/admin/activites")

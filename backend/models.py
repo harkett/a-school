@@ -9,6 +9,7 @@ class GenerateRequest(BaseModel):
     sous_type: Optional[str] = None
     nb: Optional[int] = None
     avec_correction: bool = False
+    langue_lv: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):

@@ -24,6 +24,7 @@ class ProfileBody(BaseModel):
     subject: str = ""
     niveau: str = ""
     langue_lv: str = ""
+    mobile: str = ""
 
 
 @router.get("/user/profile")
@@ -39,6 +40,7 @@ def get_profile(aschool_access: str = Cookie(default=None), db: Session = Depend
         "subject":   user.subject   or "",
         "niveau":    user.niveau    or "",
         "langue_lv": user.langue_lv or "",
+        "mobile":    user.mobile    or "",
     }
 
 
@@ -53,5 +55,6 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     user.subject   = body.subject   or None
     user.niveau    = body.niveau    or None
     user.langue_lv = body.langue_lv or None
+    user.mobile    = body.mobile    or None
     db.commit()
     return {"status": "ok"}

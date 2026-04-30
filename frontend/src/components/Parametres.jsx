@@ -1,5 +1,7 @@
-const NIVEAUX   = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
-const MATIERES  = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useState } from 'react'
+
+const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
+const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -9,6 +11,8 @@ const IconGenerer = () => (
 
 export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
+  const [showAjuster, setShowAjuster] = useState(false)
+  const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
 
   function set(field, value) {
     onChange({ ...params, [field]: value })
@@ -24,39 +28,47 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
     })
   }
 
+  function ouvrirAjuster() {
+    setAjustTemp({ matiere: sessionMatiere, niveau: params.niveau })
+    setShowAjuster(true)
+  }
+
+  function validerAjust() {
+    onMatiereChange(ajustTemp.matiere)
+    onChange({ ...params, niveau: ajustTemp.niveau })
+    setShowAjuster(false)
+  }
+
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
       <div className="section-title mb-4">Paramètres de l'activité</div>
 
-      <div className="mb-4 pb-4 border-b border-gray-100">
-        <label className="block text-xs text-gray-500 mb-1">
-          Matière{' '}
-          <span className="text-gray-400" title="Change la matière pour cette session seulement — votre profil reste inchangé">
-            (cette session — votre profil reste inchangé)
-          </span>
-        </label>
-        <select
-          className="w-full border border-gray-300 rounded p-2 text-sm"
-          value={sessionMatiere}
-          onChange={e => onMatiereChange(e.target.value)}
-          title="Changer la matière pour cette session de génération uniquement"
+      {/* Récapitulatif profil */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px',
+        padding: '8px 12px', marginBottom: '16px', gap: '12px',
+      }}>
+        <span className="text-sm text-gray-700">
+          <span className="font-medium">{sessionMatiere}</span>
+          <span className="text-gray-400 mx-2">·</span>
+          <span>{params.niveau}</span>
+        </span>
+        <button
+          type="button"
+          onClick={ouvrirAjuster}
+          title="Modifier la matière et le niveau pour cette activité uniquement — votre profil reste inchangé"
+          style={{
+            background: 'none', border: '1px solid #d1d5db', borderRadius: '5px',
+            padding: '3px 10px', fontSize: '12px', color: '#374151',
+            cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+          }}
         >
-          {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
+          Ajuster pour cette activité
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Niveau de la classe</label>
-          <select
-            className="w-full border border-gray-300 rounded p-2 text-sm"
-            value={params.niveau}
-            onChange={e => set('niveau', e.target.value)}
-          >
-            {NIVEAUX.map(n => <option key={n}>{n}</option>)}
-          </select>
-        </div>
 
         <div>
           <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
@@ -81,6 +93,12 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             >
               {activite.sous_types.map(s => <option key={s}>{s}</option>)}
             </select>
+            {params.sous_type === 'Mélange' && (
+              <p className="text-xs text-gray-400 mt-1">
+                <span className="font-medium text-gray-500">Combinera :</span>{' '}
+                {activite.sous_types.filter(s => s !== 'Mélange').join(' · ')}
+              </p>
+            )}
           </div>
         )}
 
@@ -155,6 +173,76 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             <IconGenerer />
             {loading ? 'Génération en cours...' : 'Générer l\'activité'}
           </button>
+        </div>
+      )}
+
+      {/* Modale — Ajuster pour cette activité */}
+      {showAjuster && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowAjuster(false) }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '10px', padding: '24px',
+            width: '360px', maxWidth: '92vw', boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            display: 'flex', flexDirection: 'column', gap: '16px',
+          }}>
+            <div>
+              <div className="text-sm font-semibold text-gray-800">Ajuster pour cette activité</div>
+              <div className="text-xs text-gray-400 mt-0.5">Votre profil reste inchangé.</div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Matière</label>
+                <select
+                  className="w-full border border-gray-300 rounded p-2 text-sm"
+                  value={ajustTemp.matiere}
+                  onChange={e => setAjustTemp(t => ({ ...t, matiere: e.target.value }))}
+                >
+                  {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Niveau de la classe</label>
+                <select
+                  className="w-full border border-gray-300 rounded p-2 text-sm"
+                  value={ajustTemp.niveau}
+                  onChange={e => setAjustTemp(t => ({ ...t, niveau: e.target.value }))}
+                >
+                  {NIVEAUX.map(n => <option key={n}>{n}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowAjuster(false)}
+                title="Annuler — revenir aux paramètres actuels"
+                style={{
+                  padding: '7px 16px', fontSize: '13px', borderRadius: '6px',
+                  border: '1px solid #d1d5db', background: '#fff', color: '#374151', cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={validerAjust}
+                title="Valider les ajustements pour cette activité"
+                style={{
+                  padding: '7px 16px', fontSize: '13px', borderRadius: '6px',
+                  border: 'none', background: 'var(--bleu)', color: '#fff', cursor: 'pointer', fontWeight: 600,
+                }}
+              >
+                Valider
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>

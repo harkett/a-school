@@ -38,6 +38,42 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
+const TIPS = [
+  {
+    texte: 'Si votre navigateur propose de traduire cette page, choisissez « Ne jamais traduire ce site ». La traduction automatique perturbe la génération des activités.',
+    lien: { label: 'Pourquoi ?' },
+    modal: {
+      titre: 'Pourquoi ne pas traduire la page ?',
+      lignes: [
+        'La traduction automatique modifie le texte source et les consignes — A-SCHOOL reçoit alors des mots incorrects et génère des activités incohérentes ou vides.',
+        'La page A-SCHOOL est entièrement en français : la traduction n\'apporte rien et perturbe tout.',
+        '— Chrome : clic droit sur la page → « Traduire en français » → choisissez « Ne jamais traduire ce site ».',
+        '— Edge : cliquez sur l\'icône de traduction dans la barre d\'adresse → « Ne jamais traduire ce site ».',
+      ],
+    },
+  },
+  {
+    texte: 'A-SCHOOL apprend votre style : plus vous sauvegardez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
+    lien: { label: 'En savoir plus' },
+    modal: {
+      titre: 'Comment A-SCHOOL apprend votre style ?',
+      lignes: [
+        'À chaque sauvegarde, A-SCHOOL conserve votre activité comme exemple.',
+        'À partir de la 3ème sauvegarde d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
+        'Cela fonctionne par type d\'activité : vos exemples de QCM n\'influencent pas vos résumés, et inversement.',
+        'Plus vous sauvegardez, plus les activités générées vous ressemblent.',
+      ],
+    },
+  },
+  { texte: 'Cliquez sur « Ajuster pour cette activité » pour changer la matière ou le niveau ponctuellement, sans modifier votre profil.' },
+  { texte: 'Votre niveau par défaut est mémorisé d\'une session à l\'autre — vous n\'avez pas à le resélectionner à chaque connexion.' },
+  { texte: 'L\'option « Avec correction » génère automatiquement un corrigé sous l\'activité.' },
+  { texte: 'Depuis « Mes activités », rechargez une activité précédente et régénérez-la avec un nouveau texte source.' },
+  { texte: 'Complétez votre profil (matière, niveau par défaut) pour que A-SCHOOL s\'adapte à votre contexte dès la connexion.' },
+  { texte: 'La précision « Mélange » demande à A-SCHOOL de combiner tous les types disponibles pour cette activité. Le détail des types combinés s\'affiche sous le sélecteur.' },
+  { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez le texte dans A-SCHOOL.' },
+]
+
 function MainApp() {
   const { user, logout } = useAuth()
   const matiere = user?.subject || 'Français'
@@ -54,6 +90,25 @@ function MainApp() {
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [sessionMatiere, setSessionMatiere] = useState(matiere)
+  const [toast, setToast] = useState(null)
+  const [tipIndex, setTipIndex] = useState(
+    () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
+  )
+  const [tipModal, setTipModal] = useState(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 6000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  function goTip(dir) {
+    setTipIndex(i => {
+      const next = (i + dir + TIPS.length) % TIPS.length
+      localStorage.setItem('aschool_tip_index', String(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     setSessionMatiere(matiere)
@@ -103,6 +158,9 @@ function MainApp() {
       const body = { ...params, texte }
       if (!body.nb) delete body.nb
       if (!body.sous_type) delete body.sous_type
+      if (sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv) {
+        body.langue_lv = user.langue_lv
+      }
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -116,6 +174,14 @@ function MainApp() {
       }
       const data = await res.json()
       setResultat(data.resultat)
+
+      const countKey = `aschool_style_count_${params.activite_key}`
+      const newCount = (parseInt(localStorage.getItem(countKey) || '0')) + 1
+      localStorage.setItem(countKey, String(newCount))
+      if (newCount === 3) {
+        setToast('A-SCHOOL reconnaît maintenant votre façon de travailler sur ce type d\'activité.')
+      }
+
       fetch('/api/mes-activites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -171,6 +237,39 @@ function MainApp() {
 
           {page === 'accueil' && (
             <>
+              <div style={{
+                background: '#f5f3ff',
+                border: '1px solid #c4b5fd',
+                borderRadius: '6px',
+                padding: '7px 12px',
+                fontSize: '12.5px',
+                color: '#5b21b6',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}>
+                <span style={{ fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#7c3aed' }}>
+                  Truc &amp; astuce
+                </span>
+                <span style={{ color: '#a78bfa', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {tipIndex + 1} / {TIPS.length}
+                </span>
+                <span style={{ flex: 1 }}>
+                  {TIPS[tipIndex].texte}
+                  {TIPS[tipIndex].lien && (
+                    <>{' '}<button onClick={() => setTipModal(TIPS[tipIndex].modal)} style={{ background: 'none', border: 'none', padding: 0, color: '#5b21b6', textDecoration: 'underline', cursor: 'pointer', fontSize: '12.5px' }}>{TIPS[tipIndex].lien.label}</button></>
+                  )}
+                </span>
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button onClick={() => goTip(-1)} title="Conseil précédent" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  </button>
+                  <button onClick={() => goTip(1)} title="Conseil suivant" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                </div>
+              </div>
+
               <TexteSource texte={texte} onChange={setTexte} />
               {activites.length > 0 && (
                 <Parametres
@@ -199,7 +298,7 @@ function MainApp() {
             <MesActivites onCharger={chargerActivite} />
           )}
 
-          {page === 'mon-profil' && <MonProfil />}
+          {page === 'mon-profil' && <MonProfil onNavigate={setPage} />}
 
           {page === 'historique' && (
             <div className="bg-white rounded border border-gray-200 p-8 text-center text-gray-400 text-sm">
@@ -216,6 +315,51 @@ function MainApp() {
       <Footer />
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
+
+      {tipModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600 }}
+          onClick={e => { if (e.target === e.currentTarget) setTipModal(null) }}
+        >
+          <div style={{ background: '#fff', borderRadius: '10px', padding: '24px', width: '420px', maxWidth: '92vw', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#3b0764' }}>{tipModal.titre}</div>
+              <button onClick={() => setTipModal(null)} title="Fermer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '18px', lineHeight: 1, flexShrink: 0, padding: '0 2px' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {tipModal.lignes.map((l, i) => (
+                <p key={i} style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6, margin: 0 }}>{l}</p>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => setTipModal(null)} title="Fermer cette explication" style={{ padding: '7px 20px', fontSize: '13px', borderRadius: '6px', border: 'none', background: '#5b21b6', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
+                Compris
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '28px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#1e40af',
+          color: '#fff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          zIndex: 1000,
+          maxWidth: '480px',
+          textAlign: 'center',
+          lineHeight: '1.5',
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

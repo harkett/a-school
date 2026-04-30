@@ -21,6 +21,8 @@ with engine.connect() as _conn:
         "ALTER TABLE users ADD COLUMN niveau VARCHAR(16)",
         "ALTER TABLE feedbacks ADD COLUMN type VARCHAR(16) DEFAULT 'feedback'",
         "ALTER TABLE users ADD COLUMN langue_lv VARCHAR(32)",
+        "ALTER TABLE users ADD COLUMN mobile VARCHAR(20)",
+        "ALTER TABLE feedbacks ADD COLUMN statut VARCHAR(16) NOT NULL DEFAULT 'nouveau'",
     ]:
         try:
             _conn.execute(text(_col))

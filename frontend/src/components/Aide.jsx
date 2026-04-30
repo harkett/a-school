@@ -32,11 +32,25 @@ const IconAlert = () => (
   </svg>
 )
 
+const IconTarget = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+  </svg>
+)
+
 const IconUser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
     <circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
+const IconSparkle = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
   </svg>
 )
 
@@ -49,6 +63,50 @@ const ChevronDown = ({ open }) => (
 )
 
 const sections = [
+  {
+    id: 'apprentissage',
+    titre: 'A-SCHOOL apprend votre style',
+    Icon: IconSparkle,
+    contenu: (
+      <div className="flex flex-col gap-4 text-sm text-gray-600">
+        <p>
+          Chaque activité que vous sauvegardez est un exemple que A-SCHOOL retient.
+          À partir du <strong>3e exemple du même type</strong>, il reconnaît votre façon
+          de travailler et génère un résultat dans votre style.
+        </p>
+        <p className="text-xs text-gray-400 italic">Rien à configurer — cela se fait automatiquement.</p>
+
+        <div className="rounded-lg overflow-hidden border border-gray-200">
+          <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">
+            Exemple — Questions de compréhension (Français, 4e)
+          </div>
+          <div className="flex flex-col divide-y divide-gray-100">
+            <div className="px-4 py-3">
+              <div className="text-xs font-medium text-gray-400 mb-1">Avant — génération standard</div>
+              <div className="text-gray-500 italic">
+                "À partir du texte proposé, identifiez et expliquez le rôle du personnage principal
+                dans la progression narrative, en vous appuyant sur des exemples précis tirés du document."
+              </div>
+            </div>
+            <div className="px-4 py-3" style={{ background: '#eff6ff' }}>
+              <div className="text-xs font-medium mb-1" style={{ color: 'var(--bleu)' }}>
+                Après — adapté au style de ce professeur
+              </div>
+              <div className="text-gray-700">
+                "1. Quel est le rôle du personnage principal ?<br />
+                2. Comment évolue-t-il au fil du texte ?"
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-500">
+          A-SCHOOL s'affine progressivement à chaque utilisation.
+          Plus vous l'utilisez, moins vous corrigez.
+        </p>
+      </div>
+    ),
+  },
   {
     id: 'comment',
     titre: 'Comment utiliser A-SCHOOL',
@@ -126,6 +184,43 @@ const sections = [
     ),
   },
   {
+    id: 'conseils-utilisation',
+    titre: 'Conseils d\'utilisation',
+    Icon: IconTarget,
+    contenu: (
+      <ul className="flex flex-col gap-3 text-sm text-gray-600">
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Choisissez le type d'activité selon votre objectif</strong> — "Questions de compréhension" pour vérifier la lecture, "Production d'écrit" pour entraîner à la rédaction, "Fiche de révision" pour synthétiser un chapitre.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Précisez le sous-type</strong> — plus votre choix est ciblé (ex : "inférence" plutôt que "mélange"), plus le résultat est adapté à ce que vous cherchez.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Sauvegardez les activités qui vous conviennent</strong> — chaque génération sauvegardée est un exemple que A-SCHOOL retient pour apprendre votre style (voir "A-SCHOOL apprend votre style").</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Activez "Avec correction"</strong> pour obtenir le corrigé en même temps que l'activité — gain de temps direct pour la préparation de cours.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Relisez avant de distribuer</strong> — A-SCHOOL produit une base solide, mais un regard professionnel sur le résultat garantit la pertinence pédagogique.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Utilisez l'historique</strong> — retrouvez une ancienne activité dans "Mes activités" et rechargez-la en un clic pour la réutiliser ou la faire évoluer.</span>
+        </li>
+        <li className="flex gap-2">
+          <span className="font-bold shrink-0" style={{ color: 'var(--bleu)' }}>·</span>
+          <span><strong>Régénérez sans hésiter</strong> — chaque génération est différente. Si le premier résultat ne correspond pas, une seconde tentative avec le même texte peut donner exactement ce que vous cherchez.</span>
+        </li>
+      </ul>
+    ),
+  },
+  {
     id: 'espace',
     titre: 'Votre espace & retours',
     Icon: IconUser,
@@ -171,6 +266,16 @@ const sections = [
         <div>
           <dt className="font-semibold text-gray-700">Le niveau Supérieur affiche un message de développement</dt>
           <dd className="mt-0.5">Les activités pour le niveau Supérieur (BTS, prépa, licence) sont en cours de développement. Les autres niveaux (6e à Terminale) sont pleinement opérationnels.</dd>
+        </div>
+        <div>
+          <dt className="font-semibold text-gray-700">La traduction automatique perturbe les activités</dt>
+          <dd className="mt-0.5">
+            A-SCHOOL génère des activités en français. Si vous laissez votre navigateur traduire la page,
+            les paramètres envoyés à la génération sont altérés — les activités produites seront incohérentes
+            ou de mauvaise qualité.<br />
+            <strong>Solution :</strong> lorsque Chrome ou Edge propose de traduire, cliquez sur{' '}
+            <strong>« Plus »</strong> puis <strong>« Ne jamais traduire ce site »</strong>.
+          </dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Erreur lors de la génération</dt>
