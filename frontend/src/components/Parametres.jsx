@@ -93,10 +93,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             >
               {activite.sous_types.map(s => <option key={s}>{s}</option>)}
             </select>
-            {params.sous_type === 'Mélange' && (
+            {params.sous_type?.toLowerCase() === 'mélange' && (
               <p className="text-xs text-gray-400 mt-1">
                 <span className="font-medium text-gray-500">Combinera :</span>{' '}
-                {activite.sous_types.filter(s => s !== 'Mélange').join(' · ')}
+                {activite.sous_types.filter(s => s.toLowerCase() !== 'mélange').join(' · ')}
               </p>
             )}
           </div>
