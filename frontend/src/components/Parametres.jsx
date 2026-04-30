@@ -95,7 +95,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             </select>
             {params.sous_type?.toLowerCase() === 'mélange' && (
               <p className="text-xs text-gray-400 mt-1">
-                <span className="font-medium text-gray-500">Combinera :</span>{' '}
+                <span className="font-medium text-gray-500">Cette précision comprend un mélange de :</span>{' '}
                 {activite.sous_types.filter(s => s.toLowerCase() !== 'mélange').join(' · ')}
               </p>
             )}
