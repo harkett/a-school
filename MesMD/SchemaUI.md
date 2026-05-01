@@ -1,6 +1,8 @@
-# A-SCHOOL — Interface PRO (validée 24/04/2026)
+# A-SCHOOL — Interface PRO
 
-> Prototype HTML : `frontend/index.html` — base de la migration React
+> Référence design du projet — décrit la structure, les composants, les couleurs et les règles d'interface.
+> Interface React opérationnelle depuis 24/04/2026.
+> **Vérifié le : 30/04/2026 — État : à jour**
 
 ---
 
@@ -14,12 +16,14 @@
 │ SIDEBAR  │  textarea + [Fichier] [Dicter]           │
 │          │                                          │
 │ Accueil  │  PARAMÈTRES                              │
-│ Historique│  Activité / Niveau / Précision / Nb     │
-│          │  Inclure correction                      │
-│          │  [⚡ Générer l'activité]                 │
+│ Mes act. │  Activité / Niveau / Précision / Nb      │
+│ Mon prof.│  Inclure correction                      │
+│ Historiq.│  [⚡ Générer l'activité]                 │
 │ ──────── │                                          │
 │ Aide     │  ZONE RÉSULTAT (si généré)               │
-│ À propos │  [.txt] [Word] [Fermer]                  │
+│ Feedback │  [.txt] [Word] [Fermer]                  │
+│ Avis     │                                          │
+│ À propos │                                          │
 ├──────────┴──────────────────────────────────────────┤
 │  FOOTER  slogan centré | A-SCHOOL · mentions | v    │
 └─────────────────────────────────────────────────────┘
@@ -36,9 +40,9 @@
 - Navbar connecté : matière (bordeaux) | email (blanc discret) | [Se déconnecter]
 
 ### SIDEBAR
-- Largeur 180px, rétractable (toggle hamburger avec chevron directionnel)
-- Items haut : Accueil (actif bordeaux), Historique
-- Items bas (séparateur) : Aide, À propos
+- Largeur 176px, rétractable (toggle hamburger avec chevron directionnel)
+- Items haut : Accueil (actif bordeaux), Mes activités, Mon profil, Historique
+- Items bas (séparateur) : Aide, Feedback (modale), Avis (modale), À propos
 - Chaque item : icône SVG + texte + bulle d'aide
 
 ### ZONE TEXTE SOURCE

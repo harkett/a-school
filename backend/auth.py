@@ -231,8 +231,8 @@ def _smtp_send(msg):
 
 def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback"):
     """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK."""
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
-    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@afia.fr")
+    from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
+    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "harketti@afia.fr")
     stars     = "★" * rating + "☆" * (5 - rating)
 
     prenom  = prof.get("prenom") or ""
@@ -314,7 +314,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
 def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
     """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels."""
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
     nom_prenom = prenom or "cher(e) enseignant(e)"
     body_rendered = body.replace("{prenom}", nom_prenom).replace("{email}", email)
     body_html = body_rendered.replace("\n", "<br>")
@@ -358,7 +358,7 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
 
 def send_verification_email(email: str, token: str):
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <noreply@afia.fr>")
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
     link = f"{app_url}/verify-email?token={token}"
 
     msg = MIMEMultipart("alternative")
