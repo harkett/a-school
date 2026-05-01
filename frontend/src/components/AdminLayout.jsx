@@ -182,10 +182,7 @@ export default function AdminLayout() {
         {/* Bas de sidebar */}
         <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 2 }}>
           <button
-            onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-              navigate('/')
-            }}
+            onClick={() => navigate('/')}
             title="Retourner à l'application A-SCHOOL"
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
