@@ -232,7 +232,7 @@ def _smtp_send(msg):
 def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback"):
     """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK."""
     from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
-    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "harketti@afia.fr")
+    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
     stars     = "★" * rating + "☆" * (5 - rating)
 
     prenom  = prof.get("prenom") or ""

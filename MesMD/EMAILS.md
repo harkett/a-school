@@ -43,7 +43,7 @@ SMTP_USERNAME=contact@aschool.fr
 SMTP_PASSWORD=***
 SMTP_FROM=A-SCHOOL <contact@aschool.fr>
 FEEDBACK_FROM=A-SCHOOL Feedback <feedback@aschool.fr>
-FEEDBACK_NOTIFY_EMAIL=harketti@afia.fr
+FEEDBACK_NOTIFY_EMAIL=contact@aschool.fr
 APP_URL=http://localhost:5173
 ```
 
@@ -55,7 +55,7 @@ SMTP_USERNAME=contact@aschool.fr
 SMTP_PASSWORD=***
 SMTP_FROM=A-SCHOOL <contact@aschool.fr>
 FEEDBACK_FROM=A-SCHOOL Feedback <feedback@aschool.fr>
-FEEDBACK_NOTIFY_EMAIL=harketti@afia.fr
+FEEDBACK_NOTIFY_EMAIL=contact@aschool.fr
 APP_URL=https://school.afia.fr
 ```
 
