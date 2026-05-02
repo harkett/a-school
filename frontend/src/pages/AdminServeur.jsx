@@ -65,7 +65,7 @@ export default function AdminServeur() {
       setLogins(l || [])
       setDbSize(d)
       setHours(h || [])
-    }).finally(() => setLoading(false))
+    }).catch(() => navigate('/admin/login')).finally(() => setLoading(false))
   }, [navigate])
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>

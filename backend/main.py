@@ -29,6 +29,7 @@ with engine.connect() as _conn:
         "ALTER TABLE users ADD COLUMN langue_lv VARCHAR(32)",
         "ALTER TABLE users ADD COLUMN mobile VARCHAR(20)",
         "ALTER TABLE feedbacks ADD COLUMN statut VARCHAR(16) NOT NULL DEFAULT 'nouveau'",
+        "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
     ]:
         try:
             _conn.execute(text(_col))
