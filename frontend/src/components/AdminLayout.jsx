@@ -220,6 +220,10 @@ export default function AdminLayout() {
             </svg>
             Déconnexion
           </button>
+
+          <div style={{ padding: '8px 12px 2px', fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.3px' }}>
+            v1.3 · 02/05/2026
+          </div>
         </div>
       </aside>
 
