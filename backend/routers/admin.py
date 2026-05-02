@@ -7,8 +7,10 @@ from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.audit import log_admin_action
 from backend.database import get_db
-from backend.models_db import ActiviteSauvegardee, ConnexionLog, EmailToken, Feedback, RefreshToken, Setting, User
+from backend.limiter import limiter
+from backend.models_db import ActiviteSauvegardee, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -63,20 +65,51 @@ class AdminLoginBody(BaseModel):
     password: str
 
 
+def _get_admin_email(request: Request) -> str:
+    token = request.cookies.get(_COOKIE)
+    if not token:
+        return "admin"
+    try:
+        payload = jwt.decode(token, os.getenv("JWT_SECRET", ""), algorithms=[_ALGO])
+        return payload.get("sub", "admin")
+    except JWTError:
+        return "admin"
+
+
 @router.post("/admin/login")
-def admin_login(body: AdminLoginBody, response: Response, request: Request, db: Session = Depends(get_db)):
+@limiter.limit("10/hour")
+def admin_login(request: Request, body: AdminLoginBody, response: Response, db: Session = Depends(get_db)):
     expected_user = os.getenv("ADMIN_USERNAME", "")
     expected_pass = os.getenv("ADMIN_PASSWORD", "")
+    ip = request.client.host if request.client else None
     ok = (
         bool(expected_user) and bool(expected_pass) and
         secrets.compare_digest(body.username, expected_user) and
         secrets.compare_digest(body.password, expected_pass)
     )
     if not ok:
+        attempt = FailedLoginAttempt(
+            ip_address=ip,
+            username=body.username,
+            user_agent=request.headers.get("user-agent", ""),
+        )
+        db.add(attempt)
+        db.commit()
+        since = datetime.utcnow() - timedelta(hours=1)
+        count = db.query(FailedLoginAttempt).filter(
+            FailedLoginAttempt.ip_address == ip,
+            FailedLoginAttempt.attempt_at >= since,
+        ).count()
+        if count >= 10:
+            db.query(FailedLoginAttempt).filter(
+                FailedLoginAttempt.ip_address == ip,
+                FailedLoginAttempt.attempt_at >= since,
+            ).update({"blocked": True})
+            db.commit()
         raise HTTPException(401, "Identifiants incorrects.")
     response.set_cookie(_COOKIE, _make_admin_token(), max_age=_MAX_AGE, httponly=True, samesite="lax")
     admin_email = os.getenv("ADMIN_EMAIL", expected_user)
-    db.add(ConnexionLog(email=admin_email, action="admin_login", ip=request.client.host if request.client else None))
+    db.add(ConnexionLog(email=admin_email, action="admin_login", ip=ip))
     db.commit()
     return {"status": "ok"}
 
@@ -282,6 +315,54 @@ def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: Non
         auth_lib.send_custom_email(admin_email, "Admin", subject, content)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
+    return {"status": "ok"}
+
+
+@router.get("/admin/sessions")
+def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    sessions = (
+        db.query(UserSession)
+        .filter(UserSession.is_active == True)
+        .order_by(UserSession.last_seen.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id":        s.id,
+            "email":     s.user_email,
+            "browser":   s.browser or "—",
+            "os":        s.os or "—",
+            "device":    s.device_type or "—",
+            "ip":        s.ip_address or "—",
+            "login_at":  s.login_at.strftime("%d/%m/%Y %H:%M"),
+            "last_seen": s.last_seen.strftime("%d/%m/%Y %H:%M"),
+            "is_online": s.is_online,
+        }
+        for s in sessions
+    ]
+
+
+@router.post("/admin/force-logout/{session_id}")
+def force_logout(
+    session_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    session_obj = db.query(UserSession).filter(UserSession.id == session_id).first()
+    if not session_obj:
+        raise HTTPException(404, "Session introuvable.")
+    session_obj.is_active = False
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="FORCE_LOGOUT",
+        target_email=session_obj.user_email,
+        ip=request.client.host if request.client else None,
+        details=f"Session {session_obj.session_key[:8]}... déconnectée",
+    )
     return {"status": "ok"}
 
 

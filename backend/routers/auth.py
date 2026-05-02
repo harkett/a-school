@@ -221,6 +221,13 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     }
 
 
+@router.post("/heartbeat")
+def heartbeat():
+    # Le UserSessionMiddleware met à jour last_seen sur chaque requête authentifiée.
+    # Cette route existe uniquement pour que le browser puisse pinger sans payload.
+    return {"status": "ok"}
+
+
 @router.post("/auth/logout")
 def logout(
     response: Response,

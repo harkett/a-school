@@ -99,6 +99,14 @@ function MainApp() {
   const [tipModal, setTipModal] = useState(null)
 
   useEffect(() => {
+    if (!user) return
+    const id = setInterval(() => {
+      fetch('/api/heartbeat', { method: 'POST', credentials: 'include' })
+    }, 60000)
+    return () => clearInterval(id)
+  }, [user])
+
+  useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 6000)
     return () => clearTimeout(t)

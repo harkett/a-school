@@ -4,10 +4,14 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
 from backend.database import engine
 from backend import models_db
+from backend.limiter import limiter
+from backend.middleware import UserSessionMiddleware
 from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr
 
 models_db.Base.metadata.create_all(bind=engine)
@@ -35,6 +39,10 @@ if not _os.getenv("ADMIN_USERNAME") or not _os.getenv("ADMIN_PASSWORD"):
     print("\n⚠️  ATTENTION : ADMIN_USERNAME ou ADMIN_PASSWORD non chargés — connexion admin impossible.\n")
 
 app = FastAPI(title="A-SCHOOL API", version="2.0.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(UserSessionMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

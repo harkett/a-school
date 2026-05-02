@@ -2,6 +2,7 @@ import hashlib
 import os
 import secrets
 import smtplib
+import uuid
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -159,7 +160,7 @@ def create_access_token(email: str) -> str:
 
 def create_refresh_token(db: Session, email: str) -> str:
     token = jwt.encode(
-        {"sub": email, "type": "refresh",
+        {"sub": email, "type": "refresh", "jti": str(uuid.uuid4()),
          "exp": _now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)},
         SECRET_KEY, algorithm=ALGORITHM,
     )
