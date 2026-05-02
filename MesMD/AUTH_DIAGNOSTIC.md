@@ -20,6 +20,8 @@ Ce qui a été fait (session 2) :
 6. ✅ **PROB-6** — Cookie `secure=True` conditionnel (`ENV=production` dans `.env` VPS)
 7. ✅ **PROB-7** — Footer `harketti@afia.fr` → `contact@aschool.fr` dans `Login.jsx` et `VerifyEmail.jsx`
 8. ✅ **PROB-8** — `EyeIcon` extrait en composant partagé `frontend/src/components/EyeIcon.jsx`
+9. ✅ **Admin logs** — Connexions admin loguées (badge orange) + filtre "Admin" dans `AdminLogs.jsx`
+10. ✅ **Timezone** — Dates affichées en heure locale (UTC→local via `toLocaleString`) dans `AdminLogs.jsx`
 
 **Tous les problèmes identifiés sont résolus. Prêt pour déploiement VPS.**
 
@@ -324,4 +326,4 @@ Formulaire : champ "Nouveau mot de passe" + "Confirmer" + bouton. États : loadi
 
 ---
 
-*Dernière mise à jour : 02/05/2026 — tous les problèmes résolus*
+*Dernière mise à jour : 02/05/2026 — système auth complet + logs admin opérationnels*

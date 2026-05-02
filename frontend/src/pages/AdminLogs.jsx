@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const FILTRES = [
-  { id: 'tous',         label: 'Tous' },
-  { id: 'signup',       label: 'Inscriptions' },
-  { id: 'login',        label: 'Connexions' },
+  { id: 'tous',        label: 'Tous' },
+  { id: 'signup',      label: 'Inscriptions' },
+  { id: 'login',       label: 'Connexions' },
+  { id: 'admin_login', label: 'Admin' },
 ]
 
 export default function AdminLogs() {
@@ -75,7 +76,9 @@ export default function AdminLogs() {
             <tbody className="divide-y divide-gray-100">
               {logsFiltres.map(l => (
                 <tr key={l.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{l.date}</td>
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                    {new Date(l.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
                   <td className="px-4 py-3 text-gray-800">{l.email}</td>
                   <td className="px-4 py-3 text-gray-600">{l.subject}</td>
                   <td className="px-4 py-3">
@@ -84,10 +87,12 @@ export default function AdminLogs() {
                       style={
                         l.action === 'signup'
                           ? { background: '#dcfce7', color: '#15803d' }
+                          : l.action === 'admin_login'
+                          ? { background: '#ffedd5', color: '#c2410c' }
                           : { background: '#dbeafe', color: '#1d4ed8' }
                       }
                     >
-                      {l.action === 'signup' ? 'Inscription' : 'Connexion'}
+                      {l.action === 'signup' ? 'Inscription' : l.action === 'admin_login' ? 'Admin' : 'Connexion'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{l.ip || '—'}</td>

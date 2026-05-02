@@ -2,7 +2,7 @@ import os
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -64,7 +64,7 @@ class AdminLoginBody(BaseModel):
 
 
 @router.post("/admin/login")
-def admin_login(body: AdminLoginBody, response: Response):
+def admin_login(body: AdminLoginBody, response: Response, request: Request, db: Session = Depends(get_db)):
     expected_user = os.getenv("ADMIN_USERNAME", "")
     expected_pass = os.getenv("ADMIN_PASSWORD", "")
     ok = (
@@ -75,6 +75,9 @@ def admin_login(body: AdminLoginBody, response: Response):
     if not ok:
         raise HTTPException(401, "Identifiants incorrects.")
     response.set_cookie(_COOKIE, _make_admin_token(), max_age=_MAX_AGE, httponly=True, samesite="lax")
+    admin_email = os.getenv("ADMIN_EMAIL", expected_user)
+    db.add(ConnexionLog(email=admin_email, action="admin_login", ip=request.client.host if request.client else None))
+    db.commit()
     return {"status": "ok"}
 
 
@@ -298,7 +301,7 @@ def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
             "subject": subject or "—",
             "action":  l.action,
             "ip":      l.ip,
-            "date":    l.created_at.strftime("%d/%m/%Y %H:%M"),
+            "date":    l.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         for l, subject in rows
     ]
