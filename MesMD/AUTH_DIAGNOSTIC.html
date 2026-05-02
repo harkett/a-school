@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AUTH_DIAGNOSTIC.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="auth_diagnosticmd--diagnostic-et-plan-damélioration-du-système-dauth">AUTH_DIAGNOSTIC.md — Diagnostic et plan d'amélioration du système d'auth</h1>
+<blockquote>
+<p>Document de pilotage. Créé le 02/05/2026.
+Base de référence avant toute modification du système d'authentification/inscription.</p>
+</blockquote>
+<hr>
+<h2 id="1-architecture-en-place">1. Architecture en place</h2>
+<h3 id="stack">Stack</h3>
+<ul>
+<li><strong>Backend</strong> : FastAPI + SQLAlchemy + SQLite (<code>data/aschool.db</code>)</li>
+<li><strong>Frontend</strong> : React (Vite) + React Router</li>
+<li><strong>Hachage</strong> : bcrypt (salt=12)</li>
+<li><strong>Tokens</strong> : JWT HS256 — access 15 min / refresh 30 jours</li>
+<li><strong>Cookies</strong> : httpOnly + SameSite=Lax</li>
+<li><strong>SMTP</strong> : Infomaniak (<code>mail.infomaniak.com:587</code>)</li>
+</ul>
+<h3 id="tables-dauth">Tables d'auth</h3>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>users</code></td>
+<td>email, password_hash, is_verified, failed_attempts, locked_until, last_login</td>
+</tr>
+<tr>
+<td><code>email_tokens</code></td>
+<td>tokens one-time use (verify_email, reset_password) — TTL 60 min</td>
+</tr>
+<tr>
+<td><code>refresh_tokens</code></td>
+<td>hash SHA256 du refresh token, révocable en base</td>
+</tr>
+<tr>
+<td><code>connexion_logs</code></td>
+<td>horodatage signup/login + IP</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fichiers-clés">Fichiers clés</h3>
+<table>
+<thead>
+<tr>
+<th>Fichier</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend/auth.py</code></td>
+<td>Logique core (hash, JWT, email tokens)</td>
+</tr>
+<tr>
+<td><code>backend/routers/auth.py</code></td>
+<td>Endpoints signup / login / verify / refresh / me / logout</td>
+</tr>
+<tr>
+<td><code>backend/models_db.py</code></td>
+<td>Schémas SQLAlchemy</td>
+</tr>
+<tr>
+<td><code>frontend/src/context/AuthContext.jsx</code></td>
+<td>État React + checkAuth proactif</td>
+</tr>
+<tr>
+<td><code>frontend/src/pages/Login.jsx</code></td>
+<td>UI connexion</td>
+</tr>
+<tr>
+<td><code>frontend/src/pages/Signup.jsx</code></td>
+<td>UI inscription</td>
+</tr>
+<tr>
+<td><code>frontend/src/pages/VerifyEmail.jsx</code></td>
+<td>UI vérification email</td>
+</tr>
+</tbody>
+</table>
+<h3 id="flux-existants-qui-fonctionnent">Flux existants (qui fonctionnent)</h3>
+<ol>
+<li><strong>Inscription</strong> → hash bcrypt → email de vérification (token 60 min) → compte activé → email de bienvenue</li>
+<li><strong>Connexion</strong> → bcrypt compare → cookies JWT (access 15 min + refresh 30 j) → <code>/api/auth/me</code></li>
+<li><strong>Refresh silencieux</strong> → rotation du refresh token en base toutes les 10 min</li>
+<li><strong>Déconnexion</strong> → révocation du refresh token en base + suppression cookies</li>
+</ol>
+<hr>
+<h2 id="2-ce-qui-fonctionne-bien--à-ne-pas-toucher">2. Ce qui fonctionne bien — à ne pas toucher</h2>
+<ul>
+<li>bcrypt salt=12 avec constant-time comparison (protection timing attack) ✓</li>
+<li>JWT HS256, httpOnly cookies, SameSite=Lax ✓</li>
+<li>Blocage automatique après 5 tentatives échouées (30 min) ✓</li>
+<li>Rotation des refresh tokens (révocables en base) ✓</li>
+<li><code>generate_email_token()</code> / <code>verify_email_token()</code> réutilisables (support <code>reset_password</code> déjà prévu dans le modèle) ✓</li>
+<li>Whitelist email optionnelle via <code>ALLOWED_EMAILS</code> ✓</li>
+<li>Logs signup/login avec IP ✓</li>
+</ul>
+<hr>
+<h2 id="3-problèmes-identifiés">3. Problèmes identifiés</h2>
+<h3 id="-bloquants--des-utilisateurs-se-retrouvent-définitivement-coincés">🔴 BLOQUANTS — des utilisateurs se retrouvent définitivement coincés</h3>
+<hr>
+<h4 id="prob-1--pas-de-mot-de-passe-oublié">PROB-1 — Pas de &quot;Mot de passe oublié&quot;</h4>
+<p><strong>Situation actuelle</strong></p>
+<p>Le modèle <code>EmailToken</code> (champ <code>purpose</code>) supporte déjà <code>&quot;reset_password&quot;</code>, et les fonctions <code>generate_email_token()</code> / <code>verify_email_token()</code> dans <code>backend/auth.py</code> sont réutilisables. Mais il manque :</p>
+<ul>
+<li>Route backend <code>POST /auth/request-reset</code> (envoie un email avec lien)</li>
+<li>Route backend <code>POST /auth/reset-password</code> (valide le token + change le mot de passe)</li>
+<li>Page frontend <code>/forgot-password</code> (formulaire email)</li>
+<li>Page frontend <code>/reset-password?token=...</code> (formulaire nouveau mot de passe)</li>
+<li>Lien &quot;Mot de passe oublié ?&quot; sur <code>Login.jsx</code></li>
+</ul>
+<p><strong>Impact</strong></p>
+<p>Un prof qui oublie son mot de passe est définitivement bloqué. La seule issue est de contacter l'admin.</p>
+<hr>
+<h4 id="prob-2--token-de-vérification-expiré--utilisateur-bloqué-sans-issue">PROB-2 — Token de vérification expiré → utilisateur bloqué sans issue</h4>
+<p><strong>Situation actuelle</strong></p>
+<p>Scénario courant : le prof s'inscrit, l'email arrive en spam ou il l'ouvre le lendemain.</p>
+<ol>
+<li>Il essaie de se connecter → <code>&quot;Email non vérifié&quot;</code></li>
+<li>Il clique sur l'ancien lien → <code>VerifyEmail.jsx</code> affiche &quot;Lien invalide ou expiré&quot; + bouton <strong>&quot;Créer un nouveau compte&quot;</strong></li>
+<li>Il clique → <strong>&quot;Un compte existe déjà avec cet email.&quot;</strong></li>
+</ol>
+<p><strong>Le prof est bloqué</strong> — il ne peut rien faire seul.</p>
+<p><strong>Ce qui manque</strong></p>
+<ul>
+<li>Route backend <code>POST /auth/resend-verification</code> (génère un nouveau token + renvoie l'email)</li>
+<li>Bouton &quot;Renvoyer l'email de vérification&quot; dans <code>VerifyEmail.jsx</code> (cas erreur)</li>
+<li>Bouton &quot;Renvoyer l'email de vérification&quot; dans <code>Login.jsx</code> (quand erreur = &quot;Email non vérifié&quot;)</li>
+</ul>
+<hr>
+<h3 id="-importants--frictions-ux-significatives">🟡 IMPORTANTS — frictions UX significatives</h3>
+<hr>
+<h4 id="prob-3--autocomplete-incorrect-bloque-les-gestionnaires-de-mots-de-passe">PROB-3 — <code>autoComplete</code> incorrect bloque les gestionnaires de mots de passe</h4>
+<p><strong>Fichiers concernés</strong></p>
+<ul>
+<li><code>frontend/src/pages/Login.jsx</code> ligne 77 : <code>autoComplete=&quot;off&quot;</code> sur le <code>&lt;form&gt;</code></li>
+<li><code>frontend/src/pages/Login.jsx</code> ligne 104 : <code>autoComplete=&quot;new-password&quot;</code> sur le champ password</li>
+</ul>
+<p><strong>Problème</strong></p>
+<p><code>autoComplete=&quot;off&quot;</code> empêche Chrome/Safari/Firefox/Bitwarden de proposer automatiquement les identifiants. <code>&quot;new-password&quot;</code> est l'attribut correct pour les formulaires de <em>création</em>, pas de <em>connexion</em> — les gestionnaires de mots de passe ne reconnaissent pas ce champ en mode login.</p>
+<p><strong>Correction</strong></p>
+<ul>
+<li>Retirer <code>autoComplete=&quot;off&quot;</code> du <code>&lt;form&gt;</code></li>
+<li>Champ email : <code>autoComplete=&quot;email&quot;</code></li>
+<li>Champ password login : <code>autoComplete=&quot;current-password&quot;</code></li>
+</ul>
+<hr>
+<h4 id="prob-4--erreur-email-non-vérifié--aucune-action-proposée">PROB-4 — Erreur &quot;Email non vérifié&quot; → aucune action proposée</h4>
+<p><strong>Fichier concerné</strong> : <code>frontend/src/pages/Login.jsx</code> ligne 41</p>
+<p>Quand le backend renvoie <code>&quot;Email non vérifié. Vérifiez votre boîte mail.&quot;</code>, le frontend affiche juste le bandeau rouge. Aucun bouton, aucune instruction supplémentaire.</p>
+<p><strong>Correction</strong></p>
+<p>Détecter ce message d'erreur spécifique et afficher un bouton &quot;Renvoyer l'email de vérification&quot; qui appellera la route <code>/auth/resend-verification</code>.</p>
+<hr>
+<h4 id="prob-5--login-retourne-email-seul--profil-incomplet-au-premier-rendu">PROB-5 — Login retourne <code>{email}</code> seul → profil incomplet au premier rendu</h4>
+<p><strong>Fichier backend</strong> : <code>backend/routers/auth.py</code> ligne 94 — retourne <code>{&quot;email&quot;: user.email}</code>
+<strong>Fichier frontend</strong> : <code>frontend/src/pages/Login.jsx</code> ligne 42 — <code>setUser(data)</code></p>
+<p>Juste après la connexion, <code>user.subject</code>, <code>user.prenom</code>, <code>user.niveau</code>, <code>user.langue_lv</code> sont tous <code>undefined</code> dans le contexte React, jusqu'à ce que <code>AuthContext</code> appelle <code>/api/auth/me</code> en arrière-plan.</p>
+<p>Si <code>MainApp</code> utilise ces champs au premier rendu, ils sont temporairement absents.</p>
+<p><strong>Correction</strong></p>
+<p>Faire retourner le profil complet par <code>POST /auth/login</code> (même payload que <code>/auth/me</code>), pour éviter le double aller-retour et avoir un état cohérent dès la connexion.</p>
+<hr>
+<h3 id="-mineurs">🟢 MINEURS</h3>
+<hr>
+<h4 id="prob-6--cookie-sans-securetrue-en-production-https">PROB-6 — Cookie sans <code>secure=True</code> en production HTTPS</h4>
+<p><strong>Fichier</strong> : <code>backend/routers/auth.py</code> ligne 20-22</p>
+<pre class="hljs"><code><div>kw = <span class="hljs-built_in">dict</span>(httponly=<span class="hljs-literal">True</span>, samesite=<span class="hljs-string">&quot;lax&quot;</span>)
+</div></code></pre>
+<p>Sans <code>secure=True</code>, les cookies peuvent être transmis sur HTTP. En production HTTPS (school.afia.fr), ajouter <code>secure=True</code> conditionnel à l'environnement.</p>
+<p><strong>Correction</strong></p>
+<pre class="hljs"><code><div>is_prod = os.getenv(<span class="hljs-string">&quot;ENV&quot;</span>) == <span class="hljs-string">&quot;production&quot;</span>
+kw = <span class="hljs-built_in">dict</span>(httponly=<span class="hljs-literal">True</span>, samesite=<span class="hljs-string">&quot;lax&quot;</span>, secure=is_prod)
+</div></code></pre>
+<hr>
+<h4 id="prob-7--footer-affiche-lemail-personnel-de-ladmin">PROB-7 — Footer affiche l'email personnel de l'admin</h4>
+<p><strong>Fichiers</strong></p>
+<ul>
+<li><code>frontend/src/pages/Login.jsx</code> ligne 134</li>
+<li><code>frontend/src/pages/Signup.jsx</code> ligne 234</li>
+</ul>
+<p>Les deux pages affichent <code>harketti@afia.fr</code>, visible par tous les professeurs inscrits.</p>
+<p><strong>Correction</strong> : remplacer par <code>contact@aschool.fr</code>.</p>
+<hr>
+<h4 id="prob-8--eyeicon-svg-dupliqué-dans-deux-composants">PROB-8 — <code>EyeIcon</code> SVG dupliqué dans deux composants</h4>
+<p><strong>Fichiers</strong> : <code>Login.jsx</code> lignes 3-13 et <code>Signup.jsx</code> lignes 3-13</p>
+<p>Le même composant SVG est défini deux fois. À extraire dans <code>frontend/src/components/EyeIcon.jsx</code>.</p>
+<hr>
+<h2 id="4-plan-daction--ordre-de-traitement-recommandé">4. Plan d'action — ordre de traitement recommandé</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Priorité</th>
+<th>Tâche</th>
+<th>Fichiers touchés</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>🔴</td>
+<td>Implémenter <code>/auth/resend-verification</code> + boutons frontend</td>
+<td><code>backend/routers/auth.py</code>, <code>Login.jsx</code>, <code>VerifyEmail.jsx</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>🔴</td>
+<td>Implémenter flux &quot;Mot de passe oublié&quot; complet</td>
+<td><code>backend/routers/auth.py</code>, <code>backend/auth.py</code>, 2 nouvelles pages React</td>
+</tr>
+<tr>
+<td>3</td>
+<td>🟡</td>
+<td>Corriger <code>autoComplete</code> sur formulaire login</td>
+<td><code>Login.jsx</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>🟡</td>
+<td>Login retourne profil complet</td>
+<td><code>backend/routers/auth.py</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>🟢</td>
+<td>Cookie <code>secure=True</code> conditionnel</td>
+<td><code>backend/routers/auth.py</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>🟢</td>
+<td>Footer → <code>contact@aschool.fr</code></td>
+<td><code>Login.jsx</code>, <code>Signup.jsx</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td>🟢</td>
+<td>Extraire <code>EyeIcon</code> en composant partagé</td>
+<td><code>Login.jsx</code>, <code>Signup.jsx</code>, nouveau <code>EyeIcon.jsx</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="5-spécifications-des-deux-flux-manquants">5. Spécifications des deux flux manquants</h2>
+<h3 id="flux-1--renvoi-de-lemail-de-vérification">Flux 1 — Renvoi de l'email de vérification</h3>
+<p><strong>Backend</strong> : <code>POST /auth/resend-verification</code></p>
+<pre class="hljs"><code><div>Body : { &quot;email&quot;: &quot;prof@school.fr&quot; }
+Réponse : { &quot;status&quot;: &quot;ok&quot; } — toujours (ne pas révéler si l'email existe)
+Logique :
+  - Cherche l'utilisateur
+  - Si inexistant ou déjà vérifié → retourne ok quand même (anti-énumération)
+  - Sinon : génère un nouveau token (invalide l'ancien automatiquement) + renvoie l'email
+</div></code></pre>
+<p><strong>Frontend — VerifyEmail.jsx (cas erreur)</strong></p>
+<p>Ajouter un formulaire &quot;Renvoyer le lien&quot; avec un champ email + bouton.</p>
+<p><strong>Frontend — Login.jsx (erreur &quot;Email non vérifié&quot;)</strong></p>
+<p>Détecter le message et afficher un bouton &quot;Renvoyer l'email de vérification&quot; qui ouvre un mini-formulaire (ou appelle directement si l'email est déjà dans le champ).</p>
+<hr>
+<h3 id="flux-2--mot-de-passe-oublié">Flux 2 — Mot de passe oublié</h3>
+<p><strong>Backend</strong> : <code>POST /auth/request-reset</code></p>
+<pre class="hljs"><code><div>Body : { &quot;email&quot;: &quot;prof@school.fr&quot; }
+Réponse : { &quot;status&quot;: &quot;ok&quot; } — toujours (anti-énumération)
+Logique :
+  - Si utilisateur existe et est vérifié → génère token &quot;reset_password&quot; + envoie email
+  - Sinon → retourne ok sans rien faire
+</div></code></pre>
+<p><strong>Backend</strong> : <code>POST /auth/reset-password</code></p>
+<pre class="hljs"><code><div>Body : { &quot;token&quot;: &quot;...&quot;, &quot;password&quot;: &quot;...&quot;, &quot;password_confirm&quot;: &quot;...&quot; }
+Logique :
+  - Valide le token (purpose = &quot;reset_password&quot;)
+  - Valide le mot de passe (min 8 chars, max 72 bytes)
+  - Hash bcrypt + met à jour user.password_hash
+  - Révoque tous les refresh tokens de cet utilisateur (déconnexion forcée de toutes les sessions)
+  - Retourne { &quot;status&quot;: &quot;ok&quot; }
+</div></code></pre>
+<p><strong>Frontend</strong> : Page <code>/forgot-password</code></p>
+<p>Formulaire simple : champ email + bouton &quot;Envoyer le lien&quot;. Après soumission : message &quot;Si un compte existe avec cet email, un lien vous a été envoyé.&quot;</p>
+<p><strong>Frontend</strong> : Page <code>/reset-password?token=...</code></p>
+<p>Formulaire : champ &quot;Nouveau mot de passe&quot; + &quot;Confirmer&quot; + bouton. États : loading / succès (lien vers /login) / erreur (lien expiré → vers /forgot-password).</p>
+<p><strong>Lien</strong> à ajouter sur <code>Login.jsx</code> : &quot;Mot de passe oublié ?&quot; entre le bouton submit et le lien &quot;Créer un compte&quot;.</p>
+<hr>
+<h2 id="6-règles-à-respecter-lors-des-modifications">6. Règles à respecter lors des modifications</h2>
+<ul>
+<li>Ne jamais créer de connexion SMTP hors de <code>_smtp_send()</code> dans <code>backend/auth.py</code></li>
+<li>Ne jamais modifier <code>backend/auth.py</code> ni <code>backend/routers/auth.py</code> sans validation explicite</li>
+<li>Toujours retourner <code>{&quot;status&quot;: &quot;ok&quot;}</code> pour les routes sensibles (request-reset, resend-verification), qu'il y ait un utilisateur ou non — anti-énumération d'adresses email</li>
+<li>Révocation de toutes les sessions actives lors d'un reset de mot de passe</li>
+</ul>
+<hr>
+<p><em>Dernière mise à jour : 02/05/2026</em></p>
+
+</body>
+</html>

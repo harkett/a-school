@@ -9,6 +9,22 @@ export default function VerifyEmail() {
   const [message, setMessage] = useState('')
   const called = useRef(false)
 
+  const [resendEmail, setResendEmail] = useState('')
+  const [resendStatus, setResendStatus] = useState(null) // null | 'sending' | 'sent'
+
+  async function handleResend(e) {
+    e.preventDefault()
+    setResendStatus('sending')
+    try {
+      await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resendEmail.trim() }),
+      })
+    } catch { /* silencieux */ }
+    setResendStatus('sent')
+  }
+
   useEffect(() => {
     if (called.current) return
     called.current = true
@@ -71,10 +87,44 @@ export default function VerifyEmail() {
                 <line x1="15" y1="9" x2="9" y2="15"/>
                 <line x1="9" y1="9" x2="15" y2="15"/>
               </svg>
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">Lien invalide</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">Lien invalide ou expiré</h2>
               <p className="text-sm text-gray-500 mb-6">{message}</p>
-              <Link to="/signup" className="btn-primary">
-                Créer un nouveau compte
+
+              {resendStatus === 'sent' ? (
+                <p className="text-sm text-green-600 mb-4">
+                  Email renvoyé — vérifiez votre boîte mail.
+                </p>
+              ) : (
+                <form onSubmit={handleResend} className="text-left mb-6">
+                  <p className="text-xs text-gray-500 mb-2 text-center">
+                    Recevez un nouveau lien de vérification :
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="email"
+                      className="flex-1 border border-gray-300 rounded p-2 text-sm"
+                      placeholder="votre.adresse@domaine.fr"
+                      value={resendEmail}
+                      onChange={e => setResendEmail(e.target.value)}
+                      pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
+                      title="Adresse e-mail valide requise"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={resendStatus === 'sending'}
+                      className="btn-primary"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {resendStatus === 'sending' ? 'Envoi…' : 'Renvoyer'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <Link to="/login" className="text-xs text-gray-400 underline">
+                Retour à la connexion
               </Link>
             </>
           )}

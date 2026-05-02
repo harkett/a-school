@@ -22,6 +22,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [showPwd, setShowPwd] = useState(false)
+  const [resendStatus, setResendStatus] = useState(null) // null | 'sending' | 'sent'
 
 
   async function handleSubmit(e) {
@@ -43,9 +44,22 @@ export default function Login() {
       navigate('/', { replace: true })
     } catch (e) {
       setErreur(e.message)
+      setResendStatus(null)
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleResend() {
+    setResendStatus('sending')
+    try {
+      await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+    } catch { /* silencieux */ }
+    setResendStatus('sent')
   }
 
   return (
@@ -71,6 +85,22 @@ export default function Login() {
           {erreur && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">
               {erreur}
+              {erreur.includes('non vérifié') && (
+                <div className="mt-2 pt-2 border-t border-red-200">
+                  {resendStatus === 'sent' ? (
+                    <p className="text-red-600 text-xs">Email renvoyé — vérifiez votre boîte mail.</p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={resendStatus === 'sending'}
+                      className="text-xs underline text-red-600 hover:text-red-800 bg-transparent border-none cursor-pointer p-0"
+                    >
+                      {resendStatus === 'sending' ? 'Envoi en cours…' : 'Renvoyer l\'email de vérification'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

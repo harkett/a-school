@@ -44,6 +44,10 @@ class LoginBody(BaseModel):
     password: str
 
 
+class ResendVerificationBody(BaseModel):
+    email: str
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -92,6 +96,20 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     db.add(ConnexionLog(email=user.email, action="login", ip=request.client.host if request.client else None))
     db.commit()
     return {"email": user.email}
+
+
+@router.post("/auth/resend-verification")
+def resend_verification(body: ResendVerificationBody, db: Session = Depends(get_db)):
+    email = body.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    # Toujours retourner ok — ne pas révéler si l'email existe
+    if user and not user.is_verified:
+        token = auth_lib.generate_email_token(db, email, "verify_email")
+        try:
+            auth_lib.send_verification_email(email, token)
+        except Exception:
+            pass  # Silencieux — le frontend reçoit ok dans tous les cas
+    return {"status": "ok"}
 
 
 @router.get("/auth/verify-email")

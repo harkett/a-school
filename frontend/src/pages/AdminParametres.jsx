@@ -56,7 +56,7 @@ export default function AdminParametres() {
       })
       const data = await res.json().catch(() => ({}))
       setMessage(res.ok
-        ? { type: 'ok',  text: 'Email de test envoyé à votre adresse admin.' }
+        ? { type: 'ok',  text: 'Test réussi — email envoyé à contact@aschool.fr.' }
         : { type: 'err', text: data.detail || 'Erreur envoi email de test.' }
       )
     } catch {
@@ -74,17 +74,6 @@ export default function AdminParametres() {
       <p className="text-xs text-gray-400 mb-6">
         Configurez l'email de bienvenue envoyé automatiquement à chaque nouvel inscrit.
       </p>
-
-      {message && (
-        <div style={{
-          background: message.type === 'ok' ? '#f0fdf4' : '#fef2f2',
-          border: `1px solid ${message.type === 'ok' ? '#bbf7d0' : '#fecaca'}`,
-          color:  message.type === 'ok' ? '#166534' : '#dc2626',
-          borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 20,
-        }}>
-          {message.text}
-        </div>
-      )}
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
 
@@ -138,32 +127,44 @@ export default function AdminParametres() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-1">
-          <button
-            onClick={save}
-            disabled={saving}
-            title="Enregistrer les paramètres"
-            style={{
-              background: '#1F6EEB', color: 'white', border: 'none',
-              borderRadius: 7, padding: '8px 20px', fontSize: 13,
-              fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-          <button
-            onClick={sendTest}
-            disabled={testing}
-            title="Envoyer un email de test à votre adresse admin pour vérifier le rendu"
-            style={{
-              background: 'white', color: '#374151',
-              border: '1px solid #d1d5db', borderRadius: 7,
-              padding: '8px 20px', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', opacity: testing ? 0.6 : 1,
-            }}
-          >
-            {testing ? 'Envoi…' : 'Envoyer un test'}
-          </button>
+        <div className="flex flex-col gap-3 pt-1">
+          <div className="flex gap-3">
+            <button
+              onClick={save}
+              disabled={saving}
+              title="Enregistrer les paramètres"
+              style={{
+                background: '#1F6EEB', color: 'white', border: 'none',
+                borderRadius: 7, padding: '8px 20px', fontSize: 13,
+                fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.6 : 1,
+              }}
+            >
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+            <button
+              onClick={sendTest}
+              disabled={testing}
+              title="Envoyer un email de test à contact@aschool.fr pour vérifier la config SMTP"
+              style={{
+                background: 'white', color: '#374151',
+                border: '1px solid #d1d5db', borderRadius: 7,
+                padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                cursor: 'pointer', opacity: testing ? 0.6 : 1,
+              }}
+            >
+              {testing ? 'Envoi en cours…' : 'Envoyer un test'}
+            </button>
+          </div>
+          {message && (
+            <div style={{
+              background: message.type === 'ok' ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${message.type === 'ok' ? '#bbf7d0' : '#fecaca'}`,
+              color:  message.type === 'ok' ? '#166534' : '#dc2626',
+              borderRadius: 8, padding: '10px 14px', fontSize: 13,
+            }}>
+              {message.text}
+            </div>
+          )}
         </div>
 
       </div>
