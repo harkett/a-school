@@ -52,9 +52,10 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to:    '/admin/feedbacks',
-    label: 'Feedbacks',
-    aide:  'Retours et suggestions des utilisateurs — stockés dans A-SCHOOL, note moyenne et répartition.',
+    to:       '/admin/feedbacks',
+    label:    'Feedbacks',
+    badgeKey: 'feedbacks_nouveaux',
+    aide:     'Retours et suggestions des utilisateurs — stockés dans A-SCHOOL, note moyenne et répartition.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -87,9 +88,10 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to:    '/admin/alertes',
-    label: 'Alertes',
-    aide:  'Alertes automatiques : CPU critique, disque plein, tentatives d\'intrusion. Vérification toutes les 5 min.',
+    to:       '/admin/alertes',
+    label:    'Alertes',
+    badgeKey: 'alertes_nonlues',
+    aide:     'Alertes automatiques : CPU critique, disque plein, tentatives d\'intrusion. Vérification toutes les 5 min.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -126,6 +128,7 @@ const NAV_ITEMS = [
 
 export default function AdminLayout() {
   const [checked, setChecked] = useState(false)
+  const [notifs, setNotifs]   = useState({ feedbacks_nouveaux: 0, alertes_nonlues: 0 })
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -137,6 +140,19 @@ export default function AdminLayout() {
       })
       .catch(() => navigate('/admin/login'))
   }, [navigate])
+
+  useEffect(() => {
+    if (!checked) return
+    function fetchNotifs() {
+      fetch('/api/admin/stats/overview', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setNotifs({ feedbacks_nouveaux: d.feedbacks_nouveaux || 0, alertes_nonlues: d.alertes_nonlues || 0 }) })
+        .catch(() => {})
+    }
+    fetchNotifs()
+    const id = setInterval(fetchNotifs, 60000)
+    return () => clearInterval(id)
+  }, [checked])
 
   async function logout() {
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
@@ -186,10 +202,21 @@ export default function AdminLayout() {
               borderLeft:     isActive ? '3px solid #3b82f6' : '3px solid transparent',
             }
 
+            const badge = item.badgeKey && notifs[item.badgeKey] > 0 ? notifs[item.badgeKey] : null
+
             const content = (
               <>
                 <span style={{ opacity: isActive ? 1 : 0.7 }}>{item.icon}</span>
                 <span>{item.label}</span>
+                {badge && (
+                  <span style={{
+                    padding: '1px 6px', borderRadius: 99, fontSize: 10,
+                    fontWeight: 700, background: '#fee2e2', color: '#dc2626',
+                    lineHeight: '16px', flexShrink: 0,
+                  }}>
+                    {badge}
+                  </span>
+                )}
                 <span
                   title={item.aide}
                   style={{

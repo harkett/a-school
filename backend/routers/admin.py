@@ -394,6 +394,7 @@ def stats_overview(db: Session = Depends(get_db), _: None = Depends(_require_adm
                                   func.date(ConnexionLog.created_at) == today
                               ).count(),
         "feedbacks_nouveaux": db.query(Feedback).filter(Feedback.statut == "nouveau").count(),
+        "alertes_nonlues":    db.query(AdminAlert).filter(AdminAlert.is_read == False).count(),
         "sessions_online":    db.query(UserSession).filter(
                                   UserSession.is_active == True,
                                   UserSession.last_seen >= threshold_online

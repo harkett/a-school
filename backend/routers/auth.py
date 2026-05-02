@@ -183,6 +183,10 @@ def verify_email(token: str, db: Session = Depends(get_db)):
         )
     except Exception:
         pass
+    try:
+        auth_lib.send_admin_new_user_notification(email, user.subject if user else None)
+    except Exception:
+        pass
     return {"status": "ok", "email": email}
 
 

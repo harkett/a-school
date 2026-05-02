@@ -414,6 +414,54 @@ def send_reset_email(email: str, token: str):
     _smtp_send(msg)
 
 
+def send_admin_new_user_notification(email: str, subject: str | None):
+    """Notifie l'admin par email quand un nouveau prof active son compte."""
+    from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
+    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
+    date_str  = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "[A-SCHOOL] Nouveau prof inscrit"
+    msg["From"]    = from_addr
+    msg["To"]      = to_addr
+
+    plain = (
+        f"Nouveau prof inscrit sur A-SCHOOL\n\n"
+        f"Email   : {email}\n"
+        f"Matière : {subject or '—'}\n"
+        f"Date    : {date_str} UTC\n"
+    )
+    html = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#1F6EEB);border-radius:12px;padding:1.2rem 2rem;margin-bottom:1.5rem;">
+        <h1 style="color:white;margin:0;font-size:1.3rem;">
+          <span style="color:#e05a6e;">A</span>-SCHOOL — Nouveau prof inscrit
+        </h1>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;width:120px;">Email</td>
+          <td style="padding:8px 12px;"><a href="mailto:{email}" style="color:#1F6EEB;">{email}</a></td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Matière</td>
+          <td style="padding:8px 12px;color:#1e293b;">{subject or '—'}</td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Date</td>
+          <td style="padding:8px 12px;color:#1e293b;">{date_str} UTC</td>
+        </tr>
+      </table>
+      <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
+        A-SCHOOL · school.afia.fr
+      </p>
+    </div>
+    """
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)
+
+
 def send_verification_email(email: str, token: str):
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
     from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")

@@ -8,41 +8,119 @@
 
 ## Suivi d'avancement
 
-- [x] **Phase 0** — Prérequis techniques (`limiter.py`, `jti`, tables, `audit.py`)
-  | Fichier | Action |
-  |---|---|
-  | `backend/limiter.py` | Créé — instance slowapi partagée |
-  | `backend/auth.py` | `jti` ajouté dans `create_refresh_token()` |
-  | `backend/models_db.py` | 4 tables ajoutées (`UserSession`, `FailedLoginAttempt`, `AdminAuditLog`, `AdminAlert`) |
-  | `backend/audit.py` | Créé — `log_admin_action()` |
-  > ✅ Démarrage sans erreur confirmé — tables auto-créées.
-  > ⚠️ Note Phase 2 : le middleware lira `aschool_refresh` pour le `jti`, pas `aschool_token`.
+> Dernière mise à jour : 02/05/2026 — Backoffice 100 % déployé en production sur school.afia.fr
 
-- [x] **Phase 1** — Sécurité brute force (Étape 2)
-  | Fichier | Action |
-  |---|---|
-  | `backend/main.py` | `app.state.limiter` + gestionnaire `RateLimitExceeded` |
-  | `backend/routers/admin.py` | `@limiter.limit("10/hour")` sur `/admin/login` + `FailedLoginAttempt` + `blocked=True` dès 10 tentatives + `_get_admin_email()` |
-  | `requirements.txt` | `slowapi>=0.1.9` ajouté |
+---
 
-- [x] **Phase 2** — Sessions live (Étapes 3 → 4 → 5)
-  | Fichier | Action |
-  |---|---|
-  | `backend/middleware.py` | Créé — `UserSessionMiddleware` (lit `aschool_refresh`, jti + email) |
-  | `backend/main.py` | `UserSessionMiddleware` enregistré avant `CORSMiddleware` |
-  | `requirements.txt` | `user-agents>=2.2.0` ajouté + installé |
-  | `backend/routers/auth.py` | Route `POST /api/heartbeat` ajoutée |
-  | `backend/routers/admin.py` | `GET /api/admin/sessions` + `POST /api/admin/force-logout/{id}` + imports `UserSession`, `log_admin_action` |
-  | `frontend/src/App.jsx` | `useEffect` heartbeat 60s dans `MainApp` |
-  > ✅ Démarrage sans erreur confirmé — 3 routes vérifiées.
-  > ⚠️ DB = SQLite (pas PostgreSQL) — adapter la requête `db-size` en étape 8
-  > ⚠️ `_smtp_send(msg)` prend un objet `MIMEMultipart`, pas des kwargs — à corriger dans `alerts.py` (Phase 4)
+### Phase 0 — Prérequis techniques ✅
+*Étapes couvertes : tables, limiter, jti, audit*
 
-- [ ] **Phase 3** — Données dashboard (Étapes 6 + 7 + 8)
+| Fichier | Ce qui a été fait |
+|---|---|
+| `backend/limiter.py` | Créé — instance slowapi partagée |
+| `backend/auth.py` | `jti` ajouté dans `create_refresh_token()` |
+| `backend/models_db.py` | 4 tables créées : `UserSession`, `FailedLoginAttempt`, `AdminAuditLog`, `AdminAlert` |
+| `backend/audit.py` | Créé — fonction `log_admin_action(db, admin_email, action, target_email, ip, details)` |
+| `requirements.txt` | `slowapi`, `user-agents`, `psutil`, `apscheduler` ajoutés |
 
-- [ ] **Phase 4** — Alertes (Étape 9)
+---
 
-- [ ] **Phase 5** — UI React (Étape 1)
+### Phase 1 — Sécurité brute force ✅
+*Étape 2 du plan*
+
+| Fichier | Ce qui a été fait |
+|---|---|
+| `backend/main.py` | `app.state.limiter` + gestionnaire `RateLimitExceeded` |
+| `backend/routers/admin.py` | `@limiter.limit("10/hour")` sur `POST /admin/login` |
+| `backend/routers/admin.py` | Enregistrement `FailedLoginAttempt` à chaque échec + `blocked=True` dès 10 tentatives/IP/h |
+| `backend/routers/admin.py` | Fonction `_get_admin_email(request)` ajoutée |
+
+---
+
+### Phase 2 — Sessions live + déconnexion forcée ✅
+*Étapes 3, 4, 5 du plan*
+
+| Fichier | Ce qui a été fait |
+|---|---|
+| `backend/middleware.py` | Créé — `UserSessionMiddleware` : lit cookie `aschool_refresh`, extrait `jti`+`email`, vérifie `is_active` avant `call_next`, upsert `UserSession` après |
+| `backend/main.py` | `UserSessionMiddleware` enregistré (CORS reste en dernier = le plus externe) |
+| `backend/routers/auth.py` | Route `POST /api/heartbeat` — met à jour `last_seen` toutes les 60s |
+| `backend/routers/admin.py` | `GET /api/admin/sessions` — sessions actives avec `is_online` (seuil 90s) |
+| `backend/routers/admin.py` | `POST /api/admin/force-logout/{id}` — `is_active=False` + `log_admin_action("FORCE_LOGOUT")` |
+| `frontend/src/App.jsx` | `useEffect` heartbeat 60s dans `MainApp` (déclenché à la connexion du prof) |
+
+---
+
+### Phase 3 — Dashboard statistiques + monitoring ✅
+*Étapes 6, 7, 8 du plan*
+
+| Route | Ce qui a été fait |
+|---|---|
+| `GET /admin/stats/overview` | Total profs, connexions aujourd'hui, feedbacks nouveaux, sessions en ligne |
+| `GET /admin/stats/logins` | Connexions par jour — 30 derniers jours |
+| `GET /admin/stats/hours` | ✨ **Extra** — Connexions par heure (0h–23h), heures de pointe |
+| `GET /admin/server-metrics` | CPU %, RAM %, disque %, uptime (psutil) |
+| `GET /admin/db-size` | Taille SQLite en Mo (`os.path.getsize`) — adapté pour SQLite, pas PostgreSQL |
+| `GET /admin/audit-log` | 100 dernières entrées `AdminAuditLog` |
+| `GET /admin/failed-attempts` | ✨ **Extra** — 200 dernières tentatives `FailedLoginAttempt` avec statut bloqué |
+
+*Note : db-size utilise `os.path.getsize()` (SQLite) — le plan initial prévoyait `pg_size_pretty` (PostgreSQL, non applicable ici).*
+
+---
+
+### Phase 4 — Alertes automatiques ✅
+*Étape 9 du plan*
+
+| Fichier | Ce qui a été fait |
+|---|---|
+| `backend/alerts.py` | Créé — `_already_alerted()` (anti-flood 2h), `_send_alert_email()` (MIMEMultipart), `create_alert()` |
+| `backend/alerts.py` | `check_cpu_alert()` — seuil 90 % → alerte `critical` |
+| `backend/alerts.py` | `check_disk_alert()` — seuil 85 % → alerte `warning` |
+| `backend/alerts.py` | `check_brute_force_alert()` — ≥ 10 tentatives/h → alerte `critical` |
+| `backend/alerts.py` | `run_all_checks()` — orchestre les 3 checks |
+| `backend/main.py` | APScheduler `AsyncIOScheduler` via lifespan — `run_all_checks` toutes les 5 min |
+| `backend/routers/admin.py` | `GET /admin/alerts` — 50 dernières alertes, non lues en premier |
+| `backend/routers/admin.py` | `POST /admin/alerts/{id}/read` — marque lu + enregistre `read_by` + `read_at` |
+
+---
+
+### Phase 5 — UI React complète ✅
+*Étape 1 du plan — réalisée en CSS inline personnalisé plutôt que shadcn/Tremor*
+
+| Composant / Page | Ce qui a été fait |
+|---|---|
+| `AdminLayout.jsx` | Sidebar fixe (220px), nav avec icônes + tooltip `?`, bouton retour A-SCHOOL, déconnexion |
+| `AdminServeur.jsx` | Cards CPU/RAM/disque/uptime/DB, graphe barres 30j (bleu), graphe heures de pointe (violet) |
+| `AdminSessions.jsx` | Tableau sessions actives, badge "En ligne" vert, bouton déconnexion forcée, auto-refresh 30s |
+| `AdminLogs.jsx` | Journal connexions utilisateurs (existait déjà — intégré au layout) |
+| `AdminAudit.jsx` | Audit trail avec badges colorés par type d'action |
+| `AdminAlertes.jsx` | Cartes par niveau (critical/warning/info), badge non lues, bouton "Lu" |
+| `AdminTentatives.jsx` | ✨ **Extra** — Tableau IP / identifiant tenté / statut bloqué / user-agent |
+| `AdminActivites.jsx` | Catalogue activités pédagogiques (existait) |
+| `AdminFeedbacks.jsx` | Feedbacks avec changement de statut (existait) |
+| `AdminProfils.jsx` | Profils profs — lecture + modification (existait) |
+| `AdminParametres.jsx` | Email de bienvenue — édition + test (existait) |
+
+---
+
+### Audit trail — couverture des actions sensibles ✅
+
+| Action | `log_admin_action` appelé ? |
+|---|---|
+| `FORCE_LOGOUT` — déconnexion forcée d'un prof | ✅ |
+| `DELETE_USER` — suppression d'un compte prof | ✅ (ajouté 02/05/2026) |
+| `UPDATE_SETTINGS` — sauvegarde paramètres email | ✅ (ajouté 02/05/2026) |
+
+---
+
+### Ce qui reste à faire (optionnel / future itération)
+
+| Item | Priorité | Note |
+|---|---|---|
+| Activation / désactivation de compte prof | Basse | Nécessite champ `is_active` sur `User` |
+| Réinitialisation de mot de passe par l'admin | Basse | Flow email déjà en place, à adapter |
+| shadcn/ui + Tremor (librairies UI) | Très basse | UI actuelle fonctionnelle et pro — investissement non justifié pour l'instant |
+| Filtres avancés sur les logs | Basse | Par date, par IP, par action |
 
 
 ---
