@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from backend.audit import log_admin_action
 from backend.database import get_db
 from backend.limiter import limiter
-from backend.models_db import ActiviteSauvegardee, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
+from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -428,6 +428,40 @@ def db_size(_: None = Depends(_require_admin)):
     except FileNotFoundError:
         size_mb = 0
     return {"size_mb": size_mb}
+
+
+@router.get("/admin/alerts")
+def get_alerts(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(AdminAlert)
+        .order_by(AdminAlert.is_read.asc(), AdminAlert.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "id":         r.id,
+            "level":      r.level,
+            "title":      r.title,
+            "message":    r.message,
+            "is_read":    r.is_read,
+            "read_by":    r.read_by or "",
+            "date":       r.created_at.strftime("%d/%m/%Y %H:%M"),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/admin/alerts/{alert_id}/read")
+def mark_alert_read(alert_id: int, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    alert = db.query(AdminAlert).filter(AdminAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(404, "Alerte introuvable.")
+    alert.is_read  = True
+    alert.read_by  = _get_admin_email(request)
+    alert.read_at  = datetime.utcnow()
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.get("/admin/audit-log")

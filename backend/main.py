@@ -1,7 +1,9 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -38,7 +40,17 @@ import os as _os
 if not _os.getenv("ADMIN_USERNAME") or not _os.getenv("ADMIN_PASSWORD"):
     print("\n⚠️  ATTENTION : ADMIN_USERNAME ou ADMIN_PASSWORD non chargés — connexion admin impossible.\n")
 
-app = FastAPI(title="A-SCHOOL API", version="2.0.0")
+_scheduler = AsyncIOScheduler()
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    from backend.alerts import run_all_checks
+    _scheduler.add_job(run_all_checks, "interval", minutes=5, id="alert_checks")
+    _scheduler.start()
+    yield
+    _scheduler.shutdown(wait=False)
+
+app = FastAPI(title="A-SCHOOL API", version="2.0.0", lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
