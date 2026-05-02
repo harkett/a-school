@@ -80,14 +80,20 @@ def _get_admin_email(request: Request) -> str:
 @router.post("/admin/login")
 @limiter.limit("10/hour")
 def admin_login(request: Request, body: AdminLoginBody, response: Response, db: Session = Depends(get_db)):
+    import bcrypt as _bcrypt
     expected_user = os.getenv("ADMIN_USERNAME", "")
     expected_pass = os.getenv("ADMIN_PASSWORD", "")
     ip = request.client.host if request.client else None
-    ok = (
-        bool(expected_user) and bool(expected_pass) and
-        secrets.compare_digest(body.username, expected_user) and
-        secrets.compare_digest(body.password, expected_pass)
-    )
+    pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
+    username_ok = bool(expected_user) and secrets.compare_digest(body.username, expected_user)
+    if pwd_setting:
+        try:
+            password_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
+        except Exception:
+            password_ok = False
+    else:
+        password_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
+    ok = username_ok and password_ok
     if not ok:
         attempt = FailedLoginAttempt(
             ip_address=ip,
@@ -268,6 +274,47 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
         target_email=email,
         ip=request.client.host if request.client else None,
         details="Compte supprimé avec toutes ses données",
+    )
+    return {"status": "ok"}
+
+
+class ChangePasswordBody(BaseModel):
+    old_password: str
+    new_password: str
+    new_password_confirm: str
+
+
+@router.post("/admin/change-password")
+def change_admin_password(body: ChangePasswordBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    import bcrypt as _bcrypt
+    if body.new_password != body.new_password_confirm:
+        raise HTTPException(400, "Les mots de passe ne correspondent pas.")
+    if len(body.new_password) < 8:
+        raise HTTPException(400, "Minimum 8 caractères.")
+    expected_pass = os.getenv("ADMIN_PASSWORD", "")
+    pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
+    if pwd_setting:
+        try:
+            old_ok = _bcrypt.checkpw(body.old_password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
+        except Exception:
+            old_ok = False
+    else:
+        old_ok = bool(expected_pass) and secrets.compare_digest(body.old_password, expected_pass)
+    if not old_ok:
+        raise HTTPException(400, "Mot de passe actuel incorrect.")
+    new_hash = _bcrypt.hashpw(body.new_password.encode("utf-8"), _bcrypt.gensalt(12)).decode("utf-8")
+    if pwd_setting:
+        pwd_setting.value = new_hash
+    else:
+        db.add(Setting(key="admin_password_hash", value=new_hash))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="CHANGE_PASSWORD",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details="Mot de passe admin modifié via l'interface",
     )
     return {"status": "ok"}
 

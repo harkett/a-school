@@ -30,6 +30,7 @@ import AdminServeur from './pages/AdminServeur'
 import AdminAudit from './pages/AdminAudit'
 import AdminAlertes from './pages/AdminAlertes'
 import AdminTentatives from './pages/AdminTentatives'
+import AdminCompte from './pages/AdminCompte'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -410,6 +411,7 @@ export default function App() {
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />
+            <Route path="compte"     element={<AdminCompte />} />
             <Route path="parametres" element={<AdminParametres />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
