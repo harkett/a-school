@@ -17,7 +17,7 @@ _REFRESH_MAX = 30 * 24 * 3600
 
 
 def _set_cookies(response: Response, access: str, refresh: str):
-    kw = dict(httponly=True, samesite="lax")
+    kw = dict(httponly=True, samesite="lax", secure=os.getenv("ENV") == "production")
     response.set_cookie(_ACCESS, access, max_age=_ACCESS_MAX, **kw)
     response.set_cookie(_REFRESH, refresh, max_age=_REFRESH_MAX, **kw)
 
@@ -46,6 +46,16 @@ class LoginBody(BaseModel):
 
 class ResendVerificationBody(BaseModel):
     email: str
+
+
+class RequestResetBody(BaseModel):
+    email: str
+
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    password: str
+    password_confirm: str
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +105,14 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     _set_cookies(response, access, refresh)
     db.add(ConnexionLog(email=user.email, action="login", ip=request.client.host if request.client else None))
     db.commit()
-    return {"email": user.email}
+    return {
+        "email":     user.email,
+        "subject":   user.subject,
+        "prenom":    user.prenom,
+        "nom":       user.nom,
+        "niveau":    user.niveau,
+        "langue_lv": user.langue_lv,
+    }
 
 
 @router.post("/auth/resend-verification")
@@ -109,6 +126,42 @@ def resend_verification(body: ResendVerificationBody, db: Session = Depends(get_
             auth_lib.send_verification_email(email, token)
         except Exception:
             pass  # Silencieux — le frontend reçoit ok dans tous les cas
+    return {"status": "ok"}
+
+
+@router.post("/auth/request-reset")
+def request_reset(body: RequestResetBody, db: Session = Depends(get_db)):
+    email = body.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    if user and user.is_verified:
+        token = auth_lib.generate_email_token(db, email, "reset_password")
+        try:
+            auth_lib.send_reset_email(email, token)
+        except Exception:
+            pass
+    return {"status": "ok"}
+
+
+@router.post("/auth/reset-password")
+def reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
+    if body.password != body.password_confirm:
+        raise HTTPException(400, "Les mots de passe ne correspondent pas.")
+    if len(body.password) < 8:
+        raise HTTPException(400, "Le mot de passe doit contenir au moins 8 caractères.")
+    if len(body.password.encode("utf-8")) > 72:
+        raise HTTPException(400, "Le mot de passe est trop long (72 caractères maximum).")
+
+    email = auth_lib.verify_email_token(db, body.token, "reset_password")
+    if not email:
+        raise HTTPException(400, "Lien invalide ou expiré.")
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(400, "Lien invalide ou expiré.")
+
+    user.password_hash = auth_lib._hash_password(body.password)
+    auth_lib.revoke_all_refresh_tokens(db, email)
+    db.commit()
     return {"status": "ok"}
 
 

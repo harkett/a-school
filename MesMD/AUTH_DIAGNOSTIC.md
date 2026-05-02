@@ -1,7 +1,29 @@
 # AUTH_DIAGNOSTIC.md — Diagnostic et plan d'amélioration du système d'auth
 
-> Document de pilotage. Créé le 02/05/2026. Dernière mise à jour : 02/05/2026.
+> Document de pilotage. Créé le 02/05/2026. Dernière mise à jour : 02/05/2026 (session 2).
 > Base de référence avant toute modification du système d'authentification/inscription.
+
+---
+
+## Reprise rapide — par où commencer
+
+**Dernière session : 02/05/2026**
+
+Ce qui a été fait (session 1) :
+1. ✅ **PROB-2** — Renvoi email de vérification (lien expiré) → implémenté + déployé en prod + validé
+2. ✅ **Numéro de version** — Ajouté en bas à gauche de la sidebar admin (`v1.3 · 02/05/2026`) dans `AdminLayout.jsx`
+
+Ce qui a été fait (session 2) :
+3. ✅ **PROB-1** — Mot de passe oublié → flux complet validé en local
+4. ✅ **PROB-3** — `autoComplete` corrigé sur `Login.jsx` (email + current-password)
+5. ✅ **PROB-5** — Login retourne le profil complet (plus de double aller-retour)
+6. ✅ **PROB-6** — Cookie `secure=True` conditionnel (`ENV=production` dans `.env` VPS)
+7. ✅ **PROB-7** — Footer `harketti@afia.fr` → `contact@aschool.fr` dans `Login.jsx` et `VerifyEmail.jsx`
+8. ✅ **PROB-8** — `EyeIcon` extrait en composant partagé `frontend/src/components/EyeIcon.jsx`
+
+**Tous les problèmes identifiés sont résolus. Prêt pour déploiement VPS.**
+
+Rappel déploiement : ajouter `ENV=production` dans `/var/www/a-school/.env` puis `sudo systemctl restart a-school-backend`.
 
 ---
 
@@ -222,13 +244,13 @@ Le même composant SVG est défini deux fois. À extraire dans `frontend/src/com
 
 | # | Priorité | Tâche | Fichiers touchés |
 |---|---|---|---|
-| 1 | ✅ FAIT | Implémenter `/auth/resend-verification` + boutons frontend | `backend/routers/auth.py`, `Login.jsx`, `VerifyEmail.jsx` |
-| 2 | 🔴 | Implémenter flux "Mot de passe oublié" complet | `backend/routers/auth.py`, `backend/auth.py`, 2 nouvelles pages React |
-| 3 | 🟡 | Corriger `autoComplete` sur formulaire login | `Login.jsx` |
-| 4 | 🟡 | Login retourne profil complet | `backend/routers/auth.py` |
-| 5 | 🟢 | Cookie `secure=True` conditionnel | `backend/routers/auth.py` |
-| 6 | 🟢 | Footer → `contact@aschool.fr` | `Login.jsx`, `Signup.jsx` |
-| 7 | 🟢 | Extraire `EyeIcon` en composant partagé | `Login.jsx`, `Signup.jsx`, nouveau `EyeIcon.jsx` |
+| 1 | ✅ FAIT + PROD | Implémenter `/auth/resend-verification` + boutons frontend | `backend/routers/auth.py`, `Login.jsx`, `VerifyEmail.jsx` |
+| 2 | ✅ FAIT | Implémenter flux "Mot de passe oublié" complet | `backend/routers/auth.py`, `backend/auth.py`, 2 nouvelles pages React |
+| 3 | ✅ FAIT | Corriger `autoComplete` sur formulaire login | `Login.jsx` |
+| 4 | ✅ FAIT | Login retourne profil complet | `backend/routers/auth.py` |
+| 5 | ✅ FAIT | Cookie `secure=True` conditionnel | `backend/routers/auth.py` |
+| 6 | ✅ FAIT | Footer → `contact@aschool.fr` | `Login.jsx`, `VerifyEmail.jsx` |
+| 7 | ✅ FAIT | Extraire `EyeIcon` en composant partagé | `Login.jsx`, `Signup.jsx`, `ResetPassword.jsx`, nouveau `EyeIcon.jsx` |
 
 ---
 
@@ -302,4 +324,4 @@ Formulaire : champ "Nouveau mot de passe" + "Confirmer" + bouton. États : loadi
 
 ---
 
-*Dernière mise à jour : 02/05/2026*
+*Dernière mise à jour : 02/05/2026 — tous les problèmes résolus*

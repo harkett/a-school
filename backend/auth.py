@@ -213,6 +213,14 @@ def revoke_refresh_token(db: Session, token: str):
         db.commit()
 
 
+def revoke_all_refresh_tokens(db: Session, email: str):
+    db.query(RefreshToken).filter(
+        RefreshToken.user_email == email,
+        RefreshToken.revoked == False,
+    ).update({"revoked": True})
+    db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Email sending
 # ---------------------------------------------------------------------------
@@ -352,6 +360,55 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
     """
 
     msg.attach(MIMEText(body_rendered, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)
+
+
+def send_reset_email(email: str, token: str):
+    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
+    link = f"{app_url}/reset-password?token={token}"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "Réinitialisation de votre mot de passe A-SCHOOL"
+    msg["From"] = from_addr
+    msg["To"] = email
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#1e3a8a,#1F6EEB);
+                  border-radius:12px;padding:1.5rem 2rem;margin-bottom:2rem;">
+        <h1 style="color:white;margin:0;font-size:1.5rem;">
+          <span style="color:#A63045;">A</span>-SCHOOL
+        </h1>
+        <p style="color:rgba(255,255,255,0.85);margin:0.3rem 0 0;font-size:0.9rem;">
+          Générateur d'activités pédagogiques
+        </p>
+      </div>
+      <p>Bonjour,</p>
+      <p>Vous avez demandé la réinitialisation de votre mot de passe A-SCHOOL.
+         Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
+         Ce lien est valable <strong>60 minutes</strong>.</p>
+      <div style="text-align:center;margin:2rem 0;">
+        <a href="{link}"
+           style="background:#1F6EEB;color:white;padding:14px 32px;
+                  border-radius:8px;text-decoration:none;
+                  font-weight:600;font-size:1rem;">
+          Réinitialiser mon mot de passe
+        </a>
+      </div>
+      <p style="color:#94a3b8;font-size:0.8rem;">
+        Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.<br>
+        Ce lien ne peut être utilisé qu'une seule fois.
+      </p>
+    </div>
+    """
+    plain = (
+        f"Bonjour,\n\nRéinitialisez votre mot de passe A-SCHOOL en cliquant sur ce lien :\n{link}\n\n"
+        f"Ce lien est valable 60 minutes et ne peut être utilisé qu'une seule fois.\n\n"
+        f"Si vous n'avez pas demandé cette réinitialisation, ignorez cet email."
+    )
+    msg.attach(MIMEText(plain, "plain"))
     msg.attach(MIMEText(html, "html"))
     _smtp_send(msg)
 
