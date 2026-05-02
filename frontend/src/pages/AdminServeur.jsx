@@ -18,20 +18,20 @@ function MetricCard({ label, value, sub, color }) {
   )
 }
 
-function BarChart({ data }) {
+function BarChart({ data, labelKey = 'day', color = '#3b82f6' }) {
   if (!data.length) return <p className="text-sm text-gray-400">Pas encore de données.</p>
   const max = Math.max(...data.map(d => d.count), 1)
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 80 }}>
       {data.map(d => (
-        <div key={d.day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        <div key={d[labelKey]} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <div
-            title={`${d.day} : ${d.count} connexion${d.count !== 1 ? 's' : ''}`}
+            title={`${d[labelKey]} : ${d.count} connexion${d.count !== 1 ? 's' : ''}`}
             style={{
               width: '100%', borderRadius: '3px 3px 0 0',
-              background: '#3b82f6',
-              height: `${Math.max(4, Math.round((d.count / max) * 72))}px`,
-              opacity: 0.8,
+              background: color,
+              height: `${Math.max(d.count > 0 ? 4 : 1, Math.round((d.count / max) * 72))}px`,
+              opacity: d.count > 0 ? 0.8 : 0.15,
               cursor: 'default',
             }}
           />
@@ -45,6 +45,7 @@ export default function AdminServeur() {
   const [metrics, setMetrics] = useState(null)
   const [overview, setOverview] = useState(null)
   const [logins, setLogins]   = useState([])
+  const [hours, setHours]     = useState([])
   const [dbSize, setDbSize]   = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -56,12 +57,14 @@ export default function AdminServeur() {
       fetch('/api/admin/stats/overview',  opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/stats/logins',    opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/db-size',         opts).then(r => r.status === 401 ? null : r.json()),
-    ]).then(([m, o, l, d]) => {
+      fetch('/api/admin/stats/hours',     opts).then(r => r.status === 401 ? null : r.json()),
+    ]).then(([m, o, l, d, h]) => {
       if (!m) { navigate('/admin/login'); return }
       setMetrics(m)
       setOverview(o)
       setLogins(l || [])
       setDbSize(d)
+      setHours(h || [])
     }).finally(() => setLoading(false))
   }, [navigate])
 
@@ -107,7 +110,7 @@ export default function AdminServeur() {
         <p className="text-xs text-gray-400 mb-4">
           {logins.reduce((s, d) => s + d.count, 0)} connexions au total
         </p>
-        <BarChart data={logins} />
+        <BarChart data={logins} labelKey="day" />
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: '#cbd5e1' }}>
           {logins.length > 0 && (
             <>
@@ -115,6 +118,24 @@ export default function AdminServeur() {
               <span>{logins[logins.length - 1]?.day}</span>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Heures de pointe */}
+      <div style={{ background: 'white', borderRadius: 10, padding: '20px 24px', border: '1px solid #e2e8f0' }}>
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">
+          Heures de pointe
+        </h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Répartition des connexions par heure de la journée (toutes périodes confondues)
+        </p>
+        <BarChart data={hours} labelKey="hour" color="#8b5cf6" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: '#cbd5e1' }}>
+          <span>00h</span>
+          <span>06h</span>
+          <span>12h</span>
+          <span>18h</span>
+          <span>23h</span>
         </div>
       </div>
 

@@ -249,7 +249,7 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
 
 
 @router.delete("/admin/user/{email}")
-def delete_user(email: str, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
@@ -260,6 +260,14 @@ def delete_user(email: str, db: Session = Depends(get_db), _: None = Depends(_re
     db.query(Feedback).filter(Feedback.user_email == email).delete()
     db.delete(user)
     db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="DELETE_USER",
+        target_email=email,
+        ip=request.client.host if request.client else None,
+        details="Compte supprimé avec toutes ses données",
+    )
     return {"status": "ok"}
 
 
@@ -274,7 +282,7 @@ def get_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin
 
 
 @router.put("/admin/settings")
-def save_settings(body: SettingsBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+def save_settings(body: SettingsBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     for key, value in body.dict().items():
         row = db.query(Setting).filter(Setting.key == key).first()
         if row:
@@ -282,6 +290,14 @@ def save_settings(body: SettingsBody, db: Session = Depends(get_db), _: None = D
         else:
             db.add(Setting(key=key, value=value))
     db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_SETTINGS",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details="Paramètres email mis à jour",
+    )
     return {"status": "ok"}
 
 
@@ -481,6 +497,43 @@ def get_audit_log(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "ip":           r.ip_address or "—",
             "details":      r.details or "",
             "date":         r.timestamp.strftime("%d/%m/%Y %H:%M"),
+        }
+        for r in rows
+    ]
+
+
+@router.get("/admin/stats/hours")
+def stats_hours(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(
+            func.strftime('%H', ConnexionLog.created_at).label("hour"),
+            func.count(ConnexionLog.id).label("count"),
+        )
+        .filter(ConnexionLog.action == "login")
+        .group_by(func.strftime('%H', ConnexionLog.created_at))
+        .order_by(func.strftime('%H', ConnexionLog.created_at))
+        .all()
+    )
+    hours_map = {r.hour: r.count for r in rows}
+    return [{"hour": f"{h:02d}h", "count": hours_map.get(f"{h:02d}", 0)} for h in range(24)]
+
+
+@router.get("/admin/failed-attempts")
+def get_failed_attempts(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(FailedLoginAttempt)
+        .order_by(FailedLoginAttempt.attempt_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id":         r.id,
+            "ip":         r.ip_address or "—",
+            "username":   r.username or "—",
+            "user_agent": r.user_agent or "—",
+            "blocked":    r.blocked,
+            "date":       r.attempt_at.strftime("%d/%m/%Y %H:%M"),
         }
         for r in rows
     ]
