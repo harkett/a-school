@@ -25,6 +25,9 @@ import AdminActivites from './pages/AdminActivites'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametres from './pages/AdminParametres'
+import AdminSessions from './pages/AdminSessions'
+import AdminServeur from './pages/AdminServeur'
+import AdminAudit from './pages/AdminAudit'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -395,11 +398,14 @@ export default function App() {
           <Route path="/mentions-legales" element={<MentionsLegales />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/logs" replace />} />
-            <Route path="logs" element={<AdminLogs />} />
+            <Route index element={<Navigate to="/admin/serveur" replace />} />
+            <Route path="serveur"    element={<AdminServeur />} />
+            <Route path="sessions"   element={<AdminSessions />} />
+            <Route path="logs"       element={<AdminLogs />} />
             <Route path="activites"  element={<AdminActivites />} />
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
-            <Route path="profils"     element={<AdminProfils />} />
+            <Route path="profils"    element={<AdminProfils />} />
+            <Route path="audit"      element={<AdminAudit />} />
             <Route path="parametres" element={<AdminParametres />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

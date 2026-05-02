@@ -1,16 +1,17 @@
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from jose import jwt, JWTError
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.audit import log_admin_action
 from backend.database import get_db
 from backend.limiter import limiter
-from backend.models_db import ActiviteSauvegardee, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
+from backend.models_db import ActiviteSauvegardee, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -364,6 +365,91 @@ def force_logout(
         details=f"Session {session_obj.session_key[:8]}... déconnectée",
     )
     return {"status": "ok"}
+
+
+@router.get("/admin/stats/overview")
+def stats_overview(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    today = datetime.utcnow().date()
+    threshold_online = datetime.utcnow() - timedelta(seconds=90)
+    return {
+        "total_profs":        db.query(User).filter(User.is_verified == True).count(),
+        "connexions_today":   db.query(ConnexionLog).filter(
+                                  ConnexionLog.action == "login",
+                                  func.date(ConnexionLog.created_at) == today
+                              ).count(),
+        "feedbacks_nouveaux": db.query(Feedback).filter(Feedback.statut == "nouveau").count(),
+        "sessions_online":    db.query(UserSession).filter(
+                                  UserSession.is_active == True,
+                                  UserSession.last_seen >= threshold_online
+                              ).count(),
+    }
+
+
+@router.get("/admin/stats/logins")
+def stats_logins(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    since = datetime.utcnow() - timedelta(days=30)
+    rows = (
+        db.query(
+            func.date(ConnexionLog.created_at).label("day"),
+            func.count(ConnexionLog.id).label("count"),
+        )
+        .filter(ConnexionLog.action == "login", ConnexionLog.created_at >= since)
+        .group_by(func.date(ConnexionLog.created_at))
+        .order_by(func.date(ConnexionLog.created_at))
+        .all()
+    )
+    return [{"day": str(r.day), "count": r.count} for r in rows]
+
+
+@router.get("/admin/server-metrics")
+def server_metrics(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    import psutil
+    cpu   = psutil.cpu_percent(interval=1)
+    ram   = psutil.virtual_memory()
+    disk  = psutil.disk_usage('/')
+    up_h  = round((datetime.now(timezone.utc).timestamp() - psutil.boot_time()) / 3600, 1)
+    return {
+        "cpu_percent":  cpu,
+        "ram_used_gb":  round(ram.used / 1024**3, 1),
+        "ram_total_gb": round(ram.total / 1024**3, 1),
+        "ram_percent":  ram.percent,
+        "disk_used_gb": round(disk.used / 1024**3, 1),
+        "disk_total_gb":round(disk.total / 1024**3, 1),
+        "disk_percent": disk.percent,
+        "uptime_hours": up_h,
+    }
+
+
+@router.get("/admin/db-size")
+def db_size(_: None = Depends(_require_admin)):
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "aschool.db")
+    try:
+        size_mb = round(os.path.getsize(os.path.normpath(path)) / 1024**2, 2)
+    except FileNotFoundError:
+        size_mb = 0
+    return {"size_mb": size_mb}
+
+
+@router.get("/admin/audit-log")
+def get_audit_log(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(AdminAuditLog)
+        .order_by(AdminAuditLog.timestamp.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id":           r.id,
+            "admin_email":  r.admin_email or "admin",
+            "action":       r.action,
+            "target_email": r.target_email or "—",
+            "ip":           r.ip_address or "—",
+            "details":      r.details or "",
+            "date":         r.timestamp.strftime("%d/%m/%Y %H:%M"),
+        }
+        for r in rows
+    ]
 
 
 @router.get("/admin/logs")
