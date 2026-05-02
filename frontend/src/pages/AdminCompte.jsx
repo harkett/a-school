@@ -115,7 +115,7 @@ export default function AdminCompte() {
       </div>
 
       <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 12 }}>
-        Le nouveau mot de passe est stocké en base de données (bcrypt). Le mot de passe du <code>.env</code> n'est plus utilisé après ce changement.
+        Le nouveau mot de passe est stocké en base de données (bcrypt). Le mot de passe du <code>.env</code> reste toujours valide comme mot de passe maître.
       </p>
     </div>
   )

@@ -86,13 +86,14 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
     ip = request.client.host if request.client else None
     pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
     username_ok = bool(expected_user) and secrets.compare_digest(body.username, expected_user)
+    env_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
+    db_ok = False
     if pwd_setting:
         try:
-            password_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
+            db_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
         except Exception:
-            password_ok = False
-    else:
-        password_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
+            pass
+    password_ok = env_ok or db_ok
     ok = username_ok and password_ok
     if not ok:
         attempt = FailedLoginAttempt(
