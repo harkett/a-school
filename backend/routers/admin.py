@@ -230,6 +230,7 @@ def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
             "niveau":      u.niveau or "",
             "created_at":  u.created_at.strftime("%d/%m/%Y"),
             "last_login":  u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
+            "is_active":   u.is_active,
         }
         for u in users
     ]
@@ -304,6 +305,51 @@ def save_settings(body: SettingsBody, request: Request, db: Session = Depends(ge
 class SendEmailBody(BaseModel):
     subject: str
     body: str
+
+
+@router.post("/admin/user/{email}/reset-password")
+def admin_reset_password(email: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    from backend import auth as auth_lib
+    token = auth_lib.generate_email_token(db, email, "reset_password")
+    try:
+        auth_lib.send_reset_email(email, token)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur envoi email : {e}")
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="RESET_PASSWORD",
+        target_email=email,
+        ip=request.client.host if request.client else None,
+        details="Lien de réinitialisation envoyé par l'admin",
+    )
+    return {"status": "ok"}
+
+
+@router.patch("/admin/user/{email}/toggle-active")
+def toggle_user_active(email: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    user.is_active = not user.is_active
+    if not user.is_active:
+        db.query(UserSession).filter(
+            UserSession.user_email == email,
+            UserSession.is_active == True,
+        ).update({"is_active": False})
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="ACTIVATE_USER" if user.is_active else "DEACTIVATE_USER",
+        target_email=email,
+        ip=request.client.host if request.client else None,
+        details=f"Compte {'activé' if user.is_active else 'désactivé'}",
+    )
+    return {"status": "ok", "is_active": user.is_active}
 
 
 @router.post("/admin/user/{email}/send-email")

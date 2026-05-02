@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function AdminTentatives() {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows]         = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [filterIp, setFilterIp] = useState('')
+  const [filterStatut, setFilterStatut] = useState('tous')
+  const [sortDir, setSortDir]   = useState('desc')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -16,13 +19,18 @@ export default function AdminTentatives() {
       .finally(() => setLoading(false))
   }, [navigate])
 
+  const displayed = rows
+    .filter(r => !filterIp || r.ip.includes(filterIp))
+    .filter(r => filterStatut === 'tous' || (filterStatut === 'bloquees' ? r.blocked : !r.blocked))
+    .sort((a, b) => sortDir === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
+
   const bloquees = rows.filter(r => r.blocked).length
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <h2 className="text-sm font-semibold text-gray-700">
           Tentatives de connexion échouées
           {bloquees > 0 && (
@@ -31,10 +39,25 @@ export default function AdminTentatives() {
             </span>
           )}
         </h2>
-        <span className="text-xs text-gray-400">{rows.length} entrée{rows.length !== 1 ? 's' : ''} — 200 dernières</span>
+        <span className="text-xs text-gray-400">{displayed.length} / {rows.length} — 200 dernières</span>
       </div>
 
-      {rows.length === 0 ? (
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <input type="text" placeholder="Filtrer par IP…" value={filterIp} onChange={e => setFilterIp(e.target.value)}
+          className="border border-gray-300 rounded px-3 py-1.5 text-sm" style={{ width: 160 }} />
+        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)}
+          className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">
+          <option value="tous">Toutes</option>
+          <option value="bloquees">Bloquées</option>
+          <option value="echouees">Échouées seulement</option>
+        </select>
+        <button onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} title="Inverser l'ordre par date"
+          style={{ padding: '6px 12px', fontSize: 12, borderRadius: 4, border: '1px solid #d1d5db', cursor: 'pointer', background: '#fff', color: '#6b7280' }}>
+          Date {sortDir === 'desc' ? '↓' : '↑'}
+        </button>
+      </div>
+
+      {displayed.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
           <p className="text-sm">Aucune tentative échouée enregistrée.</p>
@@ -52,10 +75,10 @@ export default function AdminTentatives() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {displayed.map((r, i) => (
                 <tr
                   key={r.id}
-                  style={{ borderBottom: i < rows.length - 1 ? '1px solid #f1f5f9' : 'none', background: r.blocked ? '#fff5f5' : 'white' }}
+                  style={{ borderBottom: i < displayed.length - 1 ? '1px solid #f1f5f9' : 'none', background: r.blocked ? '#fff5f5' : 'white' }}
                 >
                   <td style={{ padding: '10px 16px', color: '#475569', whiteSpace: 'nowrap' }}>{r.date}</td>
                   <td style={{ padding: '10px 16px', fontFamily: 'monospace', color: '#1e293b' }}>{r.ip}</td>

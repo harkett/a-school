@@ -23,6 +23,7 @@ class User(Base):
     niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
     langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
 
 
 class EmailToken(Base):

@@ -95,6 +95,9 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
     if not user.is_verified:
         raise ValueError("Email non vérifié. Vérifiez votre boîte mail.")
 
+    if not user.is_active:
+        raise ValueError("Compte désactivé. Contactez l'administrateur.")
+
     user.failed_attempts = 0
     user.locked_until = None
     user.last_login = now
