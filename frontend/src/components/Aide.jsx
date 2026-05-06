@@ -247,7 +247,7 @@ const sections = [
   },
   {
     id: 'problemes',
-    titre: 'Problèmes fréquents',
+    titre: 'Trucs et astuces',
     Icon: IconAlert,
     contenu: (
       <dl className="flex flex-col gap-4 text-sm text-gray-600">

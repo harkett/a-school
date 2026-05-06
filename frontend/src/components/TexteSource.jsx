@@ -40,6 +40,7 @@ export default function TexteSource({ texte, onChange }) {
   const recognitionRef = useRef(null)
   const activeRef = useRef(false)
   const accumulatedRef = useRef('')
+  const textareaRef = useRef(null)
 
   function handleTxt(e) {
     const file = e.target.files[0]
@@ -133,6 +134,7 @@ export default function TexteSource({ texte, onChange }) {
     activeRef.current = true
     accumulatedRef.current = texte
     setIsListening(true)
+    textareaRef.current?.focus()
     startRecognition()
   }
 
@@ -140,12 +142,32 @@ export default function TexteSource({ texte, onChange }) {
     <section className="bg-white rounded border border-gray-200 p-4">
       <div className="section-title mb-3">Texte source</div>
       <textarea
+        ref={textareaRef}
         className="w-full border border-gray-300 rounded p-3 text-sm resize-y"
         rows={8}
         value={texte}
         onChange={e => onChange(e.target.value)}
         placeholder={"Collez un extrait de texte ici\n— ou importez un fichier TXT\n— ou extrayez le texte d'une image (scan, photo)\n— ou extrayez le texte d'un PDF\n— ou dictez avec le micro"}
+        style={isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
       />
+
+      {isListening && (
+        <div style={{
+          marginTop: 6,
+          padding: '7px 12px',
+          background: '#fff1f2',
+          border: '1px solid #fca5a5',
+          borderRadius: 6,
+          fontSize: 12,
+          color: '#dc2626',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>🎤</span>
+          <span>Dictée active — parlez maintenant. Le texte s'affiche automatiquement. Cliquez <strong>Arrêter</strong> pour terminer.</span>
+        </div>
+      )}
 
       {ocrErreur && (
         <div className="mt-2 bg-red-50 border border-red-200 text-red-700 rounded p-2 text-xs">

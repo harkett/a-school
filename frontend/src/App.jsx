@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
@@ -80,10 +80,15 @@ const TIPS = [
   { texte: 'Complétez votre profil (matière, niveau par défaut) pour que A-SCHOOL s\'adapte à votre contexte dès la connexion.' },
   { texte: 'La précision « Mélange » demande à A-SCHOOL de combiner tous les types disponibles pour cette activité. Le détail des types combinés s\'affiche sous le sélecteur.' },
   { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez le texte dans A-SCHOOL.' },
+  { texte: 'Problème de connexion persistant malgré un identifiant correct ? Supprimez les cookies du site : dans Edge ou Chrome, appuyez sur F12, allez dans l\'onglet Application, puis Cookies, et supprimez tous les cookies de cette page.' },
 ]
+
+const INACTIVITY_MS = 2 * 60 * 60 * 1000
+const WARNING_SECS  = 300
 
 function MainApp() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const matiere = user?.subject || 'Français'
   const matiereLabel = matiere === 'Langues Vivantes (LV)' && user?.langue_lv
     ? `LV - ${user.langue_lv}`
@@ -103,14 +108,82 @@ function MainApp() {
     () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
   )
   const [tipModal, setTipModal] = useState(null)
+  const [inactivityWarning, setInactivityWarning] = useState(false)
+  const [countdown, setCountdown] = useState(WARNING_SECS)
+  const timerRef  = useRef(null)
+  const cdRef     = useRef(null)
+  const warningRef = useRef(false)
+
+  useEffect(() => {
+    function arm() {
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        warningRef.current = true
+        setInactivityWarning(true)
+        let secs = WARNING_SECS
+        setCountdown(secs)
+        cdRef.current = setInterval(() => {
+          secs -= 1
+          setCountdown(secs)
+          if (secs <= 0) {
+            clearInterval(cdRef.current)
+            fetch('/api/auth/logout-inactivite', { method: 'POST', credentials: 'include' }).catch(() => {})
+            navigate('/login?raison=inactivite')
+            logout()
+          }
+        }, 1000)
+      }, INACTIVITY_MS)
+    }
+    function onActivity() { if (!warningRef.current) arm() }
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart']
+    events.forEach(e => window.addEventListener(e, onActivity, { passive: true }))
+    arm()
+    return () => {
+      events.forEach(e => window.removeEventListener(e, onActivity))
+      clearTimeout(timerRef.current)
+      clearInterval(cdRef.current)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function stayConnected() {
+    clearInterval(cdRef.current)
+    warningRef.current = false
+    setInactivityWarning(false)
+    setCountdown(WARNING_SECS)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      warningRef.current = true
+      setInactivityWarning(true)
+      let secs = WARNING_SECS
+      setCountdown(secs)
+      cdRef.current = setInterval(() => {
+        secs -= 1
+        setCountdown(secs)
+        if (secs <= 0) {
+          clearInterval(cdRef.current)
+          navigate('/login?raison=inactivite')
+          logout()
+        }
+      }, 1000)
+    }, INACTIVITY_MS)
+  }
 
   useEffect(() => {
     if (!user) return
-    const id = setInterval(() => {
-      fetch('/api/heartbeat', { method: 'POST', credentials: 'include' })
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch('/api/heartbeat', { method: 'POST', credentials: 'include' })
+        if (r.status === 401) {
+          const data = await r.json().catch(() => ({}))
+          if (data.detail === 'Session déconnectée.') {
+            navigate('/login?raison=force_deconnexion')
+            logout()
+          }
+        }
+      } catch {}
     }, 60000)
     return () => clearInterval(id)
-  }, [user])
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!toast) return
@@ -238,6 +311,8 @@ function MainApp() {
       <Header
         matiere={matiereLabel}
         email={user?.email}
+        prenom={user?.prenom}
+        nom={user?.nom}
         onLogout={logout}
       />
 
@@ -352,6 +427,27 @@ function MainApp() {
                 Compris
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {inactivityWarning && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '32px 28px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', marginBottom: '10px' }}>Session inactive</div>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px', lineHeight: 1.6 }}>
+              Vous allez être déconnecté dans{' '}
+              <strong style={{ color: countdown <= 30 ? '#dc2626' : '#1e293b' }}>
+                {countdown} seconde{countdown > 1 ? 's' : ''}
+              </strong>{' '}
+              en raison d'inactivité.
+            </p>
+            <button
+              onClick={stayConnected}
+              style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 28px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Rester connecté
+            </button>
           </div>
         </div>
       )}

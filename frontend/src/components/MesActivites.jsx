@@ -14,7 +14,14 @@ export default function MesActivites({ onCharger }) {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      <h2 className="text-base font-semibold text-gray-800 mb-1">Mes activités</h2>
+      <div className="flex items-baseline gap-3 mb-1">
+        <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
+        {!loading && activites.length > 0 && (
+          <span style={{ fontSize: 12, color: '#6b7280', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 99, padding: '1px 10px' }}>
+            {activites.length} activité{activites.length > 1 ? 's' : ''} sauvegardée{activites.length > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
       {loading && (
         <p className="text-sm text-gray-400 py-4">Chargement…</p>

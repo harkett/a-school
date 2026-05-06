@@ -179,7 +179,7 @@ def update_feedback_statut(
 
 
 @router.get("/admin/activites")
-def get_activites_admin(_: None = Depends(_require_admin)):
+def get_activites_admin(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     from src.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_PAR_ACTIVITE
 
     matieres = list(ACTIVITES_PAR_MATIERE.keys())
@@ -206,15 +206,26 @@ def get_activites_admin(_: None = Depends(_require_admin)):
         for activite, matieres_data in ACTIVITES_PAR_ACTIVITE.items()
     ]
 
+    total_generees = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
+    generees_par_matiere = dict(
+        db.query(User.subject, func.count(ActiviteSauvegardee.id))
+        .join(ActiviteSauvegardee, User.email == ActiviteSauvegardee.user_email)
+        .filter(User.subject.isnot(None))
+        .group_by(User.subject)
+        .all()
+    )
+
     return {
         "stats": {
             "nb_matieres": len(matieres),
             "nb_activites_uniques": len(ACTIVITES_PAR_ACTIVITE),
             "nb_entrees": total_entrees,
+            "total_generees": total_generees,
         },
         "matieres": matieres,
         "par_matiere": par_matiere,
         "matrice": matrice,
+        "generees_par_matiere": generees_par_matiere,
     }
 
 
@@ -228,16 +239,22 @@ class UpdateUserBody(BaseModel):
 @router.get("/admin/users")
 def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     users = db.query(User).filter(User.is_verified == True).order_by(User.created_at.desc()).all()
+    counts = dict(
+        db.query(ActiviteSauvegardee.user_email, func.count(ActiviteSauvegardee.id))
+        .group_by(ActiviteSauvegardee.user_email)
+        .all()
+    )
     return [
         {
-            "email":       u.email,
-            "prenom":      u.prenom or "",
-            "nom":         u.nom or "",
-            "subject":     u.subject or "",
-            "niveau":      u.niveau or "",
-            "created_at":  u.created_at.strftime("%d/%m/%Y"),
-            "last_login":  u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
-            "is_active":   u.is_active,
+            "email":        u.email,
+            "prenom":       u.prenom or "",
+            "nom":          u.nom or "",
+            "subject":      u.subject or "",
+            "niveau":       u.niveau or "",
+            "created_at":   u.created_at.strftime("%d/%m/%Y"),
+            "last_login":   u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
+            "is_active":    u.is_active,
+            "nb_activites": counts.get(u.email, 0),
         }
         for u in users
     ]
@@ -438,6 +455,16 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
         .limit(100)
         .all()
     )
+    now = datetime.utcnow()
+
+    def _fmt_duration(s):
+        delta = now - s.login_at
+        total_min = max(0, int(delta.total_seconds() // 60))
+        h, m = divmod(total_min, 60)
+        if h > 0:
+            return f"{h}h {m:02d}min" if m else f"{h}h"
+        return f"{m}min" if m else "< 1min"
+
     return [
         {
             "id":        s.id,
@@ -449,18 +476,25 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
             "login_at":  s.login_at.strftime("%d/%m/%Y %H:%M"),
             "last_seen": s.last_seen.strftime("%d/%m/%Y %H:%M"),
             "is_online": s.is_online,
+            "duree":     _fmt_duration(s),
         }
         for s in sessions
     ]
 
 
+class ForceLogoutBody(BaseModel):
+    raison: str = ""
+
+
 @router.post("/admin/force-logout/{session_id}")
 def force_logout(
     session_id: int,
+    body: ForceLogoutBody,
     request: Request,
     db: Session = Depends(get_db),
     _: None = Depends(_require_admin),
 ):
+    from backend.auth import send_custom_email
     session_obj = db.query(UserSession).filter(UserSession.id == session_id).first()
     if not session_obj:
         raise HTTPException(404, "Session introuvable.")
@@ -469,14 +503,33 @@ def force_logout(
         raise HTTPException(403, "Impossible de déconnecter la session administrateur.")
     session_obj.is_active = False
     db.commit()
+    raison = body.raison.strip()
+    details = f"Session {session_obj.session_key[:8]}... déconnectée"
+    if raison:
+        details += f" — Raison : {raison}"
     log_admin_action(
         db=db,
         admin_email=_get_admin_email(request),
         action="FORCE_LOGOUT",
         target_email=session_obj.user_email,
         ip=request.client.host if request.client else None,
-        details=f"Session {session_obj.session_key[:8]}... déconnectée",
+        details=details,
     )
+    try:
+        raison_txt = f"\n\nRaison indiquée : {raison}" if raison else ""
+        send_custom_email(
+            email=session_obj.user_email,
+            prenom=None,
+            subject="Votre session A-SCHOOL a été fermée",
+            body=(
+                f"Bonjour {{prenom}},\n\n"
+                f"Votre session A-SCHOOL a été fermée par l'administrateur.{raison_txt}\n\n"
+                f"Si vous pensez qu'il s'agit d'une erreur, contactez l'administrateur.\n\n"
+                f"L'équipe A-SCHOOL"
+            ),
+        )
+    except Exception:
+        pass
     return {"status": "ok"}
 
 

@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import EyeIcon from '../components/EyeIcon'
 
 export default function Login() {
   const { setUser } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const deconnecteInactivite  = searchParams.get('raison') === 'inactivite'
+  const deconnecteForce       = searchParams.get('raison') === 'force_deconnexion'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -71,6 +74,18 @@ export default function Login() {
           <p className="text-sm text-gray-500 mb-6">
             Accédez à votre espace A-SCHOOL.
           </p>
+
+          {deconnecteForce && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#991b1b' }}>
+              Votre session a été fermée par l'administrateur. Reconnectez-vous ou contactez l'administrateur si vous pensez qu'il s'agit d'une erreur.
+            </div>
+          )}
+
+          {deconnecteInactivite && (
+            <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#854d0e' }}>
+              Vous avez été déconnecté après une période d'inactivité. Veuillez vous reconnecter.
+            </div>
+          )}
 
           {erreur && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">

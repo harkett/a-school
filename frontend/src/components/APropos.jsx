@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import Feedback from './Feedback'
 import Notation from './Notation'
+import { APP_VERSION } from '../version'
+
+const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
 export default function APropos({ email }) {
   const [showFeedback, setShowFeedback] = useState(false)
@@ -18,7 +21,7 @@ export default function APropos({ email }) {
               <span style={{ color: 'var(--bleu)' }}>-SCHOOL</span>
             </span>
             <span className="text-xs font-medium text-gray-400 border border-gray-200 rounded px-2 py-0.5">
-              v3.0-dev
+              v{APP_VERSION}
             </span>
           </div>
           <p className="text-sm text-gray-500">
@@ -32,7 +35,7 @@ export default function APropos({ email }) {
             <tbody>
               <tr className="border-b border-gray-50">
                 <td className="py-2.5 text-gray-400 w-40">Version</td>
-                <td className="py-2.5 text-gray-700 font-medium">3.0-dev</td>
+                <td className="py-2.5 text-gray-700 font-medium">{APP_VERSION}</td>
               </tr>
               <tr className="border-b border-gray-50">
                 <td className="py-2.5 text-gray-400">Environnement</td>
@@ -46,7 +49,19 @@ export default function APropos({ email }) {
           </table>
         </div>
 
-        {/* Bloc 3 — Actions */}
+        {/* Bloc 3 — Matières */}
+        <div className="px-8 py-5 border-b border-gray-100">
+          <div className="text-xs text-gray-400 mb-3">Matières disponibles ({MATIERES.length})</div>
+          <div className="flex flex-wrap gap-1.5">
+            {MATIERES.map(m => (
+              <span key={m} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Bloc 4 — Actions */}
         <div className="px-8 py-5 border-b border-gray-100 flex flex-col gap-3">
           <button
             onClick={() => setShowNotation(true)}
@@ -66,7 +81,7 @@ export default function APropos({ email }) {
           </button>
         </div>
 
-        {/* Bloc 4 — Copyright */}
+        {/* Bloc 5 — Copyright */}
         <div className="px-8 py-4">
           <p className="text-xs text-gray-400">© 2026 AFIA — Tous droits réservés</p>
         </div>

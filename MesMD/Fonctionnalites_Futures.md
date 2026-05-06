@@ -1,5 +1,7 @@
 # Liste de priorités — Fonctionnalités futures A-SCHOOL
 
+> **Bannière "Bientôt disponible" dans la sidebar prof** : la liste affichée aux profs est dans `frontend/src/components/Sidebar.jsx`, bloc `{!collapsed && ...}` en bas du fichier. Mettre à jour manuellement quand les fonctionnalités évoluent.
+
 ## Niveau 0 — Quick Wins (à réaliser avant les premiers pilotes)
 
 Ces fonctionnalités nécessitent peu d'efforts et peuvent générer du bouche-à-oreille dès le premier export.
@@ -10,6 +12,8 @@ Ces fonctionnalités nécessitent peu d'efforts et peuvent générer du bouche-�
 | 2  | Pied de page à l'impression (CSS @media print)                  | 1h     | Même effet. La feuille imprimée distribuée en classe expose l'outil.                      |
 | 3  | Signature dans le mailto:                                        | 30min  | Le collègue qui reçoit l'activité voit d'où elle provient.                                |
 | 4  | Compteur "X activités créées" (Mes activités)                   | 3h     | SQL COUNT + affichage React. Favorise la rétention et la fierté. Un prof avec 50 activités sauvegardées ne repart pas. |
+| 5  | Page `/contact` (formulaire ou adresse cliquable)               | 2h     | Les footers affichent actuellement `contact@aschool.fr` en texte brut. Une page dédiée évite d'exposer l'adresse dans le HTML, réduit le spam, et centralise le point de contact. |
+| 6  | Civilité (M. / Mme) dans le profil et l'en-tête                 | 2h     | Demande d'ajouter un champ `civilite` en BDD (User), dans le formulaire d'inscription, la page Mon profil, et l'en-tête de l'app. Actuellement l'en-tête affiche "Prénom Nom" sans civilité. |
 
 ---
 
@@ -27,7 +31,7 @@ Ces fonctionnalités nécessitent peu d'efforts et peuvent générer du bouche-�
 
 | #  | Fonctionnalité                                                   | Effort   | Pourquoi                                                                                     |
 |----|------------------------------------------------------------------|----------|---------------------------------------------------------------------------------------------|
-| 8  | Export PDF                                                      | 3-5 jours | Option simple : jsPDF + html2canvas côté client. Les profs partagent plus facilement un PDF qu'un Word ou un .txt. |
+| 8  | ~~Export PDF~~                                                  | ✅ Livré  | Impression via `window.print()` dans ZoneResultat.jsx — le navigateur propose "Enregistrer en PDF". |
 | 9  | Aide spécifique par matière                                      | 3-5 jours | Infrastructure prête (subject en BDD). Textes d'aide adaptés à la matière du prof. Pas de backend à créer, juste de la logique React + contenu. |
 | 10 | Support niveau Supérieur (activités BTS/prépa/licence)         | 1-2 semaines | Travail de prompts et d'activités. Ouvre un nouveau segment (formateurs, BTS...). |
 

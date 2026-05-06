@@ -5,6 +5,8 @@ export default function AdminSessions() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading]   = useState(true)
   const [forcing, setForcing]   = useState(null)
+  const [pending, setPending]   = useState(null) // { id, email }
+  const [raison, setRaison]     = useState('')
   const navigate = useNavigate()
 
   const load = useCallback(() => {
@@ -23,10 +25,21 @@ export default function AdminSessions() {
     return () => clearInterval(id)
   }, [load])
 
-  async function forceLogout(id, email) {
-    if (!confirm(`Déconnecter ${email} ?`)) return
-    setForcing(id)
-    await fetch(`/api/admin/force-logout/${id}`, { method: 'POST', credentials: 'include' })
+  function startLogout(id, email) {
+    setPending({ id, email })
+    setRaison('')
+  }
+
+  async function confirmLogout() {
+    setForcing(pending.id)
+    await fetch(`/api/admin/force-logout/${pending.id}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raison }),
+    })
+    setPending(null)
+    setRaison('')
     setForcing(null)
     load()
   }
@@ -65,9 +78,8 @@ export default function AdminSessions() {
                 <th className="px-4 py-3 font-medium">Statut</th>
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Navigateur / OS</th>
-                <th className="px-4 py-3 font-medium">IP</th>
                 <th className="px-4 py-3 font-medium">Connexion</th>
-                <th className="px-4 py-3 font-medium">Vu à</th>
+                <th className="px-4 py-3 font-medium">Durée</th>
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>
@@ -75,11 +87,7 @@ export default function AdminSessions() {
               {sessions.map(s => (
                 <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      fontSize: 12, fontWeight: 600,
-                      color: s.is_online ? '#15803d' : '#94a3b8',
-                    }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: s.is_online ? '#15803d' : '#94a3b8' }}>
                       {s.is_online ? '●' : '○'} {s.is_online ? 'En ligne' : 'Inactif'}
                     </span>
                   </td>
@@ -88,23 +96,47 @@ export default function AdminSessions() {
                     <div>{s.browser}</div>
                     <div className="text-gray-400">{s.os} · {s.device}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{s.ip}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.login_at}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.last_seen}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => forceLogout(s.id, s.email)}
-                      disabled={forcing === s.id}
-                      title={`Déconnecter ${s.email} immédiatement`}
-                      style={{
-                        padding: '3px 10px', fontSize: 11, borderRadius: 4,
-                        border: '1px solid #fca5a5', cursor: 'pointer',
-                        background: forcing === s.id ? '#f1f5f9' : '#fff',
-                        color: forcing === s.id ? '#94a3b8' : '#dc2626',
-                      }}
-                    >
-                      {forcing === s.id ? '…' : 'Déconnecter'}
-                    </button>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap font-medium" style={{ color: s.is_online ? '#15803d' : '#94a3b8' }}>{s.duree}</td>
+                  <td className="px-4 py-3" style={{ minWidth: 220 }}>
+                    {pending?.id === s.id ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <input
+                          type="text"
+                          placeholder="Raison (optionnel)"
+                          value={raison}
+                          onChange={e => setRaison(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && confirmLogout()}
+                          autoFocus
+                          style={{ fontSize: 11, border: '1px solid #fca5a5', borderRadius: 4, padding: '3px 8px', outline: 'none', width: '100%' }}
+                        />
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            onClick={confirmLogout}
+                            disabled={forcing === s.id}
+                            title="Confirmer la déconnexion"
+                            style={{ flex: 1, padding: '3px 8px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', fontWeight: 600 }}
+                          >
+                            {forcing === s.id ? '…' : 'Confirmer'}
+                          </button>
+                          <button
+                            onClick={() => setPending(null)}
+                            title="Annuler"
+                            style={{ padding: '3px 8px', fontSize: 11, borderRadius: 4, border: '1px solid #e2e8f0', cursor: 'pointer', background: '#fff', color: '#64748b' }}
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startLogout(s.id, s.email)}
+                        title={`Déconnecter ${s.email} immédiatement`}
+                        style={{ padding: '3px 10px', fontSize: 11, borderRadius: 4, border: '1px solid #fca5a5', cursor: 'pointer', background: '#fff', color: '#dc2626' }}
+                      >
+                        Déconnecter
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

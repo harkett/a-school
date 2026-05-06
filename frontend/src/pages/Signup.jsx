@@ -221,7 +221,7 @@ export default function Signup() {
       </div>
 
       <footer className="py-3 text-center text-xs text-gray-400">
-        A-SCHOOL · harketti@afia.fr
+        A-SCHOOL · contact@aschool.fr
       </footer>
     </div>
   )

@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 
+const SEP = { separator: true }
+
 const NAV_ITEMS = [
+  // — Surveillance —
+  {
+    to:    '/admin/sessions',
+    label: 'Sessions',
+    aide:  'Profs connectés en ce moment — navigateur, dernière activité, durée. Déconnexion forcée possible.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+    ),
+  },
   {
     to:    '/admin/serveur',
     label: 'Serveur',
@@ -17,37 +30,17 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  SEP,
+  // — Notifications —
   {
-    to:    '/admin/sessions',
-    label: 'Sessions',
-    aide:  'Profs connectés en ce moment — navigateur, IP, dernière activité. Déconnexion forcée possible.',
+    to:       '/admin/alertes',
+    label:    'Alertes',
+    badgeKey: 'alertes_nonlues',
+    aide:     'Alertes automatiques : CPU critique, disque plein, tentatives d\'intrusion. Vérification toutes les 5 min.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-      </svg>
-    ),
-  },
-  {
-    to:    '/admin/logs',
-    label: 'Connexions',
-    aide:  'Journal des connexions utilisateurs — qui s\'est connecté, quand et depuis quelle adresse IP.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-    ),
-  },
-  {
-    to:    '/admin/activites',
-    label: 'Activités',
-    aide:  'Catalogue des activités pédagogiques disponibles, par matière et par sous-type.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
       </svg>
     ),
   },
@@ -55,13 +48,15 @@ const NAV_ITEMS = [
     to:       '/admin/feedbacks',
     label:    'Feedbacks',
     badgeKey: 'feedbacks_nouveaux',
-    aide:     'Retours et suggestions des utilisateurs — stockés dans A-SCHOOL, note moyenne et répartition.',
+    aide:     'Retours et suggestions des utilisateurs — note moyenne, répartition, statuts.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     ),
   },
+  SEP,
+  // — Utilisateurs —
   {
     to:    '/admin/profils',
     label: 'Profs',
@@ -76,6 +71,32 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to:    '/admin/activites',
+    label: 'Activités',
+    aide:  'Catalogue des activités pédagogiques disponibles, par matière et par sous-type.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    ),
+  },
+  SEP,
+  // — Accès & sécurité —
+  {
+    to:    '/admin/logs',
+    label: 'Connexions',
+    aide:  'Journal des connexions utilisateurs — qui s\'est connecté, quand et depuis quelle adresse IP.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    ),
+  },
+  {
     to:    '/admin/tentatives',
     label: 'Tentatives',
     aide:  'Tentatives de connexion échouées — IP, identifiant tenté, statut bloqué ou non.',
@@ -84,18 +105,6 @@ const NAV_ITEMS = [
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-    ),
-  },
-  {
-    to:       '/admin/alertes',
-    label:    'Alertes',
-    badgeKey: 'alertes_nonlues',
-    aide:     'Alertes automatiques : CPU critique, disque plein, tentatives d\'intrusion. Vérification toutes les 5 min.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
       </svg>
     ),
   },
@@ -113,17 +122,8 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  {
-    to:    '/admin/compte',
-    label: 'Mon compte',
-    aide:  'Changer le mot de passe du compte administrateur.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
-    ),
-  },
+  SEP,
+  // — Configuration —
   {
     to:    '/admin/parametres',
     label: 'Paramètres',
@@ -132,6 +132,17 @@ const NAV_ITEMS = [
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    ),
+  },
+  {
+    to:    '/admin/compte',
+    label: 'Mon compte',
+    aide:  'Changer le mot de passe du compte administrateur.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
       </svg>
     ),
   },
@@ -194,7 +205,10 @@ export default function AdminLayout() {
 
         {/* Nav items */}
         <nav style={{ flex: 1, padding: '12px 10px' }}>
-          {NAV_ITEMS.map(item => {
+          {NAV_ITEMS.map((item, i) => {
+            if (item.separator) return (
+              <div key={`sep-${i}`} style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '6px 4px' }} />
+            )
             const isActive = !item.external && location.pathname === item.to
             const style = {
               display:        'flex',

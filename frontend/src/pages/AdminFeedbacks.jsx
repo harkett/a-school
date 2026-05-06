@@ -14,6 +14,19 @@ function statutInfo(id) {
   return STATUTS.find(s => s.id === id) || STATUTS[0]
 }
 
+const TRANSITIONS = {
+  nouveau:  ['en_cours'],
+  en_cours: ['traite'],
+  traite:   ['en_cours', 'archive'],
+  archive:  ['traite'],
+}
+
+function labelTransition(current, target) {
+  if (current === 'archive' && target === 'traite') return 'Désarchiver'
+  if (target === 'archive') return 'Archiver'
+  return statutInfo(target).label
+}
+
 const FILTRES_FB = ['tous', ...STATUTS.map(s => s.id)]
 const FILTRES_LABELS = { tous: 'Tous', nouveau: 'Nouveau', en_cours: 'En cours', traite: 'Traité', archive: 'Archivé' }
 
@@ -212,24 +225,24 @@ export default function AdminFeedbacks() {
                     <p className="text-sm text-gray-700 leading-relaxed mb-3">{f.message}</p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-400">Changer le statut :</span>
-                      {STATUTS.map(s => (
-                        <button
-                          key={s.id}
-                          onClick={() => changerStatut(f.id, s.id)}
-                          title={`Marquer comme : ${s.label}`}
-                          disabled={f.statut === s.id}
-                          style={{
-                            padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
-                            border: `1px solid ${s.color}`, cursor: f.statut === s.id ? 'default' : 'pointer',
-                            background: f.statut === s.id ? s.bg : '#fff',
-                            color: s.color,
-                            opacity: f.statut === s.id ? 1 : 0.7,
-                            fontWeight: f.statut === s.id ? 600 : 400,
-                          }}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
+                      {(TRANSITIONS[f.statut || 'nouveau'] || []).map(targetId => {
+                        const s = statutInfo(targetId)
+                        const label = labelTransition(f.statut || 'nouveau', targetId)
+                        return (
+                          <button
+                            key={targetId}
+                            onClick={() => changerStatut(f.id, targetId)}
+                            title={label}
+                            style={{
+                              padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
+                              border: `1px solid ${s.color}`, cursor: 'pointer',
+                              background: '#fff', color: s.color,
+                            }}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )

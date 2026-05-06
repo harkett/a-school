@@ -31,7 +31,7 @@ export default function AdminActivites() {
   if (erreur) return <p className="text-red-600 text-sm">{erreur}</p>
   if (!data)  return <p className="text-gray-400 text-sm">Chargement…</p>
 
-  const { stats, matieres, par_matiere, matrice } = data
+  const { stats, matieres, par_matiere, matrice, generees_par_matiere } = data
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,12 +42,13 @@ export default function AdminActivites() {
         <p className="text-xs text-gray-400 mt-0.5">Générées depuis MATRICE_ACTIVITES_ASCHOOL.md</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Stats catalogue */}
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Matières',           val: stats.nb_matieres },
-          { label: 'Activités uniques',  val: stats.nb_activites_uniques },
-          { label: 'Entrées au total',   val: stats.nb_entrees },
+          { label: 'Matières',              val: stats.nb_matieres },
+          { label: 'Activités uniques',     val: stats.nb_activites_uniques },
+          { label: 'Entrées au total',      val: stats.nb_entrees },
+          { label: 'Générées par les profs', val: stats.total_generees },
         ].map(({ label, val }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-200 p-4 text-center">
             <div className="text-2xl font-bold" style={{ color: 'var(--bleu)' }}>{val}</div>
@@ -55,6 +56,32 @@ export default function AdminActivites() {
           </div>
         ))}
       </div>
+
+      {/* Stats générées par matière */}
+      {stats.total_generees > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Activités générées par matière</div>
+          <div className="flex flex-col gap-2">
+            {matieres
+              .map(m => ({ matiere: m, count: generees_par_matiere[m] || 0 }))
+              .sort((a, b) => b.count - a.count)
+              .map(({ matiere, count }) => {
+                const pct = Math.round((count / stats.total_generees) * 100)
+                return (
+                  <div key={matiere} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-600 w-44 shrink-0 truncate">{matiere}</span>
+                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                      <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: 'var(--bleu)', transition: 'width 0.3s' }} />
+                    </div>
+                    <span className="text-xs text-gray-500 w-14 text-right shrink-0">
+                      {count > 0 ? `${count} (${pct}%)` : <span style={{ color: '#d1d5db' }}>—</span>}
+                    </span>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Onglets */}
       <div className="flex gap-2">

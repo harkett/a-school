@@ -20,7 +20,7 @@ export default function MentionsLegales() {
 
           <Section titre="Éditeur du site">
             <p>Ce site est édité par <strong>AFIA</strong>.</p>
-            <p>Contact : <a href="mailto:harketti@afia.fr" className="underline text-gray-600 hover:text-gray-800">harketti@afia.fr</a></p>
+            <p>Contact : <a href="mailto:contact@aschool.fr" className="underline text-gray-600 hover:text-gray-800">contact@aschool.fr</a></p>
           </Section>
 
           <Section titre="Hébergement">
@@ -51,7 +51,7 @@ export default function MentionsLegales() {
             <p>
               Conformément au Règlement Général sur la Protection des Données (RGPD), vous disposez d'un droit d'accès,
               de rectification et de suppression de vos données. Pour exercer ce droit, contactez :
-              <a href="mailto:harketti@afia.fr" className="underline text-gray-600 hover:text-gray-800 ml-1">harketti@afia.fr</a>
+              <a href="mailto:contact@aschool.fr" className="underline text-gray-600 hover:text-gray-800 ml-1">contact@aschool.fr</a>
             </p>
             <p>
               Les données sont conservées pendant la durée d'activité du compte. Elles sont supprimées sur demande
@@ -76,7 +76,7 @@ export default function MentionsLegales() {
       </div>
 
       <footer className="py-3 text-center text-xs text-gray-400">
-        A-SCHOOL · harketti@afia.fr
+        A-SCHOOL · contact@aschool.fr
       </footer>
     </div>
   )

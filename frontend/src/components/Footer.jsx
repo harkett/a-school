@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { APP_VERSION } from '../version'
 
 export default function Footer() {
   return (
@@ -13,7 +14,7 @@ export default function Footer() {
           <Link to="/mentions-legales" className="hover:underline" style={{ color: '#94a3b8' }} title="Consulter les mentions légales">Mentions légales</Link>
         </span>
         <span>
-          v3.0-dev · harketti@afia.fr
+          v{APP_VERSION} · <a href="mailto:contact@aschool.fr" style={{ color: '#94a3b8' }}>contact@aschool.fr</a>
           {' · '}
           <Link to="/admin" style={{ color: '#e2e8f0' }} title="Administration">admin</Link>
         </span>

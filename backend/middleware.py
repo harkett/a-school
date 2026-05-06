@@ -37,11 +37,14 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
                                 .first()
                             )
                             if session and not session.is_active:
-                                return Response(
+                                resp = Response(
                                     '{"detail":"Session déconnectée."}',
                                     status_code=401,
                                     media_type="application/json",
                                 )
+                                resp.delete_cookie("aschool_refresh")
+                                resp.delete_cookie("aschool_access")
+                                return resp
                         finally:
                             db.close()
             except JWTError:

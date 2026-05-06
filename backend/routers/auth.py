@@ -232,6 +232,18 @@ def heartbeat():
     return {"status": "ok"}
 
 
+@router.post("/auth/logout-inactivite")
+def logout_inactivite(
+    aschool_access: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    email = auth_lib.verify_access_token(aschool_access) if aschool_access else None
+    if email:
+        db.add(ConnexionLog(email=email, action="inactivite_logout"))
+        db.commit()
+    return {"status": "ok"}
+
+
 @router.post("/auth/logout")
 def logout(
     response: Response,

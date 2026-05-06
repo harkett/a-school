@@ -131,6 +131,22 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         </a>
         {navItem('apropos', 'À propos', IconInfo, 'Informations sur A-SCHOOL — version, contact')}
       </nav>
+
+      {!collapsed && (
+        <div style={{
+          margin: '0 8px 10px',
+          padding: '8px 10px',
+          borderRadius: '8px',
+          background: '#f0f7ff',
+          border: '1px solid #bfdbfe',
+          fontSize: '11px',
+        }}>
+          <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>Bientôt disponible</div>
+          <div style={{ color: '#3b82f6', lineHeight: 1.6 }}>
+            · Application mobile
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

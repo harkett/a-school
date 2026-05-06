@@ -70,6 +70,10 @@ export default function AdminProfils() {
   })
 
   const displayed = [...filtered].sort((a, b) => {
+    if (sortKey === 'nb_activites') {
+      const diff = (a.nb_activites || 0) - (b.nb_activites || 0)
+      return sortDir === 'asc' ? diff : -diff
+    }
     let va = String(a[sortKey] ?? '')
     let vb = String(b[sortKey] ?? '')
     if (va === '—') va = ''
@@ -183,22 +187,24 @@ export default function AdminProfils() {
         <div className="rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
           <table className="w-full text-sm table-fixed">
             <colgroup>
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '20%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '9%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '19%' }} />
               <col style={{ width: '13%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '12%' }} />
               <col style={{ width: '18%' }} />
             </colgroup>
             <thead>
               <tr className="bg-gray-50 text-left text-xs text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                <SortTh label="Profil"     sKey="prenom"     current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Email"      sKey="email"      current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Matière"    sKey="subject"    current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Niveau"     sKey="niveau"     current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Inscrit"    sKey="created_at" current={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Dernière co" sKey="last_login" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Profil"      sKey="prenom"       current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Email"       sKey="email"        current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Matière"     sKey="subject"      current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Niveau"      sKey="niveau"       current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Activités"   sKey="nb_activites" current={sortKey} dir={sortDir} onSort={handleSort} style={{ textAlign: 'center' }} />
+                <SortTh label="Inscrit"     sKey="created_at"   current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Dernière co" sKey="last_login"   current={sortKey} dir={sortDir} onSort={handleSort} />
                 <th className="px-3 py-3 font-medium"></th>
               </tr>
             </thead>
@@ -228,6 +234,7 @@ export default function AdminProfils() {
                       {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </td>
+                  <td className="px-3 py-2 text-gray-400 text-xs text-center">{u.nb_activites ?? 0}</td>
                   <td className="px-3 py-2 text-gray-400 text-xs">{u.created_at}</td>
                   <td className="px-3 py-2 text-gray-400 text-xs">{u.last_login}</td>
                   <td className="px-3 py-2">
@@ -260,6 +267,11 @@ export default function AdminProfils() {
                   <td className="px-3 py-3 text-gray-500 truncate" title={u.email}>{u.email}</td>
                   <td className="px-3 py-3 text-gray-700 truncate">{u.subject || <span style={{ color: '#d1d5db' }}>—</span>}</td>
                   <td className="px-3 py-3 text-gray-700">{u.niveau || <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                  <td className="px-3 py-3 text-center">
+                    <span style={{ fontSize: 12, fontWeight: u.nb_activites > 0 ? 600 : 400, color: u.nb_activites > 0 ? '#1d4ed8' : '#d1d5db' }}>
+                      {u.nb_activites ?? 0}
+                    </span>
+                  </td>
                   <td className="px-3 py-3 text-gray-400 text-xs">{u.created_at}</td>
                   <td className="px-3 py-3 text-gray-400 text-xs">{u.last_login}</td>
                   <td className="px-3 py-3">

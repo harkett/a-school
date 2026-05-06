@@ -1,4 +1,5 @@
-export default function Header({ matiere, email, onLogout }) {
+export default function Header({ matiere, email, prenom, nom, onLogout }) {
+  const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   return (
     <header className="flex items-center justify-between px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
       <div className="flex items-center gap-3">
@@ -13,7 +14,12 @@ export default function Header({ matiere, email, onLogout }) {
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
         <span style={{ color: 'white', fontWeight: 600 }}>{matiere}</span>
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-        <span style={{ color: 'rgba(255,255,255,0.6)' }}>{email}</span>
+        <span
+          title={`Connecté avec : ${email}`}
+          style={{ color: 'rgba(255,255,255,0.6)', cursor: 'default', borderBottom: '1px dotted rgba(255,255,255,0.3)' }}
+        >
+          {nomAffiche}
+        </span>
         <button
           onClick={onLogout}
           title="Fermer votre session et revenir à la page de connexion"
