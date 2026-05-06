@@ -279,7 +279,7 @@ const sections = [
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Erreur lors de la génération</dt>
-          <dd className="mt-0.5">Vérifiez votre connexion internet. Si le problème persiste, contactez <a href="mailto:contact@afia.fr" className="underline hover:text-gray-800">contact@afia.fr</a>.</dd>
+          <dd className="mt-0.5">Vérifiez votre connexion internet. Si le problème persiste, contactez <a href="mailto:contact@aschool.fr" className="underline hover:text-gray-800">contact@aschool.fr</a>.</dd>
         </div>
       </dl>
     ),

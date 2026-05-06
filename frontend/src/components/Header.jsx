@@ -3,6 +3,7 @@ export default function Header({ matiere, email, prenom, nom, onLogout }) {
   return (
     <header className="flex items-center justify-between px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
       <div className="flex items-center gap-3">
+        <img src="/icon.png" alt="A-SCHOOL" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
         <span className="text-white font-bold text-xl tracking-tight">
           <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
         </span>

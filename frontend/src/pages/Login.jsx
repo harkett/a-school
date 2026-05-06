@@ -58,7 +58,8 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
-      <header className="flex items-center px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
+      <header className="flex items-center gap-3 px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
+        <img src="/icon.png" alt="A-SCHOOL" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
         <span className="text-white font-bold text-xl tracking-tight">
           <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
         </span>
@@ -70,6 +71,9 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 w-full max-w-md">
 
+          <div className="flex justify-center mb-5">
+            <img src="/logo.png" alt="A-SCHOOL" style={{ width: 160, height: 'auto' }} />
+          </div>
           <h2 className="text-lg font-semibold text-gray-800 mb-1">Connexion</h2>
           <p className="text-sm text-gray-500 mb-6">
             Accédez à votre espace A-SCHOOL.

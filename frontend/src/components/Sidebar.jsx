@@ -91,7 +91,10 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         className="flex items-center gap-2 p-4 text-gray-500 hover:bg-gray-50 border-none bg-none cursor-pointer text-sm font-medium"
         style={{ background: 'none', border: 'none' }}
       >
-        <IconMenu />
+        {collapsed
+          ? <img src="/icon.png" alt="A-SCHOOL" style={{ width: 28, height: 28, borderRadius: 6 }} />
+          : <IconMenu />
+        }
         {!collapsed && (
           <>
             <span>Menu</span>
