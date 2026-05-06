@@ -1,7 +1,22 @@
 # Page afia.fr/school — Contenu de référence
 
+> **⚠ Ce document appartient au projet AFIA-FR (site vitrine), pas à A-SCHOOL.**
+>
+> Il contient le texte complet et définitif de la page marketing `afia.fr/school` :
+> - Titre principal et accroche ("Vous avez le texte. A-SCHOOL fait l'exercice.")
+> - Description courte (intro de la page)
+> - Bouton principal avec CTA
+> - Section "Ce que ça couvre" : 12 matières, 43 types d'activités, 3 modes de saisie
+> - Section "Comment ça marche" (4 étapes)
+> - Section "Points forts" : few-shot, historique, confidentialité, sans installation
+> - Section "Pour qui ?" (personas)
+> - Appel à l'action final
+> - Balises META pour le SEO (title, description, mots-clés)
+>
+> **À intégrer dans le projet AFIA-FR** (dossier `D:\AFIASAVE` ou sur le VPS à `/home/ubuntu/AFIA-FR/`).
+> **À mettre à jour ici si le produit évolue significativement (nouvelles matières, nouvelle fonctionnalité phare).**
+>
 > Contenu mis à jour le 30/04/2026 — reflète l'état réel du produit
-> À intégrer dans le projet AFIA-FR
 
 ---
 

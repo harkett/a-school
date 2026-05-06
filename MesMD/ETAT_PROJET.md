@@ -1,6 +1,20 @@
 # A-SCHOOL — État du Projet
-> Référence unique du projet — remplace AF.md (renommé le 30/04/2026)
-> **Vérifié le : 30/04/2026 — État : à jour**
+
+> **Rôle : référence principale du projet — à lire en premier avant toute session de développement.**
+>
+> Ce document contient :
+> - L'état de toutes les fonctionnalités (✅ livré / 📋 prévu), avec le détail de chaque bloc
+> - Les routes API complètes : auth, profil, admin — méthodes, chemins, descriptions
+> - Le schéma complet des tables SQLite (`users`, `email_tokens`, `refresh_tokens`, `connexion_logs`, `feedbacks`, `activites_sauvegardees`) avec leurs colonnes
+> - Les variables d'environnement attendues (local et VPS)
+> - Les corrections techniques planifiées (activités manquantes dans certaines matières)
+> - Les améliorations futures prévues (PWA mobile, export PDF, OAuth, partage...)
+>
+> **À consulter quand** : on veut savoir si une fonctionnalité existe, vérifier le nom exact d'une route API, retrouver un champ BDD, ou connaître les variables d'environnement.
+>
+> **Ne contient pas** : les décisions techniques passées (→ `DECISIONS_TECHNIQUES.md`), le plan de lancement et calendrier (→ `PLAN_LANCEMENT_ASCHOOL.md`), la configuration SMTP détaillée (→ `EMAILS.md`), le plan et état du backoffice admin (→ `PLAN_BACKOFFICE_FASTAPI.md`), le diagnostic auth (→ `AUTH_DIAGNOSTIC.md`).
+>
+> **Vérifié le : 30/04/2026 — À mettre à jour à chaque fonctionnalité livrée**
 
 ---
 
@@ -35,7 +49,7 @@
 | **Déploiement** | VPS school.afia.fr | ✅ Livré |
 | **Futur** | Compteur "X activités créées" (Mes activités) | 📋 Prévu |
 | **Futur** | Export PDF | 📋 Prévu |
-| **Futur** | Mot de passe oublié | 📋 Prévu |
+| **Compte** | Mot de passe oublié | ✅ Livré 02/05/2026 |
 | **Futur** | Google OAuth | 📋 Prévu |
 | **Futur** | Application mobile (PWA) | 📋 Prévu |
 | **Futur** | Partage d'activités entre collègues | 📋 Prévu |

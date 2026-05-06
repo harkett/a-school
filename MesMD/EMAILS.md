@@ -1,7 +1,22 @@
 # EMAILS — Gestion des envois dans A-SCHOOL
 
-> Consulter ce fichier avant de toucher à quoi que ce soit lié aux emails.
-> Référence unique pour la configuration SMTP et tous les envois de l'application.
+> **Rôle : référence obligatoire pour tout ce qui concerne les emails — à lire AVANT toute modification email.**
+>
+> Ce document contient :
+> - La configuration SMTP officielle (Infomaniak, `mail.infomaniak.com:587`)
+> - Les deux adresses email du projet (`contact@aschool.fr` boîte réelle, `feedback@aschool.fr` alias) et leurs usages respectifs
+> - Les variables `.env` complètes pour local et VPS (avec les valeurs réelles masquées)
+> - La liste des 4 fonctions d'envoi dans `backend/auth.py` : qui les appelle, quel `From`, quel destinataire
+> - Les routes API qui déclenchent un envoi email
+> - Les envois prévus non encore codés (séquence onboarding J+2/J+7/J+14, invitation collègues, signature mailto)
+> - Les principes absolus (jamais de SMTP hors `_smtp_send()`, jamais de mot de passe dans le code)
+>
+> **Règles critiques :**
+> - Ne jamais changer de fournisseur SMTP sans demande explicite
+> - Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — une seule connexion SMTP dans tout le projet
+> - `feedback_client.py` est deprecated — ne jamais réutiliser
+>
+> **À mettre à jour à chaque nouvel envoi email ajouté au projet**
 
 ---
 

@@ -464,6 +464,9 @@ def force_logout(
     session_obj = db.query(UserSession).filter(UserSession.id == session_id).first()
     if not session_obj:
         raise HTTPException(404, "Session introuvable.")
+    admin_email = os.getenv("ADMIN_EMAIL", "")
+    if admin_email and session_obj.user_email == admin_email:
+        raise HTTPException(403, "Impossible de déconnecter la session administrateur.")
     session_obj.is_active = False
     db.commit()
     log_admin_action(

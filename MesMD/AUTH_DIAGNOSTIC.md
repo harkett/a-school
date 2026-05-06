@@ -1,7 +1,22 @@
-# AUTH_DIAGNOSTIC.md — Diagnostic et plan d'amélioration du système d'auth
+# AUTH_DIAGNOSTIC.md — Référence du système d'authentification
 
-> Document de pilotage. Créé le 02/05/2026. Dernière mise à jour : 02/05/2026 (session 2).
-> Base de référence avant toute modification du système d'authentification/inscription.
+> **Rôle : référence complète du système d'auth + archive du diagnostic effectué le 02/05/2026.**
+>
+> **✅ Tous les problèmes identifiés sont résolus** (8/8 — sessions 1 et 2 du 02/05/2026). Ce document n'est plus un plan d'action : c'est une référence de l'architecture en place et un journal de ce qui a été corrigé et pourquoi.
+>
+> Ce document contient :
+> - **Reprise rapide** : résumé des deux sessions du 02/05/2026 avec ce qui a été fait (numéros de version admin, PROB-1 à PROB-8)
+> - **Journal des modifications** : détail complet de chaque correction (contexte, fichiers modifiés, comportement implémenté, garanties de déploiement)
+> - **Architecture en place** : stack auth (bcrypt, JWT HS256, cookies httpOnly), tables (`users`, `email_tokens`, `refresh_tokens`, `connexion_logs`), fichiers clés, flux complets (inscription, connexion, refresh, déconnexion)
+> - **Ce qui fonctionne bien — à ne pas toucher** : bcrypt, JWT, brute force, rotation refresh tokens, whitelist email, logs IP
+> - **Problèmes résolus avec leur spécification** : flux "renvoi email de vérification", flux "mot de passe oublié" (deux routes backend + deux pages React), autoComplete, cookie secure conditionnel, footer email, EyeIcon partagé
+> - **Plan d'action** : tableau récapitulatif avec statut ✅ FAIT pour chaque item
+>
+> **À consulter quand** : on veut comprendre un flux auth, retrouver comment un problème a été résolu, ou vérifier les règles à respecter avant de toucher à l'auth.
+>
+> **Règle absolue** : ne jamais modifier `backend/auth.py` ni `backend/routers/auth.py` sans validation explicite — le système fonctionne parfaitement depuis le 02/05/2026.
+>
+> Créé le 02/05/2026 — Dernière mise à jour : 02/05/2026 (session 2) — Système auth complet + logs admin opérationnels
 
 ---
 

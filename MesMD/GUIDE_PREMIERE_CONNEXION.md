@@ -1,6 +1,21 @@
 # <span style="color:#A63045">A</span>-SCHOOL — Guide de première connexion
 ### Avril 2026
 
+> **⚠ Document externe — destiné aux professeurs, pas aux développeurs.**
+>
+> Ce guide est joint en pièce jointe aux emails envoyés aux profs pilotes (voir `EMAIL_PILOTES.md`), et peut être distribué à tout nouvel inscrit. Il est conçu pour être converti en PDF et partagé tel quel.
+>
+> Ce document contient le parcours complet d'un prof qui découvre A-SCHOOL :
+> - Étape 1 : créer un compte (inscription + vérification email)
+> - Étape 2 : se connecter
+> - Étape 3 : compléter son profil (prénom, nom, matière, niveau par défaut)
+> - Étape 4 : générer une première activité (3 modes de saisie expliqués)
+> - Étape 5 : utiliser le résultat (Word, txt, impression, email)
+> - Retrouver ses activités sauvegardées
+> - Donner un retour (feedback + avis étoiles)
+>
+> **À mettre à jour si l'interface change de façon significative (nouvelles étapes, nouveaux boutons).**
+
 ## Étape 1 — Créer votre compte
 
 1. Allez sur **school.afia.fr** et cliquez sur **"Créer un compte"**

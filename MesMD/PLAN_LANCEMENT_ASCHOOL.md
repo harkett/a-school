@@ -1,6 +1,26 @@
 # Plan de lancement — A-SCHOOL (school.afia.fr)
 
-> Feuille de route du lancement — phases, actions concrètes et règles de communication.
+> **Rôle : plan d'action daté du lancement — phases, calendrier, actions concrètes, indicateurs de performance.**
+>
+> ⚠ Ce document est complémentaire de `DIFFUSION_ASCHOOL.md`. La frontière est la suivante :
+> - **Ce document** = ce qu'on fait, quand, et comment mesurer le succès (plan d'action opérationnel)
+> - **`DIFFUSION_ASCHOOL.md`** = qui on cible, quoi dire, comment le dire (stratégie de communication)
+>
+> Ce document contient :
+> - **Ce qu'est A-SCHOOL** : description produit, ce que l'outil n'est pas, tagline officielle ("A-SCHOOL prépare. Vous décidez.")
+> - **Positionnement** : pitch en une phrase + pitch étendu + tableau "ce qu'il ne faut jamais dire" avec pourquoi et ce qu'il faut dire à la place
+> - **Cibles** : Priorité 1 (enseignants 6e → Terminale avec 4 personas détaillés) + Priorité 2 (prescripteurs : INSPE, associations, inspecteurs)
+> - **Messages clés** : 7 messages avec formulation exacte et ancrage produit
+> - **Leviers viraux intégrés au logiciel** : 8 leviers détaillés (pied de page Word, mailto, impression, compteur Mes activités, feedback ambassadeur, page d'accueil matières, kit de démonstration, bouton Partagez sur afia.fr)
+> - **Canaux de communication** : 6 canaux avec format de post Facebook inclus, groupes cibles, format LinkedIn, associations cibles
+> - **Séquence email onboarding** : 4 emails avec timing et contenu (J+0, J+2, J+7, J+14)
+> - **Calendrier de lancement** : Phase 0 (avril), Phase 1 (mai), Phase 2 (juin), Phase 3 (août-septembre) avec actions hebdomadaires
+> - **Indicateurs de performance** : métriques avec objectifs mai 2026 et rentrée 2026
+> - **État des fonctionnalités** par rapport au discours marketing
+> - **Stratégie de preuve sociale** : témoignages, études de cas, chiffres d'usage
+>
+> **À consulter quand** : on prépare une action de lancement, on veut savoir quelle phase on est, ou on cherche le bon message pour un canal donné.
+>
 > Version 3 — Ancrée sur les fonctionnalités réelles du produit.
 > **Vérifié le : 30/04/2026 — Statut : VPS opérationnel, outil en production**
 

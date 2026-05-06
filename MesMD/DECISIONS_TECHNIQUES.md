@@ -1,9 +1,26 @@
-# A-SCHOOL Platform — Roadmap & Suivi de projet
+# A-SCHOOL — Décisions techniques & Spécifications futures
 
-> **À propos de ce document**
-> Référence technique du projet : stack, architecture des fichiers, script de déploiement VPS, journal des décisions techniques et état d'avancement. À consulter pour comprendre comment le projet est construit, où il en est, et quelles décisions ont été prises et pourquoi.
-
-> **Vérifié le : 30/04/2026** — Few-shot livré, déploiement VPS imminent
+> **Rôle : journal des décisions architecturales + spécifications détaillées des fonctionnalités à venir.**
+>
+> ⚠ Ce document s'appelait `ROADMAP.md` — renommé le 03/05/2026 car le nom ne reflétait pas son contenu réel.
+>
+> Ce document contient :
+> - **Journal chronologique des décisions techniques** : chaque décision structurante avec sa date (choix Groq 16/04, abandon Streamlit 24/04, retrait A-FEEDBACK 28/04, few-shot 30/04...)
+> - **État d'avancement au 30/04/2026** : tableau de tous les composants avec leur statut
+> - **Stack technique définitive** : chaque composant et sa technologie (FastAPI, React/Vite/Tailwind, SQLite, Groq llama-3.3-70b, JWT httpOnly, SMTP Infomaniak, VPS AfiaCloud Ubuntu 24.04, Nginx + Let's Encrypt)
+> - **Architecture fichiers commentée** : arborescence complète avec le rôle de chaque fichier clé
+> - **Spécification complète : few-shot livré le 30/04** — ce qui a été implémenté (JWT sur /api/generate, _build_few_shot_prefix, seuil cold start, bannière + toast)
+> - **Spécification complète : "Bouton Partagez avec vos collègues" (Option B)** — router FastAPI POST /api/partager/, composant React PartagerCollègues.jsx, corps du mail exact, anti-spam (5 adresses / 5 appels par jour)
+> - **Spécification complète : "Gestion des e-mails sortants dans l'admin"** — journal des envois, statistiques, taux d'ouverture, gestion des bounces, désinscription, dépendance SMTP transactionnel
+> - **Règle de communication few-shot** : quand et comment mentionner l'adaptation au style selon l'avancement des pilotes
+> - **Fonctionnement de la page Tentatives** : colonnes affichées, filtres disponibles, seuils de blocage
+> - **Script de déploiement VPS** et priorités de déploiement
+>
+> **À consulter quand** : on veut comprendre une décision passée, implémenter une fonctionnalité dont la spec est ici, ou retrouver des détails sur la stack ou l'architecture.
+>
+> **Ne contient pas** : l'état complet des fonctionnalités livrées (→ `ETAT_PROJET.md`), le plan de lancement avec dates (→ `PLAN_LANCEMENT_ASCHOOL.md`), la configuration SMTP détaillée (→ `EMAILS.md`), l'état du backoffice admin (→ `PLAN_BACKOFFICE_FASTAPI.md`).
+>
+> **Vérifié le : 30/04/2026** — Few-shot livré, VPS opérationnel
 
 ---
 
@@ -218,3 +235,16 @@ d:\A-SCHOOL\
 | 28/04/2026 | Feedback ≠ Notation — deux flux séparés, CSAT admin |
 | 30/04/2026 | Few-shot livré — JWT auth sur /api/generate + injection _build_few_shot_prefix |
 | 30/04/2026 | Nettoyage documentation — AF.md → ETAT_PROJET.md, docs obsolètes retirés |
+
+
+### La page Tentatives affiche les échecs de connexion sur le login admin uniquement (pas les profs).
+
+Colonnes :
+Date — horodatage de la tentative
+IP — adresse IP de l'attaquant
+Identifiant tenté — le username saisi (même si faux)
+Statut — "Bloquée" (rouge) si cette IP a atteint 10 tentatives en 1h, "Échouée" (orange) sinon
+User-Agent — navigateur/outil utilisé
+Filtres disponibles : par IP, par statut (toutes / bloquées / échouées), tri date asc/desc.
+
+200 dernières tentatives affichées.

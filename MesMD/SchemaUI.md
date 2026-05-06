@@ -1,8 +1,23 @@
 # A-SCHOOL — Interface PRO
 
-> Référence design du projet — décrit la structure, les composants, les couleurs et les règles d'interface.
-> Interface React opérationnelle depuis 24/04/2026.
-> **Vérifié le : 30/04/2026 — État : à jour**
+> **Rôle : référence design et interface — à consulter avant de créer ou modifier un composant UI.**
+>
+> Ce document contient :
+> - Le schéma ASCII du layout général (Header / Sidebar / Zone texte / Paramètres / Résultat / Footer)
+> - La description détaillée de chaque composant React (Header, Sidebar, Zone texte source, Paramètres, Zone résultat, Footer)
+> - Le système de couleurs officiel : bordeaux `#A63045`, bleu `#1F6EEB` et leurs variantes hover
+> - Le système de classes boutons (`btn-primary`, `btn-action`, `btn-secondary`) avec leur usage et leur rendu visuel
+> - Les règles d'interface absolues du projet
+>
+> **Règles critiques à ne jamais violer :**
+> - Tout bouton = icône SVG + texte + attribut `title=` (tooltip obligatoire)
+> - Pas d'emojis dans l'interface
+> - Pas de "IA" — utiliser "A-SCHOOL"
+> - Selectbox uniquement (pas de saisie libre)
+> - La matière est définie à la connexion, affichée dans la navbar — pas dans le formulaire
+>
+> **Interface React opérationnelle depuis 24/04/2026.**
+> **Vérifié le : 30/04/2026 — À mettre à jour si un composant ou une couleur change**
 
 ---
 

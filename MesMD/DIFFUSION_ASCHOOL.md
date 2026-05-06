@@ -1,7 +1,26 @@
 # Plan de diffusion — A-SCHOOL (school.afia.fr)
 
-> Stratégie de communication, personas, leviers viraux, canaux et métriques de succès.
-> Ancré sur les fonctionnalités réelles du produit.
+> **Rôle : référence de la stratégie de communication — personas, messages, canaux, leviers viraux, métriques.**
+>
+> ⚠ Ce document est complémentaire de `PLAN_LANCEMENT_ASCHOOL.md`. La frontière est la suivante :
+> - **Ce document** = qui on cible, quoi dire, comment le dire (stratégie et positionnement)
+> - **`PLAN_LANCEMENT_ASCHOOL.md`** = ce qu'on fait, quand, et comment mesurer le succès (plan d'action daté)
+>
+> Ce document contient :
+> - **Description fonctionnelle exacte** de l'outil : ce qu'il fait vraiment, matières couvertes avec leurs types d'activités, toutes les fonctionnalités accessibles (génération, saisie, export, historique, compte, feedback)
+> - **Ce que l'outil N'est PAS** : pas un chatbot, pas un outil de création de cours, pas pour les élèves, pas un ENT
+> - **Positionnement** : pitch en une phrase + pitch étendu
+> - **3 personas cibles réels** : Prof de français collège (persona pilote), Prof HG lycée, Prof polyvalent REP+ — avec leur profil et leur levier d'entrée
+> - **5 messages clés** : gain de temps, spécificité métier, directement utilisable, données privées, produit qui s'améliore — avec l'ancrage produit et la cible pour chacun
+> - **6 leviers viraux intégrés au logiciel** : fichier Word partagé, mailto intégré, historique Mes activités, feedback ambassadeur, spécialisation matière, impression en classe — avec mécanisme, action recommandée, impact attendu
+> - **Ce qu'il faut supprimer du discours** : tableau des formulations à éviter avec pourquoi et ce qu'il faut dire à la place
+> - **Plan de communication par canal** : 6 canaux détaillés (bouche-à-oreille, Facebook avec format de post, LinkedIn, email onboarding J+0/J+2/J+7/J+14, associations, SEO)
+> - **Calendrier de lancement** : Phase 0 (avril), Phase 1 (mai), Phase 2 (juin), Phase 3 (août-septembre)
+> - **Métriques de succès** : 5 métriques avec outil de mesure et objectifs mai 2026 / rentrée 2026
+> - **Messages clés par canal** : tableau récapitulatif (Facebook, LinkedIn, email, bouche-à-oreille, Word/impression, association)
+>
+> **À consulter quand** : on prépare un post, un email, une présentation, ou qu'on veut retrouver le bon message pour un contexte donné.
+>
 > **Vérifié le : 30/04/2026 — État : mis à jour (12 matières, few-shot, dictée vocale, OCR)**
 
 ---

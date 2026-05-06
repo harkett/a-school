@@ -1,5 +1,11 @@
 # Mémo Markdown — Formatage rapide
 
+> **Document personnel — aide-mémoire syntaxe Markdown. Non lié au développement de A-SCHOOL.**
+>
+> Ce document contient la syntaxe Markdown de référence : titres (H1/H2/H3), mise en forme (gras, italique, barré), listes (puces, numérotées, cases à cocher), citations, séparateurs, tableaux, liens, blocs de code (inline et multi-lignes), HTML inline pour couleurs et styles.
+>
+> **À conserver ici pour un accès rapide lors de la rédaction des documents `.md` du projet.**
+
 ---
 
 ## Titres

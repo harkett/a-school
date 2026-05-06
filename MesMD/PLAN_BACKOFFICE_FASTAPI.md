@@ -1,8 +1,25 @@
-# Backoffice FastAPI+React — Plan d'administration professionnel
+# Backoffice FastAPI+React — Plan et état du backoffice admin
 
-> Document de référence — A-SCHOOL / VPS Afiacloud (Infomaniak)
-> Adapté depuis le plan Django original (PLAN_BACKOFFICE_DJANGO.md)
-> Rédigé le : 2026-05-02
+> **Rôle : référence complète du backoffice admin — architecture, implémentation de chaque phase, et code source de référence pour chaque fonctionnalité.**
+>
+> **✅ Backoffice 100% déployé en production sur school.afia.fr** (depuis le 02/05/2026). Ce document sert désormais de référence architecturale et de journal d'implémentation — pas d'un plan à réaliser.
+>
+> Ce document contient :
+> - **Suivi d'avancement par phase** (Phases 0 à 5) : ce qui a été fait dans chaque fichier, avec les noms exacts des fonctions, routes et composants créés
+> - **Phase 0** : prérequis techniques (limiter.py, jti, tables UserSession/FailedLoginAttempt/AdminAuditLog/AdminAlert, audit.py)
+> - **Phase 1** : protection brute force (slowapi, enregistrement FailedLoginAttempt, seuil 10 tentatives/h)
+> - **Phase 2** : sessions live + déconnexion forcée (UserSessionMiddleware, heartbeat 60s, force-logout)
+> - **Phase 3** : dashboard statistiques + monitoring (routes stats/overview, stats/logins, stats/hours, server-metrics, db-size, audit-log, failed-attempts)
+> - **Phase 4** : alertes automatiques (APScheduler, checks CPU/disque/brute force, anti-flood 2h, AdminAlert)
+> - **Phase 5** : UI React complète (AdminLayout, AdminServeur, AdminSessions, AdminAudit, AdminAlertes, AdminTentatives)
+> - **Couverture audit trail** : FORCE_LOGOUT, DELETE_USER, UPDATE_SETTINGS
+> - **Code source de référence** pour chaque étape : modèles SQLAlchemy, middleware, routes FastAPI, composants React, queries SQLAlchemy, code APScheduler
+> - **Tableau des choix de conception** : pourquoi slowapi, pourquoi limiter partagé, pourquoi heartbeat 60s / seuil 90s, etc.
+> - **Correspondance Django → FastAPI+React** : pour comprendre les équivalences architecturales
+>
+> **À consulter quand** : on veut ajouter une fonctionnalité au backoffice, comprendre comment une feature est implémentée, retrouver le code d'une route admin, ou déboguer une alerte/session/audit.
+>
+> Document adapté depuis le plan Django original (PLAN_BACKOFFICE_DJANGO.md) — Rédigé le 2026-05-02
 
 ---
 
@@ -117,10 +134,10 @@
 
 | Item | Priorité | Note |
 |---|---|---|
-| Activation / désactivation de compte prof | Basse | Nécessite champ `is_active` sur `User` |
-| Réinitialisation de mot de passe par l'admin | Basse | Flow email déjà en place, à adapter |
+| ✅ Activation / désactivation de compte prof | Fait | Livré — commit `a7ea865` du 03/05/2026 |
+| ✅ Réinitialisation de mot de passe par l'admin | Fait | Livré — commit `ca1f0b6` du 03/05/2026 |
+| ✅ Filtres avancés sur les logs | Fait | Tri + filtres avancés — commit `a7ea865` du 03/05/2026 |
 | shadcn/ui + Tremor (librairies UI) | Très basse | UI actuelle fonctionnelle et pro — investissement non justifié pour l'instant |
-| Filtres avancés sur les logs | Basse | Par date, par IP, par action |
 
 
 ---
