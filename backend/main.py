@@ -14,7 +14,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -81,6 +81,7 @@ app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
 app.include_router(ocr.router, prefix="/api")
 app.include_router(bibliotheque.router, prefix="/api")
+app.include_router(maintenance.router, prefix="/api")
 
 # Seed exemples au démarrage (idempotent)
 try:
