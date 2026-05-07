@@ -54,8 +54,14 @@ def _validate_password(password: str) -> str:
 def create_user(db: Session, email: str, password: str, subject: str = "", langue_lv: str = "") -> User:
     email = email.strip().lower()
     password = _validate_password(password)
-    if db.query(User).filter(User.email == email).first():
-        raise ValueError("Un compte existe déjà avec cet email.")
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        if existing.is_verified:
+            raise ValueError("Un compte existe déjà avec cet email.")
+        # Compte fantôme non vérifié : on le remplace proprement
+        db.query(EmailToken).filter(EmailToken.email == email).delete()
+        db.delete(existing)
+        db.commit()
     user = User(
         email=email,
         password_hash=_hash_password(password),

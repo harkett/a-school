@@ -5,7 +5,7 @@ const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supéri
 
 export default function Bibliotheque({ onCharger, sessionMatiere, sessionNiveau }) {
   const [matiere, setMatiere] = useState(sessionMatiere || '')
-  const [niveau,  setNiveau]  = useState(sessionNiveau  || '')
+  const [niveau,  setNiveau]  = useState('')
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)

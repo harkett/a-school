@@ -238,7 +238,7 @@ class UpdateUserBody(BaseModel):
 
 @router.get("/admin/users")
 def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    users = db.query(User).filter(User.is_verified == True).order_by(User.created_at.desc()).all()
+    users = db.query(User).order_by(User.created_at.desc()).all()
     counts = dict(
         db.query(ActiviteSauvegardee.user_email, func.count(ActiviteSauvegardee.id))
         .group_by(ActiviteSauvegardee.user_email)
@@ -254,6 +254,7 @@ def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
             "created_at":   u.created_at.strftime("%d/%m/%Y"),
             "last_login":   u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
             "is_active":    u.is_active,
+            "is_verified":  u.is_verified,
             "nb_activites": counts.get(u.email, 0),
         }
         for u in users
@@ -280,6 +281,7 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
         raise HTTPException(404, "Utilisateur introuvable.")
     db.query(EmailToken).filter(EmailToken.email == email).delete()
     db.query(RefreshToken).filter(RefreshToken.user_email == email).delete()
+    db.query(UserSession).filter(UserSession.user_email == email).delete()
     db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_email == email).delete()
     db.query(ConnexionLog).filter(ConnexionLog.email == email).delete()
     db.query(Feedback).filter(Feedback.user_email == email).delete()
@@ -292,6 +294,28 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
         target_email=email,
         ip=request.client.host if request.client else None,
         details="Compte supprimé avec toutes ses données",
+    )
+    return {"status": "ok"}
+
+
+@router.post("/admin/user/{email}/verify")
+def verify_user(email: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    if user.is_verified:
+        raise HTTPException(400, "Ce compte est déjà vérifié.")
+    user.is_verified = True
+    user.is_active = True
+    db.query(EmailToken).filter(EmailToken.email == email, EmailToken.purpose == "verify_email").delete()
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="VERIFY_USER",
+        target_email=email,
+        ip=request.client.host if request.client else None,
+        details="Compte validé manuellement par l'admin",
     )
     return {"status": "ok"}
 

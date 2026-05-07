@@ -9,6 +9,7 @@ const IconEdit  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="no
 const IconTrash = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
 const IconKey   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
 const IconPower = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+const IconCheck = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 
 function SortTh({ label, sKey, current, dir, onSort, style }) {
   const active = current === sKey
@@ -38,6 +39,7 @@ export default function AdminProfils() {
   const [deleting, setDeleting]     = useState(null)
   const [resetting, setResetting]   = useState(null)
   const [toggling, setToggling]     = useState(null)
+  const [verifying, setVerifying]   = useState(null)
   const [emailModal, setEmailModal] = useState(null)
   const [emailForm, setEmailForm]   = useState({ subject: '', body: '' })
   const [sending, setSending]       = useState(false)
@@ -65,7 +67,11 @@ export default function AdminProfils() {
       (u.prenom || '').toLowerCase().includes(text) ||
       (u.nom || '').toLowerCase().includes(text)
     const matchMatiere = !filterMatiere || u.subject === filterMatiere
-    const matchStatut  = filterStatut === 'tous' || (filterStatut === 'actifs' ? u.is_active : !u.is_active)
+    const matchStatut  = filterStatut === 'tous'
+      || (filterStatut === 'actifs'        ? (u.is_verified && u.is_active)
+      : filterStatut === 'inactifs'        ? (u.is_verified && !u.is_active)
+      : filterStatut === 'non_verifies'    ? !u.is_verified
+      : true)
     return matchText && matchMatiere && matchStatut
   })
 
@@ -133,6 +139,14 @@ export default function AdminProfils() {
     } finally { setResetting(null) }
   }
 
+  async function verifyUser(email) {
+    setVerifying(email)
+    try {
+      const res = await fetch(`/api/admin/user/${encodeURIComponent(email)}/verify`, { method: 'POST', credentials: 'include' })
+      if (res.ok) setUsers(users.map(u => u.email === email ? { ...u, is_verified: true, is_active: true } : u))
+    } finally { setVerifying(null) }
+  }
+
   async function toggleActive(email) {
     setToggling(email)
     try {
@@ -144,7 +158,8 @@ export default function AdminProfils() {
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
 
-  const nbInactifs = users.filter(u => !u.is_active).length
+  const nbInactifs    = users.filter(u => u.is_verified && !u.is_active).length
+  const nbNonVerifies = users.filter(u => !u.is_verified).length
 
   return (
     <div>
@@ -155,6 +170,11 @@ export default function AdminProfils() {
           {nbInactifs > 0 && (
             <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 99, fontSize: 11, background: '#fee2e2', color: '#dc2626', fontWeight: 700 }}>
               {nbInactifs} désactivé{nbInactifs > 1 ? 's' : ''}
+            </span>
+          )}
+          {nbNonVerifies > 0 && (
+            <span style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 99, fontSize: 11, background: '#fef9c3', color: '#a16207', fontWeight: 700 }}>
+              {nbNonVerifies} non vérifié{nbNonVerifies > 1 ? 's' : ''}
             </span>
           )}
         </h2>
@@ -178,6 +198,7 @@ export default function AdminProfils() {
           <option value="tous">Tous</option>
           <option value="actifs">Actifs</option>
           <option value="inactifs">Désactivés</option>
+          <option value="non_verifies">Non vérifiés</option>
         </select>
       </div>
 
@@ -252,14 +273,17 @@ export default function AdminProfils() {
                 </tr>
               ) : (
                 <tr key={u.email}
-                  style={{ background: u.is_active ? undefined : '#fff5f5' }}
+                  style={{ background: !u.is_verified ? '#fefce8' : !u.is_active ? '#fff5f5' : undefined }}
                   className="hover:bg-gray-50 transition-colors">
                   <td className="px-3 py-3 truncate">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {!u.is_active && (
+                      {!u.is_verified && (
+                        <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 9, fontWeight: 700, background: '#fef9c3', color: '#92400e', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Non vérifié</span>
+                      )}
+                      {u.is_verified && !u.is_active && (
                         <span style={{ padding: '1px 5px', borderRadius: 3, fontSize: 9, fontWeight: 700, background: '#fee2e2', color: '#dc2626', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.3px' }}>Off</span>
                       )}
-                      <span style={{ color: u.is_active ? '#374151' : '#9ca3af' }}>
+                      <span style={{ color: u.is_verified && u.is_active ? '#374151' : '#9ca3af' }}>
                         {(u.prenom || u.nom) ? `${u.prenom} ${u.nom}`.trim() : <span style={{ color: '#d1d5db' }}>—</span>}
                       </span>
                     </div>
@@ -276,26 +300,46 @@ export default function AdminProfils() {
                   <td className="px-3 py-3 text-gray-400 text-xs">{u.last_login}</td>
                   <td className="px-3 py-3">
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => startEdit(u)} title="Éditer le profil"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 5, cursor: 'pointer' }}>
-                        <IconEdit />
-                      </button>
-                      <button onClick={() => resetPassword(u.email)} disabled={resetting === u.email} title="Envoyer un lien de réinitialisation du mot de passe"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 5, cursor: 'pointer', opacity: resetting === u.email ? 0.5 : 1 }}>
-                        {resetting === u.email ? '…' : <IconKey />}
-                      </button>
-                      <button onClick={() => toggleActive(u.email)} disabled={toggling === u.email} title={u.is_active ? 'Désactiver ce compte' : 'Réactiver ce compte'}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: u.is_active ? '#d97706' : '#15803d', border: `1px solid ${u.is_active ? '#fde68a' : '#bbf7d0'}`, borderRadius: 5, cursor: 'pointer', opacity: toggling === u.email ? 0.5 : 1 }}>
-                        {toggling === u.email ? '…' : <IconPower />}
-                      </button>
-                      <button onClick={() => openEmailModal(u)} title="Envoyer un email à ce prof"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#1F6EEB', border: '1px solid #bfdbfe', borderRadius: 5, cursor: 'pointer' }}>
-                        <IconMail />
-                      </button>
-                      <button onClick={() => deleteUser(u.email)} disabled={deleting === u.email} title="Supprimer ce compte définitivement"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', opacity: deleting === u.email ? 0.5 : 1 }}>
-                        {deleting === u.email ? '…' : <IconTrash />}
-                      </button>
+                      {!u.is_verified ? (
+                        <>
+                          <button onClick={() => verifyUser(u.email)} disabled={verifying === u.email}
+                            title="Valider manuellement ce compte (bypass email)"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 5, cursor: 'pointer', opacity: verifying === u.email ? 0.5 : 1 }}>
+                            {verifying === u.email ? '…' : <IconCheck />}
+                          </button>
+                          <button onClick={() => openEmailModal(u)} title="Envoyer un email à ce prof"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#1F6EEB', border: '1px solid #bfdbfe', borderRadius: 5, cursor: 'pointer' }}>
+                            <IconMail />
+                          </button>
+                          <button onClick={() => deleteUser(u.email)} disabled={deleting === u.email} title="Supprimer ce compte définitivement"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', opacity: deleting === u.email ? 0.5 : 1 }}>
+                            {deleting === u.email ? '…' : <IconTrash />}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(u)} title="Éditer le profil"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 5, cursor: 'pointer' }}>
+                            <IconEdit />
+                          </button>
+                          <button onClick={() => resetPassword(u.email)} disabled={resetting === u.email} title="Envoyer un lien de réinitialisation du mot de passe"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#7c3aed', border: '1px solid #ddd6fe', borderRadius: 5, cursor: 'pointer', opacity: resetting === u.email ? 0.5 : 1 }}>
+                            {resetting === u.email ? '…' : <IconKey />}
+                          </button>
+                          <button onClick={() => toggleActive(u.email)} disabled={toggling === u.email} title={u.is_active ? 'Désactiver ce compte' : 'Réactiver ce compte'}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: u.is_active ? '#d97706' : '#15803d', border: `1px solid ${u.is_active ? '#fde68a' : '#bbf7d0'}`, borderRadius: 5, cursor: 'pointer', opacity: toggling === u.email ? 0.5 : 1 }}>
+                            {toggling === u.email ? '…' : <IconPower />}
+                          </button>
+                          <button onClick={() => openEmailModal(u)} title="Envoyer un email à ce prof"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#1F6EEB', border: '1px solid #bfdbfe', borderRadius: 5, cursor: 'pointer' }}>
+                            <IconMail />
+                          </button>
+                          <button onClick={() => deleteUser(u.email)} disabled={deleting === u.email} title="Supprimer ce compte définitivement"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, background: 'white', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 5, cursor: 'pointer', opacity: deleting === u.email ? 0.5 : 1 }}>
+                            {deleting === u.email ? '…' : <IconTrash />}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

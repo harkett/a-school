@@ -34,6 +34,7 @@ import AdminAlertes from './pages/AdminAlertes'
 import AdminTentatives from './pages/AdminTentatives'
 import AdminCompte from './pages/AdminCompte'
 import AdminCommunication from './pages/AdminCommunication'
+import AdminAide from './pages/AdminAide'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -531,6 +532,7 @@ export default function App() {
             <Route path="compte"        element={<AdminCompte />} />
             <Route path="parametres"    element={<AdminParametres />} />
             <Route path="communication" element={<AdminCommunication />} />
+            <Route path="aide"          element={<AdminAide />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
