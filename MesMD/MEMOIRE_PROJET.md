@@ -1,5 +1,5 @@
 # MÉMOIRE PROJET A-SCHOOL
-> Vérifié le 06/05/2026 — À mettre à jour en fin de chaque session de dev importante.
+> Vérifié le 07/05/2026 — À mettre à jour en fin de chaque session de dev importante.
 > Ce fichier est la référence rapide pour reprendre une session sans repartir de zéro.
 
 ---
@@ -114,7 +114,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 - `SMTP_FROM` = `A-SCHOOL <contact@aschool.fr>` (emails vers les profs)
 - `FEEDBACK_FROM` = `A-SCHOOL Feedback <feedback@aschool.fr>` (notifications admin)
 - Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — jamais ailleurs
-- Problème connu : adresse `@aschool.fr` offerte Infomaniak = restrictions SMTP. Workaround actuel : `SMTP_USERNAME=harketti@afia.fr`. Résolution définitive : acheter boîtes `@aschool.fr` payantes.
+- **⚠️ ACTION À FAIRE — Boîtes mail @aschool.fr** : Infomaniak force l'adresse d'expédition à correspondre au compte authentifié. Comme `SMTP_USERNAME=harketti@afia.fr` (compte gratuit), les emails partent avec cette adresse au lieu de `contact@aschool.fr`. **Solution définitive : acheter les boîtes `contact@aschool.fr` et `feedback@aschool.fr` chez Infomaniak (~3€/mois chacune)**. Le code n'a pas besoin de changer — il suffit de mettre à jour `SMTP_USERNAME` et `SMTP_PASSWORD` dans le `.env` avec les nouvelles boîtes.
 
 ---
 
@@ -143,6 +143,36 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 | Micro Windows (Web Speech API) | Session dédiée |
 | Recherche texte par description | Intégration API Gallica/Wikisource requise |
 | Migration SQLite → PostgreSQL | Phase 3 |
+| **Quiz interactif élèves** | Spec validée 07/05/2026 — voir section dédiée ci-dessous |
+
+---
+
+## Quiz interactif élèves — Spec v1 validée
+
+> Affiché "Bientôt disponible" dans la Sidebar. À coder en session dédiée.
+
+**Concept :** Outil de diagnostic pour le prof, pas une évaluation notée.
+- "Est-ce que ma classe a compris le chapitre ?"
+- "Sur quelle question est-ce qu'ils bloquent ?"
+- "Qui n'a pas encore répondu ?"
+
+La triche est possible (pseudo libre) mais non bloquante — ce n'est pas un outil d'examen.
+
+**Flux :**
+1. Prof génère un quiz QCM depuis A-SCHOOL (matière, niveau, thème, nb questions)
+2. A-SCHOOL crée un lien unique `school.afia.fr/quiz/{token}`
+3. Prof partage le lien (projette, envoie par message)
+4. Élève ouvre sur téléphone → entre son prénom → répond → voit son score
+5. Prof voit les résultats en direct (polling ~5s) ou différé
+
+**Résultats prof :** liste élèves + score (ex : "Marie — 7/10") + par question : nb bons/faux.
+
+**Périmètre v1 :** QCM uniquement, pseudo libre, pas de limite de temps, pas de classement.
+
+**Technique à implémenter :**
+- Modèles BDD : `Quiz` (id, token uuid, prof_email, titre, matiere, niveau, questions_json, created_at) + `ReponseQuiz` (id, quiz_id, eleve_pseudo, reponses_json, score, submitted_at)
+- Endpoints : `POST /api/quiz` (auth) · `GET /api/quiz/{token}` (public) · `POST /api/quiz/{token}/repondre` (public) · `GET /api/quiz/{token}/resultats` (auth)
+- Pages frontend : "Quiz" dans menu Sidebar (prof) + `/quiz/{token}` mobile-first sans auth (élève) + vue résultats live
 
 ---
 

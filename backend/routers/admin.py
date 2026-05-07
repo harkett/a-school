@@ -417,6 +417,44 @@ def toggle_user_active(email: str, request: Request, db: Session = Depends(get_d
     return {"status": "ok", "is_active": user.is_active}
 
 
+class MailGroupeBody(BaseModel):
+    emails: list[str]
+    subject: str
+    body: str
+
+
+@router.post("/admin/mail-groupe")
+def mail_groupe(body: MailGroupeBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    from backend import auth as auth_lib
+    if not body.emails:
+        raise HTTPException(400, "Aucun destinataire.")
+    if not body.subject.strip():
+        raise HTTPException(400, "Objet requis.")
+    if not body.body.strip():
+        raise HTTPException(400, "Message requis.")
+    sent = 0
+    errors = []
+    for email in body.emails:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            errors.append(email)
+            continue
+        try:
+            auth_lib.send_custom_email(email, user.prenom, body.subject, body.body)
+            sent += 1
+        except Exception:
+            errors.append(email)
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="MAIL_GROUPE",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"{sent} email(s) envoyé(s) sur {len(body.emails)} — {len(errors)} erreur(s)",
+    )
+    return {"sent": sent, "errors": errors, "total": len(body.emails)}
+
+
 @router.post("/admin/user/{email}/send-email")
 def send_email_to_user(email: str, body: SendEmailBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     from backend import auth as auth_lib

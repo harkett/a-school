@@ -76,8 +76,8 @@ export default function Footer() {
           "Plus le monde s'ouvre, plus nous avons besoin de proximité..."
         </p>
         <div className="flex justify-between text-xs text-gray-400">
-          <span>
-            <span style={{ color: 'var(--bordeaux)', fontWeight: 600 }}>A</span>-SCHOOL
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <img src="/logo.png" alt="A-SCHOOL" style={{ height: 18, width: 'auto' }} />
             {' · '}
             <button
               onClick={() => setShowMentions(true)}

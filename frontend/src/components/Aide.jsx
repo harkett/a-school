@@ -284,6 +284,33 @@ const sections = [
       </dl>
     ),
   },
+  {
+    id: 'bibliotheque-exemples',
+    titre: 'Les exemples de la Bibliothèque',
+    Icon: IconBook,
+    contenu: (
+      <div className="flex flex-col gap-4 text-sm text-gray-600">
+        <p>
+          La Bibliothèque contient des <strong>activités d'exemple générées par A-SCHOOL</strong>,
+          disponibles dès votre première connexion. Elles sont là pour vous montrer concrètement
+          ce que l'outil peut produire dans chaque matière.
+        </p>
+        <div className="rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide bg-gray-50">
+            Ce que contient la bibliothèque d'exemples
+          </div>
+          <div className="px-4 py-3 flex flex-col gap-2">
+            <p><strong>24 activités</strong> — 2 par matière, couvrant les 12 matières de la plateforme.</p>
+            <p>Chaque exemple est une activité réelle, générée avec un texte source représentatif du niveau indiqué. Vous pouvez les charger comme point de départ et les adapter.</p>
+            <p>Elles sont signées <strong>Équipe A-SCHOOL</strong> et identifiées par un badge <span style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 99, padding: '1px 7px' }}>Exemple</span> dans la liste.</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 italic">
+          Ces exemples peuvent être masqués par l'administrateur si nécessaire — ils restent visibles par défaut pour tous les professeurs connectés.
+        </p>
+      </div>
+    ),
+  },
 ]
 
 export default function Aide() {

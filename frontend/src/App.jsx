@@ -11,6 +11,8 @@ import Aide from './components/Aide'
 import APropos from './components/APropos'
 import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
+import Bibliotheque from './components/Bibliotheque'
+import BientotDisponible from './components/BientotDisponible'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
 import Login from './pages/Login'
@@ -31,6 +33,7 @@ import AdminAudit from './pages/AdminAudit'
 import AdminAlertes from './pages/AdminAlertes'
 import AdminTentatives from './pages/AdminTentatives'
 import AdminCompte from './pages/AdminCompte'
+import AdminCommunication from './pages/AdminCommunication'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -99,6 +102,7 @@ function MainApp() {
   const [showNotation, setShowNotation] = useState(false)
   const [activites, setActivites] = useState([])
   const [texte, setTexte] = useState('')
+  const [objet, setObjet] = useState('')
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
@@ -278,10 +282,12 @@ function MainApp() {
         body: JSON.stringify({
           activite_key: params.activite_key,
           activite_label: activites.find(a => a.key === params.activite_key)?.label || params.activite_key,
+          matiere: sessionMatiere,
           niveau: params.niveau,
           sous_type: params.sous_type || null,
           nb: params.nb || null,
           avec_correction: params.avec_correction,
+          objet: objet.trim() || null,
           texte_source: texte,
           resultat: data.resultat,
         }),
@@ -295,6 +301,7 @@ function MainApp() {
 
   function chargerActivite(act) {
     setTexte(act.texte_source)
+    setObjet(act.objet || '')
     setParamsWithSave({
       activite_key: act.activite_key,
       niveau: act.niveau,
@@ -361,7 +368,7 @@ function MainApp() {
                 </div>
               </div>
 
-              <TexteSource texte={texte} onChange={setTexte} />
+              <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} />
               {activites.length > 0 && (
                 <Parametres
                   activites={activites}
@@ -386,8 +393,22 @@ function MainApp() {
           )}
 
           {page === 'mes-activites' && (
-            <MesActivites onCharger={chargerActivite} />
+            <MesActivites
+              onCharger={chargerActivite}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+            />
           )}
+
+          {page === 'bibliotheque' && (
+            <Bibliotheque
+              onCharger={chargerActivite}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+            />
+          )}
+
+          {page === 'bientot-disponible' && <BientotDisponible />}
 
           {page === 'mon-profil' && <MonProfil onNavigate={setPage} />}
 
@@ -507,8 +528,9 @@ export default function App() {
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />
-            <Route path="compte"     element={<AdminCompte />} />
-            <Route path="parametres" element={<AdminParametres />} />
+            <Route path="compte"        element={<AdminCompte />} />
+            <Route path="parametres"    element={<AdminParametres />} />
+            <Route path="communication" element={<AdminCommunication />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

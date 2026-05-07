@@ -14,7 +14,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -30,6 +30,9 @@ with engine.connect() as _conn:
         "ALTER TABLE users ADD COLUMN mobile VARCHAR(20)",
         "ALTER TABLE feedbacks ADD COLUMN statut VARCHAR(16) NOT NULL DEFAULT 'nouveau'",
         "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+        "ALTER TABLE activites_sauvegardees ADD COLUMN matiere VARCHAR(64)",
+        "ALTER TABLE activites_sauvegardees ADD COLUMN objet VARCHAR(150)",
+        "ALTER TABLE activites_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
     ]:
         try:
             _conn.execute(text(_col))
@@ -77,6 +80,19 @@ app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
 app.include_router(ocr.router, prefix="/api")
+app.include_router(bibliotheque.router, prefix="/api")
+
+# Seed exemples au démarrage (idempotent)
+try:
+    from backend.seed_exemples import run_seed
+    from backend.database import SessionLocal as _SL
+    _db = _SL()
+    try:
+        run_seed(_db)
+    finally:
+        _db.close()
+except Exception as _e:
+    print(f"⚠️  Seed exemples ignoré : {_e}")
 
 
 @app.get("/api/health")

@@ -15,18 +15,17 @@ export default function APropos({ email }) {
 
         {/* Bloc 1 — Identité */}
         <div className="px-8 py-7 border-b border-gray-100">
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold tracking-tight">
-              <span style={{ color: 'var(--bordeaux)' }}>A</span>
-              <span style={{ color: 'var(--bleu)' }}>-SCHOOL</span>
-            </span>
-            <span className="text-xs font-medium text-gray-400 border border-gray-200 rounded px-2 py-0.5">
-              v{APP_VERSION}
-            </span>
+          <div className="flex items-center gap-5">
+            <img src="/logo.png" alt="A-SCHOOL" style={{ width: 100, height: 'auto', flexShrink: 0 }} />
+            <div>
+              <span className="text-xs font-medium text-gray-400 border border-gray-200 rounded px-2 py-0.5">
+                v{APP_VERSION}
+              </span>
+              <p className="text-sm text-gray-500 mt-2">
+                Générateur d'activités pédagogiques pour enseignants
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-gray-500">
-            Générateur d'activités pédagogiques pour enseignants
-          </p>
         </div>
 
         {/* Bloc 2 — Informations */}

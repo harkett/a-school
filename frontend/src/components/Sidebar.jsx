@@ -44,6 +44,20 @@ const IconActivites = () => (
     <polyline points="10 9 9 9 8 9"/>
   </svg>
 )
+const IconBibliotheque = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+  </svg>
+)
+const IconRocket = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2-.2-2.8-.9-.9-2.1-.9-2.8-.2z"/>
+    <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+  </svg>
+)
 const IconUser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -105,14 +119,22 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         )}
       </button>
 
+      {!collapsed && (
+        <div style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
+          <img src="/logo.png" alt="A-SCHOOL" style={{ width: '100%', height: 'auto', display: 'block' }} />
+        </div>
+      )}
+
       <nav className={`flex flex-col gap-1 flex-1 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Page principale — générer une activité')}
         {navItem('mes-activites', 'Mes activités', IconActivites, 'Retrouver et recharger une activité précédemment générée')}
+        {navItem('bibliotheque', 'Bibliothèque', IconBibliotheque, 'Activités partagées par vos collègues')}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
         {navItem('historique', 'Historique', IconHistory, 'Voir vos générations précédentes')}
       </nav>
 
       <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
+        {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
         {navItem('aide', 'Aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
           href="#"
@@ -144,7 +166,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
           border: '1px solid #bfdbfe',
           fontSize: '11px',
         }}>
-          <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>Bientôt disponible</div>
+          <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>En développement</div>
           <div style={{ color: '#3b82f6', lineHeight: 1.6 }}>
             · Application mobile
           </div>

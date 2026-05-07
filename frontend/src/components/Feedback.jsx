@@ -43,7 +43,10 @@ export default function Feedback({ onClose }) {
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-800">Envoyer un feedback</h2>
+          <div className="flex items-center gap-2">
+            <img src="/icon.png" alt="" style={{ width: 24, height: 24, borderRadius: 5 }} />
+            <h2 className="text-base font-semibold text-gray-800">Envoyer un feedback</h2>
+          </div>
           <button
             onClick={onClose}
             title="Fermer"

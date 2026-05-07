@@ -3,12 +3,9 @@ export default function Header({ matiere, email, prenom, nom, onLogout }) {
   return (
     <header className="flex items-center justify-between px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
       <div className="flex items-center gap-3">
-        <img src="/icon.png" alt="A-SCHOOL" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
-        <span className="text-white font-bold text-xl tracking-tight">
-          <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
-        </span>
-        <span className="text-white text-base" style={{ opacity: 0.75 }}>
-          | Générateur d'activités pédagogiques
+        <img src="/logo.png" alt="A-SCHOOL" style={{ height: 60, width: 'auto' }} />
+        <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', fontWeight: 400 }}>
+          Générateur d'activités pédagogiques
         </span>
       </div>
       <div className="flex items-center gap-4 text-sm">

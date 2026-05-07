@@ -35,6 +35,9 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#f0f4f8' }}>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
+        <div className="flex justify-center mb-5">
+          <img src="/icon.png" alt="A-SCHOOL" style={{ width: 56, height: 56, borderRadius: 12 }} />
+        </div>
         <h1 className="text-lg font-semibold text-gray-800 mb-1">Administration</h1>
         <p className="text-xs text-gray-400 mb-6">Accès réservé</p>
 

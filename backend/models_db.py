@@ -88,6 +88,9 @@ class ActiviteSauvegardee(Base):
     sous_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     nb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     avec_correction: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    objet: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    partagee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
     texte_source: Mapped[str] = mapped_column(Text, nullable=False)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
 

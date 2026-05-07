@@ -33,7 +33,7 @@ const IconMic = ({ active }) => (
   </svg>
 )
 
-export default function TexteSource({ texte, onChange }) {
+export default function TexteSource({ texte, onChange, objet, onObjetChange }) {
   const [isListening, setIsListening] = useState(false)
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [ocrErreur, setOcrErreur] = useState(null)
@@ -141,6 +141,21 @@ export default function TexteSource({ texte, onChange }) {
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
       <div className="section-title mb-3">Texte source</div>
+
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-gray-500 mb-1">
+          Objet <span className="font-normal text-gray-400">(optionnel — pour retrouver l'activité facilement)</span>
+        </label>
+        <input
+          type="text"
+          value={objet || ''}
+          onChange={e => onObjetChange && onObjetChange(e.target.value)}
+          placeholder="Ex : Dictée sur les accords, QCM chapitre 3 photosynthèse…"
+          maxLength={150}
+          className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-blue-400"
+        />
+      </div>
+
       <textarea
         ref={textareaRef}
         className="w-full border border-gray-300 rounded p-3 text-sm resize-y"
