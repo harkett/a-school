@@ -32,8 +32,7 @@ A-SCHOOL est un **générateur automatique d'activités pédagogiques** destiné
 
 L'enseignant colle un texte, choisit le type d'activité et le niveau de classe — il obtient en moins de 10 secondes une activité complète, avec correction, prête à imprimer ou distribuer en Word.
 
-**État actuel (avril 2026) :** Français et Histoire-Géographie disponibles pour les niveaux 6e à Terminale, toutes les autres matières en cours de développement.
-**Vision complète :** toutes les matières, tous les enseignants de la 6e à la Terminale.
+**État actuel (mai 2026) :** Toutes les matières du secondaire disponibles, de la 6e à la Terminale. Produit 100% opérationnel. Prochaine étape : version mobile.
 **Évolutions futures :** maternelle/primaire et enseignement supérieur, en options complémentaires.
 
 **Ce que l'outil n'est pas :**
@@ -63,7 +62,7 @@ L'enseignant colle un texte, choisit le type d'activité et le niveau de classe 
 | "Intelligence artificielle" | Méfiance des profs, terme flou | "Génération automatique en 10 secondes" |
 | "Révolution de l'enseignement" | Pas crédible | Gain de temps concret et mesurable |
 | "Plateforme complète" | Pas d'ENT, pas de gestion élèves | "Générateur d'activités pédagogiques" |
-| "Toutes les matières disponibles" | Pas encore le cas | "Français et Histoire-Géo aujourd'hui, toutes les matières bientôt" |
+| "Toutes les matières disponibles" | ~~Pas encore le cas~~ — **C'est maintenant vrai** (12 matières, 6e → Terminale depuis mai 2026) | "Toutes les matières du secondaire disponibles, de la 6e à la Terminale" |
 | "Pour les parents" | Hors cible totalement | Ne pas mentionner |
 
 ---

@@ -297,6 +297,24 @@ Texte :
 {texte}
 ---
 """,
+
+    # ── 16. FICHE DE RÉVISION ─────────────────────────────────────────────────
+    "fr_fiche_revision": """Tu es un professeur de français expérimenté.
+À partir du texte ou du cours ci-dessous, génère une fiche de révision structurée pour des élèves de {niveau}.
+
+La fiche doit contenir :
+1. **Titre et thème** du texte ou de la séquence
+2. **Notions littéraires clés** à retenir (avec définitions courtes)
+3. **Procédés d'écriture** identifiés dans le texte (avec exemples)
+4. **Vocabulaire important** (10 mots avec définitions)
+5. **Points de langue** à mémoriser (grammaire, orthographe liés au texte)
+6. **Questions type brevet / bac** pour s'entraîner (3 questions)
+
+Texte :
+---
+{texte}
+---
+""",
 }
 
 

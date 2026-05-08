@@ -262,7 +262,7 @@ Ces éléments créent des attentes non satisfaites ou affaiblissent la proposit
 **Pourquoi c'est le canal #1** : Les profs font confiance à leurs collègues. Un outil recommandé par un pair vaut 10 pubs.
 
 **Actions** :
-1. Identifier et chouchouter les profs pilotes (Français 4e + HG + autres matières)
+1. Identifier et chouchouter les profs pilotes (toutes matières — le produit est complet)
 2. Leur demander de montrer l'outil à 1 ou 2 collègues dans leur établissement
 3. Fournir un "kit de démonstration" : 3 exemples d'activités générées prêts à partager
 4. Répondre à tous leurs feedbacks en moins de 48h

@@ -85,6 +85,11 @@ ACTIVITES_PAR_MATIERE = {
             "sous_types": [],
             "params": [],
         },
+        "Fiche de révision": {
+            "key": "fr_fiche_revision",
+            "sous_types": [],
+            "params": [],
+        },
     },
     "Histoire-Géographie": {
         "Questions sur un document": {

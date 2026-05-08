@@ -179,7 +179,7 @@ FEEDBACK_NOTIFY_EMAIL=contact@afia.fr
 
 ## 6. Corrections à planifier
 
-- **Fiche de révision manquante en Français** — ajouter dans `activities.py` + prompt dans `prompts.py` (modèle : `hg_fiche_revision`)
+- ~~**Fiche de révision manquante en Français**~~ — ✅ Livré le 08/05/2026 : `fr_fiche_revision` dans `src/prompts.py` + `activities.py`
 - **Fiche pédagogique manquante en HG** — ajouter dans `activities.py` + prompt dans `prompts.py` (modèle : `fiche_pedagogique` Français)
 - **Français : 15 types dans le code** — certains docs mentionnent 16, corriger au passage lors de la session dev
 
