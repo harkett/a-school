@@ -9,7 +9,18 @@
       "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\IconeV02.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\icon.png\" -Force)",
       "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Favicon32_32.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\favicon.png\" -Force)",
       "PowerShell(git -C D:\\\\A-SCHOOL show HEAD:frontend/src/pages/MentionsLegales.jsx)",
-      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\LogoFondBleu.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo-bleu.png\" -Force)"
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\LogoFondBleu.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo-bleu.png\" -Force)",
+      "Bash(Get-ChildItem \"d:\\\\A-SCHOOL\\\\Logo_aSchool\\\\\" | Sort-Object LastWriteTime -Descending | Select-Object Name, LastWriteTime, Length | Format-Table -AutoSize)",
+      "PowerShell(Copy-Item \"d:\\\\A-SCHOOL\\\\Logo_aSchool\\\\LogoFondBleu.png\" \"d:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo-bleu.png\" -Force)",
+      "PowerShell(Copy-Item \"d:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Logo_TransaSchool.png\" \"d:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo-bleu.png\" -Force)",
+      "Bash(git checkout *)",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $files = @\\(\"logo-bleu.png\",\"Logo_TransaSchool.png\",\"LogoFondBleu.png\"\\); foreach \\($f in $files\\) { $path = if \\($f -eq \"logo-bleu.png\"\\) { \"d:\\\\A-SCHOOL\\\\frontend\\\\public\\\\$f\" } else { \"d:\\\\A-SCHOOL\\\\Logo_aSchool\\\\$f\" }; if \\(Test-Path $path\\) { $img = [System.Drawing.Image]::FromFile\\($path\\); Write-Output \"$f — $\\($img.Width\\)x$\\($img.Height\\)px — $\\([math]::Round\\(\\(Get-Item $path\\).Length/1KB\\)\\)KB\"; $img.Dispose\\(\\) } })",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" show HEAD:frontend/src/components/Header.jsx)",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" diff --name-only HEAD)",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/components/Header.jsx)",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" ls-files frontend/public/ Logo_aSchool/)",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" show HEAD:frontend/src/components/Sidebar.jsx)",
+      "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL"

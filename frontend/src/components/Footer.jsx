@@ -77,7 +77,7 @@ export default function Footer() {
         </p>
         <div className="flex justify-between text-xs text-gray-400">
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <img src="/logo.png" alt="aSchool" style={{ height: 18, width: 'auto' }} />
+            <img src="/Logo_aSchool.png" alt="aSchool" style={{ height: 18, width: 'auto' }} />
             {' · '}
             <button
               onClick={() => setShowMentions(true)}

@@ -4,8 +4,8 @@ export default function MentionsLegales() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
-      <header style={{ backgroundColor: 'var(--bleu)', padding: '8px 24px' }}>
-        <img src="/logo-bleu.png" alt="aSchool" style={{ height: 70, width: 'auto', display: 'block' }} />
+      <header style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden', display: 'flex', alignItems: 'center', padding: '0 24px' }}>
+        <img src="/Logo_aSchool_blanc.png" alt="aSchool" style={{ height: 140, width: 'auto' }} />
       </header>
 
       <div className="flex-1 flex justify-center p-6">

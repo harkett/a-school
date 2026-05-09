@@ -1,9 +1,9 @@
 ﻿export default function Header({ matiere, email, prenom, nom, onLogout }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   return (
-    <header className="flex items-center justify-between px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
+    <header className="flex items-center justify-between px-6" style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden' }}>
       <div className="flex items-center gap-3">
-        <img src="/logo-bleu.png" alt="aSchool" style={{ height: 70, width: 'auto' }} />
+        <img src="/Logo_aSchool_blanc.png" alt="aSchool" style={{ height: 140, width: 'auto' }} />
         <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1rem', fontWeight: 500 }}>
           Générateur d'activités pédagogiques
         </span>

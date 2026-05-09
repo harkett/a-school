@@ -32,7 +32,16 @@ Write-Host "  Sync dependances Python..." -ForegroundColor Yellow
 & "$root\.venv\Scripts\pip.exe" install -r "$root\requirements.txt" --quiet --disable-pip-version-check
 Write-Host ""
 
-# 4. Régénérer les activités depuis la matrice markdown
+# 4. Synchroniser les logos et icônes vers frontend/public/Logo_aSchool/
+Write-Host "  Synchronisation logos..." -ForegroundColor Yellow
+$logoSrc = "$root\Logo_aSchool"
+$logoDst = "$root\frontend\public\Logo_aSchool"
+if (-not (Test-Path $logoDst)) { New-Item -ItemType Directory -Path $logoDst | Out-Null }
+Get-ChildItem "$logoSrc\*.png","$logoSrc\*.svg","$logoSrc\*.webp" -ErrorAction SilentlyContinue |
+    Copy-Item -Destination $logoDst -Force
+Write-Host ""
+
+# 5. Régénérer les activités depuis la matrice markdown
 Write-Host "  Regeneration activities..." -ForegroundColor Yellow
 & "$root\.venv\Scripts\python.exe" "$root\parse_markdown.py"
 Write-Host ""

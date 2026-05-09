@@ -121,7 +121,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
       {!collapsed && (
         <div style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
-          <img src="/logo.png" alt="aSchool" style={{ width: '100%', height: 'auto', display: 'block' }} />
+          <img src="/Logo_aSchool.png" alt="aSchool" style={{ width: '100%', height: 'auto', display: 'block' }} />
         </div>
       )}
 
