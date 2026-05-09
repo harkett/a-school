@@ -199,6 +199,8 @@ FEEDBACK_NOTIFY_EMAIL=contact@afia.fr
 - **Intégration ENT (Pronote)**
 - **Tableau de bord multi-profs établissement**
 - **Migration SQLite → PostgreSQL** — si montée en charge
+- **Domaine aschool.fr** — migrer school.afia.fr → aschool.fr quand le domaine est configuré (mettre à jour `.env` APP_URL + Nginx)
+- **Rebranding "aSchool"** — remplacer "A-SCHOOL" par "aSchool" dans toute l'interface : `a` minuscule rouge-bordeaux + `S` majuscule + `chool` — à faire en même temps que la migration de domaine
 
 ---
 

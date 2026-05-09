@@ -1,11 +1,11 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 
 export default function MentionsLegales() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
       <header className="flex items-center gap-3 px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
-        <img src="/icon.png" alt="A-SCHOOL" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
+        <img src="/icon.png" alt="aSchool" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
         <span className="text-white font-bold text-xl tracking-tight">
           <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
         </span>

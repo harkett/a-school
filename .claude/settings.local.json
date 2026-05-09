@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/A-PUB/PUB-ASCHOOL/**)",
+      "Read(//d/A-PUB/**)",
+      "Read(//mnt/**)",
+      "Read(//d//**)",
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Logo_TransaSchool.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo.png\" -Force)",
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\IconeV02.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\icon.png\" -Force)",
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Favicon32_32.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\favicon.png\" -Force)"
+    ],
+    "additionalDirectories": [
+      "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL"
+    ]
+  }
+}

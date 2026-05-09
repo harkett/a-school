@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 
 const IconHome = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -106,7 +106,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         style={{ background: 'none', border: 'none' }}
       >
         {collapsed
-          ? <img src="/icon.png" alt="A-SCHOOL" style={{ width: 28, height: 28, borderRadius: 6 }} />
+          ? <img src="/icon.png" alt="aSchool" style={{ width: 28, height: 28, borderRadius: 6 }} />
           : <IconMenu />
         }
         {!collapsed && (
@@ -121,7 +121,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
       {!collapsed && (
         <div style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
-          <img src="/logo.png" alt="A-SCHOOL" style={{ width: '100%', height: 'auto', display: 'block' }} />
+          <img src="/logo.png" alt="aSchool" style={{ width: '100%', height: 'auto', display: 'block' }} />
         </div>
       )}
 

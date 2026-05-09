@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
 
@@ -50,7 +50,7 @@ export default function Signup() {
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
       <header className="flex items-center gap-3 px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
-        <img src="/icon.png" alt="A-SCHOOL" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
+        <img src="/icon.png" alt="aSchool" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
         <span className="text-white font-bold text-xl tracking-tight">
           <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
         </span>
@@ -65,7 +65,7 @@ export default function Signup() {
           {!done ? (
             <>
               <div className="flex justify-center mb-5">
-                <img src="/logo.png" alt="A-SCHOOL" style={{ width: 160, height: 'auto' }} />
+                <img src="/logo.png" alt="aSchool" style={{ width: 160, height: 'auto' }} />
               </div>
               <h2 className="text-lg font-semibold text-gray-800 mb-1">Créer un compte</h2>
               <p className="text-sm text-gray-500 mb-6">

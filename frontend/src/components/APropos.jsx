@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Feedback from './Feedback'
 import Notation from './Notation'
 import { APP_VERSION } from '../version'
@@ -16,7 +16,7 @@ export default function APropos({ email }) {
         {/* Bloc 1 — Identité */}
         <div className="px-8 py-7 border-b border-gray-100">
           <div className="flex items-center gap-5">
-            <img src="/logo.png" alt="A-SCHOOL" style={{ width: 100, height: 'auto', flexShrink: 0 }} />
+            <img src="/logo.png" alt="aSchool" style={{ width: 100, height: 'auto', flexShrink: 0 }} />
             <div>
               <span className="text-xs font-medium text-gray-400 border border-gray-200 rounded px-2 py-0.5">
                 v{APP_VERSION}
