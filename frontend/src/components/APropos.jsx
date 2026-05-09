@@ -5,9 +5,10 @@ import { APP_VERSION } from '../version'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
-export default function APropos({ email }) {
+export default function APropos({ email, matiere }) {
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
+  const [showFiche, setShowFiche] = useState(false)
 
   return (
     <div className="max-w-lg">
@@ -63,6 +64,18 @@ export default function APropos({ email }) {
         {/* Bloc 4 — Actions */}
         <div className="px-8 py-5 border-b border-gray-100 flex flex-col gap-3">
           <button
+            onClick={() => setShowFiche(true)}
+            title={`Voir la fiche de présentation aSchool pour ${matiere}`}
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, cursor: 'pointer', padding: '10px 16px', textAlign: 'left', width: '100%' }}
+          >
+            <div className="text-sm font-medium" style={{ color: '#1d4ed8' }}>
+              Ma fiche aSchool — {matiere}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: '#3b82f6' }}>
+              Document de présentation à imprimer ou partager à vos collègues
+            </div>
+          </button>
+          <button
             onClick={() => setShowNotation(true)}
             title="Donnez une note à A-SCHOOL"
             style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', padding: '10px 16px', textAlign: 'left', width: '100%' }}
@@ -89,6 +102,43 @@ export default function APropos({ email }) {
 
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
+
+      {showFiche && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowFiche(false) }}
+        >
+          <div style={{ background: '#fff', borderRadius: 10, width: '90vw', maxWidth: 860, height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>
+                Fiche aSchool — {matiere}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a
+                  href={`/api/fiches/${encodeURIComponent(matiere)}`}
+                  download={`aSchool_${matiere}.html`}
+                  title="Télécharger la fiche (HTML imprimable)"
+                  style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
+                >
+                  Télécharger
+                </a>
+                <button
+                  onClick={() => setShowFiche(false)}
+                  title="Fermer"
+                  style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 18, lineHeight: 1, cursor: 'pointer' }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={`/api/fiches/${encodeURIComponent(matiere)}`}
+              title={`Fiche aSchool ${matiere}`}
+              style={{ flex: 1, border: 'none', width: '100%' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

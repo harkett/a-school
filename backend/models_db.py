@@ -154,3 +154,16 @@ class AdminAlert(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     read_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class FicheMatiere(Base):
+    __tablename__ = "fiches_matieres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    statut: Mapped[str] = mapped_column(String(16), nullable=False, default="brouillon")  # brouillon | publie | a_reviser
+    accroche: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pour_qui: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ameliorations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)

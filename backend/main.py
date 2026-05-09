@@ -14,7 +14,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -33,6 +33,7 @@ with engine.connect() as _conn:
         "ALTER TABLE activites_sauvegardees ADD COLUMN matiere VARCHAR(64)",
         "ALTER TABLE activites_sauvegardees ADD COLUMN objet VARCHAR(150)",
         "ALTER TABLE activites_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
+        "CREATE TABLE IF NOT EXISTS fiches_matieres (id INTEGER PRIMARY KEY AUTOINCREMENT, matiere_key VARCHAR(64) NOT NULL UNIQUE, statut VARCHAR(16) NOT NULL DEFAULT 'brouillon', accroche TEXT, pour_qui TEXT, ameliorations TEXT, updated_at DATETIME, updated_by VARCHAR(255))",
     ]:
         try:
             _conn.execute(text(_col))
@@ -83,6 +84,7 @@ app.include_router(ocr.router, prefix="/api")
 app.include_router(bibliotheque.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+app.include_router(fiches.router)
 
 # Seed exemples au démarrage (idempotent)
 try:

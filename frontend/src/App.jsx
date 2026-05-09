@@ -37,6 +37,7 @@ import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminAnalytique from './pages/AdminAnalytique'
+import AdminFiches from './pages/AdminFiches'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -424,7 +425,7 @@ function MainApp() {
 
           {page === 'aide' && <Aide />}
 
-          {page === 'apropos' && <APropos email={user?.email} />}
+          {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject || 'Français'} />}
         </main>
       </div>
 
@@ -538,6 +539,7 @@ export default function App() {
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
             <Route path="analytique"   element={<AdminAnalytique />} />
+            <Route path="fiches"       element={<AdminFiches />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
