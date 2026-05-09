@@ -49,14 +49,8 @@ export default function Signup() {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
-      <header className="flex items-center gap-3 px-6 py-4" style={{ backgroundColor: 'var(--bleu)' }}>
-        <img src="/icon.png" alt="aSchool" style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0 }} />
-        <span className="text-white font-bold text-xl tracking-tight">
-          <span style={{ color: 'var(--bordeaux)' }}>A</span>-SCHOOL
-        </span>
-        <span className="text-white text-base ml-3" style={{ opacity: 0.75 }}>
-          | Générateur d'activités pédagogiques
-        </span>
+      <header style={{ backgroundColor: 'var(--bleu)', padding: '8px 24px' }}>
+        <img src="/logo-bleu.png" alt="aSchool" style={{ height: 70, width: 'auto', display: 'block' }} />
       </header>
 
       <div className="flex-1 flex items-center justify-center p-6">

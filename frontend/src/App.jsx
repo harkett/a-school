@@ -36,6 +36,7 @@ import AdminCompte from './pages/AdminCompte'
 import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminMaintenance from './pages/AdminMaintenance'
+import AdminAnalytique from './pages/AdminAnalytique'
 import AdminLayout from './components/AdminLayout'
 import './index.css'
 
@@ -399,6 +400,7 @@ function MainApp() {
               onCharger={chargerActivite}
               sessionMatiere={sessionMatiere}
               sessionNiveau={params.niveau}
+              onNavigate={setPage}
             />
           )}
 
@@ -535,6 +537,7 @@ export default function App() {
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
+            <Route path="analytique"   element={<AdminAnalytique />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

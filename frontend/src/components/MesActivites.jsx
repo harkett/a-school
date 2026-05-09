@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react'
 
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
-
 const IconShare = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
@@ -11,13 +8,58 @@ const IconShare = () => (
   </svg>
 )
 
-export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau }) {
+function StatsCommunaute({ matiere, niveau }) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    if (!matiere && !niveau) return
+    const params = new URLSearchParams()
+    if (matiere) params.append('matiere', matiere)
+    if (niveau)  params.append('niveau', niveau)
+    fetch(`/api/stats/matiere?${params}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setStats(d) })
+      .catch(() => {})
+  }, [matiere, niveau])
+
+  if (!stats || stats.total_plateforme === 0) return null
+
+  return (
+    <div style={{
+      background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+      padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+    }}>
+      <div style={{ display: 'flex', flex: 1, gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div>
+          <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sur la plateforme</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{stats.total_plateforme}</span>
+          <span style={{ fontSize: 11, color: '#64748b' }}> activités · {stats.nb_profs} prof{stats.nb_profs > 1 ? 's' : ''}</span>
+        </div>
+        {stats.top_types.length > 0 && (
+          <div>
+            <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Types populaires</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+              {stats.top_types.map(t => (
+                <span key={t.label} style={{
+                  fontSize: 11, background: 'white', border: '1px solid #e2e8f0',
+                  borderRadius: 99, padding: '1px 8px', color: '#475569',
+                }}>
+                  {t.label} <strong style={{ color: '#A63045' }}>×{t.nb}</strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, onNavigate }) {
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
   const [toggling, setToggling]   = useState(null)
-  const [matiere, setMatiere]     = useState(sessionMatiere || '')
-  const [niveau,  setNiveau]      = useState(sessionNiveau  || '')
 
   useEffect(() => {
     fetch('/api/mes-activites', { credentials: 'include' })
@@ -44,53 +86,35 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau 
   }
 
   const filtered = activites.filter(a => {
-    if (matiere && a.matiere !== matiere) return false
-    if (niveau  && a.niveau  !== niveau)  return false
+    if (sessionMatiere && a.matiere !== sessionMatiere) return false
+    if (sessionNiveau  && a.niveau  !== sessionNiveau)  return false
     return true
   })
 
-  const labelFiltre = [matiere, niveau].filter(Boolean).join(', ') || 'Toutes les activités'
+  const labelProfil = [sessionMatiere, sessionNiveau].filter(Boolean).join(', ')
 
   return (
     <div className="flex flex-col gap-3 w-full">
 
-      {/* En-tête + filtres */}
-      <div className="flex flex-col gap-2">
+      {/* En-tête */}
+      <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-3">
           <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
-          {!loading && (
-            <span style={{ fontSize: 12, color: '#6b7280', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 99, padding: '1px 10px' }}>
-              {filtered.length} activité{filtered.length > 1 ? 's' : ''}
+          {!loading && filtered.length > 0 && (
+            <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
+              {filtered.length} activité{filtered.length > 1 ? 's' : ''} créée{filtered.length > 1 ? 's' : ''}
             </span>
           )}
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span className="text-xs text-gray-500" style={{ fontWeight: 500 }}>
-            Activités — <span style={{ color: '#1e293b' }}>{labelFiltre}</span>
+        {!loading && labelProfil && (
+          <span className="text-xs text-gray-400">
+            {labelProfil}
           </span>
-          <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-            <select
-              value={matiere}
-              onChange={e => setMatiere(e.target.value)}
-              title="Filtrer par matière"
-              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
-            >
-              <option value="">Toutes les matières</option>
-              {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select
-              value={niveau}
-              onChange={e => setNiveau(e.target.value)}
-              title="Filtrer par niveau de classe"
-              className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
-            >
-              <option value="">Tous les niveaux</option>
-              {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* Widget stats communauté */}
+      {!loading && <StatsCommunaute matiere={sessionMatiere} niveau={sessionNiveau} />}
 
       {loading && (
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
@@ -105,8 +129,8 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau 
 
       {!loading && activites.length > 0 && filtered.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
-          <p className="text-sm text-gray-500">Aucune activité pour {labelFiltre}.</p>
-          <p className="text-xs text-gray-400 mt-1">Modifiez les filtres pour voir d'autres activités.</p>
+          <p className="text-sm text-gray-500">Aucune activité pour {labelProfil}.</p>
+          <p className="text-xs text-gray-400 mt-1">Générez votre première activité depuis l'Accueil.</p>
         </div>
       )}
 
@@ -186,6 +210,19 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau 
             </div>
           ))}
         </div>
+      )}
+
+      {!loading && (
+        <p className="text-xs text-gray-400 text-center mt-1">
+          Vous enseignez plusieurs matières ?{' '}
+          <button
+            onClick={() => onNavigate?.('mon-profil')}
+            style={{ color: 'var(--bordeaux)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }}
+          >
+            Changez votre matière dans le profil
+          </button>{' '}
+          pour voir les activités correspondantes.
+        </p>
       )}
     </div>
   )

@@ -7,7 +7,9 @@
       "Read(//d//**)",
       "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Logo_TransaSchool.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo.png\" -Force)",
       "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\IconeV02.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\icon.png\" -Force)",
-      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Favicon32_32.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\favicon.png\" -Force)"
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\Favicon32_32.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\favicon.png\" -Force)",
+      "PowerShell(git -C D:\\\\A-SCHOOL show HEAD:frontend/src/pages/MentionsLegales.jsx)",
+      "PowerShell(Copy-Item \"D:\\\\A-SCHOOL\\\\Logo_aSchool\\\\LogoFondBleu.png\" -Destination \"D:\\\\A-SCHOOL\\\\frontend\\\\public\\\\logo-bleu.png\" -Force)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL"

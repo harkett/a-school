@@ -772,3 +772,83 @@ def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
         }
         for l, subject in rows
     ]
+
+
+@router.get("/admin/stats/analytique")
+def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(
+            ActiviteSauvegardee.user_email,
+            User.prenom,
+            User.nom,
+            User.subject,
+            User.niveau.label("niveau_profil"),
+            ActiviteSauvegardee.matiere.label("activite_matiere"),
+            ActiviteSauvegardee.niveau.label("activite_niveau"),
+            ActiviteSauvegardee.activite_key,
+            ActiviteSauvegardee.activite_label,
+            func.count(ActiviteSauvegardee.id).label("nb"),
+        )
+        .join(User, User.email == ActiviteSauvegardee.user_email, isouter=True)
+        .group_by(
+            ActiviteSauvegardee.user_email,
+            ActiviteSauvegardee.matiere,
+            ActiviteSauvegardee.niveau,
+            ActiviteSauvegardee.activite_key,
+            ActiviteSauvegardee.activite_label,
+        )
+        .all()
+    )
+
+    profs_dict: dict = {}
+    totaux_matiere: dict = {}
+    totaux_niveau: dict = {}
+    totaux_type: dict = {}
+    grand_total = 0
+
+    for row in rows:
+        email = row.user_email
+        if email not in profs_dict:
+            profs_dict[email] = {
+                "email": email,
+                "prenom": row.prenom or "",
+                "nom": row.nom or "",
+                "subject": row.subject or "",
+                "niveau_profil": row.niveau_profil or "",
+                "total": 0,
+                "par_matiere": {},
+            }
+        prof = profs_dict[email]
+        prof["total"] += row.nb
+
+        mat = row.activite_matiere or row.subject or "—"
+        niv = row.activite_niveau or "—"
+        typ = row.activite_label or row.activite_key or "—"
+
+        if mat not in prof["par_matiere"]:
+            prof["par_matiere"][mat] = {"total": 0, "par_niveau": {}}
+        mat_data = prof["par_matiere"][mat]
+        mat_data["total"] += row.nb
+
+        if niv not in mat_data["par_niveau"]:
+            mat_data["par_niveau"][niv] = {"total": 0, "par_type": {}}
+        niv_data = mat_data["par_niveau"][niv]
+        niv_data["total"] += row.nb
+        niv_data["par_type"][typ] = niv_data["par_type"].get(typ, 0) + row.nb
+
+        totaux_matiere[mat] = totaux_matiere.get(mat, 0) + row.nb
+        totaux_niveau[niv] = totaux_niveau.get(niv, 0) + row.nb
+        totaux_type[typ] = totaux_type.get(typ, 0) + row.nb
+        grand_total += row.nb
+
+    profs = sorted(profs_dict.values(), key=lambda p: -p["total"])
+
+    return {
+        "profs": profs,
+        "totaux": {
+            "par_matiere": dict(sorted(totaux_matiere.items(), key=lambda x: -x[1])),
+            "par_niveau":  dict(sorted(totaux_niveau.items(),  key=lambda x: -x[1])),
+            "par_type":    dict(list(sorted(totaux_type.items(), key=lambda x: -x[1]))[:20]),
+            "grand_total": grand_total,
+        },
+    }
