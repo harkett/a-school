@@ -56,3 +56,54 @@ def get_stats_matiere(
         "nb_profs": nb_profs,
         "top_types": [{"label": t[0] or "—", "nb": t[1]} for t in top_types],
     }
+
+
+@router.get("/dashboard")
+def get_dashboard(
+    aschool_access: str = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+
+    mes_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.user_email == email
+    ).scalar() or 0
+
+    mes_partages = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.user_email == email,
+        ActiviteSauvegardee.partagee == True,
+    ).scalar() or 0
+
+    communaute_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
+    communaute_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))).scalar() or 0
+
+    recentes = (
+        db.query(ActiviteSauvegardee)
+        .filter(ActiviteSauvegardee.user_email == email)
+        .order_by(ActiviteSauvegardee.id.desc())
+        .limit(3)
+        .all()
+    )
+
+    return {
+        "mes_activites": mes_activites,
+        "mes_partages": mes_partages,
+        "communaute_total": communaute_total,
+        "communaute_profs": communaute_profs,
+        "recentes": [
+            {
+                "id": a.id,
+                "activite_key": a.activite_key,
+                "activite_label": a.activite_label,
+                "matiere": a.matiere,
+                "niveau": a.niveau,
+                "sous_type": a.sous_type,
+                "nb": a.nb,
+                "avec_correction": a.avec_correction,
+                "objet": a.objet,
+                "texte_source": a.texte_source,
+                "resultat": a.resultat,
+            }
+            for a in recentes
+        ],
+    }

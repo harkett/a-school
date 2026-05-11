@@ -156,6 +156,16 @@ class AdminAlert(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class FeatureVote(Base):
+    __tablename__ = "feature_votes"
+    __table_args__ = (Index("ix_feature_votes_unique", "user_email", "feature_key", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    feature_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class FicheMatiere(Base):
     __tablename__ = "fiches_matieres"
 

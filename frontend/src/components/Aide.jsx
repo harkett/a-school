@@ -64,6 +64,100 @@ const ChevronDown = ({ open }) => (
 
 const sections = [
   {
+    id: 'sequence',
+    titre: 'Créer une séquence — ce que la fonctionnalité fera',
+    Icon: IconSparkle,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Décrivez votre objectif pédagogique</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séquence</li>
+            <li>Précisez le contexte : nombre de séances, durée totale, contraintes éventuelles</li>
+            <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. Paramétrez la structure</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li><strong>Nombre de phases ou de séances</strong> — A-SCHOOL répartit les apprentissages</li>
+            <li>
+              <strong>Types de phases à inclure</strong> :
+              <ul className="mt-1 pl-3 flex flex-col gap-0.5" style={{ listStyleType: 'circle' }}>
+                <li>Découverte / mise en situation</li>
+                <li>Structuration des connaissances</li>
+                <li>Entraînement / exercices</li>
+                <li>Synthèse / bilan</li>
+                <li>Évaluation finale</li>
+              </ul>
+            </li>
+            <li><strong>Avec ou sans corrigé enseignant</strong> pour chaque phase</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. A-SCHOOL génère la séquence complète</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
+            <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
+            <li>Ancrage mémoriel intégré : synthèse, révision et bilan prévus dans la structure</li>
+            <li>Séquence exportable et partageable avec des collègues</li>
+          </ul>
+        </div>
+
+      </div>
+    ),
+  },
+  {
+    id: 'optimiseur',
+    titre: 'Améliorer une séquence (Optimiseur)',
+    Icon: IconTarget,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Soumettez votre séquence</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Collez une séquence existante — planning de cours, progression rédigée, fichier de préparation</li>
+            <li>Un bouton "Tester sur un exemple" permet de découvrir la fonctionnalité sans séquence sous la main</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. A-SCHOOL analyse sur 6 critères</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Rupture conceptuelle — une phase suppose une notion non encore construite</li>
+            <li>Surcharge cognitive — trop de notions nouvelles sur un temps trop court</li>
+            <li>Consigne ambiguë — formulation pouvant être mal interprétée</li>
+            <li>Activité inefficace — exercice sans lien réel avec l'objectif déclaré</li>
+            <li>Progression déséquilibrée — phases trop courtes ou trop longues</li>
+            <li>Ancrage mémoriel manquant — pas de consolidation avant l'évaluation</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. Récupérez le résultat</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Un score global : Bon · Moyen · À revoir</li>
+            <li>La liste des problèmes détectés avec leur description précise</li>
+            <li>La séquence réécrite avec toutes les corrections intégrées</li>
+          </ul>
+        </div>
+
+      </div>
+    ),
+  },
+  {
     id: 'apprentissage',
     titre: 'A-SCHOOL apprend votre style',
     Icon: IconSparkle,
@@ -109,31 +203,62 @@ const sections = [
   },
   {
     id: 'comment',
-    titre: 'Comment utiliser A-SCHOOL',
+    titre: 'Créer une activité — tout ce que vous pouvez faire',
     Icon: IconBook,
     contenu: (
-      <ol className="flex flex-col gap-3 text-sm text-gray-600">
-        <li className="flex gap-3">
-          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>1.</span>
-          <span><strong>Configurez votre profil</strong> (menu "Mon profil") — renseignez votre prénom, nom, matière et niveau habituel. Ces informations personnalisent l'interface à chaque connexion.</span>
-        </li>
-        <li className="flex gap-3">
-          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>2.</span>
-          <span><strong>Collez un texte source</strong> dans la zone principale — un extrait de manuel, un document élève, un article de presse.</span>
-        </li>
-        <li className="flex gap-3">
-          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>3.</span>
-          <span><strong>Choisissez les paramètres</strong> : niveau scolaire, type d'activité, nombre de questions, avec ou sans correction.</span>
-        </li>
-        <li className="flex gap-3">
-          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>4.</span>
-          <span><strong>Cliquez sur "Générer"</strong> — A-SCHOOL produit l'activité en quelques secondes.</span>
-        </li>
-        <li className="flex gap-3">
-          <span className="font-semibold shrink-0" style={{ color: 'var(--bleu)' }}>5.</span>
-          <span><strong>Retrouvez vos activités</strong> dans "Mes activités" — chaque génération est sauvegardée automatiquement et peut être rechargée en un clic.</span>
-        </li>
-      </ol>
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Fournissez un texte source — 3 options</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
+            <li>Dictez à la voix grâce au micro intégré — A-SCHOOL transcrit automatiquement</li>
+            <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. Configurez les paramètres</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>
+              <strong>Type d'activité</strong> — varie selon la matière :
+              <ul className="mt-1 pl-3 flex flex-col gap-0.5" style={{ listStyleType: 'circle' }}>
+                <li>Questions de compréhension</li>
+                <li>Analyse de texte / document</li>
+                <li>Résumé / synthèse</li>
+                <li>Production d'écrit</li>
+                <li>Fiche de révision</li>
+                <li>Exercices de vocabulaire</li>
+                <li className="text-gray-400 italic">et d'autres selon la matière…</li>
+              </ul>
+            </li>
+            <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
+            <li><strong>Nombre de questions</strong> — disponible selon le type choisi</li>
+            <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. Exploitez le résultat</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Cliquez sur "Générer" — activité prête en quelques secondes</li>
+            <li>Régénérez sans hésiter — chaque génération est différente</li>
+            <li>Sauvegardez dans "Mes activités" — rechargeable en un clic à tout moment</li>
+            <li>Partagez par email avec un collègue depuis le résultat</li>
+          </ul>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <p className="text-xs rounded-md px-3 py-2" style={{ background: '#f8fafc', color: '#64748b', borderLeft: '3px solid #cbd5e1' }}>
+          A-SCHOOL apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
+        </p>
+
+      </div>
     ),
   },
   {

@@ -1,10 +1,13 @@
-﻿export default function Header({ matiere, email, prenom, nom, onLogout }) {
+﻿export default function Header({ matiere, email, prenom, nom, onLogout, onNavigate }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   return (
-    <header className="flex items-center justify-between px-6" style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden' }}>
+    <header
+      className="flex items-center justify-between px-6"
+      style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}
+    >
       <div className="flex items-center gap-3">
         <img src="/Logo_aSchool_blanc.png" alt="aSchool" style={{ height: 140, width: 'auto' }} />
-        <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1rem', fontWeight: 500 }}>
+        <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1.4rem', fontWeight: 500 }}>
           Générateur d'activités pédagogiques
         </span>
       </div>
@@ -12,12 +15,13 @@
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
         <span style={{ color: 'white', fontWeight: 600 }}>{matiere}</span>
         <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-        <span
-          title={`Connecté avec : ${email}`}
-          style={{ color: 'rgba(255,255,255,0.6)', cursor: 'default', borderBottom: '1px dotted rgba(255,255,255,0.3)' }}
+        <button
+          onClick={() => onNavigate('mon-profil')}
+          title="Voir et modifier mon profil"
+          style={{ color: 'rgba(255,255,255,0.8)', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 'inherit', fontFamily: 'inherit', borderBottom: '1px dotted rgba(255,255,255,0.4)' }}
         >
           {nomAffiche}
-        </span>
+        </button>
         <button
           onClick={onLogout}
           title="Fermer votre session et revenir à la page de connexion"

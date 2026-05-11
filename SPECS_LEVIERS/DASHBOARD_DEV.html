@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DASHBOARD_DEV.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="dashboard-développeur--leviers-aschool">Dashboard développeur — Leviers aSchool</h1>
+<blockquote>
+<p>Référence de session. Lire avant de coder. Se base sur les 3 documents de SPECS_LEVIERS.</p>
+</blockquote>
+<hr>
+<h2 id="ce-quest-aschool-aujourdhui">Ce qu'est aSchool aujourd'hui</h2>
+<p>Générateur d'exercices pédagogiques pour enseignants du secondaire (6e → Terminale).
+Modèle actuel : le prof colle un texte → aSchool génère un exercice avec correction.
+Stack : FastAPI (port 8001 VPS) + React + Groq (llama-3.3-70b-versatile) + SQLite.</p>
+<hr>
+<h2 id="ce-que-les-leviers-ajoutent">Ce que les leviers ajoutent</h2>
+<p>Les leviers ne remplacent pas la génération existante. Ils ajoutent des outils qui opèrent à des niveaux supérieurs (séquence complète, analyse didactique, optimisation, audit).</p>
+<p>Chaque levier a une <strong>double vie</strong> :</p>
+<ol>
+<li><strong>Usage direct</strong> — le prof l'active volontairement pour un besoin ciblé</li>
+<li><strong>Pipeline automatique</strong> — tourne en arrière-plan sur chaque sortie d'aSchool</li>
+</ol>
+<hr>
+<h2 id="les-6-leviers-retenus">Les 6 leviers retenus</h2>
+<table>
+<thead>
+<tr>
+<th>Statut</th>
+<th>#</th>
+<th>Nom</th>
+<th>Ce que le prof fournit</th>
+<th>Ce qu'aSchool produit</th>
+<th>Ordre</th>
+<th>Durée est.</th>
+<th>Difficulté</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>☐</td>
+<td><strong>L1</strong></td>
+<td>Générateur d'orchestrations</td>
+<td>Thème + matière + niveau + durée</td>
+<td>Séance complète en 5-6 phases structurées</td>
+<td>3</td>
+<td>2 sessions</td>
+<td>Moyen</td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>L2</strong></td>
+<td>Détecteur d'ambiguïtés cognitives</td>
+<td>Un exercice ou un énoncé</td>
+<td>Zones de risque d'incompréhension + reformulations</td>
+<td>2</td>
+<td>1 session</td>
+<td>Facile</td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>L3</strong></td>
+<td>Optimiseur de séquences</td>
+<td>Une séquence existante (collée)</td>
+<td>Version améliorée + liste des problèmes détectés</td>
+<td><strong>1</strong></td>
+<td><strong>1 session</strong></td>
+<td><strong>Facile</strong></td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>L4</strong></td>
+<td>Cohérence curriculaire</td>
+<td>Rien (automatique)</td>
+<td>Alertes inter-disciplines + opportunités de synergie</td>
+<td>6</td>
+<td>2-3 sessions</td>
+<td>Difficile</td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>L5</strong></td>
+<td>Analyseur de consignes</td>
+<td>Une consigne seule</td>
+<td>Analyse didactique chirurgicale + version optimisée</td>
+<td>4</td>
+<td>1 session</td>
+<td>Facile</td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>L6</strong></td>
+<td>Détecteur d'équité</td>
+<td>Une évaluation</td>
+<td>Détection de 3 biais : contenu, difficulté, émotionnel</td>
+<td>5</td>
+<td>1 session</td>
+<td>Facile</td>
+</tr>
+<tr>
+<td>☐</td>
+<td><strong>Pipeline</strong></td>
+<td>Assemblage automatique</td>
+<td>Transparent pour le prof</td>
+<td>Rapport qualité synthétique sur chaque sortie</td>
+<td>Progressif</td>
+<td>Au fil des leviers</td>
+<td>Moyen</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Statut :</strong> ☐ À faire — ☑ Livré en prod
+<strong>Ordre :</strong> ordre d'implémentation recommandé (1 = premier à coder)
+<strong>Durée est. :</strong> 1 session ≈ 3-4h de dev effectif
+<strong>Difficulté :</strong> complexité technique côté code (pas côté pédagogie)</p>
+</blockquote>
+<h3 id="distinctions-clés-à-ne-pas-confondre">Distinctions clés à ne pas confondre</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>L1 — Orchestrations</th>
+<th>L3 — Optimiseur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Point de départ</td>
+<td>Le prof n'a rien</td>
+<td>Le prof a déjà une séquence</td>
+</tr>
+<tr>
+<td>Entrée</td>
+<td>Thème + niveau + durée</td>
+<td>Séquence existante collée</td>
+</tr>
+<tr>
+<td>Sortie</td>
+<td>Séquence générée from scratch</td>
+<td>Séquence existante améliorée</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>L2 — Ambiguïtés (exercice entier)</th>
+<th>L5 — Consignes (une seule consigne)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Granularité</td>
+<td>Exercice complet</td>
+<td>Une instruction isolée</td>
+</tr>
+<tr>
+<td>Usage typique</td>
+<td>Avant de distribuer un exercice</td>
+<td>Avant d'écrire une question d'exam</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="linfrastructure-socle-invisible">L'infrastructure (socle invisible)</h2>
+<p>Ce n'est pas une fonctionnalité visible. C'est la base de connaissances pédagogiques qui rend chaque levier plus précis.</p>
+<table>
+<thead>
+<tr>
+<th>Statut</th>
+<th>Élément</th>
+<th>Contenu</th>
+<th>Alimente</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>☐ v2</td>
+<td><strong>Élément 1</strong> — Graphe universel des notions</td>
+<td>Toutes les notions 6e→Terminale, leurs prérequis, dépendances, confusions possibles, mots polysémiques</td>
+<td>L1, L2, L3, L4, L5, L6</td>
+</tr>
+<tr>
+<td>☐ v2</td>
+<td><strong>Élément 2</strong> — Index erreurs typiques</td>
+<td>Erreurs récurrentes par notion, cause cognitive, niveau scolaire</td>
+<td>L2, L3, L5, L6, génération actuelle</td>
+</tr>
+<tr>
+<td>☐ v2</td>
+<td><strong>Élément 3</strong> — Index activités compatibles</td>
+<td>Activités les plus efficaces par notion, classées par niveau Bloom</td>
+<td>L1, L3, génération actuelle</td>
+</tr>
+<tr>
+<td>☐ v2</td>
+<td><strong>Élément 4</strong> — Variantes disciplinaires</td>
+<td>Comment un même mot/concept change de sens selon la matière</td>
+<td>L4, L2</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Statut ☐ v2</strong> : pas encore construit — LLM Groq joue ce rôle en v1. Sera enrichi progressivement avec l'usage en production.</p>
+</blockquote>
+<h3 id="stratégie-dimplémentation-de-linfrastructure">Stratégie d'implémentation de l'infrastructure</h3>
+<ul>
+<li><strong>v1 (maintenant)</strong> : le LLM Groq joue le rôle de l'infrastructure via des prompts bien conçus. Valeur immédiate, zéro délai.</li>
+<li><strong>v2 (progressivement)</strong> : les patterns détectés en production alimentent une base de données structurée interne. L'infrastructure propriétaire se construit naturellement avec l'usage, sans demander quoi que ce soit aux profs.</li>
+</ul>
+<hr>
+<h2 id="le-pipeline-qualité--architecture-dassemblage">Le pipeline qualité — architecture d'assemblage</h2>
+<p>Ce pipeline n'est PAS un levier supplémentaire. C'est le système qui fait fonctionner tous les leviers ensemble automatiquement sur chaque sortie.</p>
+<pre class="hljs"><code><div>┌─────────────────────────────────────────────────┐
+│  Étape 1 — Contrôle structure (L1)              │  ← en premier
+└─────────────────────┬───────────────────────────┘
+                      │
+        ┌─────────────┼─────────────────┐
+        ▼             ▼                 ▼
+  Étape 2 (L2)   Étape 4 (L4)    Étapes 5+6       ← en parallèle
+  Ambiguïtés     Cohérence        (L5+L6)
+        └─────────────┼─────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────┐
+│  Étape 3 — Optimiseur (L3)                      │  ← en dernier
+└─────────────────────────────────────────────────┘
+</div></code></pre>
+<p><strong>Ce que le prof reçoit à la fin :</strong></p>
+<pre class="hljs"><code><div>Rapport qualité aSchool
+─────────────────────────────────────────
+✅ Structure pédagogique       — validée
+⚠️ Ambiguïtés détectées       — 2 zones signalées
+✅ Séquence                    — équilibrée
+⚠️ Cohérence inter-disciplines — 1 décalage détecté
+✅ Qualité des consignes       — 1 reformulée
+✅ Équité pédagogique          — aucun biais
+─────────────────────────────────────────
+Score global : Bon — 2 points d'attention
+</div></code></pre>
+<p><strong>Deux modes :</strong></p>
+<ul>
+<li><strong>Mode génération</strong> : aSchool produit le contenu (L1, outil actuel) → pipeline s'applique en sortie</li>
+<li><strong>Mode validation</strong> : le prof colle son contenu existant → pipeline audite et restitue un rapport</li>
+</ul>
+<hr>
+<h2 id="ce-qui-est-hors-scope-nécessite-données-élèves">Ce qui est hors scope (nécessite données élèves)</h2>
+<p>Marqué ⚠️ dans les specs. Ne pas implémenter :</p>
+<ul>
+<li>Boucles de rétroaction temps réel selon les réponses des élèves</li>
+<li>Différenciation PPD automatique</li>
+<li>Cartographie cognitive des classes</li>
+<li>Profilage Pédagogique Dynamique (PPD) — aussi RGPD sur mineurs</li>
+</ul>
+<hr>
+<h2 id="ordre-dimplémentation-recommandé">Ordre d'implémentation recommandé</h2>
+<table>
+<thead>
+<tr>
+<th>Ordre</th>
+<th>Levier</th>
+<th>Statut</th>
+<th>Pourquoi cet ordre</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>L3 — Optimiseur</strong></td>
+<td>☐</td>
+<td>Impact immédiat — chaque prof a des séquences existantes. Priorité haute explicitée dans les specs.</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>L2 — Ambiguïtés</strong></td>
+<td>☐</td>
+<td>S'intègre naturellement sur le flux de génération existant.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>L1 — Orchestrations</strong></td>
+<td>☐</td>
+<td>Nouvelle UI, nouveau mode d'entrée — plus lourd à développer.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>L5 — Consignes</strong></td>
+<td>☐</td>
+<td>Chirurgical, scope étroit, rapide à ajouter après L2.</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>L6 — Équité</strong></td>
+<td>☐</td>
+<td>3 composants clairs, périmètre borné.</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>L4 — Cohérence</strong></td>
+<td>☐</td>
+<td>Le plus complexe — nécessite les programmes officiels. En dernier.</td>
+</tr>
+<tr>
+<td>—</td>
+<td><strong>Pipeline</strong></td>
+<td>☐</td>
+<td>S'assemble progressivement à chaque levier livré.</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="plan-session-actuelle--l3-optimiseur">Plan session actuelle — L3 Optimiseur</h2>
+<h3 id="ce-que-l3-fait-concrètement">Ce que L3 fait concrètement</h3>
+<ol>
+<li>Le prof colle une séquence pédagogique existante (texte libre)</li>
+<li>aSchool détecte : ruptures conceptuelles, surcharge cognitive, consignes ambiguës, activités inefficaces, progression déséquilibrée, ancrages manquants</li>
+<li>aSchool génère : la séquence optimisée + la liste des problèmes détectés avec explication</li>
+</ol>
+<h3 id="ce-que-ça-implique-en-code">Ce que ça implique en code</h3>
+<p><strong>Backend</strong> (<code>backend/routers/</code>)</p>
+<ul>
+<li>Nouveau endpoint : <code>POST /api/optimize-sequence</code></li>
+<li>Payload : <code>{ sequence: str, matiere: str, niveau: str }</code></li>
+<li>Prompt Groq structuré appliquant les 6 critères de l'Optimiseur</li>
+<li>Réponse : <code>{ sequence_optimisee: str, problemes_detectes: list, score: str }</code></li>
+</ul>
+<p><strong>Frontend</strong> (<code>frontend/src/</code>)</p>
+<ul>
+<li>Nouveau composant ou nouvelle section dans l'UI existante</li>
+<li>Textarea pour coller la séquence + sélecteurs matière/niveau</li>
+<li>Affichage : séquence optimisée + liste des problèmes détectés en surbrillance</li>
+</ul>
+<h3 id="ce-qui-est-hors-scope-pour-cette-session">Ce qui est hors scope pour cette session</h3>
+<ul>
+<li>Pipeline complet (L3 standalone d'abord)</li>
+<li>Rapport qualité synthétique multi-leviers (viendra quand d'autres leviers seront implémentés)</li>
+<li>Infrastructure v2 (LLM comme proxy pour l'instant)</li>
+</ul>
+<hr>
+<p><em>Document créé le 11/05/2026 — à mettre à jour à chaque levier livré.</em></p>
+
+</body>
+</html>

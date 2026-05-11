@@ -126,15 +126,11 @@ export default function Notation({ onClose }) {
               </button>
               <button
                 type="submit"
+                className="btn-primary"
                 disabled={!rating || loading}
-                title={!rating ? 'Sélectionnez une note' : 'Envoyer votre note'}
-                style={{
-                  background: rating && !loading ? 'var(--bleu)' : '#9ca3af',
-                  border: 'none', borderRadius: 6, padding: '7px 20px',
-                  cursor: rating && !loading ? 'pointer' : 'not-allowed',
-                  color: 'white', fontSize: 13, fontWeight: 500,
-                }}
+                title={!rating ? 'Sélectionnez une note avant d\'envoyer' : 'Envoyer votre note à l\'équipe A-SCHOOL'}
               >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {loading ? 'Envoi…' : 'Envoyer ma note'}
               </button>
             </div>

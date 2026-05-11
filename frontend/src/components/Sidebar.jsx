@@ -64,6 +64,14 @@ const IconUser = () => (
     <circle cx="12" cy="7" r="4"/>
   </svg>
 )
+const IconMesOutils = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="7" height="7"/>
+    <rect x="14" y="3" width="7" height="7"/>
+    <rect x="14" y="14" width="7" height="7"/>
+    <rect x="3" y="14" width="7" height="7"/>
+  </svg>
+)
 const IconMenu = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -126,11 +134,12 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       )}
 
       <nav className={`flex flex-col gap-1 flex-1 ${collapsed ? '' : 'px-4'}`}>
-        {navItem('accueil', 'Accueil', IconHome, 'Page principale — générer une activité')}
+        {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
+        {navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séquence, améliorer')}
         {navItem('mes-activites', 'Mes activités', IconActivites, 'Retrouver et recharger une activité précédemment générée')}
-        {navItem('bibliotheque', 'Bibliothèque', IconBibliotheque, 'Activités partagées par vos collègues')}
+        {navItem('bibliotheque', 'Ma bibliothèque', IconBibliotheque, 'Activités partagées par vos collègues')}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
-        {navItem('historique', 'Historique', IconHistory, 'Voir vos générations précédentes')}
+        {navItem('historique', 'Mon journal', IconHistory, 'Voir vos générations précédentes')}
       </nav>
 
       <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>

@@ -35,12 +35,17 @@ export default function AdminFeedbacks() {
   const [erreur, setErreur] = useState(null)
   const [onglet, setOnglet] = useState('notations')
   const [filtre, setFiltre] = useState('tous')
+  const [featureVotes, setFeatureVotes] = useState(null)
 
   useEffect(() => {
     fetch('/api/admin/feedbacks', { credentials: 'include' })
       .then(r => r.json())
       .then(setItems)
       .catch(() => setErreur('Impossible de charger les données.'))
+    fetch('/api/admin/feature-votes', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setFeatureVotes)
+      .catch(() => setFeatureVotes([]))
   }, [])
 
   if (erreur) return <p className="text-red-600 text-sm">{erreur}</p>
@@ -103,6 +108,9 @@ export default function AdminFeedbacks() {
         </button>
         <button style={tabStyle(onglet === 'feedbacks')} onClick={() => setOnglet('feedbacks')}>
           Feedbacks ({feedbacks.length})
+        </button>
+        <button style={tabStyle(onglet === 'votes')} onClick={() => setOnglet('votes')}>
+          Votes fonctionnalités
         </button>
       </div>
 
@@ -250,6 +258,59 @@ export default function AdminFeedbacks() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── VOTES ── */}
+      {onglet === 'votes' && (
+        <div className="flex flex-col gap-4">
+          {!featureVotes || featureVotes.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
+              Aucun vote enregistré pour le moment.
+            </div>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <div className="text-2xl font-bold" style={{ color: 'var(--bleu)' }}>
+                  {featureVotes.reduce((s, f) => s + f.count, 0)}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">Votes total</div>
+              </div>
+              <div className="flex flex-col gap-3">
+                {featureVotes.map((f, i) => {
+                  const max = featureVotes[0]?.count || 1
+                  const pct = max > 0 ? Math.round((f.count / max) * 100) : 0
+                  return (
+                    <div key={f.key} className="bg-white rounded-xl border border-gray-200 px-5 py-4">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span style={{
+                            width: 22, height: 22, borderRadius: '50%', display: 'inline-flex',
+                            alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
+                            background: i === 0 ? '#fef3c7' : '#f1f5f9',
+                            color: i === 0 ? '#92400e' : '#64748b',
+                            flexShrink: 0,
+                          }}>
+                            {i + 1}
+                          </span>
+                          <span className="text-sm font-semibold text-gray-800">{f.label}</span>
+                        </div>
+                        <span className="text-sm font-bold" style={{ color: f.count > 0 ? 'var(--bordeaux)' : '#94a3b8' }}>
+                          {f.count} vote{f.count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                        <div
+                          className="h-1.5 rounded-full transition-all"
+                          style={{ width: `${pct}%`, background: f.count > 0 ? 'var(--bordeaux)' : '#e2e8f0' }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
     </div>

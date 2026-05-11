@@ -2,6 +2,46 @@ import { useState, useEffect } from 'react'
 
 const FEATURES = [
   {
+    feature_key: 'analyser-consigne',
+    categorie: 'Outils pédagogiques',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        <line x1="11" y1="8" x2="11" y2="14"/>
+        <line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+    ),
+    titre: 'Analyser une consigne',
+    description: 'Collez n\'importe quelle consigne — A-SCHOOL détecte les ambiguïtés, les étapes implicites, les mots à double sens et les risques d\'erreur typiques. Résultat : une version clarifiée, précise et didactiquement solide.',
+  },
+  {
+    feature_key: 'verifier-evaluation',
+    categorie: 'Outils pédagogiques',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M9 11l3 3L22 4"/>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    ),
+    titre: 'Vérifier une évaluation',
+    description: 'Soumettez une évaluation existante — A-SCHOOL détecte les questions qui mesurent autre chose que ce qu\'elles prétendent évaluer, les biais de difficulté et les formulations anxiogènes. Une version corrigée est générée automatiquement.',
+  },
+  {
+    feature_key: 'quiz-interactif',
+    categorie: 'Autre',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    ),
+    titre: 'Quiz interactif élèves',
+    description: 'Générez un quiz depuis une activité, partagez un lien à vos élèves, et suivez leurs réponses en direct sur votre écran. Sans inscription pour les élèves — un simple lien suffit.',
+  },
+  {
+    feature_key: 'app-mobile',
+    categorie: 'Autre',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
@@ -9,19 +49,11 @@ const FEATURES = [
       </svg>
     ),
     titre: 'Application mobile',
-    description: 'A-SCHOOL directement sur votre téléphone. Générez des activités depuis n\'importe où, même sans ordinateur.',
+    description: 'A-SCHOOL directement sur votre téléphone ou tablette. Générez des activités depuis n\'importe où, même sans ordinateur.',
   },
   {
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-    ),
-    titre: 'Quiz interactif',
-    description: 'Créez un quiz, partagez un lien à vos élèves, et suivez leurs réponses en direct depuis votre écran. Outil de diagnostic rapide, sans inscription pour les élèves.',
-  },
-  {
+    feature_key: 'escape-game',
+    categorie: 'Autre',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2-.2-2.8-.9-.9-2.1-.9-2.8-.2z"/>
@@ -40,6 +72,34 @@ export default function BientotDisponible() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [erreur, setErreur] = useState(false)
+  const [votes, setVotes] = useState({})
+  const [mesVotes, setMesVotes] = useState([])
+
+  useEffect(() => {
+    fetch('/api/feature-votes', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) { setVotes(d.votes); setMesVotes(d.mes_votes) } })
+      .catch(() => {})
+  }, [])
+
+  async function handleVote(feature_key) {
+    const voted = mesVotes.includes(feature_key)
+    setMesVotes(prev => voted ? prev.filter(k => k !== feature_key) : [...prev, feature_key])
+    setVotes(prev => ({ ...prev, [feature_key]: (prev[feature_key] || 0) + (voted ? -1 : 1) }))
+    try {
+      const r = await fetch('/api/feature-vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ feature_key }),
+      })
+      if (r.ok) {
+        const d = await r.json()
+        setVotes(prev => ({ ...prev, [feature_key]: d.count }))
+        setMesVotes(prev => d.voted ? [...new Set([...prev, feature_key])] : prev.filter(k => k !== feature_key))
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     if (!sent) return
@@ -72,44 +132,6 @@ export default function BientotDisponible() {
         <p className="text-xs text-gray-400">
           Les fonctionnalités en cours de développement — elles arrivent prochainement sur A-SCHOOL.
         </p>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        {FEATURES.map(f => (
-          <div
-            key={f.titre}
-            className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-4 flex items-start gap-4"
-          >
-            <div style={{
-              flexShrink: 0,
-              width: 40, height: 40,
-              borderRadius: 10,
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#2563eb',
-            }}>
-              {f.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-800">{f.titre}</span>
-                <span style={{
-                  fontSize: 10, fontWeight: 600,
-                  color: '#2563eb', background: '#eff6ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 99, padding: '1px 8px',
-                  textTransform: 'uppercase', letterSpacing: '0.04em',
-                }}>
-                  Prochainement
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1" style={{ lineHeight: 1.55 }}>
-                {f.description}
-              </p>
-            </div>
-          </div>
-        ))}
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-4 flex flex-col gap-3">
@@ -150,6 +172,82 @@ export default function BientotDisponible() {
             </button>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-4 flex flex-col gap-5">
+        <div>
+          <div className="text-sm font-semibold text-gray-800">Nos idées à nous</div>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Les fonctionnalités en cours de développement — elles arrivent prochainement sur A-SCHOOL.
+          </p>
+        </div>
+
+        {['Outils pédagogiques', 'Autre'].map(cat => (
+          <div key={cat} className="flex flex-col gap-3">
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {cat}
+            </div>
+            {FEATURES.filter(f => f.categorie === cat).map(f => (
+              <div
+                key={f.titre}
+                className="rounded-lg border border-gray-100 px-4 py-3 flex items-start gap-4"
+                style={{ background: '#fafafa' }}
+              >
+                <div style={{
+                  flexShrink: 0,
+                  width: 38, height: 38,
+                  borderRadius: 9,
+                  background: cat === 'Outils pédagogiques' ? '#f5f3ff' : '#eff6ff',
+                  border: `1px solid ${cat === 'Outils pédagogiques' ? '#c4b5fd' : '#bfdbfe'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: cat === 'Outils pédagogiques' ? '#7c3aed' : '#2563eb',
+                }}>
+                  {f.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-gray-800">{f.titre}</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600,
+                      color: cat === 'Outils pédagogiques' ? '#7c3aed' : '#2563eb',
+                      background: cat === 'Outils pédagogiques' ? '#f5f3ff' : '#eff6ff',
+                      border: `1px solid ${cat === 'Outils pédagogiques' ? '#c4b5fd' : '#bfdbfe'}`,
+                      borderRadius: 99, padding: '1px 8px',
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                    }}>
+                      Prochainement
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between gap-3 mt-1">
+                    <p className="text-xs text-gray-500 flex-1" style={{ lineHeight: 1.55 }}>
+                      {f.description}
+                    </p>
+                    <button
+                      onClick={() => handleVote(f.feature_key)}
+                      title={mesVotes.includes(f.feature_key) ? 'Retirer mon vote' : 'Je veux cette fonctionnalité'}
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '4px 11px', fontSize: 12, fontWeight: 700,
+                        border: `1.5px solid ${mesVotes.includes(f.feature_key) ? 'var(--bordeaux)' : '#e2e8f0'}`,
+                        borderRadius: 99,
+                        background: mesVotes.includes(f.feature_key) ? '#fff0f0' : '#f8fafc',
+                        color: mesVotes.includes(f.feature_key) ? 'var(--bordeaux)' : '#94a3b8',
+                        cursor: 'pointer',
+                        transition: 'all .15s',
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill={mesVotes.includes(f.feature_key) ? 'var(--bordeaux)' : 'none'} stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="18 15 12 9 6 15"/>
+                      </svg>
+                      {votes[f.feature_key] || 0}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
 
     </div>

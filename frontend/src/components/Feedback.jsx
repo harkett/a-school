@@ -119,16 +119,11 @@ export default function Feedback({ onClose }) {
               </button>
               <button
                 type="submit"
+                className="btn-primary"
                 disabled={!canSubmit || loading}
-                title="Envoyer votre feedback"
-                className="px-5 py-2 text-sm font-medium rounded"
-                style={{
-                  background: canSubmit && !loading ? 'var(--bleu)' : '#9ca3af',
-                  border: 'none',
-                  cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
-                  color: 'white',
-                }}
+                title={!canSubmit ? 'Remplissez le message avant d\'envoyer' : 'Envoyer votre feedback à l\'équipe A-SCHOOL'}
               >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {loading ? 'Envoi…' : 'Envoyer'}
               </button>
             </div>

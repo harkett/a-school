@@ -13,6 +13,9 @@ import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import Bibliotheque from './components/Bibliotheque'
 import BientotDisponible from './components/BientotDisponible'
+import Accueil from './components/Accueil'
+import SequenceForm from './components/SequenceForm'
+import Optimiseur from './components/Optimiseur'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
 import Login from './pages/Login'
@@ -53,43 +56,6 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
-const TIPS = [
-  {
-    texte: 'Si votre navigateur propose de traduire cette page, choisissez « Ne jamais traduire ce site ». La traduction automatique perturbe la génération des activités.',
-    lien: { label: 'Pourquoi ?' },
-    modal: {
-      titre: 'Pourquoi ne pas traduire la page ?',
-      lignes: [
-        'La traduction automatique modifie le texte source et les consignes — A-SCHOOL reçoit alors des mots incorrects et génère des activités incohérentes ou vides.',
-        'La page A-SCHOOL est entièrement en français : la traduction n\'apporte rien et perturbe tout.',
-        '— Chrome : clic droit sur la page → « Traduire en français » → choisissez « Ne jamais traduire ce site ».',
-        '— Edge : cliquez sur l\'icône de traduction dans la barre d\'adresse → « Ne jamais traduire ce site ».',
-      ],
-    },
-  },
-  {
-    texte: 'A-SCHOOL apprend votre style : plus vous sauvegardez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
-    lien: { label: 'En savoir plus' },
-    modal: {
-      titre: 'Comment A-SCHOOL apprend votre style ?',
-      lignes: [
-        'À chaque sauvegarde, A-SCHOOL conserve votre activité comme exemple.',
-        'À partir de la 3ème sauvegarde d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
-        'Cela fonctionne par type d\'activité : vos exemples de QCM n\'influencent pas vos résumés, et inversement.',
-        'Plus vous sauvegardez, plus les activités générées vous ressemblent.',
-      ],
-    },
-  },
-  { texte: 'Cliquez sur « Ajuster pour cette activité » pour changer la matière ou le niveau ponctuellement, sans modifier votre profil.' },
-  { texte: 'Votre niveau par défaut est mémorisé d\'une session à l\'autre — vous n\'avez pas à le resélectionner à chaque connexion.' },
-  { texte: 'L\'option « Avec correction » génère automatiquement un corrigé sous l\'activité.' },
-  { texte: 'Depuis « Mes activités », rechargez une activité précédente et régénérez-la avec un nouveau texte source.' },
-  { texte: 'Complétez votre profil (matière, niveau par défaut) pour que A-SCHOOL s\'adapte à votre contexte dès la connexion.' },
-  { texte: 'La précision « Mélange » demande à A-SCHOOL de combiner tous les types disponibles pour cette activité. Le détail des types combinés s\'affiche sous le sélecteur.' },
-  { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez le texte dans A-SCHOOL.' },
-  { texte: 'Problème de connexion persistant malgré un identifiant correct ? Supprimez les cookies du site : dans Edge ou Chrome, appuyez sur F12, allez dans l\'onglet Application, puis Cookies, et supprimez tous les cookies de cette page.' },
-]
-
 const INACTIVITY_MS = 2 * 60 * 60 * 1000
 const WARNING_SECS  = 300
 
@@ -112,10 +78,9 @@ function MainApp() {
   const [erreur, setErreur] = useState(null)
   const [sessionMatiere, setSessionMatiere] = useState(matiere)
   const [toast, setToast] = useState(null)
-  const [tipIndex, setTipIndex] = useState(
-    () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
-  )
-  const [tipModal, setTipModal] = useState(null)
+  const [formVisible, setFormVisible] = useState(false)
+  const [seqFormVisible, setSeqFormVisible] = useState(false)
+  const [selectedCard, setSelectedCard] = useState('activite')
   const [inactivityWarning, setInactivityWarning] = useState(false)
   const [countdown, setCountdown] = useState(WARNING_SECS)
   const timerRef  = useRef(null)
@@ -198,14 +163,6 @@ function MainApp() {
     const t = setTimeout(() => setToast(null), 6000)
     return () => clearTimeout(t)
   }, [toast])
-
-  function goTip(dir) {
-    setTipIndex(i => {
-      const next = (i + dir + TIPS.length) % TIPS.length
-      localStorage.setItem('aschool_tip_index', String(next))
-      return next
-    })
-  }
 
   useEffect(() => {
     setSessionMatiere(matiere)
@@ -314,7 +271,7 @@ function MainApp() {
       avec_correction: act.avec_correction,
     })
     setResultat(act.resultat)
-    setPage('accueil')
+    setPage('mes-outils')
   }
 
   return (
@@ -325,9 +282,10 @@ function MainApp() {
         prenom={user?.prenom}
         nom={user?.nom}
         onLogout={logout}
+        onNavigate={setPage}
       />
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
 
         <main className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
@@ -338,61 +296,286 @@ function MainApp() {
           )}
 
           {page === 'accueil' && (
-            <>
-              <div style={{
-                background: '#f5f3ff',
-                border: '1px solid #c4b5fd',
-                borderRadius: '6px',
-                padding: '7px 12px',
-                fontSize: '12.5px',
-                color: '#5b21b6',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-              }}>
-                <span style={{ fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#7c3aed' }}>
-                  Truc &amp; astuce
-                </span>
-                <span style={{ color: '#a78bfa', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  {tipIndex + 1} / {TIPS.length}
-                </span>
-                <span style={{ flex: 1 }}>
-                  {TIPS[tipIndex].texte}
-                  {TIPS[tipIndex].lien && (
-                    <>{' '}<button onClick={() => setTipModal(TIPS[tipIndex].modal)} style={{ background: 'none', border: 'none', padding: 0, color: '#5b21b6', textDecoration: 'underline', cursor: 'pointer', fontSize: '12.5px' }}>{TIPS[tipIndex].lien.label}</button></>
-                  )}
-                </span>
-                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                  <button onClick={() => goTip(-1)} title="Conseil précédent" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  </button>
-                  <button onClick={() => goTip(1)} title="Conseil suivant" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
-                </div>
-              </div>
+            <Accueil
+              user={user}
+              matiereLabel={matiereLabel}
+              niveau={params.niveau}
+              onNavigate={setPage}
+              onCharger={chargerActivite}
+            />
+          )}
 
-              <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} />
-              {activites.length > 0 && (
-                <Parametres
-                  activites={activites}
-                  params={params}
-                  onChange={setParamsWithSave}
-                  onGenerer={generer}
-                  loading={loading}
-                  hasResultat={!!resultat}
-                  canGenerer={!!texte.trim() && !!params.activite_key}
-                  onFeedback={() => setShowFeedback(true)}
-                  sessionMatiere={sessionMatiere}
-                  onMatiereChange={setSessionMatiere}
-                />
+          {page === 'mes-outils' && (
+            <>
+              {/* Que voulez-vous faire ? */}
+              {(() => {
+                const S = { fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }
+                const UL = { margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }
+                const SUB = { marginTop: '4px', paddingLeft: '14px', display: 'flex', flexDirection: 'column', gap: '2px', listStyleType: 'circle', fontSize: '13px', color: '#374151', lineHeight: 1.6 }
+                const HR = { border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }
+                const TUTOS = {
+                  activite: {
+                    titre: 'Créer une activité — tout ce que vous pouvez faire',
+                    contenu: (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <div style={S}>1. Fournissez un texte source — 3 options</div>
+                          <ul style={UL}>
+                            <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
+                            <li>Dictez à la voix grâce au micro intégré — A-SCHOOL transcrit automatiquement</li>
+                            <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>2. Configurez les paramètres</div>
+                          <ul style={UL}>
+                            <li>
+                              <strong>Type d'activité</strong> — varie selon la matière :
+                              <ul style={SUB}>
+                                <li>Questions de compréhension</li>
+                                <li>Analyse de texte / document</li>
+                                <li>Résumé / synthèse</li>
+                                <li>Production d'écrit</li>
+                                <li>Fiche de révision</li>
+                                <li>Exercices de vocabulaire</li>
+                                <li style={{ color: '#94a3b8', fontStyle: 'italic' }}>et d'autres selon la matière…</li>
+                              </ul>
+                            </li>
+                            <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
+                            <li><strong>Nombre de questions</strong> — disponible selon le type choisi</li>
+                            <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>3. Exploitez le résultat</div>
+                          <ul style={UL}>
+                            <li>Cliquez sur "Générer" — activité prête en quelques secondes</li>
+                            <li>Régénérez sans hésiter — chaque génération est différente</li>
+                            <li>Sauvegardez dans "Mes activités" — rechargeable en un clic à tout moment</li>
+                            <li>Partagez par email avec un collègue depuis le résultat</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748b', background: '#f8fafc', borderRadius: '6px', padding: '8px 12px', lineHeight: 1.6, borderLeft: '3px solid #cbd5e1' }}>
+                          A-SCHOOL apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
+                        </p>
+                      </div>
+                    ),
+                  },
+                  sequence: {
+                    titre: 'Créer une séquence — ce que la fonctionnalité fera',
+                    contenu: (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <div style={S}>1. Décrivez votre objectif pédagogique</div>
+                          <ul style={UL}>
+                            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séquence</li>
+                            <li>Précisez le contexte : nombre de séances, durée totale, contraintes éventuelles</li>
+                            <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>2. Paramétrez la structure</div>
+                          <ul style={UL}>
+                            <li><strong>Nombre de phases ou de séances</strong> — A-SCHOOL répartit les apprentissages</li>
+                            <li>
+                              <strong>Types de phases à inclure</strong> :
+                              <ul style={SUB}>
+                                <li>Découverte / mise en situation</li>
+                                <li>Structuration des connaissances</li>
+                                <li>Entraînement / exercices</li>
+                                <li>Synthèse / bilan</li>
+                                <li>Évaluation finale</li>
+                              </ul>
+                            </li>
+                            <li><strong>Avec ou sans corrigé enseignant</strong> pour chaque phase</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>3. A-SCHOOL génère la séquence complète</div>
+                          <ul style={UL}>
+                            <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
+                            <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
+                            <li>Ancrage mémoriel intégré : synthèse, révision et bilan prévus dans la structure</li>
+                            <li>Séquence exportable et partageable avec des collègues</li>
+                          </ul>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  optimiseur: {
+                    titre: 'Améliorer une séquence — comment ça fonctionne',
+                    contenu: (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <div style={S}>1. Soumettez votre séquence</div>
+                          <ul style={UL}>
+                            <li>Collez une séquence existante — planning de cours, progression rédigée, fichier de préparation</li>
+                            <li>Un bouton "Tester sur un exemple" permet de découvrir la fonctionnalité sans séquence sous la main</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>2. A-SCHOOL analyse sur 6 critères</div>
+                          <ul style={UL}>
+                            <li>Rupture conceptuelle — une phase suppose une notion non encore construite</li>
+                            <li>Surcharge cognitive — trop de notions nouvelles sur un temps trop court</li>
+                            <li>Consigne ambiguë — formulation pouvant être mal interprétée</li>
+                            <li>Activité inefficace — exercice sans lien réel avec l'objectif déclaré</li>
+                            <li>Progression déséquilibrée — phases trop courtes ou trop longues</li>
+                            <li>Ancrage mémoriel manquant — pas de consolidation avant l'évaluation</li>
+                          </ul>
+                        </div>
+                        <hr style={HR} />
+                        <div>
+                          <div style={S}>3. Récupérez le résultat</div>
+                          <ul style={UL}>
+                            <li>Un score global : Bon · Moyen · À revoir</li>
+                            <li>La liste des problèmes détectés avec leur description précise</li>
+                            <li>La séquence réécrite avec toutes les corrections intégrées</li>
+                          </ul>
+                        </div>
+                      </div>
+                    ),
+                  },
+                }
+                const tuto = TUTOS[selectedCard] || TUTOS.activite
+                function selectCard(id) {
+                  setSelectedCard(id)
+                  if (id !== 'activite') setFormVisible(false)
+                  if (id !== 'sequence') setSeqFormVisible(false)
+                }
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Que voulez-vous faire ?
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+
+                      {/* Carte 1 — Créer une activité */}
+                      <div
+                        onClick={() => selectCard('activite')}
+                        style={{ flex: 1, background: '#fff', border: `2px solid ${selectedCard === 'activite' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'activite' ? 'var(--bordeaux)' : '#1e293b' }}>Créer une activité</span>
+                          {selectedCard === 'activite' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+                          Un sujet ou un texte → une activité prête à l'emploi (résumé, analyse, exercice…)
+                        </p>
+                        <div className="flex justify-end" style={{ marginTop: 'auto' }}>
+                          <button
+                            className="btn-primary"
+                            onClick={e => { e.stopPropagation(); setFormVisible(true); setSelectedCard('activite') }}
+                            title="Commencer à créer une activité pédagogique"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            Commencer
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Carte 2 — Créer une séquence */}
+                      <div
+                        onClick={() => selectCard('sequence')}
+                        style={{ flex: 1, background: selectedCard === 'sequence' ? '#fff' : '#f8fafc', border: `${selectedCard === 'sequence' ? '2' : '1'}px solid ${selectedCard === 'sequence' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', opacity: selectedCard === 'sequence' ? 1 : 0.6, cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'sequence' ? 'var(--bordeaux)' : '#475569' }}>Créer une séquence</span>
+                          {selectedCard === 'sequence' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
+                        </div>
+                        <p style={{ fontSize: '12px', color: selectedCard === 'sequence' ? '#64748b' : '#94a3b8', margin: 0, lineHeight: 1.5, flex: 1 }}>
+                          Un objectif pédagogique → séquence complète structurée de A à Z
+                        </p>
+                        <div className="flex justify-end" style={{ marginTop: 'auto' }}>
+                          <button
+                            className="btn-primary"
+                            onClick={e => { e.stopPropagation(); setSeqFormVisible(true); setFormVisible(false); setSelectedCard('sequence') }}
+                            title="Commencer à créer une séquence pédagogique"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            Commencer
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Carte 3 — Améliorer une séquence */}
+                      <div
+                        onClick={() => selectCard('optimiseur')}
+                        style={{ flex: 1, background: '#fff', border: `${selectedCard === 'optimiseur' ? '2' : '1'}px solid ${selectedCard === 'optimiseur' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'optimiseur' ? 'var(--bordeaux)' : '#1e293b' }}>Améliorer une séquence</span>
+                          {selectedCard === 'optimiseur' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5, flex: 1 }}>
+                          Collez une séquence existante → A-SCHOOL la corrige et l'optimise
+                        </p>
+                        <div className="flex justify-end" style={{ marginTop: 'auto' }}>
+                          <button
+                            className="btn-primary"
+                            onClick={e => { e.stopPropagation(); setPage('optimiseur') }}
+                            title="Commencer à améliorer une séquence pédagogique existante"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            Commencer
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Tutoriel */}
+                    {!formVisible && !seqFormVisible && (
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '18px 20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '14px' }}>{tuto.titre}</div>
+                        {tuto.contenu}
+                      </div>
+                    )}
+
+                    {/* Formulaire séquence */}
+                    {seqFormVisible && selectedCard === 'sequence' && (
+                      <SequenceForm
+                        matiere={sessionMatiere}
+                        niveau={params.niveau}
+                        onNavigate={setPage}
+                      />
+                    )}
+                  </div>
+                )
+              })()}
+
+
+              {formVisible && (
+                <>
+                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} />
+                  {activites.length > 0 && (
+                    <Parametres
+                      activites={activites}
+                      params={params}
+                      onChange={setParamsWithSave}
+                      onGenerer={generer}
+                      loading={loading}
+                      hasResultat={!!resultat}
+                      canGenerer={!!texte.trim() && !!params.activite_key}
+                      onFeedback={() => setShowFeedback(true)}
+                      sessionMatiere={sessionMatiere}
+                      onMatiereChange={setSessionMatiere}
+                    />
+                  )}
+                  <ZoneResultat
+                    resultat={resultat}
+                    onRegenerer={generer}
+                    loading={loading}
+                    email={user?.email}
+                  />
+                </>
               )}
-              <ZoneResultat
-                resultat={resultat}
-                onRegenerer={generer}
-                loading={loading}
-                email={user?.email}
-              />
             </>
           )}
 
@@ -410,6 +593,14 @@ function MainApp() {
               onCharger={chargerActivite}
               sessionMatiere={sessionMatiere}
               sessionNiveau={params.niveau}
+            />
+          )}
+
+          {page === 'optimiseur' && (
+            <Optimiseur
+              defaultMatiere={sessionMatiere}
+              defaultNiveau={params.niveau}
+              onNavigate={setPage}
             />
           )}
 
@@ -432,30 +623,6 @@ function MainApp() {
       <Footer />
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
-
-      {tipModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600 }}
-          onClick={e => { if (e.target === e.currentTarget) setTipModal(null) }}
-        >
-          <div style={{ background: '#fff', borderRadius: '10px', padding: '24px', width: '420px', maxWidth: '92vw', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#3b0764' }}>{tipModal.titre}</div>
-              <button onClick={() => setTipModal(null)} title="Fermer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '18px', lineHeight: 1, flexShrink: 0, padding: '0 2px' }}>×</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {tipModal.lignes.map((l, i) => (
-                <p key={i} style={{ fontSize: '13px', color: '#374151', lineHeight: 1.6, margin: 0 }}>{l}</p>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setTipModal(null)} title="Fermer cette explication" style={{ padding: '7px 20px', fontSize: '13px', borderRadius: '6px', border: 'none', background: '#5b21b6', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                Compris
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {inactivityWarning && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
