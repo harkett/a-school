@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 import { useAuth } from '../context/AuthContext'
 import EyeIcon from '../components/EyeIcon'
 
@@ -16,6 +17,7 @@ export default function Login() {
   const [erreur, setErreur] = useState(null)
   const [showPwd, setShowPwd] = useState(false)
   const [resendStatus, setResendStatus] = useState(null) // null | 'sending' | 'sent'
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
 
 
   async function handleSubmit(e) {
@@ -24,7 +26,7 @@ export default function Login() {
     setErreur(null)
     const trimmed = email.trim()
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetchWithTimeout('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -46,11 +48,11 @@ export default function Login() {
   async function handleResend() {
     setResendStatus('sending')
     try {
-      await fetch('/api/auth/resend-verification', {
+      await fetchWithTimeout('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
-      })
+      }, TIMEOUT_AUTH)
     } catch { /* silencieux */ }
     setResendStatus('sent')
   }
@@ -72,6 +74,12 @@ export default function Login() {
           <p className="text-sm text-gray-500 mb-6">
             Accédez à votre espace aSchool.
           </p>
+
+          {isPWA && !deconnecteForce && !deconnecteInactivite && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#1e40af' }}>
+              Première ouverture de l'application ? Connectez-vous pour démarrer — votre session restera active 30 jours.
+            </div>
+          )}
 
           {deconnecteForce && (
             <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#991b1b' }}>

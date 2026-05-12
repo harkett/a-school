@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const ETOILES = r => '★'.repeat(r) + '☆'.repeat(5 - r)
 const COULEUR = { 5: '#16a34a', 4: '#65a30d', 3: '#ca8a04', 2: '#ea580c', 1: '#dc2626' }
@@ -59,7 +60,7 @@ export default function AdminFeedbacks() {
     : feedbacks.filter(f => (f.statut || 'nouveau') === filtre)
 
   async function changerStatut(id, statut) {
-    await fetch(`/api/admin/feedbacks/${id}/statut`, {
+    await fetchWithTimeout(`/api/admin/feedbacks/${id}/statut`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',

@@ -20,7 +20,8 @@
       "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/components/Header.jsx)",
       "Bash(git -C \"D:\\\\A-SCHOOL\" ls-files frontend/public/ Logo_aSchool/)",
       "Bash(git -C \"D:\\\\A-SCHOOL\" show HEAD:frontend/src/components/Sidebar.jsx)",
-      "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/)"
+      "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/)",
+      "Bash(npm install *)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL"

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const IconShare = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -71,7 +72,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   async function togglePartage(id, newValue) {
     setToggling(id)
     try {
-      const res = await fetch(`/api/mes-activites/${id}`, {
+      const res = await fetchWithTimeout(`/api/mes-activites/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -35,6 +35,7 @@ with engine.connect() as _conn:
         "ALTER TABLE activites_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
         "CREATE TABLE IF NOT EXISTS fiches_matieres (id INTEGER PRIMARY KEY AUTOINCREMENT, matiere_key VARCHAR(64) NOT NULL UNIQUE, statut VARCHAR(16) NOT NULL DEFAULT 'brouillon', accroche TEXT, pour_qui TEXT, ameliorations TEXT, updated_at DATETIME, updated_by VARCHAR(255))",
         "CREATE TABLE IF NOT EXISTS feature_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email VARCHAR(255) NOT NULL, feature_key VARCHAR(64) NOT NULL, created_at DATETIME, UNIQUE(user_email, feature_key))",
+        "CREATE TABLE IF NOT EXISTS tool_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email VARCHAR(255) NOT NULL, tool VARCHAR(32) NOT NULL, score_label VARCHAR(32), created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)",
     ]:
         try:
             _conn.execute(text(_col))

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 const SEP = { separator: true }
 
@@ -107,10 +108,11 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to:    '/admin/analytique',
-    label: 'Analytique',
-    aide:  'Tableau statistique : activités par prof, par matière, par niveau et par type. Vue complète de l\'usage de la plateforme.',
-    icon:  (
+    group:  true,
+    label:  'Analytique',
+    prefix: '/admin/analytique',
+    aide:   'Statistiques et analyses de la plateforme.',
+    icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/>
         <line x1="12" y1="20" x2="12" y2="4"/>
@@ -118,6 +120,12 @@ const NAV_ITEMS = [
         <line x1="2"  y1="20" x2="22" y2="20"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/analytique/general',    label: 'Vue générale',  aide: 'KPIs globaux : activités, outils, communauté.' },
+      { to: '/admin/analytique/activites',  label: 'Activités',     aide: 'Détail par prof, matière, niveau et type.' },
+      { to: '/admin/analytique/outils',     label: 'Outils',        aide: 'Utilisation de Séquence et Optimiseur.' },
+      { to: '/admin/analytique/communaute', label: 'Communauté',    aide: 'Activités partagées — contributeurs et top types.' },
+    ],
   },
   SEP,
   // — Accès & sécurité —
@@ -239,7 +247,7 @@ export default function AdminLayout() {
   }, [checked])
 
   async function logout() {
-    await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
+    await fetchWithTimeout('/api/admin/logout', { method: 'POST', credentials: 'include' }, TIMEOUT_AUTH)
     navigate('/admin/login')
   }
 
@@ -271,6 +279,61 @@ export default function AdminLayout() {
             if (item.separator) return (
               <div key={`sep-${i}`} style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '6px 4px' }} />
             )
+
+            if (item.group) {
+              const isGroupActive = location.pathname.startsWith(item.prefix)
+              return (
+                <div key={`group-${i}`}>
+                  <div
+                    onClick={!isGroupActive ? () => navigate(item.items[0].to) : undefined}
+                    title={item.aide}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 12px', borderRadius: 8, marginBottom: 2,
+                      fontSize: 13, fontWeight: isGroupActive ? 600 : 400,
+                      color: isGroupActive ? 'white' : 'rgba(255,255,255,0.55)',
+                      background: isGroupActive ? 'rgba(255,255,255,0.07)' : 'transparent',
+                      borderLeft: isGroupActive ? '3px solid #3b82f6' : '3px solid transparent',
+                      cursor: isGroupActive ? 'default' : 'pointer',
+                    }}
+                    onMouseEnter={e => { if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
+                    onMouseLeave={e => { if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.55)' }}
+                  >
+                    <span style={{ opacity: isGroupActive ? 1 : 0.7 }}>{item.icon}</span>
+                    <span>{item.label}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                      {isGroupActive ? '▾' : '▸'}
+                    </span>
+                  </div>
+                  {isGroupActive && item.items.map(sub => {
+                    const isSubActive = location.pathname === sub.to
+                    return (
+                      <Link
+                        key={sub.to}
+                        to={sub.to}
+                        title={sub.aide}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '7px 12px 7px 34px', borderRadius: 8, marginBottom: 2,
+                          fontSize: 12, fontWeight: isSubActive ? 600 : 400,
+                          color: isSubActive ? 'white' : 'rgba(255,255,255,0.5)',
+                          background: isSubActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                          textDecoration: 'none',
+                          borderLeft: isSubActive ? '3px solid #60a5fa' : '3px solid transparent',
+                          transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
+                        onMouseLeave={e => { if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.5)' }}
+                      >
+                        <span style={{ fontSize: 16, opacity: 0.4, lineHeight: 1 }}>·</span>
+                        {sub.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )
+            }
+
             const isActive = !item.external && location.pathname === item.to
             const style = {
               display:        'flex',

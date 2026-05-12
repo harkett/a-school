@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 const AuthContext = createContext(null)
 
@@ -8,19 +9,18 @@ export function AuthProvider({ children }) {
 
   const checkAuth = useCallback(async () => {
     try {
-      let r = await fetch('/api/auth/me', { credentials: 'include' })
+      let r = await fetchWithTimeout('/api/auth/me', { credentials: 'include' }, TIMEOUT_AUTH)
       if (r.ok) {
         setUser(await r.json())
         return
       }
       if (r.status === 401) {
-        // Try to refresh silently
-        const ref = await fetch('/api/auth/refresh', {
+        const ref = await fetchWithTimeout('/api/auth/refresh', {
           method: 'POST',
           credentials: 'include',
-        })
+        }, TIMEOUT_AUTH)
         if (ref.ok) {
-          r = await fetch('/api/auth/me', { credentials: 'include' })
+          r = await fetchWithTimeout('/api/auth/me', { credentials: 'include' }, TIMEOUT_AUTH)
           if (r.ok) {
             setUser(await r.json())
             return
@@ -39,14 +39,37 @@ export function AuthProvider({ children }) {
     checkAuth()
     // Refresh proactively every 10 min so the access token never expires mid-session
     const id = setInterval(() => {
-      fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+      fetchWithTimeout('/api/auth/refresh', { method: 'POST', credentials: 'include' }, TIMEOUT_AUTH)
     }, 10 * 60 * 1000)
     return () => clearInterval(id)
   }, [checkAuth])
 
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key === 'logout') window.location.replace('/login')
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  useEffect(() => {
+    function onPageShow(e) {
+      if (e.persisted) checkAuth()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [checkAuth])
+
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
-    setUser(null)
+    try {
+      await fetchWithTimeout('/api/auth/logout', { method: 'POST', credentials: 'include' }, TIMEOUT_AUTH)
+    } catch {
+      // force la sortie locale même si le serveur ne répond pas
+    }
+    localStorage.setItem('logout', Date.now()) // signal cross-tab avant clear
+    localStorage.clear()
+    sessionStorage.clear()
+    window.location.replace('/login')
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const FEATURES = [
   {
@@ -87,7 +88,7 @@ export default function BientotDisponible() {
     setMesVotes(prev => voted ? prev.filter(k => k !== feature_key) : [...prev, feature_key])
     setVotes(prev => ({ ...prev, [feature_key]: (prev[feature_key] || 0) + (voted ? -1 : 1) }))
     try {
-      const r = await fetch('/api/feature-vote', {
+      const r = await fetchWithTimeout('/api/feature-vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -111,7 +112,7 @@ export default function BientotDisponible() {
     if (!idee.trim()) { setErreur(true); return }
     setSending(true)
     try {
-      await fetch('/api/feedback', {
+      await fetchWithTimeout('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

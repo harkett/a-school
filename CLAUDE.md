@@ -1,4 +1,4 @@
-# CLAUDE.md — Règles permanentes A-SCHOOL
+# CLAUDE.md — Règles permanentes aSchool
 
 > Ce fichier est lu automatiquement à chaque session. Ces règles s'appliquent sans exception.
 
@@ -26,8 +26,8 @@ Streamlit a été abandonné définitivement le 24/04/2026. Le projet tourne sur
 ## SMTP — Règles absolues
 
 - Ne jamais changer de fournisseur SMTP sans demande explicite
-- `SMTP_FROM` = `A-SCHOOL <contact@aschool.fr>` (emails vers les profs)
-- `FEEDBACK_FROM` = `A-SCHOOL Feedback <feedback@aschool.fr>` (notifications admin)
+- `SMTP_FROM` = `aSchool <contact@aschool.fr>` (emails vers les profs)
+- `FEEDBACK_FROM` = `aSchool Feedback <feedback@aschool.fr>` (notifications admin)
 - Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — ne jamais créer de connexion SMTP ailleurs
 - `feedback_client.py` est deprecated — ne jamais réutiliser
 - Voir `MesMD/EMAILS.md` avant toute modification email
@@ -53,12 +53,54 @@ Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/
 
 ---
 
-## Dossier interdit
+## Dossiers interdits
 
-Ne jamais lire `D:\A-SCHOOL\MesRessources\` — dossier personnel hors projet.
+Ne jamais lire **aucun** dossier nommé `Ressources/` ou `MesRessources/` dans n'importe quel projet. Ce sont des poubelles personnelles qui induisent en erreur. La règle s'applique à tous les chemins, pas seulement `D:\A-SCHOOL\MesRessources\`.
 
 ---
 
 ## Workflow obligatoire
 
 Proposer → valider → coder → tester. Ne jamais coder sans validation explicite de l'utilisateur.
+
+---
+
+## Nom du produit — aSchool
+
+Le nom affiché dans toute l'interface, les textes, les boutons et les messages est **aSchool** (a minuscule, S majuscule). Jamais "A-SCHOOL", jamais "IA".
+
+---
+
+## Bulles d'aide — Règle absolue
+
+Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..."` décrivant ce qu'il fait. Sans exception. Vérifier également que le texte est lisible : `color: white !important` sur tout fond foncé.
+
+---
+
+## TRACKER.md — Source unique de vérité
+
+`MesMD/TRACKER.md` est le seul endroit où sont tracés statut, idées et avancement. Règles :
+- Toute idée mentionnée en session → notée dans TRACKER.md **immédiatement**, dans la même réponse. Pas en fin de session.
+- Jamais de cases ☐/☑ dans un autre document (specs, dashboard, mémoire).
+- En fin de session : synchroniser TRACKER.md (cocher les livrés, ajouter les nouvelles idées).
+
+---
+
+## Règles UI permanentes
+
+- **Profil = source unique** pour matière et niveau. Jamais de `<select>` matière/niveau dans les features — toujours lire depuis le profil.
+- **Bouton d'action principale** = classe `btn-primary` + icône SVG + `title=` tooltip + positionné en bas à droite. Référence : bouton "Générer l'activité" dans `Parametres.jsx`.
+- **Header** : `height: 65px`, `overflow: hidden`. **Logo** : `height: 140px`. INTOUCHABLES.
+- **Tagline** "Générateur d'activités pédagogiques" = `<span>` HTML blanc dans le header, toujours présent, jamais dans le PNG seul.
+
+---
+
+## Fournisseur IA — Règle absolue
+
+Groq (`llama-3.3-70b-versatile`) par défaut. Google Gemini banni — compte Workspace afia.fr incompatible avec le free tier.
+
+---
+
+## Secrets — Règle absolue
+
+Ne jamais afficher mots de passe, clés API ou tokens en clair dans la discussion, même si l'utilisateur le demande.

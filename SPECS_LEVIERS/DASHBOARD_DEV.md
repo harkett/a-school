@@ -1,6 +1,7 @@
 # Dashboard développeur — Leviers aSchool
 
-> Référence de session. Lire avant de coder. Se base sur les 3 documents de SPECS_LEVIERS.
+> Spec technique pure — quoi et comment coder chaque levier.
+> **Statut d'avancement → [TRACKER.md](../MesMD/TRACKER.md)** — ne jamais dupliquer le statut ici.
 
 ---
 
@@ -24,17 +25,16 @@ Chaque levier a une **double vie** :
 
 ## Les 6 leviers retenus
 
-| Statut | # | Nom | Ce que le prof fournit | Ce qu'aSchool produit | Ordre | Durée est. | Difficulté |
-|---|---|---|---|---|---|---|---|
-| ☐ | **L1** | Générateur d'orchestrations | Thème + matière + niveau + durée | Séance complète en 5-6 phases structurées | 3 | 2 sessions | Moyen |
-| ☐ | **L2** | Détecteur d'ambiguïtés cognitives | Un exercice ou un énoncé | Zones de risque d'incompréhension + reformulations | 2 | 1 session | Facile |
-| ☐ | **L3** | Optimiseur de séquences | Une séquence existante (collée) | Version améliorée + liste des problèmes détectés | **1** | **1 session** | **Facile** |
-| ☐ | **L4** | Cohérence curriculaire | Rien (automatique) | Alertes inter-disciplines + opportunités de synergie | 6 | 2-3 sessions | Difficile |
-| ☐ | **L5** | Analyseur de consignes | Une consigne seule | Analyse didactique chirurgicale + version optimisée | 4 | 1 session | Facile |
-| ☐ | **L6** | Détecteur d'équité | Une évaluation | Détection de 3 biais : contenu, difficulté, émotionnel | 5 | 1 session | Facile |
-| ☐ | **Pipeline** | Assemblage automatique | Transparent pour le prof | Rapport qualité synthétique sur chaque sortie | Progressif | Au fil des leviers | Moyen |
+| # | Nom | Ce que le prof fournit | Ce qu'aSchool produit | Ordre | Durée est. | Difficulté |
+|---|---|---|---|---|---|---|
+| **L1** | Générateur d'orchestrations | Thème + matière + niveau + durée | Séance complète en 5-6 phases structurées | 3 | 2 sessions | Moyen |
+| **L2** | Détecteur d'ambiguïtés cognitives | Un exercice ou un énoncé | Zones de risque d'incompréhension + reformulations | 2 | 1 session | Facile |
+| **L3** | Optimiseur de séquences | Une séquence existante (collée) | Version améliorée + liste des problèmes détectés | **1** | **1 session** | **Facile** |
+| **L4** | Cohérence curriculaire | Rien (automatique) | Alertes inter-disciplines + opportunités de synergie | 6 | 2-3 sessions | Difficile |
+| **L5** | Analyseur de consignes | Une consigne seule | Analyse didactique chirurgicale + version optimisée | 4 | 1 session | Facile |
+| **L6** | Détecteur d'équité | Une évaluation | Détection de 3 biais : contenu, difficulté, émotionnel | 5 | 1 session | Facile |
+| **Pipeline** | Assemblage automatique | Transparent pour le prof | Rapport qualité synthétique sur chaque sortie | Progressif | Au fil des leviers | Moyen |
 
-> **Statut :** ☐ À faire — ☑ Livré en prod
 > **Ordre :** ordre d'implémentation recommandé (1 = premier à coder)
 > **Durée est. :** 1 session ≈ 3-4h de dev effectif
 > **Difficulté :** complexité technique côté code (pas côté pédagogie)
@@ -58,14 +58,15 @@ Chaque levier a une **double vie** :
 
 Ce n'est pas une fonctionnalité visible. C'est la base de connaissances pédagogiques qui rend chaque levier plus précis.
 
-| Statut | Élément | Contenu | Alimente |
-|---|---|---|---|
-| ☐ v2 | **Élément 1** — Graphe universel des notions | Toutes les notions 6e→Terminale, leurs prérequis, dépendances, confusions possibles, mots polysémiques | L1, L2, L3, L4, L5, L6 |
-| ☐ v2 | **Élément 2** — Index erreurs typiques | Erreurs récurrentes par notion, cause cognitive, niveau scolaire | L2, L3, L5, L6, génération actuelle |
-| ☐ v2 | **Élément 3** — Index activités compatibles | Activités les plus efficaces par notion, classées par niveau Bloom | L1, L3, génération actuelle |
-| ☐ v2 | **Élément 4** — Variantes disciplinaires | Comment un même mot/concept change de sens selon la matière | L4, L2 |
+| Élément | Contenu | Alimente |
+|---|---|---|
+| **Élément 1** — Graphe universel des notions | Toutes les notions 6e→Terminale, leurs prérequis, dépendances, confusions possibles, mots polysémiques | L1, L2, L3, L4, L5, L6 |
+| **Élément 2** — Index erreurs typiques | Erreurs récurrentes par notion, cause cognitive, niveau scolaire | L2, L3, L5, L6, génération actuelle |
+| **Élément 3** — Index activités compatibles | Activités les plus efficaces par notion, classées par niveau Bloom | L1, L3, génération actuelle |
+| **Élément 4** — Variantes disciplinaires | Comment un même mot/concept change de sens selon la matière | L4, L2 |
 
-> **Statut ☐ v2** : pas encore construit — LLM Groq joue ce rôle en v1. Sera enrichi progressivement avec l'usage en production.
+> **v1 (maintenant) :** LLM Groq joue le rôle de l'infrastructure via des prompts bien conçus.
+> **v2 (progressivement) :** patterns détectés en production → base de données structurée interne.
 
 ### Stratégie d'implémentation de l'infrastructure
 
@@ -126,15 +127,17 @@ Marqué ⚠️ dans les specs. Ne pas implémenter :
 
 ## Ordre d'implémentation recommandé
 
-| Ordre | Levier | Statut | Pourquoi cet ordre |
-|---|---|---|---|
-| 1 | **L3 — Optimiseur** | ☐ | Impact immédiat — chaque prof a des séquences existantes. Priorité haute explicitée dans les specs. |
-| 2 | **L2 — Ambiguïtés** | ☐ | S'intègre naturellement sur le flux de génération existant. |
-| 3 | **L1 — Orchestrations** | ☐ | Nouvelle UI, nouveau mode d'entrée — plus lourd à développer. |
-| 4 | **L5 — Consignes** | ☐ | Chirurgical, scope étroit, rapide à ajouter après L2. |
-| 5 | **L6 — Équité** | ☐ | 3 composants clairs, périmètre borné. |
-| 6 | **L4 — Cohérence** | ☐ | Le plus complexe — nécessite les programmes officiels. En dernier. |
-| — | **Pipeline** | ☐ | S'assemble progressivement à chaque levier livré. |
+| Ordre | Levier | Pourquoi cet ordre |
+|---|---|---|
+| 1 | **L3 — Optimiseur** | Impact immédiat — chaque prof a des séquences existantes. |
+| 2 | **L2 — Ambiguïtés** | S'intègre naturellement sur le flux de génération existant. |
+| 3 | **L1 — Orchestrations** | Nouvelle UI, nouveau mode d'entrée — plus lourd à développer. |
+| 4 | **L5 — Consignes** | Chirurgical, scope étroit, rapide à ajouter après L2. |
+| 5 | **L6 — Équité** | 3 composants clairs, périmètre borné. |
+| 6 | **L4 — Cohérence** | Le plus complexe — nécessite les programmes officiels. En dernier. |
+| — | **Pipeline** | S'assemble progressivement à chaque levier livré. |
+
+> Statut de chaque levier → **[TRACKER.md](../MesMD/TRACKER.md)**
 
 ---
 

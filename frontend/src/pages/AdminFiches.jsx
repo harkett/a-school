@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
 
 const STATUT_LABELS = {
   brouillon:  { label: 'Brouillon',  bg: '#f1f5f9', color: '#64748b' },
@@ -41,7 +42,7 @@ export default function AdminFiches() {
   async function save() {
     setSaving(true)
     try {
-      const r = await fetch(`/api/admin/fiches/${encodeURIComponent(selected)}`, {
+      const r = await fetchWithTimeout(`/api/admin/fiches/${encodeURIComponent(selected)}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -68,10 +69,10 @@ export default function AdminFiches() {
   async function generer() {
     setGenerating(true)
     try {
-      const r = await fetch(`/api/admin/fiches/${encodeURIComponent(selected)}/generer`, {
+      const r = await fetchWithTimeout(`/api/admin/fiches/${encodeURIComponent(selected)}/generer`, {
         method: 'POST',
         credentials: 'include',
-      })
+      }, TIMEOUT_GROQ)
       if (!r.ok) throw new Error()
       const data = await r.json()
       setFiche(f => ({ ...f, ...data, statut: 'brouillon' }))

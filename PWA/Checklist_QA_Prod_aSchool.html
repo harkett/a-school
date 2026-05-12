@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Checklist_QA_Prod_aSchool.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="checklist-qa-production-pwa-aschool">Checklist QA Production PWA aSchool</h1>
+<h2 id="objectif">Objectif</h2>
+<p>Valider les points critiques avant mise en ligne afin d'éviter la majorité des incidents réels.
+Passer sur <strong>mobile physique</strong> (pas émulateur DevTools) — iPhone ou Android réel.</p>
+<hr>
+<h2 id="comment-utiliser-cette-checklist--scénario-réel">Comment utiliser cette checklist — scénario réel</h2>
+<p><strong>Durée : 25-35 minutes. 1 seul testeur. iPhone dans la main.</strong></p>
+<ol>
+<li>Ouvrir ce fichier sur un écran, téléphone dans l'autre main.</li>
+<li>Suivre les 10 points prioritaires dans l'ordre — ils couvrent 80% des risques réels.</li>
+<li>Compléter les 21 points si le temps le permet.</li>
+<li>Remplir la colonne &quot;Testé le / Par&quot; sur chaque ligne cochée.</li>
+</ol>
+<p><strong>Ce que cette checklist attrape que les tests unitaires ne voient pas :</strong>
+le 404 sur refresh de sous-page, le Back button après logout, la bannière iOS absente, le second onglet resté connecté.</p>
+<p><strong>Règle : un point rouge bloquant = pas de déploiement.</strong>
+Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant, noter et continuer.</p>
+<hr>
+<h2 id="checklist-21-points">Checklist (21 points)</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Point</th>
+<th>Testé le</th>
+<th>Par</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Connexion navigateur normal</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Connexion app installée (PWA)</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Déconnexion réelle (3 sous-tests)</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Installation Android</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Installation iPhone + bannière</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Icône propre</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Splash / thème couleur</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td>Refresh sur sous-page</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>9</td>
+<td>API après installation</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td>Mode hors ligne + OfflineBanner</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>11</td>
+<td>Réseau lent + timeout message</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>12</td>
+<td>Mise à jour version + UpdateBanner</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>13</td>
+<td>Responsive mobile réel</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>14</td>
+<td>Clavier mobile</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>15</td>
+<td>HTTPS strict</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>16</td>
+<td>Multi-onglets + cross-tab logout</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>17</td>
+<td>Taille bundle</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>18</td>
+<td>Cache clean logout</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>19</td>
+<td>Comptes réels / rôles</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>20</td>
+<td>Console + logs prod</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>21</td>
+<td>DevTools Application (SW + manifest)</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="détail-des-points">Détail des points</h2>
+<p><strong>1. Connexion navigateur normal</strong>
+Login + refresh de page + session persistante.
+<strong>Pourquoi :</strong> valide cookies, auth backend, CSRF.</p>
+<p><strong>2. Connexion app installée (PWA)</strong>
+Installer puis se connecter depuis l'icône écran d'accueil.
+<strong>Pourquoi :</strong> le mode standalone peut gérer différemment les cookies httpOnly.</p>
+<p><strong>3. Déconnexion réelle — 3 sous-tests obligatoires</strong></p>
+<ul>
+<li>Logout → relancer l'app → ne pas être reconnecté automatiquement</li>
+<li>Logout → bouton Back du navigateur → ne pas revenir sur une page protégée</li>
+<li>Logout dans l'onglet A → l'onglet B redirige automatiquement vers /login</li>
+</ul>
+<p><strong>Pourquoi :</strong> sessions fantômes, cache UI, historique navigateur, onglets orphelins.</p>
+<p><strong>4. Installation Android</strong>
+Vérifier bannière d'installation native + lancement depuis écran d'accueil.
+<strong>Pourquoi :</strong> manifeste, service worker, HTTPS, icônes.</p>
+<p><strong>5. Installation iPhone + bannière IOSInstallBanner</strong></p>
+<ul>
+<li>Ouvrir le dashboard connecté → attendre 5 secondes → la bannière bordeaux &quot;Installer aSchool sur iPhone&quot; apparaît</li>
+<li>Cliquer ✕ → la bannière disparaît et ne réapparaît plus (même après reload)</li>
+<li>Safari &gt; Partager &gt; Ajouter à l'écran d'accueil → app installée et fonctionnelle</li>
+</ul>
+<p><strong>Pourquoi :</strong> iOS n'a pas de popup install automatique — la bannière est le seul vecteur d'installation.</p>
+<p><strong>6. Icône propre</strong>
+Vérifier netteté sur écran d'accueil Android et iOS.
+<strong>Pourquoi :</strong> image 192/512 correcte, pas de flou ni de bords coupés.</p>
+<p><strong>7. Splash / thème couleur</strong>
+Ouvrir l'app installée depuis l'écran d'accueil.
+<strong>Pourquoi :</strong> vérifier theme_color bordeaux, background_color blanc, meta apple-mobile-web-app-capable.</p>
+<p><strong>8. Refresh sur sous-page</strong>
+Naviguer vers /mes-activites ou /profil puis F5 ou pull-to-refresh mobile.
+<strong>Pourquoi :</strong> éviter 404 React Router — le SW doit renvoyer index.html.</p>
+<p><strong>9. API après installation</strong>
+Créer, modifier, sauvegarder des données depuis l'app installée.
+<strong>Pourquoi :</strong> vérifier que le SW ne met pas en cache /api/ (NetworkOnly configuré).</p>
+<p><strong>10. Mode hors ligne + OfflineBanner</strong></p>
+<ul>
+<li>Couper réseau → relancer l'app → shell visible sans crash</li>
+<li>La bannière bordeaux &quot;Hors connexion&quot; apparaît en haut de page</li>
+<li>Tenter une génération → message d'erreur propre, pas de crash silencieux</li>
+</ul>
+<p><strong>Pourquoi :</strong> UX offline dégradée mais lisible plutôt qu'écran blanc.</p>
+<p><strong>11. Réseau lent + message timeout</strong>
+Simuler 3G lente (DevTools &gt; Network &gt; Slow 3G).
+Déclencher une génération → attendre → le message &quot;Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.&quot; apparaît après timeout.
+<strong>Pourquoi :</strong> fetchWithTimeout actif — vérifier que le message remonte bien dans l'UI.</p>
+<p><strong>12. Mise à jour version + UpdateBanner</strong></p>
+<ul>
+<li>Déployer une nouvelle build</li>
+<li>Ouvrir l'app depuis une session existante → la bannière &quot;Nouvelle version disponible&quot; apparaît</li>
+<li>Cliquer &quot;Actualiser&quot; → la page recharge sur la nouvelle version</li>
+<li>Vérifier qu'aucune ancienne session ne reste bloquée sur l'ancienne version</li>
+</ul>
+<p><strong>Pourquoi :</strong> skipWaiting + clientsClaim actifs — le SW doit prendre la main immédiatement.</p>
+<p><strong>13. Responsive mobile réel</strong>
+Tester sur iPhone et Android : login, dashboard, formulaire de génération, Mes activités, tableaux admin.
+<strong>Pourquoi :</strong> usage mobile réel, pas émulateur — les vrais profs utilisent leur téléphone.</p>
+<p><strong>14. Clavier mobile</strong>
+Saisir du texte dans les champs principaux sur iPhone et Android.
+Vérifier que les boutons d'action restent visibles quand le clavier est ouvert.
+<strong>Pourquoi :</strong> le clavier mobile réduit la hauteur visible, les boutons bottom-right peuvent disparaître.</p>
+<p><strong>15. HTTPS strict</strong>
+Vérifier cadenas dans la barre d'adresse, aucune alerte mixed content en console.
+<strong>Pourquoi :</strong> requis pour PWA + cookies Secure + SameSite.</p>
+<p><strong>16. Multi-onglets + cross-tab logout</strong></p>
+<ul>
+<li>Ouvrir deux onglets sur aSchool</li>
+<li>Se déconnecter dans l'onglet A</li>
+<li>Vérifier que l'onglet B redirige automatiquement vers /login sans action manuelle</li>
+</ul>
+<p><strong>Pourquoi :</strong> sans listener storage, les onglets orphelins restent connectés indéfiniment.</p>
+<p><strong>17. Taille bundle</strong>
+DevTools &gt; Lighthouse &gt; Performance + PWA. Vérifier score PWA ≥ 90.
+Vérifier Network &gt; JS bundle &lt; 500 Ko gzippé.
+<strong>Pourquoi :</strong> performances mobile sur réseau moyen, critère de qualité PWA.</p>
+<p><strong>18. Cache clean logout</strong>
+Logout → passer en mode hors ligne → rouvrir l'app.
+Aucune donnée utilisateur visible, aucune page protégée accessible.
+<strong>Pourquoi :</strong> vérifier que localStorage et sessionStorage sont bien vidés au logout.</p>
+<p><strong>19. Comptes réels / rôles</strong>
+Tester avec un compte enseignant réel + un compte admin.
+Vérifier que chaque rôle voit uniquement ce qu'il doit voir.
+<strong>Pourquoi :</strong> les permissions sont souvent spécifiques par rôle — un admin ne doit pas bloquer un enseignant et vice-versa.</p>
+<p><strong>20. Console + logs prod</strong></p>
+<ul>
+<li>Console navigateur : aucune erreur rouge après chaque action testée</li>
+<li>Logs Nginx VPS : aucun 5xx après les actions (génération, login, save)</li>
+</ul>
+<p><strong>Pourquoi :</strong> détecter les erreurs silencieuses côté client et les crashs backend non affichés.</p>
+<p><strong>21. DevTools Application — SW + manifest</strong>
+DevTools &gt; Application :</p>
+<ul>
+<li>Service Workers → statut &quot;activated and running&quot;, pas de &quot;waiting&quot;</li>
+<li>Manifest → aucune erreur, icônes résolues, start_url correcte</li>
+<li>Cache Storage → vérifier que /api/ n'apparaît PAS dans les caches listés</li>
+</ul>
+<p><strong>Pourquoi :</strong> 30% des bugs PWA silencieux sont détectables ici en 2 minutes.</p>
+<hr>
+<h2 id="priorité-si-seulement-10-minutes">Priorité si seulement 10 minutes</h2>
+<ol>
+<li>Login app installée</li>
+<li>Déconnexion — les 3 sous-tests</li>
+<li>Refresh sous-page</li>
+<li>Install Android</li>
+<li>Install iPhone + bannière</li>
+<li>API create/save</li>
+<li>Offline + OfflineBanner</li>
+<li>Update build + UpdateBanner</li>
+<li>Multi-onglets cross-tab logout</li>
+<li>DevTools Application (SW + manifest)</li>
+</ol>
+<hr>
+<h2 id="verdict">Verdict</h2>
+<p>Si tous les points passent, le lancement est fortement sécurisé.
+Un point rouge = bloquant si lié à auth, données, ou install. Cosmétique = non bloquant.</p>
+
+</body>
+</html>

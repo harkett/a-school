@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -10,7 +11,7 @@ export default function ForgotPassword() {
     e.preventDefault()
     setLoading(true)
     try {
-      await fetch('/api/auth/request-reset', {
+      await fetchWithTimeout('/api/auth/request-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),

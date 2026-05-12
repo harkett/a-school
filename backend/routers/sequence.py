@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
+from backend.database import get_db
+from backend.models_db import ToolUsageLog
 from src.config import AI_API_KEY, AI_MODEL, AI_PROVIDER
 
 router = APIRouter()
@@ -135,8 +138,9 @@ def _call_groq(prompt: str) -> str:
 def api_generate_sequence(
     req: SequenceRequest,
     aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
 ):
-    _get_email(aschool_access)
+    email = _get_email(aschool_access)
 
     if not req.theme.strip():
         raise HTTPException(400, "Le thème ne peut pas être vide.")
@@ -173,5 +177,11 @@ def api_generate_sequence(
         raise
     except Exception as e:
         raise HTTPException(500, str(e))
+
+    try:
+        db.add(ToolUsageLog(user_email=email, tool="sequence"))
+        db.commit()
+    except Exception:
+        pass
 
     return SequenceResponse(resultat=resultat)

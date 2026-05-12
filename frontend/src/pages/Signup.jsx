@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 export default function Signup() {
   const [email, setEmail] = useState('')
@@ -24,7 +25,7 @@ export default function Signup() {
     setLoading(true)
     setErreur(null)
     try {
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetchWithTimeout('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

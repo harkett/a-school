@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const LEVEL_STYLE = {
   critical: { bg: '#fee2e2', color: '#dc2626', label: 'Critique' },
@@ -25,7 +26,7 @@ export default function AdminAlertes() {
   useEffect(() => { load() }, [])
 
   async function markRead(id) {
-    await fetch(`/api/admin/alerts/${id}/read`, { method: 'POST', credentials: 'include' })
+    await fetchWithTimeout(`/api/admin/alerts/${id}/read`, { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, is_read: true } : a))
   }
 

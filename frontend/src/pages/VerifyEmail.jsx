@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
@@ -16,7 +17,7 @@ export default function VerifyEmail() {
     e.preventDefault()
     setResendStatus('sending')
     try {
-      await fetch('/api/auth/resend-verification', {
+      await fetchWithTimeout('/api/auth/resend-verification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resendEmail.trim() }),
@@ -33,7 +34,7 @@ export default function VerifyEmail() {
       setMessage('Lien de vérification manquant.')
       return
     }
-    fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
+    fetchWithTimeout(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {}, TIMEOUT_AUTH)
       .then(async r => {
         let data = {}
         try { data = await r.json() } catch { /* empty */ }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
@@ -94,7 +95,7 @@ export default function AdminProfils() {
   }
 
   async function openEmailModal(u) {
-    const res = await fetch('/api/admin/settings', { credentials: 'include' })
+    const res = await fetchWithTimeout('/api/admin/settings', { credentials: 'include' })
     const settings = await res.json()
     setEmailForm({ subject: settings.welcome_email_subject || '', body: settings.welcome_email_body || '' })
     setEmailModal({ email: u.email, prenom: u.prenom })
@@ -103,7 +104,7 @@ export default function AdminProfils() {
   async function sendEmail() {
     setSending(true)
     try {
-      const res = await fetch(`/api/admin/user/${encodeURIComponent(emailModal.email)}/send-email`, {
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(emailModal.email)}/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(emailForm),
       })
@@ -114,7 +115,7 @@ export default function AdminProfils() {
   async function saveEdit(email) {
     setSaving(true)
     try {
-      const res = await fetch(`/api/admin/user/${encodeURIComponent(email)}`, {
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(editForm),
       })
@@ -126,7 +127,7 @@ export default function AdminProfils() {
     if (!window.confirm(`Supprimer définitivement le compte de ${email} ?\n\nToutes ses données (activités, feedbacks, tokens) seront effacées.`)) return
     setDeleting(email)
     try {
-      const res = await fetch(`/api/admin/user/${encodeURIComponent(email)}`, { method: 'DELETE', credentials: 'include' })
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}`, { method: 'DELETE', credentials: 'include' })
       if (res.ok) setUsers(users.filter(u => u.email !== email))
     } finally { setDeleting(null) }
   }
@@ -135,14 +136,14 @@ export default function AdminProfils() {
     if (!window.confirm(`Envoyer un lien de réinitialisation de mot de passe à ${email} ?`)) return
     setResetting(email)
     try {
-      await fetch(`/api/admin/user/${encodeURIComponent(email)}/reset-password`, { method: 'POST', credentials: 'include' })
+      await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/reset-password`, { method: 'POST', credentials: 'include' })
     } finally { setResetting(null) }
   }
 
   async function verifyUser(email) {
     setVerifying(email)
     try {
-      const res = await fetch(`/api/admin/user/${encodeURIComponent(email)}/verify`, { method: 'POST', credentials: 'include' })
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/verify`, { method: 'POST', credentials: 'include' })
       if (res.ok) setUsers(users.map(u => u.email === email ? { ...u, is_verified: true, is_active: true } : u))
     } finally { setVerifying(null) }
   }
@@ -150,7 +151,7 @@ export default function AdminProfils() {
   async function toggleActive(email) {
     setToggling(email)
     try {
-      const res = await fetch(`/api/admin/user/${encodeURIComponent(email)}/toggle-active`, { method: 'PATCH', credentials: 'include' })
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/toggle-active`, { method: 'PATCH', credentials: 'include' })
       const data = await res.json()
       if (res.ok) setUsers(users.map(u => u.email === email ? { ...u, is_active: data.is_active } : u))
     } finally { setToggling(null) }

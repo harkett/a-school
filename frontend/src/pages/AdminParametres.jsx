@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const VARIABLES = ['{prenom}', '{email}']
 
@@ -23,7 +24,7 @@ export default function AdminParametres() {
     setSaving(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/admin/settings', {
+      const res = await fetchWithTimeout('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -45,7 +46,7 @@ export default function AdminParametres() {
     setTesting(true)
     setMessage(null)
     try {
-      const res = await fetch('/api/admin/settings/test-email', {
+      const res = await fetchWithTimeout('/api/admin/settings/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

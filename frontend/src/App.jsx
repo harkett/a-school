@@ -40,8 +40,15 @@ import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminAnalytique from './pages/AdminAnalytique'
+import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
+import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
+import AdminAnalytiqueCommunaute from './pages/AdminAnalytiqueCommunaute'
 import AdminFiches from './pages/AdminFiches'
 import AdminLayout from './components/AdminLayout'
+import OfflineBanner from './components/OfflineBanner'
+import UpdateBanner from './components/UpdateBanner'
+import IOSInstallBanner from './components/IOSInstallBanner'
+import { fetchWithTimeout, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import './index.css'
 
 function ProtectedRoute({ children }) {
@@ -145,7 +152,7 @@ function MainApp() {
     if (!user) return
     const id = setInterval(async () => {
       try {
-        const r = await fetch('/api/heartbeat', { method: 'POST', credentials: 'include' })
+        const r = await fetchWithTimeout('/api/heartbeat', { method: 'POST', credentials: 'include' }, TIMEOUT_AUTH)
         if (r.status === 401) {
           const data = await r.json().catch(() => ({}))
           if (data.detail === 'Session déconnectée.') {
@@ -184,7 +191,7 @@ function MainApp() {
   }
 
   useEffect(() => {
-    fetch(`/api/activites/${encodeURIComponent(sessionMatiere)}`)
+    fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}`, {}, TIMEOUT_STD)
       .then(r => r.json())
       .then(data => {
         setActivites(data)
@@ -216,12 +223,12 @@ function MainApp() {
         body.langue_lv = user.langue_lv
       }
 
-      const res = await fetch('/api/generate', {
+      const res = await fetchWithTimeout('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
-      })
+      }, TIMEOUT_GROQ)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)
@@ -673,6 +680,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <UpdateBanner />
+        <OfflineBanner />
+        <IOSInstallBanner />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -705,7 +715,13 @@ export default function App() {
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
-            <Route path="analytique"   element={<AdminAnalytique />} />
+            <Route path="analytique">
+              <Route index element={<Navigate to="/admin/analytique/general" replace />} />
+              <Route path="general"    element={<AdminAnalytiqueGeneral />} />
+              <Route path="activites"  element={<AdminAnalytique />} />
+              <Route path="outils"     element={<AdminAnalytiqueOutils />} />
+              <Route path="communaute" element={<AdminAnalytiqueCommunaute />} />
+            </Route>
             <Route path="fiches"       element={<AdminFiches />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const STARS = [1, 2, 3, 4, 5]
 const LABELS = { 1: 'Décevant', 2: 'Passable', 3: 'Correct', 4: 'Bien', 5: 'Excellent !' }
@@ -17,7 +18,7 @@ export default function Notation({ onClose }) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

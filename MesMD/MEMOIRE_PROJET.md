@@ -1,5 +1,5 @@
 # MÉMOIRE PROJET A-SCHOOL
-> Vérifié le 07/05/2026 — À mettre à jour en fin de chaque session de dev importante.
+> Vérifié le 11/05/2026 — À mettre à jour en fin de chaque session de dev importante.
 > Ce fichier est la référence rapide pour reprendre une session sans repartir de zéro.
 
 ---
@@ -8,7 +8,7 @@
 
 Plateforme web de génération d'activités pédagogiques pour les enseignants (collège → supérieur), sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
 
-**Tagline few-shot :** "À partir de quelques utilisations, A-SCHOOL s'adapte à votre façon de formuler les exercices."
+**Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
 
 ---
 
@@ -31,7 +31,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 | Info | Valeur |
 |---|---|
-| URL | https://school.afia.fr |
+| URL | https://aschool.fr |
 | IP | 83.228.245.163 (IPv6 : 2001:1600:18:202::8a) |
 | Accès SSH | ubuntu@83.228.245.163 |
 | Chemin | /var/www/a-school/ |

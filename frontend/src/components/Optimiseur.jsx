@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
 
 
 const EXEMPLES = {
@@ -92,12 +93,12 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
     setResultat(null)
     setLoading(true)
     try {
-      const res = await fetch('/api/optimize-sequence', {
+      const res = await fetchWithTimeout('/api/optimize-sequence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ sequence: sequence.trim(), matiere, niveau }),
-      })
+      }, TIMEOUT_GROQ)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)

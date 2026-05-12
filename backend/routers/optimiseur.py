@@ -1,10 +1,13 @@
 import json
 import re
 
-from fastapi import APIRouter, HTTPException, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
+from backend.database import get_db
+from backend.models_db import ToolUsageLog
 from src.config import AI_API_KEY, AI_MODEL, AI_PROVIDER
 
 router = APIRouter()
@@ -114,8 +117,9 @@ def _parse_json(raw: str) -> dict:
 def api_optimize(
     req: OptimiseRequest,
     aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
 ):
-    _get_email(aschool_access)
+    email = _get_email(aschool_access)
     if not req.sequence.strip():
         raise HTTPException(400, "La séquence ne peut pas être vide.")
 
@@ -137,9 +141,18 @@ def api_optimize(
     except RuntimeError as e:
         raise HTTPException(500, str(e))
 
+    score_raw = data.get("score", "")
+    score_label = score_raw.split(" — ")[0].strip() or None
+
+    try:
+        db.add(ToolUsageLog(user_email=email, tool="optimiseur", score_label=score_label))
+        db.commit()
+    except Exception:
+        pass
+
     return OptimiseResponse(
         sequence_optimisee=data.get("sequence_optimisee", ""),
         problemes=[Probleme(**p) for p in data.get("problemes", [])],
-        score=data.get("score", "—"),
+        score=score_raw,
         avertissement=data.get("avertissement") or None,
     )

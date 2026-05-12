@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const MATIERES   = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 const NIVEAUX    = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
@@ -27,7 +28,7 @@ export default function MonProfil({ onNavigate }) {
     setSaving(true)
     setErreur(null)
     try {
-      const res = await fetch('/api/user/profile', {
+      const res = await fetchWithTimeout('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

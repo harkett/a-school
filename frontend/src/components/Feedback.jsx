@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const CATEGORIES = [
   { key: 'bug',        label: 'Problème' },
@@ -21,7 +22,7 @@ export default function Feedback({ onClose }) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/feedback', {
+      const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

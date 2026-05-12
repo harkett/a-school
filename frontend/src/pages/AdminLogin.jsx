@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('')
@@ -14,7 +15,7 @@ export default function AdminLogin() {
     setErreur(null)
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetchWithTimeout('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

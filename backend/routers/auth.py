@@ -23,8 +23,9 @@ def _set_cookies(response: Response, access: str, refresh: str):
 
 
 def _clear_cookies(response: Response):
-    response.delete_cookie(_ACCESS)
-    response.delete_cookie(_REFRESH)
+    kw = dict(httponly=True, samesite="lax", secure=os.getenv("ENV") == "production", path="/")
+    response.delete_cookie(_ACCESS, **kw)
+    response.delete_cookie(_REFRESH, **kw)
 
 
 # ---------------------------------------------------------------------------

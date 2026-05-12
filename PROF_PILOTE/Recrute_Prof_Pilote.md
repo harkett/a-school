@@ -18,13 +18,11 @@ Vous collez un texte, choisissez le type d'exercice et le niveau
 → activité complète avec correction en moins de 10 secondes, 
 prête à imprimer ou envoyer par email.
 
-— Créer une séquence pédagogique complète (en cours de développement)
+— Créer une séquence pédagogique complète
 Décrivez votre objectif → aSchool structure la séquence entière.
 
 — Améliorer une séquence existante
 Collez une séquence déjà rédigée → aSchool l'analyse et la corrige.
-
-D'autres niveaux sont prévus : de la crèche au CP, et le Supérieur.
 
 Ce que je vous demande :
 — Tester l'outil
@@ -55,6 +53,9 @@ Contacter directement les instituts de formation des enseignants. Les profs stag
 
 # Café Pédagogique
 C'est le média de référence des profs innovants en France — très lu, newsletter avec des dizaines de milliers d'abonnés. Un email à la rédaction pour signaler l'outil peut déboucher sur un article ou une mention.
+
+# DANE (Délégation Académique au Numérique Éducatif)
+Chaque académie dispose d'une DANE, rattachée au rectorat. Ce sont les référents numériques officiels de l'Éducation nationale — ils cherchent exactement ce genre d'outils à faire connaître aux enseignants. Un seul contact DANE peut relayer à des centaines de profs dans l'académie. Trouver le contact via le site du rectorat de l'académie visée.
 
 # Entourage direct
 Déjà acté.

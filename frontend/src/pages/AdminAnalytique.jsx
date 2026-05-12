@@ -125,7 +125,7 @@ export default function AdminAnalytique() {
 
       {/* Titre */}
       <div>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Tableau analytique</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Activités — détail par prof</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
           Activités générées par prof — détail par matière, niveau et type d'activité.
         </p>

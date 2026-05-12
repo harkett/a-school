@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
 
@@ -127,7 +128,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate }) {
     setSaved(false)
     setLoading(true)
     try {
-      const res = await fetch('/api/generate-sequence', {
+      const res = await fetchWithTimeout('/api/generate-sequence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -139,7 +140,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate }) {
           mode,
           description_classe: descClasse.trim(),
         }),
-      })
+      }, TIMEOUT_GROQ)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)
@@ -165,7 +166,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate }) {
   async function sauvegarder() {
     if (!resultat) return
     try {
-      await fetch('/api/mes-activites', {
+      await fetchWithTimeout('/api/mes-activites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

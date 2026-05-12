@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 export default function AdminCompte() {
   const [form, setForm] = useState({ old_password: '', new_password: '', new_password_confirm: '' })
@@ -14,7 +15,7 @@ export default function AdminCompte() {
     setSuccess(false)
     setSaving(true)
     try {
-      const res = await fetch('/api/admin/change-password', {
+      const res = await fetchWithTimeout('/api/admin/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

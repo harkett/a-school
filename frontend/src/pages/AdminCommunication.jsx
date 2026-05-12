@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
@@ -63,7 +64,7 @@ export default function AdminCommunication() {
     setSending(true)
     setResult(null)
     try {
-      const res = await fetch('/api/admin/mail-groupe', {
+      const res = await fetchWithTimeout('/api/admin/mail-groupe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

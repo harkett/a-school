@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 export default function AdminSessions() {
   const [sessions, setSessions] = useState([])
@@ -32,7 +33,7 @@ export default function AdminSessions() {
 
   async function confirmLogout() {
     setForcing(pending.id)
-    await fetch(`/api/admin/force-logout/${pending.id}`, {
+    await fetchWithTimeout(`/api/admin/force-logout/${pending.id}`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },

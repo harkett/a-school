@@ -177,3 +177,13 @@ class FicheMatiere(Base):
     ameliorations: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class ToolUsageLog(Base):
+    __tablename__ = "tool_usage_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
+    score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

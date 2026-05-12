@@ -8,12 +8,10 @@ _Dernière mise à jour : 07/05/2026_
 
 | Domaine | Statut | Expire | Hébergeur | Propriétaire |
 |---|---|---|---|---|
-| `aschool.fr` | Actif — redirection 301 vers `school.afia.fr` | 01/05/2027 | Infomaniak | Harketti Bendaoud, AFIA |
-| `school.afia.fr` | App en production (URL réelle) | — | — | AFIA |
+| `aschool.fr` | App en production — URL principale ✅ (11/05/2026) | 01/05/2027 | Infomaniak | Harketti Bendaoud, AFIA |
+| `school.afia.fr` | Obsolète | — | — | AFIA |
 
-**Comportement actuel :** `aschool.fr` redirige vers `school.afia.fr/login` (barre d'adresse affiche la destination finale, comportement normal d'un 301).
-
-**Migration à faire :** servir l'app directement depuis `aschool.fr` — à faire après règlement de la structure juridique.
+**Migration faite le 11/05/2026 :** l'app est servie directement depuis `aschool.fr`.
 
 ---
 
@@ -50,13 +48,14 @@ _Dernière mise à jour : 07/05/2026_
 
 ## Logo
 
-| Fichier | Usage |
-|---|---|
-| `MesImages/ASCHOOLLogo.png` | Logo fond blanc |
-| `MesImages/ASCHOOLLogo_transparent.png` | Logo fond transparent — photo de profil réseaux + dépôt INPI |
-| `MesImages/Icone.png` | Icône seule |
-| `MesImages/A-SCHOOL-icon.ico` | Favicon |
-| `frontend/public/logo.png` | Logo intégré dans l'app |
+| Fichier | Fond | Texte | Usage |
+|---|---|---|---|
+| `Logo_aSchool/Logo_aSchool.png` | Transparent | Foncé | Sidebar, Footer, cartes auth — **Leboncoin, réseaux sur fond clair** |
+| `Logo_aSchool/Logo_aSchool_blanc.png` | Transparent | Blanc | Header principal, pages auth — **réseaux sur fond foncé, dépôt INPI** |
+| `Logo_aSchool/icon.png` | Transparent | — | Icône seule (sidebar repliée, feedback) |
+| `Logo_aSchool/Favicon32_32.png` | — | — | Favicon navigateur |
+
+> Règle : pour changer un logo, écraser le fichier. Ne jamais toucher au code.
 
 ---
 

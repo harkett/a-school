@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -60,11 +61,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange }) {
     try {
       const form = new FormData()
       form.append('file', file)
-      const res = await fetch('/api/ocr', {
+      const res = await fetchWithTimeout('/api/ocr', {
         method: 'POST',
         credentials: 'include',
         body: form,
-      })
+      }, TIMEOUT_GROQ)
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
       onChange(data.texte)
