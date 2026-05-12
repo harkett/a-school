@@ -95,6 +95,17 @@ Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..
 
 ---
 
+## Responsive mobile — Règle PWA
+
+Toute adaptation mobile utilise `const isMobile = window.innerWidth < 768` défini localement dans chaque composant. Ne jamais casser le layout desktop (> 768px). Patterns établis :
+- Sidebar : `useState(() => window.innerWidth < 768)` → repliée par défaut sur mobile
+- Header : tagline masquée, matière sous le nom, bouton "Déconnecter" raccourci
+- Grilles `1fr Xpx` → `1fr` sur mobile
+- Boutons hover-only → toujours visibles sur mobile (`isMobile || hovered`)
+- Longs blocs tutoriel/aide → masqués sur mobile (`!isMobile`)
+
+---
+
 ## Fournisseur IA — Règle absolue
 
 Groq (`llama-3.3-70b-versatile`) par défaut. Google Gemini banni — compte Workspace afia.fr incompatible avec le free tier.

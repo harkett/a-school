@@ -1,5 +1,5 @@
 # MÉMOIRE PROJET A-SCHOOL
-> Vérifié le 11/05/2026 — À mettre à jour en fin de chaque session de dev importante.
+> Vérifié le 12/05/2026 — À mettre à jour en fin de chaque session de dev importante.
 > Ce fichier est la référence rapide pour reprendre une session sans repartir de zéro.
 
 ---
@@ -79,6 +79,8 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 | Email inscription automatique | ✅ Production | 02/05/2026 |
 | Admin — Mon compte + changement mot de passe | ✅ Production | 02/05/2026 |
 | Séparation sessions Admin/Prof (garde-fou force-logout) | ✅ Local (à déployer) | 06/05/2026 |
+| PWA — Installabilité iOS (IOSInstallBanner, bfcache fix, cross-tab logout) | ✅ Production | 12/05/2026 |
+| PWA — Responsive mobile (sidebar collapse, header mobile, Mes Outils liste verticale) | ✅ Production | 12/05/2026 |
 
 ---
 

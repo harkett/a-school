@@ -57,6 +57,7 @@ function StatsCommunaute({ matiere, niveau }) {
 }
 
 export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, onNavigate }) {
+  const isMobile = window.innerWidth < 768
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
@@ -202,7 +203,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
                     onClick={() => onCharger(a)}
                     title="Charger cette activité dans le formulaire"
                     className="btn-primary shrink-0"
-                    style={{ opacity: hovered === a.id ? 1 : 0, transition: 'opacity 0.15s' }}
+                    style={{ opacity: (isMobile || hovered === a.id) ? 1 : 0, transition: 'opacity 0.15s' }}
                   >
                     Charger
                   </button>

@@ -564,8 +564,8 @@ function MainApp() {
                     </div>
                     )}
 
-                    {/* Tutoriel */}
-                    {!formVisible && !seqFormVisible && (
+                    {/* Tutoriel — masqué sur mobile */}
+                    {!formVisible && !seqFormVisible && !isMobile && (
                       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '18px 20px' }}>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', marginBottom: '14px' }}>{tuto.titre}</div>
                         {tuto.contenu}

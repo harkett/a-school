@@ -9,11 +9,14 @@
 
 ## PRIORITAIRE
 
-- [ ] **PWA — Installabilité** | Facile | 1 jour
-  *Les profs accèdent depuis leur téléphone entre deux cours. App installable = icône écran d'accueil, 0 friction.*
+- [x] **PWA — Installabilité** | Livré 12/05
+  *IOSInstallBanner, bfcache fix, cross-tab logout, SW update banner — testé iOS Safari.*
 
-- [ ] **PWA — Service Worker** | Moyen | 2 jours
-  *L'interface charge instantanément. Mes activités consultable sans connexion (salle sans wifi).*
+- [x] **PWA — Service Worker** | Livré 12/05
+  *SW opérationnel, offline banner, cache propre au logout, update détectée automatiquement.*
+
+- [ ] **PWA — Responsive mobile (pages restantes)** | Moyen | 1 session
+  *Pages à finir : ZoneResultat (résultat généré), Bibliothèque, Aide. Cœur fait : header, sidebar, Accueil, Mes Outils, Mes Activités.*
 
 ---
 
@@ -32,6 +35,9 @@
   *Audit d'une évaluation → 3 biais : contenu, difficulté, émotionnel.*
 
 ---
+
+- [ ] **Aide — Refonte visuelle pro** | Moyen | 1 session
+  *L'accordéon actuel est fonctionnel mais pas pro. Solution validée : layout 2 colonnes style docs (Stripe/Tailwind) — nav latérale sticky à gauche (Installation / Créer / Comprendre / Problèmes), contenu à droite au clic. Mobile : accordéon inchangé. Pour démarrer la session : dire "on fait la refonte de l'Aide".*
 
 - [ ] **Page /contact** | Facile | 2h
   *Remplace l'adresse email brute dans le footer — réduit le spam.*
@@ -124,6 +130,8 @@
 
 ## FAIT ✅
 
+- [x] **PWA — Checklist QA complète** — 20/35 points validés en dev, 15 prod vérifiés (12/05)
+- [x] **PWA — Responsive mobile v1** — Header, sidebar collapse, Accueil, Mes Outils liste verticale, Mes Activités bouton visible (12/05)
 - [x] **L3 — Optimiseur de séquences** — `POST /api/optimize-sequence`, 6 critères, séquence optimisée + score (11/05)
 - [x] **L1 — Générateur d'orchestrations** — `POST /api/generate-sequence`, Mode standard + Mode remédiation (11/05)
 - [x] **Analytique admin — 4 sous-pages** — Vue générale / Activités / Outils / Communauté (11/05)
