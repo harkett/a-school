@@ -81,7 +81,7 @@ const IconMenu = () => (
 )
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
 
   const navItem = (id, label, Icon, title) => (
     <a

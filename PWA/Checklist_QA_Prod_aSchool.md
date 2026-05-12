@@ -44,10 +44,10 @@ Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant,
 | 10.2 | Hors ligne — OfflineBanner apparaît | ✅ OK | 12/05 | harkett |
 | 10.3 | Hors ligne — Message d'erreur propre sur génération | ✅ OK | 12/05 | harkett |
 | 11 | Réseau lent + message timeout | 🔒 prod | aschool.fr | — |
-| 12.1 | Update — Déployer nouvelle build | 🔒 prod | aschool.fr | — |
-| 12.2 | Update — Bannière "Nouvelle version" apparaît | 🔒 prod | aschool.fr | — |
-| 12.3 | Update — Bouton Actualiser recharge sur nouvelle version | 🔒 prod | aschool.fr | — |
-| 12.4 | Update — Aucune session bloquée sur ancienne version | 🔒 prod | aschool.fr | — |
+| 12.1 | Update — Déployer nouvelle build | ✅ OK | 12/05 | harkett |
+| 12.2 | Update — Bannière "Nouvelle version" apparaît | ✅ OK | 12/05 | harkett |
+| 12.3 | Update — Bouton Actualiser recharge sur nouvelle version | ✅ OK | 12/05 | harkett |
+| 12.4 | Update — Aucune session bloquée sur ancienne version | ✅ OK | 12/05 | harkett |
 | 13 | Responsive mobile réel | 🔒 prod | aschool.fr | — |
 | 14 | Clavier mobile | 🔒 prod | aschool.fr | — |
 | 15 | HTTPS strict | 🔒 prod | aschool.fr | — |

@@ -49,6 +49,7 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
   const [tipIndex, setTipIndex] = useState(
     () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
   )
+  const isMobile = window.innerWidth < 768
 
   useEffect(() => {
     fetch('/api/dashboard', { credentials: 'include' })
@@ -116,7 +117,7 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
       </div>
 
       {/* ── Activités récentes + colonne droite ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 210px', gap: 12, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 210px', gap: 12, alignItems: 'start' }}>
 
         {/* Dernières activités */}
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 18px' }}>
