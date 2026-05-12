@@ -74,6 +74,7 @@ function MainApp() {
     ? `LV - ${user.langue_lv}`
     : matiere
 
+  const isMobile = window.innerWidth < 768
   const [page, setPage] = useState('accueil')
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
@@ -461,6 +462,31 @@ function MainApp() {
                     <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       Que voulez-vous faire ?
                     </div>
+                    {isMobile ? (
+                      /* Mobile — liste verticale, un outil par ligne */
+                      (!formVisible && !seqFormVisible) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {[
+                            { id: 'activite',  label: 'Créer une activité',    desc: 'Texte source → activité prête à l\'emploi',       action: () => { setFormVisible(true); setSelectedCard('activite') } },
+                            { id: 'sequence',  label: 'Créer une séquence',    desc: 'Objectif pédagogique → séquence structurée',      action: () => { setSeqFormVisible(true); setFormVisible(false); setSelectedCard('sequence') } },
+                            { id: 'optimiseur',label: 'Améliorer une séquence',desc: 'Séquence existante → corrigée et optimisée',      action: () => setPage('optimiseur') },
+                          ].map(tool => (
+                            <button
+                              key={tool.id}
+                              onClick={tool.action}
+                              title={tool.label}
+                              style={{ width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer', textAlign: 'left' }}
+                            >
+                              <div>
+                                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{tool.label}</div>
+                                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>{tool.desc}</div>
+                              </div>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bordeaux)" strokeWidth="2.5" style={{ flexShrink: 0 }}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </button>
+                          ))}
+                        </div>
+                      )
+                    ) : (
                     <div style={{ display: 'flex', gap: '10px' }}>
 
                       {/* Carte 1 — Créer une activité */}
@@ -536,6 +562,7 @@ function MainApp() {
                       </div>
 
                     </div>
+                    )}
 
                     {/* Tutoriel */}
                     {!formVisible && !seqFormVisible && (

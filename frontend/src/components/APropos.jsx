@@ -39,11 +39,11 @@ export default function APropos({ email, matiere }) {
               </tr>
               <tr className="border-b border-gray-50">
                 <td className="py-2.5 text-gray-400">Environnement</td>
-                <td className="py-2.5 text-gray-700 font-medium">Développement</td>
+                <td className="py-2.5 text-gray-700 font-medium">{import.meta.env.DEV ? 'Développement' : 'Production'}</td>
               </tr>
               <tr>
                 <td className="py-2.5 text-gray-400">Compte connecté</td>
-                <td className="py-2.5 text-gray-700 font-medium">{email}</td>
+                <td className="py-2.5 text-gray-700 font-medium" style={{ wordBreak: 'break-all' }}>{email}</td>
               </tr>
             </tbody>
           </table>
