@@ -36,7 +36,7 @@ function ModalMentions({ onClose }) {
         </Section>
 
         <Section titre="Données personnelles (RGPD)">
-          <p>Dans le cadre de l'utilisation de A-SCHOOL, les données suivantes sont collectées :</p>
+          <p>Dans le cadre de l'utilisation de aSchool, les données suivantes sont collectées :</p>
           <ul style={{ listStyleType: 'disc', paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <li>Adresse e-mail</li>
             <li>Matière enseignée</li>

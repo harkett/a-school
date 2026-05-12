@@ -1,5 +1,5 @@
-# MÉMOIRE PROJET A-SCHOOL
-> Vérifié le 12/05/2026 — À mettre à jour en fin de chaque session de dev importante.
+﻿# MÉMOIRE PROJET aSchool
+> Vérifié le 12/05/2026 (session après-midi) — À mettre à jour en fin de chaque session de dev importante.
 > Ce fichier est la référence rapide pour reprendre une session sans repartir de zéro.
 
 ---
@@ -34,7 +34,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 | URL | https://aschool.fr |
 | IP | 83.228.245.163 (IPv6 : 2001:1600:18:202::8a) |
 | Accès SSH | ubuntu@83.228.245.163 |
-| Chemin | /var/www/a-school/ |
+| Chemin | /var/www/aSchool/ |
 | Service | `aschool.service` (systemd) |
 | Port | 8001 (8000 occupé par Django AFIA-FR) |
 | OS | Ubuntu 24.04 LTS |
@@ -48,9 +48,11 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 ## Scripts clés
 
 ```powershell
-.\run.ps1            # Lance backend (:8000) + frontend (:5173) — régénère activities auto
-.\push.ps1"message"  # Push GitHub + déploiement automatique VPS
+.\run.ps1              # Lance backend (:8000) + frontend (:5173) — régénère activities auto
+.\push.ps1 "message"   # Bump PATCH auto → commit → push GitHub → déploiement VPS
 ```
+
+**Versioning :** `push.ps1` incrémente automatiquement le PATCH (`npm version patch`) avant chaque commit. MINOR et MAJOR = manuels. Version courante : **3.2.0**.
 
 ---
 
@@ -79,8 +81,10 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 | Email inscription automatique | ✅ Production | 02/05/2026 |
 | Admin — Mon compte + changement mot de passe | ✅ Production | 02/05/2026 |
 | Séparation sessions Admin/Prof (garde-fou force-logout) | ✅ Local (à déployer) | 06/05/2026 |
-| PWA — Installabilité iOS (IOSInstallBanner, bfcache fix, cross-tab logout) | ✅ Production | 12/05/2026 |
-| PWA — Responsive mobile (sidebar collapse, header mobile, Mes Outils liste verticale) | ✅ Production | 12/05/2026 |
+| PWA — Complète (installabilité, SW, responsive, update bannière) | ✅ Production | 12/05/2026 |
+| Aide — Refonte 2 colonnes + sections complètes (PWA, Dictée, OCR, Partage, Séquences) | ✅ Production | 12/05/2026 |
+| SW mise à jour — bannière bordeaux countdown 30s + rechargement auto | ✅ Production | 12/05/2026 |
+| Auto-versioning PATCH — push.ps1 bumpe à chaque déploiement | ✅ Production | 12/05/2026 |
 
 ---
 
@@ -113,8 +117,8 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 ## SMTP — règles absolues
 
 - Fournisseur : **Infomaniak uniquement** — ne jamais changer sans demande explicite
-- `SMTP_FROM` = `A-SCHOOL <contact@aschool.fr>` (emails vers les profs)
-- `FEEDBACK_FROM` = `A-SCHOOL Feedback <feedback@aschool.fr>` (notifications admin)
+- `SMTP_FROM` = `aSchool <contact@aschool.fr>` (emails vers les profs)
+- `FEEDBACK_FROM` = `aSchool Feedback <feedback@aschool.fr>` (notifications admin)
 - Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — jamais ailleurs
 - **⚠️ ACTION À FAIRE — Boîtes mail @aschool.fr** : Infomaniak force l'adresse d'expédition à correspondre au compte authentifié. Comme `SMTP_USERNAME=harketti@afia.fr` (compte gratuit), les emails partent avec cette adresse au lieu de `contact@aschool.fr`. **Solution définitive : acheter les boîtes `contact@aschool.fr` et `feedback@aschool.fr` chez Infomaniak (~3€/mois chacune)**. Le code n'a pas besoin de changer — il suffit de mettre à jour `SMTP_USERNAME` et `SMTP_PASSWORD` dans le `.env` avec les nouvelles boîtes.
 
@@ -122,7 +126,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 ## Règles d'interface
 
-- Jamais le mot "IA" → toujours "A-SCHOOL"
+- Jamais le mot "IA" → toujours "aSchool"
 - Pas d'emojis dans l'interface
 - Pas de Google Gemini (compte Workspace afia.fr incompatible free tier) — Groq par défaut
 - Boutons sur fond foncé : `color: white !important` + attribut `title=` sur tous les boutons d'action
@@ -135,7 +139,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 | Feature | Prérequis / condition |
 |---|---|
 | Aide spécifique par matière | Prêt (subject en BDD) — session courte |
-| Détection mise à jour (version notification) | À partir de 20+ profs actifs |
+| ~~Détection mise à jour~~ | ✅ Livré 12/05 — bannière + auto-reload 30s |
 | Feedback page dédiée (bidirectionnel) | Quand volume feedbacks le justifie |
 | Analyse IA des retours (Groq) | À partir de 20-30 notations avec commentaire |
 | Niveau Supérieur (BTS/prépa) | Catalogue activités à définir avec pilotes |
@@ -161,8 +165,8 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 La triche est possible (pseudo libre) mais non bloquante — ce n'est pas un outil d'examen.
 
 **Flux :**
-1. Prof génère un quiz QCM depuis A-SCHOOL (matière, niveau, thème, nb questions)
-2. A-SCHOOL crée un lien unique `school.afia.fr/quiz/{token}`
+1. Prof génère un quiz QCM depuis aSchool (matière, niveau, thème, nb questions)
+2. aSchool crée un lien unique `school.afia.fr/quiz/{token}`
 3. Prof partage le lien (projette, envoie par message)
 4. Élève ouvre sur téléphone → entre son prénom → répond → voit son score
 5. Prof voit les résultats en direct (polling ~5s) ou différé
@@ -186,3 +190,4 @@ La triche est possible (pseudo libre) mais non bloquante — ce n'est pas un out
 - **Auth intouchable** — ne jamais modifier `backend/auth.py` ni `backend/routers/auth.py` sans demande explicite
 - **Secrets interdits en chat** — ne jamais afficher mots de passe, clés API ou tokens en clair
 - **Sync docs** — mettre à jour ce fichier + `ETAT_PROJET.md` en fin de session de dev importante
+- **Aide à chaud** — dès qu'une feature est livrée, sa section Aide est rédigée dans la même session (règle aussi dans CLAUDE.md)

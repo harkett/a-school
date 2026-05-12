@@ -383,12 +383,13 @@ le 404 sur refresh de sous-page, le Back button après logout, la bannière iOS 
 <p><strong>Règle : un point rouge bloquant = pas de déploiement.</strong>
 Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant, noter et continuer.</p>
 <hr>
-<h2 id="checklist-21-points">Checklist (21 points)</h2>
+<h2 id="checklist-21-points--35-sous-tests">Checklist (21 points — 35 sous-tests)</h2>
 <table>
 <thead>
 <tr>
 <th>#</th>
 <th>Point</th>
+<th>Statut</th>
 <th>Testé le</th>
 <th>Par</th>
 </tr>
@@ -397,230 +398,490 @@ Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant,
 <tr>
 <td>1</td>
 <td>Connexion navigateur normal</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>2</td>
 <td>Connexion app installée (PWA)</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
-<td>3</td>
-<td>Déconnexion réelle (3 sous-tests)</td>
-<td></td>
-<td></td>
+<td>3.1</td>
+<td>Déconnexion — Pas reconnecté après relance</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>3.2</td>
+<td>Déconnexion — Bouton Back après logout</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>3.3</td>
+<td>Déconnexion — Cross-tab (deux onglets)</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>4</td>
 <td>Installation Android</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
-<td>5</td>
-<td>Installation iPhone + bannière</td>
-<td></td>
-<td></td>
+<td>5.1</td>
+<td>iPhone — Bannière apparaît après 5s</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5.2</td>
+<td>iPhone — Bouton ✕ ferme définitivement</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5.3</td>
+<td>iPhone — Install Safari → écran d'accueil</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
 <td>6</td>
 <td>Icône propre</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
 <td>7</td>
 <td>Splash / thème couleur</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
 <td>8</td>
 <td>Refresh sur sous-page</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>9</td>
 <td>API après installation</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
-<td>10</td>
-<td>Mode hors ligne + OfflineBanner</td>
-<td></td>
-<td></td>
+<td>10.1</td>
+<td>Hors ligne — Shell visible sans crash</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>10.2</td>
+<td>Hors ligne — OfflineBanner apparaît</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>10.3</td>
+<td>Hors ligne — Message d'erreur propre sur génération</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>11</td>
-<td>Réseau lent + timeout message</td>
-<td></td>
-<td></td>
+<td>Réseau lent + message timeout</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
-<td>12</td>
-<td>Mise à jour version + UpdateBanner</td>
-<td></td>
-<td></td>
+<td>12.1</td>
+<td>Update — Déployer nouvelle build</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>12.2</td>
+<td>Update — Bannière &quot;Nouvelle version&quot; apparaît</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>12.3</td>
+<td>Update — Bouton Actualiser recharge sur nouvelle version</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>12.4</td>
+<td>Update — Aucune session bloquée sur ancienne version</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>13</td>
 <td>Responsive mobile réel</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
 <td>14</td>
 <td>Clavier mobile</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
 <td>15</td>
 <td>HTTPS strict</td>
-<td></td>
-<td></td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 <tr>
-<td>16</td>
-<td>Multi-onglets + cross-tab logout</td>
-<td></td>
-<td></td>
+<td>16.1</td>
+<td>Cross-tab — Deux onglets ouverts et connectés</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>16.2</td>
+<td>Cross-tab — Déconnexion onglet A</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
+</tr>
+<tr>
+<td>16.3</td>
+<td>Cross-tab — Onglet B redirige automatiquement</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
 <td>17</td>
 <td>Taille bundle</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>claude</td>
 </tr>
 <tr>
 <td>18</td>
 <td>Cache clean logout</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>claude</td>
 </tr>
 <tr>
 <td>19</td>
 <td>Comptes réels / rôles</td>
-<td></td>
-<td></td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>claude</td>
 </tr>
 <tr>
-<td>20</td>
-<td>Console + logs prod</td>
-<td></td>
-<td></td>
+<td>20.1</td>
+<td>Console — Aucune erreur rouge navigateur</td>
+<td>✅ OK</td>
+<td>12/05</td>
+<td>harkett</td>
 </tr>
 <tr>
-<td>21</td>
-<td>DevTools Application (SW + manifest)</td>
-<td></td>
-<td></td>
+<td>20.2</td>
+<td>Logs Nginx — Aucun 5xx</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
+</tr>
+<tr>
+<td>21.1</td>
+<td>DevTools — SW &quot;activated and running&quot;</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
+</tr>
+<tr>
+<td>21.2</td>
+<td>DevTools — Manifest sans erreur, icônes résolues</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
+</tr>
+<tr>
+<td>21.3</td>
+<td>DevTools — /api/ absent du Cache Storage</td>
+<td>🔒 prod</td>
+<td>aschool.fr</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
 <hr>
-<h2 id="détail-des-points">Détail des points</h2>
-<p><strong>1. Connexion navigateur normal</strong>
-Login + refresh de page + session persistante.
-<strong>Pourquoi :</strong> valide cookies, auth backend, CSRF.</p>
-<p><strong>2. Connexion app installée (PWA)</strong>
-Installer puis se connecter depuis l'icône écran d'accueil.
-<strong>Pourquoi :</strong> le mode standalone peut gérer différemment les cookies httpOnly.</p>
-<p><strong>3. Déconnexion réelle — 3 sous-tests obligatoires</strong></p>
-<ul>
-<li>Logout → relancer l'app → ne pas être reconnecté automatiquement</li>
-<li>Logout → bouton Back du navigateur → ne pas revenir sur une page protégée</li>
-<li>Logout dans l'onglet A → l'onglet B redirige automatiquement vers /login</li>
-</ul>
-<p><strong>Pourquoi :</strong> sessions fantômes, cache UI, historique navigateur, onglets orphelins.</p>
-<p><strong>4. Installation Android</strong>
-Vérifier bannière d'installation native + lancement depuis écran d'accueil.
-<strong>Pourquoi :</strong> manifeste, service worker, HTTPS, icônes.</p>
-<p><strong>5. Installation iPhone + bannière IOSInstallBanner</strong></p>
-<ul>
-<li>Ouvrir le dashboard connecté → attendre 5 secondes → la bannière bordeaux &quot;Installer aSchool sur iPhone&quot; apparaît</li>
-<li>Cliquer ✕ → la bannière disparaît et ne réapparaît plus (même après reload)</li>
-<li>Safari &gt; Partager &gt; Ajouter à l'écran d'accueil → app installée et fonctionnelle</li>
-</ul>
-<p><strong>Pourquoi :</strong> iOS n'a pas de popup install automatique — la bannière est le seul vecteur d'installation.</p>
-<p><strong>6. Icône propre</strong>
-Vérifier netteté sur écran d'accueil Android et iOS.
-<strong>Pourquoi :</strong> image 192/512 correcte, pas de flou ni de bords coupés.</p>
-<p><strong>7. Splash / thème couleur</strong>
-Ouvrir l'app installée depuis l'écran d'accueil.
-<strong>Pourquoi :</strong> vérifier theme_color bordeaux, background_color blanc, meta apple-mobile-web-app-capable.</p>
-<p><strong>8. Refresh sur sous-page</strong>
-Naviguer vers /mes-activites ou /profil puis F5 ou pull-to-refresh mobile.
-<strong>Pourquoi :</strong> éviter 404 React Router — le SW doit renvoyer index.html.</p>
-<p><strong>9. API après installation</strong>
-Créer, modifier, sauvegarder des données depuis l'app installée.
-<strong>Pourquoi :</strong> vérifier que le SW ne met pas en cache /api/ (NetworkOnly configuré).</p>
-<p><strong>10. Mode hors ligne + OfflineBanner</strong></p>
-<ul>
-<li>Couper réseau → relancer l'app → shell visible sans crash</li>
-<li>La bannière bordeaux &quot;Hors connexion&quot; apparaît en haut de page</li>
-<li>Tenter une génération → message d'erreur propre, pas de crash silencieux</li>
-</ul>
-<p><strong>Pourquoi :</strong> UX offline dégradée mais lisible plutôt qu'écran blanc.</p>
-<p><strong>11. Réseau lent + message timeout</strong>
-Simuler 3G lente (DevTools &gt; Network &gt; Slow 3G).
-Déclencher une génération → attendre → le message &quot;Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.&quot; apparaît après timeout.
-<strong>Pourquoi :</strong> fetchWithTimeout actif — vérifier que le message remonte bien dans l'UI.</p>
-<p><strong>12. Mise à jour version + UpdateBanner</strong></p>
-<ul>
-<li>Déployer une nouvelle build</li>
-<li>Ouvrir l'app depuis une session existante → la bannière &quot;Nouvelle version disponible&quot; apparaît</li>
-<li>Cliquer &quot;Actualiser&quot; → la page recharge sur la nouvelle version</li>
-<li>Vérifier qu'aucune ancienne session ne reste bloquée sur l'ancienne version</li>
-</ul>
-<p><strong>Pourquoi :</strong> skipWaiting + clientsClaim actifs — le SW doit prendre la main immédiatement.</p>
-<p><strong>13. Responsive mobile réel</strong>
-Tester sur iPhone et Android : login, dashboard, formulaire de génération, Mes activités, tableaux admin.
-<strong>Pourquoi :</strong> usage mobile réel, pas émulateur — les vrais profs utilisent leur téléphone.</p>
-<p><strong>14. Clavier mobile</strong>
-Saisir du texte dans les champs principaux sur iPhone et Android.
-Vérifier que les boutons d'action restent visibles quand le clavier est ouvert.
-<strong>Pourquoi :</strong> le clavier mobile réduit la hauteur visible, les boutons bottom-right peuvent disparaître.</p>
-<p><strong>15. HTTPS strict</strong>
-Vérifier cadenas dans la barre d'adresse, aucune alerte mixed content en console.
-<strong>Pourquoi :</strong> requis pour PWA + cookies Secure + SameSite.</p>
-<p><strong>16. Multi-onglets + cross-tab logout</strong></p>
-<ul>
-<li>Ouvrir deux onglets sur aSchool</li>
-<li>Se déconnecter dans l'onglet A</li>
-<li>Vérifier que l'onglet B redirige automatiquement vers /login sans action manuelle</li>
-</ul>
-<p><strong>Pourquoi :</strong> sans listener storage, les onglets orphelins restent connectés indéfiniment.</p>
-<p><strong>17. Taille bundle</strong>
-DevTools &gt; Lighthouse &gt; Performance + PWA. Vérifier score PWA ≥ 90.
-Vérifier Network &gt; JS bundle &lt; 500 Ko gzippé.
-<strong>Pourquoi :</strong> performances mobile sur réseau moyen, critère de qualité PWA.</p>
-<p><strong>18. Cache clean logout</strong>
-Logout → passer en mode hors ligne → rouvrir l'app.
-Aucune donnée utilisateur visible, aucune page protégée accessible.
-<strong>Pourquoi :</strong> vérifier que localStorage et sessionStorage sont bien vidés au logout.</p>
-<p><strong>19. Comptes réels / rôles</strong>
-Tester avec un compte enseignant réel + un compte admin.
-Vérifier que chaque rôle voit uniquement ce qu'il doit voir.
-<strong>Pourquoi :</strong> les permissions sont souvent spécifiques par rôle — un admin ne doit pas bloquer un enseignant et vice-versa.</p>
-<p><strong>20. Console + logs prod</strong></p>
-<ul>
-<li>Console navigateur : aucune erreur rouge après chaque action testée</li>
-<li>Logs Nginx VPS : aucun 5xx après les actions (génération, login, save)</li>
-</ul>
-<p><strong>Pourquoi :</strong> détecter les erreurs silencieuses côté client et les crashs backend non affichés.</p>
-<p><strong>21. DevTools Application — SW + manifest</strong>
-DevTools &gt; Application :</p>
-<ul>
-<li>Service Workers → statut &quot;activated and running&quot;, pas de &quot;waiting&quot;</li>
-<li>Manifest → aucune erreur, icônes résolues, start_url correcte</li>
-<li>Cache Storage → vérifier que /api/ n'apparaît PAS dans les caches listés</li>
-</ul>
-<p><strong>Pourquoi :</strong> 30% des bugs PWA silencieux sont détectables ici en 2 minutes.</p>
+<h2 id="guide-de-test">Guide de test</h2>
+<hr>
+<h3 id="1--connexion-navigateur-normal">1 — Connexion navigateur normal</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Valide les cookies httpOnly, l'auth backend et la persistance de session JWT.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir <code>localhost:5173</code> → se connecter → rafraîchir la page
+Attendu : session toujours active après F5, pas de redirection vers /login</p>
+<hr>
+<h3 id="2--connexion-app-installée-pwa--prod">2 — Connexion app installée (PWA) 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Le mode standalone peut gérer différemment les cookies httpOnly selon le navigateur — une app installée n'est pas un onglet ordinaire.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir l'app depuis l'icône écran d'accueil → se connecter
+Attendu : login fonctionnel en mode standalone, cookies transmis correctement</p>
+<hr>
+<h3 id="31--déconnexion--pas-reconnecté-après-relance">3.1 — Déconnexion — Pas reconnecté après relance</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie qu'aucune session fantôme ne persiste après fermeture de l'onglet.</p>
+<p><strong>Comment faire ce test</strong>
+→ Logout → fermer l'onglet → rouvrir <code>localhost:5173</code>
+Attendu : /login s'affiche, pas le dashboard
+Échec : l'app s'ouvre directement sur le dashboard sans redemander de mot de passe</p>
+<h3 id="32--déconnexion--bouton-back-après-logout">3.2 — Déconnexion — Bouton Back après logout</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Le bfcache (back-forward cache) du navigateur peut restaurer un snapshot figé de la page sans réinitialiser React, rendant les données utilisateur visibles même après logout.</p>
+<p><strong>Comment faire ce test</strong>
+→ Logout → arriver sur /login → appuyer Back → puis Forward
+Attendu : checkAuth() se relance → cookies absents → redirection vers /login, aucune donnée visible
+Échec : le dashboard s'affiche avec les données du compte sans redirection
+Note : atterrir sur une page extérieure à aSchool via Back (ex. onglet par défaut Edge) = comportement normal du navigateur, pas un bug</p>
+<h3 id="33--déconnexion--cross-tab-deux-onglets">3.3 — Déconnexion — Cross-tab (deux onglets)</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Sans listener storage, les onglets orphelins restent connectés indéfiniment après logout — un prof peut laisser un onglet oublié accessible.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir 2 onglets sur aSchool → se connecter dans les deux → logout dans l'onglet A → observer l'onglet B sans rien faire
+Attendu : l'onglet B bascule automatiquement sur /login en moins de 2 secondes
+Échec : l'onglet B reste sur le dashboard et permet de continuer à naviguer</p>
+<hr>
+<h3 id="4--installation-android--prod">4 — Installation Android 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Valide que le manifeste, le service worker, HTTPS et les icônes 192/512 sont correctement configurés pour déclencher l'installation native.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir aschool.fr sur Chrome Android → attendre la bannière d'installation native → installer → lancer depuis l'écran d'accueil
+Attendu : app lancée en mode standalone, icône visible sur l'écran d'accueil</p>
+<hr>
+<h3 id="51--iphone--bannière-apparaît-après-5s--prod">5.1 — iPhone — Bannière apparaît après 5s 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+iOS n'a pas de popup install automatique — la bannière IOSInstallBanner est le seul vecteur d'installation sur iPhone.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir aschool.fr sur Safari iPhone → se connecter → attendre 5 secondes sur le dashboard
+Attendu : bannière bordeaux &quot;Installer aSchool sur iPhone&quot; apparaît en haut de page</p>
+<h3 id="52--iphone--bouton--ferme-définitivement--prod">5.2 — iPhone — Bouton ✕ ferme définitivement 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que localStorage mémorise le refus et ne ré-affiche pas la bannière à chaque visite.</p>
+<p><strong>Comment faire ce test</strong>
+→ Cliquer ✕ sur la bannière → recharger la page → naviguer dans l'app
+Attendu : la bannière ne réapparaît plus, même après reload ou navigation</p>
+<h3 id="53--iphone--install-safari--écran-daccueil--prod">5.3 — iPhone — Install Safari → écran d'accueil 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Valide le flux complet d'installation iOS via le menu Partager de Safari.</p>
+<p><strong>Comment faire ce test</strong>
+→ Safari &gt; icône Partager &gt; &quot;Sur l'écran d'accueil&quot; → confirmer
+Attendu : icône aSchool sur l'écran d'accueil, app lancée en plein écran sans barre Safari</p>
+<hr>
+<h3 id="6--icône-propre--prod">6 — Icône propre 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Une icône floue ou coupée nuit à la crédibilité de l'app sur l'écran d'accueil — valide icon-192.png et icon-512.png.</p>
+<p><strong>Comment faire ce test</strong>
+→ Vérifier l'icône sur l'écran d'accueil Android et iOS après installation
+Attendu : image nette, pas de flou, pas de bords coupés</p>
+<hr>
+<h3 id="7--splash--thème-couleur--prod">7 — Splash / thème couleur 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Valide theme_color (bordeaux), background_color (blanc) et la meta apple-mobile-web-app-capable — un mauvais splash casse l'impression &quot;app native&quot;.</p>
+<p><strong>Comment faire ce test</strong>
+→ Fermer l'app installée → la rouvrir depuis l'icône écran d'accueil
+Attendu : fond blanc au démarrage, barre de statut bordeaux, pas d'écran blanc cassé</p>
+<hr>
+<h3 id="8--refresh-sur-sous-page">8 — Refresh sur sous-page</h3>
+<p><strong>Pourquoi faire ce test</strong>
+React Router gère les routes côté client — si le serveur ne renvoie pas index.html sur toutes les routes, un F5 produit une erreur 404.</p>
+<p><strong>Comment faire ce test</strong>
+→ Naviguer vers <code>/mes-activites</code> ou <code>/profil</code> → appuyer F5 (ou pull-to-refresh mobile)
+Attendu : la page se recharge correctement, pas de 404
+Échec : erreur 404 ou écran blanc</p>
+<hr>
+<h3 id="9--api-après-installation">9 — API après installation</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que le service worker ne met pas en cache /api/ — les données doivent toujours venir du serveur, jamais d'un cache périmé.</p>
+<p><strong>Comment faire ce test</strong>
+→ Créer une activité → la sauvegarder → la retrouver dans Mes activités
+Attendu : les appels /api/ passent, données enregistrées et récupérées correctement</p>
+<hr>
+<h3 id="101--hors-ligne--shell-visible-sans-crash">10.1 — Hors ligne — Shell visible sans crash</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Les profs utilisent l'app en salle sans wifi — l'interface doit rester lisible même sans connexion, pas d'écran blanc.</p>
+<p><strong>Comment faire ce test</strong>
+→ DevTools &gt; Network &gt; Offline → recharger l'app
+Attendu : l'interface s'affiche (shell), pas d'écran blanc ni d'erreur JavaScript</p>
+<h3 id="102--hors-ligne--offlinebanner-apparaît">10.2 — Hors ligne — OfflineBanner apparaît</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Sans message clair, l'utilisateur pense que l'app est cassée — la bannière bordeaux signale explicitement la perte de connexion.</p>
+<p><strong>Comment faire ce test</strong>
+→ Même contexte que 10.1, observer le haut de page
+Attendu : bannière bordeaux &quot;Hors connexion&quot; visible en haut de page</p>
+<h3 id="103--hors-ligne--message-derreur-propre-sur-génération">10.3 — Hors ligne — Message d'erreur propre sur génération</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Une tentative de génération hors ligne doit produire un message lisible, pas un spinner infini ou un crash silencieux.</p>
+<p><strong>Comment faire ce test</strong>
+→ Toujours en mode Offline → tenter de générer une activité
+Attendu : message d'erreur lisible affiché, pas de spinner infini</p>
+<hr>
+<h3 id="11--réseau-lent--message-timeout">11 — Réseau lent + message timeout</h3>
+<p><strong>Pourquoi faire ce test</strong>
+fetchWithTimeout est actif sur toutes les requêtes — vérifie que le message &quot;Connexion lente&quot; remonte bien dans l'UI au lieu de laisser l'utilisateur face à un spinner sans fin.</p>
+<p><strong>Comment faire ce test</strong>
+→ DevTools &gt; Network &gt; Slow 3G → déclencher une génération → attendre
+Attendu : le message &quot;Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.&quot; apparaît après le timeout</p>
+<hr>
+<h3 id="121--update--déployer-nouvelle-build--prod">12.1 — Update — Déployer nouvelle build 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+skipWaiting + clientsClaim sont actifs — le nouveau SW doit prendre la main immédiatement sans laisser de sessions bloquées sur l'ancienne version.</p>
+<p><strong>Comment faire ce test</strong>
+→ Déployer une nouvelle version sur aschool.fr (bump de version suffisant)</p>
+<h3 id="122--update--bannière-nouvelle-version-apparaît--prod">12.2 — Update — Bannière &quot;Nouvelle version&quot; apparaît 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que le composant UpdateBanner détecte bien le nouveau service worker disponible.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir l'app depuis une session existante sans recharger
+Attendu : bannière &quot;Nouvelle version disponible&quot; apparaît en haut de page</p>
+<h3 id="123--update--bouton-actualiser-fonctionne--prod">12.3 — Update — Bouton Actualiser fonctionne 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que updateServiceWorker(true) déclenche bien le rechargement et bascule sur la nouvelle version.</p>
+<p><strong>Comment faire ce test</strong>
+→ Cliquer &quot;Actualiser&quot; sur la bannière UpdateBanner
+Attendu : page rechargée sur la nouvelle version</p>
+<h3 id="124--update--aucune-session-bloquée--prod">12.4 — Update — Aucune session bloquée 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+clientsClaim garantit que tous les onglets ouverts basculent sur le nouveau SW — pas seulement celui qui a cliqué Actualiser.</p>
+<p><strong>Comment faire ce test</strong>
+→ Avoir 2 onglets ouverts lors du déploiement → vérifier que les deux passent sur la nouvelle version
+Attendu : aucune session reste bloquée sur l'ancienne version</p>
+<hr>
+<h3 id="13--responsive-mobile-réel">13 — Responsive mobile réel</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Les vrais profs utilisent leur téléphone entre deux cours — l'émulateur DevTools ne reproduit pas les vrais comportements tactiles ni les vrais bugs d'affichage.</p>
+<p><strong>Comment faire ce test</strong>
+→ Tester sur iPhone ou Android réel : login, dashboard, formulaire génération, Mes activités
+Attendu : mise en page correcte à 390px, textes lisibles, boutons accessibles au pouce</p>
+<hr>
+<h3 id="14--clavier-mobile">14 — Clavier mobile</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Le clavier mobile réduit la hauteur visible de l'écran — les boutons positionnés en bas à droite peuvent disparaître sous le clavier.</p>
+<p><strong>Comment faire ce test</strong>
+→ Taper du texte dans les champs principaux sur iPhone ou Android → observer le bouton &quot;Générer&quot;
+Attendu : le bouton reste visible quand le clavier est ouvert
+Échec : le bouton disparaît sous le clavier</p>
+<hr>
+<h3 id="15--https-strict--prod">15 — HTTPS strict 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+HTTPS est obligatoire pour PWA, cookies Secure et SameSite — sans lui, l'installation et l'auth ne fonctionnent pas.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir aschool.fr → vérifier le cadenas dans la barre d'adresse → F12 &gt; Console
+Attendu : cadenas vert, aucune alerte &quot;mixed content&quot; dans la console</p>
+<hr>
+<h3 id="161--cross-tab--deux-onglets-ouverts-et-connectés">16.1 — Cross-tab — Deux onglets ouverts et connectés</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Reproduit le cas réel d'un prof qui laisse un onglet aSchool ouvert dans un autre espace de travail — il doit se déconnecter partout en même temps.</p>
+<p><strong>Comment faire ce test</strong>
+→ Ouvrir 2 onglets Edge sur <code>localhost:5173</code> → se connecter avec le même compte dans les deux
+Attendu : les deux onglets affichent le dashboard</p>
+<h3 id="162--cross-tab--déconnexion-onglet-a">16.2 — Cross-tab — Déconnexion onglet A</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que le signal localStorage est bien émis au moment du logout et déclenche la chaîne cross-tab.</p>
+<p><strong>Comment faire ce test</strong>
+→ Dans l'onglet A → cliquer Déconnexion
+Attendu : onglet A redirige vers /login</p>
+<h3 id="163--cross-tab--onglet-b-redirige-automatiquement">16.3 — Cross-tab — Onglet B redirige automatiquement</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que le listener storage de l'onglet B capte le signal et force la redirection sans aucune action manuelle.</p>
+<p><strong>Comment faire ce test</strong>
+→ Observer l'onglet B sans rien faire après le logout de l'onglet A
+Attendu : l'onglet B bascule automatiquement sur /login en moins de 2 secondes
+Échec : l'onglet B reste connecté et navigable</p>
+<hr>
+<h3 id="17--taille-bundle">17 — Taille bundle</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Un bundle trop lourd pénalise le chargement initial sur 4G — les profs en déplacement doivent attendre moins de 3 secondes.</p>
+<p><strong>Comment faire ce test</strong>
+→ DevTools &gt; Lighthouse &gt; lancer un audit PWA + Performance
+Attendu : score PWA ≥ 90, bundle JS &lt; 500 Ko gzippé (vérifier dans Network &gt; JS)</p>
+<hr>
+<h3 id="18--cache-clean-logout">18 — Cache clean logout</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Vérifie que localStorage et sessionStorage sont bien vidés au logout — aucune donnée privée ne doit survivre à la déconnexion.</p>
+<p><strong>Comment faire ce test</strong>
+→ Logout → DevTools &gt; Network &gt; Offline → rouvrir <code>localhost:5173</code>
+Attendu : aucune donnée utilisateur visible, aucune page protégée accessible</p>
+<hr>
+<h3 id="19--comptes-réels--rôles">19 — Comptes réels / rôles</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Les permissions sont spécifiques par rôle — un bug peut exposer le backoffice admin à un enseignant ou bloquer un enseignant légitime.</p>
+<p><strong>Comment faire ce test</strong>
+→ Tester avec un compte enseignant → vérifier accès dashboard et génération uniquement
+→ Tester avec un compte admin → vérifier accès backoffice, pas d'accès enseignant
+Attendu : chaque rôle voit uniquement ce qu'il doit voir, sans fuite entre rôles</p>
+<hr>
+<h3 id="201--console--aucune-erreur-rouge-navigateur">20.1 — Console — Aucune erreur rouge navigateur</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Détecte les erreurs silencieuses côté client — une erreur JavaScript ignorée en dev devient un bug bloquant en prod.</p>
+<p><strong>Comment faire ce test</strong>
+→ F12 &gt; Console → effectuer dans l'ordre : login, génération, save, logout
+Attendu : aucune erreur rouge dans la console à aucune étape</p>
+<h3 id="202--logs-nginx--aucun-5xx--prod">20.2 — Logs Nginx — Aucun 5xx 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Détecte les crashs backend non affichés à l'utilisateur — un 502 silencieux passe inaperçu côté UI mais indique un problème serveur réel.</p>
+<p><strong>Comment faire ce test</strong>
+→ Sur le VPS : <code>sudo tail -f /var/log/nginx/access.log</code> pendant les tests
+Attendu : aucun code 500, 502, 503 après chaque action</p>
+<hr>
+<h3 id="211--devtools--sw-activated-and-running--prod">21.1 — DevTools — SW &quot;activated and running&quot; 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Un SW en &quot;waiting&quot; signifie qu'une ancienne version bloque la mise à jour — l'app tourne sur du code obsolète sans que l'utilisateur le sache.</p>
+<p><strong>Comment faire ce test</strong>
+→ F12 &gt; Application &gt; Service Workers
+Attendu : statut &quot;activated and running&quot;, aucun SW en &quot;waiting&quot;</p>
+<h3 id="212--devtools--manifest-sans-erreur--prod">21.2 — DevTools — Manifest sans erreur 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Une erreur manifest empêche l'installation et le splash screen — cause fréquente : icône manquante ou start_url incorrecte.</p>
+<p><strong>Comment faire ce test</strong>
+→ F12 &gt; Application &gt; Manifest
+Attendu : aucune erreur affichée, icônes résolues, start_url = <code>/</code></p>
+<h3 id="213--devtools--api-absent-du-cache-storage--prod">21.3 — DevTools — /api/ absent du Cache Storage 🔒 prod</h3>
+<p><strong>Pourquoi faire ce test</strong>
+Si /api/ apparaît dans le cache, le SW retourne des réponses périmées — les données affichées ne viennent plus du serveur.</p>
+<p><strong>Comment faire ce test</strong>
+→ F12 &gt; Application &gt; Cache Storage → parcourir tous les caches listés
+Attendu : <code>/api/</code> n'apparaît dans aucun cache</p>
 <hr>
 <h2 id="priorité-si-seulement-10-minutes">Priorité si seulement 10 minutes</h2>
 <ol>

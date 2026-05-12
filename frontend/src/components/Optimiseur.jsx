@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+﻿import { useState, useRef } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
 
 
@@ -140,7 +140,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
           <span style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>Optimiseur de séquences</span>
         </div>
         <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
-          Collez une séquence pédagogique existante. A-SCHOOL détecte les problèmes structurels et vous en restitue une version améliorée.
+          Collez une séquence pédagogique existante. aSchool détecte les problèmes structurels et vous en restitue une version améliorée.
         </p>
       </div>
 

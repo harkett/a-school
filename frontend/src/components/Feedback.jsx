@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 const CATEGORIES = [
   { key: 'bug',        label: 'Problème' },
@@ -9,10 +9,10 @@ const CATEGORIES = [
 
 export default function Feedback({ onClose }) {
   const [category, setCategory] = useState('')
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState(false)
-  const [error, setError] = useState('')
+  const [message, setMessage]   = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [done, setDone]         = useState(false)
+  const [error, setError]       = useState('')
 
   const canSubmit = category && message.trim().length >= 5
 
@@ -26,7 +26,7 @@ export default function Feedback({ onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ type: 'feedback', message: message.trim(), rating: 0, category }),
+        body: JSON.stringify({ type: 'feedback', message: message.trim(), category }),
       })
       if (!res.ok) throw new Error()
       setDone(true)
@@ -72,7 +72,6 @@ export default function Feedback({ onClose }) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
-
             <div>
               <label className="block text-sm text-gray-600 mb-2">Type</label>
               <div className="flex gap-2">
@@ -81,6 +80,7 @@ export default function Feedback({ onClose }) {
                     key={c.key}
                     type="button"
                     onClick={() => setCategory(c.key)}
+                    title={`Catégorie : ${c.label}`}
                     className="px-4 py-1.5 rounded-full text-sm font-medium border transition-colors"
                     style={
                       category === c.key
@@ -122,7 +122,7 @@ export default function Feedback({ onClose }) {
                 type="submit"
                 className="btn-primary"
                 disabled={!canSubmit || loading}
-                title={!canSubmit ? 'Remplissez le message avant d\'envoyer' : 'Envoyer votre feedback à l\'équipe A-SCHOOL'}
+                title={!canSubmit ? 'Remplissez le message avant d\'envoyer' : 'Envoyer votre feedback à l\'équipe aSchool'}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {loading ? 'Envoi…' : 'Envoyer'}

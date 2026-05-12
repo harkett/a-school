@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import os
 import secrets
 import smtplib
@@ -249,7 +249,7 @@ def _smtp_send(msg):
 
 def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback"):
     """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK."""
-    from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
+    from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
     stars     = "★" * rating + "☆" * (5 - rating)
 
@@ -262,19 +262,19 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
     cat     = category or "—"
 
     if type == "notation":
-        sujet_email  = f"[A-SCHOOL] Nouvelle notation — {rating}/5"
+        sujet_email  = f"[aSchool] Nouvelle notation — {rating}/5"
         titre_email  = "Nouvelle notation"
         header_color = "linear-gradient(135deg,#1e3a8a,#1F6EEB)"
         border_color = "#1F6EEB"
         footer_note  = "notation enregistrée en base de données"
     elif type == "idee":
-        sujet_email  = "[A-SCHOOL] Nouvelle idée de fonctionnalité"
+        sujet_email  = "[aSchool] Nouvelle idée de fonctionnalité"
         titre_email  = "Nouvelle idée de fonctionnalité"
         header_color = "linear-gradient(135deg,#065f46,#059669)"
         border_color = "#059669"
         footer_note  = "idée enregistrée en base de données"
     else:
-        sujet_email  = "[A-SCHOOL] Nouveau feedback"
+        sujet_email  = "[aSchool] Nouveau feedback"
         titre_email  = "Nouveau feedback"
         header_color = "linear-gradient(135deg,#1e3a8a,#1F6EEB)"
         border_color = "#1F6EEB"
@@ -286,21 +286,30 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
     msg["To"]      = to_addr
 
     plain = (
-        f"{titre_email} A-SCHOOL\n\n"
+        f"{titre_email} aSchool\n\n"
         f"Prénom / Nom : {nom_complet}\n"
         f"Email        : {email}\n"
         f"Matière      : {matiere}\n"
         f"Niveau       : {niveau}\n"
-        f"Note         : {rating}/5  {stars}\n"
-        f"Catégorie    : {cat}\n\n"
-        f"Message :\n{message}\n"
+        + (f"Note         : {rating}/5  {stars}\n" if type == "notation" else "")
+        + (f"Catégorie    : {cat}\n" if type not in ("notation", "idee") else "")
+        + f"\nMessage :\n{message}\n"
     )
 
-    rows_note_cat = "" if type == "idee" else f"""
+    if type == "notation":
+        rows_note_cat = f"""
         <tr style="background:#f8fafc;">
           <td style="padding:8px 12px;color:#64748b;font-weight:600;">Note</td>
           <td style="padding:8px 12px;color:#1e293b;font-size:1.1rem;">{stars} <span style="font-size:0.85rem;color:#64748b;">({rating}/5)</span></td>
         </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Catégorie</td>
+          <td style="padding:8px 12px;color:#1e293b;">{cat}</td>
+        </tr>"""
+    elif type == "idee":
+        rows_note_cat = ""
+    else:
+        rows_note_cat = f"""
         <tr>
           <td style="padding:8px 12px;color:#64748b;font-weight:600;">Catégorie</td>
           <td style="padding:8px 12px;color:#1e293b;">{cat}</td>
@@ -340,7 +349,73 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
       </div>
 
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        A-SCHOOL · school.afia.fr · {footer_note}
+        aSchool · school.afia.fr · {footer_note}
+      </p>
+    </div>
+    """
+
+    msg.attach(MIMEText(plain, "plain"))
+    msg.attach(MIMEText(html, "html"))
+    _smtp_send(msg)
+
+
+def send_feedback_update_notification(prof: dict, message: str, category: str | None):
+    """Notifie l'admin qu'un prof a modifié un feedback existant."""
+    from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
+    to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
+
+    prenom     = prof.get("prenom") or ""
+    nom        = prof.get("nom") or ""
+    nom_complet = f"{prenom} {nom}".strip() or "—"
+    email      = prof.get("email") or "—"
+    matiere    = prof.get("subject") or "—"
+    niveau     = prof.get("niveau") or "—"
+    cat        = category or "—"
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "[aSchool] Feedback modifié par un prof"
+    msg["From"]    = from_addr
+    msg["To"]      = to_addr
+
+    plain = (
+        f"Feedback modifié — aSchool\n\n"
+        f"Prénom / Nom : {nom_complet}\n"
+        f"Email        : {email}\n"
+        f"Matière      : {matiere}\n"
+        f"Niveau       : {niveau}\n"
+        f"Catégorie    : {cat}\n\n"
+        f"Message mis à jour :\n{message}\n"
+    )
+
+    html = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:2rem;">
+      <div style="background:linear-gradient(135deg,#92400e,#d97706);border-radius:12px;padding:1.2rem 2rem;margin-bottom:1.5rem;">
+        <h1 style="color:white;margin:0;font-size:1.3rem;">aSchool — Feedback modifié</h1>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1.5rem;">
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;width:140px;">Prénom / Nom</td>
+          <td style="padding:8px 12px;color:#1e293b;">{nom_complet}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Email</td>
+          <td style="padding:8px 12px;"><a href="mailto:{email}" style="color:#1F6EEB;">{email}</a></td>
+        </tr>
+        <tr style="background:#f8fafc;">
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Matière</td>
+          <td style="padding:8px 12px;color:#1e293b;">{matiere}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Catégorie</td>
+          <td style="padding:8px 12px;color:#1e293b;">{cat}</td>
+        </tr>
+      </table>
+      <div style="background:#fef3c7;border-left:4px solid #d97706;border-radius:4px;padding:1rem 1.2rem;">
+        <div style="color:#92400e;font-size:0.75rem;font-weight:600;margin-bottom:6px;">MESSAGE MIS À JOUR</div>
+        <p style="color:#1e293b;margin:0;line-height:1.6;white-space:pre-wrap;">{message}</p>
+      </div>
+      <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
+        aSchool · aschool.fr · feedback modifié par le prof
       </p>
     </div>
     """
@@ -353,7 +428,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
 def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
     """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels."""
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
+    from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     nom_prenom = prenom or "cher(e) enseignant(e)"
     body_rendered = body.replace("{prenom}", nom_prenom).replace("{email}", email)
     body_html = body_rendered.replace("\n", "<br>")
@@ -381,11 +456,11 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
            style="background:#1F6EEB;color:white;padding:14px 32px;
                   border-radius:8px;text-decoration:none;
                   font-weight:600;font-size:1rem;display:inline-block;">
-          Accéder à A-SCHOOL
+          Accéder à aSchool
         </a>
       </div>
       <p style="color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:1rem;">
-        A-SCHOOL · school.afia.fr
+        aSchool · school.afia.fr
       </p>
     </div>
     """
@@ -397,11 +472,11 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
 
 def send_reset_email(email: str, token: str):
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
+    from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     link = f"{app_url}/reset-password?token={token}"
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Réinitialisation de votre mot de passe A-SCHOOL"
+    msg["Subject"] = "Réinitialisation de votre mot de passe aSchool"
     msg["From"] = from_addr
     msg["To"] = email
 
@@ -417,7 +492,7 @@ def send_reset_email(email: str, token: str):
         </p>
       </div>
       <p>Bonjour,</p>
-      <p>Vous avez demandé la réinitialisation de votre mot de passe A-SCHOOL.
+      <p>Vous avez demandé la réinitialisation de votre mot de passe aSchool.
          Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
          Ce lien est valable <strong>60 minutes</strong>.</p>
       <div style="text-align:center;margin:2rem 0;">
@@ -435,7 +510,7 @@ def send_reset_email(email: str, token: str):
     </div>
     """
     plain = (
-        f"Bonjour,\n\nRéinitialisez votre mot de passe A-SCHOOL en cliquant sur ce lien :\n{link}\n\n"
+        f"Bonjour,\n\nRéinitialisez votre mot de passe aSchool en cliquant sur ce lien :\n{link}\n\n"
         f"Ce lien est valable 60 minutes et ne peut être utilisé qu'une seule fois.\n\n"
         f"Si vous n'avez pas demandé cette réinitialisation, ignorez cet email."
     )
@@ -446,17 +521,17 @@ def send_reset_email(email: str, token: str):
 
 def send_admin_new_user_notification(email: str, subject: str | None):
     """Notifie l'admin par email quand un nouveau prof active son compte."""
-    from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
+    from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
     date_str  = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "[A-SCHOOL] Nouveau prof inscrit"
+    msg["Subject"] = "[aSchool] Nouveau prof inscrit"
     msg["From"]    = from_addr
     msg["To"]      = to_addr
 
     plain = (
-        f"Nouveau prof inscrit sur A-SCHOOL\n\n"
+        f"Nouveau prof inscrit sur aSchool\n\n"
         f"Email   : {email}\n"
         f"Matière : {subject or '—'}\n"
         f"Date    : {date_str} UTC\n"
@@ -483,7 +558,7 @@ def send_admin_new_user_notification(email: str, subject: str | None):
         </tr>
       </table>
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        A-SCHOOL · school.afia.fr
+        aSchool · school.afia.fr
       </p>
     </div>
     """
@@ -494,11 +569,11 @@ def send_admin_new_user_notification(email: str, subject: str | None):
 
 def send_verification_email(email: str, token: str):
     app_url = os.getenv("APP_URL", "https://school.afia.fr")
-    from_addr = os.getenv("SMTP_FROM", "A-SCHOOL <contact@aschool.fr>")
+    from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     link = f"{app_url}/verify-email?token={token}"
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Activez votre compte A-SCHOOL"
+    msg["Subject"] = "Activez votre compte aSchool"
     msg["From"] = from_addr
     msg["To"] = email
 
@@ -514,7 +589,7 @@ def send_verification_email(email: str, token: str):
         </p>
       </div>
       <p>Bonjour,</p>
-      <p>Cliquez sur le bouton ci-dessous pour activer votre compte A-SCHOOL.
+      <p>Cliquez sur le bouton ci-dessous pour activer votre compte aSchool.
          Ce lien est valable <strong>60 minutes</strong>.</p>
       <div style="text-align:center;margin:2rem 0;">
         <a href="{link}"
@@ -531,7 +606,7 @@ def send_verification_email(email: str, token: str):
     </div>
     """
     plain = (
-        f"Bonjour,\n\nActivez votre compte A-SCHOOL en cliquant sur ce lien :\n{link}\n\n"
+        f"Bonjour,\n\nActivez votre compte aSchool en cliquant sur ce lien :\n{link}\n\n"
         f"Ce lien est valable 60 minutes et ne peut être utilisé qu'une seule fois.\n\n"
         f"Si vous n'avez pas créé de compte, ignorez cet email."
     )

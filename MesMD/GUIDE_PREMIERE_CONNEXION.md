@@ -1,11 +1,11 @@
-# <span style="color:#A63045">A</span>-SCHOOL — Guide de première connexion
+﻿# <span style="color:#A63045">A</span>-SCHOOL — Guide de première connexion
 ### Avril 2026
 
 > **⚠ Document externe — destiné aux professeurs, pas aux développeurs.**
 >
 > Ce guide est joint en pièce jointe aux emails envoyés aux profs pilotes (voir `EMAIL_PILOTES.md`), et peut être distribué à tout nouvel inscrit. Il est conçu pour être converti en PDF et partagé tel quel.
 >
-> Ce document contient le parcours complet d'un prof qui découvre A-SCHOOL :
+> Ce document contient le parcours complet d'un prof qui découvre aSchool :
 > - Étape 1 : créer un compte (inscription + vérification email)
 > - Étape 2 : se connecter
 > - Étape 3 : compléter son profil (prénom, nom, matière, niveau par défaut)
@@ -48,7 +48,7 @@ Renseignez :
 
 Cliquez sur **"Valider"**.
 
-> A-SCHOOL mémorise votre niveau d'une session à l'autre — vous n'avez plus à le resélectionner à chaque connexion.
+> aSchool mémorise votre niveau d'une session à l'autre — vous n'avez plus à le resélectionner à chaque connexion.
 
 ---
 
@@ -96,7 +96,7 @@ Dans la barre de gauche, cliquez sur **"Mes activités"** pour les retrouver.
 
 Cliquez sur une activité pour la recharger — vous pouvez la régénérer avec un nouveau texte ou modifier les paramètres.
 
-> Plus vous sauvegardez d'activités du même type, plus A-SCHOOL s'adapte à votre façon d'enseigner.
+> Plus vous sauvegardez d'activités du même type, plus aSchool s'adapte à votre façon d'enseigner.
 
 ---
 
@@ -110,7 +110,7 @@ Nous lisons tout et nous répondons.
 
 ---
 
-*A-SCHOOL — school.afia.fr*
+*aSchool — school.afia.fr*
 *Générateur d'activités pédagogiques — 12 matières, 6e à Terminale*
 *Un outil fait pour les enseignants, par des enseignants.*
 *Partagez ce guide à vos collègues — ils vous remercieront.*

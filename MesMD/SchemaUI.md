@@ -1,4 +1,4 @@
-# A-SCHOOL — Interface PRO
+﻿# aSchool — Interface PRO
 
 > **Rôle : référence design et interface — à consulter avant de créer ou modifier un composant UI.**
 >
@@ -12,7 +12,7 @@
 > **Règles critiques à ne jamais violer :**
 > - Tout bouton = icône SVG + texte + attribut `title=` (tooltip obligatoire)
 > - Pas d'emojis dans l'interface
-> - Pas de "IA" — utiliser "A-SCHOOL"
+> - Pas de "IA" — utiliser "aSchool"
 > - Selectbox uniquement (pas de saisie libre)
 > - La matière est définie à la connexion, affichée dans la navbar — pas dans le formulaire
 >
@@ -25,7 +25,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  HEADER  [A-SCHOOL | slogan | matière | email | ⎋]  │
+│  HEADER  [aSchool | slogan | matière | email | ⎋]  │
 ├──────────┬──────────────────────────────────────────┤
 │          │  ZONE TEXTE SOURCE                       │
 │ SIDEBAR  │  textarea + [Fichier] [Dicter]           │
@@ -40,7 +40,7 @@
 │ Avis     │                                          │
 │ À propos │                                          │
 ├──────────┴──────────────────────────────────────────┤
-│  FOOTER  slogan centré | A-SCHOOL · mentions | v    │
+│  FOOTER  slogan centré | aSchool · mentions | v    │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -78,7 +78,7 @@
 
 ### FOOTER
 - Slogan centré italique : *"Plus le monde s'ouvre, plus nous avons besoin de proximité..."*
-- Ligne infos : A-SCHOOL · Mentions légales (gauche) | version · contact (droite)
+- Ligne infos : aSchool · Mentions légales (gauche) | version · contact (droite)
 
 ---
 
@@ -105,7 +105,7 @@
 
 ## Règles interface
 
-- Pas de "IA" — utiliser "A-SCHOOL"
+- Pas de "IA" — utiliser "aSchool"
 - Pas d'emojis
 - Matière : définie à la connexion, affichée dans la navbar, pas dans le formulaire
 - Selectbox : pas de saisie libre (dropdown uniquement)

@@ -1,5 +1,5 @@
-"""
-Seed — Exemples A-SCHOOL
+﻿"""
+Seed — Exemples aSchool
 Crée le compte démo et insère 2 activités d'exemple par matière (24 au total).
 Toutes partagées = True → visibles dans la Bibliothèque de tous les profs.
 Idempotent : ne recrée pas ce qui existe déjà.
@@ -8,7 +8,7 @@ Pour masquer les exemples : désactiver le compte demo@aschool.fr dans AdminProf
 import bcrypt
 
 DEMO_EMAIL = "demo@aschool.fr"
-DEMO_PRENOM = "Équipe A-SCHOOL"
+DEMO_PRENOM = "Équipe aSchool"
 
 EXEMPLES = [
 

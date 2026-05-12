@@ -1,4 +1,4 @@
-# EMAILS — Gestion des envois dans A-SCHOOL
+﻿# EMAILS — Gestion des envois dans aSchool
 
 > **Rôle : référence obligatoire pour tout ce qui concerne les emails — à lire AVANT toute modification email.**
 >
@@ -35,16 +35,16 @@
 
 ## Adresses email (Infomaniak — domaine aschool.fr)
 
-| Adresse | Type | Redirige vers | Usage dans A-SCHOOL |
+| Adresse | Type | Redirige vers | Usage dans aSchool |
 |---------|------|---------------|----------------------|
 | `contact@aschool.fr` | Boîte réelle | — | Toutes les réponses arrivent ici — activation, welcome, test admin |
 | `feedback@aschool.fr` | Alias | → `contact@aschool.fr` | Notifications feedback / notation uniquement |
 
 **Règle `From` :**
-- Emails vers les profs (activation, welcome, invitation) : `A-SCHOOL <contact@aschool.fr>`
-- Notifications feedback vers l'admin : `A-SCHOOL Feedback <feedback@aschool.fr>`
+- Emails vers les profs (activation, welcome, invitation) : `aSchool <contact@aschool.fr>`
+- Notifications feedback vers l'admin : `aSchool Feedback <feedback@aschool.fr>`
 
-`noreply` supprimé — les profs peuvent répondre à tout email A-SCHOOL, c'est souhaitable.
+`noreply` supprimé — les profs peuvent répondre à tout email aSchool, c'est souhaitable.
 
 ---
 
@@ -56,20 +56,20 @@ SMTP_HOST=mail.infomaniak.com
 SMTP_PORT=587
 SMTP_USERNAME=contact@aschool.fr
 SMTP_PASSWORD=***
-SMTP_FROM=A-SCHOOL <contact@aschool.fr>
-FEEDBACK_FROM=A-SCHOOL Feedback <feedback@aschool.fr>
+SMTP_FROM=aSchool <contact@aschool.fr>
+FEEDBACK_FROM=aSchool Feedback <feedback@aschool.fr>
 FEEDBACK_NOTIFY_EMAIL=contact@aschool.fr
 APP_URL=http://localhost:5173
 ```
 
-### Variables `.env` VPS (`/var/www/a-school/.env`)
+### Variables `.env` VPS (`/var/www/aSchool/.env`)
 ```
 SMTP_HOST=mail.infomaniak.com
 SMTP_PORT=587
 SMTP_USERNAME=contact@aschool.fr
 SMTP_PASSWORD=***
-SMTP_FROM=A-SCHOOL <contact@aschool.fr>
-FEEDBACK_FROM=A-SCHOOL Feedback <feedback@aschool.fr>
+SMTP_FROM=aSchool <contact@aschool.fr>
+FEEDBACK_FROM=aSchool Feedback <feedback@aschool.fr>
 FEEDBACK_NOTIFY_EMAIL=contact@aschool.fr
 APP_URL=https://school.afia.fr
 ```
@@ -127,17 +127,17 @@ Déclencheur : prof connecté envoie une invitation depuis la sidebar.
 Limite : 5 adresses / 5 appels par jour par utilisateur.
 
 ```
-Objet : [Prénom Nom] vous recommande A-SCHOOL
+Objet : [Prénom Nom] vous recommande aSchool
 
 Bonjour,
 
-[Prénom Nom] vous recommande A-SCHOOL, l'outil gratuit pour les enseignants.
+[Prénom Nom] vous recommande aSchool, l'outil gratuit pour les enseignants.
 Collez un texte, choisissez le type d'activité et le niveau —
 vous obtenez un exercice complet en 10 secondes.
 
 → Créez votre compte gratuit sur school.afia.fr
 
-— A-SCHOOL — school.afia.fr
+— aSchool — school.afia.fr
 ```
 
 ### Signature dans le `mailto:` — Phase 1 S1
@@ -147,7 +147,7 @@ Le bouton "Envoyer par e-mail" ouvre le client mail du prof avec l'activité en 
 
 ```
 --
-Généré avec A-SCHOOL — school.afia.fr — Créez votre compte gratuit
+Généré avec aSchool — school.afia.fr — Créez votre compte gratuit
 ```
 
 ---

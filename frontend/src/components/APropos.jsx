@@ -77,10 +77,10 @@ export default function APropos({ email, matiere }) {
           </button>
           <button
             onClick={() => setShowNotation(true)}
-            title="Donnez une note à A-SCHOOL"
+            title="Donnez une note à aSchool"
             style={{ background: 'none', border: '1px solid #e5e7eb', borderRadius: 8, cursor: 'pointer', padding: '10px 16px', textAlign: 'left', width: '100%' }}
           >
-            <div className="text-sm font-medium text-gray-700">Notez A-SCHOOL</div>
+            <div className="text-sm font-medium text-gray-700">Notez aSchool</div>
             <div className="text-xs text-gray-400 mt-0.5">Donnez votre avis sur la plateforme — 30 secondes</div>
           </button>
           <button

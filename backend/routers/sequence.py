@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Cookie
+﻿from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -57,7 +57,7 @@ Format de réponse — markdown strict :
 
 ---
 
-> *Séance générée par A-SCHOOL*
+> *Séance générée par aSchool*
 
 Règles absolues :
 - La somme des durées des phases = exactement {duree} minutes
@@ -98,7 +98,7 @@ Format de réponse — markdown strict :
 
 ---
 
-> *Séance de remédiation générée par A-SCHOOL*
+> *Séance de remédiation générée par aSchool*
 
 Règles absolues :
 - La somme des durées des phases = exactement {duree} minutes

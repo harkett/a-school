@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+﻿import { useState, useRef } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
@@ -337,7 +337,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate }) {
             className="btn-primary"
             onClick={generer}
             disabled={loading || !canGenerer}
-            title={!canGenerer ? 'Saisissez le thème de la séance pour générer' : 'Lancer la génération de la séquence avec A-SCHOOL'}
+            title={!canGenerer ? 'Saisissez le thème de la séance pour générer' : 'Lancer la génération de la séquence avec aSchool'}
           >
             <IconGenerer />
             {loading ? 'Génération en cours…' : 'Générer la séquence'}

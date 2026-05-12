@@ -1,4 +1,4 @@
-# AUTH_DIAGNOSTIC.md — Référence du système d'authentification
+﻿# AUTH_DIAGNOSTIC.md — Référence du système d'authentification
 
 > **Rôle : référence complète du système d'auth + archive du diagnostic effectué le 02/05/2026.**
 >
@@ -40,7 +40,7 @@ Ce qui a été fait (session 2) :
 
 **Tous les problèmes identifiés sont résolus. Prêt pour déploiement VPS.**
 
-Rappel déploiement : ajouter `ENV=production` dans `/var/www/a-school/.env` puis `sudo systemctl restart a-school-backend`.
+Rappel déploiement : ajouter `ENV=production` dans `/var/www/aSchool/.env` puis `sudo systemctl restart aSchool-backend`.
 
 ---
 

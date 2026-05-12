@@ -1,4 +1,4 @@
-﻿export default function Header({ matiere, email, prenom, nom, onLogout, onNavigate }) {
+﻿export default function Header({ matiere, email, prenom, nom, onLogout, onNavigate, onFeedback }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const isMobile = window.innerWidth < 768
   return (
@@ -31,6 +31,20 @@
           ) : (
             <span style={{ borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</span>
           )}
+        </button>
+        <button
+          onClick={onFeedback}
+          title="Consulter ou envoyer un retour à l'équipe aSchool"
+          style={{
+            color: 'rgba(255,255,255,0.85)', cursor: 'pointer', background: 'none', border: 'none',
+            padding: 0, fontSize: '0.8rem', fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          {!isMobile && 'Mes feedbacks'}
         </button>
         <button
           onClick={onLogout}

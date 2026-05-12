@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -43,6 +43,7 @@ import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
 import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
 import AdminAnalytiqueCommunaute from './pages/AdminAnalytiqueCommunaute'
+import MesFeedbacks from './pages/MesFeedbacks'
 import AdminFiches from './pages/AdminFiches'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
@@ -241,7 +242,7 @@ function MainApp() {
       const newCount = (parseInt(localStorage.getItem(countKey) || '0')) + 1
       localStorage.setItem(countKey, String(newCount))
       if (newCount === 3) {
-        setToast('A-SCHOOL reconnaît maintenant votre façon de travailler sur ce type d\'activité.')
+        setToast('aSchool reconnaît maintenant votre façon de travailler sur ce type d\'activité.')
       }
 
       fetch('/api/mes-activites', {
@@ -291,6 +292,7 @@ function MainApp() {
         nom={user?.nom}
         onLogout={logout}
         onNavigate={setPage}
+        onFeedback={() => setShowFeedback(true)}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
@@ -330,7 +332,7 @@ function MainApp() {
                           <div style={S}>1. Fournissez un texte source — 3 options</div>
                           <ul style={UL}>
                             <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
-                            <li>Dictez à la voix grâce au micro intégré — A-SCHOOL transcrit automatiquement</li>
+                            <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
                             <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
                           </ul>
                         </div>
@@ -367,7 +369,7 @@ function MainApp() {
                         </div>
                         <hr style={HR} />
                         <p style={{ margin: 0, fontSize: '12px', color: '#64748b', background: '#f8fafc', borderRadius: '6px', padding: '8px 12px', lineHeight: 1.6, borderLeft: '3px solid #cbd5e1' }}>
-                          A-SCHOOL apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
+                          aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
                         </p>
                       </div>
                     ),
@@ -388,7 +390,7 @@ function MainApp() {
                         <div>
                           <div style={S}>2. Paramétrez la structure</div>
                           <ul style={UL}>
-                            <li><strong>Nombre de phases ou de séances</strong> — A-SCHOOL répartit les apprentissages</li>
+                            <li><strong>Nombre de phases ou de séances</strong> — aSchool répartit les apprentissages</li>
                             <li>
                               <strong>Types de phases à inclure</strong> :
                               <ul style={SUB}>
@@ -404,7 +406,7 @@ function MainApp() {
                         </div>
                         <hr style={HR} />
                         <div>
-                          <div style={S}>3. A-SCHOOL génère la séquence complète</div>
+                          <div style={S}>3. aSchool génère la séquence complète</div>
                           <ul style={UL}>
                             <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
                             <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
@@ -428,7 +430,7 @@ function MainApp() {
                         </div>
                         <hr style={HR} />
                         <div>
-                          <div style={S}>2. A-SCHOOL analyse sur 6 critères</div>
+                          <div style={S}>2. aSchool analyse sur 6 critères</div>
                           <ul style={UL}>
                             <li>Rupture conceptuelle — une phase suppose une notion non encore construite</li>
                             <li>Surcharge cognitive — trop de notions nouvelles sur un temps trop court</li>
@@ -516,13 +518,13 @@ function MainApp() {
                       {/* Carte 2 — Créer une séquence */}
                       <div
                         onClick={() => selectCard('sequence')}
-                        style={{ flex: 1, background: selectedCard === 'sequence' ? '#fff' : '#f8fafc', border: `${selectedCard === 'sequence' ? '2' : '1'}px solid ${selectedCard === 'sequence' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', opacity: selectedCard === 'sequence' ? 1 : 0.6, cursor: 'pointer' }}
+                        style={{ flex: 1, background: '#fff', border: `${selectedCard === 'sequence' ? '2' : '1'}px solid ${selectedCard === 'sequence' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'sequence' ? 'var(--bordeaux)' : '#475569' }}>Créer une séquence</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'sequence' ? 'var(--bordeaux)' : '#1e293b' }}>Créer une séquence</span>
                           {selectedCard === 'sequence' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
                         </div>
-                        <p style={{ fontSize: '12px', color: selectedCard === 'sequence' ? '#64748b' : '#94a3b8', margin: 0, lineHeight: 1.5, flex: 1 }}>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5, flex: 1 }}>
                           Un objectif pédagogique → séquence complète structurée de A à Z
                         </p>
                         <div className="flex justify-end" style={{ marginTop: 'auto' }}>
@@ -547,7 +549,7 @@ function MainApp() {
                           {selectedCard === 'optimiseur' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
                         </div>
                         <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5, flex: 1 }}>
-                          Collez une séquence existante → A-SCHOOL la corrige et l'optimise
+                          Collez une séquence existante → aSchool la corrige et l'optimise
                         </p>
                         <div className="flex justify-end" style={{ marginTop: 'auto' }}>
                           <button
@@ -649,6 +651,8 @@ function MainApp() {
           )}
 
           {page === 'aide' && <Aide />}
+
+          {page === 'mes-feedbacks' && <MesFeedbacks />}
 
           {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject || 'Français'} />}
         </main>

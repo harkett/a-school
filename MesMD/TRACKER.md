@@ -1,9 +1,11 @@
-# A-SCHOOL — TRACKER
+﻿# aSchool — TRACKER
 
 > **Source de vérité unique.** Toute idée, tâche ou livraison est ici — nulle part ailleurs.
 > Specs techniques détaillées → `SPECS_LEVIERS/`
 
 > Note dev : Bannière "Bientôt disponible" sidebar prof → `Sidebar.jsx`, bloc `{!collapsed && ...}` en bas.
+
+> **Règle Aide :** Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la même session — à chaud, pendant que c'est frais. Jamais en retard.
 
 ---
 
@@ -15,18 +17,28 @@
 - [x] **PWA — Service Worker** | Livré 12/05
   *SW opérationnel, offline banner, cache propre au logout, update détectée automatiquement.*
 
-- [ ] **PWA — Responsive mobile (pages restantes)** | Moyen | 1 session
-  *Pages à finir : ZoneResultat (résultat généré), Bibliothèque, Aide. Cœur fait : header, sidebar, Accueil, Mes Outils, Mes Activités.*
+- [x] **PWA — Responsive mobile (pages restantes)** | Livré 12/05
+  *ZoneResultat, Bibliothèque, Aide — complété. Toutes les pages adaptées mobile.*
 
 ---
 
 ## IMPORTANT
 
+### Feedback — Améliorations (ordre d'implémentation)
+
+- [x] **FB1+FB3+FB4 — Page Mes feedbacks** | Livré 12/05
+  *Page sidebar "Mes feedbacks". 2 onglets : Envoyer / Mes retours. Upload multi-fichiers (PNG/JPEG/PDF, max 5Mo, max 5 fichiers), drag&drop + Parcourir. Bouton Modifier si statut nouveau/en_cours. Capture écran via Win+Maj+S (message d'aide intégré). Aide rédigée à chaud (section "Mes feedbacks" dans Aide.jsx).*
+
+- [ ] **FB2 — Email admin → prof** | Facile | 2h
+  *Bouton "Contacter" dans AdminFeedbacks. 3 templates : Traité / Demande de précision / Remerciement. Admin peut modifier le corps avant envoi. Endpoint `POST /api/admin/feedbacks/{id}/email`. Trace en BDD : `email_sent_at` + `email_type`.*
+
+---
+
 ### Mes Outils — Leviers pédagogiques
 *Specs détaillées dans `SPECS_LEVIERS/`. Ordre d'implémentation : L2 → L5 → L6 → L4.*
 
 - [ ] **L2 — Détecteur d'ambiguïtés cognitives** | Facile | 1 session
-  *Analyse un exercice ou énoncé → zones de risque d'incompréhension + reformulations corrigées.*
+  *Analyse un exercice ou énoncé → zones de risque d'incompréhension + reformulations corrigées. Ajouté dans "Bientôt disponible" 12/05.*
 
 - [ ] **L5 — Analyseur de consignes** | Facile | 1 session
   *Analyse chirurgicale d'une consigne isolée → clarté, charge cognitive, erreurs typiques + version optimisée.*
@@ -36,8 +48,8 @@
 
 ---
 
-- [ ] **Aide — Refonte visuelle pro** | Moyen | 1 session
-  *L'accordéon actuel est fonctionnel mais pas pro. Solution validée : layout 2 colonnes style docs (Stripe/Tailwind) — nav latérale sticky à gauche (Installation / Créer / Comprendre / Problèmes), contenu à droite au clic. Mobile : accordéon inchangé. Pour démarrer la session : dire "on fait la refonte de l'Aide".*
+- [x] **Aide — Refonte visuelle pro** | Livré 12/05
+  *Layout 2 colonnes — nav sticky gauche (Installation / Créer / Comprendre / Problèmes), contenu à droite. Mobile : accordéon inchangé.*
 
 - [ ] **Page /contact** | Facile | 2h
   *Remplace l'adresse email brute dans le footer — réduit le spam.*
@@ -63,14 +75,6 @@
 - [ ] **Historique de connexions** | Facile | 3h
   *Savoir quand les profs se connectent (heure de pointe, fréquence) oriente les décisions produit.*
 
-- [ ] **PWA — Responsive mobile** | Difficile | 2-3 semaines
-  *Interface adaptée 390px. À prioriser si l'usage mobile est confirmé par les retours pilotes.*
-
-- [ ] **PWA — Polish mobile** | Moyen | 2-3 jours
-  *Splash screen, touch 44px — finitions qui font la différence entre "acceptable" et "natif".*
-
-- [ ] **PWA — Tests post-prod (Safari iPhone / Chrome Android / Edge Windows)** | Facile | 1 jour
-  *Après déploiement sur aschool.fr : vérifier invite installation, icône écran d'accueil, comportement offline et banner hors connexion sur les 3 plateformes cibles.*
 
 ---
 
@@ -93,13 +97,13 @@
   *Définir activités dans MATRICE_ACTIVITES + parse_markdown.py. Prérequis : trouver un prof pilote théâtre.*
 
 - [ ] **Escape Game pédagogique** | Difficile | 2-3 semaines
-  *Prof choisit matière + niveau + thème. A-SCHOOL génère scénario + énigmes + épreuve finale. HTML imprimable.*
+  *Prof choisit matière + niveau + thème. aSchool génère scénario + énigmes + épreuve finale. HTML imprimable.*
 
 - [ ] **Google OAuth** | Difficile | 2-3 semaines
   *Réduit la friction d'inscription. Inutile avant validation des pilotes — ne pas réduire la friction si le produit n'est pas encore validé.*
 
 - [ ] **L4 — Cohérence curriculaire inter-disciplines** | Difficile | 2-3 sessions
-  *Aligne automatiquement notions et progressions entre toutes les matières. Le plus complexe — nécessite les programmes officiels. En dernier.*
+  *Aligne automatiquement notions et progressions entre toutes les matières. Le plus complexe — nécessite les programmes officiels. En dernier. Ajouté dans "Bientôt disponible" 12/05.*
 
 - [ ] **Pipeline qualité automatique** | Moyen | progressif
   *Assemblage des 6 leviers en un rapport qualité synthétique sur chaque sortie. Se construit au fil des leviers livrés.*
@@ -107,6 +111,8 @@
 ---
 
 ## NON RETENU — À reconsidérer plus tard
+
+- **Capture d'écran intégrée dans le feedback** — Le bouton "Capturer l'écran" (API navigateur `getDisplayMedia`) a été supprimé le 12/05/2026. Problème : ne permet pas de sélectionner une zone précise — capture l'écran entier, une fenêtre ou un onglet, ce qui est inutile et trompeur pour un prof. Utilisateur non satisfait. Solution envisagée : script Python local (mss + tkinter) permettant de dessiner un rectangle comme le Snipping Tool Windows, le prof uploade ensuite le PNG via le formulaire. À reprendre en session dédiée quand le script Python sera prêt.
 
 - **`logoutManager.ts` — Service de déconnexion centralisé** — Extraire la logique logout d'AuthContext vers `src/services/logoutManager.ts`. Pertinent si : (1) logout dispersé dans 5+ composants sans passer par le contexte, (2) plusieurs variantes de logout (normal / forcé admin / inactivité / SSO), (3) besoin de tests unitaires purs TS sans React. Aujourd'hui la logique est déjà centralisée dans AuthContext — ne pas créer de couche inutile. À reconsidérer si Google OAuth ou SSO est ajouté.
 
@@ -130,8 +136,13 @@
 
 ## FAIT ✅
 
+- [x] **Auto-versioning PATCH** — push.ps1 bumpe automatiquement le PATCH à chaque déploiement. Version initiale : 3.2.0 (12/05)
+- [x] **SW mise à jour — bannière bordeaux + countdown 30s** — registerType: prompt, auto-reload 30s, bouton "Actualiser maintenant" (12/05)
+- [x] **Aide — Sections complètes** — PWA offline, PWA update, Dictée vocale, OCR, Partage activités, Séquences corrigé (L1 live) (12/05)
+- [x] **Bientôt disponible — mis à jour** — L2 + L4 ajoutés, Application mobile retirée (PWA livrée), sidebar "En développement" à jour (12/05)
+- [x] **Aide — Refonte visuelle pro** — Layout 2 colonnes desktop, accordéon mobile inchangé (12/05)
+- [x] **PWA — Complète** — Installabilité iOS, SW, responsive toutes pages, polish mobile, tests post-prod validés (12/05)
 - [x] **PWA — Checklist QA complète** — 20/35 points validés en dev, 15 prod vérifiés (12/05)
-- [x] **PWA — Responsive mobile v1** — Header, sidebar collapse, Accueil, Mes Outils liste verticale, Mes Activités bouton visible (12/05)
 - [x] **L3 — Optimiseur de séquences** — `POST /api/optimize-sequence`, 6 critères, séquence optimisée + score (11/05)
 - [x] **L1 — Générateur d'orchestrations** — `POST /api/generate-sequence`, Mode standard + Mode remédiation (11/05)
 - [x] **Analytique admin — 4 sous-pages** — Vue générale / Activités / Outils / Communauté (11/05)

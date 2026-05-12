@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 
 const TIPS = [
   {
@@ -7,19 +7,19 @@ const TIPS = [
     modal: {
       titre: 'Pourquoi ne pas traduire la page ?',
       lignes: [
-        'La traduction automatique modifie le texte source et les consignes — A-SCHOOL reçoit alors des mots incorrects et génère des activités incohérentes ou vides.',
-        'La page A-SCHOOL est entièrement en français : la traduction n\'apporte rien et perturbe tout.',
+        'La traduction automatique modifie le texte source et les consignes — aSchool reçoit alors des mots incorrects et génère des activités incohérentes ou vides.',
+        'La page aSchool est entièrement en français : la traduction n\'apporte rien et perturbe tout.',
         '— Edge : cliquez sur l\'icône de traduction dans la barre d\'adresse → « Ne jamais traduire ce site ».',
       ],
     },
   },
   {
-    texte: 'A-SCHOOL apprend votre style : plus vous sauvegardez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
+    texte: 'aSchool apprend votre style : plus vous sauvegardez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
     lien: { label: 'En savoir plus' },
     modal: {
-      titre: 'Comment A-SCHOOL apprend votre style ?',
+      titre: 'Comment aSchool apprend votre style ?',
       lignes: [
-        'À chaque sauvegarde, A-SCHOOL conserve votre activité comme exemple.',
+        'À chaque sauvegarde, aSchool conserve votre activité comme exemple.',
         'À partir de la 3ème sauvegarde d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
         'Cela fonctionne par type d\'activité : vos exemples de résumés n\'influencent pas vos analyses, et inversement.',
         'Plus vous sauvegardez, plus les activités générées vous ressemblent.',
@@ -29,17 +29,17 @@ const TIPS = [
   { texte: 'Votre niveau par défaut est mémorisé d\'une session à l\'autre — vous n\'avez pas à le resélectionner à chaque connexion.' },
   { texte: 'L\'option « Avec correction » génère automatiquement un corrigé complet sous l\'activité.' },
   { texte: 'Depuis « Mes activités », rechargez une activité précédente et régénérez-la avec un nouveau texte source.' },
-  { texte: 'Complétez votre profil (matière, niveau par défaut) pour que A-SCHOOL s\'adapte à votre contexte dès la connexion.' },
-  { texte: 'La précision « Mélange » demande à A-SCHOOL de combiner tous les types disponibles pour cette activité. Le détail des types s\'affiche sous le sélecteur.' },
-  { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez dans A-SCHOOL.' },
+  { texte: 'Complétez votre profil (matière, niveau par défaut) pour que aSchool s\'adapte à votre contexte dès la connexion.' },
+  { texte: 'La précision « Mélange » demande à aSchool de combiner tous les types disponibles pour cette activité. Le détail des types s\'affiche sous le sélecteur.' },
+  { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez dans aSchool.' },
   { texte: 'Problème de connexion persistant ? Supprimez les cookies du site : F12 → Application → Cookies → tout supprimer.' },
 ]
 
 function getPhrase(count) {
   if (count === 0) return 'Votre premier cours personnalisé est à portée de clic.'
-  if (count < 3)  return 'Bon début ! Sauvegardez vos activités — A-SCHOOL apprend à vous connaître.'
-  if (count < 10) return `${count} activités créées. A-SCHOOL commence à reconnaître votre style.`
-  if (count < 30) return `${count} activités créées. A-SCHOOL reconnaît maintenant votre façon d'enseigner.`
+  if (count < 3)  return 'Bon début ! Sauvegardez vos activités — aSchool apprend à vous connaître.'
+  if (count < 10) return `${count} activités créées. aSchool commence à reconnaître votre style.`
+  if (count < 30) return `${count} activités créées. aSchool reconnaît maintenant votre façon d'enseigner.`
   return `${count} activités créées — vous faites partie des profs les plus actifs de la plateforme.`
 }
 

@@ -1,4 +1,4 @@
-# A-SCHOOL — Décisions techniques & Spécifications futures
+﻿# aSchool — Décisions techniques & Spécifications futures
 
 > **Rôle : journal des décisions architecturales + spécifications détaillées des fonctionnalités à venir.**
 >
@@ -46,7 +46,7 @@ Toutes les fonctionnalités core sont livrées en local. Le déploiement VPS est
 
 ## Livré le 30/04/2026 — Few-shot adaptation au style prof
 
-**Ce que ça fait** : à partir de 3 activités du même type, A-SCHOOL injecte les 2 derniers exemples du prof dans le prompt. Le modèle imite son style sans être ré-entraîné.
+**Ce que ça fait** : à partir de 3 activités du même type, aSchool injecte les 2 derniers exemples du prof dans le prompt. Le modèle imite son style sans être ré-entraîné.
 
 **Ce qui a été implémenté** :
 - Auth JWT sur `/api/generate` (bug sécurité corrigé au passage)
@@ -60,7 +60,7 @@ Toutes les fonctionnalités core sont livrées en local. Le déploiement VPS est
 ## Priorité actuelle — Déploiement VPS
 
 ```bash
-# Depuis /var/www/a-school sur le VPS
+# Depuis /var/www/aSchool sur le VPS
 git pull && bash deploy/deploy.sh
 ```
 
@@ -83,7 +83,7 @@ Toutes les sessions depuis le 27/04 doivent être poussées : profil prof, admin
 
 ## Amélioration future — Gestion des e-mails sortants dans l'admin
 
-**Contexte :** A-SCHOOL va envoyer de nombreux e-mails à des enseignants (invitations collègues, onboarding, campagnes). Il faut une interface admin pour tout suivre.
+**Contexte :** aSchool va envoyer de nombreux e-mails à des enseignants (invitations collègues, onboarding, campagnes). Il faut une interface admin pour tout suivre.
 
 **Ce qu'il faut construire :**
 
@@ -106,23 +106,23 @@ Toutes les sessions depuis le 27/04 doivent être poussées : profil prof, admin
 
 **Contexte :** Une version simplifiée de ce levier existe déjà sur afia.fr/school (Option A) — n'importe quel visiteur peut envoyer une invitation en saisissant son e-mail. L'Option B est la version authentifiée, à implémenter directement dans school.afia.fr.
 
-**Principe :** Un prof connecté peut envoyer une invitation à ses collègues depuis l'interface de A-SCHOOL. Son identité est garantie par la session JWT — pas de champ à saisir, pas de vérification à faire.
+**Principe :** Un prof connecté peut envoyer une invitation à ses collègues depuis l'interface de aSchool. Son identité est garantie par la session JWT — pas de champ à saisir, pas de vérification à faire.
 
 **Où le placer :** dans la `Sidebar` (composant `Sidebar.jsx`), dans la section "À propos" ou juste en dessous du bouton feedback — endroit naturel pour des actions secondaires.
 
 **Ce que ça envoie :**
 ```
-Objet : Marie Dupont (marie.dupont@ac-paris.fr) vous recommande A-SCHOOL
+Objet : Marie Dupont (marie.dupont@ac-paris.fr) vous recommande aSchool
 
 Bonjour,
 
-Marie Dupont vous recommande A-SCHOOL, l'outil gratuit pour les enseignants.
+Marie Dupont vous recommande aSchool, l'outil gratuit pour les enseignants.
 Collez un texte, choisissez le type d'activité et le niveau —
 vous obtenez un exercice complet en 10 secondes.
 
 → Créez votre compte gratuit sur school.afia.fr
 
-— A-SCHOOL — school.afia.fr
+— aSchool — school.afia.fr
 ```
 
 **Ce qu'il faut coder :**
@@ -138,7 +138,7 @@ vous obtenez un exercice complet en 10 secondes.
 | Moment | Message autorisé |
 |---|---|
 | Avant validation avec les pilotes | Ne pas promettre l'adaptation, mais peut être mentionnée |
-| Validé avec les pilotes | *"A-SCHOOL s'adapte à votre façon de travailler"* |
+| Validé avec les pilotes | *"aSchool s'adapte à votre façon de travailler"* |
 | Communication externe | *"Plus vous l'utilisez, moins vous corrigez"* |
 
 ---
@@ -198,7 +198,7 @@ d:\A-SCHOOL\
 │   │   ├── MonProfil.jsx    # Formulaire profil prof
 │   │   ├── Feedback.jsx     # Modale feedback (catégorie + message)
 │   │   ├── Notation.jsx     # Modale notation (étoiles + commentaire optionnel)
-│   │   ├── APropos.jsx      # Notez A-SCHOOL + Envoyer un feedback
+│   │   ├── APropos.jsx      # Notez aSchool + Envoyer un feedback
 │   │   └── ...
 │   └── pages/
 │       ├── Login.jsx / Signup.jsx / VerifyEmail.jsx

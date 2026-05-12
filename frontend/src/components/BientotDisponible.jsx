@@ -1,7 +1,20 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const FEATURES = [
+  {
+    feature_key: 'ambiguites-cognitives',
+    categorie: 'Outils pédagogiques',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    ),
+    titre: 'Détecter les ambiguïtés',
+    description: 'Collez un exercice ou un énoncé — aSchool identifie les zones à risque d\'incompréhension, les termes à double sens et les étapes implicites non formulées. Des reformulations corrigées sont proposées immédiatement.',
+  },
   {
     feature_key: 'analyser-consigne',
     categorie: 'Outils pédagogiques',
@@ -14,7 +27,7 @@ const FEATURES = [
       </svg>
     ),
     titre: 'Analyser une consigne',
-    description: 'Collez n\'importe quelle consigne — A-SCHOOL détecte les ambiguïtés, les étapes implicites, les mots à double sens et les risques d\'erreur typiques. Résultat : une version clarifiée, précise et didactiquement solide.',
+    description: 'Collez n\'importe quelle consigne — aSchool détecte les ambiguïtés, les étapes implicites, les mots à double sens et les risques d\'erreur typiques. Résultat : une version clarifiée, précise et didactiquement solide.',
   },
   {
     feature_key: 'verifier-evaluation',
@@ -26,7 +39,22 @@ const FEATURES = [
       </svg>
     ),
     titre: 'Vérifier une évaluation',
-    description: 'Soumettez une évaluation existante — A-SCHOOL détecte les questions qui mesurent autre chose que ce qu\'elles prétendent évaluer, les biais de difficulté et les formulations anxiogènes. Une version corrigée est générée automatiquement.',
+    description: 'Soumettez une évaluation existante — aSchool détecte les questions qui mesurent autre chose que ce qu\'elles prétendent évaluer, les biais de difficulté et les formulations anxiogènes. Une version corrigée est générée automatiquement.',
+  },
+  {
+    feature_key: 'coherence-curriculaire',
+    categorie: 'Outils pédagogiques',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="18" cy="5" r="3"/>
+        <circle cx="6" cy="12" r="3"/>
+        <circle cx="18" cy="19" r="3"/>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+      </svg>
+    ),
+    titre: 'Cohérence inter-disciplines',
+    description: 'Vérifiez si vos progressions s\'articulent avec celles des autres matières. aSchool aligne automatiquement notions et calendriers pédagogiques pour éviter les doublons et les contradictions entre disciplines.',
   },
   {
     feature_key: 'quiz-interactif',
@@ -39,18 +67,6 @@ const FEATURES = [
     ),
     titre: 'Quiz interactif élèves',
     description: 'Générez un quiz depuis une activité, partagez un lien à vos élèves, et suivez leurs réponses en direct sur votre écran. Sans inscription pour les élèves — un simple lien suffit.',
-  },
-  {
-    feature_key: 'app-mobile',
-    categorie: 'Autre',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-        <line x1="12" y1="18" x2="12.01" y2="18"/>
-      </svg>
-    ),
-    titre: 'Application mobile',
-    description: 'A-SCHOOL directement sur votre téléphone ou tablette. Générez des activités depuis n\'importe où, même sans ordinateur.',
   },
   {
     feature_key: 'escape-game',
@@ -131,7 +147,7 @@ export default function BientotDisponible() {
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-gray-800">Bientôt disponible</h2>
         <p className="text-xs text-gray-400">
-          Les fonctionnalités en cours de développement — elles arrivent prochainement sur A-SCHOOL.
+          Les fonctionnalités en cours de développement — elles arrivent prochainement sur aSchool.
         </p>
       </div>
 
@@ -167,7 +183,7 @@ export default function BientotDisponible() {
               onClick={submitIdee}
               disabled={sending}
               className="btn-primary self-start"
-              title="Envoyer votre idée à l'équipe A-SCHOOL"
+              title="Envoyer votre idée à l'équipe aSchool"
             >
               {sending ? 'Envoi…' : 'Proposer'}
             </button>
@@ -179,7 +195,7 @@ export default function BientotDisponible() {
         <div>
           <div className="text-sm font-semibold text-gray-800">Nos idées à nous</div>
           <p className="text-xs text-gray-400 mt-0.5">
-            Les fonctionnalités en cours de développement — elles arrivent prochainement sur A-SCHOOL.
+            Les fonctionnalités en cours de développement — elles arrivent prochainement sur aSchool.
           </p>
         </div>
 

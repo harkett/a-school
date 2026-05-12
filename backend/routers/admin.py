@@ -1,4 +1,4 @@
-import os
+﻿import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -40,15 +40,15 @@ def _require_admin(aschool_admin: str = Cookie(default=None)):
 
 
 SETTING_DEFAULTS = {
-    "welcome_email_subject": "Bienvenue sur A-SCHOOL !",
+    "welcome_email_subject": "Bienvenue sur aSchool !",
     "welcome_email_body": (
         "Bonjour {prenom},\n\n"
-        "Votre compte A-SCHOOL est maintenant actif !\n\n"
-        "A-SCHOOL est votre assistant pédagogique : générez des activités adaptées à votre matière "
+        "Votre compte aSchool est maintenant actif !\n\n"
+        "aSchool est votre assistant pédagogique : générez des activités adaptées à votre matière "
         "et à vos élèves en quelques secondes.\n\n"
         "Connectez-vous dès maintenant sur school.afia.fr\n\n"
-        "Parlez-en à vos collègues — plus on est nombreux, plus A-SCHOOL s'améliore !\n\n"
-        "Bonne utilisation,\nL'équipe A-SCHOOL"
+        "Parlez-en à vos collègues — plus on est nombreux, plus aSchool s'améliore !\n\n"
+        "Bonne utilisation,\nL'équipe aSchool"
     ),
 }
 
@@ -175,6 +175,29 @@ def update_feedback_statut(
         raise HTTPException(404, "Feedback introuvable.")
     fb.statut = body.statut
     db.commit()
+    return {"status": "ok"}
+
+
+@router.delete("/admin/feedbacks/{feedback_id}")
+def delete_feedback(
+    feedback_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    fb = db.get(Feedback, feedback_id)
+    if not fb:
+        raise HTTPException(404, "Feedback introuvable.")
+    db.delete(fb)
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="DELETE_FEEDBACK",
+        target_email=fb.user_email,
+        ip=request.client.host if request.client else None,
+        details=f"Feedback #{feedback_id} supprimé ({fb.type} / {fb.category or '—'})",
+    )
     return {"status": "ok"}
 
 
@@ -582,12 +605,12 @@ def force_logout(
         send_custom_email(
             email=session_obj.user_email,
             prenom=None,
-            subject="Votre session A-SCHOOL a été fermée",
+            subject="Votre session aSchool a été fermée",
             body=(
                 f"Bonjour {{prenom}},\n\n"
-                f"Votre session A-SCHOOL a été fermée par l'administrateur.{raison_txt}\n\n"
+                f"Votre session aSchool a été fermée par l'administrateur.{raison_txt}\n\n"
                 f"Si vous pensez qu'il s'agit d'une erreur, contactez l'administrateur.\n\n"
-                f"L'équipe A-SCHOOL"
+                f"L'équipe aSchool"
             ),
         )
     except Exception:

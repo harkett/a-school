@@ -1,4 +1,4 @@
-# Backoffice FastAPI+React — Plan et état du backoffice admin
+﻿# Backoffice FastAPI+React — Plan et état du backoffice admin
 
 > **Rôle : référence complète du backoffice admin — architecture, implémentation de chaque phase, et code source de référence pour chaque fonctionnalité.**
 >
@@ -106,7 +106,7 @@
 
 | Composant / Page | Ce qui a été fait |
 |---|---|
-| `AdminLayout.jsx` | Sidebar fixe (220px), nav avec icônes + tooltip `?`, bouton retour A-SCHOOL, déconnexion |
+| `AdminLayout.jsx` | Sidebar fixe (220px), nav avec icônes + tooltip `?`, bouton retour aSchool, déconnexion |
 | `AdminServeur.jsx` | Cards CPU/RAM/disque/uptime/DB, graphe barres 30j (bleu), graphe heures de pointe (violet) |
 | `AdminSessions.jsx` | Tableau sessions actives, badge "En ligne" vert, bouton déconnexion forcée, auto-refresh 30s |
 | `AdminLogs.jsx` | Journal connexions utilisateurs (existait déjà — intégré au layout) |
@@ -144,7 +144,7 @@
 
 ## Contexte et objectif
 
-A-SCHOOL tourne sur FastAPI + React. L'admin existant (`backend/routers/admin.py`) est fonctionnel mais minimal. L'objectif est de le transformer en tableau de bord de niveau professionnel SaaS, sans changer de stack.
+aSchool tourne sur FastAPI + React. L'admin existant (`backend/routers/admin.py`) est fonctionnel mais minimal. L'objectif est de le transformer en tableau de bord de niveau professionnel SaaS, sans changer de stack.
 
 ---
 
@@ -793,7 +793,7 @@ def create_alert(level, title, message):
         if admin_email:
             auth_lib._smtp_send(
                 to=admin_email,
-                subject=f"[A-SCHOOL Admin] {level.upper()} — {title}",
+                subject=f"[aSchool Admin] {level.upper()} — {title}",
                 body=f"{message}\n\nDate : {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}"
             )
     finally:

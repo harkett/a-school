@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
@@ -36,6 +36,8 @@ with engine.connect() as _conn:
         "CREATE TABLE IF NOT EXISTS fiches_matieres (id INTEGER PRIMARY KEY AUTOINCREMENT, matiere_key VARCHAR(64) NOT NULL UNIQUE, statut VARCHAR(16) NOT NULL DEFAULT 'brouillon', accroche TEXT, pour_qui TEXT, ameliorations TEXT, updated_at DATETIME, updated_by VARCHAR(255))",
         "CREATE TABLE IF NOT EXISTS feature_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email VARCHAR(255) NOT NULL, feature_key VARCHAR(64) NOT NULL, created_at DATETIME, UNIQUE(user_email, feature_key))",
         "CREATE TABLE IF NOT EXISTS tool_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email VARCHAR(255) NOT NULL, tool VARCHAR(32) NOT NULL, score_label VARCHAR(32), created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+        "ALTER TABLE feedbacks ADD COLUMN updated_at DATETIME",
+        "ALTER TABLE feedbacks ADD COLUMN attachment_path VARCHAR(500)",
     ]:
         try:
             _conn.execute(text(_col))
@@ -57,7 +59,7 @@ async def _lifespan(app: FastAPI):
     yield
     _scheduler.shutdown(wait=False)
 
-app = FastAPI(title="A-SCHOOL API", version="2.0.0", lifespan=_lifespan)
+app = FastAPI(title="aSchool API", version="2.0.0", lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -106,4 +108,4 @@ except Exception as _e:
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "A-SCHOOL API"}
+    return {"status": "ok", "service": "aSchool API"}

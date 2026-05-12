@@ -1,4 +1,4 @@
-# CLAUDE.md — Règles permanentes aSchool
+﻿# CLAUDE.md — Règles permanentes aSchool
 
 > Ce fichier est lu automatiquement à chaque session. Ces règles s'appliquent sans exception.
 
@@ -46,7 +46,7 @@ Toutes les applications web sont dans `/var/www/<nom-app>/` — standard Linux F
 
 | Application | Chemin | .env |
 |---|---|---|
-| A-SCHOOL | `/var/www/a-school/` | `/var/www/a-school/.env` |
+| aSchool | `/var/www/aSchool/` | `/var/www/aSchool/.env` |
 | AFIA-FR | `/home/ubuntu/AFIA-FR/` ⚠️ | `/home/ubuntu/AFIA-FR/backend/.env` ⚠️ à migrer |
 
 Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/var/www/`.
@@ -67,7 +67,7 @@ Proposer → valider → coder → tester. Ne jamais coder sans validation expli
 
 ## Nom du produit — aSchool
 
-Le nom affiché dans toute l'interface, les textes, les boutons et les messages est **aSchool** (a minuscule, S majuscule). Jamais "A-SCHOOL", jamais "IA".
+Le nom affiché dans toute l'interface, les textes, les boutons et les messages est **aSchool** (a minuscule, S majuscule). Jamais "aSchool", jamais "IA".
 
 ---
 
@@ -109,6 +109,12 @@ Toute adaptation mobile utilise `const isMobile = window.innerWidth < 768` défi
 ## Fournisseur IA — Règle absolue
 
 Groq (`llama-3.3-70b-versatile`) par défaut. Google Gemini banni — compte Workspace afia.fr incompatible avec le free tier.
+
+---
+
+## Aide — Règle absolue
+
+Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la **même session** — à chaud, pendant que c'est frais. Jamais en retard. Jamais reporté à "plus tard".
 
 ---
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 function KpiCard({ label, value, sub, color, icon }) {
@@ -53,7 +53,7 @@ export default function AdminAnalytiqueGeneral() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 700, color: '#1e293b', margin: 0 }}>Vue générale</h1>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-          Synthèse de l'ensemble de la plateforme A-SCHOOL.
+          Synthèse de l'ensemble de la plateforme aSchool.
         </p>
       </div>
 

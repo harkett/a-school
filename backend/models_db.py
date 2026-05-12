@@ -68,6 +68,8 @@ class Feedback(Base):
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     statut: Mapped[str] = mapped_column(String(16), nullable=False, default="nouveau")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
 
 class Setting(Base):

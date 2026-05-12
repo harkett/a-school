@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun } from 'docx'
+﻿import { Document, Packer, Paragraph, TextRun } from 'docx'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -46,7 +46,7 @@ async function telechargerWord(texte) {
   )
   paragraphs.push(new Paragraph({ children: [] }))
   paragraphs.push(new Paragraph({
-    children: [new TextRun({ text: 'Généré avec A-SCHOOL — school.afia.fr', color: '999999', size: 16 })],
+    children: [new TextRun({ text: 'Généré avec aSchool — school.afia.fr', color: '999999', size: 16 })],
   }))
   const doc = new Document({
     sections: [{ properties: {}, children: paragraphs }],
@@ -62,21 +62,21 @@ function imprimer(texte) {
   const win = window.open('', '_blank')
   const escaped = texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   win.document.write(`
-    <html><head><title>Activité A-SCHOOL</title>
+    <html><head><title>Activité aSchool</title>
     <style>
       body{font-family:Arial,sans-serif;padding:2rem 2rem 4rem;white-space:pre-wrap;line-height:1.8;font-size:13px}
       @media print{.pied-aschool{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:10px;color:#aaa;padding:6px;border-top:1px solid #eee}}
       .pied-aschool{display:none}
     </style>
-    </head><body>${escaped}<div class="pied-aschool">Généré avec A-SCHOOL — school.afia.fr</div></body></html>
+    </head><body>${escaped}<div class="pied-aschool">Généré avec aSchool — school.afia.fr</div></body></html>
   `)
   win.document.close()
   win.print()
 }
 
 function envoyerMail(texte, email) {
-  const sujet = encodeURIComponent(`Activité A-SCHOOL — ${new Date().toLocaleDateString('fr-FR')}`)
-  const signature = '\n\n---\nGénéré avec A-SCHOOL — school.afia.fr — Créez votre compte gratuit'
+  const sujet = encodeURIComponent(`Activité aSchool — ${new Date().toLocaleDateString('fr-FR')}`)
+  const signature = '\n\n---\nGénéré avec aSchool — school.afia.fr — Créez votre compte gratuit'
   const corps = encodeURIComponent(texte + signature)
   window.location.href = `mailto:${email}?subject=${sujet}&body=${corps}`
 }

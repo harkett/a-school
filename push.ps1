@@ -17,11 +17,21 @@ if ($msg -eq "") {
     if ($msg -eq "") { $msg = "mise à jour" }
 }
 
-# ── 1. Push GitHub ────────────────────────────────────────────
+# ── 0. Bump version PATCH ────────────────────────────────────
 Write-Host ""
+Write-Host "0/2  Bump version..." -ForegroundColor Cyan
+
+Push-Location frontend
+npm version patch --no-git-tag-version | Out-Null
+$newVersion = (Get-Content package.json | ConvertFrom-Json).version
+Pop-Location
+
+Write-Host "     v$newVersion" -ForegroundColor Green
+
+# ── 1. Push GitHub ────────────────────────────────────────────
 Write-Host "1/2  Push GitHub..." -ForegroundColor Cyan
 git add .
-git commit -m $msg
+git commit -m "$msg (v$newVersion)"
 git push
 
 if ($LASTEXITCODE -ne 0) {
@@ -43,4 +53,4 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "     VPS OK" -ForegroundColor Green
 Write-Host ""
-Write-Host "Deploye sur https://school.afia.fr" -ForegroundColor Green
+Write-Host "  Deploye : https://aschool.fr  --  v$newVersion" -ForegroundColor Green

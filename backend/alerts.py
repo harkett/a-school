@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -24,11 +24,11 @@ def _send_alert_email(level: str, title: str, message: str):
     admin_email = os.getenv("ADMIN_EMAIL", "")
     if not admin_email:
         return
-    from_addr = os.getenv("FEEDBACK_FROM", "A-SCHOOL Feedback <feedback@aschool.fr>")
+    from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     icon = {"critical": "🔴", "warning": "🟠", "info": "🔵"}.get(level, "⚪")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[A-SCHOOL Admin] {icon} {level.upper()} — {title}"
+    msg["Subject"] = f"[aSchool Admin] {icon} {level.upper()} — {title}"
     msg["From"]    = from_addr
     msg["To"]      = admin_email
 

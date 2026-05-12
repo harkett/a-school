@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const STARS = [1, 2, 3, 4, 5]
@@ -47,7 +47,7 @@ export default function Notation({ onClose }) {
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/icon.png" alt="" style={{ width: 24, height: 24, borderRadius: 5 }} />
-            <h2 className="text-base font-semibold text-gray-800">Notez A-SCHOOL</h2>
+            <h2 className="text-base font-semibold text-gray-800">Notez aSchool</h2>
           </div>
           <button
             onClick={onClose}
@@ -64,7 +64,7 @@ export default function Notation({ onClose }) {
               {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
             </div>
             <p className="text-gray-700 font-medium mb-1">Merci pour votre note !</p>
-            <p className="text-sm text-gray-400 mb-6">Votre retour nous aide à améliorer A-SCHOOL.</p>
+            <p className="text-sm text-gray-400 mb-6">Votre retour nous aide à améliorer aSchool.</p>
             <button
               onClick={onClose}
               style={{ background: 'var(--bleu)', border: 'none', borderRadius: 6, padding: '8px 24px', color: 'white', cursor: 'pointer', fontSize: 14 }}
@@ -129,7 +129,7 @@ export default function Notation({ onClose }) {
                 type="submit"
                 className="btn-primary"
                 disabled={!rating || loading}
-                title={!rating ? 'Sélectionnez une note avant d\'envoyer' : 'Envoyer votre note à l\'équipe A-SCHOOL'}
+                title={!rating ? 'Sélectionnez une note avant d\'envoyer' : 'Envoyer votre note à l\'équipe aSchool'}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 {loading ? 'Envoi…' : 'Envoyer ma note'}

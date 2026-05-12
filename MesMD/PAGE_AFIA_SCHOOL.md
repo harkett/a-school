@@ -1,9 +1,9 @@
-# Page afia.fr/school — Contenu de référence
+﻿# Page afia.fr/school — Contenu de référence
 
-> **⚠ Ce document appartient au projet AFIA-FR (site vitrine), pas à A-SCHOOL.**
+> **⚠ Ce document appartient au projet AFIA-FR (site vitrine), pas à aSchool.**
 >
 > Il contient le texte complet et définitif de la page marketing `afia.fr/school` :
-> - Titre principal et accroche ("Vous avez le texte. A-SCHOOL fait l'exercice.")
+> - Titre principal et accroche ("Vous avez le texte. aSchool fait l'exercice.")
 > - Description courte (intro de la page)
 > - Bouton principal avec CTA
 > - Section "Ce que ça couvre" : 12 matières, 43 types d'activités, 3 modes de saisie
@@ -22,20 +22,20 @@
 
 ## TITRE PRINCIPAL
 
-**A-SCHOOL**
+**aSchool**
 *Générateur d'activités pédagogiques*
 
 ---
 
 ## ACCROCHE (sous le titre)
 
-> Vous avez le texte. A-SCHOOL fait l'exercice.
+> Vous avez le texte. aSchool fait l'exercice.
 
 ---
 
 ## DESCRIPTION COURTE (intro)
 
-A-SCHOOL est un outil conçu pour les enseignants de la 6e à la Terminale qui passent des heures chaque semaine à préparer des activités à partir de documents.
+aSchool est un outil conçu pour les enseignants de la 6e à la Terminale qui passent des heures chaque semaine à préparer des activités à partir de documents.
 
 Collez un texte, dictez-le à voix haute ou scannez directement un document — choisissez le type d'exercice et le niveau de classe. En moins de 10 secondes, vous obtenez une activité complète avec sa correction, prête à télécharger en Word, à imprimer ou à envoyer par e-mail.
 
@@ -79,10 +79,10 @@ Questions de compréhension · Réécriture · Analyse de texte · Production d'
 ## SECTION — POINTS FORTS
 
 **Vos activités s'améliorent avec vous**
-Plus vous utilisez A-SCHOOL, plus il s'adapte à votre façon d'enseigner. À partir de quelques utilisations du même type, il reconnaît votre style et l'imite automatiquement.
+Plus vous utilisez aSchool, plus il s'adapte à votre façon d'enseigner. À partir de quelques utilisations du même type, il reconnaît votre style et l'imite automatiquement.
 
 **Votre capital pédagogique, sauvegardé**
-Toutes vos activités sont conservées dans votre espace personnel — retrouvables, réutilisables et adaptables en un clic. Là où ChatGPT repart de zéro à chaque session, A-SCHOOL construit votre bibliothèque.
+Toutes vos activités sont conservées dans votre espace personnel — retrouvables, réutilisables et adaptables en un clic. Là où ChatGPT repart de zéro à chaque session, aSchool construit votre bibliothèque.
 
 **Vos données restent les vôtres**
 Vos textes, vos activités, votre compte. Rien n'est partagé. Connexion sécurisée, historique privé.
@@ -112,7 +112,7 @@ Vos textes, vos activités, votre compte. Rien n'est partagé. Connexion sécuri
 
 ## META (pour le SEO)
 
-**Title :** A-SCHOOL — Générateur d'activités pédagogiques pour enseignants | afia.fr
+**Title :** aSchool — Générateur d'activités pédagogiques pour enseignants | afia.fr
 **Description :** Générez des exercices, évaluations et fiches de révision en 10 secondes à partir de vos textes. 12 matières, 43 types d'activités, de la 6e à la Terminale. Essayez gratuitement.
 **URL :** school.afia.fr
 **Mots-clés :** générateur activités pédagogiques, exercices professeurs, outils enseignants, français histoire-géo, brevet bac

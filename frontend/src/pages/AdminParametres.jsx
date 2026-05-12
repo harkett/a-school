@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const VARIABLES = ['{prenom}', '{email}']
@@ -88,7 +88,7 @@ export default function AdminParametres() {
             value={form.welcome_email_subject}
             onChange={e => setForm(f => ({ ...f, welcome_email_subject: e.target.value }))}
             className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            placeholder="Bienvenue sur A-SCHOOL !"
+            placeholder="Bienvenue sur aSchool !"
           />
         </div>
 

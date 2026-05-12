@@ -96,7 +96,7 @@ export default function ForgotPassword() {
       </div>
 
       <footer className="py-3 text-center text-xs text-gray-400">
-        A-SCHOOL · contact@aschool.fr
+        aSchool · contact@aschool.fr
       </footer>
     </div>
   )

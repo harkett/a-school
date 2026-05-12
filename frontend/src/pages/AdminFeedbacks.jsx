@@ -69,6 +69,12 @@ export default function AdminFeedbacks() {
     setItems(prev => prev.map(f => f.id === id ? { ...f, statut } : f))
   }
 
+  async function supprimerFeedback(id) {
+    if (!window.confirm('Supprimer définitivement ce feedback ? Cette action est irréversible.')) return
+    await fetchWithTimeout(`/api/admin/feedbacks/${id}`, { method: 'DELETE', credentials: 'include' })
+    setItems(prev => prev.filter(f => f.id !== id))
+  }
+
   const moyenne = notations.length
     ? (notations.reduce((s, f) => s + f.rating, 0) / notations.length).toFixed(1)
     : '—'
@@ -168,8 +174,21 @@ export default function AdminFeedbacks() {
                       </div>
                     </div>
                     {f.message && f.message !== '—' && (
-                      <p className="text-sm text-gray-700 leading-relaxed">{f.message}</p>
+                      <p className="text-sm text-gray-700 leading-relaxed mb-3">{f.message}</p>
                     )}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => supprimerFeedback(f.id)}
+                        title="Supprimer définitivement cette notation"
+                        style={{
+                          padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
+                          border: '1px solid #fca5a5', cursor: 'pointer',
+                          background: '#fff', color: '#dc2626',
+                        }}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -232,26 +251,39 @@ export default function AdminFeedbacks() {
                       </div>
                     </div>
                     <p className="text-sm text-gray-700 leading-relaxed mb-3">{f.message}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Changer le statut :</span>
-                      {(TRANSITIONS[f.statut || 'nouveau'] || []).map(targetId => {
-                        const s = statutInfo(targetId)
-                        const label = labelTransition(f.statut || 'nouveau', targetId)
-                        return (
-                          <button
-                            key={targetId}
-                            onClick={() => changerStatut(f.id, targetId)}
-                            title={label}
-                            style={{
-                              padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
-                              border: `1px solid ${s.color}`, cursor: 'pointer',
-                              background: '#fff', color: s.color,
-                            }}
-                          >
-                            {label}
-                          </button>
-                        )
-                      })}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-gray-400">Changer le statut :</span>
+                        {(TRANSITIONS[f.statut || 'nouveau'] || []).map(targetId => {
+                          const s = statutInfo(targetId)
+                          const label = labelTransition(f.statut || 'nouveau', targetId)
+                          return (
+                            <button
+                              key={targetId}
+                              onClick={() => changerStatut(f.id, targetId)}
+                              title={label}
+                              style={{
+                                padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
+                                border: `1px solid ${s.color}`, cursor: 'pointer',
+                                background: '#fff', color: s.color,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button
+                        onClick={() => supprimerFeedback(f.id)}
+                        title="Supprimer définitivement ce feedback"
+                        style={{
+                          padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
+                          border: '1px solid #fca5a5', cursor: 'pointer',
+                          background: '#fff', color: '#dc2626',
+                        }}
+                      >
+                        Supprimer
+                      </button>
                     </div>
                   </div>
                 )

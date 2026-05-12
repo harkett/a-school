@@ -1,4 +1,4 @@
-# A-SCHOOL — État du Projet
+﻿# aSchool — État du Projet
 
 > **Rôle : référence principale du projet — à lire en premier avant toute session de développement.**
 >
@@ -168,7 +168,7 @@ SMTP_HOST=mail.infomaniak.com
 SMTP_PORT=587
 SMTP_USERNAME=harketti@afia.fr
 SMTP_PASSWORD=...
-SMTP_FROM=A-SCHOOL <contact@afia.fr>
+SMTP_FROM=aSchool <contact@afia.fr>
 APP_URL=https://school.afia.fr
 ADMIN_USERNAME=...
 ADMIN_PASSWORD=...
@@ -200,8 +200,8 @@ FEEDBACK_NOTIFY_EMAIL=contact@afia.fr
 - **Tableau de bord multi-profs établissement**
 - **Migration SQLite → PostgreSQL** — si montée en charge
 - **Domaine aschool.fr** — migrer school.afia.fr → aschool.fr quand le domaine est configuré (mettre à jour `.env` APP_URL + Nginx)
-- **Rebranding "aSchool"** — remplacer "A-SCHOOL" par "aSchool" dans toute l'interface : `a` minuscule rouge-bordeaux + `S` majuscule + `chool` — à faire en même temps que la migration de domaine
+- **Rebranding "aSchool"** — remplacer "aSchool" par "aSchool" dans toute l'interface : `a` minuscule rouge-bordeaux + `S` majuscule + `chool` — à faire en même temps que la migration de domaine
 
 ---
 
-*A-SCHOOL — school.afia.fr — Référence projet — 30/04/2026*
+*aSchool — school.afia.fr — Référence projet — 30/04/2026*

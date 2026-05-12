@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
@@ -40,7 +40,7 @@ export default function AdminCompte() {
       <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: '24px 28px' }}>
         <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #f1f5f9' }}>
           <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>Identifiant</p>
-          <p style={{ fontSize: 14, color: '#1e293b', fontWeight: 600 }}>Administrateur A-SCHOOL</p>
+          <p style={{ fontSize: 14, color: '#1e293b', fontWeight: 600 }}>Administrateur aSchool</p>
           <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Compte unique — accès complet au backoffice</p>
         </div>
 

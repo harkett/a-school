@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 
 const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
@@ -119,7 +119,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
           <div className="text-sm font-semibold text-blue-800 mb-1">Niveau Supérieur — fonctionnalité en cours de développement</div>
           <p className="text-xs text-blue-700 leading-relaxed">
-            A-SCHOOL peut déjà générer des activités adaptées à ce niveau, mais cette option n'est pas encore complètement développée.
+            aSchool peut déjà générer des activités adaptées à ce niveau, mais cette option n'est pas encore complètement développée.
             La version complète proposera des activités spécifiques au supérieur : synthèse de documents, fiche de TD, commentaire composé CPGE,
             plan de dissertation, annotation de corpus, préparation Grand Oral post-bac, et bien plus.
           </p>
@@ -138,7 +138,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             Inclure une proposition de correction
           </label>
           <p className="text-xs text-gray-400 mt-0.5">
-            A-SCHOOL génère une réponse-type après chaque question, que le professeur adapte à sa classe.
+            aSchool génère une réponse-type après chaque question, que le professeur adapte à sa classe.
           </p>
         </div>
       </div>
@@ -168,7 +168,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             className="btn-primary"
             onClick={onGenerer}
             disabled={loading || !canGenerer}
-            title={!canGenerer ? 'Saisissez un texte source pour générer une activité' : 'Lancer la génération de l\'activité avec A-SCHOOL'}
+            title={!canGenerer ? 'Saisissez un texte source pour générer une activité' : 'Lancer la génération de l\'activité avec aSchool'}
           >
             <IconGenerer />
             {loading ? 'Génération en cours...' : 'Générer l\'activité'}

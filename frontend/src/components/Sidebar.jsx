@@ -30,11 +30,7 @@ const IconStar = () => (
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 )
-const IconFeedback = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-)
+
 const IconActivites = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -77,6 +73,12 @@ const IconMenu = () => (
     <line x1="3" y1="6" x2="21" y2="6"/>
     <line x1="3" y1="12" x2="21" y2="12"/>
     <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+)
+
+const IconFeedback = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
   </svg>
 )
 
@@ -140,6 +142,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         {navItem('bibliotheque', 'Ma bibliothèque', IconBibliotheque, 'Activités partagées par vos collègues')}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
         {navItem('historique', 'Mon journal', IconHistory, 'Voir vos générations précédentes')}
+        {navItem('mes-feedbacks', 'Mes feedbacks', IconFeedback, 'Consulter vos retours envoyés et leur statut')}
       </nav>
 
       <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
@@ -147,23 +150,14 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         {navItem('aide', 'Aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
           href="#"
-          title="Envoyer un feedback ou signaler un problème"
-          onClick={e => { e.preventDefault(); onFeedback() }}
-          className={`py-1.5 flex items-center gap-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} text-gray-500 hover:text-gray-800`}
-        >
-          <IconFeedback />
-          {!collapsed && <span>Feedback</span>}
-        </a>
-        <a
-          href="#"
-          title="Notez A-SCHOOL — donnez votre avis sur la plateforme en 30 secondes"
+          title="Notez aSchool — donnez votre avis sur la plateforme en 30 secondes"
           onClick={e => { e.preventDefault(); onNotation() }}
           className={`py-1.5 flex items-center gap-2 text-sm transition-colors ${collapsed ? 'justify-center' : ''} text-gray-500 hover:text-gray-800`}
         >
           <IconStar />
           {!collapsed && <span>Avis</span>}
         </a>
-        {navItem('apropos', 'À propos', IconInfo, 'Informations sur A-SCHOOL — version, contact')}
+        {navItem('apropos', 'À propos', IconInfo, 'Informations sur aSchool — version, contact')}
       </nav>
 
       {!collapsed && (
@@ -177,7 +171,8 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         }}>
           <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>En développement</div>
           <div style={{ color: '#3b82f6', lineHeight: 1.6 }}>
-            · Application mobile
+            · Détecter les ambiguïtés<br/>
+            · Analyser une consigne
           </div>
         </div>
       )}
