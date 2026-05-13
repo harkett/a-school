@@ -79,6 +79,23 @@ class Setting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class SequenceSauvegardee(Base):
+    __tablename__ = "sequences_sauvegardees"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    matiere: Mapped[str] = mapped_column(String(64), nullable=False)
+    niveau: Mapped[str] = mapped_column(String(32), nullable=False)
+    theme: Mapped[str] = mapped_column(String(300), nullable=False)
+    duree: Mapped[int] = mapped_column(Integer, nullable=False)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="standard")
+    description_classe: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    resultat: Mapped[str] = mapped_column(Text, nullable=False)
+    partagee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
+    anonyme: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class ActiviteSauvegardee(Base):
     __tablename__ = "activites_sauvegardees"
 
@@ -93,8 +110,10 @@ class ActiviteSauvegardee(Base):
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     objet: Mapped[str | None] = mapped_column(String(150), nullable=True)
     partagee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
+    anonyme: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
     texte_source: Mapped[str] = mapped_column(Text, nullable=False)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
 
 
 # ---------------------------------------------------------------------------

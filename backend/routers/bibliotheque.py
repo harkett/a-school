@@ -9,7 +9,7 @@ from backend import auth as auth_lib
 router = APIRouter()
 
 
-@router.get("/bibliotheque")
+@router.get("/mon-reseau")
 def lister(
     matiere: Optional[str] = Query(default=None),
     niveau: Optional[str] = Query(default=None),
@@ -50,7 +50,7 @@ def lister(
             "texte_source": a.texte_source,
             "resultat": a.resultat,
             "apercu": a.texte_source[:60] + ("…" if len(a.texte_source) > 60 else ""),
-            "partagee_par": u.prenom or "Collègue",
+            "partagee_par": "Anonyme" if a.anonyme else (f"{u.prenom or ''} {u.nom or ''}".strip() or "Anonyme"),
             "matiere": a.matiere or u.subject or "",
         }
         for a, u in rows

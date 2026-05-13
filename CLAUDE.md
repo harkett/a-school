@@ -53,9 +53,9 @@ Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/
 
 ---
 
-## Dossiers interdits
+## Renommage — Règle de cascade obligatoire
 
-Ne jamais lire **aucun** dossier nommé `Ressources/` ou `MesRessources/` dans n'importe quel projet. Ce sont des poubelles personnelles qui induisent en erreur. La règle s'applique à tous les chemins, pas seulement `D:\A-SCHOOL\MesRessources\`.
+Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou si on note dans TRACKER sous "En attente de cascade". Ne jamais clore la session sans que chaque impact soit traité ou noté.
 
 ---
 

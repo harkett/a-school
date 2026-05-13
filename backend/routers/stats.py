@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.database import get_db
-from backend.models_db import ActiviteSauvegardee, ToolUsageLog, User
+from backend.models_db import ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
 from backend import auth as auth_lib
 from backend.routers.admin import _require_admin
 
@@ -88,11 +88,28 @@ def get_dashboard(
         .all()
     )
 
+    derniere_seq = (
+        db.query(SequenceSauvegardee)
+        .filter(SequenceSauvegardee.user_email == email)
+        .order_by(SequenceSauvegardee.id.desc())
+        .first()
+    )
+
     return {
         "mes_activites": mes_activites,
         "mes_partages": mes_partages,
         "communaute_total": communaute_total,
         "communaute_profs": communaute_profs,
+        "derniere_sequence": {
+            "id": derniere_seq.id,
+            "theme": derniere_seq.theme,
+            "matiere": derniere_seq.matiere,
+            "niveau": derniere_seq.niveau,
+            "duree": derniere_seq.duree,
+            "mode": derniere_seq.mode,
+            "description_classe": derniere_seq.description_classe,
+            "resultat": derniere_seq.resultat,
+        } if derniere_seq else None,
         "recentes": [
             {
                 "id": a.id,
@@ -256,4 +273,135 @@ def admin_communaute_stats(
         "par_matiere": [{"matiere": r[0], "nb": r[1]} for r in par_matiere],
         "par_type": [{"label": r[0], "nb": r[1]} for r in par_type],
         "contributeurs": contributeurs,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Stats personnelles prof (B1)
+# ---------------------------------------------------------------------------
+
+@router.get("/stats/perso")
+def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    email = _get_email(aschool_access)
+
+    total_sequences = db.query(func.count(SequenceSauvegardee.id)).filter(
+        SequenceSauvegardee.user_email == email
+    ).scalar() or 0
+
+    type_row = (
+        db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
+        .filter(ActiviteSauvegardee.user_email == email)
+        .group_by(ActiviteSauvegardee.activite_label)
+        .order_by(func.count().desc())
+        .first()
+    )
+    type_favori = type_row[0] if type_row else None
+    max_par_type = type_row[1] if type_row else 0
+    score_adaptation = 0 if max_par_type == 0 else min(100, int(max_par_type / 3 * 100))
+
+    total_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.user_email == email
+    ).scalar() or 0
+    heures_gagnees = (total_activites * 15) // 60
+
+    debut_mois = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    activites_ce_mois = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.user_email == email,
+        ActiviteSauvegardee.created_at >= debut_mois,
+    ).scalar() or 0
+
+    login_dates_raw = (
+        db.query(func.date(ConnexionLog.created_at).label("day"))
+        .filter(ConnexionLog.email == email, ConnexionLog.action == "login")
+        .distinct()
+        .all()
+    )
+    login_dates = {str(r.day) for r in login_dates_raw}
+    streak = 0
+    check = datetime.utcnow().date()
+    for _ in range(365):
+        if str(check) in login_dates:
+            streak += 1
+            check -= timedelta(days=1)
+        else:
+            break
+
+    return {
+        "sequences": total_sequences,
+        "activites_total": total_activites,
+        "activites_ce_mois": activites_ce_mois,
+        "type_favori": type_favori,
+        "heures_gagnees": heures_gagnees,
+        "score_adaptation": score_adaptation,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Jauge communauté (B2) — profs
+# ---------------------------------------------------------------------------
+
+@router.get("/stats/communaute")
+def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    _get_email(aschool_access)
+
+    today = datetime.utcnow().date()
+    depuis_7j = datetime.utcnow() - timedelta(days=7)
+
+    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+        ConnexionLog.action == "login",
+        func.date(ConnexionLog.created_at) == str(today)
+    ).scalar() or 0
+
+    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+        ConnexionLog.action == "login",
+        ConnexionLog.created_at >= depuis_7j
+    ).scalar() or 0
+
+    activites_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
+
+    partages_total = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.partagee == True
+    ).scalar() or 0
+
+    return {
+        "profs_actifs_aujourd_hui": profs_actifs_aujourd_hui,
+        "profs_actifs_semaine": profs_actifs_semaine,
+        "activites_total": activites_total,
+        "partages_total": partages_total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Vitalité communauté (B2) — admin
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/stats/vitalite")
+def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin)):
+    today = datetime.utcnow().date()
+    depuis_7j = datetime.utcnow() - timedelta(days=7)
+
+    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+        ConnexionLog.action == "login",
+        func.date(ConnexionLog.created_at) == str(today)
+    ).scalar() or 0
+
+    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+        ConnexionLog.action == "login",
+        ConnexionLog.created_at >= depuis_7j
+    ).scalar() or 0
+
+    activites_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
+
+    partages_total = db.query(func.count(ActiviteSauvegardee.id)).filter(
+        ActiviteSauvegardee.partagee == True
+    ).scalar() or 0
+
+    sequences_total = db.query(func.count(SequenceSauvegardee.id)).scalar() or 0
+
+    return {
+        "profs_actifs_aujourd_hui": profs_actifs_aujourd_hui,
+        "profs_actifs_semaine": profs_actifs_semaine,
+        "activites_total": activites_total,
+        "partages_total": partages_total,
+        "sequences_total": sequences_total,
     }

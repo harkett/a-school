@@ -29,6 +29,9 @@
 - [x] **FB1+FB3+FB4 — Page Mes feedbacks** | Livré 12/05
   *Page sidebar "Mes feedbacks". 2 onglets : Envoyer / Mes retours. Upload multi-fichiers (PNG/JPEG/PDF, max 5Mo, max 5 fichiers), drag&drop + Parcourir. Bouton Modifier si statut nouveau/en_cours. Capture écran via Win+Maj+S (message d'aide intégré). Aide rédigée à chaud (section "Mes feedbacks" dans Aide.jsx).*
 
+- [x] **Aide — Sections Historique Activités / Séquences / Mon réseau** | Livré 13/05
+  *4 nouvelles sections dans Aide.jsx : Historique des activités (Plus de détails, Reprendre, Partager, Supprimer), Historique des séquences (idem + choix anonymat + badge Partagé), Mon réseau (Activités et Séquences partagées, Utiliser). Section Partager mise à jour avec nouveau flow anonymat. Catégorie "Gérer" ajoutée dans la nav.*
+
 - [ ] **FB2 — Email admin → prof** | Facile | 2h
   *Bouton "Contacter" dans AdminFeedbacks. 3 templates : Traité / Demande de précision / Remerciement. Admin peut modifier le corps avant envoi. Endpoint `POST /api/admin/feedbacks/{id}/email`. Trace en BDD : `email_sent_at` + `email_type`.*
 
@@ -37,8 +40,18 @@
 ### Mes Outils — Leviers pédagogiques
 *Specs détaillées dans `SPECS_LEVIERS/`. Ordre d'implémentation : L2 → L5 → L6 → L4.*
 
-- [ ] **L2 — Détecteur d'ambiguïtés cognitives** | Facile | 1 session
-  *Analyse un exercice ou énoncé → zones de risque d'incompréhension + reformulations corrigées. Ajouté dans "Bientôt disponible" 12/05.*
+> **Standard obligatoire — chaque outil doit respecter ces 8 points :**
+> 1. Page dédiée (route propre)
+> 2. Onglets figés : outil principal + "Comment ça marche"
+> 3. Layout : seul le contenu scroll (`flex:1 minHeight:0 overflowY:auto`)
+> 4. Bouton d'action dans la barre d'onglets (btn-primary + icône + title)
+> 5. Dialog pour formulaire incomplet (jamais bouton désactivé)
+> 6. Auto-scroll vers le résultat après génération
+> 7. Validation du texte source avant appel API
+> 8. **Bouton "Tester un exemple" pré-rempli par matière/niveau** (style secondaire, aligné à droite du label)
+
+- [x] **L2 — Détecteur d'ambiguïtés cognitives** | Livré
+  *Analyse un exercice ou énoncé → zones de risque d'incompréhension + reformulations corrigées. Ajouté dans "Bientôt disponible" 12/05. Composant Ambiguites.jsx fonctionnel, intégré dans Mes outils → Analyse.*
 
 - [ ] **L5 — Analyseur de consignes** | Facile | 1 session
   *Analyse chirurgicale d'une consigne isolée → clarté, charge cognitive, erreurs typiques + version optimisée.*
@@ -72,13 +85,30 @@
 - [ ] **Fiche de révision Français + Fiche pédagogique HG** | Facile | 30min
   *Ajouter ces deux types d'activités manquants dans la matrice activités (sur le modèle des fiches existantes dans les autres matières).*
 
-- [ ] **Historique de connexions** | Facile | 3h
-  *Savoir quand les profs se connectent (heure de pointe, fréquence) oriente les décisions produit.*
+- [x] **Accueil — Réorganisation** | Livré 13/05
+  *Stats déplacées vers page "Mes stats" (menu sidebar après Mes feedbacks). Page Accueil épurée : bandeau bienvenue + "Mes dernières créations" (3 sections : Activité / Séquence / Analyse raccourcis) + colonne droite CTA + lien stats + astuce. Astuce clampée à 4 lignes max (WebkitLineClamp). Backend : `/api/dashboard` renvoie désormais `derniere_sequence` (theme, matiere, niveau, duree, mode, description_classe, resultat).*
+
+- [x] **Stats & Fréquentation — 3 blocs** | Livré 13/05
+  *3 blocs distincts validés le 13/05. Ordre d'implémentation : B3 → B2 → B1.*
+
+  **B1 — Stats personnelles prof** *(widget KPI page Accueil)*
+  Calculées à la volée depuis données existantes : total activités générées, séquences créées, activités partagées, type favori ("votre spécialité"), estimation heures gagnées (15 min × nb activités), streak créateur (X jours consécutifs), score d'adaptation few-shot ("aSchool vous connaît à X%"), "vos partages repris X fois" (nécessite `utilise_count` en BDD).
+
+  **B2 — Jauge communauté** *(page Accueil profs + admin)*
+  Le site "bat" — effet réseau, fidélisation : "X profs actifs aujourd'hui · X activités générées cette semaine · X partages en circulation". Données anonymes, mises à jour à chaque chargement. Visible aussi dans le backoffice admin.
+
+  **B3 — Graphe de fréquentation** *(backoffice admin + vue admin de B2)*
+  Courbe connexions uniques par jour sur 30/90 jours. Histogramme heure de pointe (0h→24h). Nécessite table `connexions(user_email, created_at)` alimentée à chaque login. Couvre aussi "Historique de connexions" — une seule tâche pour deux besoins. Librairie : Recharts.
+
+  > **Note : réfléchir à d'autres stats** pertinentes pour les profs et l'admin (ex : taux de partage, matières les plus actives, progression mensuelle…)
 
 
 ---
 
 ## OPTIONNEL
+
+- [ ] **Ambiguité → Créer une séquence** | Facile | 1h
+  *Bouton "Créer une séquence →" sur chaque carte de reformulation corrigée. Navigue vers creer-sequence en pré-remplissant le champ Thème avec la reformulation. À implémenter après L5/L6.*
 
 - [ ] **Quiz interactif élèves** | Difficile | 2 semaines
   *Prof génère QCM → lien public → élèves répondent sur téléphone → résultats live. Différenciateur fort. Spec v1 validée 07/05.*
@@ -89,6 +119,9 @@
 
 - [ ] **Admin — Menu Activités en groupe** | Facile | 2h
   *Prépare la modération des activités partagées. Pattern `group: true` déjà disponible dans AdminLayout.*
+
+- [ ] **Projet demo-perf — FastAPI + PostgreSQL à l'échelle** | Difficile | À faire en fin de projet
+  *Projet technique séparé (hors aSchool) pour tester la stack sous charge réelle. Stack : FastAPI + SQLAlchemy async (asyncpg) + PostgreSQL + Docker. Seed via Faker + COPY PostgreSQL (objectif : 5–10M lignes en ~30s). Scénarios : requête naïve vs index BTree/GIN, pagination OFFSET vs cursor-based, filtre combiné avec/sans index composite, N+1 query, connection pool sous charge (locust). Démos profs : pas besoin de données pré-chargées — toujours faire la démo sur l'exemple du prof lui-même (bien plus parlant).*
 
 - [ ] **Support niveau Supérieur (BTS/prépa/licence)** | Difficile | 2 semaines
   *Ouvre un segment nouveau — formateurs BTS/prépa. Surtout du travail de prompts et d'activités.*
@@ -103,10 +136,38 @@
   *Réduit la friction d'inscription. Inutile avant validation des pilotes — ne pas réduire la friction si le produit n'est pas encore validé.*
 
 - [ ] **L4 — Cohérence curriculaire inter-disciplines** | Difficile | 2-3 sessions
-  *Aligne automatiquement notions et progressions entre toutes les matières. Le plus complexe — nécessite les programmes officiels. En dernier. Ajouté dans "Bientôt disponible" 12/05.*
+  *Aligne automatiquement notions et progressions entre matières. Ex : "Révolution française" Histoire 4e ↔ "Droits de l'homme" EMC 4e · "Statistiques" Maths 2nde ↔ "Analyse de données" SVT 2nde. Ajouté dans "Bientôt disponible" 12/05.*
+
+  **3 étapes identifiées :**
+  1. **Structuration des données** — Extraire les programmes officiels MEN (PDFs/HTML eduscol.fr) et les structurer en `matière → niveau → chapitre → notions → compétences`. ~96 documents (12 matières × 8 niveaux). ~1 journée de travail mécanique. Les données sont publiques, l'extraction est le seul effort.
+  2. **Alignement inter-disciplines** — Similarité sémantique entre notions : deux notions liées peuvent ne partager aucun mot-clé. Solution envisagée : LLM Groq avec contexte structuré (prompt lourd) ou embeddings vectoriels. C'est le vrai défi technique.
+  3. **Définir la sortie** — Ce qu'on retourne au prof : liste de rapprochements ? score de cohérence ? suggestions de projets inter-matières ? À définir avant de coder.
+
+  > **Approche :** commencer par 1 matière × 1 niveau — si c'est utile, on élargit. Pas d'anticipation.
+
+
+
+
+
 
 - [ ] **Pipeline qualité automatique** | Moyen | progressif
   *Assemblage des 6 leviers en un rapport qualité synthétique sur chaque sortie. Se construit au fil des leviers livrés.*
+
+- [ ] **Validation texte source par LLM (Option B)** | Facile | 2h
+  *Avant la génération, appel Groq rapide : "ce texte est-il un contenu pédagogique exploitable ?" → réponse JSON `{valide, raison}`. Si invalide → dialog avec explication précise. Plus intelligent que la détection heuristique (Option A livrée 13/05) — gère la langue étrangère, les formules maths, etc. À implémenter quand Option A montrera ses limites.*
+
+---
+
+## SESSION DÉDIÉE — Dette technique (à planifier dès que possible)
+
+- [x] **1. Alignement noms UI ↔ code** | Livré 13/05
+  *`bibliotheque` → `mon-reseau` partout : composants (`MonReseau.jsx`, `MonReseauSequences.jsx`), page IDs, routes API (`/api/mon-reseau`, `/api/mon-reseau/sequences`), Sidebar. Bug `seqFormVisible` supprimé. CORS `school.afia.fr` → `aschool.fr` dans main.py et deploy.sh. Règle de cascade ajoutée dans CLAUDE.md.*
+
+- [x] **2. Nettoyage code mort** | Livré 13/05
+  *`Bibliotheque.jsx` et `BibliothequeSequences.jsx` supprimés. Références `BIBLIOTHEQUE_PAGES`, `IconBibliotheque` renommées. Ancienne page ID `'bibliotheque'` (vestige) retirée de App.jsx.*
+
+- [ ] **3. Dette technique complète** | À planifier après L5 + L6 + FB2
+  *Périmètre : dépendances obsolètes, cohérence gestion d'erreurs API, migration React Query, documentation règles métier, revue sécurité routes. Estimation : 2 sessions dédiées.*
 
 ---
 
@@ -135,6 +196,13 @@
 ---
 
 ## FAIT ✅
+
+- [x] **Mon réseau (ex-Ma bibliothèque)** — Accordéon sidebar avec 2 sous-menus : Activités / Séquences. Partage des séquences + choix anonymat (Afficher mon nom / Rester anonyme) au moment du partage. Label "Partages de vos collègues" + bulle d'aide dans les deux pages. "Plus de détails" modal dans les deux pages. (13/05)
+- [x] **Historique Activités — normalisé** — Modale "Plus de détails" fond sombre, bouton "Reprendre" (ex-Charger), suppression avec confirmation. (13/05)
+- [x] **Historique Séquences — normalisé** — Modale "Plus de détails" fond sombre, bouton "Partager" + choix anonymat, suppression avec confirmation. (13/05)
+- [x] **Blocage profil incomplet** — Modal bloquant dans App.jsx si prenom ou nom manquant — redirige vers Mon profil. (13/05)
+- [x] **Mon journal supprimé** — Placeholder inutile (doublon Historique Activités/Séquences) retiré de sidebar et App.jsx. (13/05)
+- [x] **Analyse → Historique supprimé** — Sous-menu inutile (Consignes/Équité pas encore codés, analyses one-shot). (13/05)
 
 - [x] **Auto-versioning PATCH** — push.ps1 bumpe automatiquement le PATCH à chaque déploiement. Version initiale : 3.2.0 (12/05)
 - [x] **SW mise à jour — bannière bordeaux + countdown 30s** — registerType: prompt, auto-reload 30s, bouton "Actualiser maintenant" (12/05)

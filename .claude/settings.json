@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/Scripts/pip install *)"
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\Bibliotheque.jsx\")",
+      "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\BibliothequeSequences.jsx\")"
     ]
   }
 }

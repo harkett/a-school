@@ -14,7 +14,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -38,6 +38,7 @@ with engine.connect() as _conn:
         "CREATE TABLE IF NOT EXISTS tool_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_email VARCHAR(255) NOT NULL, tool VARCHAR(32) NOT NULL, score_label VARCHAR(32), created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)",
         "ALTER TABLE feedbacks ADD COLUMN updated_at DATETIME",
         "ALTER TABLE feedbacks ADD COLUMN attachment_path VARCHAR(500)",
+        "ALTER TABLE activites_sauvegardees ADD COLUMN created_at DATETIME",
     ]:
         try:
             _conn.execute(text(_col))
@@ -70,7 +71,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://school.afia.fr",
+        "https://aschool.fr",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
@@ -92,6 +93,7 @@ app.include_router(fiches.router)
 app.include_router(optimiseur.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(sequence.router, prefix="/api")
+app.include_router(ambiguites.router, prefix="/api")
 
 # Seed exemples au démarrage (idempotent)
 try:

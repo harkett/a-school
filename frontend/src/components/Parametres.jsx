@@ -162,19 +162,6 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
         </p>
       </div>
 
-      {!hasResultat && (
-        <div className="mt-5 flex justify-end">
-          <button
-            className="btn-primary"
-            onClick={onGenerer}
-            disabled={loading || !canGenerer}
-            title={!canGenerer ? 'Saisissez un texte source pour générer une activité' : 'Lancer la génération de l\'activité avec aSchool'}
-          >
-            <IconGenerer />
-            {loading ? 'Génération en cours...' : 'Générer l\'activité'}
-          </button>
-        </div>
-      )}
 
       {/* Modale — Ajuster pour cette activité */}
       {showAjuster && (

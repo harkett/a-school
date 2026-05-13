@@ -1,10 +1,11 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Cookie
+﻿from fastapi import APIRouter, Depends, HTTPException, Cookie, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from backend import auth as auth_lib
 from backend.database import get_db
-from backend.models_db import ToolUsageLog
+from backend.models_db import ToolUsageLog, SequenceSauvegardee, User
 from src.config import AI_API_KEY, AI_MODEL, AI_PROVIDER
 
 router = APIRouter()
@@ -179,9 +180,126 @@ def api_generate_sequence(
         raise HTTPException(500, str(e))
 
     try:
+        db.add(SequenceSauvegardee(
+            user_email=email,
+            matiere=req.matiere,
+            niveau=req.niveau,
+            theme=req.theme.strip(),
+            duree=req.duree,
+            mode=req.mode,
+            description_classe=req.description_classe.strip(),
+            resultat=resultat,
+        ))
         db.add(ToolUsageLog(user_email=email, tool="sequence"))
         db.commit()
     except Exception:
         pass
 
     return SequenceResponse(resultat=resultat)
+
+
+@router.get("/mes-sequences")
+def api_mes_sequences(
+    aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+    rows = (
+        db.query(SequenceSauvegardee)
+        .filter(SequenceSauvegardee.user_email == email)
+        .order_by(SequenceSauvegardee.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "theme": r.theme,
+            "matiere": r.matiere,
+            "niveau": r.niveau,
+            "duree": r.duree,
+            "mode": r.mode,
+            "description_classe": r.description_classe,
+            "resultat": r.resultat,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.delete("/mes-sequences/{seq_id}")
+def api_delete_sequence(
+    seq_id: int,
+    aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+    seq = db.query(SequenceSauvegardee).filter(
+        SequenceSauvegardee.id == seq_id,
+        SequenceSauvegardee.user_email == email,
+    ).first()
+    if not seq:
+        raise HTTPException(404, "Séquence introuvable.")
+    db.delete(seq)
+    db.commit()
+    return {"ok": True}
+
+
+class PartagerSeqRequest(BaseModel):
+    partagee: bool
+    anonyme: Optional[bool] = None
+
+
+@router.patch("/mes-sequences/{seq_id}")
+def api_toggle_partage_sequence(
+    seq_id: int,
+    req: PartagerSeqRequest,
+    aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+    seq = db.query(SequenceSauvegardee).filter(
+        SequenceSauvegardee.id == seq_id,
+        SequenceSauvegardee.user_email == email,
+    ).first()
+    if not seq:
+        raise HTTPException(404, "Séquence introuvable.")
+    seq.partagee = req.partagee
+    if req.anonyme is not None:
+        seq.anonyme = req.anonyme
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/mon-reseau/sequences")
+def api_bibliotheque_sequences(
+    matiere: Optional[str] = Query(default=None),
+    niveau: Optional[str] = Query(default=None),
+    aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+    query = (
+        db.query(SequenceSauvegardee, User)
+        .join(User, User.email == SequenceSauvegardee.user_email)
+        .filter(SequenceSauvegardee.partagee == True)
+        .filter(SequenceSauvegardee.user_email != email)
+        .filter(User.is_active == True)
+    )
+    if matiere:
+        query = query.filter(SequenceSauvegardee.matiere == matiere)
+    if niveau:
+        query = query.filter(SequenceSauvegardee.niveau == niveau)
+    rows = query.order_by(SequenceSauvegardee.id.desc()).all()
+    return [
+        {
+            "id": s.id,
+            "theme": s.theme,
+            "matiere": s.matiere,
+            "niveau": s.niveau,
+            "duree": s.duree,
+            "mode": s.mode,
+            "resultat": s.resultat,
+            "partagee_par": "Anonyme" if s.anonyme else (f"{u.prenom or ''} {u.nom or ''}".strip() or "Anonyme"),
+        }
+        for s, u in rows
+    ]

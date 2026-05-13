@@ -266,6 +266,7 @@ const sections = [
             <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
             <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
             <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
+            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
           </ul>
         </div>
         <hr className="border-gray-100" />
@@ -456,7 +457,7 @@ const sections = [
           <p className="font-semibold text-gray-700 mb-2">1. Soumettez votre séquence</p>
           <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             <li>Collez une séquence existante — planning de cours, progression rédigée, fichier de préparation</li>
-            <li>Un bouton "Tester sur un exemple" permet de découvrir la fonctionnalité sans séquence sous la main</li>
+            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
           </ul>
         </div>
         <hr className="border-gray-100" />
@@ -480,6 +481,44 @@ const sections = [
             <li>La séquence réécrite avec toutes les corrections intégrées</li>
           </ul>
         </div>
+      </div>
+    ),
+  },
+  {
+    id: 'ambiguites',
+    nav: 'Détecter les ambiguïtés',
+    titre: 'Détecter les ambiguïtés cognitives',
+    Icon: IconAlert,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Soumettez votre énoncé</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Collez un exercice, une série de questions ou une consigne isolée</li>
+            <li><strong>Pas d'exercice sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du champ) pour pré-remplir avec un énoncé adapté à votre matière — idéal pour découvrir l'outil.</li>
+          </ul>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. aSchool repère les zones à risque</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Consigne vague — "analysez", "commentez" sans critères précis</li>
+            <li>Vocabulaire technique non défini — terme supposé connu des élèves</li>
+            <li>Double sens — formulation interprétable de deux façons différentes</li>
+            <li>Critères de réussite absents — longueur, forme ou nombre de points non précisés</li>
+            <li>Référence implicite — "le texte", "le document" sans préciser lequel</li>
+            <li>Consigne trop longue — plusieurs tâches non clairement séparées</li>
+          </ul>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. Récupérez le rapport</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Un <strong>verdict global</strong> sur la clarté de l'énoncé</li>
+            <li>Pour chaque ambiguïté : l'extrait exact, le risque pour l'élève, et une <strong>reformulation corrigée</strong> prête à l'emploi</li>
+          </ul>
+        </div>
+        <p className="text-xs text-gray-400 italic mt-1">Conseil : utilisez cet outil avant de distribuer un contrôle ou un devoir maison — une consigne claire réduit les questions pendant l'épreuve.</p>
       </div>
     ),
   },
@@ -572,16 +611,17 @@ const sections = [
     contenu: (
       <div className="flex flex-col gap-4 text-sm text-gray-600">
         <p>
-          Depuis <strong>Mes activités</strong> ou la <strong>Bibliothèque</strong>, vous pouvez rendre une activité visible par tous les professeurs de la plateforme.
+          Depuis <strong>Mes activités → Historique</strong>, vous pouvez rendre une activité visible par tous les profs de la plateforme dans <strong>Mon réseau</strong>.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Step n="1">Allez dans <strong>Mes activités</strong> et cliquez sur une activité pour l'ouvrir.</Step>
-          <Step n="2">Activez le toggle <strong>« Partager avec les collègues »</strong> en haut du résultat.</Step>
-          <Step n="3">L'activité apparaît immédiatement dans la <strong>Bibliothèque</strong> pour tous les profs connectés — avec votre prénom, votre matière et le niveau.</Step>
-          <Step n="4">Pour retirer le partage : désactivez le même toggle. L'activité disparaît de la Bibliothèque mais reste dans vos activités.</Step>
+          <Step n="1">Allez dans <strong>Activité → Historique</strong> et survolez une activité.</Step>
+          <Step n="2">Cliquez sur le bouton <strong>Partager</strong>.</Step>
+          <Step n="3">Une fenêtre vous demande : <em>Afficher mon nom</em> ou <em>Rester anonyme</em>. Faites votre choix.</Step>
+          <Step n="4">L'activité apparaît immédiatement dans <strong>Mon réseau → Activités</strong> pour tous les profs connectés. Un badge <span style={{ fontSize: 10, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '1px 6px' }}>Partagé</span> s'affiche sur votre carte.</Step>
+          <Step n="5">Pour retirer le partage : recliquez sur <strong>Partager</strong>. L'activité disparaît de Mon réseau mais reste dans votre historique.</Step>
         </div>
         <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
-          Seul le prénom et la matière sont visibles par les autres — pas l'adresse email. Vous pouvez partager et retirer le partage autant de fois que vous voulez.
+          Si vous choisissez <em>Afficher mon nom</em>, votre prénom et nom (tels que dans votre profil) sont visibles — jamais l'adresse email. Vous pouvez partager, retirer, et repartager autant de fois que vous voulez.
         </div>
       </div>
     ),
@@ -664,6 +704,134 @@ const sections = [
     ),
   },
   {
+    id: 'historique-activites',
+    nav: 'Historique des activités',
+    titre: 'Historique des activités — gérer vos générations',
+    Icon: IconBook,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <p>
+          Accessible depuis le menu latéral — <strong>Activité → Historique</strong>. Toutes vos activités générées et sauvegardées y sont listées, filtrées automatiquement par votre matière et niveau.
+        </p>
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Actions disponibles sur chaque activité</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Plus de détails</strong> — ouvre une fenêtre avec le texte source complet et le résultat généré, sans quitter la page.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Reprendre</strong> — recharge le texte source, les paramètres et le résultat dans l'éditeur. Vous repartez exactement de là où vous en étiez, pour affiner ou régénérer.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Partager</strong> — rend l'activité visible dans <em>Mon réseau</em> pour tous les profs de la plateforme. Un choix d'anonymat vous est proposé (voir ci-dessous).</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#dc2626', marginTop: 2 }}>·</span>
+              <span><strong>Supprimer</strong> (icône poubelle) — supprime définitivement l'activité après confirmation. Cette action est irréversible.</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          Les boutons <em>Plus de détails</em>, <em>Reprendre</em> et <em>Supprimer</em> sont visibles au survol de chaque ligne (ou en permanence sur mobile).
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'historique-sequences',
+    nav: 'Historique des séquences',
+    titre: 'Historique des séquences — partager et gérer',
+    Icon: IconSparkle,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <p>
+          Accessible depuis le menu latéral — <strong>Séquence → Historique</strong>. Toutes vos orchestrations de séquences générées y sont listées.
+        </p>
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Actions disponibles sur chaque séquence</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Plus de détails</strong> — ouvre une fenêtre avec la séquence complète : thème, matière, niveau, mode, durée et contenu intégral.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Reprendre</strong> — recharge la séquence dans l'éditeur pour la modifier ou la régénérer.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Partager</strong> — publie la séquence dans <em>Mon réseau → Séquences</em>. Un choix d'anonymat vous est proposé à ce moment (voir ci-dessous). Un badge <span style={{ fontSize: 10, fontWeight: 600, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '1px 6px' }}>Partagé</span> apparaît sur la carte une fois partagée.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: '#dc2626', marginTop: 2 }}>·</span>
+              <span><strong>Supprimer</strong> (icône poubelle) — supprime définitivement la séquence après confirmation.</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Choix d'anonymat lors du partage</p>
+          <p style={{ marginBottom: 8 }}>Quand vous cliquez sur <strong>Partager</strong>, une fenêtre vous propose deux options :</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#374151' }}>
+              <strong>Afficher mon nom</strong> — votre prénom et nom tels que renseignés dans votre profil apparaissent à côté de la séquence dans Mon réseau.
+            </div>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#374151' }}>
+              <strong>Rester anonyme</strong> — la séquence est visible mais signée <em>Anonyme</em>. Votre identité n'est jamais révélée.
+            </div>
+          </div>
+        </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          Vous pouvez retirer un partage à tout moment en cliquant à nouveau sur le bouton — aucune fenêtre de confirmation, le retrait est immédiat.
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'mon-reseau',
+    nav: 'Mon réseau',
+    titre: 'Mon réseau — les partages de vos collègues',
+    Icon: IconUser,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <p>
+          Accessible depuis le menu latéral — <strong>Mon réseau</strong>. Deux sous-menus : <strong>Activités</strong> et <strong>Séquences</strong>. Ces pages regroupent tout ce que vos collègues ont décidé de partager sur la plateforme.
+        </p>
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Ce que vous y trouvez</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Activités partagées</strong> — filtrables par matière et niveau. Chaque carte affiche le type d'activité, le niveau, et le nom du prof (ou <em>Anonyme</em> si le prof a choisi de ne pas s'identifier).</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Séquences partagées</strong> — filtrables par matière et niveau. Chaque carte affiche le thème, le mode (Standard / Remédiation), la durée et la matière.</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Actions disponibles</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Plus de détails</strong> — ouvre une fenêtre avec le contenu complet (texte source et résultat pour les activités, séquence intégrale pour les séquences).</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: 'var(--bleu)', marginTop: 2 }}>·</span>
+              <span><strong>Utiliser</strong> — charge l'activité ou la séquence comme point de départ dans votre éditeur. Vous repartez du contenu de votre collègue pour le personnaliser.</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
+          <strong>Vos propres partages</strong> ne sont pas visibles dans Mon réseau — seulement les partages des <em>autres</em> profs. Retrouvez vos partages dans Mes activités ou Historique des séquences avec le badge <span style={{ fontWeight: 600 }}>Partagé</span>.
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'bibliotheque-exemples',
     nav: 'La Bibliothèque',
     titre: 'Les exemples de la Bibliothèque',
@@ -736,7 +904,9 @@ const sections = [
 const CATEGORIES = [
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
   { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'champs', 'conseils', 'sequence', 'optimiseur'] },
-  { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'partage', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
+  { label: 'Analyser', ids: ['ambiguites'] },
+  { label: 'Gérer', ids: ['historique-activites', 'historique-sequences', 'partage', 'mon-reseau'] },
+  { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
   { label: 'Problèmes', ids: ['problemes'] },
 ]
 

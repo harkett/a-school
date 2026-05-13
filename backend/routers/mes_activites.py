@@ -27,6 +27,7 @@ class SauvegarderRequest(BaseModel):
 
 class PartagerRequest(BaseModel):
     partagee: bool
+    anonyme: Optional[bool] = None
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -112,5 +113,26 @@ def basculer_partage(
     if not activite:
         raise HTTPException(404, "Activité introuvable.")
     activite.partagee = req.partagee
+    if req.anonyme is not None:
+        activite.anonyme = req.anonyme
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/mes-activites/{activite_id}")
+def supprimer(
+    activite_id: int,
+    aschool_access: str = Cookie(default=None),
+    db: Session = Depends(get_db),
+):
+    email = _get_email(aschool_access)
+    activite = (
+        db.query(ActiviteSauvegardee)
+        .filter(ActiviteSauvegardee.id == activite_id, ActiviteSauvegardee.user_email == email)
+        .first()
+    )
+    if not activite:
+        raise HTTPException(404, "Activité introuvable.")
+    db.delete(activite)
     db.commit()
     return {"ok": True}

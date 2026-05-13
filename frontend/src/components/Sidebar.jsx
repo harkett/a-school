@@ -1,14 +1,9 @@
-﻿import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const IconHome = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
     <polyline points="9 22 9 12 15 12 15 22"/>
-  </svg>
-)
-const IconHistory = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
   </svg>
 )
 const IconHelp = () => (
@@ -30,7 +25,6 @@ const IconStar = () => (
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 )
-
 const IconActivites = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -40,7 +34,17 @@ const IconActivites = () => (
     <polyline points="10 9 9 9 8 9"/>
   </svg>
 )
-const IconBibliotheque = () => (
+const IconSequences = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="8" y1="6" x2="21" y2="6"/>
+    <line x1="8" y1="12" x2="21" y2="12"/>
+    <line x1="8" y1="18" x2="21" y2="18"/>
+    <line x1="3" y1="6" x2="3.01" y2="6"/>
+    <line x1="3" y1="12" x2="3.01" y2="12"/>
+    <line x1="3" y1="18" x2="3.01" y2="18"/>
+  </svg>
+)
+const IconMonReseau = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -75,15 +79,31 @@ const IconMenu = () => (
     <line x1="3" y1="18" x2="21" y2="18"/>
   </svg>
 )
-
 const IconFeedback = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
   </svg>
 )
+const IconStats = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="18" y1="20" x2="18" y2="10"/>
+    <line x1="12" y1="20" x2="12" y2="4"/>
+    <line x1="6" y1="20" x2="6" y2="14"/>
+  </svg>
+)
+
+const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'creer-sequence', 'mes-sequences', 'optimiseur', 'ambiguites', 'consigne', 'equite']
+const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
+  const [outilsOpen, setOutilsOpen] = useState(() => MES_OUTILS_PAGES.includes(page))
+  const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
+
+  useEffect(() => {
+    if (MES_OUTILS_PAGES.includes(page)) setOutilsOpen(true)
+    if (MON_RESEAU_PAGES.includes(page)) setBiblioOpen(true)
+  }, [page])
 
   const navItem = (id, label, Icon, title) => (
     <a
@@ -103,6 +123,38 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       {!collapsed && <span>{label}</span>}
     </a>
   )
+
+  const subNavItem = (pageId, label, title) => {
+    const isActive = page === pageId && pageId !== 'mes-outils'
+    return (
+      <a
+        key={pageId + label}
+        href="#"
+        title={title}
+        onClick={e => { e.preventDefault(); onNavigate(pageId) }}
+        style={{
+          padding: '3px 4px 3px 6px',
+          display: 'flex', alignItems: 'center', gap: '8px',
+          fontSize: '12px', lineHeight: 1.4,
+          color: isActive ? 'var(--bordeaux)' : '#6b7280',
+          fontWeight: isActive ? 600 : 400,
+          textDecoration: 'none', borderRadius: '4px',
+          transition: 'color 0.15s',
+        }}
+      >
+        <span style={{ width: 4, height: 4, borderRadius: '50%', background: isActive ? 'var(--bordeaux)' : '#d1d5db', flexShrink: 0 }} />
+        <span>{label}</span>
+      </a>
+    )
+  }
+
+  const subSectionLabel = (label) => (
+    <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '8px 0 3px 4px' }}>
+      {label}
+    </div>
+  )
+
+  const outilsActive = MES_OUTILS_PAGES.includes(page)
 
   return (
     <aside
@@ -137,12 +189,88 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
       <nav className={`flex flex-col gap-1 flex-1 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
-        {navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séquence, améliorer')}
-        {navItem('mes-activites', 'Mes activités', IconActivites, 'Retrouver et recharger une activité précédemment générée')}
-        {navItem('bibliotheque', 'Ma bibliothèque', IconBibliotheque, 'Activités partagées par vos collègues')}
+
+        {/* Mes outils — section expandable */}
+        {collapsed ? (
+          navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séquence, améliorer')
+        ) : (
+          <div>
+            <button
+              onClick={() => setOutilsOpen(o => !o)}
+              title="Mes outils pédagogiques — développer ou réduire le menu"
+              className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+                color: outilsActive ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: outilsActive ? 600 : 400,
+              }}
+            >
+              <IconMesOutils />
+              <span>Mes outils</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: outilsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+
+            {outilsOpen && (
+              <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
+                {subSectionLabel('Activité')}
+                {subNavItem('creer-activite', 'Créer', 'Créer une activité pédagogique')}
+                {subNavItem('mes-activites', 'Historique', 'Retrouver et recharger une activité précédemment générée')}
+
+                {subSectionLabel('Séquence')}
+                {subNavItem('creer-sequence', 'Créer', 'Créer une séquence pédagogique')}
+                {subNavItem('optimiseur', 'Optimiser', 'Optimiser une séquence existante')}
+                {subNavItem('mes-sequences', 'Historique', 'Retrouver et recharger une séquence précédemment générée')}
+
+                {subSectionLabel('Analyse')}
+                {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
+                {subNavItem('consigne', 'Consignes', "Analyser la qualité d'une consigne")}
+                {subNavItem('equite', 'Équité', "Auditer l'équité d'une évaluation")}
+              </div>
+            )}
+          </div>
+        )}
+
+        {collapsed ? (
+          navItem('mon-reseau-activites', 'Mon réseau', IconMonReseau, 'Mon réseau — activités et séquences partagées par vos collègues')
+        ) : (
+          <div>
+            <button
+              onClick={() => setBiblioOpen(o => !o)}
+              title="Mon réseau — activités et séquences partagées par vos collègues"
+              className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+                color: MON_RESEAU_PAGES.includes(page) ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: MON_RESEAU_PAGES.includes(page) ? 600 : 400,
+              }}
+            >
+              <IconMonReseau />
+              <span>Mon réseau</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: biblioOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {biblioOpen && (
+              <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
+                {subNavItem('mon-reseau-activites', 'Activités', 'Activités partagées par vos collègues')}
+                {subNavItem('mon-reseau-sequences', 'Séquences', 'Séquences partagées par vos collègues')}
+              </div>
+            )}
+          </div>
+        )}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
-        {navItem('historique', 'Mon journal', IconHistory, 'Voir vos générations précédentes')}
         {navItem('mes-feedbacks', 'Mes feedbacks', IconFeedback, 'Consulter vos retours envoyés et leur statut')}
+        {navItem('mes-stats', 'Mes stats', IconStats, 'Mes statistiques personnelles et la vitalité de la plateforme')}
       </nav>
 
       <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>

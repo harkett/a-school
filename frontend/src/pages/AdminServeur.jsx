@@ -42,29 +42,32 @@ function BarChart({ data, labelKey = 'day', color = '#3b82f6' }) {
 }
 
 export default function AdminServeur() {
-  const [metrics, setMetrics] = useState(null)
+  const [metrics,  setMetrics]  = useState(null)
   const [overview, setOverview] = useState(null)
-  const [logins, setLogins]   = useState([])
-  const [hours, setHours]     = useState([])
-  const [dbSize, setDbSize]   = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [vitalite, setVitalite] = useState(null)
+  const [logins,   setLogins]   = useState([])
+  const [hours,    setHours]    = useState([])
+  const [dbSize,   setDbSize]   = useState(null)
+  const [loading,  setLoading]  = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
     const opts = { credentials: 'include' }
     Promise.all([
-      fetch('/api/admin/server-metrics', opts).then(r => r.status === 401 ? null : r.json()),
+      fetch('/api/admin/server-metrics',  opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/stats/overview',  opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/stats/logins',    opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/db-size',         opts).then(r => r.status === 401 ? null : r.json()),
       fetch('/api/admin/stats/hours',     opts).then(r => r.status === 401 ? null : r.json()),
-    ]).then(([m, o, l, d, h]) => {
+      fetch('/api/admin/stats/vitalite',  opts).then(r => r.status === 401 ? null : r.json()),
+    ]).then(([m, o, l, d, h, v]) => {
       if (!m) { navigate('/admin/login'); return }
       setMetrics(m)
       setOverview(o)
       setLogins(l || [])
       setDbSize(d)
       setHours(h || [])
+      setVitalite(v)
     }).catch(() => navigate('/admin/login')).finally(() => setLoading(false))
   }, [navigate])
 
@@ -77,14 +80,44 @@ export default function AdminServeur() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+      {/* Vitalité communauté (B2) */}
+      {vitalite && (
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Vitalité de la plateforme</h2>
+          <div style={{
+            background: 'linear-gradient(90deg, #f0f9ff 0%, #f5f3ff 100%)',
+            border: '1px solid #ddd6fe', borderRadius: 10,
+            display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)',
+          }}>
+            {[
+              { value: vitalite.profs_actifs_aujourd_hui, label: "Profs actifs\naujourd'hui", color: '#1e40af' },
+              { value: vitalite.profs_actifs_semaine,     label: 'Actifs\ncette semaine',    color: '#7c3aed' },
+              { value: vitalite.activites_total,          label: 'Activités\ntotales',        color: '#A63045' },
+              { value: vitalite.sequences_total,          label: 'Séquences\ngénérées',       color: '#0891b2' },
+              { value: vitalite.partages_total,           label: 'Partages\nentre collègues', color: '#059669' },
+            ].map((s, i, arr) => (
+              <div key={s.label} style={{
+                textAlign: 'center', padding: '16px 8px',
+                borderRight: i < arr.length - 1 ? '1px solid #ddd6fe' : 'none',
+              }}>
+                <div style={{ fontSize: 26, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#6366f1', textTransform: 'uppercase', marginTop: 4, lineHeight: 1.3, whiteSpace: 'pre-line' }}>
+                  {s.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Cards activité */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Activité</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">Activité temps réel</h2>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <MetricCard label="Profs inscrits"      value={overview?.total_profs ?? '—'} />
+          <MetricCard label="Profs inscrits"         value={overview?.total_profs ?? '—'} />
           <MetricCard label="Connexions aujourd'hui" value={overview?.connexions_today ?? '—'} />
-          <MetricCard label="Profs en ligne"      value={overview?.sessions_online ?? '—'} color="#15803d" />
-          <MetricCard label="Feedbacks nouveaux"  value={overview?.feedbacks_nouveaux ?? '—'} color={overview?.feedbacks_nouveaux > 0 ? '#d97706' : undefined} />
+          <MetricCard label="Profs en ligne"         value={overview?.sessions_online ?? '—'} color="#15803d" />
+          <MetricCard label="Feedbacks nouveaux"     value={overview?.feedbacks_nouveaux ?? '—'} color={overview?.feedbacks_nouveaux > 0 ? '#d97706' : undefined} />
         </div>
       </div>
 
