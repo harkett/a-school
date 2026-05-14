@@ -60,7 +60,7 @@ export default function UpdateBanner() {
         fontWeight: 500,
         position: 'sticky',
         top: 0,
-        zIndex: 9998,
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
