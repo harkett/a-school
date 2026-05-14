@@ -328,7 +328,7 @@ function MainApp() {
     <div className="flex flex-col h-screen overflow-hidden">
 
       {/* Blocage profil incomplet */}
-      {profilIncomplet && (
+      {profilIncomplet && page !== 'mon-profil' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '32px 36px', maxWidth: 440, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', marginBottom: 12 }}>Bienvenue sur aSchool !</div>
