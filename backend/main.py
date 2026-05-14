@@ -43,6 +43,8 @@ with engine.connect() as _conn:
         "ALTER TABLE feedbacks ADD COLUMN updated_at DATETIME",
         "ALTER TABLE feedbacks ADD COLUMN attachment_path VARCHAR(500)",
         "ALTER TABLE activites_sauvegardees ADD COLUMN created_at DATETIME",
+        "ALTER TABLE activites_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE sequences_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
     ]:
         try:
             _conn.execute(text(_col))
