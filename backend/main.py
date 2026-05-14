@@ -1,7 +1,11 @@
 ﻿from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
+
+_pkg = json.loads((Path(__file__).resolve().parent.parent / "frontend" / "package.json").read_text())
+APP_VERSION = _pkg.get("version", "0.0.0")
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
@@ -111,3 +115,7 @@ except Exception as _e:
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "aSchool API"}
+
+@app.get("/api/version")
+def version():
+    return {"version": APP_VERSION}

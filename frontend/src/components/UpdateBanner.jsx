@@ -1,29 +1,53 @@
 import { useEffect, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { APP_VERSION } from '../version'
 
 const COUNTDOWN = 30
 
 export default function UpdateBanner() {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW()
+  const [webUpdate, setWebUpdate] = useState(false)
   const [secondes, setSecondes] = useState(COUNTDOWN)
 
   useEffect(() => {
-    if (!needRefresh) return
+    if (APP_VERSION.endsWith('-dev')) return
+    const check = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' })
+        if (!res.ok) return
+        const { version } = await res.json()
+        if (version && version !== APP_VERSION) setWebUpdate(true)
+      } catch {}
+    }
+    check()
+    const onVisible = () => { if (!document.hidden) check() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  const showBanner = needRefresh || webUpdate
+
+  useEffect(() => {
+    if (!showBanner) return
     setSecondes(COUNTDOWN)
     const interval = setInterval(() => {
       setSecondes(s => {
         if (s <= 1) {
           clearInterval(interval)
-          updateServiceWorker(true)
+          needRefresh ? updateServiceWorker(true) : window.location.reload()
           return 0
         }
         return s - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [needRefresh])
+  }, [showBanner])
 
-  if (!needRefresh) return null
+  if (!showBanner) return null
+
+  const handleUpdate = () => {
+    needRefresh ? updateServiceWorker(true) : window.location.reload()
+  }
 
   return (
     <div
@@ -45,7 +69,7 @@ export default function UpdateBanner() {
     >
       <span>Mise à jour disponible — rechargement automatique dans {secondes}s</span>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={handleUpdate}
         title="Recharger maintenant pour appliquer la mise à jour"
         style={{
           background: '#fff',
