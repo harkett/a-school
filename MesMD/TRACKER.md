@@ -29,6 +29,12 @@
 - [x] **FB1+FB3+FB4 — Page Mes feedbacks** | Livré 12/05
   *Page sidebar "Mes feedbacks". 2 onglets : Envoyer / Mes retours. Upload multi-fichiers (PNG/JPEG/PDF, max 5Mo, max 5 fichiers), drag&drop + Parcourir. Bouton Modifier si statut nouveau/en_cours. Capture écran via Win+Maj+S (message d'aide intégré). Aide rédigée à chaud (section "Mes feedbacks" dans Aide.jsx).*
 
+- [ ] **Pages légales CNIL — placeholders [À COMPLÉTER]** | En attente infos admin
+  *4 pages légales (Mentions légales, PC, CGU, Cookies) rédigées et corrigées dans `CNIL/`. Placeholders restants : forme juridique, SIRET, capital social, adresse siège, nom dirigeant, ville siège. Bloqué par délais administration française. À compléter dès réception des infos — puis intégrer dans le React (4 routes + liens footer).*
+
+- [x] **Aide — Rubrique "Premiers pas"** | Livré 14/05
+  *3 sections ajoutées dans Aide.jsx : Créer votre compte (inscription + vérif + mdp oublié), Compléter votre profil (importance profil complet), Première activité (5 étapes + exports). GUIDE_PREMIERE_CONNEXION.md supprimé — contenu intégré dans l'Aide.*
+
 - [x] **Aide — Sections Historique Activités / Séquences / Mon réseau** | Livré 13/05
   *4 nouvelles sections dans Aide.jsx : Historique des activités (Plus de détails, Reprendre, Partager, Supprimer), Historique des séquences (idem + choix anonymat + badge Partagé), Mon réseau (Activités et Séquences partagées, Utiliser). Section Partager mise à jour avec nouveau flow anonymat. Catégorie "Gérer" ajoutée dans la nav.*
 
@@ -105,7 +111,23 @@
 
 ---
 
+## TRANSVERSE AFIA — Multi-projets
+
+- [ ] **Synchronisation pages afia.fr ↔ projets** | Facile | À faire au prochain push MINOR/MAJOR
+  *Besoin : la page afia.fr/school doit refléter en temps réel l'état de l'app en production.*
+  *Solution retenue : Claude s'en charge. À chaque push MINOR ou MAJOR, Claude génère automatiquement le contenu mis à jour de `School.jsx` (AFIA-FR) — prêt à coller depuis la session AFIA-FR. Règle ajoutée dans CLAUDE.md. S'applique à tous les projets AFIA (AFIASAVE, AFIALOC…) avec la même règle dans leurs CLAUDE.md respectifs.*
+
+---
+
 ## OPTIONNEL
+
+- [ ] **Bouton "Partagez avec vos collègues"** | Moyen | 1 session
+  *Prof connecté envoie une invitation par email à ses collègues depuis l'interface. Nom pré-rempli via JWT. Backend : `POST /api/partager/` (max 5 adresses / 5 appels par jour). Frontend : modale légère `PartagerCollègues.jsx` dans la sidebar.*
+
+- [ ] **Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions
+  *Journal des emails envoyés (destinataire, type, date, statut). Stats envois par période. Gestion bounces → liste noire automatique. Lien désinscription dans chaque mail. Prérequis : SMTP transactionnel avec webhooks (Brevo/Resend) avant campagnes de masse.*
+
+
 
 - [ ] **Ambiguité → Créer une séquence** | Facile | 1h
   *Bouton "Créer une séquence →" sur chaque carte de reformulation corrigée. Navigue vers creer-sequence en pré-remplissant le champ Thème avec la reformulation. À implémenter après L5/L6.*

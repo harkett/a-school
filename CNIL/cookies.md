@@ -1,4 +1,4 @@
-# Politique de gestion des cookies — A‑SCHOOL / AFIA Services
+# Politique de gestion des cookies — aSchool / AFIA Services
 
 **Dernière mise à jour : mai 2026**
 
@@ -16,7 +16,7 @@ A‑SCHOOL utilise deux cookies techniques, tous deux nécessaires au fonctionne
 
 | Nom du cookie | Finalité | Durée |
 |---|---|---|
-| `aschool_token` | Maintien de la session utilisateur (JWT httpOnly) | Durée de la session / 7 jours si "rester connecté" |
+| `aschool_access` | Maintien de la session utilisateur (JWT httpOnly) | Durée de la session / 7 jours si "rester connecté" |
 | `aschool_refresh` | Renouvellement automatique de la session | 7 jours |
 
 Ces cookies sont de type **httpOnly** et **secure** : ils ne sont pas accessibles via JavaScript et ne circulent que sur connexion HTTPS.
@@ -65,6 +65,6 @@ L'utilisateur peut également supprimer les cookies manuellement depuis les para
 ## 6. Contact
 
 Pour toute question relative aux cookies ou à la protection des données :
-**contact@afia.fr**
+**contact@aschool.fr**
 
 Voir également la **[Politique de confidentialité](/politique-de-confidentialite)**.

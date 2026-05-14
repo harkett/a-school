@@ -4,7 +4,6 @@ __pycache__/
 *.pyc
 outputs/
 data/
-.streamlit/
 # Frontend
 node_modules/
 frontend/dist/

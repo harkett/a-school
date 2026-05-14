@@ -3,7 +3,13 @@
     "allow": [
       "Bash(.venv/Scripts/pip install *)",
       "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\Bibliotheque.jsx\")",
-      "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\BibliothequeSequences.jsx\")"
+      "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\BibliothequeSequences.jsx\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\A-SCHOOL\" -Directory)",
+      "Bash(Select-Object Name)",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\A-SCHOOL\" | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
+      "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src\\\\pages -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src -ErrorAction SilentlyContinue)",
+      "Bash(Copy-Item \"D:\\\\A-SCHOOL\\\\MesMD\\\\PAGE_AFIA_SCHOOL.md\" \"D:\\\\AFIASAVE\\\\PAGE_AFIA_SCHOOL.md\" -Force)"
     ]
   }
 }

@@ -112,6 +112,94 @@ function telechargerProcedure(titre, html) {
 
 const sections = [
   {
+    id: 'compte',
+    nav: 'Créer votre compte',
+    titre: 'Créer votre compte',
+    Icon: IconUser,
+    contenu: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Step n="1">Allez sur <strong>aschool.fr</strong> et cliquez sur <strong>Créer un compte</strong>.</Step>
+          <Step n="2">Renseignez votre adresse email, votre matière principale et un mot de passe (8 caractères minimum).</Step>
+          <Step n="3">Cliquez sur <strong>S'inscrire</strong> — un email de vérification est envoyé immédiatement.</Step>
+          <Step n="4">Ouvrez votre boîte mail et cliquez sur le lien de vérification.</Step>
+          <Step n="5">Votre compte est activé — vous êtes redirigé vers la connexion.</Step>
+        </div>
+        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#92400e' }}>
+          <strong>Vous ne recevez pas l'email ?</strong> Vérifiez vos spams. Si le lien a expiré, cliquez sur <strong>Renvoyer l'email de vérification</strong> sur la page de connexion.
+        </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          <strong>Mot de passe oublié ?</strong> Cliquez sur <em>Mot de passe oublié ?</em> sur la page de connexion — un lien de réinitialisation vous est envoyé par email.
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'profil-setup',
+    nav: 'Compléter votre profil',
+    titre: 'Compléter votre profil',
+    Icon: IconUser,
+    contenu: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>
+          Après votre première connexion, complétez votre profil pour qu'aSchool s'adapte à vous.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Step n="1">Dans le menu latéral, cliquez sur <strong>Mon profil</strong>.</Step>
+          <Step n="2">Renseignez votre <strong>prénom</strong> et votre <strong>nom</strong>.</Step>
+          <Step n="3">Vérifiez votre <strong>matière principale</strong> et votre <strong>niveau habituel</strong>.</Step>
+          <Step n="4">Cliquez sur <strong>Valider</strong>.</Step>
+        </div>
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}>Pourquoi c'est important</div>
+          <ul style={{ listStyleType: 'disc', paddingLeft: 18, fontSize: 12, color: '#166534', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <li>Votre matière et votre niveau filtrent automatiquement <strong>Mes activités</strong></li>
+            <li>Ils pré-remplissent les paramètres à chaque génération</li>
+            <li>aSchool apprend votre style à partir de vos sauvegardes — profil complet = adaptation plus rapide</li>
+            <li>Votre prénom est affiché sur les activités que vous choisissez de partager</li>
+          </ul>
+        </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          Pour changer de matière ponctuellement sans modifier votre profil, utilisez le sélecteur dans les paramètres de génération.
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'premiere-activite',
+    nav: 'Première activité',
+    titre: 'Générer votre première activité',
+    Icon: IconSparkle,
+    contenu: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Step n="1">
+            <span><strong>Fournissez un texte source</strong> — collez un extrait de manuel, dictez à la voix ou scannez un document.<br />
+            <span style={{ fontSize: 12, color: '#64748b' }}>Pas de texte sous la main ? Cliquez sur <strong>Tester un exemple</strong> en haut à droite du champ.</span></span>
+          </Step>
+          <Step n="2">
+            <span><strong>Choisissez le type d'activité et le sous-type</strong> — votre matière et niveau sont pré-remplis depuis votre profil.</span>
+          </Step>
+          <Step n="3">
+            <span><strong>Cochez "Avec correction"</strong> si vous voulez le corrigé en même temps.</span>
+          </Step>
+          <Step n="4">
+            <span><strong>Cliquez sur "Générer l'activité"</strong> — le résultat apparaît en quelques secondes.</span>
+          </Step>
+          <Step n="5">
+            <span><strong>Exportez ou sauvegardez</strong> — téléchargez en Word (.docx), texte brut, imprimez, ou envoyez par email. Sauvegardez pour retrouver l'activité dans <em>Mes activités</em>.</span>
+          </Step>
+        </div>
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
+          <strong>Régénérez sans hésiter</strong> — chaque génération est différente. Si le résultat ne convient pas, recliquez sur "Générer" avec le même texte.
+        </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          Pour aller plus loin : consultez <em>Créer une activité</em>, <em>Dictée vocale</em> et <em>Scanner un document</em> dans la rubrique <strong>Créer</strong>.
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'install-ios',
     nav: 'Installer sur iPhone',
     titre: 'Installer aSchool sur iPhone (iOS)',
@@ -902,6 +990,7 @@ const sections = [
 ]
 
 const CATEGORIES = [
+  { label: 'Premiers pas', ids: ['compte', 'profil-setup', 'premiere-activite'] },
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
   { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'champs', 'conseils', 'sequence', 'optimiseur'] },
   { label: 'Analyser', ids: ['ambiguites'] },

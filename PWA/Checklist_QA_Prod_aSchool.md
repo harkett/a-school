@@ -28,29 +28,29 @@ Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant,
 | # | Point | Statut | Testé le | Par |
 |---|-------|--------|----------|-----|
 | 1 | Connexion navigateur normal | ✅ OK | 12/05 | harkett |
-| 2 | Connexion app installée (PWA) | 🔒 prod | aschool.fr | — |
+| 2 | Connexion app installée (PWA) | ✅ OK | 12/05 | harkett |
 | 3.1 | Déconnexion — Pas reconnecté après relance | ✅ OK | 12/05 | harkett |
 | 3.2 | Déconnexion — Bouton Back après logout | ✅ OK | 12/05 | harkett |
 | 3.3 | Déconnexion — Cross-tab (deux onglets) | ✅ OK | 12/05 | harkett |
-| 4 | Installation Android | 🔒 prod | aschool.fr | — |
-| 5.1 | iPhone — Bannière apparaît après 5s | 🔒 prod | aschool.fr | — |
-| 5.2 | iPhone — Bouton ✕ ferme définitivement | 🔒 prod | aschool.fr | — |
-| 5.3 | iPhone — Install Safari → écran d'accueil | 🔒 prod | aschool.fr | — |
-| 6 | Icône propre | 🔒 prod | aschool.fr | — |
-| 7 | Splash / thème couleur | 🔒 prod | aschool.fr | — |
+| 4 | Installation Android | ✅ OK | 12/05 | harkett |
+| 5.1 | iPhone — Bannière apparaît après 5s | ✅ OK | 12/05 | harkett |
+| 5.2 | iPhone — Bouton ✕ ferme définitivement | ✅ OK | 12/05 | harkett |
+| 5.3 | iPhone — Install Safari → écran d'accueil | ✅ OK | 12/05 | harkett |
+| 6 | Icône propre | ✅ OK | 12/05 | harkett |
+| 7 | Splash / thème couleur | ✅ OK | 12/05 | harkett |
 | 8 | Refresh sur sous-page | ✅ OK | 12/05 | harkett |
 | 9 | API après installation | ✅ OK | 12/05 | harkett |
 | 10.1 | Hors ligne — Shell visible sans crash | ✅ OK | 12/05 | harkett |
 | 10.2 | Hors ligne — OfflineBanner apparaît | ✅ OK | 12/05 | harkett |
 | 10.3 | Hors ligne — Message d'erreur propre sur génération | ✅ OK | 12/05 | harkett |
-| 11 | Réseau lent + message timeout | 🔒 prod | aschool.fr | — |
+| 11 | Réseau lent + message timeout | ✅ OK | 12/05 | harkett |
 | 12.1 | Update — Déployer nouvelle build | ✅ OK | 12/05 | harkett |
 | 12.2 | Update — Bannière "Nouvelle version" apparaît | ✅ OK | 12/05 | harkett |
 | 12.3 | Update — Bouton Actualiser recharge sur nouvelle version | ✅ OK | 12/05 | harkett |
 | 12.4 | Update — Aucune session bloquée sur ancienne version | ✅ OK | 12/05 | harkett |
-| 13 | Responsive mobile réel | 🔒 prod | aschool.fr | — |
-| 14 | Clavier mobile | 🔒 prod | aschool.fr | — |
-| 15 | HTTPS strict | 🔒 prod | aschool.fr | — |
+| 13 | Responsive mobile réel | ✅ OK | 12/05 | harkett |
+| 14 | Clavier mobile | ✅ OK | 12/05 | harkett |
+| 15 | HTTPS strict | ✅ OK | 12/05 | harkett |
 | 16.1 | Cross-tab — Deux onglets ouverts et connectés | ✅ OK | 12/05 | harkett |
 | 16.2 | Cross-tab — Déconnexion onglet A | ✅ OK | 12/05 | harkett |
 | 16.3 | Cross-tab — Onglet B redirige automatiquement | ✅ OK | 12/05 | harkett |
@@ -58,10 +58,10 @@ Un point cosmétique (icône légèrement floue, couleur splash) = non bloquant,
 | 18 | Cache clean logout | ✅ OK | 12/05 | claude |
 | 19 | Comptes réels / rôles | ✅ OK | 12/05 | claude |
 | 20.1 | Console — Aucune erreur rouge navigateur | ✅ OK | 12/05 | harkett |
-| 20.2 | Logs Nginx — Aucun 5xx | 🔒 prod | aschool.fr | — |
-| 21.1 | DevTools — SW "activated and running" | 🔒 prod | aschool.fr | — |
-| 21.2 | DevTools — Manifest sans erreur, icônes résolues | 🔒 prod | aschool.fr | — |
-| 21.3 | DevTools — /api/ absent du Cache Storage | 🔒 prod | aschool.fr | — |
+| 20.2 | Logs Nginx — Aucun 5xx | ✅ OK | 12/05 | harkett |
+| 21.1 | DevTools — SW "activated and running" | ✅ OK | 12/05 | harkett |
+| 21.2 | DevTools — Manifest sans erreur, icônes résolues | ✅ OK | 12/05 | harkett |
+| 21.3 | DevTools — /api/ absent du Cache Storage | ✅ OK | 12/05 | harkett |
 
 ---
 

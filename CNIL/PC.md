@@ -1,14 +1,14 @@
-# Politique de confidentialité — A‑SCHOOL / AFIA Services
+# Politique de confidentialité — aSchool / AFIA Services
 
 ## 1. Objet de la politique
 
-La présente Politique de confidentialité décrit la manière dont **AFIA Services** collecte, utilise, stocke et protège les données personnelles des utilisateurs de l'application A‑SCHOOL, conformément au **RGPD** (Règlement Général sur la Protection des Données) et aux recommandations de la **CNIL**.
+La présente Politique de confidentialité décrit la manière dont **AFIA Services** collecte, utilise, stocke et protège les données personnelles des utilisateurs de l'application aSchool, conformément au **RGPD** (Règlement Général sur la Protection des Données) et aux recommandations de la **CNIL**.
 
 ## 2. Responsable du traitement
 
 **AFIA Services**
 [À COMPLÉTER — forme juridique, SIRET, adresse du siège]
-Contact : contact@afia.fr
+Contact : contact@aschool.fr
 
 ## 3. Données collectées
 
@@ -89,7 +89,7 @@ Conformément au RGPD, l'utilisateur dispose des droits suivants :
 - **droit d'opposition** — s'opposer à un traitement fondé sur l'intérêt légitime ;
 - **droit à la portabilité** — recevoir ses données dans un format structuré.
 
-Pour exercer ces droits : **contact@afia.fr**
+Pour exercer ces droits : **contact@aschool.fr**
 
 Une réponse sera fournie dans un délai maximal de **30 jours** à compter de la réception de la demande.
 
@@ -122,4 +122,4 @@ Les utilisateurs seront informés en cas de modification substantielle. La date 
 ## 13. Contact
 
 Pour toute question relative à la protection des données personnelles :
-**contact@afia.fr**
+**contact@aschool.fr**

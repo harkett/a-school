@@ -1,4 +1,4 @@
-# Conditions Générales d'Utilisation (CGU) — A‑SCHOOL / AFIA Services
+# Conditions Générales d'Utilisation (CGU) — aSchool / AFIA Services
 
 **Dernière mise à jour : mai 2026**
 
@@ -96,7 +96,7 @@ L'utilisateur demeure responsable de la relecture, de la validation et de l'usag
 ## 10. Résiliation et suspension
 
 ### 10.1 Résiliation par l'utilisateur
-L'utilisateur peut demander la suppression de son compte à tout moment en contactant contact@afia.fr. La suppression entraîne l'effacement définitif des données associées.
+L'utilisateur peut demander la suppression de son compte à tout moment en contactant contact@aschool.fr. La suppression entraîne l'effacement définitif des données associées.
 
 ### 10.2 Résiliation par AFIA Services
 AFIA Services peut suspendre ou supprimer un compte sans préavis en cas de :

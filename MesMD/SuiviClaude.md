@@ -1,15 +1,9 @@
 ## Dire à Claude Code
 # ** A chaque nouvelle session, il est impératif de faire lire à Claude les documents suivants avant toute autre action :
 
-Lire, dans cet ordre :
-- CLAUDE.md — lu automatiquement, mais confirmer qu'il est bien chargé
-- MesMD/MEMOIRE_PROJET.md — référence rapide du projet
-- MesMD/TRACKER.md — état exact de ce qui reste à faire
-- d:\A-SCHOOL\MesRessources\ NE JAMAIS LIRE CE DOSSIER C'est une regle !!!
-- Quand quelque chose est fait — un test, une livraison, une validation, n'importe quoi — le noter immédiatement dans le document concerné. Sans attendre. Sans que tu aies à le demander.
-- il faut penser à l'allimenter des un bonne idée à était ajoutée
-- Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée (ajoutée ou modifiée) dans la même session — à chaud, pendant que c'est frais. Jamais en retard.
-LA REGLE :Je demande , tu propose , Je VALIDES et enfin tu code ne ptrends aucune INTIATIVE sans que je te le demande 
+Session du [date]
+Objectif : L5 — Analyseur de consignes
+En attente de cascade : rien
 
 # ** A chaque fermeture de  session, il est impératif de faire lire à Claude les documents suivants avant toute autre action :
 
@@ -36,3 +30,14 @@ L6 — Détecteur d'équité	⬜ Stub "en cours de développement"	Facile · 1 s
 
 
 
+Lis CLAUDE.md en premier. Nous venons de terminer une session de nettoyage documentaire complète (suppression de ~14 fichiers .md obsolètes, fusions dans CLAUDE.md).
+
+L'objectif de cette session est un nettoyage technique du code : code mort, fichiers inutilisés, imports orphelins, variables non utilisées, commentaires obsolètes, doublons.
+
+Commence par un audit complet avant de toucher quoi que ce soit :
+
+Backend — fichiers Python inutilisés, routes mortes, imports orphelins, variables non utilisées
+Frontend — composants jamais importés, imports inutilisés, fichiers CSS/assets orphelins
+Fichiers .env — vérifier que toutes les variables déclarées sont réellement utilisées dans le code
+Racine du projet — fichiers de config, scripts, fichiers temporaires qui n'ont plus de raison d'être
+Règle absolue : proposer → valider → supprimer. Ne rien supprimer sans validation explicite. Présenter l'audit d'abord, on décide ensemble.

@@ -1,8 +1,8 @@
-# Mentions légales — A‑SCHOOL / AFIA Services
+# Mentions légales — aSchool / AFIA Services
 
 ## 1. Éditeur du site
 
-Le présent site et l'application A‑SCHOOL sont édités par :
+Le présent site et l'application aSchool sont édités par :
 
 - **Raison sociale :** AFIA Services
 - **Forme juridique :** [À COMPLÉTER — ex. SASU / SARL / Auto-entrepreneur]
@@ -10,14 +10,14 @@ Le présent site et l'application A‑SCHOOL sont édités par :
 - **SIRET :** [À COMPLÉTER — ex. 000 000 000 00000]
 - **Siège social :** [À COMPLÉTER — adresse du siège]
 - **Responsable de la publication :** [À COMPLÉTER — nom du gérant / dirigeant]
-- **Contact :** contact@afia.fr
-- **Site web :** https://school.afia.fr
+- **Contact :** contact@aschool.fr
+- **Site web :** https://aschool.fr
 
 ## 2. Hébergement
 
 Le site est hébergé sur un serveur privé virtuel (VPS) administré directement par AFIA Services.
 
-- **Nom de domaine :** school.afia.fr
+- **Nom de domaine :** aschool.fr
 - **Localisation du serveur :** Union Européenne (UE)
 
 La génération de contenus pédagogiques est assurée en partie par **Groq Cloud Inc.** (prestataire IA), dont les serveurs sont situés aux États-Unis. Ce traitement est encadré par des Clauses Contractuelles Types approuvées par la Commission européenne. Pour plus de détails, voir la Politique de confidentialité.
