@@ -338,6 +338,18 @@ const sections = [
             Le rechargement est automatique — vous obtenez toujours la dernière version sans rien faire.
           </p>
         </div>
+        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px' }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 6 }}>La bannière n'apparaît pas sur iPhone ?</div>
+          <p style={{ fontSize: 12, color: '#92400e', marginBottom: 8 }}>
+            Si l'application PWA installée semble bloquée sur une ancienne version, supprimez-la et réinstallez-la depuis Safari :
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <Step n="1"><strong>Réglages</strong> → <strong>Général</strong> → <strong>Stockage iPhone</strong></Step>
+            <Step n="2">Cherchez <strong>aSchool</strong> dans la liste → <strong>Supprimer l'app</strong></Step>
+            <Step n="3">Ouvrez <strong>aschool.fr</strong> dans Safari et reconnectez-vous</Step>
+            <Step n="4">Réinstallez via <strong>Partage</strong> <ShareIcon /> → <strong>Sur l'écran d'accueil</strong></Step>
+          </div>
+        </div>
       </div>
     ),
   },
