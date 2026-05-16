@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,11 +58,15 @@ const IconExemple = () => (
 
 export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere }) {
   const [isListening, setIsListening] = useState(false)
+  const [isReady, setIsReady] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
-  const [ocrErreur, setOcrErreur] = useState(null)
-  const recognitionRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const audioMimeRef = useRef('audio/webm')
   const activeRef = useRef(false)
-  const accumulatedRef = useRef('')
+  const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
 
   function handleTxt(e) {
@@ -77,7 +82,6 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     const file = e.target.files[0]
     if (!file) return
     e.target.value = ''
-    setOcrErreur(null)
     setOcrLoading(type)
     try {
       const form = new FormData()
@@ -91,73 +95,162 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
       onChange(data.texte)
     } catch (err) {
-      setOcrErreur(err.message)
+      const source = type === 'image' ? "l'image" : 'le PDF'
+      showError(`Extraction du texte depuis ${source} impossible.\n\n${err.message}`)
     } finally {
       setOcrLoading(null)
     }
   }
 
-  function startRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'fr-FR'
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.maxAlternatives = 1
-
-    recognition.onresult = (event) => {
-      let interim = ''
-      let final = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const t = event.results[i][0].transcript
-        if (event.results[i].isFinal) final += t
-        else interim += t
-      }
-      if (final) {
-        accumulatedRef.current = accumulatedRef.current + (accumulatedRef.current ? ' ' : '') + final.trim()
-        onChange(accumulatedRef.current)
-      } else if (interim) {
-        onChange(accumulatedRef.current + (accumulatedRef.current ? ' ' : '') + interim)
-      }
+  function pickAudioMime() {
+    const candidates = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/mp4',
+    ]
+    for (const c of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(c)) return c
     }
+    return ''
+  }
 
-    recognition.onerror = (e) => {
-      if (e.error === 'not-allowed') {
-        alert('Accès au microphone refusé — autorisez-le dans les paramètres du navigateur.')
-        activeRef.current = false
-        setIsListening(false)
+  function stopMediaStream() {
+    try { mediaStreamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
+  }
+
+  async function sendForTranscription(blob) {
+    setIsTranscribing(true)
+    try {
+      const form = new FormData()
+      const ext = (blob.type || '').includes('mp4') ? 'mp4' : (blob.type || '').includes('ogg') ? 'ogg' : 'webm'
+      form.append('file', blob, `dictee.${ext}`)
+      const res = await fetchWithTimeout('/api/transcribe', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      }, TIMEOUT_GROQ)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      const transcrit = (data.text || '').trim()
+      if (transcrit) {
+        const sep = texte && !texte.endsWith('\n') ? ' ' : ''
+        onChange((texte || '') + sep + transcrit)
       }
+    } catch (err) {
+      showError(`Transcription impossible.\n\n${err.message}`)
+    } finally {
+      setIsTranscribing(false)
     }
+  }
 
-    recognition.onend = () => {
-      if (activeRef.current) {
-        startRecognition()
+  async function startRecording() {
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (err) {
+      activeRef.current = false
+      setIsListening(false)
+      setIsReady(false)
+      if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+        showError('Accès au microphone refusé.\n\nPour utiliser la dictée vocale, autorisez l\'accès au microphone dans les paramètres du navigateur.')
       } else {
-        setIsListening(false)
+        showError(`Impossible d'accéder au microphone.\n\n${err?.message || 'Erreur inconnue.'}`)
       }
+      return
     }
 
-    recognitionRef.current = recognition
-    recognition.start()
+    mediaStreamRef.current = stream
+    const mime = pickAudioMime()
+    audioMimeRef.current = mime || 'audio/webm'
+    audioChunksRef.current = []
+
+    let recorder
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+    } catch (err) {
+      stopMediaStream()
+      activeRef.current = false
+      setIsListening(false)
+      setIsReady(false)
+      showError(`Enregistrement audio impossible.\n\n${err?.message || 'Format audio non supporté.'}`)
+      return
+    }
+
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data)
+    }
+
+    recorder.onstop = async () => {
+      const chunks = audioChunksRef.current
+      audioChunksRef.current = []
+      stopMediaStream()
+      if (!chunks.length) return
+      const blob = new Blob(chunks, { type: audioMimeRef.current })
+      await sendForTranscription(blob)
+    }
+
+    mediaRecorderRef.current = recorder
+    recorder.start()
+
+    // Léger délai avant bip "go" — laisse le temps au navigateur d'activer le flux
+    setTimeout(() => {
+      if (activeRef.current && !isReady) {
+        setIsReady(true)
+        playBeep(1)
+      }
+    }, 300)
+  }
+
+  function playBeep(count) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (!Ctx) return
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      for (let i = 0; i < count; i++) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.type = 'sine'
+        osc.frequency.value = 880
+        const t = ctx.currentTime + i * 0.18
+        gain.gain.setValueAtTime(0.15, t)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
+        osc.start(t)
+        osc.stop(t + 0.12)
+      }
+    } catch {}
   }
 
   function toggleDicte() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      alert('Dictée vocale non supportée par ce navigateur.')
+    if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      showError('L\'enregistrement audio n\'est pas disponible sur ce navigateur.\n\nUtilisez Edge ou Chrome récent pour activer la dictée.')
       return
     }
     if (activeRef.current) {
       activeRef.current = false
-      recognitionRef.current?.stop()
+      playBeep(2)
       setIsListening(false)
+      setIsReady(false)
+      try { mediaRecorderRef.current?.stop() } catch {}
       return
     }
+    if (isTranscribing) return
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (Ctx && !audioCtxRef.current) audioCtxRef.current = new Ctx()
+      if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume()
+    } catch {}
     activeRef.current = true
-    accumulatedRef.current = texte
     setIsListening(true)
+    setIsReady(false)
     textareaRef.current?.focus()
-    startRecognition()
+    startRecording()
   }
 
   return (
@@ -197,10 +290,30 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         value={texte}
         onChange={e => onChange(e.target.value)}
         placeholder={"Collez un extrait de texte ici\n— ou importez un fichier TXT\n— ou extrayez le texte d'une image (scan, photo)\n— ou extrayez le texte d'un PDF\n— ou dictez avec le micro"}
-        style={isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
+        style={isListening && isReady ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
       />
 
-      {isListening && (
+      {isListening && !isReady && (
+        <div style={{
+          marginTop: 6,
+          padding: '7px 12px',
+          background: '#f1f5f9',
+          border: '1px solid #cbd5e1',
+          borderRadius: 6,
+          fontSize: 12,
+          color: '#475569',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+          </svg>
+          <span>Préparation du micro — patientez le bip avant de parler.</span>
+        </div>
+      )}
+
+      {isListening && isReady && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
@@ -214,13 +327,27 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           gap: 8,
         }}>
           <span style={{ fontSize: 16, lineHeight: 1 }}>🎤</span>
-          <span>Dictée active — parlez maintenant. Le texte s'affiche automatiquement. Cliquez <strong>Arrêter</strong> pour terminer.</span>
+          <span>Enregistrement — parlez maintenant. Le texte sera transcrit à l'arrêt. Cliquez <strong>Arrêter</strong> pour terminer.</span>
         </div>
       )}
 
-      {ocrErreur && (
-        <div className="mt-2 bg-red-50 border border-red-200 text-red-700 rounded p-2 text-xs">
-          {ocrErreur}
+      {isTranscribing && (
+        <div style={{
+          marginTop: 6,
+          padding: '7px 12px',
+          background: '#eef2ff',
+          border: '1px solid #c7d2fe',
+          borderRadius: 6,
+          fontSize: 12,
+          color: '#4338ca',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+          </svg>
+          <span>Transcription en cours…</span>
         </div>
       )}
 
@@ -259,12 +386,22 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
         <button
           className="btn-action"
-          title={isListening ? 'Cliquez pour arrêter la dictée' : 'Cliquer pour dicter — parlez en français, cliquez à nouveau pour arrêter'}
+          title={
+            isTranscribing
+              ? 'Transcription en cours, patientez quelques instants'
+              : isListening
+                ? 'Cliquez pour arrêter la dictée'
+                : 'Cliquer pour dicter — parlez en français, cliquez à nouveau pour arrêter'
+          }
           onClick={toggleDicte}
-          style={isListening ? { color: '#dc2626', borderColor: '#fca5a5', background: '#fff1f2' } : {}}
+          disabled={isTranscribing}
+          style={{
+            ...(isListening ? { color: '#dc2626', borderColor: '#fca5a5', background: '#fff1f2' } : {}),
+            ...(isTranscribing ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
+          }}
         >
           <IconMic active={isListening} />
-          {isListening ? 'Arrêter' : 'Dicter'}
+          {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
         </button>
 
 
