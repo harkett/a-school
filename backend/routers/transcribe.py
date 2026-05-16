@@ -20,6 +20,7 @@ import asyncio
 import logging
 import os
 import time
+from dataclasses import replace
 from typing import Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -29,6 +30,7 @@ from backend.stt import (
     STTCreditExhaustedError,
     STTRateLimitError,
     STTServiceUnavailableError,
+    STTSessionConfig,
     STTSessionTimeoutError,
     get_stt_provider,
 )
@@ -39,6 +41,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 AuthStatus = Literal["ok", "anonymous", "bad_token"]
+
+# Phase 2.2 (D3) : whitelist des encodings audio acceptés en query string
+# `?encoding=`. Hors-whitelist → close 1003 (Unsupported Data, RFC 6455).
+# Note : close pré-accept transcodé HTTP 403 par Starlette (comme 4401/4429
+# Phase 2.1). Le code est déclaratif côté backend pour logs/audit lisibles.
+_ALLOWED_ENCODINGS: tuple[str, ...] = ("opus", "linear16")
 
 
 def _authenticate_ws(websocket: WebSocket) -> tuple[str | None, AuthStatus]:
@@ -76,14 +84,23 @@ def _authenticate_ws(websocket: WebSocket) -> tuple[str | None, AuthStatus]:
 async def stt_stream(websocket: WebSocket) -> None:
     """Route WebSocket de transcription streaming.
 
+    Paramètre URL (Phase 2.2 — D2/D3) :
+        ?encoding=opus|linear16  (default : opus)
+
+    Whitelist côté backend (cf. _ALLOWED_ENCODINGS) : hors-whitelist → close 1003.
+    Tests Phase 2.2 utilisent ?encoding=linear16 avec test_audio.wav (PCM 16 kHz mono).
+    Phase 3.2 : MediaRecorder Edge produit du 48 kHz — sample_rate à reconsidérer
+    (cf. TRACKER section NON RETENU, note "STT Deepgram — sample_rate paramétrable").
+
     Sémantique des codes de fermeture (cf. spec §5.4) :
 
-    Codes envoyés AVANT accept() — 4401 (auth) et 4429 (saturation) :
-    Starlette ne peut pas transiter un code WebSocket sur un handshake non
+    Codes envoyés AVANT accept() — 4401 (auth), 4429 (saturation), 1003 (encoding
+    rejeté) : Starlette ne peut pas transiter un code WebSocket sur un handshake non
     accepté — le client reçoit une réponse HTTP 403 au handshake et n'a pas
-    de close frame. Le code 4401/4429 ici est déclaratif côté backend pour
-    la lisibilité du code source. Le frontend (Phase 3.1) doit traiter
-    "connection failed" comme "auth manquante / saturation" via fallback.
+    de close frame. Le code 4401/4429/1003 ici est déclaratif côté backend pour
+    la lisibilité du code source et l'audit log. Le frontend (Phase 3.1) doit traiter
+    "connection failed" comme "auth manquante / saturation / encoding non supporté"
+    via fallback.
 
     Codes envoyés APRÈS accept() — 4402, 4502, 4408, 1011 : ils transitent
     correctement comme close frames WebSocket et sont lisibles côté client.
@@ -98,11 +115,24 @@ async def stt_stream(websocket: WebSocket) -> None:
         await websocket.close(code=4401)
         return
 
+    # Phase 2.2 (D2/D3) : query string encoding + whitelist côté backend.
+    # Check AVANT tracker.acquire() pour ne pas consommer un slot inutile en
+    # cas de rejet. close(1003) pré-accept est déclaratif (Starlette → HTTP 403).
+    encoding = websocket.query_params.get("encoding", "opus")
+    if encoding not in _ALLOWED_ENCODINGS:
+        logger.warning(
+            "STT encoding rejeté '%s' (whitelist=%s) — user=%s",
+            encoding, _ALLOWED_ENCODINGS, user,
+        )
+        await websocket.close(code=1003, reason="UNSUPPORTED_ENCODING")
+        return
+    logger.info("STT encoding=%s — user=%s", encoding, user)
+
     try:
         async with tracker.acquire():
             await websocket.accept()
             logger.info("STT WS opened — user=%s", user)
-            await _run_stt_session(websocket, user)
+            await _run_stt_session(websocket, user, encoding)
             # Log AVANT close — si close() raise (WS déjà fermé côté Starlette),
             # on garde la trace d'audit. Close wrappé pour la même raison.
             logger.info("STT WS closed normally — user=%s", user)
@@ -142,7 +172,7 @@ async def stt_stream(websocket: WebSocket) -> None:
             logger.warning("WS close(1011) raised — user=%s, err=%s", user, e)
 
 
-async def _run_stt_session(websocket: WebSocket, user: str) -> None:
+async def _run_stt_session(websocket: WebSocket, user: str, encoding: str) -> None:
     """Boucle de session : 3 tasks concurrentes + cleanup centralisé.
 
     Pattern create_task + cancel-in-finally (au lieu d'un gather pur) : c'est
@@ -160,7 +190,13 @@ async def _run_stt_session(websocket: WebSocket, user: str) -> None:
     max_duration = int(os.getenv("STT_SESSION_MAX_DURATION_SECONDS", "300"))
 
     provider = get_stt_provider()
-    session = await provider.create_session()
+    # Phase 2.2 (D2) : seul `encoding` est paramétré. Les autres champs prennent
+    # les defaults via STTSessionConfig() (language="fr", sample_rate=16000, etc.).
+    # `replace()` future-proof : si STTSessionConfig acquiert un __post_init__ ou
+    # des defaults env-based, les champs non-overridés restent fidèles aux
+    # defaults dynamiques (vs kwargs explicites qui figeraient à des constantes).
+    config = replace(STTSessionConfig(), encoding=encoding)
+    session = await provider.create_session(config)
     started_at = time.monotonic()
     logger.info(
         "STT provider session created — user=%s, provider=%s",
