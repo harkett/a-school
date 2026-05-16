@@ -26,7 +26,7 @@
 - [ ] Phase 4.3 — Alertes expiration clé Deepgram
 - [ ] Phase 5.1 — iOS PWA (test MediaRecorder Opus + fallback)
 - [ ] Phase 5.2 — CGU RGPD (mention dictée vocale + provider Deepgram)
-- [ ] Phase 5.3 — TRACKER sync (dettes consignées)
+- [ ] Phase 5.3 — TRACKER sync (audit final, pas traitement)
 - [ ] Phase 5.4 — Aide (section dictée Deepgram pour prof)
 - [ ] Phase 5.5 — Push v3.3.0 MINOR + sync School.jsx afia.fr
 
@@ -42,7 +42,9 @@
 | **Phase 4** | Monitoring admin (crédit, sessions, alertes clé) | ⏳ À VENIR |
 | **Phase 5** | PWA / RGPD / docs / push prod | ⏳ À VENIR |
 
-**Compteur commits locaux** : 10 ahead (push prévu Phase 5.5, jamais avant).
+> **Note d'ordre crucial** : Phase 3.2 (tests vraie voix MediaRecorder Opus) DOIT être close avant d'attaquer Phase 4.x (admin / cron / alertes). Sinon on bâtit le monitoring sur une route encore en stabilisation = dette assurée.
+
+**Compteur commits locaux** : 13 ahead (push prévu Phase 5.5, jamais avant).
 
 ---
 
@@ -177,7 +179,7 @@ Spec : [§3.4](SPEC_DEEPGRAM_STT.md)
 - Profs pilotes informés explicitement
 - **Bloquant avant scale >50 profs** : migration EU ou bascule provider EU
 
-### 5.3 — TRACKER sync
+### 5.3 — TRACKER sync (audit final, pas traitement)
 
 - Reporter dans `MesMD/TRACKER.md` l'avancement Phase Deepgram STT
 - Cocher items livrés

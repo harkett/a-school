@@ -1,5 +1,58 @@
 # Handoff Phase 2.2 — Intégration STT Deepgram
+*******************************************************************************
+*********************************************************************************
+## Synthèse de clôture — Session Phase 2.1 (16/05/2026)
+Ce qui a été livré (4 commits, 13 ahead total)
+#LivréCommit1Route WS /api/transcribe/stream (auth + tracker + 3 pumps + cleanup) + smoke test9256cab2Vigilance R4 dans TRACKER (compteur agrégé pré-accept rejects)8c07b283Suivi Deepgram initialisé en git (SPEC + REPRISE 2.1 + seeds)209b5984Roadmap phases (checklist) + handoff Phase 2.2 (6 décisions ouvertes)887c80b
+Working tree clean sur le périmètre Deepgram. .wav exclu via MesMD/**/*.wav.
+Comment reprendre la prochaine session
+Option 1 (recommandée par défaut) — Bootstrap minimal qui force la lecture du handoff :
+Reprise projet aSchool — Phase 2.2 (7 tests wscat).
+Lis MesMD/DEEPGRAM/REPRISE_PHASE_2_2.md en entier avant tout — handoff complet
+écrit fin Phase 2.1 (commit 9256cab).
+13 commits locaux ahead, push prévu Phase 5.5.
 
+Avant code : trancher D1-D6 (6 décisions ouvertes documentées dans le handoff,
+recos non-tranchées à re-discuter explicitement).
+
+Méthode : 2 réfléchissent, 1 seul écrit le code = Claude (édition, write, mv, rm,
+commits via Bash). Utilisateur = chef de projet : propose, supervise, critique,
+tranche, valide avant chaque commit.
+Pattern asyncio WS create_task + cancel-in-finally OBLIGATOIRE
+(cf. backend/routers/transcribe.py Phase 2.1).
+Option 2 — Bloc complet : section "Message d'amorçage pour la nouvelle conversation" dans REPRISE_PHASE_2_2.md (lignes ~140-175). À corriger sur place : "10 commits locaux" → "13 commits locaux".
+Trois choses à garder en tête au démarrage Phase 2.2
+
+Ne pas céder à la tentation de coder avant d'avoir tranché D1-D6. Six décisions imbriquées, certaines avec implications dans transcribe.py (D2 surtout). Trancher = 15-20 min de discussion, économise des heures de refactor.
+Opportunité "two-for-one" D5γ + R4 — si la prochaine session choisit le refactor tracker pour la mutation env vars (D5γ), c'est le bon moment pour ajouter le compteur agrégé R4 (Phase 4 → Phase 2.2). Un seul commit touche session_tracker.py pour deux gains. Probablement le sujet le plus structurant à discuter en premier.
+Phase 3.2 AVANT Phase 4.x — note d'ordre crucial dans la roadmap. Phase 3.2 (tests vraie voix MediaRecorder) DOIT être close avant Phase 4.x (admin/cron/alertes), sinon monitoring d'une route encore en stabilisation = dette assurée.
+
+Deux micro-divergences à fermer en ouverture (~2 min)
+Modifs proposées en fin de session mais non appliquées dans ROADMAP_PHASES.md :
+
+Ajout de la note explicite "Phase 3.2 AVANT Phase 4.x" sous forme de note de bas de table
+Renommage Phase 5.3 → "TRACKER sync (audit final, pas traitement)"
+
+Conséquence : ROADMAP_PHASES.md et REPRISE_PHASE_2_2.md divergent légèrement sur ces deux points. Pas bloquant. À fermer en ouverture si souci de cohérence doc.
+Trois éléments durables produits cette session (au-delà du code)
+
+Règle "handoffs sans pré-décider" — apprentissage Phase 2.1 acté, intégré au handoff Phase 2.2. Les recos non tranchées vont dans "Décisions ouvertes", pas en acquis.
+Pattern asyncio create_task + cancel-in-finally — désormais référence obligatoire pour toute future route WS du projet (admin live, notifications). asyncio.gather() pur ne cancelle pas les sœurs sur exception → leak zombie Deepgram.
+ROADMAP_PHASES.md — vue d'ensemble checklist + détail par phase. Source de vérité pour le suivi, évite plusieurs ouvertures de spec.
+
+Méthode de travail (rappel — version corrigée)
+
+2 réfléchissent : utilisateur chef de projet + Claude
+1 seul écrit le code = Claude (Edit, Write, mv, rm, commits via Bash)
+Utilisateur supervise, critique, ajuste les propositions, tranche les décisions, valide avant chaque commit
+Propositions indifférentes : l'un ou l'autre propose, on s'aligne, Claude édite
+Exception : secrets (.env valeurs réelles) — utilisateur colle la vraie valeur après placeholder
+Yes/no avant action environnement (pip install, git push, suppression fichier)
+Handoffs sans pré-décider : recos étiquetées "non tranchée"
+Référence canonique : memory feedback_workflow.md + REPRISE_PHASE_2_2.md lignes 62-69
+
+******************************************************************************************
+******************************************************************************************
 > Document de reprise pour nouvelle conversation Claude. Écrit en fin de session du 16/05/2026 à la clôture de **Phase 2.1** (route WebSocket `/api/transcribe/stream`). Prochaine étape : 7 tests backend automatisés.
 
 ---
@@ -50,7 +103,7 @@ Phase 2.1 livrée et commitée :
 | `ca42905` | 1.2 | BDD STT (4 tables + seed) |
 | `0d85c34` | 1.1 | `.env.example` STT (17 variables) |
 
-**10 commits locaux ahead, jamais pushés** (push prévu Phase 5.5).
+**13 commits locaux ahead, jamais pushés** (push prévu Phase 5.5).
 
 TodoWrite cross-session : 8 completed (Phase 1.1 → 2.1) / 11 pending (Phase 2.2 → 5.5).
 
@@ -222,7 +275,7 @@ Conventions codebase
 
 État actuel — Phase 2.1 COMPLÈTE (8/19 items global)
 - Items completed : 1.1, 0.2, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1
-- 10 commits locaux non-pushés (push prévu Phase 5.5)
+- 13 commits locaux non-pushés (push prévu Phase 5.5)
 - Phase 2.1 = route WS /api/transcribe/stream (commit 9256cab) opérationnelle
 - Smoke test test_phase21_smoke.py couvre les scénarios 1 et 2 (rejet sans cookie / cookie bidon)
 
