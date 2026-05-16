@@ -466,8 +466,6 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   - **Smart Format convertit agressivement les nombres** : "deux x au carré" transcrit "10 au carré". À surveiller pour vocabulaire mathématique notationnel. Tester avec/sans `smart_format=true`.
   - **"hypoténuse" substitué par "hypothèse" malgré keyterm boost** : substitution homophone non corrigée par les 80 keyterms BDD chargés/injectés. Pistes : prononciation marquée, variant "l'hypoténuse" en + de "hypoténuse" dans keyterms, ou prompt système via `extra_params`.
 
-- **STT Deepgram — Observabilité rejets pré-accept** (audit 16/05, à traiter Phase 2.2 ou 4) — Aujourd'hui les denials avant `accept()` (sans cookie, cookie expiré, JWT corrompu) sont silencieux côté logs backend par design (anti-énumération, cohérent avec `/auth/resend-verification`). Conséquence : impossible de monitorer en prod le volume de tentatives non authentifiées sur `/api/transcribe/stream`. Solution : compteur agrégé `(anonymous, bad_token)` dans `STTSessionTracker` ou metric process-local, exposable dans `/admin/stt-status` (Phase 4.1). Pas de log par tentative — uniquement des compteurs incrémentés. Préserve l'anti-énumération tout en donnant la visibilité opérationnelle.
-
 ---
 
 ## HORS SCOPE
@@ -481,6 +479,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 ---
 
 ## FAIT ✅
+
+- [x] **STT Deepgram — Observabilité rejets pré-accept (R4 traitée Phase 2.2)** | Livré 16/05
+  *Refactor `STTSessionTracker` (décision D5γ de la Phase 2.2) : `max_concurrent` relu live à chaque `acquire()` via helper `_read_max()` — suppression de `self._max` figé pour avoir une seule source de vérité (l'env). Permet la mutation dynamique sans restart serveur (utile pour tests scénarios saturation + future Phase 4.1 admin). Compteur agrégé R4 par catégorie de denial pré-accept exposé via `snapshot() → STTSessionSnapshot` TypedDict, à brancher dans `/admin/stt-status` Phase 4.1. **3 catégories** (élargies par rapport au scope R4 initial qui prévoyait 2) : `anonymous` (pas de cookie), `bad_token` (cookie présent mais JWT invalide/expiré), `saturated` (quota concurrence atteint, ajouté pour cohérence sémantique — la saturation est aussi un denial pré-accept, exposer 2/3 côté admin serait trompeur). 7 tests unitaires standalone (3 migrés Phase 1.4 + 4 nouveaux) : race condition strict 41/40, bump dynamique env entre acquires, concurrence 50+30+20 sur `record_pre_accept_reject`, structure snapshot, whitelist runtime defense-in-depth.*
 
 - [x] **Branchement RAG en DEV — Générateur d'activités** | Livré 15/05
   *INFRA-RAG branchée sur `/api/generate` avec gates (RAG_ENABLED + subject Maths normalisé NFKD + niveau cycle 4) + fallback silencieux + logs INFO observables. `GenerateResponse.chunks` populé quand RAG actif. Protocole 4 tests DEV validés : (1) non-régression RAG-off, (2) gate subject Français, (3) gate niveau Terminale, (4) activation effective prouvée par canary `Z36-27` + wording du préfixe RAG renforcé pour forcer la citation explicite du vocabulaire institutionnel MEN. Fix collatéraux : logger applicatif INFO activé dans `backend/main.py`, sync `params.niveau` ↔ `user.niveau` après sauvegarde profil dans `frontend/src/App.jsx`, niveau affiché dans le header, migration manquante `ALTER TABLE sequences_sauvegardees ADD COLUMN partagee`. Mode DEV uniquement — décision hébergement chroma_db côté VPS reportée. Outil canary conservé dans `backend/rag/_canary_inject.py` (utile pour validation futurs producteurs).*

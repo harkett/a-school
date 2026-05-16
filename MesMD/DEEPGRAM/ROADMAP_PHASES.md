@@ -138,7 +138,7 @@ Affichage :
 - Bannière région US Phase 1
 - Historique snapshots crédit (graphique 30 jours)
 
-**À envisager Phase 4** : compteur agrégé rejets pré-accept (anonymous + bad_token) pour monitoring sans log par tentative (anti-énumération préservé) — noté 16/05/2026.
+**Source compteur R4 (traité Phase 2.2)** : `STTSessionTracker.snapshot()` retourne un `STTSessionSnapshot` TypedDict avec les 3 catégories de denials pré-accept (`anonymous` + `bad_token` + `saturated`). Phase 4.1 = branchement à `/admin/stt-status` (pas de log par tentative, juste des compteurs incrémentés — anti-énumération préservé).
 
 ### 4.2 — Cron monitoring crédit Deepgram
 
@@ -209,7 +209,7 @@ Conformément à [CLAUDE.md](../../CLAUDE.md) — section "Synchronisation afia.
 | R1 | Hypoténuse substituée "hypothèse" | malgré 80 keyterms BDD chargés — retest avec vraie voix | 3.2 |
 | R2 | Smart Format agressif sur nombres | "deux x au carré" → "10 au carré" — tester `smart_format=false` pour maths notationnels | 3.2 |
 | R3 | Région US Phase 1 — temporaire | Bloquant avant scale >50 profs : migrer EU ou changer de provider | 4 (avant 5.5) |
-| R4 | Compteur agrégé pré-accept rejects | Anti-énumération préservé, observabilité ajoutée — choix Phase 2.2 ou 4 | 2.2 ou 4 |
+| R4 | Compteur agrégé pré-accept rejects | ✅ Traité Phase 2.2 (décision D5γ) — élargi à 3 catégories (`anonymous` + `bad_token` + `saturated`) dans `STTSessionTracker.snapshot()`. Cf. TRACKER.md `## FAIT ✅` 16/05. | ✅ 2.2 |
 
 ---
 

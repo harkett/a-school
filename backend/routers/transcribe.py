@@ -20,6 +20,7 @@ import asyncio
 import logging
 import os
 import time
+from typing import Literal
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -37,26 +38,38 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+AuthStatus = Literal["ok", "anonymous", "bad_token"]
 
-def _authenticate_ws(websocket: WebSocket) -> str | None:
-    """Lit le cookie aschool_access et retourne l'email du prof, ou None.
+
+def _authenticate_ws(websocket: WebSocket) -> tuple[str | None, AuthStatus]:
+    """Lit le cookie aschool_access et retourne (email, status).
 
     Pattern cas C (cf. backend/routers/auth.py:212) : on lit directement le
     cookie au lieu d'instancier un Depends() qui ne fonctionne pas pareil sur
     une route WebSocket. Pas de DB touchée — l'email suffit pour Phase 1.
+
+    Status (Phase 2.2 — observabilité R4) :
+    - "ok"        : email valide retourné, auth OK
+    - "anonymous" : pas de cookie aschool_access (utilisateur non authentifié)
+    - "bad_token" : cookie présent mais JWT invalide/expiré/tordu
+
+    Invariant : status == "ok" ⟺ email is not None.
     """
     token = websocket.cookies.get("aschool_access")
     if not token:
-        return None
+        return None, "anonymous"
     try:
-        return auth_lib.verify_access_token(token)
+        email = auth_lib.verify_access_token(token)
+        if not email:
+            return None, "bad_token"
+        return email, "ok"
     except Exception as e:
         # jose.jwt raise normalement JWTError (catch interne → None) mais on se
         # protège contre les exceptions exotiques (cookie tordu, etc.) pour
         # éviter de logger une "unexpected STT error" pour ce qui n'est qu'une
         # auth qui échoue.
         logger.warning("WS auth token verification raised: %s", e)
-        return None
+        return None, "bad_token"
 
 
 @router.websocket("/transcribe/stream")
@@ -75,8 +88,13 @@ async def stt_stream(websocket: WebSocket) -> None:
     Codes envoyés APRÈS accept() — 4402, 4502, 4408, 1011 : ils transitent
     correctement comme close frames WebSocket et sont lisibles côté client.
     """
-    user = _authenticate_ws(websocket)
+    user, auth_status = _authenticate_ws(websocket)
     if not user:
+        # auth_status ∈ {"anonymous", "bad_token"} ici par invariant de
+        # _authenticate_ws (user is None ⟹ status != "ok"). Narrowing
+        # explicite pour mypy + safety runtime de record_pre_accept_reject.
+        if auth_status in ("anonymous", "bad_token"):
+            await tracker.record_pre_accept_reject(auth_status)
         await websocket.close(code=4401)
         return
 
@@ -94,6 +112,9 @@ async def stt_stream(websocket: WebSocket) -> None:
                 logger.warning("WS close(1000) raised — user=%s, err=%s", user, e)
 
     except STTRateLimitError:
+        # Denial pré-accept par saturation — incrémenter le compteur R4 avant
+        # close (cohérence avec anonymous/bad_token, qui sont aussi pré-accept).
+        await tracker.record_pre_accept_reject("saturated")
         logger.warning("STT saturated — user=%s", user)
         await websocket.close(code=4429, reason="HIGH_LOAD")
 
