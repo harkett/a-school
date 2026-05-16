@@ -1,8 +1,11 @@
 ﻿from contextlib import asynccontextmanager
 import json
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s — %(message)s")
 
 _pkg = json.loads((Path(__file__).resolve().parent.parent / "frontend" / "package.json").read_text())
 APP_VERSION = _pkg.get("version", "0.0.0")
@@ -18,7 +21,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -45,6 +48,7 @@ with engine.connect() as _conn:
         "ALTER TABLE activites_sauvegardees ADD COLUMN created_at DATETIME",
         "ALTER TABLE activites_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE sequences_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE sequences_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
     ]:
         try:
             _conn.execute(text(_col))
@@ -100,6 +104,8 @@ app.include_router(optimiseur.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(sequence.router, prefix="/api")
 app.include_router(ambiguites.router, prefix="/api")
+app.include_router(consigne.router, prefix="/api")
+app.include_router(transcribe.router, prefix="/api")
 
 # Seed exemples au démarrage (idempotent)
 try:
