@@ -386,24 +386,13 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
         <button
           className="btn-action"
-          title={
-            isTranscribing
-              ? 'Transcription en cours, patientez quelques instants'
-              : isListening
-                ? 'Cliquez pour arrêter la dictée'
-                : 'Cliquer pour dicter — parlez en français, cliquez à nouveau pour arrêter'
-          }
-          onClick={toggleDicte}
-          disabled={isTranscribing}
-          style={{
-            ...(isListening ? { color: '#dc2626', borderColor: '#fca5a5', background: '#fff1f2' } : {}),
-            ...(isTranscribing ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-          }}
+          title="La dictée vocale est en cours de migration vers une nouvelle technologie de transcription temps réel. Elle sera de nouveau disponible prochainement."
+          disabled
+          style={{ opacity: 0.5, cursor: 'not-allowed' }}
         >
-          <IconMic active={isListening} />
-          {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
+          <IconMic active={false} />
+          Dicter (migration…)
         </button>
-
 
       </div>
     </section>
