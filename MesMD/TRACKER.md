@@ -466,6 +466,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   - **Smart Format convertit agressivement les nombres** : "deux x au carré" transcrit "10 au carré". À surveiller pour vocabulaire mathématique notationnel. Tester avec/sans `smart_format=true`.
   - **"hypoténuse" substitué par "hypothèse" malgré keyterm boost** : substitution homophone non corrigée par les 80 keyterms BDD chargés/injectés. Pistes : prononciation marquée, variant "l'hypoténuse" en + de "hypoténuse" dans keyterms, ou prompt système via `extra_params`.
 
+- **STT Deepgram — Observabilité rejets pré-accept** (audit 16/05, à traiter Phase 2.2 ou 4) — Aujourd'hui les denials avant `accept()` (sans cookie, cookie expiré, JWT corrompu) sont silencieux côté logs backend par design (anti-énumération, cohérent avec `/auth/resend-verification`). Conséquence : impossible de monitorer en prod le volume de tentatives non authentifiées sur `/api/transcribe/stream`. Solution : compteur agrégé `(anonymous, bad_token)` dans `STTSessionTracker` ou metric process-local, exposable dans `/admin/stt-status` (Phase 4.1). Pas de log par tentative — uniquement des compteurs incrémentés. Préserve l'anti-énumération tout en donnant la visibilité opérationnelle.
+
 ---
 
 ## HORS SCOPE
