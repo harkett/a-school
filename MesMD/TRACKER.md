@@ -464,6 +464,12 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - **STT Deepgram — sample_rate paramétrable Phase 3.2** (audit 16/05) — Phase 2.2 ajoute `?encoding=opus|linear16` au query string (whitelist + close 1003 si hors-whitelist). Pour Phase 3.2, MediaRecorder Edge produit de l'Opus à **48 kHz** (pas 16 kHz comme test_audio.wav). Soit on ajuste le default `sample_rate` dans `STTSessionConfig` selon l'encoding, soit on ajoute un second paramètre query `?sample_rate=48000` (cohérent avec l'approche D2). Choix à trancher en ouverture Phase 3.2 — suite logique de D2/D3.
 
+- **STT Phase 2.2 — architecture `test_phase22.py` à trancher avant code** (audit 16/05) — Trois options identifiées pour le harnais des 7 scénarios :
+  - **Option A** : backend externe via `.\run.ps1`. **Éliminée** — incompatible avec une CI même vague, et fragile hors CI (oubli de lancer = test rouge mystérieux).
+  - **Option B** : `TestClient` sync (FastAPI). Fallback acceptable si B' s'avère verbeux à monter.
+  - **Option B'** : uvicorn in-process lifecycle-managed (`httpx` + `asgi-lifespan` via `requirements-dev.txt` à introduire). **Cible** si effort initial raisonnable. Permet le mock δ2 in-process pour scénario 5 (crédit épuisé) sans pollution prod.
+  - Contraintes Q1/Q2/Q3 posées : CI plausible 6-12 mois (pousse vers B/B'), tests admin Phase 4.x manuels suffisent (décision largement locale Phase 2.2), tolérance `requirements-dev.txt` OK. Reprise à froid avant code. Cf. REPRISE_PHASE_2_2.md mini-état mi-parcours pour le contexte complet.
+
 - **Dictée Deepgram — points de vigilance Phase 3.2** (audit 16/05) — Migration vers Deepgram Nova-3 streaming en cours (suivi TodoWrite cross-session, Phases 1.1 → 5.5). 2 observations issues du test d'intégration Phase 0.2/1.5 (DeepgramProvider + WAV 16 kHz mono linear16, 2/3 termes critiques validés - décision R1) à retester en Phase 3.2 (tests bout-en-bout Edge + MediaRecorder Opus, conditions différentes du test PCM) :
   - **Smart Format convertit agressivement les nombres** : "deux x au carré" transcrit "10 au carré". À surveiller pour vocabulaire mathématique notationnel. Tester avec/sans `smart_format=true`.
   - **"hypoténuse" substitué par "hypothèse" malgré keyterm boost** : substitution homophone non corrigée par les 80 keyterms BDD chargés/injectés. Pistes : prononciation marquée, variant "l'hypoténuse" en + de "hypoténuse" dans keyterms, ou prompt système via `extra_params`.

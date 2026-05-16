@@ -12,7 +12,7 @@
 | Bloc | Phases | Statut |
 |---|---|---|
 | Fondations backend | 1.1 → 1.6 + 0.2 | ✅ TERMINÉ (7/7) |
-| Route + tests backend | 2.1 → 2.2 | 🟡 EN COURS (1.5/2) |
+| Route + tests backend | 2.1 → 2.2 | 🟡 EN COURS (≈75%, mi-parcours 🎯) |
 | Frontend + e2e | 3.1 → 3.2 | ⏳ À VENIR |
 | Admin monitoring | 4.1 → 4.3 | ⏳ À VENIR |
 | PWA + doc + push | 5.1 → 5.5 | ⏳ À VENIR |
@@ -31,7 +31,7 @@
 - [x] Phase 1.5 — `DeepgramProvider` (SDK 3.11.0 pinné) + test d'intégration
 - [x] Phase 1.6 — Factory `get_stt_provider()` dans `backend/stt/__init__.py`
 - [x] Phase 2.1 — Route WebSocket `/api/transcribe/stream` (FastAPI)
-- [ ] Phase 2.2 — 7 tests wscat (route WS) — 🟡 en cours (D5γ/R4 livré, query string + tests à coder)
+- [ ] Phase 2.2 — 7 tests wscat (route WS) — 🟡 mi-parcours (D5γ+R4 + route paramétrée livrés, archi tests à trancher B vs B' avant code `test_phase22.py`)
 - [ ] Phase 3.1 — Frontend WebSocket + purge dead code TexteSource
 - [ ] Phase 3.2 — Tests bout-en-bout Edge (MediaRecorder Opus + vraie voix)
 - [ ] Phase 4.1 — Admin STT lecture seule (sessions actives, audit)
@@ -42,6 +42,34 @@
 - [ ] Phase 5.3 — TRACKER sync (audit final, pas traitement)
 - [ ] Phase 5.4 — Aide (section dictée Deepgram pour prof)
 - [ ] Phase 5.5 — Push v3.3.0 MINOR + sync School.jsx afia.fr
+
+---
+
+## Phase 2.2 — mi-parcours 🎯 affiné (16/05/2026)
+
+> Affinement sérieux après ~5h consommées dans la session du 16/05 (pause structurée avant `test_phase22.py`).
+
+**Heures consommées (~5h)** :
+- Discussion D1-D6 (15-20 min annoncées → ~1h en pratique, vu l'ampleur D5γ+R4)
+- Refactor γ + R4 (code + 7 tests + sync doc) : ~2h
+- Route `?encoding=` + whitelist + sync TRACKER : ~1h
+- Parenthèse `CHECKLIST_PHASES.md` + règle ±30 min : ~30 min
+- Mini-clôture mi-parcours : ~30 min
+
+**Heures restantes estimées : 3-5h** (selon archi B vs B' choisie)
+- Code `test_phase22.py` (7 scénarios, ~200-300 LOC) : 2-3h
+- Validation runtime + debug : 1-2h
+- Commit + handoff Phase 3.1 : 30 min
+
+**Estimation totale Phase 2.2 : 8-10h sur 2-3 sessions** (vs handoff initial qui prévoyait 1 session pour "7 tests wscat" — **dérive justifiée** par l'ampleur D5γ+R4 sortie de scope initial mais nécessaire structurellement avant code tests).
+
+**Apports session au-delà du code** :
+- Pattern `dataclasses.replace(STTSessionConfig(), encoding=x)` validé future-proof (vs kwargs explicites fragiles)
+- Élargissement R4 à 3 catégories (`saturated` en plus, écart conscient au handoff documenté en commit body)
+- Code WebSocket pré-accept : 1003 (Unsupported Data, RFC 6455) plus précis que 1011 pour rejet client identifié
+- Règle d'affinement ±30 min posée en mémoire feedback persistante
+
+**Risque dépassement** : Moyen — décision architecturale tests pendante (B vs B'). Si B' demande setup non-trivial (>2h de tâtonnement `httpx`/`asgi-lifespan`), basculer en B sans hésiter.
 
 ---
 

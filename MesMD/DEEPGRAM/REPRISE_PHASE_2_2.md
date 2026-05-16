@@ -1,4 +1,25 @@
 # Handoff Phase 2.2 — Intégration STT Deepgram
+
+*******************************************************************************
+*********************************************************************************
+## Mi-parcours Phase 2.2 (16/05/2026 — pause structurée)
+
+État après **5 commits Phase 2.2 substantiels** dans la session du 16/05 (cumul ahead : 18 commits) :
+
+**Livré** :
+- **D5γ + R4 bundle** (`7165a5e`) : `STTSessionTracker` lit `max_concurrent` live à chaque `acquire()` + compteur 3 catégories denials pré-accept (`anonymous` / `bad_token` / `saturated`, élargi vs scope R4 initial pour cohérence sémantique) exposé via `snapshot() → STTSessionSnapshot` TypedDict. 7/7 tests OK.
+- **D2/D3 route** (`b4ff416`) : `/api/transcribe/stream` accepte `?encoding=opus|linear16` + whitelist côté backend → close 1003 (Unsupported Data, RFC 6455) si hors-whitelist. Config via `dataclasses.replace(STTSessionConfig(), encoding=x)` future-proof.
+- **Doc structurante** : synthèse clôture Phase 2.1 intégrée, REPRISE_PHASE_2_1 retiré, ROADMAP corrigée, `CHECKLIST_PHASES.md` créé comme outil d'affinement ±30 min (règle posée en mémoire feedback persistante).
+
+**Décisions D1-D6 toutes actées** :
+- D1 LINEAR16 (tests), D2 query string, D3 whitelist, D4 JWT forgé via `auth_lib.create_access_token` (séparation préoccupations vs flow login), D5γ + R4, D6 δ2 (mock `_PROVIDERS["deepgram"]` local au script de test).
+
+**Décision architecturale pendante** (à reprendre à froid avant code `test_phase22.py`) :
+- Harnais des 7 scénarios : **option B** (`TestClient` sync FastAPI) ou **option B'** (uvicorn in-process lifecycle-managed via `httpx` + `asgi-lifespan`) ? **Option A** (backend externe `.\run.ps1`) éliminée — incompatible CI vague, fragile hors CI.
+- Voir TRACKER.md `NON RETENU` note "STT Phase 2.2 — architecture test_phase22.py" pour analyse comparative + 3 contraintes Q1/Q2/Q3 posées (CI plausible 6-12 mois, tests admin Phase 4.x manuels OK, tolérance `requirements-dev.txt`).
+
+**À la reprise** : 5 min pour trancher B vs B', puis ~3-5h de code (200-300 LOC) pour les 7 scénarios + debug + handoff Phase 3.1.
+
 *******************************************************************************
 *********************************************************************************
 ## Synthèse de clôture — Session Phase 2.1 (16/05/2026)
