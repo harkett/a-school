@@ -18,3 +18,5 @@ parse_markdown.py
 MesMD/EMAIL_PILOTES.md
 MesMD/FONCTIONNALITES_ASCHOOL.md
 MesMD/MATRICE_ACTIVITES_ASCHOOL.md
+# Audio de test (samples Deepgram & autres) — binaires, jamais commit
+MesMD/**/*.wav
