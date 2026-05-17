@@ -2,7 +2,7 @@
 
 > Source de vérité unique pour le suivi des phases d'implémentation.
 > Spec technique complète : [SPEC_DEEPGRAM_STT.md](SPEC_DEEPGRAM_STT.md) (v1.1)
-> Dernière mise à jour : 16/05/2026 (après commit Phase 2.1 `9256cab`)
+> Dernière mise à jour : 17/05/2026 (après commit Phase 2.2 `fc09c34`)
 
 ---
 
@@ -18,7 +18,7 @@
 - [x] Phase 1.5 — `DeepgramProvider` (SDK 3.11.0 pinné) + test d'intégration
 - [x] Phase 1.6 — Factory `get_stt_provider()` dans `backend/stt/__init__.py`
 - [x] Phase 2.1 — Route WebSocket `/api/transcribe/stream` (FastAPI)
-- [ ] Phase 2.2 — 7 tests wscat (route WS)
+- [x] Phase 2.2 — 7 tests wscat (route WS)
 - [ ] Phase 3.1 — Frontend WebSocket + purge dead code TexteSource
 - [ ] Phase 3.2 — Tests bout-en-bout Edge (MediaRecorder Opus + vraie voix)
 - [ ] Phase 4.1 — Admin STT lecture seule (sessions actives, audit)
@@ -37,14 +37,14 @@
 | Phase | Périmètre | Statut |
 |---|---|---|
 | **Phase 1** | Fondations backend (interfaces, tracker, provider, factory, BDD) | ✅ **TERMINÉE** (7/7) |
-| **Phase 2** | Route WS + tests backend | 🟡 EN COURS (1/2) |
+| **Phase 2** | Route WS + tests backend | ✅ **TERMINÉE** (2/2) |
 | **Phase 3** | Frontend WS + tests bout-en-bout | ⏳ À VENIR |
 | **Phase 4** | Monitoring admin (crédit, sessions, alertes clé) | ⏳ À VENIR |
 | **Phase 5** | PWA / RGPD / docs / push prod | ⏳ À VENIR |
 
 > **Note d'ordre crucial** : Phase 3.2 (tests vraie voix MediaRecorder Opus) DOIT être close avant d'attaquer Phase 4.x (admin / cron / alertes). Sinon on bâtit le monitoring sur une route encore en stabilisation = dette assurée.
 
-**Compteur commits locaux** : 13 ahead (push prévu Phase 5.5, jamais avant).
+**Compteur commits locaux** : 20 ahead (push prévu Phase 5.5, jamais avant).
 
 ---
 
@@ -78,21 +78,42 @@ Livré :
 - Wrap défensif `verify_access_token` (cookie tordu → log warning, pas stack trace)
 - Smoke test `test_phase21_smoke.py` : rejet HTTP 403 sans cookie ET avec cookie bidon ✓
 
-### 2.2 — 7 tests wscat backend ⏳
+### 2.2 — 7 tests wscat backend ✅
+
+**Commit** : `fc09c34` — 17/05/2026
 
 Spec : [§12.2](SPEC_DEEPGRAM_STT.md)
 
-| # | Scénario | Code attendu | Setup |
-|---|---|---|---|
-| 1 | Sans cookie | denial 403 (4401 déclaratif) | rien — déjà smoke Phase 2.1 |
-| 2 | Cookie invalide / expiré | denial 403 (4401 déclaratif) | rien — déjà smoke Phase 2.1 |
-| 3 | Cookie valide → accept + audio bidon | `transcript` ou close 4502 | login local pour cookie |
-| 4 | Saturation | denial 403 (4429 déclaratif) | `STT_MAX_CONCURRENT_SESSIONS=1`, 2 sessions |
-| 5 | Crédit épuisé | close 4402 | mock provider ou clé invalide |
-| 6 | Idle timeout | close 4408 IDLE | `STT_SESSION_IDLE_TIMEOUT_SECONDS=2`, attendre 3s |
-| 7 | Max duration + warning | `session_warning` puis close 4408 | `STT_SESSION_MAX_DURATION_SECONDS=70` |
+Livré :
+- `test_phase22.py` : 7 scénarios séquentiels via `fastapi.testclient.TestClient`
+  (option B — A éliminée (incompatible CI/fragile), B' pesée puis B retenu
+  (convention scripts standalone + plumbing uvicorn évité))
+- 7/7 PASS confirmé en local, exit 0
+- Threading pour scénarios 3 et 7 (Starlette 1.0.0 `WebSocketTestSession.receive_*()`
+  bloquant sans timeout natif)
+- Sentinel `_Skipped` distinct de PASS/FAIL pour close 4502 (Deepgram down)
+- Flag `--fast` skip scénario 7 (~70s) pour itération dev
+- D4=β : JWT forgé via `backend.auth.create_access_token` (pas de round-trip login)
+- D6 δ2 : `FakeExhaustedProvider` swap `_PROVIDERS["deepgram"]` (mock local)
+- Particularité scénario 3 : `CancelledError` au teardown du portal Starlette
+  attrapé en outer try ssi transcript validé (bénin — `ws.close()` cancel
+  les tasks serveur en plein `wait_for`)
+- Particularité scénario 7 : override double `STT_SESSION_IDLE_TIMEOUT_SECONDS=120`
+  + `STT_SESSION_MAX_DURATION_SECONDS=70` (piège idle×max — sans override IDLE,
+  default 30s tuerait la session avant warning t=10s)
+- `test_phase21_smoke.py` conservé en parallèle : couvre le bind WS via TCP
+  loopback réel (complémentaire à TestClient in-process). Docstrings des
+  deux fichiers clarifient les rôles distincts.
 
-**Décision préalable** : tester avec audio réel (.wav stocké ou MediaRecorder live) ou simulation pure bytes random ? Le test 0.2 a déjà validé l'intégration brute Deepgram, donc simulation backend pure suffit pour 2.2.
+| # | Scénario | Code attendu | Validé |
+|---|---|---|---|
+| 1 | Sans cookie | denial pré-accept (4401 déclaratif → HTTP 403) | ✅ |
+| 2 | Cookie invalide / expiré | denial pré-accept (4401 déclaratif → HTTP 403) | ✅ |
+| 3 | Cookie valide + audio LINEAR16 | transcript reçu, close 1000 | ✅ |
+| 4 | Saturation | denial pré-accept (4429 déclaratif → HTTP 403) | ✅ |
+| 5 | Crédit épuisé (D6 δ2) | close 4402 lisible côté client | ✅ |
+| 6 | Idle timeout (2s) | close 4408 lisible côté client | ✅ |
+| 7 | Max duration + warning | `session_warning` reçu puis close 4408 | ✅ |
 
 ---
 

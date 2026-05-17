@@ -3,7 +3,7 @@
 > Vue d'ensemble des phases restantes avec estimations heures + sessions.
 > Source de vérité granulaire des SHAs et scopes : [ROADMAP_PHASES.md](ROADMAP_PHASES.md).
 > **Politique d'affinement** : estimation serrée à **±30 min** en ouverture de chaque phase, après lecture du code réel concerné (cf. § Méthode d'affinement).
-> Dernière mise à jour : 16/05/2026 (Phase 2.2 en cours).
+> Dernière mise à jour : 17/05/2026 (Phase 2.2 close, Phase 3.1 prochaine).
 
 ---
 
@@ -12,7 +12,7 @@
 | Bloc | Phases | Statut |
 |---|---|---|
 | Fondations backend | 1.1 → 1.6 + 0.2 | ✅ TERMINÉ (7/7) |
-| Route + tests backend | 2.1 → 2.2 | 🟡 EN COURS (≈75%, mi-parcours 🎯) |
+| Route + tests backend | 2.1 → 2.2 | ✅ TERMINÉ (2/2) |
 | Frontend + e2e | 3.1 → 3.2 | ⏳ À VENIR |
 | Admin monitoring | 4.1 → 4.3 | ⏳ À VENIR |
 | PWA + doc + push | 5.1 → 5.5 | ⏳ À VENIR |
@@ -31,7 +31,7 @@
 - [x] Phase 1.5 — `DeepgramProvider` (SDK 3.11.0 pinné) + test d'intégration
 - [x] Phase 1.6 — Factory `get_stt_provider()` dans `backend/stt/__init__.py`
 - [x] Phase 2.1 — Route WebSocket `/api/transcribe/stream` (FastAPI)
-- [ ] Phase 2.2 — 7 tests wscat (route WS) — 🟡 mi-parcours (D5γ+R4 + route paramétrée livrés, archi tests à trancher B vs B' avant code `test_phase22.py`)
+- [x] Phase 2.2 — 7 tests wscat (route WS)
 - [ ] Phase 3.1 — Frontend WebSocket + purge dead code TexteSource
 - [ ] Phase 3.2 — Tests bout-en-bout Edge (MediaRecorder Opus + vraie voix)
 - [ ] Phase 4.1 — Admin STT lecture seule (sessions actives, audit)
@@ -45,31 +45,36 @@
 
 ---
 
-## Phase 2.2 — mi-parcours 🎯 affiné (16/05/2026)
+## Phase 2.2 — close 🎯 (17/05/2026)
 
-> Affinement sérieux après ~5h consommées dans la session du 16/05 (pause structurée avant `test_phase22.py`).
+> Phase fermée côté code, doc synchronisée. Bilan post-mortem.
 
-**Heures consommées (~5h)** :
-- Discussion D1-D6 (15-20 min annoncées → ~1h en pratique, vu l'ampleur D5γ+R4)
-- Refactor γ + R4 (code + 7 tests + sync doc) : ~2h
-- Route `?encoding=` + whitelist + sync TRACKER : ~1h
-- Parenthèse `CHECKLIST_PHASES.md` + règle ±30 min : ~30 min
-- Mini-clôture mi-parcours : ~30 min
+**Heures totales consommées** : ~7-8h sur 2 sessions
+- Session 16/05 (~5h) : discussion D1-D6, refactor γ+R4 (`7165a5e`), route ?encoding= (`b4ff416`), CHECKLIST + règle ±30 min (`5498400`), mini-clôture mi-parcours (`9319f1a`)
+- Session 17/05 (~2-3h) : discussion B vs B', squelette critique itératif, écriture `test_phase22.py`, 2 runs (FAIL race scénario 3 fixé → 7/7 PASS), commit (`fc09c34`)
 
-**Heures restantes estimées : 3-5h** (selon archi B vs B' choisie)
-- Code `test_phase22.py` (7 scénarios, ~200-300 LOC) : 2-3h
-- Validation runtime + debug : 1-2h
-- Commit + handoff Phase 3.1 : 30 min
-
-**Estimation totale Phase 2.2 : 8-10h sur 2-3 sessions** (vs handoff initial qui prévoyait 1 session pour "7 tests wscat" — **dérive justifiée** par l'ampleur D5γ+R4 sortie de scope initial mais nécessaire structurellement avant code tests).
+**Estimation initiale** : 8-10h sur 2-3 sessions. **Réalisé** : 7-8h sur 2 sessions. Dans la fourchette, intervalle bas.
 
 **Apports session au-delà du code** :
 - Pattern `dataclasses.replace(STTSessionConfig(), encoding=x)` validé future-proof (vs kwargs explicites fragiles)
 - Élargissement R4 à 3 catégories (`saturated` en plus, écart conscient au handoff documenté en commit body)
 - Code WebSocket pré-accept : 1003 (Unsupported Data, RFC 6455) plus précis que 1011 pour rejet client identifié
 - Règle d'affinement ±30 min posée en mémoire feedback persistante
+- Pattern threading pour TestClient WS (receive_* bloquant sans timeout natif) — réutilisable Phase 4.x
+- Sentinel `_Skipped` distinct de PASS/FAIL pour dépendances externes (Deepgram)
 
-**Risque dépassement** : Moyen — décision architecturale tests pendante (B vs B'). Si B' demande setup non-trivial (>2h de tâtonnement `httpx`/`asgi-lifespan`), basculer en B sans hésiter.
+**Décisions tranchées Phase 2.2** :
+| Décision | Choix | Note |
+|---|---|---|
+| D1 encoding tests | LINEAR16 | `test_audio.wav` PCM 16 kHz mono prêt |
+| D2 route paramètre | query string `?encoding=` | + close 1003 si hors-whitelist |
+| D3 whitelist backend | `{"opus","linear16"}` | RFC 6455 1003 (Unsupported Data) |
+| D4 cookie test | β JWT forgé `create_access_token(email)` | pas de round-trip login |
+| D5 mutation env | γ + R4 bundle | `_read_max()` + 3 catégories pré-accept |
+| D6 crédit épuisé | δ2 `FakeExhaustedProvider` local | swap `_PROVIDERS["deepgram"]` |
+| Archi tests | B `TestClient` in-process | A éliminée, B' pesée puis B retenu |
+
+**Risque dépassement** : aucun (Phase 2.2 fermée).
 
 ---
 

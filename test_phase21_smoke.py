@@ -1,16 +1,21 @@
-"""Smoke test Phase 2.1 — vérifie que /api/transcribe/stream rejette
-correctement les tentatives non authentifiées.
+"""Smoke serveur externe — vérifie le bind WS via TCP loopback.
 
-Lance le backend (.venv\\Scripts\\python -m uvicorn backend.main:app)
-puis exécute ce script.
+Complémentaire à test_phase22.py : ce script valide qu'un backend lancé
+via `.\\run.ps1` accepte/rejette des connexions WS sur le port réel. Pour
+la robustesse logique de la route (7 scénarios in-process, sans TCP) →
+test_phase22.py.
 
-Attendu :
+Couverture (scénarios 1 et 2 du contrat Phase 2.2) :
 - Test 1 : pas de cookie → rejet HTTP au handshake (code 4401 déclaratif backend)
 - Test 2 : cookie bidon → idem (verify_access_token retourne None)
 
 Côté Starlette, le close-before-accept se traduit par HTTP 403 au handshake,
 donc côté client WS on voit InvalidStatus(403) plutôt que close frame avec
 code 4401. C'est le point Q2 documenté dans la route.
+
+Usage :
+  1. Lancer le backend : .\\run.ps1 (ou .venv\\Scripts\\python -m uvicorn backend.main:app)
+  2. Exécuter : .venv\\Scripts\\python test_phase21_smoke.py
 """
 
 import asyncio

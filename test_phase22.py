@@ -1,6 +1,11 @@
 """
 test_phase22.py — Robustesse route WS /api/transcribe/stream (Phase 2.2).
 
+Complémentaire à test_phase21_smoke.py : ce script valide la logique de la
+route (auth, audio, saturation, crédit, timeouts, warning) via TestClient
+in-process. Pour valider le bind WS via TCP loopback réel →
+test_phase21_smoke.py.
+
 7 scénarios séquentiels, exécutés via fastapi.testclient.TestClient (option B).
 Lifespan géré par TestClient, aucun serveur externe requis (pas de .\\run.ps1).
 
