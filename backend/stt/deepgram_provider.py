@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from collections.abc import AsyncIterator
 
 from deepgram import (
@@ -53,6 +54,10 @@ class DeepgramSession(STTSession):
         self._model = model
         self._queue: asyncio.Queue[Transcript | None] = asyncio.Queue()
         self._closed = False
+        # Phase 3.2 instrumentation — anchors pour mesure latence (cf. PROTOCOLE_PHASE32.md)
+        self._last_audio_ts: float | None = None
+        self._last_interim_change_ts: float | None = None
+        self._last_interim_text: str = ""
 
     @property
     def provider_name(self) -> str:
@@ -65,12 +70,36 @@ class DeepgramSession(STTSession):
         try:
             alt = result.channel.alternatives[0]
             sentence = alt.transcript
+            is_final = bool(result.is_final)
+            speech_final = bool(getattr(result, "speech_final", False))
+            now = time.monotonic()
+
+            # Phase 3.2 — anchor "dernier interim non-final" (exclut is_final/speech_final
+            # pour ne pas polluer la mesure : smart_format modifie le texte au final,
+            # un anchor sur exact-match sauterait à now et donnerait delta=0).
+            if sentence and not is_final and not speech_final:
+                self._last_interim_change_ts = now
+                self._last_interim_text = sentence
+
+            # Phase 3.2 — log des DEUX anchors + dernier interim observé (instrument diag)
+            if sentence and (is_final or speech_final):
+                delta_audio = int((now - self._last_audio_ts) * 1000) if self._last_audio_ts else None
+                delta_interim = int((now - self._last_interim_change_ts) * 1000) if self._last_interim_change_ts else None
+                logger.info(
+                    "STT_MEASURE event=%s delta_audio_ms=%s delta_interim_ms=%s text=%r last_interim=%r",
+                    "speech_final" if speech_final else "is_final",
+                    delta_audio if delta_audio is not None else "n/a",
+                    delta_interim if delta_interim is not None else "n/a",
+                    sentence,
+                    self._last_interim_text,
+                )
+
             if not sentence:
                 return  # Deepgram envoie parfois des transcripts vides
 
             transcript = Transcript(
                 text=sentence,
-                is_final=bool(result.is_final),
+                is_final=is_final,
                 confidence=float(alt.confidence),
                 start_seconds=float(result.start),
                 end_seconds=float(result.start + result.duration),
@@ -95,6 +124,7 @@ class DeepgramSession(STTSession):
     async def send_audio(self, chunk: bytes) -> None:
         if self._closed:
             raise STTServiceUnavailableError("Session déjà fermée")
+        self._last_audio_ts = time.monotonic()
         try:
             await self._connection.send(chunk)
         except Exception as e:
