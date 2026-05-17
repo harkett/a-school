@@ -125,9 +125,13 @@ Scope défini dans `ROADMAP_PHASES.md` §3.1 et `SPEC_DEEPGRAM_STT.md` §10.
 - timeout (close 4408 → message "Session expirée")
 - non supporté (MediaRecorder absent → bouton grisé permanent + tooltip)
 
-### Code mort à purger
+### Code à refactorer (correction 17/05/2026 — écart découvert post-clôture 2.2)
 
-- **`frontend/src/components/TexteSource.jsx`** : seul fichier contenant `webkitSpeechRecognition` (vérifié par grep en clôture 2.2). Identifier les callers de `TexteSource.jsx` via grep d'imports et migrer leur consommation vers le nouveau composant/hook STT (étape de l'ouverture Phase 3.1).
+> **Le grep "webkitSpeechRecognition" en clôture 2.2 était erroné.** Vérification project-wide 17/05/2026 : `webkitSpeechRecognition` / `SpeechRecognition` sont **absents du code** (uniquement dans la doc DEEPGRAM/TRACKER/SPEC). Le scope réel de Phase 3.1 est donc un **refactor batch → streaming WS**, pas un remplacement Web Speech API.
+
+- **`frontend/src/components/TexteSource.jsx`** (400 lignes) utilise **déjà** `MediaRecorder` + `getUserMedia` + détection codec Opus (lignes 113, 152, 172, 231). Le blob complet est envoyé en POST batch à `POST /api/transcribe` (ligne 130) — probablement Groq Whisper batch. La dictée est actuellement désactivée avec un message d'attente utilisateur (ligne 389 : "en cours de migration vers une nouvelle technologie de transcription temps réel").
+- **Travail Phase 3.1** : remplacer le `POST /api/transcribe` batch par un `WebSocket /api/transcribe/stream`, streamer chaque chunk `dataavailable` au lieu d'attendre le blob final, câbler la réception `transcript` interim/final, réactiver le bouton micro.
+- **Dépréciation** : retirer la route `POST /api/transcribe` backend une fois la nouvelle dictée validée (vérifier zéro caller résiduel avant suppression).
 - **Aucune dépendance `react-speech-recognition`** détectée dans le projet — purge npm/yarn pas nécessaire.
 
 ### Q2 traçable (cf. transcribe.py docstring)
@@ -341,6 +345,12 @@ Aucune de ces dettes ne **bloque** Phase 3.1. Les dettes 1, 2, 3 (et 4 selon D9)
 ---
 
 ## 12. Message d'amorçage pour la nouvelle conversation
+
+> Deux portes d'entrée distinctes pour Phase 3.1 :
+> - **Brief équipe humaine + Claude en cours de session** → voir [TOPO_PHASE_3_1.md](TOPO_PHASE_3_1.md)
+> - **Amorçage Claude au démarrage d'une nouvelle conversation** → utiliser le bloc ci-dessous
+>
+> Le présent handoff (REPRISE_PHASE_3_1.md, 14 sections) reste la référence canonique pointée par les deux.
 
 > À coller intégralement dans le premier message de la prochaine session. Calque sur REPRISE_PHASE_2_2.md, adapté Phase 3.1.
 

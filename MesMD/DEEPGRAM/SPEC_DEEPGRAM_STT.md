@@ -2,6 +2,8 @@
 
 > **Version 1.1 — Mai 2026**  
 > Mise à jour : intégration des décisions Phase 1 après revue technique
+>
+> ⚠️ **Mentions `webkitSpeechRecognition` obsolètes dans ce doc (§1.1, §10.1)** — voir [TOPO_PHASE_3_1.md](TOPO_PHASE_3_1.md) Section 1 pour le scope réel. Vérification grep project-wide 17/05/2026 : le code n'utilise pas Web Speech API, la dictée actuelle est un upload batch `POST /api/transcribe` à refactorer en streaming WS. À nettoyer à la clôture Phase 3.1.
 
 ---
 

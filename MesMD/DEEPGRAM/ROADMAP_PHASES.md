@@ -3,6 +3,8 @@
 > Source de vérité unique pour le suivi des phases d'implémentation.
 > Spec technique complète : [SPEC_DEEPGRAM_STT.md](SPEC_DEEPGRAM_STT.md) (v1.1)
 > Dernière mise à jour : 17/05/2026 (après commit Phase 2.2 `fc09c34`)
+>
+> ⚠️ **Mentions `webkitSpeechRecognition` obsolètes dans ce doc** — voir [TOPO_PHASE_3_1.md](TOPO_PHASE_3_1.md) Section 1 pour le scope réel. Vérification grep project-wide 17/05/2026 : le code n'utilise pas Web Speech API, la dictée actuelle est un upload batch `POST /api/transcribe` à refactorer en streaming WS. À nettoyer à la clôture Phase 3.1.
 
 ---
 

@@ -2,6 +2,8 @@
 
 > **Source de vérité unique.** Toute idée, tâche ou livraison est ici — nulle part ailleurs.
 > Specs techniques détaillées → `SPECS_LEVIERS/DETAIL_LEVIER/`
+>
+> ⚠️ **Dette "REMPLACER webkitSpeechRecognition" mal nommée** — voir [DEEPGRAM/TOPO_PHASE_3_1.md](DEEPGRAM/TOPO_PHASE_3_1.md) Section 1. Vérif grep project-wide 17/05/2026 : le code n'utilise pas Web Speech API, c'est un refactor batch (`POST /api/transcribe`) → streaming WS. À renommer "Migrer dictée batch → WS Deepgram streaming" et cocher en FAIT à la clôture Phase 3.1.
 
 > Note dev : Bannière "Bientôt disponible" sidebar prof → `Sidebar.jsx`, bloc `{!collapsed && ...}` en bas.
 
