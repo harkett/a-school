@@ -53,7 +53,7 @@ Dans [frontend/src/components/TexteSource.jsx](../../frontend/src/components/Tex
 2. **Lire** [frontend/src/App.jsx](../../frontend/src/App.jsx) (1043 lignes, routing), [frontend/src/context/AuthContext.jsx](../../frontend/src/context/AuthContext.jsx) (pattern état global), [frontend/src/errorDialog.js](../../frontend/src/errorDialog.js) (pattern `showError`)
 3. **Comparer** scope perçu vs LOC réel → mettre à jour [CHECKLIST_PHASES.md](CHECKLIST_PHASES.md) ligne Phase 3.1 (📊 → 🎯) 30-45 min
 4. **Identifier 1-2 risques concrets** (ex : "TexteSource importe X qu'il faut retirer + Y callers à migrer"), pas génériques
-5. **Identifier la route POST batch actuelle** (`POST /api/transcribe`, confirmé ligne 130 de TexteSource.jsx) qui sera supprimée avec le refactor — vérifier qu'aucun autre caller ne l'utilise avant dépréciation
+5. ✅ **Vérification effectuée 17/05/2026** — la route `POST /api/transcribe` côté backend **n'existe pas** (grep project-wide `backend/main.py`, `backend/routers/`, `backend/groq_client.py`). TexteSource ligne 130 appelle un endpoint mort, c'est la raison du bouton désactivé. **Scope Phase 3.1 = purement frontend, pas de dépréciation backend à faire.**
 
 ---
 
@@ -111,7 +111,6 @@ Dans [frontend/src/components/TexteSource.jsx](../../frontend/src/components/Tex
 - [ ] Smoke test manuel Edge : dictée → texte transcrit en direct → final injecté
 - [ ] `test_phase22.py` toujours 7/7 PASS
 - [ ] Section Aide enrichie — réactivation micro + 3 erreurs `getUserMedia` (`NotAllowedError` / `NotFoundError` / `NotReadableError`)
-- [ ] Route `POST /api/transcribe` backend dépréciée (ou ticket de dépréciation ouvert si caller résiduel)
 - [ ] `ROADMAP_PHASES.md` Phase 3.1 cochée + SHA consigné
 - [ ] `CHECKLIST_PHASES.md` Phase 3.1 bilan post-mortem (réel vs estimation affinée)
 - [ ] TRACKER : déplacer la dette "Migrer dictée batch → WS Deepgram streaming" en FAIT

@@ -78,13 +78,46 @@
 
 ---
 
+## Phase 3.1 — ouverture 🎯 (17/05/2026)
+
+> Affinement réalisé en ouverture après lecture code (TexteSource 400 lignes, App.jsx skim, AuthContext, errorDialog, grep callers, grep route backend). Rapport complet en session.
+
+**Découverte structurante** : la route `POST /api/transcribe` côté backend **n'existe pas** (grep project-wide vérifié `backend/main.py`, `backend/routers/`, `backend/groq_client.py`). TexteSource ligne 130 appelle un endpoint mort — c'est la raison du bouton désactivé. **Scope Phase 3.1 = travail purement frontend, pas de coordination back/front, pas de dépréciation backend à arbitrer.**
+
+**Réutilisation pattern audio existant** : ~60% du code MediaRecorder de TexteSource est conservable tel quel (`pickAudioMime`, `getUserMedia`, instanciation `MediaRecorder` + fallback, `stopMediaStream`, `activeRef` anti-race, bips audio WebAudio, 3 zones d'état UI). Le travail = câblage WS + refactor `recorder.onstop` + extension à 6 états + 3 erreurs `getUserMedia` distinctes.
+
+**Estimation** : 5-8h (initial 📊) → **4-6h, 1-2 sessions** (🎯). Gain : -1h dépréciation backend sans objet + -1h pattern audio frontend réutilisable.
+
+**Décisions D7-D16 — état après affinement** :
+| # | Reco confirmée | Note |
+|---|---|---|
+| D7 | Hook custom `useTranscribeStream` | Renforcé — AuthContext = auth only, 1 seul caller TexteSource = inutile Context global |
+| D8 | β (interim volatile au-dessus du champ + final injecté) | Pré-cadrage UX maintenu |
+| D9 | **α (modal `showError`) pour Phase 3.1** | **Nuance importante** : retenu pour MVP (zéro code nouveau, `errorDialog.js` minimaliste 10 lignes). **Revue prévue Phase 5.x si feedback utilisateur sur lourdeur** (D16 induit 3 erreurs `getUserMedia` distinctes = potentiellement 3 modales blocantes dans le flow dictée). Cette nuance doit apparaître dans le post-mortem Phase 3.1. |
+| D10 | α + δ (default 48 kHz backend + maj spec §10.2) | À tester en ouverture (5 min `MediaRecorder.isTypeSupported` + log) |
+| D11 | Détection au mount (`pickAudioMime` existe déjà) | 5 min de travail |
+| D14 | Aucun retry (MVP) | Confirmé |
+| D15 | Heuristique client (cookie absent → "session expirée") | Renforcé — AuthContext refresh proactif 10 min rend l'heuristique fiable >95% |
+| D16 | Prompt au click + 3 erreurs distinctes | Code partiellement présent (lignes 157-161 gèrent `NotAllowedError` + `SecurityError`), ajouter `NotFoundError` + `NotReadableError` = ~10 min |
+
+**Risques concrets identifiés** :
+1. **Cookie httpOnly cross-port en dev local** : Vite `:5173` ↔ backend `:8000`. Vérifier que `vite.config.js` proxy `ws: true` activé (sinon le cookie n'est pas transmis sur la WS). Smoke test 5 min avant d'écrire le hook.
+2. **Timeslice `recorder.start(250)` obligatoire** : sans timeslice, `ondataavailable` ne fire qu'au `stop()` → comportement identique au batch (bug silencieux). À ne pas oublier dans la spec du hook `useTranscribeStream`.
+
+**Items à faire en clôture Phase 3.1** :
+- Retirer item DoD "Route POST /api/transcribe backend dépréciée" (sans objet)
+- Acter la nuance D9 dans le post-mortem (revue Phase 5.x conditionnelle)
+- Renommer dette TRACKER "REMPLACER webkitSpeechRecognition" → "Migrer dictée batch → WS Deepgram streaming" puis déplacer en FAIT
+
+---
+
 ## Tableau estimatif
 
 > Légende **Affinement** : 🎯 affiné (±30 min vérifié sur code) · 📊 large (estimation initiale non confrontée au code).
 
 | Phase | Scope perçu | Heures | Sessions | Affinement | Risque dépassement |
 |---|---|---|---|---|---|
-| 3.1 | Frontend WS + purge TexteSource | 5-8h | 2-3 | 📊 | Moyen (état React + audio capture MediaRecorder) |
+| 3.1 | Frontend WS (refactor TexteSource batch→stream — backend déjà OK) | 4-6h | 1-2 | 🎯 | Faible-Moyen (cookie cross-port proxy Vite WS + timeslice `recorder.start(250)`) |
 | 3.2 | Tests Edge MediaRecorder Opus + vraie voix | 2-4h | 1-2 | 📊 | **Élevé** (debug vocabulaire, voix réelle imprévisible) |
 | 4.1 | Admin STT lecture seule | 2-3h | 1 | 📊 | Faible (`snapshot()` déjà prêt grâce à 2.2 D5γ) |
 | 4.2 | Cron monitoring crédit Deepgram | 1-2h | 1 (groupable 4.3) | 📊 | Faible |
