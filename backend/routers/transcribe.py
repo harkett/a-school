@@ -189,6 +189,32 @@ async def _run_stt_session(websocket: WebSocket, user: str, encoding: str) -> No
     idle_timeout = int(os.getenv("STT_SESSION_IDLE_TIMEOUT_SECONDS", "30"))
     max_duration = int(os.getenv("STT_SESSION_MAX_DURATION_SECONDS", "300"))
 
+    # Phase 3.2 plumbing — DEEPGRAM_ENDPOINTING_MS / DEEPGRAM_SMART_FORMAT pivotables
+    # via env entre runs de test. Asymétrie assumée avec idle/max ci-dessus (fail-fast) :
+    # ces 2 vars sont pivotées en cours de session, typo .env = friction inutile → log + fallback.
+    _defaults = STTSessionConfig()
+    try:
+        endpointing_ms = int(os.getenv("DEEPGRAM_ENDPOINTING_MS", str(_defaults.endpointing_ms)))
+    except (ValueError, TypeError):
+        logger.warning(
+            "DEEPGRAM_ENDPOINTING_MS invalide (%r) — fallback %s",
+            os.getenv("DEEPGRAM_ENDPOINTING_MS"), _defaults.endpointing_ms,
+        )
+        endpointing_ms = _defaults.endpointing_ms
+
+    _raw_smart = (os.getenv("DEEPGRAM_SMART_FORMAT") or "").strip().lower()
+    if _raw_smart in ("true", "1", "yes", "on"):
+        smart_format = True
+    elif _raw_smart in ("false", "0", "no", "off"):
+        smart_format = False
+    else:
+        if _raw_smart:
+            logger.warning(
+                "DEEPGRAM_SMART_FORMAT invalide (%r) — fallback %s",
+                _raw_smart, _defaults.smart_format,
+            )
+        smart_format = _defaults.smart_format
+
     provider = get_stt_provider()
     # Phase 2.2 (D2) : seul `encoding` est paramétré. Les autres champs prennent
     # les defaults via STTSessionConfig() (language="fr", sample_rate=16000, etc.).
@@ -198,7 +224,13 @@ async def _run_stt_session(websocket: WebSocket, user: str, encoding: str) -> No
     # les magic bytes EBML et auto-détecte le format. Le default sample_rate=16000
     # de STTSessionConfig est donc sans effet pour opus, et utilisé tel quel pour
     # linear16 (chemin PCM brut test_phase22).
-    config = replace(STTSessionConfig(), encoding=encoding)
+    # Phase 3.2 : endpointing_ms / smart_format injectés depuis env (cf. lecture ci-dessus).
+    config = replace(
+        STTSessionConfig(),
+        encoding=encoding,
+        endpointing_ms=endpointing_ms,
+        smart_format=smart_format,
+    )
     session = await provider.create_session(config)
     started_at = time.monotonic()
     logger.info(
