@@ -13,7 +13,7 @@
 |---|---|---|
 | Fondations backend | 1.1 → 1.6 + 0.2 | ✅ TERMINÉ (7/7) |
 | Route + tests backend | 2.1 → 2.2 | ✅ TERMINÉ (2/2) |
-| Frontend + e2e | 3.1 → 3.2 | ⏳ À VENIR |
+| Frontend + e2e | 3.1 → 3.2 | 🚧 3.1 ✅ / 3.2 ⏳ |
 | Admin monitoring | 4.1 → 4.3 | ⏳ À VENIR |
 | PWA + doc + push | 5.1 → 5.5 | ⏳ À VENIR |
 
@@ -32,7 +32,7 @@
 - [x] Phase 1.6 — Factory `get_stt_provider()` dans `backend/stt/__init__.py`
 - [x] Phase 2.1 — Route WebSocket `/api/transcribe/stream` (FastAPI)
 - [x] Phase 2.2 — 7 tests wscat (route WS)
-- [ ] Phase 3.1 — Frontend WebSocket + purge dead code TexteSource
+- [x] Phase 3.1 — Frontend WebSocket Deepgram + refactor TexteSource batch→stream
 - [ ] Phase 3.2 — Tests bout-en-bout Edge (MediaRecorder Opus + vraie voix)
 - [ ] Phase 4.1 — Admin STT lecture seule (sessions actives, audit)
 - [ ] Phase 4.2 — Cron monitoring crédit Deepgram
@@ -78,9 +78,49 @@
 
 ---
 
-## Phase 3.1 — ouverture 🎯 (17/05/2026)
+## Phase 3.1 — close 🎯 (17/05/2026)
 
-> Affinement réalisé en ouverture après lecture code (TexteSource 400 lignes, App.jsx skim, AuthContext, errorDialog, grep callers, grep route backend). Rapport complet en session.
+> Phase livrée — bilan post-mortem complet ci-dessous. Affinement réalisé en ouverture après lecture code (TexteSource 400 lignes, App.jsx skim, AuthContext, errorDialog, grep callers, grep route backend).
+
+### Bilan temps réel vs estimation
+
+**Estimation post-affinement** : 4-6h, 1-2 sessions.
+**Réalisé** : ~6h sur 1 session étendue (3h diagnostic empirique + 3h refactor/intégration/clôture). Dans la fourchette haute. Le diagnostic empirique a été plus long que prévu à cause du piège WebM/Opus (cf. apprentissages ci-dessous).
+
+### Apports session au-delà du code
+
+1. **Pattern strict mode React 18 — `mountedRef.current = true` au remount** : `useRef(true)` n'init qu'à la création du composant ; le useEffect cleanup qui set false n'est PAS contrebalancé par défaut. À ajouter dans tous les futurs hooks avec `mountedRef` pattern.
+2. **Cookie httpOnly invisible à `document.cookie`** : D15 heuristique initiale était mort dans l'œuf, pivot vers `useAuth().user` via Context React + capture dans `userRef` pour usage dans `ws.onclose`. Pattern réutilisable pour toute auth-aware logic dans un hook.
+3. **MediaRecorder WebM/Opus ≠ Opus brut Deepgram** : piège majeur découvert en smoke test (3h de diagnostic). Solution : omettre `encoding` et `sample_rate` côté backend Deepgram quand source = MediaRecorder navigateur → Deepgram parse le container WebM via magic bytes EBML. À documenter dans Phase 0.x si quelqu'un reproduit l'intégration.
+4. **Discipline diagnostic « audio chunks reçus côté backend »** : log temporaire `audio_pump` avec compteur + taille = méthode infaillible pour isoler "bug hook" vs "bug provider externe". À garder comme outil de diagnostic même hors STT.
+5. **Convention sonore 1/2/3 bips** : 1 bip = start, 2 = stop, 3 = warning T-60s. Pattern réutilisable pour autres features audio (PWA notifs, etc.).
+
+### Décisions D7-D16 — résultat final
+
+Toutes actées comme prévu (cf. TOPO §5). D9 explicitement nuancée pour MVP (modal `showError` partout, revue Phase 5.x si feedback utilisateur sur lourdeur de 3 modales successives). D15 corrigée en ouverture session (pivot `useAuth().user` vs `document.cookie`).
+
+### DoD reformulée vs initiale
+
+L'item DoD initial "6 états du bouton micro" a été reformulé en pratique en **4 visuels bouton** (idle/requesting/recording/unsupported) + **3 conditions d'erreur via modal showError** (saturé/indisponible/timeout). Les 3 dernières sont des transitions vers modal qui ramènent le bouton à `idle` — pas un état visuel persistant. À garder en tête pour les briefs futurs (un "état" UX n'est pas toujours un état UI).
+
+### Risques concrets actés (étaient dans TOPO §5 risques)
+
+1. **Cookie cross-port proxy Vite** : confirmé crucial, patch `ws: true` dans `vite.config.js` validé empiriquement
+2. **Timeslice `recorder.start(250)`** : confirmé crucial, sans le 250 ms le hook ne stream pas réellement
+
+### Dettes Phase 3.1 transférées en NON RETENU (cf. TRACKER)
+
+- Latence Deepgram (tune `endpointing_ms`)
+- Position visuelle zone interim
+- Bug auth long-running > 2 min (refresh JWT échoue, WS rejected, modal "saturé" trompeur)
+- 4402 alerte admin Phase 4.x
+- D9 modal lourd → revue Phase 5.x
+- D14 retry → revisitable Phase 4.x
+- Q-int-1 concaténation append-only → revisitable si feedback utilisateur
+
+### Risque dépassement
+
+Aucun (Phase 3.1 close).
 
 **Découverte structurante** : la route `POST /api/transcribe` côté backend **n'existe pas** (grep project-wide vérifié `backend/main.py`, `backend/routers/`, `backend/groq_client.py`). TexteSource ligne 130 appelle un endpoint mort — c'est la raison du bouton désactivé. **Scope Phase 3.1 = travail purement frontend, pas de coordination back/front, pas de dépréciation backend à arbitrer.**
 
@@ -117,8 +157,7 @@
 
 | Phase | Scope perçu | Heures | Sessions | Affinement | Risque dépassement |
 |---|---|---|---|---|---|
-| 3.1 | Frontend WS (refactor TexteSource batch→stream — backend déjà OK) | 4-6h | 1-2 | 🎯 | Faible-Moyen (cookie cross-port proxy Vite WS + timeslice `recorder.start(250)`) |
-| 3.2 | Tests Edge MediaRecorder Opus + vraie voix | 2-4h | 1-2 | 📊 | **Élevé** (debug vocabulaire, voix réelle imprévisible) |
+| 3.2 | Tests Edge MediaRecorder Opus + vraie voix (smart_format, keyterm boost vocabulaire pédagogique) | 2-4h | 1-2 | 📊 | **Élevé** (debug vocabulaire, voix réelle imprévisible — partiellement amorcé Phase 3.1 smoke test) |
 | 4.1 | Admin STT lecture seule | 2-3h | 1 | 📊 | Faible (`snapshot()` déjà prêt grâce à 2.2 D5γ) |
 | 4.2 | Cron monitoring crédit Deepgram | 1-2h | 1 (groupable 4.3) | 📊 | Faible |
 | 4.3 | Alertes expiration clé Deepgram | 1h | 1 (groupable 4.2) | 📊 | Faible |

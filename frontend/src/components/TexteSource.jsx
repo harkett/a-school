@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import { useTranscribeStream } from '../hooks/useTranscribeStream'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,17 +58,63 @@ const IconExemple = () => (
 )
 
 export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere }) {
-  const [isListening, setIsListening] = useState(false)
-  const [isReady, setIsReady] = useState(false)
-  const [isTranscribing, setIsTranscribing] = useState(false)
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
-  const mediaRecorderRef = useRef(null)
-  const mediaStreamRef = useRef(null)
-  const audioChunksRef = useRef([])
-  const audioMimeRef = useRef('audio/webm')
-  const activeRef = useRef(false)
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
+  const texteRef = useRef(texte)
+
+  useEffect(() => { texteRef.current = texte }, [texte])
+
+  // Append-only : la dictée écrit toujours à la fin du textarea, jamais à la position du curseur.
+  // Pattern texteRef évite la closure stale si onChange est appelé après plusieurs renders.
+  const handleFinal = useCallback((text) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const prev = texteRef.current || ''
+    const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+    onChange(prev + sep + trimmed)
+  }, [onChange])
+
+  const playBeep = useCallback((count) => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (!Ctx) return
+      if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume()
+      for (let i = 0; i < count; i++) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.type = 'sine'
+        osc.frequency.value = 880
+        const t = ctx.currentTime + i * 0.18
+        gain.gain.setValueAtTime(0.15, t)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
+        osc.start(t)
+        osc.stop(t + 0.12)
+      }
+    } catch {}
+  }, [])
+
+  // Warning T-60s avant fin de session (300s par défaut côté backend) — bip 3
+  // pour signaler au prof qu'il doit finaliser sa saisie, sans modal intrusif.
+  // Convention sonore : 1 bip = start, 2 bips = stop, 3 bips = warning fin.
+  const handleWarning = useCallback(() => {
+    playBeep(3)
+  }, [playBeep])
+
+  const { state: sttState, interim, isSupported, start, stop } = useTranscribeStream({
+    onFinal: handleFinal,
+    onWarning: handleWarning,
+  })
+
+  // Bip "go" au passage à recording. useEffect ne tourne qu'au changement de sttState
+  // (playBeep stable via useCallback) — pas de re-trigger sur les autres re-renders.
+  useEffect(() => {
+    if (sttState === 'recording') playBeep(1)
+  }, [sttState, playBeep])
 
   function handleTxt(e) {
     const file = e.target.files[0]
@@ -102,155 +149,15 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     }
   }
 
-  function pickAudioMime() {
-    const candidates = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg;codecs=opus',
-      'audio/mp4',
-    ]
-    for (const c of candidates) {
-      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(c)) return c
-    }
-    return ''
-  }
-
-  function stopMediaStream() {
-    try { mediaStreamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
-    mediaStreamRef.current = null
-    mediaRecorderRef.current = null
-  }
-
-  async function sendForTranscription(blob) {
-    setIsTranscribing(true)
-    try {
-      const form = new FormData()
-      const ext = (blob.type || '').includes('mp4') ? 'mp4' : (blob.type || '').includes('ogg') ? 'ogg' : 'webm'
-      form.append('file', blob, `dictee.${ext}`)
-      const res = await fetchWithTimeout('/api/transcribe', {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      }, TIMEOUT_GROQ)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
-      const transcrit = (data.text || '').trim()
-      if (transcrit) {
-        const sep = texte && !texte.endsWith('\n') ? ' ' : ''
-        onChange((texte || '') + sep + transcrit)
-      }
-    } catch (err) {
-      showError(`Transcription impossible.\n\n${err.message}`)
-    } finally {
-      setIsTranscribing(false)
-    }
-  }
-
-  async function startRecording() {
-    let stream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (err) {
-      activeRef.current = false
-      setIsListening(false)
-      setIsReady(false)
-      if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-        showError('Accès au microphone refusé.\n\nPour utiliser la dictée vocale, autorisez l\'accès au microphone dans les paramètres du navigateur.')
-      } else {
-        showError(`Impossible d'accéder au microphone.\n\n${err?.message || 'Erreur inconnue.'}`)
-      }
-      return
-    }
-
-    mediaStreamRef.current = stream
-    const mime = pickAudioMime()
-    audioMimeRef.current = mime || 'audio/webm'
-    audioChunksRef.current = []
-
-    let recorder
-    try {
-      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
-    } catch (err) {
-      stopMediaStream()
-      activeRef.current = false
-      setIsListening(false)
-      setIsReady(false)
-      showError(`Enregistrement audio impossible.\n\n${err?.message || 'Format audio non supporté.'}`)
-      return
-    }
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data)
-    }
-
-    recorder.onstop = async () => {
-      const chunks = audioChunksRef.current
-      audioChunksRef.current = []
-      stopMediaStream()
-      if (!chunks.length) return
-      const blob = new Blob(chunks, { type: audioMimeRef.current })
-      await sendForTranscription(blob)
-    }
-
-    mediaRecorderRef.current = recorder
-    recorder.start()
-
-    // Léger délai avant bip "go" — laisse le temps au navigateur d'activer le flux
-    setTimeout(() => {
-      if (activeRef.current && !isReady) {
-        setIsReady(true)
-        playBeep(1)
-      }
-    }, 300)
-  }
-
-  function playBeep(count) {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext
-      if (!Ctx) return
-      if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
-      const ctx = audioCtxRef.current
-      if (ctx.state === 'suspended') ctx.resume()
-      for (let i = 0; i < count; i++) {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.type = 'sine'
-        osc.frequency.value = 880
-        const t = ctx.currentTime + i * 0.18
-        gain.gain.setValueAtTime(0.15, t)
-        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12)
-        osc.start(t)
-        osc.stop(t + 0.12)
-      }
-    } catch {}
-  }
-
-  function toggleDicte() {
-    if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      showError('L\'enregistrement audio n\'est pas disponible sur ce navigateur.\n\nUtilisez Edge ou Chrome récent pour activer la dictée.')
-      return
-    }
-    if (activeRef.current) {
-      activeRef.current = false
+  function handleDicteClick() {
+    if (sttState === 'recording') {
+      // Bip stop AVANT stop() — feedback sonore immédiat avant la transition d'état UI
       playBeep(2)
-      setIsListening(false)
-      setIsReady(false)
-      try { mediaRecorderRef.current?.stop() } catch {}
-      return
+      stop()
+    } else {
+      textareaRef.current?.focus()
+      start()
     }
-    if (isTranscribing) return
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext
-      if (Ctx && !audioCtxRef.current) audioCtxRef.current = new Ctx()
-      if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume()
-    } catch {}
-    activeRef.current = true
-    setIsListening(true)
-    setIsReady(false)
-    textareaRef.current?.focus()
-    startRecording()
   }
 
   return (
@@ -290,10 +197,10 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         value={texte}
         onChange={e => onChange(e.target.value)}
         placeholder={"Collez un extrait de texte ici\n— ou importez un fichier TXT\n— ou extrayez le texte d'une image (scan, photo)\n— ou extrayez le texte d'un PDF\n— ou dictez avec le micro"}
-        style={isListening && isReady ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
+        style={sttState === 'recording' ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
       />
 
-      {isListening && !isReady && (
+      {sttState === 'requesting' && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
@@ -313,7 +220,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
       )}
 
-      {isListening && isReady && (
+      {sttState === 'recording' && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
@@ -327,27 +234,22 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           gap: 8,
         }}>
           <span style={{ fontSize: 16, lineHeight: 1 }}>🎤</span>
-          <span>Enregistrement — parlez maintenant. Le texte sera transcrit à l'arrêt. Cliquez <strong>Arrêter</strong> pour terminer.</span>
+          <span>Enregistrement — parlez maintenant. Cliquez <strong>Arrêter</strong> pour terminer.</span>
         </div>
       )}
 
-      {isTranscribing && (
+      {interim && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
-          background: '#eef2ff',
-          border: '1px solid #c7d2fe',
+          background: '#fefce8',
+          border: '1px solid #fde68a',
           borderRadius: 6,
           fontSize: 12,
-          color: '#4338ca',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          color: '#78350f',
+          fontStyle: 'italic',
         }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-          </svg>
-          <span>Transcription en cours…</span>
+          {interim}
         </div>
       )}
 
@@ -385,13 +287,31 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </label>
 
         <button
+          type="button"
           className="btn-action"
-          title="La dictée vocale est en cours de migration vers une nouvelle technologie de transcription temps réel. Elle sera de nouveau disponible prochainement."
-          disabled
-          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+          title={
+            !isSupported
+              ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou Chrome récent."
+              : sttState === 'recording'
+                ? "Arrêter l'enregistrement"
+                : sttState === 'requesting'
+                  ? "Demande d'accès au microphone en cours…"
+                  : "Dicter avec le microphone"
+          }
+          onClick={handleDicteClick}
+          disabled={!isSupported || sttState === 'requesting'}
+          style={
+            !isSupported
+              ? { opacity: 0.5, cursor: 'not-allowed' }
+              : sttState === 'requesting'
+                ? { cursor: 'wait' }
+                : sttState === 'recording'
+                  ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
+                  : {}
+          }
         >
-          <IconMic active={false} />
-          Dicter (migration…)
+          <IconMic active={sttState === 'recording'} />
+          {sttState === 'recording' ? 'Arrêter' : sttState === 'requesting' ? 'Dicter…' : 'Dicter'}
         </button>
 
       </div>

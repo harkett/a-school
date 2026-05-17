@@ -158,17 +158,23 @@ class DeepgramProvider(STTProvider):
         keyterms: list[str] = cfg.keyterms or self._load_global_keyterms()
 
         # Construit LiveOptions Deepgram
+        # Phase 3.1 (smoke test 17/05/2026) : pour flux WebM/Opus depuis MediaRecorder
+        # navigateur, NE PAS spécifier encoding/sample_rate — Deepgram détecte le
+        # container WebM via les magic bytes EBML et extrait l'Opus seul.
+        # Pour PCM linear16 brut (test_phase22) : encoding + sample_rate explicites obligatoires.
         options_kwargs = dict(
             model=self._model,
             language=cfg.language,
-            encoding=cfg.encoding,
-            sample_rate=cfg.sample_rate,
             channels=1,
             interim_results=cfg.interim_results,
             smart_format=cfg.smart_format,
             endpointing=cfg.endpointing_ms,
             punctuate=cfg.punctuate,
         )
+        if cfg.encoding == "linear16":
+            options_kwargs["encoding"] = "linear16"
+            options_kwargs["sample_rate"] = cfg.sample_rate
+        # cfg.encoding == "opus" → on omet (Deepgram parse le container WebM)
         # Plan B dictation : on tente, si TypeError on retire et on continue
         try:
             options = LiveOptions(**options_kwargs, dictation=cfg.dictation)

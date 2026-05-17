@@ -192,9 +192,12 @@ async def _run_stt_session(websocket: WebSocket, user: str, encoding: str) -> No
     provider = get_stt_provider()
     # Phase 2.2 (D2) : seul `encoding` est paramétré. Les autres champs prennent
     # les defaults via STTSessionConfig() (language="fr", sample_rate=16000, etc.).
-    # `replace()` future-proof : si STTSessionConfig acquiert un __post_init__ ou
-    # des defaults env-based, les champs non-overridés restent fidèles aux
-    # defaults dynamiques (vs kwargs explicites qui figeraient à des constantes).
+    # Phase 3.1 (D10 résolu autrement que prévu) : pour cfg.encoding=opus, le provider
+    # `deepgram_provider.py` omet AUSSI bien `encoding` que `sample_rate` dans
+    # LiveOptions — Deepgram parse le container WebM (MediaRecorder navigateur) via
+    # les magic bytes EBML et auto-détecte le format. Le default sample_rate=16000
+    # de STTSessionConfig est donc sans effet pour opus, et utilisé tel quel pour
+    # linear16 (chemin PCM brut test_phase22).
     config = replace(STTSessionConfig(), encoding=encoding)
     session = await provider.create_session(config)
     started_at = time.monotonic()

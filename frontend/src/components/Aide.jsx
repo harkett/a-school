@@ -415,17 +415,27 @@ const sections = [
     contenu: (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
-          La dictée fonctionne sur tous les appareils — ordinateur, iPhone (Safari) et Android (Chrome).
+          La dictée fonctionne sur tous les appareils — ordinateur, iPhone (Safari) et Android (Chrome). Transcription temps réel via Deepgram Nova-3 (français).
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Step n="1">Dans la zone "Texte source", cliquez sur l'icône micro <strong>🎤</strong>.</Step>
+          <Step n="1">Dans la zone "Texte source", cliquez sur le bouton <strong>Dicter</strong>.</Step>
           <Step n="2">Autorisez l'accès au microphone si le navigateur le demande.</Step>
-          <Step n="3">Parlez clairement — aSchool transcrit en temps réel via Whisper (Groq).</Step>
-          <Step n="4">Cliquez sur <strong>Arrêter</strong> quand vous avez terminé. Le texte s'insère automatiquement dans la zone.</Step>
+          <Step n="3">Patientez le bip <strong>"go"</strong>, puis parlez clairement — le texte se construit en direct (zone jaune pâle = transcription provisoire).</Step>
+          <Step n="4">Cliquez sur <strong>Arrêter</strong> quand vous avez terminé. Le texte final s'insère automatiquement dans la zone source.</Step>
           <Step n="5">Relisez la transcription et corrigez les éventuelles erreurs avant de générer.</Step>
         </div>
         <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
           <strong>Pour un meilleur résultat :</strong> parlez dans un environnement calme, à distance normale du micro, sans trop vite. Le français est optimisé — évitez de mélanger les langues.
+        </div>
+        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e' }}>
+          <strong>Si le bouton "Dicter" reste grisé ou refuse de démarrer :</strong>
+          <ul className="flex flex-col gap-1 pl-4 mt-1.5" style={{ listStyleType: 'disc' }}>
+            <li><strong>"Accès au microphone refusé"</strong> → cadenas dans la barre d'adresse Edge → Autorisations du site → Microphone : Autoriser. Rechargez la page.</li>
+            <li><strong>"Aucun microphone détecté"</strong> → vérifiez qu'un micro est branché ou activé (Paramètres Windows → Confidentialité → Microphone).</li>
+            <li><strong>"Microphone occupé par une autre application"</strong> → fermez Teams, Zoom, Discord ou toute autre app qui utilise le micro.</li>
+            <li><strong>"Session expirée"</strong> → reconnectez-vous (vos cookies de connexion ont expiré).</li>
+            <li><strong>"Service saturé"</strong> → réessayez dans quelques minutes (trop de dictées simultanées sur la plateforme).</li>
+          </ul>
         </div>
       </div>
     ),

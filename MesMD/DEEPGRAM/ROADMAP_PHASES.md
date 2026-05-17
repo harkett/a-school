@@ -2,9 +2,7 @@
 
 > Source de vérité unique pour le suivi des phases d'implémentation.
 > Spec technique complète : [SPEC_DEEPGRAM_STT.md](SPEC_DEEPGRAM_STT.md) (v1.1)
-> Dernière mise à jour : 17/05/2026 (après commit Phase 2.2 `fc09c34`)
->
-> ⚠️ **Mentions `webkitSpeechRecognition` obsolètes dans ce doc** — voir [TOPO_PHASE_3_1.md](TOPO_PHASE_3_1.md) Section 1 pour le scope réel. Vérification grep project-wide 17/05/2026 : le code n'utilise pas Web Speech API, la dictée actuelle est un upload batch `POST /api/transcribe` à refactorer en streaming WS. À nettoyer à la clôture Phase 3.1.
+> Dernière mise à jour : 17/05/2026 (après clôture Phase 3.1)
 
 ---
 
@@ -21,7 +19,7 @@
 - [x] Phase 1.6 — Factory `get_stt_provider()` dans `backend/stt/__init__.py`
 - [x] Phase 2.1 — Route WebSocket `/api/transcribe/stream` (FastAPI)
 - [x] Phase 2.2 — 7 tests wscat (route WS)
-- [ ] Phase 3.1 — Frontend WebSocket + purge dead code TexteSource
+- [x] Phase 3.1 — Frontend WebSocket Deepgram + refactor TexteSource batch→stream
 - [ ] Phase 3.2 — Tests bout-en-bout Edge (MediaRecorder Opus + vraie voix)
 - [ ] Phase 4.1 — Admin STT lecture seule (sessions actives, audit)
 - [ ] Phase 4.2 — Cron monitoring crédit Deepgram
@@ -40,7 +38,7 @@
 |---|---|---|
 | **Phase 1** | Fondations backend (interfaces, tracker, provider, factory, BDD) | ✅ **TERMINÉE** (7/7) |
 | **Phase 2** | Route WS + tests backend | ✅ **TERMINÉE** (2/2) |
-| **Phase 3** | Frontend WS + tests bout-en-bout | ⏳ À VENIR |
+| **Phase 3** | Frontend WS + tests bout-en-bout | 🚧 Phase 3.1 ✅ / Phase 3.2 ⏳ |
 | **Phase 4** | Monitoring admin (crédit, sessions, alertes clé) | ⏳ À VENIR |
 | **Phase 5** | PWA / RGPD / docs / push prod | ⏳ À VENIR |
 
