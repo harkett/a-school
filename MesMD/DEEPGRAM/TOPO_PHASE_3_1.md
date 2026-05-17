@@ -57,22 +57,33 @@ Dans [frontend/src/components/TexteSource.jsx](../../frontend/src/components/Tex
 
 ---
 
-## 5. Décisions à trancher en ouverture (8 décisions imbriquées)
+## 5. Décisions D7-D16 — ✅ ACTÉES 17/05/2026 (8/8)
 
-> Recos non tranchées dans le handoff. D8 désormais pré-cadrée (voir ci-dessous). À discuter et valider avant de coder.
+> Validées après affinement complet (rapport en CHECKLIST_PHASES.md section "Phase 3.1 — ouverture 🎯"). Snapshot final pour A3.
 
-| # | Décision | Reco |
+| # | Décision | **Reco actée** |
 |---|---|---|
-| **D7** | État React (Context / Hook custom / inline) | **Hook custom** `useTranscribeStream(...)` |
-| **D8** | Affichage interim/final (zone unique / interim séparée / inline CSS) | **β — zone interim volatile au-dessus du champ, final injecté dans le champ principal.** Justifié par UX de relecture avant validation : la dictée aSchool sert à saisir des énoncés pédagogiques (vocabulaire technique sensible à Smart Format, ex. "hypoténuse" → "hypothèse"). Le prof doit pouvoir valider visuellement chaque phrase avant qu'elle s'inscrive. Voir Smart Format spec §R2. |
-| **D9** | Erreurs (modal showError / Toast / Banner) | **α (modal, cohérence) ou β (toast pour récupérables)** |
-| **D10** | sample_rate Opus 48 kHz (default backend + spec / query string / downsampler) | **α + δ** (ajuster default + maj spec §10.2) |
-| **D11** | Détection MediaRecorder (mount / lazy click) | **Mount** (`MediaRecorder.isTypeSupported`) |
-| **D14** | Reconnect/retry sur close inattendu | **Aucun retry (MVP)**, message clair |
-| **D15** | Désambiguïsation pré-accept (générique / heuristique client / endpoint diagnostic) | **Heuristique client** (cookie absent → "session expirée", sinon → "service saturé") |
-| **D16** | Permission `getUserMedia` (click / mount + 3 erreurs : NotAllowed / NotFound / NotReadable) | **Prompt au click** + messages distincts par type |
+| **D7** ✅ | État React pour la session WS | **Hook custom `useTranscribeStream(...)`** — encapsule MediaRecorder + WS + cleanup en unité locale à TexteSource. AuthContext = auth only, 1 seul caller TexteSource = inutile Context global |
+| **D8** ✅ | Affichage interim/final | **β — zone interim volatile insérée entre textarea et boutons (gris/italique), final injecté dans le textarea principal via `onChange` existant.** Justifié par UX de relecture (Smart Format §R2 — "hypoténuse" → "hypothèse"). |
+| **D9** ✅ | Erreurs UX | **α — modal `showError` pour tout (MVP Phase 3.1)**. Nuance importante : **revue prévue Phase 5.x si feedback utilisateur sur lourdeur** (D16 induit 3 modales possibles dans le flow dictée). Trace dans CHECKLIST post-mortem obligatoire. |
+| **D10** ✅ | sample_rate Opus 48 kHz | **α + δ — ajuster default `STTSessionConfig.sample_rate = 48000` côté backend quand `encoding=opus` + maj spec §10.2 (16 kHz → 48 kHz).** Patch backend reporté commit 2 (clôture) après validation empirique 5 min en A3 (`MediaRecorder.isTypeSupported('audio/webm;codecs=opus')` + log `audioBitsPerSecond` réel sur Edge). Si surprise → arbitrage à ce moment-là. |
+| **D11** ✅ | Détection MediaRecorder | **Mount — `pickAudioMime()` (déjà présent lignes 105-116 de TexteSource) exécuté en `useEffect([])`** → state `isSupported`. Bouton grisé permanent + tooltip si false. Tooltip = attribut `title=""` HTML natif (pattern projet confirmé : 5 usages déjà dans TexteSource lignes 262, 358, 367, 378, 389). |
+| **D14** ✅ | Reconnect/retry close inattendu | **Aucun retry MVP — `showError` au close 4502/4408/1011, le prof re-clique**. Pas de backoff, pas de compteur. Revisitable Phase 4.x après observation patterns réels. |
+| **D15** ✅ | Désambiguïsation pré-accept | **Pivot vers AuthContext** (correction : `document.cookie` ne voit pas les cookies httpOnly, le pattern initial était mort dans l'œuf). Le hook consomme `const { user } = useAuth()` en interne ; sur close pré-accept (1008 ou 4401 — à confirmer A3 par grep `backend/routers/transcribe.py`) : `user` présent → "Service de dictée saturé. Réessayez dans quelques minutes." / `user` null → "Session expirée. Reconnectez-vous pour utiliser la dictée." Fiabilité estimée >95%. Edge case "logout cross-tab entre 2 refresh AuthContext" → noté en dette légère Phase 5.x (refresh AuthContext sur `visibilitychange` au réveil onglet). |
+| **D16** ✅ | Permission `getUserMedia` | **Prompt au click + 3 erreurs distinctes** étendant lignes 157-161 existantes : `NotAllowedError` → "Accès au microphone refusé. Pour utiliser la dictée, autorisez l'accès dans les paramètres du navigateur." / `NotFoundError` → "Aucun microphone détecté. Branchez un micro et réessayez." / `NotReadableError` → "Le microphone est occupé par une autre application (Teams, Zoom...). Fermez l'autre application et réessayez." |
 
 *(D12 fusionné dans D11, D13 backpressure traité inline Section 6 du handoff)*
+
+### Notes à appliquer pendant l'écriture du code A3 (pas des décisions à rouvrir)
+
+- **D8** : zone interim avec toggle CSS `display: interim.length > 0 ? 'block' : 'none'` plutôt qu'un container permanent qui réserve sa place → évite le saut visuel quand la dictée démarre/s'arrête
+- **D10** : patch backend `STTSessionConfig.sample_rate = 48000` reporté au commit 2 après validation empirique Edge (si surprise, arbitrage)
+- **D11** : `title=""` HTML natif suffit, pas de composant `<Tooltip>` à créer
+- **D15** : grep `1008|4401|websocket.close` dans `backend/routers/transcribe.py` en début A3 pour confirmer le mapping codes close pré-accept réellement utilisé (30 sec)
+
+### Dette légère notée hors scope Phase 3.1
+
+- **Refresh AuthContext sur `visibilitychange`** : durcir l'edge case "logout cross-tab entre 2 refresh 10 min" → à évaluer Phase 5.x si pertinent
 
 ---
 
