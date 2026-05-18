@@ -1,7 +1,7 @@
 # Estimation phases Deepgram STT — Affinement progressif
 
 > Vue d'ensemble des phases restantes avec estimations heures + sessions.
-> Source de vérité granulaire des SHAs et scopes : [ROADMAP_PHASES.md](ROADMAP_PHASES.md).
+> Source de vérité granulaire des SHAs et scopes : [roadmap.md](roadmap.md).
 > **Politique d'affinement** : estimation serrée à **±30 min** en ouverture de chaque phase, après lecture du code réel concerné (cf. § Méthode d'affinement).
 > Dernière mise à jour : 17/05/2026 (Phase 2.2 close, Phase 3.1 prochaine).
 
@@ -19,7 +19,7 @@
 
 ---
 
-## Checklist phases (miroir ROADMAP_PHASES.md)
+## Checklist phases (miroir [roadmap.md](roadmap.md))
 
 > Coche `[x]` à la clôture de chaque item (en même temps que le commit).
 
@@ -223,7 +223,7 @@ Plus de marge pour respirer entre phases, mais plus de context-switch d'ouvertur
 ### 1. Phase 3.2 = la grande inconnue
 
 Tester avec une vraie voix sur MediaRecorder Opus va probablement révéler :
-- Vocabulaire pédagogique mal reconnu (cf. R1 "hypoténuse" déjà noté dans ROADMAP_PHASES.md)
+- Vocabulaire pédagogique mal reconnu (cf. R1 "hypoténuse" déjà noté dans [roadmap.md](roadmap.md))
 - Latence inattendue
 - Smart Format trop agressif (R2)
 

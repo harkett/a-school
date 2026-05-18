@@ -54,7 +54,7 @@ class DeepgramSession(STTSession):
         self._model = model
         self._queue: asyncio.Queue[Transcript | None] = asyncio.Queue()
         self._closed = False
-        # Phase 3.2 instrumentation — anchors pour mesure latence (cf. PROTOCOLE_PHASE32.md)
+        # Phase 3.2 instrumentation — anchors pour mesure latence (cf. MesMD/BOUSSOLE/D09/protocole_phase32.md)
         self._last_audio_ts: float | None = None
         self._last_interim_change_ts: float | None = None
         self._last_interim_text: str = ""

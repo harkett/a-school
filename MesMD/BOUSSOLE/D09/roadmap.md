@@ -1,7 +1,7 @@
 # Roadmap Phases — Intégration STT Deepgram
 
 > Source de vérité unique pour le suivi des phases d'implémentation.
-> Spec technique complète : [SPEC_DEEPGRAM_STT.md](SPEC_DEEPGRAM_STT.md) (v1.1)
+> Spec technique complète : [SPEC_DEEPGRAM_STT.md](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md) (v1.1)
 > Dernière mise à jour : 17/05/2026 (après clôture Phase 3.1)
 
 ---
@@ -52,7 +52,7 @@
 
 | # | Item | Commit | Notes |
 |---|---|---|---|
-| 1.1 | `.env.example` 17 variables STT | `0d85c34` | Liste complète § [3.1](SPEC_DEEPGRAM_STT.md) |
+| 1.1 | `.env.example` 17 variables STT | `0d85c34` | Liste complète § [3.1](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md) |
 | 0.2 | Test validation préalable Deepgram (wscat brut) | `536682d` | 2/3 termes critiques — R1 ouvert |
 | 1.2 | BDD STT — 4 tables + seed | `ca42905` | 8 messages + 80 keyterms transversaux |
 | 1.3 | Interfaces `STTProvider`/`STTSession` async | `fd5f0e4` | Clean break Groq Whisper batch |
@@ -82,7 +82,7 @@ Livré :
 
 **Commit** : `fc09c34` — 17/05/2026
 
-Spec : [§12.2](SPEC_DEEPGRAM_STT.md)
+Spec : [§12.2](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 Livré :
 - `test_phase22.py` : 7 scénarios séquentiels via `fastapi.testclient.TestClient`
@@ -121,7 +121,7 @@ Livré :
 
 ### 3.1 — Frontend WS + purge dead code
 
-Spec : [§10](SPEC_DEEPGRAM_STT.md)
+Spec : [§10](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - Remplacer `webkitSpeechRecognition` par `MediaRecorder` Opus 16 kHz mono chunks 250ms
 - WebSocket vers `/api/transcribe/stream`
@@ -133,7 +133,7 @@ Spec : [§10](SPEC_DEEPGRAM_STT.md)
 
 ### 3.2 — Tests Edge MediaRecorder Opus + vraie voix
 
-Spec : [§12.2](SPEC_DEEPGRAM_STT.md)
+Spec : [§12.2](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - Énoncés mathématiques ("Soit P de x égal à...")
 - Noms propres scientifiques ("Lavoisier", "Avogadro")
@@ -148,7 +148,7 @@ Spec : [§12.2](SPEC_DEEPGRAM_STT.md)
 
 ### 4.1 — Admin lecture seule `/admin/stt-status`
 
-Spec : [§8.1](SPEC_DEEPGRAM_STT.md)
+Spec : [§8.1](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 Affichage :
 - Crédit Deepgram restant (montant + barre %)
@@ -163,7 +163,7 @@ Affichage :
 
 ### 4.2 — Cron monitoring crédit Deepgram
 
-Spec : [§7](SPEC_DEEPGRAM_STT.md)
+Spec : [§7](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - APScheduler horaire → `GET /v1/projects/{id}/balances` Deepgram
 - Snapshot dans table `stt_credit_history`
@@ -172,7 +172,7 @@ Spec : [§7](SPEC_DEEPGRAM_STT.md)
 
 ### 4.3 — Alertes expiration clé API
 
-Spec : [§8.3](SPEC_DEEPGRAM_STT.md)
+Spec : [§8.3](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - J-30 : info bleue dashboard admin
 - J-15 : warning orange
@@ -186,7 +186,7 @@ Spec : [§8.3](SPEC_DEEPGRAM_STT.md)
 
 ### 5.1 — iOS PWA
 
-Spec : [§15.2](SPEC_DEEPGRAM_STT.md)
+Spec : [§15.2](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - Détection support `audio/webm;codecs=opus` OU `audio/ogg;codecs=opus`
 - Si non supporté → bouton micro grisé permanent + tooltip
@@ -194,7 +194,7 @@ Spec : [§15.2](SPEC_DEEPGRAM_STT.md)
 
 ### 5.2 — CGU RGPD (région US Phase 1)
 
-Spec : [§3.4](SPEC_DEEPGRAM_STT.md)
+Spec : [§3.4](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 
 - Mention obligatoire région US dans CGU + politique confidentialité
 - Profs pilotes informés explicitement
@@ -214,7 +214,7 @@ Spec : [§3.4](SPEC_DEEPGRAM_STT.md)
 
 ### 5.5 — Push v3.3.0 MINOR + sync School.jsx afia.fr
 
-Conformément à [CLAUDE.md](../../CLAUDE.md) — section "Synchronisation afia.fr" :
+Conformément à [CLAUDE.md](../../../CLAUDE.md) — section "Synchronisation afia.fr" :
 
 - Bump MINOR manuel (`v3.2.X` → `v3.3.0`)
 - `git push` → déploiement automatique VPS via `push.ps1`
@@ -239,4 +239,4 @@ Conformément à [CLAUDE.md](../../CLAUDE.md) — section "Synchronisation afia.
 - À chaque clôture d'item Phase X.Y : cocher dans la table de la phase + ajouter le SHA du commit
 - À chaque décision technique nouvelle (R5+) : ajouter ligne dans le tableau "Notes de vigilance"
 - À chaque fin de session de travail STT : mettre à jour le compteur "commits locaux ahead" en haut
-- Ne JAMAIS dupliquer les détails techniques de `SPEC_DEEPGRAM_STT.md` ici — linker la section spec à la place
+- Ne JAMAIS dupliquer les détails techniques de [SPEC_DEEPGRAM_STT.md](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md) ici — linker la section spec à la place

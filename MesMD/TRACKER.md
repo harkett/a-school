@@ -1,7 +1,7 @@
 # aSchool — TRACKER
 
 > **Source de vérité unique.** Toute idée, tâche ou livraison est ici — nulle part ailleurs.
-> Specs techniques détaillées → `SPECS_LEVIERS/DETAIL_LEVIER/`
+> Specs techniques détaillées → `LEVIERS/`
 
 > Note dev : Bannière "Bientôt disponible" sidebar prof → `Sidebar.jsx`, bloc `{!collapsed && ...}` en bas.
 
@@ -15,49 +15,49 @@
 
 > **Leviers livrés en production :** L1 — Générateur d'orchestrations · L2 — Détecteur d'ambiguïtés cognitives · L3 — Optimiseur de séquences
 
-> **Pré-requis transverse :** INFRA-RAG (pile RAG mutualisée) — codé en mode DEV, pas branché. Voir section *DÉCISION D'ARCHITECTURE — RAG* ci-dessous et fiche [INFRA-RAG](SPECS_TRANSVERSES/INFRA-RAG.md).
+> **Pré-requis transverse :** INFRA-RAG (pile RAG mutualisée) — codé en mode DEV, pas branché. Voir section *DÉCISION D'ARCHITECTURE — RAG* ci-dessous et fiche [INFRA-RAG](RAG/INFRA-RAG.md).
 
 | # | Titre | Effort | Valeur | Faisabilité | Score | Section | Détail | ✅ |
 |---|---|---|---|---|---|---|---|---|
-| [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [L35](SPECS_LEVIERS/DETAIL_LEVIER/L35.md) | ☐ |
-| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — chantier en cours | [L37](SPECS_LEVIERS/DETAIL_LEVIER/L37.md) | ☐ |
-| [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [L36](SPECS_LEVIERS/DETAIL_LEVIER/L36.md) | ☐ |
-| [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [L38](SPECS_LEVIERS/DETAIL_LEVIER/L38.md) | ☐ |
-| [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](SPECS_LEVIERS/DETAIL_LEVIER/L39.md) | ☐ |
-| [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L03](SPECS_LEVIERS/DETAIL_LEVIER/L03.md) | ☑ |
-| [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L04](SPECS_LEVIERS/DETAIL_LEVIER/L04.md) | ☐ |
-| [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L28](SPECS_LEVIERS/DETAIL_LEVIER/L28.md) | ☐ |
-| [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [L33](SPECS_LEVIERS/DETAIL_LEVIER/L33.md) | ☐ |
-| [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](SPECS_LEVIERS/DETAIL_LEVIER/I07.md) | ☐ |
-| [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [I14](SPECS_LEVIERS/DETAIL_LEVIER/I14.md) | ☐ |
-| [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [L30](SPECS_LEVIERS/DETAIL_LEVIER/L30.md) | ☐ |
-| [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [L32](SPECS_LEVIERS/DETAIL_LEVIER/L32.md) | ☐ |
-| [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](SPECS_LEVIERS/DETAIL_LEVIER/I02.md) | ☐ |
-| [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](SPECS_LEVIERS/DETAIL_LEVIER/I08.md) | ☐ |
-| [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](SPECS_LEVIERS/DETAIL_LEVIER/I11.md) | ☐ |
-| [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I16](SPECS_LEVIERS/DETAIL_LEVIER/I16.md) | ☐ |
-| [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I27](SPECS_LEVIERS/DETAIL_LEVIER/I27.md) | ☐ |
-| [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [L31](SPECS_LEVIERS/DETAIL_LEVIER/L31.md) | ☐ |
-| [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](SPECS_LEVIERS/DETAIL_LEVIER/I17.md) | ☐ |
-| [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](SPECS_LEVIERS/DETAIL_LEVIER/I21.md) | ☐ |
-| [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I24](SPECS_LEVIERS/DETAIL_LEVIER/I24.md) | ☐ |
-| [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [L26](SPECS_LEVIERS/DETAIL_LEVIER/L26.md) | ☐ |
-| [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [I10](SPECS_LEVIERS/DETAIL_LEVIER/I10.md) | ☐ |
-| [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](SPECS_LEVIERS/DETAIL_LEVIER/I18.md) | ☐ |
-| [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](SPECS_LEVIERS/DETAIL_LEVIER/I23.md) | ☐ |
-| [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [L29](SPECS_LEVIERS/DETAIL_LEVIER/L29.md) | ☐ |
-| [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [L34](SPECS_LEVIERS/DETAIL_LEVIER/L34.md) | ☐ |
-| [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](SPECS_LEVIERS/DETAIL_LEVIER/I01.md) | ☐ |
-| [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I05](SPECS_LEVIERS/DETAIL_LEVIER/I05.md) | ☐ |
-| [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I06](SPECS_LEVIERS/DETAIL_LEVIER/I06.md) | ☐ |
-| [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | [I12](SPECS_LEVIERS/DETAIL_LEVIER/I12.md) | ☐ |
-| [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [I19](SPECS_LEVIERS/DETAIL_LEVIER/I19.md) | ☐ |
-| [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [L25](SPECS_LEVIERS/DETAIL_LEVIER/L25.md) | ☐ |
-| [09](#item-09) | Migration React Query (TanStack Query) | 1 session dédiée | ★★★☆☆ | ★★★☆☆ | **6/10** | IMPORTANT | [I09](SPECS_LEVIERS/DETAIL_LEVIER/I09.md) | ☐ |
-| [13](#item-13) | Dette technique complète | 2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | SESSION DÉDIÉE | [I13](SPECS_LEVIERS/DETAIL_LEVIER/I13.md) | ☐ |
-| [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I15](SPECS_LEVIERS/DETAIL_LEVIER/I15.md) | ☐ |
-| [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](SPECS_LEVIERS/DETAIL_LEVIER/I22.md) | ☐ |
-| [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](SPECS_LEVIERS/DETAIL_LEVIER/I20.md) | ☐ |
+| [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [L35](LEVIERS/L35.md) | ☐ |
+| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — chantier en cours | [L37](LEVIERS/L37.md) | ☐ |
+| [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [L36](LEVIERS/L36.md) | ☐ |
+| [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [L38](LEVIERS/L38.md) | ☐ |
+| [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](LEVIERS/L39.md) | ☐ |
+| [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L03](LEVIERS/L03.md) | ☑ |
+| [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L04](LEVIERS/L04.md) | ☐ |
+| [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L28](LEVIERS/L28.md) | ☐ |
+| [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [L33](LEVIERS/L33.md) | ☐ |
+| [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](LEVIERS/I07.md) | ☐ |
+| [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [I14](LEVIERS/I14.md) | ☐ |
+| [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [L30](LEVIERS/L30.md) | ☐ |
+| [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [L32](LEVIERS/L32.md) | ☐ |
+| [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](LEVIERS/I02.md) | ☐ |
+| [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](LEVIERS/I08.md) | ☐ |
+| [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](LEVIERS/I11.md) | ☐ |
+| [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I16](LEVIERS/I16.md) | ☐ |
+| [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I27](LEVIERS/I27.md) | ☐ |
+| [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [L31](LEVIERS/L31.md) | ☐ |
+| [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](LEVIERS/I17.md) | ☐ |
+| [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](LEVIERS/I21.md) | ☐ |
+| [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I24](LEVIERS/I24.md) | ☐ |
+| [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [L26](LEVIERS/L26.md) | ☐ |
+| [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [I10](LEVIERS/I10.md) | ☐ |
+| [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](LEVIERS/I18.md) | ☐ |
+| [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
+| [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [L29](LEVIERS/L29.md) | ☐ |
+| [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [L34](LEVIERS/L34.md) | ☐ |
+| [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](LEVIERS/I01.md) | ☐ |
+| [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I05](LEVIERS/I05.md) | ☐ |
+| [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I06](LEVIERS/I06.md) | ☐ |
+| [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | [I12](LEVIERS/I12.md) | ☐ |
+| [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [I19](LEVIERS/I19.md) | ☐ |
+| [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [L25](LEVIERS/L25.md) | ☐ |
+| [09](#item-09) | Migration React Query (TanStack Query) | 1 session dédiée | ★★★☆☆ | ★★★☆☆ | **6/10** | IMPORTANT | [I09](LEVIERS/I09.md) | ☐ |
+| [13](#item-13) | Dette technique complète | 2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | SESSION DÉDIÉE | [I13](LEVIERS/I13.md) | ☐ |
+| [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I15](LEVIERS/I15.md) | ☐ |
+| [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
+| [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](LEVIERS/I20.md) | ☐ |
 
 ---
 
@@ -99,7 +99,7 @@
 | 24 — Google OAuth | Infrastructure auth séparée |
 | 31 — Appréciations bulletins & communication parents | Nouvelle section "Communication" — aucun outil existant pour l'accueillir |
 | 36 — Corpus Programmes MEN (producteur RAG) | Premier producteur de corpus, consommé par L1/L25/Générateur d'activités |
-| INFRA-RAG — Pile RAG mutualisée | Prérequis transverse, livrable une fois, hors numérotation L — voir [INFRA-RAG](SPECS_TRANSVERSES/INFRA-RAG.md) |
+| INFRA-RAG — Pile RAG mutualisée | Prérequis transverse, livrable une fois, hors numérotation L — voir [INFRA-RAG](RAG/INFRA-RAG.md) |
 | 12 — Synchronisation afia.fr ↔ projets | Procédure transverse, pas une feature UI |
 
 ### Cat. C — Les 2 (standalone ET complément d'un autre)
@@ -164,7 +164,7 @@ Hors typologie pédagogique (infra pure, pas un levier).
 **Légende :**
 - **Producteur** = levier responsable de l'ingestion/maintenance du corpus dans ChromaDB
 - `—` = pas de producteur défini, alimentation manuelle ou via un producteur futur non encore désigné
-- **L36** dans la colonne Producteur = producteur du corpus *Programmes MEN* uniquement. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](SPECS_TRANSVERSES/INFRA-RAG.md).
+- **L36** dans la colonne Producteur = producteur du corpus *Programmes MEN* uniquement. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](RAG/INFRA-RAG.md).
 
 ### 4. Leviers sans RAG
 
@@ -236,211 +236,211 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 ---
 
-## ITEMS — Résumés (détails complets dans `SPECS_LEVIERS/DETAIL_LEVIER/`)
+## ITEMS — Résumés (détails complets dans `LEVIERS/`)
 
 ### Pré-requis transverses (hors numérotation L)
 
 <a id="infra-rag"></a>
 - [~] **INFRA-RAG — Pile RAG mutualisée** | 1 session restante — DEV branché et validé, prod non décidée
   *Pile commune `backend/rag/` (singleton ChromaDB + sentence-transformers + fonction `retrieve` générique). Branchée sur `/api/generate` avec gates (matière/niveau/feature flag) + fallback silencieux + logs INFO. **Test 4 validé en DEV le 15/05** : canary `Z36-27` injecté puis retrouvé cité 4 fois dans la sortie LLM (preuve que les chunks influencent vraiment la génération) ; wording du préfixe RAG renforcé (avant : 0 marqueur institutionnel MEN dans la sortie / après : 14+ marqueurs « compétences », « connaissances », « attendus cycle 4 », sources `[BOEN_..., page X]`). Livrable une fois, réutilisée par tous les producteurs de corpus (L36 MEN, L30 DYS/FLE, L04 équité, L31 communication, L34 créativité) et tous les consommateurs (L1, L25, Générateur d'activités). Hors numérotation L — infra pure, pas un levier. Reste : hébergement chroma_db côté VPS, opti cold start sentence-transformers, branchement L1 (séquences) et autres consommateurs.*
-  → [INFRA-RAG](SPECS_TRANSVERSES/INFRA-RAG.md)
+  → [INFRA-RAG](RAG/INFRA-RAG.md)
 
 ### Items numérotés
 
 <a id="item-01"></a>
 - [ ] **01 — Pages légales CNIL — placeholders [À COMPLÉTER]** | En attente infos admin
   *4 pages légales rédigées dans `CNIL/`. Bloqué par délais administration française (forme juridique, SIRET, etc.). À compléter dès réception + intégrer dans React (4 routes + liens footer).*
-  → [I01](SPECS_LEVIERS/DETAIL_LEVIER/I01.md)
+  → [I01](LEVIERS/I01.md)
 
 <a id="item-02"></a>
 - [ ] **02 — Email admin → prof** | Facile | 2h
   *Bouton "Contacter" dans AdminFeedbacks + 3 templates (Traité / Précision / Remerciement). Endpoint `POST /api/admin/feedbacks/{id}/email`.*
-  → [I02](SPECS_LEVIERS/DETAIL_LEVIER/I02.md)
+  → [I02](LEVIERS/I02.md)
 
 <a id="item-03"></a>
 - [x] **03 — Analyseur de consignes (L5)** | Livré 14/05
   *5 axes (clarté, précision didactique, ambiguïté, structure, erreurs typiques) + version optimisée. Backend + frontend en place.*
-  → [L03](SPECS_LEVIERS/DETAIL_LEVIER/L03.md)
+  → [L03](LEVIERS/L03.md)
 
 <a id="item-04"></a>
 - [ ] **04 — Détecteur d'équité pédagogique** | Facile | 1 session
-  *Audit d'une évaluation → 3 biais (contenu, difficulté, émotionnel). Grounding RAG sur charte de la laïcité + référentiels équité — infra commune avec [L36](SPECS_LEVIERS/DETAIL_LEVIER/L36.md).*
-  → [L04](SPECS_LEVIERS/DETAIL_LEVIER/L04.md)
+  *Audit d'une évaluation → 3 biais (contenu, difficulté, émotionnel). Grounding RAG sur charte de la laïcité + référentiels équité — infra commune avec [L36](LEVIERS/L36.md).*
+  → [L04](LEVIERS/L04.md)
 
 <a id="item-05"></a>
 - [ ] **05 — Page /contact** | Facile | 2h
   *Remplace l'adresse email brute dans le footer — réduit le spam.*
-  → [I05](SPECS_LEVIERS/DETAIL_LEVIER/I05.md)
+  → [I05](LEVIERS/I05.md)
 
 <a id="item-06"></a>
 - [ ] **06 — Civilité M./Mme dans le profil** | Facile | 2h
   *Personnalisation de l'en-tête. Absorbé par Mon Profil.*
-  → [I06](SPECS_LEVIERS/DETAIL_LEVIER/I06.md)
+  → [I06](LEVIERS/I06.md)
 
 <a id="item-07"></a>
 - [ ] **07 — Onboarding email J+2 / J+7 / J+14** | Moyen | 3 jours
   *APScheduler installé, J+0 welcome existe. Relances J+2/J+7/J+14 = impact rétention direct.*
-  → [I07](SPECS_LEVIERS/DETAIL_LEVIER/I07.md)
+  → [I07](LEVIERS/I07.md)
 
 <a id="item-08"></a>
 - [ ] **08 — Analyse des notations Groq** | Facile | 1 jour
   *Un prompt + un bloc dans AdminFeedbacks. Utile dès 15 retours pour orienter le produit.*
-  → [I08](SPECS_LEVIERS/DETAIL_LEVIER/I08.md)
+  → [I08](LEVIERS/I08.md)
 
 <a id="item-09"></a>
 - [ ] **09 — Migration React Query (TanStack Query)** | Difficile | 1 session dédiée
   *Remplace 20+ fetch manuels par le standard industrie (timeout, retry, cache, loading/error centralisés). Session dédiée.*
-  → [I09](SPECS_LEVIERS/DETAIL_LEVIER/I09.md)
+  → [I09](LEVIERS/I09.md)
 
 <a id="item-10"></a>
 - [ ] **10 — Timeouts sessions** | Facile | 2h
   *Sessions trop longues signalées. À traiter séparément — ne pas toucher à l'auth sans analyse préalable.*
-  → [I10](SPECS_LEVIERS/DETAIL_LEVIER/I10.md)
+  → [I10](LEVIERS/I10.md)
 
 <a id="item-11"></a>
 - [ ] **11 — Fiche de révision Français + Fiche pédagogique HG** | Facile | 30 min
   *Deux types d'activités manquants à ajouter dans la matrice (sur le modèle des autres matières).*
-  → [I11](SPECS_LEVIERS/DETAIL_LEVIER/I11.md)
+  → [I11](LEVIERS/I11.md)
 
 <a id="item-12"></a>
 - [ ] **12 — Synchronisation pages afia.fr ↔ projets** | Facile | Au prochain push MINOR/MAJOR
   *Claude génère le contenu mis à jour de School.jsx (AFIA-FR) à chaque push MINOR ou MAJOR — prêt à coller. Règle dans CLAUDE.md.*
-  → [I12](SPECS_LEVIERS/DETAIL_LEVIER/I12.md)
+  → [I12](LEVIERS/I12.md)
 
 <a id="item-13"></a>
 - [ ] **13 — Dette technique complète** | 2 sessions — à planifier après 02 + 03 + 04
   *Périmètre : dépendances obsolètes, gestion d'erreurs API, migration React Query, doc règles métier, revue sécurité routes.*
-  → [I13](SPECS_LEVIERS/DETAIL_LEVIER/I13.md)
+  → [I13](LEVIERS/I13.md)
 
 <a id="item-14"></a>
 - [ ] **14 — Bouton "Partagez avec vos collègues"** | Moyen | 1 session
   *Prof envoie invitation par email. Backend `POST /api/partager/` (max 5 adresses/jour). Modale `PartagerCollègues.jsx`.*
-  → [I14](SPECS_LEVIERS/DETAIL_LEVIER/I14.md)
+  → [I14](LEVIERS/I14.md)
 
 <a id="item-15"></a>
 - [ ] **15 — Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions
   *Journal envois + stats + bounces → liste noire + lien désinscription. Prérequis : SMTP transactionnel (Brevo/Resend).*
-  → [I15](SPECS_LEVIERS/DETAIL_LEVIER/I15.md)
+  → [I15](LEVIERS/I15.md)
 
 <a id="item-16"></a>
 - [ ] **16 — Ambiguité → Créer une séquence** | Facile | 1h
   *Bouton "Créer une séquence →" sur chaque reformulation corrigée → pré-remplit le thème.*
-  → [I16](SPECS_LEVIERS/DETAIL_LEVIER/I16.md)
+  → [I16](LEVIERS/I16.md)
 
 <a id="item-17"></a>
 - [ ] **17 — Quiz interactif élèves** | Difficile | 2 semaines
   *Prof génère QCM → lien public → élèves répondent sur téléphone → résultats live. Différenciateur fort. Spec v1 validée 07/05.*
-  → [I17](SPECS_LEVIERS/DETAIL_LEVIER/I17.md)
+  → [I17](LEVIERS/I17.md)
 
 <a id="item-18"></a>
 - [ ] **18 — Aide spécifique par matière** | Moyen | 3-5 jours
   *Infrastructure prête (subject en BDD). Textes d'aide adaptés selon le profil prof.*
-  → [I18](SPECS_LEVIERS/DETAIL_LEVIER/I18.md)
+  → [I18](LEVIERS/I18.md)
 
 <a id="item-19"></a>
 - [ ] **19 — Admin — Menu Activités en groupe** | Facile | 2h
   *Prépare la modération des activités partagées. Pattern `group: true` déjà disponible dans AdminLayout.*
-  → [I19](SPECS_LEVIERS/DETAIL_LEVIER/I19.md)
+  → [I19](LEVIERS/I19.md)
 
 <a id="item-20"></a>
 - [ ] **20 — Projet demo-perf — FastAPI + PostgreSQL à l'échelle** | Difficile | En fin de projet
   *Projet technique séparé. Stack FastAPI async + PostgreSQL + Docker. Tests scénarios index, pagination, N+1, connection pool.*
-  → [I20](SPECS_LEVIERS/DETAIL_LEVIER/I20.md)
+  → [I20](LEVIERS/I20.md)
 
 <a id="item-21"></a>
 - [ ] **21 — Support niveau Supérieur (BTS/prépa/licence)** | Difficile | 2 semaines
   *Ouvre un segment nouveau (formateurs BTS/prépa). Surtout du travail de prompts et d'activités.*
-  → [I21](SPECS_LEVIERS/DETAIL_LEVIER/I21.md)
+  → [I21](LEVIERS/I21.md)
 
 <a id="item-22"></a>
 - [ ] **22 — Théâtre — 13e matière** | Moyen | 1-2 semaines
   *Activités dans MATRICE_ACTIVITES + parse_markdown.py. Prérequis : trouver un prof pilote théâtre.*
-  → [I22](SPECS_LEVIERS/DETAIL_LEVIER/I22.md)
+  → [I22](LEVIERS/I22.md)
 
 <a id="item-23"></a>
 - [ ] **23 — Escape Game pédagogique** | Difficile | 2-3 semaines
   *Prof choisit matière + niveau + thème → scénario + énigmes + épreuve finale. HTML imprimable.*
-  → [I23](SPECS_LEVIERS/DETAIL_LEVIER/I23.md)
+  → [I23](LEVIERS/I23.md)
 
 <a id="item-24"></a>
 - [ ] **24 — Google OAuth** | Difficile | 2-3 semaines
   *Réduit la friction d'inscription. Inutile avant validation des pilotes.*
-  → [I24](SPECS_LEVIERS/DETAIL_LEVIER/I24.md)
+  → [I24](LEVIERS/I24.md)
 
 <a id="item-25"></a>
 - [ ] **25 — Cohérence curriculaire inter-disciplines** | Difficile | 2-3 sessions
-  *Aligne notions et progressions entre matières. 3 étapes : structurer programmes MEN, similarité sémantique inter-notions, définir la sortie. Approche : commencer 1 matière × 1 niveau. Grounding RAG mutualisé avec [L36](SPECS_LEVIERS/DETAIL_LEVIER/L36.md).*
-  → [L25](SPECS_LEVIERS/DETAIL_LEVIER/L25.md)
+  *Aligne notions et progressions entre matières. 3 étapes : structurer programmes MEN, similarité sémantique inter-notions, définir la sortie. Approche : commencer 1 matière × 1 niveau. Grounding RAG mutualisé avec [L36](LEVIERS/L36.md).*
+  → [L25](LEVIERS/L25.md)
 
 <a id="item-26"></a>
 - [ ] **26 — Pipeline qualité automatique** | Moyen | progressif
   *Assemblage des 6 leviers en un rapport qualité synthétique. Se construit au fil des leviers livrés.*
-  → [L26](SPECS_LEVIERS/DETAIL_LEVIER/L26.md)
+  → [L26](LEVIERS/L26.md)
 
 <a id="item-27"></a>
 - [ ] **27 — Validation texte source par LLM (Option B)** | Facile | 2h
   *Appel Groq pré-génération : "texte pédagogique exploitable ?" → JSON `{valide, raison}`. À implémenter quand Option A (heuristique livrée 13/05) montrera ses limites.*
-  → [I27](SPECS_LEVIERS/DETAIL_LEVIER/I27.md)
+  → [I27](LEVIERS/I27.md)
 
 <a id="item-28"></a>
 - [ ] **28 — Stratégie de remédiation** | Facile | 0,5 session
   *Étend L2 : pour chaque ambiguïté détectée, ajouter contre-exemple + activité de remédiation + formulation alternative. Modifie prompt L2 + ajuste Ambiguites.jsx. Pas de nouveau endpoint.*
-  → [L28](SPECS_LEVIERS/DETAIL_LEVIER/L28.md)
+  → [L28](LEVIERS/L28.md)
 
 <a id="item-29"></a>
 - [ ] **29 — Mode expérience prof (T1 / confirmé / expert)** | Facile | 0,5 session
   *1 champ `experience` en BDD + variable injectée dans tous les prompts. T1 = détaillé ; expert = condensé. Plus on attend, plus il manque partout.*
-  → [L29](SPECS_LEVIERS/DETAIL_LEVIER/L29.md)
+  → [L29](LEVIERS/L29.md)
 
 <a id="item-30"></a>
 - [ ] **30 — Différenciation DYS / FLE / approfondissement** | Moyen | 1 session
-  *3 variantes d'une activité après génération : DYS (syntaxe épurée + OpenDyslexic), FLE (vocabulaire simplifié), approfondissement (nuances). 3 boutons dans ZoneResultat + 3 modificateurs de prompt. Grounding RAG sur guides MEN inclusion — infra commune avec [L36](SPECS_LEVIERS/DETAIL_LEVIER/L36.md).*
-  → [L30](SPECS_LEVIERS/DETAIL_LEVIER/L30.md)
+  *3 variantes d'une activité après génération : DYS (syntaxe épurée + OpenDyslexic), FLE (vocabulaire simplifié), approfondissement (nuances). 3 boutons dans ZoneResultat + 3 modificateurs de prompt. Grounding RAG sur guides MEN inclusion — infra commune avec [L36](LEVIERS/L36.md).*
+  → [L30](LEVIERS/L30.md)
 
 <a id="item-31"></a>
 - [ ] **31 — Appréciations bulletins & communication parents** | Moyen | 1 session
   *Nouvelle section "Communication" dans Mes Outils + 4 prompts (appréciation bulletin, mail parents, compte-rendu, libre). 360 appréciations/an par prof — justifie l'abonnement. Grounding RAG sur guides communication aux familles.*
-  → [L31](SPECS_LEVIERS/DETAIL_LEVIER/L31.md)
+  → [L31](LEVIERS/L31.md)
 
 <a id="item-32"></a>
 - [ ] **32 — Visuels Mermaid / SVG** | Moyen | 1 session — prérequis de 33 et 34
-  *Texte → SVG via librairie Mermaid. Frontend `npm install mermaid` + auto-rendu. Backend : 4 prompts (frise, séquence, carte conceptuelle, arbre). Pas d'IA d'images. Débloque [L33](SPECS_LEVIERS/DETAIL_LEVIER/L33.md) et [L34](SPECS_LEVIERS/DETAIL_LEVIER/L34.md).*
-  → [L32](SPECS_LEVIERS/DETAIL_LEVIER/L32.md)
+  *Texte → SVG via librairie Mermaid. Frontend `npm install mermaid` + auto-rendu. Backend : 4 prompts (frise, séquence, carte conceptuelle, arbre). Pas d'IA d'images. Débloque [L33](LEVIERS/L33.md) et [L34](LEVIERS/L34.md).*
+  → [L32](LEVIERS/L32.md)
 
 <a id="item-33"></a>
 - [ ] **33 — Mémo flash (format révision rapide)** | Facile | 0,5 session — après 32
-  *Format ultra-condensé recto/verso, distinct de la fiche de révision classique. 1 nouveau type dans MATRICE_ACTIVITES + prompts. Avec [L32](SPECS_LEVIERS/DETAIL_LEVIER/L32.md) : version carte mentale visuelle.*
-  → [L33](SPECS_LEVIERS/DETAIL_LEVIER/L33.md)
+  *Format ultra-condensé recto/verso, distinct de la fiche de révision classique. 1 nouveau type dans MATRICE_ACTIVITES + prompts. Avec [L32](LEVIERS/L32.md) : version carte mentale visuelle.*
+  → [L33](LEVIERS/L33.md)
 
 <a id="item-34"></a>
 - [ ] **34 — Supports de créativité élève** | Moyen | 1 session — après 32
-  *4 types multi-matières : amorces d'écriture, situations-problèmes, défis structurés, canevas BD (nécessite [L32](SPECS_LEVIERS/DETAIL_LEVIER/L32.md)). Grounding RAG sur recherche pédagogique créativité.*
-  → [L34](SPECS_LEVIERS/DETAIL_LEVIER/L34.md)
+  *4 types multi-matières : amorces d'écriture, situations-problèmes, défis structurés, canevas BD (nécessite [L32](LEVIERS/L32.md)). Grounding RAG sur recherche pédagogique créativité.*
+  → [L34](LEVIERS/L34.md)
 
 <a id="item-35"></a>
 - [ ] **35 — Versioning & transposition de séquences** | Difficile | 3 sessions
-  *Permettre au prof de réutiliser/adapter une séquence existante au lieu de la régénérer — c'est le vrai moat. Nouvelle table `sequence_versions`, transposition automatique d'un niveau à l'autre, UI fork dans l'historique. Prérequis : [L37](SPECS_LEVIERS/DETAIL_LEVIER/L37.md) (mécanique versions éphémère).*
-  → [L35](SPECS_LEVIERS/DETAIL_LEVIER/L35.md)
+  *Permettre au prof de réutiliser/adapter une séquence existante au lieu de la régénérer — c'est le vrai moat. Nouvelle table `sequence_versions`, transposition automatique d'un niveau à l'autre, UI fork dans l'historique. Prérequis : [L37](LEVIERS/L37.md) (mécanique versions éphémère).*
+  → [L35](LEVIERS/L35.md)
 
 <a id="item-36"></a>
 - [ ] **36 — Corpus Programmes MEN (producteur RAG)** | Moyen-Difficile | 3,5-5 sessions restantes — 1/96 docs indexés
-  *Producteur de la collection `corpus_programmes_men` (~96 docs, 12 matières × 8 niveaux + programme 2026 cycle 4 progressif). Consommateurs : L1, L25, Générateur d'activités. Contrainte critique : coexistence 2020/2026 sur 3 ans → filtrage par métadonnée `programme` + `niveau` + `matiere` obligatoire. Prérequis : [INFRA-RAG](SPECS_TRANSVERSES/INFRA-RAG.md). État actuel : collection `maths_cycle4` indexée via POC, 95 docs restants.*
-  → [L36](SPECS_LEVIERS/DETAIL_LEVIER/L36.md) (volumétrie corpus, pipeline ingestion, contrainte 2020/2026, test d'éval binaire, risques hétérogénéité sources)
+  *Producteur de la collection `corpus_programmes_men` (~96 docs, 12 matières × 8 niveaux + programme 2026 cycle 4 progressif). Consommateurs : L1, L25, Générateur d'activités. Contrainte critique : coexistence 2020/2026 sur 3 ans → filtrage par métadonnée `programme` + `niveau` + `matiere` obligatoire. Prérequis : [INFRA-RAG](RAG/INFRA-RAG.md). État actuel : collection `maths_cycle4` indexée via POC, 95 docs restants.*
+  → [L36](LEVIERS/L36.md) (volumétrie corpus, pipeline ingestion, contrainte 2020/2026, test d'éval binaire, risques hétérogénéité sources)
 
 <a id="item-37"></a>
 - [ ] **37 — Affinage interactif de séquence (instruction prof + versions éphémères)** | Moyen | 1 session — chantier en cours 14/05
-  *Le prof pilote l'affinage par instruction libre ("phase 3 trop courte", "remplace par jeu de rôle"). Bouton "Affiner" + zone saisie texte/dictée + mini-pagination V1/V2/Vn. State React, perdu au refresh. Nouveau `POST /api/affiner-sequence`. Prérequis de [L35](SPECS_LEVIERS/DETAIL_LEVIER/L35.md).*
-  → [L37](SPECS_LEVIERS/DETAIL_LEVIER/L37.md)
+  *Le prof pilote l'affinage par instruction libre ("phase 3 trop courte", "remplace par jeu de rôle"). Bouton "Affiner" + zone saisie texte/dictée + mini-pagination V1/V2/Vn. State React, perdu au refresh. Nouveau `POST /api/affiner-sequence`. Prérequis de [L35](LEVIERS/L35.md).*
+  → [L37](LEVIERS/L37.md)
 
 <a id="item-38"></a>
 - [ ] **38 — Sortie séquence en JSON structuré (rendu pro)** | Moyen | 1 session — après 37
-  *Passe du markdown brut à un JSON typé + rendu React avec cartes par phase, badges durée, code couleur par type d'organisation. Migration douce (fallback markdown). Facilite [L37](SPECS_LEVIERS/DETAIL_LEVIER/L37.md) et [L35](SPECS_LEVIERS/DETAIL_LEVIER/L35.md).*
-  → [L38](SPECS_LEVIERS/DETAIL_LEVIER/L38.md)
+  *Passe du markdown brut à un JSON typé + rendu React avec cartes par phase, badges durée, code couleur par type d'organisation. Migration douce (fallback markdown). Facilite [L37](LEVIERS/L37.md) et [L35](LEVIERS/L35.md).*
+  → [L38](LEVIERS/L38.md)
 
 <a id="item-39"></a>
 - [ ] **39 — Switch provider séquence → Claude Sonnet 4.6** | Facile | 2h — après 38
   *Évaluer Claude Sonnet 4.6 vs Groq llama-3.3-70b sur la génération de séquences. Ajouter `anthropic_client.py` + toggle ou variable `AI_PROVIDER_SEQUENCE`. Coût ~3$/Mtok input à monitorer.*
-  → [L39](SPECS_LEVIERS/DETAIL_LEVIER/L39.md)
+  → [L39](LEVIERS/L39.md)
 
 ---
 
@@ -452,9 +452,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - **Recrutement profs pilotes via Facebook / Twitter-X** — Testé, décevant : algorithme, bruit, profil trop international pour un produit ancré dans l'Éducation nationale française. À reconsidérer si quelqu'un d'autre reprend la stratégie d'acquisition.
 
-- **Générateur de trajectoires multi-séances** — Extension naturelle de L1 (Mode 3). Quand L1 sera solide, ajouter "trajectoire sur plusieurs semaines" est l'évolution logique. Spec dans `SPECS_LEVIERS/Leviers_non_retenus.md`.
+- **Générateur de trajectoires multi-séances** — Extension naturelle de L1 (Mode 3). Quand L1 sera solide, ajouter "trajectoire sur plusieurs semaines" est l'évolution logique.
 
-- **Laboratoire de Simulation de Classe** — Le prof teste sa séance sur une classe virtuelle IA avant de la donner en vrai. Vision long terme : nécessite un moteur de simulation interactif, pas juste un générateur de documents. Spec dans `SPECS_LEVIERS/Leviers_non_retenus.md`.
+- **Laboratoire de Simulation de Classe** — Le prof teste sa séance sur une classe virtuelle IA avant de la donner en vrai. Vision long terme : nécessite un moteur de simulation interactif, pas juste un générateur de documents.
 
 - **Modal multi-actions (showConfirm Oui/Non)** (audit 15/05) — Le système actuel `showError(msg)` ne supporte qu'un bouton OK. Pattern à implémenter pour modales Oui/Non avec navigation (ex : *"Voulez-vous consulter l'aide ?"* depuis le message d'erreur micro refusé). Touche `errorDialog.js` + `App.jsx` (état modal enrichi) + propagation `onOpenAide` aux composants.
 
@@ -503,7 +503,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [x] **Fiabilisation fallback Groq (413/503)** | Livré 15/05
   *Bug : optimisation séquence renvoyait 413 "Request too large" car le 1er fallback `llama-3.1-8b-instant` (TPM 6000) ne tient pas une requête d'optim (~7400 tokens). Correctif `backend/groq_client.py` : (1) ordre du fallback inversé — `gpt-oss-120b` → `gpt-oss-20b` → `8b-instant` (le moins capable en dernier recours), (2) le fallback se déclenche aussi sur 413 et 503 (plus seulement 429), (3) nettoyage variable morte `last_error`. La génération de séquence (~4500 tokens) n'était pas affectée car elle tenait sous la limite.*
 
-- [x] **Refonte structure docs — 1 fichier par item dans `SPECS_LEVIERS/DETAIL_LEVIER/`** | Livré 15/05
+- [x] **Refonte structure docs — 1 fichier par item dans `LEVIERS/`** | Livré 15/05
   *39 fichiers créés (L*.md pour leviers pédagogiques, I*.md pour items techniques/admin). TRACKER allégé : sections détaillées remplacées par résumés courts + lien. Colonne "Détail" ajoutée au tableau global. Architecture transverse (Cat. A/B/C, mapping RAG) maintenue dans TRACKER.*
 
 - [x] **L5 — Analyseur de consignes** | Livré 14/05

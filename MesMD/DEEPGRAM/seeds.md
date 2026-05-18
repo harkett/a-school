@@ -216,7 +216,7 @@ Les deux seeds doivent être idempotents :
 - `stt_messages` : `ON CONFLICT(mode, code) DO UPDATE` pour refresh du contenu si modifié
 - `stt_keyterms_global` : `ON CONFLICT(term) DO NOTHING` (on ne touche pas un terme existant)
 
-Le script `backend/scripts/seed_stt.py` doit pouvoir être rejoué N fois sans effet de bord.
+Le script `backend/seed_stt.py` doit pouvoir être rejoué N fois sans effet de bord.
 
 ### 3.2 Évolutions Phase 2
 
