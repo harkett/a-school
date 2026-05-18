@@ -94,15 +94,21 @@ const IconStats = () => (
 
 const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'creer-sequence', 'mes-sequences', 'optimiseur', 'ambiguites', 'consigne', 'equite']
 const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
+const CREER_PAGES = ['creer-activite', 'creer-sequence']
+const HISTORIQUE_PAGES = ['mes-activites', 'mes-sequences']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
   const [outilsOpen, setOutilsOpen] = useState(() => MES_OUTILS_PAGES.includes(page))
   const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
+  const [creerOpen, setCreerOpen] = useState(() => CREER_PAGES.includes(page))
+  const [historiqueOpen, setHistoriqueOpen] = useState(() => HISTORIQUE_PAGES.includes(page))
 
   useEffect(() => {
     if (MES_OUTILS_PAGES.includes(page)) setOutilsOpen(true)
     if (MON_RESEAU_PAGES.includes(page)) setBiblioOpen(true)
+    if (CREER_PAGES.includes(page)) setCreerOpen(true)
+    if (HISTORIQUE_PAGES.includes(page)) setHistoriqueOpen(true)
   }, [page])
 
   const navItem = (id, label, Icon, title) => (
@@ -196,7 +202,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         ) : (
           <div>
             <button
-              onClick={() => setOutilsOpen(o => !o)}
+              onClick={() => { const next = !outilsOpen; setOutilsOpen(next); if (next) setCreerOpen(true) }}
               title="Mes outils pédagogiques — développer ou réduire le menu"
               className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
               style={{
@@ -218,19 +224,45 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
             {outilsOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
-                {subSectionLabel('Activité')}
-                {subNavItem('creer-activite', 'Créer', 'Créer une activité pédagogique')}
-                {subNavItem('mes-activites', 'Historique', 'Retrouver et recharger une activité précédemment générée')}
 
-                {subSectionLabel('Séquence')}
-                {subNavItem('creer-sequence', 'Créer', 'Créer une séquence pédagogique')}
-                {subNavItem('optimiseur', 'Optimiser', 'Optimiser une séquence existante')}
-                {subNavItem('mes-sequences', 'Historique', 'Retrouver et recharger une séquence précédemment générée')}
+                {/* Créer */}
+                <button
+                  onClick={() => setCreerOpen(o => !o)}
+                  title="Créer une activité ou une séquence pédagogique"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 0 3px 4px' }}
+                >
+                  <span>Créer</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    style={{ transform: creerOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s', marginRight: 2 }}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                {creerOpen && (
+                  <>
+                    {subNavItem('creer-activite', 'Activité', 'Créer une activité pédagogique')}
+                    {subNavItem('creer-sequence', 'Séquence', 'Créer une séquence pédagogique')}
+                  </>
+                )}
 
-                {subSectionLabel('Analyse')}
-                {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
-                {subNavItem('consigne', 'Consignes', "Analyser la qualité d'une consigne")}
-                {subNavItem('equite', 'Équité', "Auditer l'équité d'une évaluation")}
+                {/* Historique */}
+                <button
+                  onClick={() => setHistoriqueOpen(o => !o)}
+                  title="Historique de mes activités et séquences générées"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 0 3px 4px' }}
+                >
+                  <span>Historique</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    style={{ transform: historiqueOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s', marginRight: 2 }}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                {historiqueOpen && (
+                  <>
+                    {subNavItem('mes-activites', 'Activités', 'Retrouver et recharger mes activités générées')}
+                    {subNavItem('mes-sequences', 'Séquences', 'Retrouver et recharger mes séquences générées')}
+                  </>
+                )}
+
               </div>
             )}
           </div>
@@ -299,8 +331,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         }}>
           <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>En développement</div>
           <div style={{ color: '#3b82f6', lineHeight: 1.6 }}>
-            · Détecter les ambiguïtés<br/>
-            · Analyser une consigne
+            · Détecter les biais d'équité
           </div>
         </div>
       )}

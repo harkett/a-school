@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { showError } from '../errorDialog.js'
 
 const EXEMPLES = {
   'Français': () => `Lisez le texte et répondez aux questions suivantes.
@@ -105,14 +106,18 @@ function isTexteGibberish(t) {
   return suspect / words.length > 0.25
 }
 
-export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence }) {
+export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence, prefillTexte, onPrefillUsed }) {
   const mat = matiere || 'Français'
   const niv = niveau  || '4e'
 
   const [tab, setTab]             = useState('analyser')
-  const [texte, setTexte]         = useState('')
+  const [texte, setTexte]         = useState(prefillTexte || '')
+
+  useEffect(() => {
+    if (prefillTexte) onPrefillUsed?.()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [loading, setLoading]     = useState(false)
-  const [erreur, setErreur]       = useState(null)
+
   const [alertDialog, setAlertDialog] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [resultat, setResultat]   = useState(null)
@@ -127,7 +132,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
       setAlertDialog('Le texte saisi ne ressemble pas à un énoncé pédagogique.\n\nCollez un vrai exercice ou cliquez sur "Tester un exemple".')
       return
     }
-    setErreur(null)
     setResultat(null)
     setLoading(true)
     try {
@@ -145,7 +149,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
       setResultat(data)
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (e) {
-      setErreur(`Erreur : ${e.message}`)
+      showError(`Erreur : ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -153,7 +157,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
 
   function reinitialiser() {
     setResultat(null)
-    setErreur(null)
     setTexte('')
   }
 
@@ -267,12 +270,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
               </div>
             </div>
 
-            {/* Erreur API */}
-            {erreur && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '10px 14px', fontSize: '13px', color: '#dc2626' }}>
-                {erreur}
-              </div>
-            )}
 
             {/* Résultats */}
             {resultat && (

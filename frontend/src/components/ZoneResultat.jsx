@@ -46,7 +46,7 @@ async function telechargerWord(texte) {
   )
   paragraphs.push(new Paragraph({ children: [] }))
   paragraphs.push(new Paragraph({
-    children: [new TextRun({ text: 'Généré avec aSchool — school.afia.fr', color: '999999', size: 16 })],
+    children: [new TextRun({ text: 'Généré avec aSchool — aschool.fr', color: '999999', size: 16 })],
   }))
   const doc = new Document({
     sections: [{ properties: {}, children: paragraphs }],
@@ -68,7 +68,7 @@ function imprimer(texte) {
       @media print{.pied-aschool{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:10px;color:#aaa;padding:6px;border-top:1px solid #eee}}
       .pied-aschool{display:none}
     </style>
-    </head><body>${escaped}<div class="pied-aschool">Généré avec aSchool — school.afia.fr</div></body></html>
+    </head><body>${escaped}<div class="pied-aschool">Généré avec aSchool — aschool.fr</div></body></html>
   `)
   win.document.close()
   win.print()
@@ -76,12 +76,19 @@ function imprimer(texte) {
 
 function envoyerMail(texte, email) {
   const sujet = encodeURIComponent(`Activité aSchool — ${new Date().toLocaleDateString('fr-FR')}`)
-  const signature = '\n\n---\nGénéré avec aSchool — school.afia.fr — Créez votre compte gratuit'
+  const signature = '\n\n---\nGénéré avec aSchool — aschool.fr — Créez votre compte gratuit'
   const corps = encodeURIComponent(texte + signature)
   window.location.href = `mailto:${email}?subject=${sujet}&body=${corps}`
 }
 
-export default function ZoneResultat({ resultat, onRegenerer, loading, email }) {
+const IconSearch = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="8"/>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
+
+export default function ZoneResultat({ resultat, onRegenerer, loading, email, onAnalyserAmbiguites }) {
   if (!resultat && !loading) return null
 
   function handleRegenerer() {
@@ -123,6 +130,15 @@ export default function ZoneResultat({ resultat, onRegenerer, loading, email }) 
           >
             <IconMail /> E-mail
           </button>
+          {onAnalyserAmbiguites && resultat && (
+            <button
+              className="btn-secondary"
+              onClick={() => onAnalyserAmbiguites(resultat)}
+              title="Analyser les ambiguïtés cognitives de cette activité générée"
+            >
+              <IconSearch /> Ambiguïtés
+            </button>
+          )}
           <button
             className="btn-primary"
             onClick={handleRegenerer}

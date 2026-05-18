@@ -1,5 +1,6 @@
-﻿export default function Header({ matiere, email, prenom, nom, onLogout, onNavigate, onFeedback }) {
+﻿export default function Header({ matiere, niveau, email, prenom, nom, onLogout, onNavigate, onFeedback }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
+  const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
   const isMobile = window.innerWidth < 768
   return (
     <header
@@ -15,7 +16,7 @@
       <div className="flex items-center gap-4 text-sm">
         {!isMobile && <>
           <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-          <span style={{ color: 'white', fontWeight: 600 }}>{matiere}</span>
+          <span style={{ color: 'white', fontWeight: 600 }}>{matiereNiveau}</span>
           <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
         </>}
         <button
@@ -26,7 +27,7 @@
           {isMobile ? (
             <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
               <div style={{ fontWeight: 600, fontSize: '0.78rem', borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</div>
-              <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>{matiere}</div>
+              <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>{matiereNiveau}</div>
             </div>
           ) : (
             <span style={{ borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</span>

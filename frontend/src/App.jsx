@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react'
+import { registerErrorHandler } from './errorDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -19,6 +20,7 @@ import Accueil from './components/Accueil'
 import SequenceForm from './components/SequenceForm'
 import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
+import Consigne from './components/Consigne'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
 import Login from './pages/Login'
@@ -83,6 +85,7 @@ function MainApp() {
   const [page, setPage] = useState('accueil')
   const [prefillTheme, setPrefillTheme] = useState('')
   const [prefillSeq, setPrefillSeq] = useState(null)
+  const [prefillAmbiguites, setPrefillAmbiguites] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
   const [activites, setActivites] = useState([])
@@ -102,6 +105,10 @@ function MainApp() {
   const cdRef      = useRef(null)
   const warningRef = useRef(false)
   const resultatRef = useRef(null)
+
+  useEffect(() => {
+    registerErrorHandler((msg) => setAlertDialog(msg))
+  }, [])
 
   useEffect(() => {
     function arm() {
@@ -199,6 +206,16 @@ function MainApp() {
     setParams(newParams)
   }
 
+  // Resynchronise params.niveau quand user.niveau change (sauvegarde profil)
+  // — sans ce useEffect, params.niveau reste figé à la valeur du mount.
+  useEffect(() => {
+    if (user?.niveau && user.niveau !== params.niveau) {
+      setParams(p => ({ ...p, niveau: user.niveau }))
+      localStorage.setItem('aschool_niveau', user.niveau)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.niveau])
+
   useEffect(() => {
     fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}`, {}, TIMEOUT_STD)
       .then(r => r.json())
@@ -213,7 +230,7 @@ function MainApp() {
           }))
         }
       })
-      .catch(() => setErreur('Impossible de charger les activités — vérifiez que le backend tourne.'))
+      .catch(() => setAlertDialog('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere])
 
   function isTexteGibberish(t) {
@@ -297,7 +314,7 @@ function MainApp() {
         }),
       }).catch(() => {})
     } catch (e) {
-      setErreur(`Erreur : ${e.message}`)
+      setAlertDialog(`Erreur : ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -348,6 +365,7 @@ function MainApp() {
 
       <Header
         matiere={matiereLabel}
+        niveau={params.niveau}
         email={user?.email}
         prenom={user?.prenom}
         nom={user?.nom}
@@ -359,13 +377,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
-          {erreur && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm">
-              {erreur}
-            </div>
-          )}
-
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -547,8 +559,7 @@ function MainApp() {
                             <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Séquence</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               {[
-                                { label: 'Créer une séquence',    desc: 'Objectif pédagogique → séquence structurée',  action: () => setPage('creer-sequence') },
-                                { label: 'Améliorer une séquence', desc: 'Séquence existante → corrigée et optimisée', action: () => setPage('optimiseur') },
+                                { label: 'Créer une séquence', desc: 'Objectif pédagogique → séquence structurée', action: () => setPage('creer-sequence') },
                               ].map((t, i) => (
                                 <button key={i} onClick={t.action} title={t.label}
                                   style={{ width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer', textAlign: 'left' }}>
@@ -606,48 +617,21 @@ function MainApp() {
                       {/* ── SÉQUENCE ── */}
                       <div>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Séquence</div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-
-                          {/* Créer une séquence */}
-                          <div onClick={() => selectCard('sequence')}
-                            style={{ flex: 1, background: '#fff', border: `${selectedCard === 'sequence' ? '2' : '1'}px solid ${selectedCard === 'sequence' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'sequence' ? 'var(--bordeaux)' : '#1e293b' }}>Créer une séquence</span>
-                              {selectedCard === 'sequence' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
-                            </div>
-                            <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5, flex: 1 }}>
-                              Un objectif pédagogique → séquence complète structurée de A à Z
-                            </p>
-                            <div className="flex justify-end" style={{ marginTop: 'auto' }}>
-                              <button className="btn-primary"
-                                onClick={e => { e.stopPropagation(); setPage('creer-sequence') }}
-                                title="Commencer à créer une séquence pédagogique">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                                Commencer
-                              </button>
-                            </div>
+                        <div
+                          onClick={() => setPage('creer-sequence')}
+                          style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une séquence</span>
+                          <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+                            Un objectif pédagogique → séquence complète structurée de A à Z
+                          </p>
+                          <div className="flex justify-end" style={{ marginTop: 'auto' }}>
+                            <button className="btn-primary"
+                              onClick={e => { e.stopPropagation(); setPage('creer-sequence') }}
+                              title="Commencer à créer une séquence pédagogique">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                              Commencer
+                            </button>
                           </div>
-
-                          {/* Améliorer une séquence */}
-                          <div onClick={() => selectCard('optimiseur')}
-                            style={{ flex: 1, background: '#fff', border: `${selectedCard === 'optimiseur' ? '2' : '1'}px solid ${selectedCard === 'optimiseur' ? 'var(--bordeaux)' : '#e2e8f0'}`, borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '13px', fontWeight: 700, color: selectedCard === 'optimiseur' ? 'var(--bordeaux)' : '#1e293b' }}>Améliorer une séquence</span>
-                              {selectedCard === 'optimiseur' && <span style={{ fontSize: '10px', background: 'var(--bordeaux)', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Vous y êtes</span>}
-                            </div>
-                            <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5, flex: 1 }}>
-                              Collez une séquence existante → aSchool la corrige et l'optimise
-                            </p>
-                            <div className="flex justify-end" style={{ marginTop: 'auto' }}>
-                              <button className="btn-primary"
-                                onClick={e => { e.stopPropagation(); setPage('optimiseur') }}
-                                title="Commencer à améliorer une séquence pédagogique existante">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                                Commencer
-                              </button>
-                            </div>
-                          </div>
-
                         </div>
                       </div>
 
@@ -786,6 +770,7 @@ function MainApp() {
                       onRegenerer={generer}
                       loading={loading}
                       email={user?.email}
+                      onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
                     />
                   </div>
                 </>
@@ -897,20 +882,17 @@ function MainApp() {
               niveau={params.niveau}
               onNavigate={setPage}
               onCreateSequence={(reformulation) => { setPrefillTheme(reformulation); setPage('creer-sequence') }}
+              prefillTexte={prefillAmbiguites}
+              onPrefillUsed={() => setPrefillAmbiguites('')}
             />
           )}
 
           {page === 'consigne' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>Analyseur de qualité des consignes</div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: 0, maxWidth: '400px', lineHeight: 1.6 }}>
-                Outil en cours de développement.
-              </p>
-              <button onClick={() => setPage('mes-outils')} title="Retour au menu Mes outils"
-                style={{ fontSize: '12px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '5px 14px', cursor: 'pointer' }}>
-                ← Retour aux outils
-              </button>
-            </div>
+            <Consigne
+              matiere={sessionMatiere}
+              niveau={params.niveau}
+              onNavigate={setPage}
+            />
           )}
 
           {page === 'equite' && (

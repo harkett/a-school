@@ -32,8 +32,11 @@ async def ocr(file: UploadFile):
         if len(texte.strip()) < 50:
             raise HTTPException(
                 422,
-                "PDF scanné détecté — ce PDF ne contient pas de texte sélectionnable. "
-                "Exportez-le en image JPG/PNG et utilisez le bouton Image."
+                "Ce PDF a été scanné en choisissant l'option PDF — même s'il contient du texte "
+                "à vos yeux lisible, ce rendu de scanner reste une photo, une image, donc non "
+                "exploitable comme un PDF numérique généré par un outil PDF.\n\n"
+                "Pour ce genre de document, scannez-le au format image puis utilisez plutôt "
+                "le bouton « Image / Scan »."
             )
         return {"texte": texte}
 

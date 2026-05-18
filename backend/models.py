@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 
 class GenerateRequest(BaseModel):
@@ -14,3 +14,4 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     resultat: str
+    chunks: Optional[List[Dict[str, Any]]] = None  # populated only when RAG used — V2: filtrer selon rôle utilisateur si corpus internes

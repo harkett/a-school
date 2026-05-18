@@ -2678,11 +2678,43 @@ def _build_few_shot_prefix(exemples: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _build_rag_prefix(chunks: list[dict]) -> str:
+    """Préfixe RAG injecté en tête du prompt — chunks programme officiel MEN.
+    Ton prescriptif : forcer le LLM à ancrer sa réponse sur les chunks et à citer
+    le vocabulaire institutionnel (compétences, connaissances, attendus, cycle 4).
+    Wording renforcé le 15/05/2026 après test canary validé — sans cela, le LLM
+    préfère ses connaissances pré-entraînées et ignore les chunks."""
+    lines = [
+        "## Contexte officiel obligatoire — Programme MEN cycle 4",
+        "",
+        "Tu DOIS ancrer ta réponse sur les extraits ci-dessous. Utilise le vocabulaire",
+        "institutionnel du programme (« compétences associées », « connaissances »,",
+        "« attendus de fin de cycle 4 ») et cite explicitement au moins un élément",
+        "du programme officiel quand c'est pertinent. Indique tes sources entre",
+        "crochets : [Source: ..., page ...].",
+        "",
+    ]
+    for c in chunks:
+        page = c.get("page", "?")
+        source = c.get("source", "?")
+        programme = c.get("programme", "?")
+        text = (c.get("text") or "").strip()
+        lines.append(f"[Source: {source}, programme {programme}, page {page}]")
+        lines.append(text)
+        lines.append("")
+    lines.append("---")
+    lines.append("")
+    lines.append("## Tâche")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_prompt(
     activite: str,
     texte: str,
     avec_correction: bool = False,
     exemples: list[str] | None = None,
+    rag_chunks: list[dict] | None = None,
     **kwargs,
 ) -> str:
     all_prompts = {**PROMPTS, **PROMPTS_HISTGEO, **PROMPTS_AUTRES}
@@ -2690,6 +2722,8 @@ def build_prompt(
     prompt = template.format(texte=texte, **kwargs)
     if exemples:
         prompt = _build_few_shot_prefix(exemples) + prompt
+    if rag_chunks:
+        prompt = _build_rag_prefix(rag_chunks) + prompt
     if avec_correction:
         prompt += SUFFIXE_CORRECTION
     return prompt

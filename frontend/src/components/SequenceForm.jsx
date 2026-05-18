@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { showError } from '../errorDialog.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
 const _LYCEE   = ['Seconde', '1ère', 'Terminale', 'CAP', 'Bac Pro']
@@ -130,10 +131,13 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
   const [mode, setMode]             = useState('standard')
   const [descClasse, setDescClasse] = useState('')
   const [loading, setLoading]       = useState(false)
-  const [erreur, setErreur]         = useState(null)
+
   const [resultat, setResultat]     = useState(null)
   const [copied, setCopied]         = useState(false)
   const [saved, setSaved]           = useState(false)
+  const [optimLoading, setOptimLoading] = useState(false)
+  const [confirmOptim, setConfirmOptim] = useState(false)
+  const [scoreOptim, setScoreOptim]     = useState(null)
   const resultRef = useRef(null)
 
   async function generer() {
@@ -145,9 +149,9 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       setAlertDialog('Décrivez la situation de votre classe pour utiliser le mode remédiation.')
       return
     }
-    setErreur(null)
     setResultat(null)
     setSaved(false)
+    setScoreOptim(null)
     setLoading(true)
     try {
       const res = await fetchWithTimeout('/api/generate-sequence', {
@@ -164,7 +168,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       setResultat(data.resultat)
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (e) {
-      setErreur(`Erreur : ${e.message}`)
+      showError(`Erreur : ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -176,6 +180,32 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function optimiserSequence() {
+    setConfirmOptim(false)
+    setOptimLoading(true)
+    try {
+      const res = await fetchWithTimeout('/api/optimize-sequence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sequence: resultat, matiere, niveau }),
+      }, TIMEOUT_GROQ)
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || `Erreur ${res.status}`)
+      }
+      const data = await res.json()
+      setTheme(data.sequence_optimisee)
+      setResultat(null)
+      setScoreOptim(null)
+      setSaved(false)
+    } catch (e) {
+      showError(`Erreur optimisation : ${e.message}`)
+    } finally {
+      setOptimLoading(false)
+    }
   }
 
   async function sauvegarder() {
@@ -199,7 +229,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch {
-      setErreur('Erreur lors de la sauvegarde.')
+      showError('Erreur lors de la sauvegarde.')
     }
   }
 
@@ -233,11 +263,11 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
             className="btn-primary"
             onClick={generer}
             disabled={loading}
-            title="Lancer la génération de la séquence avec aSchool"
+            title={scoreOptim ? "Relancer la génération avec les optimisations appliquées" : "Lancer la génération de la séquence avec aSchool"}
             style={{ marginLeft: 'auto', marginRight: 8 }}
           >
             {loading ? <Spinner /> : <IconGenerer />}
-            {loading ? 'Génération en cours…' : 'Générer la séquence'}
+            {loading ? 'Génération en cours…' : scoreOptim ? 'Générer la séquence optimisée' : 'Générer la séquence'}
           </button>
         )}
       </div>
@@ -373,7 +403,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                   </button>
                 </span>
                 {resultat && (
-                  <button onClick={() => { setResultat(null); setErreur(null); setSaved(false) }}
+                  <button onClick={() => { setResultat(null); setSaved(false) }}
                     title="Effacer le résultat et créer une nouvelle séquence"
                     style={{ padding: '5px 12px', fontSize: '12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>
                     Nouvelle séquence
@@ -383,19 +413,21 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
 
             </div>
 
-            {erreur && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '10px 14px', fontSize: '13px', color: '#dc2626' }}>
-                {erreur}
-              </div>
-            )}
 
             {resultat && (
               <div ref={resultRef} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Séquence générée
-                  </span>
-                  <div style={{ display: 'flex', gap: '7px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {scoreOptim ? 'Séquence optimisée' : 'Séquence générée'}
+                    </span>
+                    {scoreOptim && (
+                      <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: '#f0f7ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                        {scoreOptim}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
                     <button onClick={copier} title="Copier la séquence dans le presse-papier"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
                         background: copied ? '#dcfce7' : '#f1f5f9', color: copied ? '#166534' : '#475569',
@@ -409,6 +441,23 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                         border: `1px solid ${saved ? '#86efac' : '#fca5a5'}`, borderRadius: '5px', cursor: 'pointer', fontWeight: 600 }}>
                       <IconSave />
                       {saved ? 'Sauvegardé' : 'Sauvegarder'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmOptim(true)}
+                      disabled={optimLoading}
+                      title="Optimiser cette séquence — analyse 6 critères pédagogiques et propose une version améliorée"
+                      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
+                        background: optimLoading ? '#f8fafc' : '#f0f7ff',
+                        color: optimLoading ? '#94a3b8' : '#1d4ed8',
+                        border: `1px solid ${optimLoading ? '#e2e8f0' : '#bfdbfe'}`,
+                        borderRadius: '5px', cursor: optimLoading ? 'default' : 'pointer' }}>
+                      {optimLoading ? <Spinner /> : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="23 4 23 10 17 10"/>
+                          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                      )}
+                      {optimLoading ? 'Optimisation…' : 'Optimiser'}
                     </button>
                   </div>
                 </div>
@@ -469,6 +518,27 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         )}
 
       </div>
+
+      {/* ── Dialog confirmation optimisation ── */}
+      {confirmOptim && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6 }}>
+              L'optimisation va <strong>remplacer votre séquence actuelle</strong> par une version améliorée.<br/><br/>Continuer ?
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button onClick={() => setConfirmOptim(false)} title="Annuler l'optimisation"
+                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={optimiserSequence} title="Lancer l'optimisation de la séquence"
+                style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                Optimiser
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Dialog validation ── */}
       {alertDialog && (

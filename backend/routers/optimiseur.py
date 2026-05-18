@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog
-from src.config import AI_API_KEY, AI_MODEL, AI_PROVIDER
+from src.config import AI_MODEL, AI_PROVIDER
+from backend.groq_client import call_groq
 
 router = APIRouter()
 
@@ -54,7 +55,7 @@ Format de réponse — JSON strict, rien d'autre autour :
     {{"type": "Rupture conceptuelle", "detail": "description précise et concrète du problème détecté"}},
     {{"type": "Surcharge cognitive", "detail": "..."}}
   ],
-  "sequence_optimisee": "La séquence réécrite avec les phases structurées (Phase 1 — Nom (durée) : ...), les consignes clarifiées et les problèmes corrigés.",
+  "sequence_optimisee": "# Séance : [titre]\n**Matière :** ... | **Niveau :** ... | **Durée :** ... min\n\n---\n\n## Phase 1 — [Nom] ([X] min)\n**Objectif :** ...\n**Déroulement :** ...\n**Organisation :** ...\n\n## Phase 2 — [Nom] ([X] min)\n...",
   "score": "Bon|Moyen|À revoir — X problème(s) détecté(s)",
   "avertissement": "Message optionnel si incohérence détectée — sinon ne pas inclure ce champ."
 }}
@@ -63,6 +64,7 @@ Règles :
 - N'inclure dans "problemes" que les critères réellement problématiques. Ignorer les critères sans problème.
 - Si la séquence est déjà de bonne qualité, "problemes" est une liste vide [].
 - La séquence optimisée conserve la structure générale du prof. Elle corrige les problèmes détectés sans tout réécrire de zéro.
+- Le champ sequence_optimisee doit contenir le texte complet avec les vrais sauts de ligne (\\n) entre chaque phase — exactement le même format markdown que la séquence originale soumise.
 - Si la séquence soumise ne correspond manifestement pas à la matière {matiere} (ex : contenu de Français soumis pour Mathématiques, exercice de sport soumis pour Philosophie), remplis le champ "avertissement" avec un message court et précis signalant l'incohérence. Sinon, n'inclus pas ce champ.
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
@@ -77,20 +79,13 @@ def _get_email(aschool_access: str | None) -> str:
 
 
 def _call_groq(prompt: str) -> str:
-    import requests
-    headers = {"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"}
-    body = {
+    return call_groq({
         "model": AI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4000,
-    }
-    r = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers=headers, json=body, timeout=90,
-    )
-    if not r.ok:
-        raise RuntimeError(f"Erreur Groq {r.status_code}: {r.text}")
-    return r.json()["choices"][0]["message"]["content"]
+        "max_tokens": 6000,
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+    })
 
 
 def _parse_json(raw: str) -> dict:

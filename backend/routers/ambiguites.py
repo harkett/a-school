@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog
-from src.config import AI_API_KEY, AI_MODEL, AI_PROVIDER
+from src.config import AI_MODEL, AI_PROVIDER
+from backend.groq_client import call_groq
 
 router = APIRouter()
 
@@ -79,20 +80,11 @@ def _get_email(aschool_access: str | None) -> str:
 
 
 def _call_groq(prompt: str) -> str:
-    import requests
-    headers = {"Authorization": f"Bearer {AI_API_KEY}", "Content-Type": "application/json"}
-    body = {
+    return call_groq({
         "model": AI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 3000,
-    }
-    r = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers=headers, json=body, timeout=90,
-    )
-    if not r.ok:
-        raise RuntimeError(f"Erreur Groq {r.status_code}: {r.text}")
-    return r.json()["choices"][0]["message"]["content"]
+    })
 
 
 def _parse_json(raw: str) -> dict:

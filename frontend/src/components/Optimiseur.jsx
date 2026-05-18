@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { showError } from '../errorDialog.js'
 
 const EXEMPLES = {
   'Français': (n) => `Séquence — Français, ${n} — La nouvelle réaliste au XIXe siècle\n\nPhase 1 — Évaluation finale (50 min)\nLes élèves rédigent une analyse littéraire complète d'une nouvelle de Maupassant : introduction, développement en 3 parties (contexte, caractéristiques du réalisme, procédés stylistiques), conclusion.\n\nPhase 2 — Présentation du genre (20 min)\nCours magistral sur la nouvelle réaliste : définition, auteurs majeurs, vocabulaire (incipit, chute, ellipse temporelle, focalisation). Distribution d'un tableau récapitulatif.\n\nPhase 3 — Lecture analytique (45 min)\nLecture d'un extrait de "Boule de Suif". Questions écrites de compréhension et d'analyse. Mise en commun orale de 5 minutes.\n\nPhase 4 — Exercice d'écriture (30 min)\nRédaction d'une chute de nouvelle réaliste. Contrainte : 15 à 20 lignes, utiliser au moins 2 procédés étudiés.`,
@@ -102,7 +103,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
   const [tab, setTab]             = useState('ameliorer')
   const [sequence, setSequence]   = useState('')
   const [loading, setLoading]     = useState(false)
-  const [erreur, setErreur]       = useState(null)
+
   const [alertDialog, setAlertDialog] = useState(null)
   const [resultat, setResultat]   = useState(null)
   const [copied, setCopied]       = useState(false)
@@ -117,7 +118,6 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
       setAlertDialog('Le texte saisi ne ressemble pas à une séquence pédagogique.\n\nCollez une vraie séquence ou cliquez sur "Tester un exemple".')
       return
     }
-    setErreur(null)
     setResultat(null)
     setLoading(true)
     try {
@@ -135,7 +135,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
       setResultat(data)
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (e) {
-      setErreur(`Erreur : ${e.message}`)
+      showError(`Erreur : ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -151,7 +151,6 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
 
   function reinitialiser() {
     setResultat(null)
-    setErreur(null)
     setSequence('')
   }
 
@@ -268,12 +267,6 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
               </div>
             </div>
 
-            {/* Erreur API */}
-            {erreur && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '10px 14px', fontSize: '13px', color: '#dc2626' }}>
-                {erreur}
-              </div>
-            )}
 
             {/* Résultats */}
             {resultat && (
