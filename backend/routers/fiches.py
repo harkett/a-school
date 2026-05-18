@@ -148,7 +148,7 @@ def _render_html(fiche: FicheMatiere, activites: dict) -> str:
   {logo_img}
   <div>
     <h1>aSchool — {matiere}</h1>
-    <p>Générateur d'activités pédagogiques · school.afia.fr</p>
+    <p>Générateur d'activités pédagogiques · aschool.fr</p>
   </div>
 </div>
 
@@ -191,7 +191,7 @@ def _render_html(fiche: FicheMatiere, activites: dict) -> str:
       <div class="av"><strong>Adapté</strong><span>Le contenu s'ajuste de la 6e à la Terminale</span></div>
       <div class="av"><strong>Prêt</strong><span>Export Word — imprimez sans mise en forme</span></div>
       <div class="av"><strong>Flexible</strong><span>{nb} types × plusieurs sous-types = des centaines de combinaisons</span></div>
-      <div class="av"><strong>Gratuit</strong><span>Inscription libre sur school.afia.fr</span></div>
+      <div class="av"><strong>Gratuit</strong><span>Inscription libre sur aschool.fr</span></div>
       <div class="av"><strong>Privé</strong><span>Vos textes ne sont ni stockés ni partagés</span></div>
     </div>
   </div>
@@ -205,7 +205,7 @@ def _render_html(fiche: FicheMatiere, activites: dict) -> str:
 <div class="doc-footer">
   {logo_img}
   <p>
-    <strong>school.afia.fr</strong> · Inscription gratuite<br>
+    <strong>aschool.fr</strong> · Inscription gratuite<br>
     <a href="mailto:contact@aschool.fr">contact@aschool.fr</a> · Développé par AFIA
   </p>
 </div>

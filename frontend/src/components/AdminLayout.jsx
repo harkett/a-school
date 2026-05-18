@@ -485,7 +485,7 @@ export default function AdminLayout() {
             <span style={{ color: '#A63045', fontWeight: 700 }}>A</span>-SCHOOL — Administration
           </span>
           <span style={{ fontSize: 11, color: '#94a3b8' }}>
-            © {new Date().getFullYear()} AFIA — school.afia.fr
+            © {new Date().getFullYear()} AFIA — aschool.fr
           </span>
         </footer>
       </main>

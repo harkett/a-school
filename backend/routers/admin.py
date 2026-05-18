@@ -46,7 +46,7 @@ SETTING_DEFAULTS = {
         "Votre compte aSchool est maintenant actif !\n\n"
         "aSchool est votre assistant pédagogique : générez des activités adaptées à votre matière "
         "et à vos élèves en quelques secondes.\n\n"
-        "Connectez-vous dès maintenant sur school.afia.fr\n\n"
+        "Connectez-vous dès maintenant sur aschool.fr\n\n"
         "Parlez-en à vos collègues — plus on est nombreux, plus aSchool s'améliore !\n\n"
         "Bonne utilisation,\nL'équipe aSchool"
     ),

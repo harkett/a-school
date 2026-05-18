@@ -349,7 +349,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
       </div>
 
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        aSchool · school.afia.fr · {footer_note}
+        aSchool · aschool.fr · {footer_note}
       </p>
     </div>
     """
@@ -427,7 +427,7 @@ def send_feedback_update_notification(prof: dict, message: str, category: str | 
 
 def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
     """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels."""
-    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    app_url = os.getenv("APP_URL", "https://aschool.fr")
     from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     nom_prenom = prenom or "cher(e) enseignant(e)"
     body_rendered = body.replace("{prenom}", nom_prenom).replace("{email}", email)
@@ -460,7 +460,7 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
         </a>
       </div>
       <p style="color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:1rem;">
-        aSchool · school.afia.fr
+        aSchool · aschool.fr
       </p>
     </div>
     """
@@ -471,7 +471,7 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
 
 
 def send_reset_email(email: str, token: str):
-    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    app_url = os.getenv("APP_URL", "https://aschool.fr")
     from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     link = f"{app_url}/reset-password?token={token}"
 
@@ -558,7 +558,7 @@ def send_admin_new_user_notification(email: str, subject: str | None):
         </tr>
       </table>
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        aSchool · school.afia.fr
+        aSchool · aschool.fr
       </p>
     </div>
     """
@@ -568,7 +568,7 @@ def send_admin_new_user_notification(email: str, subject: str | None):
 
 
 def send_verification_email(email: str, token: str):
-    app_url = os.getenv("APP_URL", "https://school.afia.fr")
+    app_url = os.getenv("APP_URL", "https://aschool.fr")
     from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     link = f"{app_url}/verify-email?token={token}"
 

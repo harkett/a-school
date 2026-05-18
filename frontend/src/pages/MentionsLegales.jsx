@@ -20,7 +20,7 @@ export default function MentionsLegales() {
 
           <Section titre="Hébergement">
             <p>Ce site est hébergé sur un serveur privé virtuel (VPS) exploité par <strong>AFIA</strong>.</p>
-            <p>Adresse : <strong>school.afia.fr</strong></p>
+            <p>Adresse : <strong>aschool.fr</strong></p>
           </Section>
 
           <Section titre="Propriété intellectuelle">

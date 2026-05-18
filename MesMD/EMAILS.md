@@ -71,7 +71,7 @@ SMTP_PASSWORD=***
 SMTP_FROM=aSchool <contact@aschool.fr>
 FEEDBACK_FROM=aSchool Feedback <feedback@aschool.fr>
 FEEDBACK_NOTIFY_EMAIL=contact@aschool.fr
-APP_URL=https://school.afia.fr
+APP_URL=https://aschool.fr
 ```
 
 > **Note dev :** contrairement à Django, il n'y a pas de `EMAIL_BACKEND=console`.
@@ -135,9 +135,9 @@ Bonjour,
 Collez un texte, choisissez le type d'activité et le niveau —
 vous obtenez un exercice complet en 10 secondes.
 
-→ Créez votre compte gratuit sur school.afia.fr
+→ Créez votre compte gratuit sur aschool.fr
 
-— aSchool — school.afia.fr
+— aSchool — aschool.fr
 ```
 
 ### Signature dans le `mailto:` — Phase 1 S1
@@ -147,7 +147,7 @@ Le bouton "Envoyer par e-mail" ouvre le client mail du prof avec l'activité en 
 
 ```
 --
-Généré avec aSchool — school.afia.fr — Créez votre compte gratuit
+Généré avec aSchool — aschool.fr — Créez votre compte gratuit
 ```
 
 ---

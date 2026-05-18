@@ -43,7 +43,7 @@ def _send_alert_email(level: str, title: str, message: str):
       <p style="font-size:1rem;font-weight:600;color:#1e293b;">{icon} {title}</p>
       <p style="color:#475569;line-height:1.6;">{message}</p>
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC · school.afia.fr
+        {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC · aschool.fr
       </p>
     </div>
     """
