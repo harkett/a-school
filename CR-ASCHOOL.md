@@ -18,7 +18,7 @@ Chaque fait ci-dessous est vérifié, sauf mention explicite `⚠️ NON VÉRIFI
 
 ## 0. Synthèse en une phrase
 
-Le **produit est mature et complet en local**, mais **`main` est à +33 commits de `origin/main` (dernier commit le 18/05)** : une grande partie de ce qui est documenté « livré » **n'est pas déployé en production**. Le projet est gelé au milieu du chantier Deepgram. La saturation n'est pas technique — elle est dans l'écart entre l'état local, l'état déployé et l'état documenté.
+Le **produit est mature et complet en local**, mais **`main` est à +33 commits de `origin/main` (dernier commit le 18/05)** : une grande partie de ce qui est documenté « livré » **n'est pas déployé en production**. Ce non-déploiement est une **décision délibérée** (voir ci-dessous) : une version stable tourne déjà en prod, et les push sont gelés volontairement depuis que le dev s'est mis à buguer. La saturation n'est donc pas dans le gel lui-même (sain) — elle est dans l'**accumulation de chantiers non résolus** qui empêche de rouvrir le déploiement, et dans l'écart entre l'état documenté (« livré ») et l'état réellement stabilisé.
 
 ---
 
@@ -45,9 +45,10 @@ Cœur produit codé, câblé, cohérent. 18 routers montés + 2 routes inline, ~
 
 ## 2. Ce qui est COMMENCÉ mais PAS FINI
 
-### 🔴 Écart prod ↔ local — le fait le plus important
-**`main` est à +33 commits de `origin/main`, dernier commit le 18/05/2026**, plus des modifications non commitées. La prod (`aschool.fr`) se déploie depuis `origin/main`.
-**Conséquence :** tout le travail depuis mi-mai — RAG, fallback Groq, errorDialog, L5, optimiseur inline, finalisation branding, **et l'intégralité du chantier Deepgram** — **n'est pas déployé**. Ce que les docs disent « livré » est livré *en local*.
+### 🔴 Écart prod ↔ local — gel volontaire des push (décision assumée)
+**`main` est à +33 commits de `origin/main`, dernier commit le 18/05/2026** (hors ce CR), plus des modifications non commitées. La prod (`aschool.fr`) se déploie depuis `origin/main`.
+**Contexte (important) :** une **version stable est déjà en production** (push antérieurs). Depuis que le dev a commencé à buguer, **les push ont été gelés volontairement** — aucun push tant que les problèmes ne sont pas résolus. C'est une **décision saine** : on protège la prod stable, utilisée par de vrais profs, d'un dev instable.
+**Conséquence factuelle (pas un reproche) :** tout le travail depuis mi-mai — RAG, fallback Groq, errorDialog, L5, optimiseur inline, finalisation branding, **et l'intégralité du chantier Deepgram** — **n'est pas déployé**. Ce que les docs disent « livré » est livré *en local*. L'enjeu n'est donc pas de pousser maintenant, mais de **stabiliser pour pouvoir rouvrir le déploiement** — c'est l'objet de ce CR.
 
 ### 🔴 Dictée Deepgram — code complet, jamais validé, non déployé
 - Code présent et câblé : WebSocket `/api/transcribe/stream` (`backend/routers/transcribe.py`, montée), hook `frontend/src/hooks/useTranscribeStream.js`, bouton dans `frontend/src/components/TexteSource.jsx`.
@@ -101,7 +102,7 @@ Ce sont des scripts standalone (`python test_x.py`), pas une suite pytest.
 
 Le système documentaire est cohérent et discipliné — **le problème n'est pas le désordre, c'est la trajectoire** :
 
-1. **33 commits non poussés depuis le 18/05.** L'écart prod ↔ local est devenu un gouffre. La règle « pas de push sans validation » (saine) + l'accumulation = **paralysie de déploiement**.
+1. **33 commits non poussés depuis le 18/05 — gel volontaire et assumé.** Les push sont gelés **par décision** (prod stable à protéger, dev devenu instable), pas par négligence. Ce n'est donc pas une « paralysie » : c'est un choix sain. Le vrai sujet est en amont — **l'accumulation de chantiers non résolus** (Deepgram, bugs, dette) qui doit être traitée avant de pouvoir rouvrir le déploiement.
 2. **Un seul goulot gèle tout** : Deepgram (D09) bloque D12 + D13 → bloque la validation pilotes → qui est l'objectif de la phase actuelle ([PLAN_LANCEMENT](MesAdmin/PLAN_LANCEMENT_ASCHOOL.md) : 10 inscrits / 100 activités visés mai 2026).
 3. **Décalage de phase** : le produit est en **phase de lancement** (recrutement pilotes en cours), mais l'énergie va dans l'ingénierie (Deepgram, RAG) plutôt que « déployer + faire valider par 3 profs ». Symptôme : `PLAN_LANCEMENT §10` est périmé (liste partage / export PDF / matières comme « à faire » alors qu'ils sont livrés).
 4. **Build-ahead** : RAG (1/96), L37 dormant, corpus MEN — fondations posées avant le besoin prouvé par les pilotes.
