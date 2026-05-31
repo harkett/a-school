@@ -3,13 +3,15 @@
 > Vue d'ensemble. Détail dans chaque `Dxx.md` du dossier courant.
 > Mise à jour : fin de chaque session.
 
-**Date :** 2026-05-18 · **Version :** 3.2.9 · **Focus :** Deepgram Phase 3.2
+**Date :** 2026-05-31 · **Version :** 3.2.9 · **Focus :** Dictée Groq batch stabilisée (Deepgram gelé)
 
 ---
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)
 
-**Action immédiate : ligne 1 de "Chantiers vivants" ci-dessous = [D09](D09/D09.md)** — runs vocaux Phase 3.2 dans Edge selon protocole. Débloque la case "Dictée vocale" de [D12](D12.md) et débloque le push v3.3.0.
+**Dictée vocale = stabilisée (31/05).** Retour à Groq Whisper batch + fix 400 + retour visuel temps réel (visualiseur de volume + chrono). Détail : [D15](D15.md). **Deepgram streaming = gelé**, isolé sur la branche `wip/deepgram-streaming` (amélioration future, rien perdu) → la Phase 3.2 / [D09](D09/D09.md) **n'est plus le focus**.
+
+**Prochain chantier business** : reprendre [D12](D12.md) (Activité 100% fonctionnel) — la case « dictée » y est désormais cochée.
 
 ---
 
@@ -19,13 +21,12 @@
 
 | Ordre | Item | État | Détail |
 |---|---|---|---|
-| 1 | **Chantier Deepgram Phase 3.2** | Phase 3.2 ouverte · runs vocaux R0→R6 · débloque dictée D12 + push v3.3.0 | [D09](D09/D09.md) |
+| 1 | **Dictée — Groq batch stabilisée** ✅ | Revert Deepgram→Groq batch + fix 400 + retour visuel (31/05) · Deepgram gelé sur `wip/deepgram-streaming` | [D15](D15.md) |
 | 2 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](D07.md) |
 | 3 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · attend D09 partiel pour case dictée | [D12](D12.md) |
 | 4 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](D13.md) |
-| 5 | **Branding MesAdmin** (~22 occurrences) | À traiter avant scale public (PLAN_LANCEMENT, DIFFUSION) | [D08](D08.md) |
-| 6 | 🛠️ DOC — **Dégraissage TRACKER.md** (586 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
-| 7 | 🛠️ DOC — **Dégraissage duplications roadmap/pilotage Deepgram** | Session dédiée · non bloquant | [D10](D10.md) |
+| 5 | 🛠️ DOC — **Dégraissage TRACKER.md** (586 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
+| 6 | 🛠️ DOC — **Dégraissage duplications roadmap/pilotage Deepgram** | Session dédiée · non bloquant | [D10](D10.md) |
 
 ## Checklist avant modification
 
@@ -35,6 +36,10 @@
 - [ ] Confirmer avec l'équipe avant action destructive ou multi-fichiers
 
 ---
+
+## Livré, à committer (fin de session 19/05)
+
+- **D08** — Dette branding `school.afia.fr` → `aschool.fr` : 44/44 corrigées (24 le 18/05 déjà commitées + 20 `MesAdmin/` le 19/05 **à commit**). Voir [D08](D08.md). Commit ciblé : `chore(branding): finaliser MesAdmin/`.
 
 ## Fiches livrées + commitées (à archiver dans TRACKER FAIT lors du dégraissage D11)
 

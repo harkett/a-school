@@ -16,11 +16,11 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 | Composant | Détail |
 |---|---|
-| Backend | FastAPI — `backend/main.py` — port 8000 (local) / 8001 (VPS) |
+| Backend | FastAPI — `backend/main.py` — port 8001 (local, cohabitation) / 8001 (VPS) |
 | Frontend | React + Vite — `frontend/` — port 5173 |
 | BDD | SQLite (local + VPS) |
 | IA | Groq API — `llama-3.3-70b-versatile` |
-| Dictée | Groq Whisper API |
+| Dictée | Groq Whisper API — batch `whisper-large-v3` (streaming Deepgram gelé sur `wip/deepgram-streaming`) |
 | Auth profs | email + bcrypt + JWT (python-jose) + httpOnly cookies |
 | Auth admin | Cookie `aschool_admin` — JWT séparé `{"role": "admin"}` |
 | SMTP | mail.infomaniak.com:587 — `SMTP_USERNAME=harketti@afia.fr` |
@@ -47,11 +47,24 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 ## Scripts clés
 
 ```powershell
-.\run.ps1              # Lance backend (:8000) + frontend (:5173) — régénère activities auto
+.\run.ps1              # Lance backend (:8001) + frontend (:5173) — régénère activities auto · param -BackendPort (défaut 8001)
 .\push.ps1 "message"   # Bump PATCH auto → commit → push GitHub → déploiement VPS
 ```
 
 Version courante : **3.2.3** — PATCH incrémenté automatiquement par `push.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
+
+**Cohabitation locale :** le port 8000 local est souvent pris par un autre projet (A-VIEWCAM). `run.ps1` lance donc aSchool sur **8001** (paramètre `-BackendPort`, défaut 8001), ne tue jamais le 8000 voisin, et passe `VITE_API_PORT` au frontend (proxy Vite configurable via `process.env.VITE_API_PORT`). Cohérent avec le VPS (aSchool en 8001 derrière Django AFIA-FR).
+
+---
+
+## 🚨 Pas de push prod sans décision explicite — Règle absolue
+
+La version production `aschool.fr` fonctionne avec des profs réels qui l'utilisent. Casser ce service = casser leur quotidien.
+
+- **Dev = local uniquement** (`.\run.ps1`). Tant qu'on n'est pas sûr à 100% de ce qu'on déploie, on reste en local.
+- **`push.ps1` = SEULEMENT après validation explicite** de l'utilisateur. Pas après un simple "commit terminé". Pas spontanément en fin de session.
+- En fin de session avec du code commité prêt : ne JAMAIS proposer "on push ?" spontanément. Proposer "tu pousseras quand tu seras sûr".
+- Si l'utilisateur dit "déploie / push / mise en prod" : confirmer explicitement avant action.
 
 ---
 
@@ -221,6 +234,19 @@ Dès qu'un nom UI change (page, section, composant, route), produire dans la mê
 ## Workflow obligatoire
 
 Proposer → valider → coder → tester. Ne jamais coder sans validation explicite de l'utilisateur.
+
+---
+
+## Règles de conduite Claude — absolues
+
+1. Pas de réponse hâtive — prendre le temps de lire avant de répondre.
+2. Ne jamais présenter une supposition comme une certitude. Si l'info n'est pas connue : dire « je ne sais pas ».
+3. Vérifier la doc officielle avant d'affirmer un fait technique. La doc fait foi, pas la mémoire.
+4. Rester strictement dans le périmètre du bloc en cours. Une tâche = un bloc, pas de « tant qu'on y est ».
+5. 🔒 Ne rien exécuter sans demande explicite — analyser, proposer, attendre validation.
+6. Ne pas lire de fichiers locaux non fournis explicitement dans la tâche.
+7. Une chose à la fois — traiter un point, le finir, passer au suivant.
+8. 🔒 Tout point critique codé s'accompagne de son test automatisé, écrit dans la même session, sinon la fonction est inachevée.
 
 ---
 
