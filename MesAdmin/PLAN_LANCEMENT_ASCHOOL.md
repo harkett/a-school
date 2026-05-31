@@ -1,4 +1,4 @@
-# Plan de lancement — A-SCHOOL (school.afia.fr)
+# Plan de lancement — A-SCHOOL (aschool.fr)
 
 > **Rôle : plan d'action daté du lancement — phases, calendrier, actions concrètes, indicateurs de performance.**
 >
@@ -110,16 +110,16 @@ Ces leviers fonctionnent **sans pub**, souvent **sans action consciente du prof*
 
 ### Levier 1 — Pied de page dans le fichier Word (viral passif)
 Le prof télécharge un `.docx` et le distribue à ses élèves ou envoie à un collègue.
-**Action :** Ajouter un pied de page discret : *"Activité générée avec A-SCHOOL — school.afia.fr"*
+**Action :** Ajouter un pied de page discret : *"Activité générée avec A-SCHOOL — aschool.fr"*
 **Impact :** chaque document distribué expose l'outil à d'autres profs sans effort.
 
 ### Levier 2 — Signature dans les e-mails (viral passif)
 Le bouton `mailto:` ouvre le client mail avec l'activité prête. Si envoyée à un collègue, ce collègue voit comment c'est généré.
-**Action :** Ajouter en bas du corps du mail : *"Généré avec A-SCHOOL — school.afia.fr — Créez votre compte gratuit"*
+**Action :** Ajouter en bas du corps du mail : *"Généré avec A-SCHOOL — aschool.fr — Créez votre compte gratuit"*
 
 ### Levier 3 — Pied de page à l'impression (exposition physique)
 Le prof imprime et distribue en classe. Si "A-SCHOOL" apparaît en bas de la feuille, d'autres profs qui voient la copie posent la question.
-**Action :** Ajouter automatiquement un pied de page sur toutes les impressions : *"Généré avec A-SCHOOL — school.afia.fr"* — visible sur la feuille papier distribuée en classe.
+**Action :** Ajouter automatiquement un pied de page sur toutes les impressions : *"Généré avec A-SCHOOL — aschool.fr"* — visible sur la feuille papier distribuée en classe.
 
 ### Levier 4 — Compteur "Mes activités" (rétention + fierté)
 Le prof retrouve toutes ses activités en un clic. Plus il utilise, moins il repart — et plus il en parle. C'est l'inverse de ChatGPT, qui repart de zéro à chaque session et ne conserve rien de structuré.
@@ -141,13 +141,13 @@ Préparer 3 exemples réels d'activités générées — une par matière et par
 ### Levier 8 — Bouton "Partagez avec vos collègues" sur afia.fr (bouche-à-oreille numérique direct)
 Un visiteur sur la page School d'afia.fr peut envoyer une invitation à ses collègues sans quitter la page — sans copier-coller une URL, sans ouvrir sa messagerie.
 **Où :** bouton discret sous "Vous avez déjà un compte ? Connectez-vous" dans le hero et dans le CTA final de la page `/school` sur afia.fr.
-**Mécanisme :** une modale s'ouvre — le visiteur saisit son nom (facultatif) et jusqu'à 5 adresses e-mail séparées par des virgules. Le backend Django (`POST /api/vitrine/recommander/`) valide les adresses et envoie un e-mail d'invitation à chaque destinataire avec le lien school.afia.fr.
+**Mécanisme :** une modale s'ouvre — le visiteur saisit son nom (facultatif) et jusqu'à 5 adresses e-mail séparées par des virgules. Le backend Django (`POST /api/vitrine/recommander/`) valide les adresses et envoie un e-mail d'invitation à chaque destinataire avec le lien aschool.fr.
 **Anti-spam :** limité à 5 adresses par envoi, 5 envois par IP et par jour.
 **Corps du mail envoyé :**
 ```
 [Prénom Nom] vous recommande A-SCHOOL, l'outil gratuit pour les enseignants.
 Collez un texte, choisissez le type d'activité et le niveau — exercice complet en 10 s.
-→ Créez votre compte gratuit sur school.afia.fr
+→ Créez votre compte gratuit sur aschool.fr
 ```
 **Impact :** chaque prof qui découvre l'outil peut déclencher une chaîne dans son établissement en 30 secondes, sans sortir de la page.
 
@@ -182,7 +182,7 @@ J'avais essayé ChatGPT pour ça. Le résultat était trop générique,
 pas calé sur le niveau. Là, c'est fait pour nous.
 
 Voilà ce que ça donne : [capture écran]
-Gratuit pour l'instant → school.afia.fr
+Gratuit pour l'instant → aschool.fr
 ```
 **Règle :** toujours un exemple réel en capture d'écran. Jamais de publicité abstraite.
 
@@ -238,7 +238,7 @@ Envoi d'un email de présentation à une sélection de profs identifiés manuell
 
 | Semaine | Action |
 |---|---|
-| S0 | **Déploiement VPS — school.afia.fr opérationnel** |
+| S0 | **Déploiement VPS — aschool.fr opérationnel** |
 | S1 | Ajouter pied de page A-SCHOOL dans les exports `.docx` et `@media print` |
 | S1 | Ajouter signature dans le corps du mail `mailto:` |
 | S2 | Entretien structuré avec les profs pilotes (20 min, retours concrets) — les encourager à générer un maximum d'activités d'un même type pour amorcer l'adaptation au style (cold start) |
@@ -318,4 +318,4 @@ Aujourd'hui, la fonctionnalité "Donner votre avis" permet de recueillir des ret
 
 ---
 
-*Document — school.afia.fr — Version 3, 30 avril 2026*
+*Document — aschool.fr — Version 3, 30 avril 2026*

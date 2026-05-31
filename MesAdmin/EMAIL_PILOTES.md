@@ -11,7 +11,7 @@
 >
 > **⚠ Tableau de suivi actuellement vide — à remplir dès le premier envoi.**
 >
-> **Vérifié le : 30/04/2026 — VPS opérationnel, outil accessible sur school.afia.fr**
+> **Vérifié le : 30/04/2026 — VPS opérationnel, outil accessible sur aschool.fr**
 
 ---
 
@@ -44,7 +44,7 @@ Vos textes, vos activités, votre compte. Rien n'est partagé.
 
 Aucune installation. Ça marche depuis un navigateur.
 
-Créez votre compte : **school.afia.fr**
+Créez votre compte : **aschool.fr**
 
 Vous trouverez en pièce jointe un guide pour votre première connexion.
 

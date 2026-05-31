@@ -1,4 +1,4 @@
-# Plan de diffusion — A-SCHOOL (school.afia.fr)
+# Plan de diffusion — A-SCHOOL (aschool.fr)
 
 > **Rôle : référence de la stratégie de communication — personas, messages, canaux, leviers viraux, métriques.**
 >
@@ -201,14 +201,14 @@ Ces leviers existent **déjà dans le produit** ou sont à portée immédiate.
 
 ### Levier 1 — Le fichier Word partagé (viral passif, déjà actif)
 **Mécanisme** : Le prof télécharge un `.docx`, le distribue à ses élèves ou l'envoie à un collègue. Le fichier circule sans que le prof ait besoin de "parler" de l'outil.
-**Action produit recommandée** : Ajouter un pied de page discret dans le `.docx` généré : *"Activité générée avec A-SCHOOL — school.afia.fr"*
+**Action produit recommandée** : Ajouter un pied de page discret dans le `.docx` généré : *"Activité générée avec A-SCHOOL — aschool.fr"*
 **Impact attendu** : Chaque fichier distribué est une impression potentielle sur 25 à 30 élèves et les parents qui voient les cours.
 
 ---
 
 ### Levier 2 — Le mailto intégré (viral actif, déjà actif)
 **Mécanisme** : Le bouton "Envoyer par e-mail" ouvre le client mail du prof avec l'activité en corps du message. Si le prof envoie à un collègue, le collègue voit l'activité et peut demander comment elle a été générée.
-**Action produit recommandée** : Ajouter une signature en bas du corps du mail : *"Généré avec A-SCHOOL — school.afia.fr — Créez votre compte gratuit"*
+**Action produit recommandée** : Ajouter une signature en bas du corps du mail : *"Généré avec A-SCHOOL — aschool.fr — Créez votre compte gratuit"*
 **Impact attendu** : chaque mail envoyé devient un vecteur d'acquisition.
 
 ---
@@ -236,7 +236,7 @@ Ces leviers existent **déjà dans le produit** ou sont à portée immédiate.
 
 ### Levier 6 — L'impression en classe (exposition physique)
 **Mécanisme** : Le prof imprime l'activité et la distribue. Si "A-SCHOOL" apparaît en pied de page, d'autres profs qui voient la feuille peuvent demander d'où ça vient.
-**Action produit recommandée** : Ajouter automatiquement un pied de page sur toutes les impressions : *"Généré avec A-SCHOOL — school.afia.fr"* — visible sur la feuille papier, invisible à l'écran.
+**Action produit recommandée** : Ajouter automatiquement un pied de page sur toutes les impressions : *"Généré avec A-SCHOOL — aschool.fr"* — visible sur la feuille papier, invisible à l'écran.
 **Impact attendu** : visibilité dans les salles des profs, les photocopieuses, les couloirs.
 
 ---
@@ -286,7 +286,7 @@ J'ai collé un extrait de Maupassant, choisi "exercices de réécriture",
 et j'avais mes consignes + correction en 10 secondes.
 Le .docx est directement utilisable.
 Voilà ce que ça donne : [capture écran résultat]
-C'est gratuit pour l'instant → school.afia.fr
+C'est gratuit pour l'instant → aschool.fr
 ```
 
 **Règle** : Toujours poster un exemple réel de résultat (capture d'écran). Jamais de pub abstraite.
@@ -330,7 +330,7 @@ C'est gratuit pour l'instant → school.afia.fr
 
 ### Canal 6 — Contenus pédagogiques (SEO long terme)
 
-**Articles à écrire** (blog ou page statique sur school.afia.fr) :
+**Articles à écrire** (blog ou page statique sur aschool.fr) :
 
 1. "10 exemples d'exercices de réécriture pour la 4e générés en 10 secondes"
 2. "Comment créer une fiche de révision brevet à partir d'un document HG"
@@ -349,7 +349,7 @@ Email direct aux profs sélectionnés — voir EMAIL_PILOTES.md
 
 | Semaine | Action |
 |---|---|
-| S0 | Déploiement VPS school.afia.fr — PRIORITÉ #1 |
+| S0 | Déploiement VPS aschool.fr — PRIORITÉ #1 |
 | S1 | Ajouter pied de page A-SCHOOL dans les exports `.docx` et `@media print` |
 | S1 | Ajouter signature dans le corps du mail `mailto:` |
 | S2 | Contacter les profs pilotes pour un retour structuré (entretien 20 min) |
@@ -398,9 +398,9 @@ Ces métriques sont directement lisibles depuis le panel admin ou la base de don
 | LinkedIn | "50 profs, 800 activités, un outil spécialisé" | Données + témoignage |
 | Email onboarding | "Votre première activité en 3 clics" | GIF ou lien direct |
 | Bouche-à-oreille | "Donne-moi ton extrait, je te montre" | Démonstration live |
-| Fichier Word/impression | "Généré avec A-SCHOOL — school.afia.fr" | Pied de page silencieux |
+| Fichier Word/impression | "Généré avec A-SCHOOL — aschool.fr" | Pied de page silencieux |
 | Association prof | "Présentez-nous à vos membres, c'est gratuit" | Démo 20 min |
 
 ---
 
-*Document rédigé le 27/04/2026 — Mis à jour le 30/04/2026 — school.afia.fr — harketti@afia.fr*
+*Document rédigé le 27/04/2026 — Mis à jour le 30/04/2026 — aschool.fr — harketti@afia.fr*
