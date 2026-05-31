@@ -2,6 +2,10 @@
 # A-SCHOOL — Lancer l'environnement de dev complet
 # Usage : .\run.ps1
 # ─────────────────────────────────────────────────────
+# Cohabitation locale : aSchool tourne sur $BackendPort (8001 par defaut),
+# le 8000 etant souvent occupe par un autre projet (ex. A-VIEWCAM / AFIA-FR).
+# Aligne sur l'archi VPS (aSchool en 8001). Surcharge : .\run.ps1 -BackendPort 8002
+param([int]$BackendPort = 8001)
 
 $root    = $PSScriptRoot
 $pidFile = "$root\.run_pids"
@@ -18,8 +22,8 @@ if (Test-Path $pidFile) {
     Start-Sleep -Milliseconds 800
 }
 
-# 2. Sécurité : tuer tout ce qui tourne encore sur les ports
-foreach ($port in @(8000, 5173)) {
+# 2. Sécurité : tuer tout ce qui tourne encore sur NOS ports (jamais le 8000 voisin)
+foreach ($port in @($BackendPort, 5173)) {
     Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique |
         ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
@@ -48,16 +52,16 @@ Write-Host ""
 
 # 5. Démarrer le backend FastAPI et sauvegarder son PID
 $backend = Start-Process powershell -PassThru -ArgumentList "-Command",
-    "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Backend'; cd '$root'; Write-Host '=== BACKEND FastAPI ===' -ForegroundColor Cyan; .\.venv\Scripts\uvicorn backend.main:app --reload --port 8000; pause"
+    "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Backend'; cd '$root'; Write-Host '=== BACKEND FastAPI (:$BackendPort) ===' -ForegroundColor Cyan; .\.venv\Scripts\uvicorn backend.main:app --reload --port $BackendPort; pause"
 
 # 6. Démarrer le frontend React + Vite et sauvegarder son PID
 $frontend = Start-Process powershell -PassThru -ArgumentList "-Command",
-    "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Frontend'; cd '$root\frontend'; Write-Host '=== FRONTEND React ===' -ForegroundColor Green; npm run dev; pause"
+    "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Frontend'; cd '$root\frontend'; `$env:VITE_API_PORT=$BackendPort; Write-Host '=== FRONTEND React (API :$BackendPort) ===' -ForegroundColor Green; npm run dev; pause"
 
 # 7. Sauvegarder les PIDs pour le prochain lancement
 @($backend.Id, $frontend.Id) | Set-Content $pidFile
 
 Write-Host ""
-Write-Host "  Backend  -> http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host "  Backend  -> http://localhost:$BackendPort/docs" -ForegroundColor Cyan
 Write-Host "  Frontend -> http://localhost:5173" -ForegroundColor Green
 Write-Host ""
