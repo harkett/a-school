@@ -119,19 +119,6 @@ try:
 except Exception as _e:
     print(f"⚠️  Seed exemples ignoré : {_e}")
 
-# Seed STT (messages + keyterms transversaux) au démarrage (idempotent)
-try:
-    from backend.seed_stt import run_seed as _run_stt_seed
-    from backend.database import SessionLocal as _SL_STT
-    _db_stt = _SL_STT()
-    try:
-        _run_stt_seed(_db_stt)
-    finally:
-        _db_stt.close()
-except Exception as _e:
-    print(f"⚠️  Seed STT ignoré : {_e}")
-
-
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "aSchool API"}

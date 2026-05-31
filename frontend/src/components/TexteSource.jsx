@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog'
-import { useTranscribeStream } from '../hooks/useTranscribeStream'
+import { formatTime, computeBarLevels } from '../utils/audioViz.js'
+
+const NB_BARS = 12  // nombre de barres du visualiseur de volume
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -59,21 +61,32 @@ const IconExemple = () => (
 
 export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
+  const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
+  const [isReady, setIsReady] = useState(false)           // micro prêt après le bip "go"
+  const [isTranscribing, setIsTranscribing] = useState(false) // POST /api/transcribe en cours
+  const [elapsed, setElapsed] = useState(0)               // chrono d'enregistrement (secondes)
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
   const texteRef = useRef(texte)
+  const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const audioMimeRef = useRef('audio/webm')
+  const activeRef = useRef(false)
+  const analyserRef = useRef(null)   // AnalyserNode (volume temps réel)
+  const sourceRef = useRef(null)     // MediaStreamAudioSourceNode
+  const rafRef = useRef(null)        // id requestAnimationFrame du visualiseur
+  const chronoRef = useRef(null)     // id setInterval du chrono
+  const startTimeRef = useRef(0)     // performance.now() au démarrage de l'enregistrement
+  const barsRef = useRef([])         // refs DOM des barres (mutation directe, pas de re-render)
 
   useEffect(() => { texteRef.current = texte }, [texte])
 
-  // Append-only : la dictée écrit toujours à la fin du textarea, jamais à la position du curseur.
-  // Pattern texteRef évite la closure stale si onChange est appelé après plusieurs renders.
-  const handleFinal = useCallback((text) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    const prev = texteRef.current || ''
-    const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
-    onChange(prev + sep + trimmed)
-  }, [onChange])
+  // Dictée vocale en mode BATCH : enregistrer → stop → POST /api/transcribe (Groq
+  // Whisper) → texte inséré à la fin. Le streaming temps réel Deepgram est une
+  // amélioration future isolée sur la branche wip/deepgram-streaming.
+  const isSupported = typeof MediaRecorder !== 'undefined'
+    && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
 
   const playBeep = useCallback((count) => {
     try {
@@ -98,23 +111,123 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     } catch {}
   }, [])
 
-  // Warning T-60s avant fin de session (300s par défaut côté backend) — bip 3
-  // pour signaler au prof qu'il doit finaliser sa saisie, sans modal intrusif.
-  // Convention sonore : 1 bip = start, 2 bips = stop, 3 bips = warning fin.
-  const handleWarning = useCallback(() => {
-    playBeep(3)
-  }, [playBeep])
+  // Choisit un format d'enregistrement supporté par le navigateur ET accepté par Groq.
+  function pickAudioMime() {
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+    for (const c of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c
+    }
+    return ''
+  }
 
-  const { state: sttState, interim, isSupported, start, stop } = useTranscribeStream({
-    onFinal: handleFinal,
-    onWarning: handleWarning,
-  })
+  function stopMediaStream() {
+    try { mediaStreamRef.current && mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+    mediaStreamRef.current = null
+    mediaRecorderRef.current = null
+  }
 
-  // Bip "go" au passage à recording. useEffect ne tourne qu'au changement de sttState
-  // (playBeep stable via useCallback) — pas de re-trigger sur les autres re-renders.
-  useEffect(() => {
-    if (sttState === 'recording') playBeep(1)
-  }, [sttState, playBeep])
+  // Débranche l'analyseur de volume (sans fermer l'AudioContext, réutilisé pour les bips).
+  function teardownAnalyser() {
+    try { sourceRef.current && sourceRef.current.disconnect() } catch {}
+    try { analyserRef.current && analyserRef.current.disconnect() } catch {}
+    sourceRef.current = null
+    analyserRef.current = null
+  }
+
+  // Envoi du blob audio au backend. Append-only via texteRef pour éviter la closure
+  // stale (onChange peut arriver après plusieurs renders). Le nom de fichier porte une
+  // EXTENSION VALIDE — première garantie du fix 400 (la seconde, le `model`, est côté backend).
+  async function sendForTranscription(blob) {
+    setIsTranscribing(true)
+    try {
+      const mime = blob.type || ''
+      const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'mp4' : 'webm'
+      const form = new FormData()
+      form.append('file', blob, `dictee.${ext}`)
+      const res = await fetchWithTimeout('/api/transcribe', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      }, TIMEOUT_GROQ)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      const transcrit = (data.text || '').trim()
+      if (transcrit) {
+        const prev = texteRef.current || ''
+        const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+        onChange(prev + sep + transcrit)
+      }
+    } catch (err) {
+      showError(`Transcription impossible.\n\n${err.message}`)
+    } finally {
+      setIsTranscribing(false)
+    }
+  }
+
+  async function startRecording() {
+    let stream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (err) {
+      activeRef.current = false
+      setIsListening(false)
+      setIsReady(false)
+      if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+        showError("Accès au microphone refusé.\n\nPour utiliser la dictée vocale, autorisez l'accès au microphone dans les paramètres du navigateur.")
+      } else {
+        showError(`Impossible d'accéder au microphone.\n\n${(err && err.message) || 'Erreur inconnue.'}`)
+      }
+      return
+    }
+    mediaStreamRef.current = stream
+    // Visualiseur de volume : brancher un AnalyserNode sur le flux micro, SANS le router
+    // vers la sortie (sinon le prof s'entendrait → larsen). Réutilise l'AudioContext des bips.
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (Ctx) {
+        if (!audioCtxRef.current) audioCtxRef.current = new Ctx()
+        const ctx = audioCtxRef.current
+        if (ctx.state === 'suspended') ctx.resume()
+        const src = ctx.createMediaStreamSource(stream)
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 64
+        analyser.smoothingTimeConstant = 0.7
+        src.connect(analyser)
+        sourceRef.current = src
+        analyserRef.current = analyser
+      }
+    } catch {}
+    const mime = pickAudioMime()
+    audioMimeRef.current = mime || 'audio/webm'
+    audioChunksRef.current = []
+    let recorder
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+    } catch (err) {
+      stopMediaStream()
+      activeRef.current = false
+      setIsListening(false)
+      setIsReady(false)
+      showError(`Enregistrement audio impossible.\n\n${(err && err.message) || 'Format audio non supporté.'}`)
+      return
+    }
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data) }
+    recorder.onstop = async () => {
+      const chunks = audioChunksRef.current
+      audioChunksRef.current = []
+      teardownAnalyser()
+      stopMediaStream()
+      if (!chunks.length) return
+      const blob = new Blob(chunks, { type: audioMimeRef.current })
+      await sendForTranscription(blob)
+    }
+    mediaRecorderRef.current = recorder
+    recorder.start()
+    // Bip "go" léger une fois le micro réellement ouvert (convention : 1 bip = start).
+    setTimeout(() => {
+      if (activeRef.current && !isReady) { setIsReady(true); playBeep(1) }
+    }, 300)
+  }
 
   function handleTxt(e) {
     const file = e.target.files[0]
@@ -150,15 +263,68 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   }
 
   function handleDicteClick() {
-    if (sttState === 'recording') {
-      // Bip stop AVANT stop() — feedback sonore immédiat avant la transition d'état UI
+    if (isTranscribing) return
+    if (isListening) {
+      // Bip stop AVANT l'arrêt — feedback sonore immédiat (convention : 2 bips = stop).
       playBeep(2)
-      stop()
+      activeRef.current = false
+      setIsListening(false)
+      setIsReady(false)
+      try { mediaRecorderRef.current && mediaRecorderRef.current.stop() } catch {}
     } else {
+      if (!isSupported) {
+        showError("La dictée vocale n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent.")
+        return
+      }
+      activeRef.current = true
+      setIsListening(true)
+      setIsReady(false)
       textareaRef.current?.focus()
-      start()
+      startRecording()
     }
   }
+
+  // Visualiseur + chronomètre : démarrent quand le micro est prêt (bloc d'enregistrement
+  // monté), s'arrêtent au stop. Le visualiseur écrit la hauteur des barres DIRECTEMENT sur
+  // le DOM via refs — aucun setState par frame (pas de re-render 60×/s). Le chrono met à
+  // jour un état 4×/s (léger).
+  useEffect(() => {
+    if (!(isListening && isReady)) return
+    startTimeRef.current = performance.now()
+    setElapsed(0)
+    chronoRef.current = setInterval(() => {
+      setElapsed((performance.now() - startTimeRef.current) / 1000)
+    }, 250)
+    const analyser = analyserRef.current
+    const data = analyser ? new Uint8Array(analyser.frequencyBinCount) : null
+    const tick = () => {
+      if (analyser && data) {
+        analyser.getByteFrequencyData(data)
+        const levels = computeBarLevels(data, NB_BARS)
+        for (let i = 0; i < NB_BARS; i++) {
+          const el = barsRef.current[i]
+          if (el) el.style.transform = `scaleY(${0.08 + levels[i] * 0.92})`
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      clearInterval(chronoRef.current)
+    }
+  }, [isListening, isReady])
+
+  // Filet de sécurité : composant démonté en pleine dictée → tout couper proprement.
+  useEffect(() => {
+    return () => {
+      try { cancelAnimationFrame(rafRef.current) } catch {}
+      try { clearInterval(chronoRef.current) } catch {}
+      try { if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop() } catch {}
+      teardownAnalyser()
+      stopMediaStream()
+    }
+  }, [])
 
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
@@ -197,10 +363,10 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         value={texte}
         onChange={e => onChange(e.target.value)}
         placeholder={"Collez un extrait de texte ici\n— ou importez un fichier TXT\n— ou extrayez le texte d'une image (scan, photo)\n— ou extrayez le texte d'un PDF\n— ou dictez avec le micro"}
-        style={sttState === 'recording' ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
+        style={isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
       />
 
-      {sttState === 'requesting' && (
+      {isListening && !isReady && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
@@ -220,10 +386,10 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
       )}
 
-      {sttState === 'recording' && (
+      {isListening && isReady && (
         <div style={{
           marginTop: 6,
-          padding: '7px 12px',
+          padding: '8px 12px',
           background: '#fff1f2',
           border: '1px solid #fca5a5',
           borderRadius: 6,
@@ -231,25 +397,51 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           color: '#dc2626',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 10,
         }}>
-          <span style={{ fontSize: 16, lineHeight: 1 }}>🎤</span>
-          <span>Enregistrement — parlez maintenant. Cliquez <strong>Arrêter</strong> pour terminer.</span>
+          <IconMic active={true} />
+          {/* Visualiseur de volume — barres CSS pilotées par ref (preuve de vie temps réel) */}
+          <div aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 20, flexShrink: 0 }}>
+            {Array.from({ length: NB_BARS }).map((_, i) => (
+              <div
+                key={i}
+                ref={el => { barsRef.current[i] = el }}
+                style={{
+                  width: 3,
+                  height: '100%',
+                  background: '#dc2626',
+                  borderRadius: 2,
+                  transform: 'scaleY(0.08)',
+                  transformOrigin: 'bottom',
+                  transition: 'transform 0.08s ease-out',
+                }}
+              />
+            ))}
+          </div>
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, minWidth: 34, textAlign: 'center' }}>
+            {formatTime(elapsed)}
+          </span>
+          <span>Je vous écoute — parlez normalement ; le texte s'affichera quand vous cliquerez sur <strong>Arrêter</strong>.</span>
         </div>
       )}
 
-      {interim && (
+      {isTranscribing && (
         <div style={{
           marginTop: 6,
           padding: '7px 12px',
-          background: '#fefce8',
-          border: '1px solid #fde68a',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
           borderRadius: 6,
           fontSize: 12,
-          color: '#78350f',
-          fontStyle: 'italic',
+          color: '#1d4ed8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}>
-          {interim}
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+          </svg>
+          <span>Transcription en cours… le texte va s'insérer à la fin.</span>
         </div>
       )}
 
@@ -291,27 +483,25 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           className="btn-action"
           title={
             !isSupported
-              ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou Chrome récent."
-              : sttState === 'recording'
-                ? "Arrêter l'enregistrement"
-                : sttState === 'requesting'
-                  ? "Demande d'accès au microphone en cours…"
-                  : "Dicter avec le microphone"
+              ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent."
+              : isTranscribing
+                ? 'Transcription en cours…'
+                : isListening
+                  ? "Arrêter l'enregistrement et transcrire"
+                  : 'Dicter avec le microphone'
           }
           onClick={handleDicteClick}
-          disabled={!isSupported || sttState === 'requesting'}
+          disabled={!isSupported || isTranscribing}
           style={
-            !isSupported
-              ? { opacity: 0.5, cursor: 'not-allowed' }
-              : sttState === 'requesting'
-                ? { cursor: 'wait' }
-                : sttState === 'recording'
-                  ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
-                  : {}
+            !isSupported || isTranscribing
+              ? { opacity: 0.5, cursor: isTranscribing ? 'wait' : 'not-allowed' }
+              : isListening
+                ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
+                : {}
           }
         >
-          <IconMic active={sttState === 'recording'} />
-          {sttState === 'recording' ? 'Arrêter' : sttState === 'requesting' ? 'Dicter…' : 'Dicter'}
+          <IconMic active={isListening} />
+          {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
         </button>
 
       </div>
