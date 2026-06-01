@@ -1,6 +1,6 @@
 """Test de non-régression — dictée vocale (Groq Whisper batch).
 
-Lance avec :  python test_transcribe.py   (ou via pytest si installé)
+Lance avec :  pytest   (suite pytest — convention unique du projet)
 
 Garde-fou des DEUX causes historiques du 400 Groq sur /api/transcribe, vérifiées
 de bout en bout à travers la vraie route FastAPI (aucun appel réseau — l'appel
@@ -15,7 +15,6 @@ HTTP sortant vers Groq est intercepté et inspecté) :
 """
 
 import io
-import sys
 
 from fastapi.testclient import TestClient
 
@@ -111,26 +110,3 @@ def test_transcribe_fichier_vide_refuse():
     assert res.status_code == 400, f"status {res.status_code} : {res.text}"
 
 
-def _run():
-    tests = [
-        test_transcribe_nom_avec_extension,
-        test_transcribe_nom_sans_extension_force_une_extension,
-        test_transcribe_fichier_vide_refuse,
-    ]
-    echecs = 0
-    for t in tests:
-        try:
-            t()
-            print(f"OK   — {t.__name__}")
-        except AssertionError as e:
-            echecs += 1
-            print(f"FAIL — {t.__name__} : {e}")
-        except Exception as e:
-            echecs += 1
-            print(f"ERR  — {t.__name__} : {type(e).__name__}: {e}")
-    print(f"\n{len(tests) - echecs}/{len(tests)} tests passés.")
-    return echecs
-
-
-if __name__ == "__main__":
-    sys.exit(1 if _run() else 0)
