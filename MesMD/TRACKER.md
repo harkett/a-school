@@ -58,6 +58,7 @@
 | [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I15](LEVIERS/I15.md) | ☐ |
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
 | [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](LEVIERS/I20.md) | ☐ |
+| [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
 
 ---
 
@@ -222,17 +223,19 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [x] **P1.2** — Deux alert() natifs de la dictée (micro refusé + navigateur non supporté) basculés vers showError
 - [~] **P1.3 partiel** — Dictée : feedback visuel "Préparation du micro" + bip sonore (1× démarrage, 2× arrêt) via Web Audio API + bascule sur onaudiostart + buffer 400 ms + pré-chauffage AudioContext. Cas stop/redémarrage encore imparfait → voir NON RETENU.
 
-### Reste à traiter
+### Triage Phase 2.3 (reprise, 31/05) — verdicts tranchés
 
-- [ ] **P2** — Auto-save activité : try/catch + notification (App.jsx:299) — perte silencieuse d'activités possible aujourd'hui
-- [ ] **P3.4** — Backend generate.py : distinguer 401, KeyError prompt, Groq down (today `except Exception` générique)
-- [ ] **P3.5** — Front : sur 401, rediriger vers /login au lieu d'afficher l'erreur brute
-- [ ] **P3.6** — Protéger contre KeyError sur nb manquant (App.jsx:272 + prompts)
-- [ ] **P4.7** — Déplacer compteur few-shot du localStorage vers backend (désynchro toast vs BDD)
-- [ ] **P4.8** — Aligner carte Activité sur pattern btn-primary des 4 autres cartes (App.jsx:606-614)
-- [ ] **P4.9** — Toast informatif au reset params lors changement matière (App.jsx:225-231)
-- [ ] **P5.10** — Centraliser la liste MATIERES (DRY — 3 endroits aujourd'hui)
-- [ ] **P5.11** — Désactiver bouton Générer quand niveau = Supérieur (ou avertissement bloquant)
+- [x] **P2** — Auto-save activité : perte silencieuse → **modal + helper testable**. **FAIT** (Phase 2.1, commit `95fec11`).
+- [ ] **P3.4** — `generate.py` : distinguer 401 / `KeyError` build_prompt (clé inconnue) / Groq down (vs `except Exception` → 500). → **CORRIGER** · ordre 1 · filet à compléter (KeyError + Groq-down).
+- [ ] **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **CORRIGER** · ordre 2 · test backend +.
+- [ ] **P5.11** — Niveau « Supérieur » non supporté (= item #21, non entamé). → **CORRIGER** · ordre 3 · **clarifier d'abord** : retirer du menu vs bloquer le bouton (ne pas présumer).
+- [ ] **P3.5** — Sur 401, rediriger vers /login. → **CORRIGER** · ordre 4 (le + sensible) · **relire le flux refresh token avant** (risque de boucle 401→login→retry→401).
+- [ ] **P4.7** — Compteur few-shot `localStorage` → backend (désynchro toast vs BDD). → **SOUS-D** (refactor d'état, socle de l'item 40).
+- [ ] **P5.10** — Centraliser la liste MATIERES (DRY, 3 endroits). → **SOUS-D** (refactor, isoler la régression).
+- [ ] **P4.8** — Aligner carte Activité sur pattern btn-primary (App.jsx:606-614). → **GARDER/DÉFER** (cosmétique, backlog gelé).
+- [ ] **P4.9** — Toast informatif au reset params (changement matière, App.jsx:225-231). → **GARDER/DÉFER** (mini-UX, backlog gelé).
+
+> **TEMPS 2** (corrections une par une, filet vert entre chaque) — ordre : **P3.4 → P3.6 → P5.11 → P3.5**.
 
 ---
 
@@ -441,6 +444,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **39 — Switch provider séquence → Claude Sonnet 4.6** | Facile | 2h — après 38
   *Évaluer Claude Sonnet 4.6 vs Groq llama-3.3-70b sur la génération de séquences. Ajouter `anthropic_client.py` + toggle ou variable `AI_PROVIDER_SEQUENCE`. Coût ~3$/Mtok input à monitorer.*
   → [L39](LEVIERS/L39.md)
+
+<a id="item-40"></a>
+- [ ] **40 — Signe distinctif « aSchool vous reconnaît » près du nom du prof** | Facile | 0,5 session — à scorer
+  *Dès l'activation du few-shot (message « aSchool reconnaît maintenant votre façon de travailler… », `App.jsx:296`, au 3e save d'un même type), afficher un signe distinctif **persistant près du nom du prof dans le Header**. À trancher à l'implémentation : badge **global** (reconnu sur ≥1 type) ou **par type / compteur** ; source de l'état pour persister entre sessions (le `localStorage` par type actuel, ou données few-shot backend). Idée notée 31/05 — **GELÉE pendant la reprise** (pas de feature avant cœur solide + push rouvert).*
 
 ---
 
