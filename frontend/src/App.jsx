@@ -56,6 +56,7 @@ import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import { fetchWithTimeout, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
+import { sauvegarderActivite } from './utils/activites.js'
 import './index.css'
 
 function ProtectedRoute({ children }) {
@@ -296,23 +297,23 @@ function MainApp() {
         setToast('aSchool reconnaît maintenant votre façon de travailler sur ce type d\'activité.')
       }
 
-      fetch('/api/mes-activites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          activite_key: params.activite_key,
-          activite_label: activites.find(a => a.key === params.activite_key)?.label || params.activite_key,
-          matiere: sessionMatiere,
-          niveau: params.niveau,
-          sous_type: params.sous_type || null,
-          nb: params.nb || null,
-          avec_correction: params.avec_correction,
-          objet: objet.trim() || null,
-          texte_source: texte,
-          resultat: data.resultat,
-        }),
-      }).catch(() => {})
+      // Sauvegarde best-effort mais JAMAIS silencieuse (Phase 2.1 reprise) : si elle échoue
+      // (réseau OU statut HTTP non-ok), on prévient le prof — l'activité reste affichée, il
+      // peut l'exporter ou réessayer. Payload inchangé (contrat éprouvé de /api/mes-activites).
+      sauvegarderActivite({
+        activite_key: params.activite_key,
+        activite_label: activites.find(a => a.key === params.activite_key)?.label || params.activite_key,
+        matiere: sessionMatiere,
+        niveau: params.niveau,
+        sous_type: params.sous_type || null,
+        nb: params.nb || null,
+        avec_correction: params.avec_correction,
+        objet: objet.trim() || null,
+        texte_source: texte,
+        resultat: data.resultat,
+      }).catch(() => setAlertDialog(
+        "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
+      ))
     } catch (e) {
       setAlertDialog(`Erreur : ${e.message}`)
     } finally {
