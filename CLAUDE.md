@@ -48,10 +48,13 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 ```powershell
 .\run.ps1              # Lance backend (:8001) + frontend (:5173) — régénère activities auto · param -BackendPort (défaut 8001)
-.\push.ps1 "message"   # Bump PATCH auto → commit → push GitHub → déploiement VPS
+.\save.ps1             # Sauvegarde GitHub UNIQUEMENT (git push seul) — ne déploie PAS la prod, ne bump PAS la version
+.\prod.ps1 "message"   # Bump PATCH auto → commit → push GitHub → déploiement VPS (geste sous validation explicite)
 ```
 
-Version courante : **3.2.3** — PATCH incrémenté automatiquement par `push.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
+**Deux gestes, deux scripts, jamais confondus :** `git push` / `save.ps1` = sauvegarde GitHub, n'affecte **pas** la prod. `prod.ps1` = déploiement VPS, **sous validation explicite**.
+
+Version courante : **3.2.3** — PATCH incrémenté automatiquement par `prod.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
 
 **Cohabitation locale :** le port 8000 local est souvent pris par un autre projet (A-VIEWCAM). `run.ps1` lance donc aSchool sur **8001** (paramètre `-BackendPort`, défaut 8001), ne tue jamais le 8000 voisin, et passe `VITE_API_PORT` au frontend (proxy Vite configurable via `process.env.VITE_API_PORT`). Cohérent avec le VPS (aSchool en 8001 derrière Django AFIA-FR).
 
@@ -62,7 +65,7 @@ Version courante : **3.2.3** — PATCH incrémenté automatiquement par `push.ps
 La version production `aschool.fr` fonctionne avec des profs réels qui l'utilisent. Casser ce service = casser leur quotidien.
 
 - **Dev = local uniquement** (`.\run.ps1`). Tant qu'on n'est pas sûr à 100% de ce qu'on déploie, on reste en local.
-- **`push.ps1` = SEULEMENT après validation explicite** de l'utilisateur. Pas après un simple "commit terminé". Pas spontanément en fin de session.
+- **`prod.ps1` = SEULEMENT après validation explicite** de l'utilisateur. Pas après un simple "commit terminé". Pas spontanément en fin de session. (`save.ps1` / `git push` = simple sauvegarde GitHub, ne déploie rien, donc non soumis à cette contrainte.)
 - En fin de session avec du code commité prêt : ne JAMAIS proposer "on push ?" spontanément. Proposer "tu pousseras quand tu seras sûr".
 - Si l'utilisateur dit "déploie / push / mise en prod" : confirmer explicitement avant action.
 

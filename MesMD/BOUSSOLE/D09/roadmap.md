@@ -217,7 +217,7 @@ Spec : [§3.4](../../DEEPGRAM/SPEC_DEEPGRAM_STT.md)
 Conformément à [CLAUDE.md](../../../CLAUDE.md) — section "Synchronisation afia.fr" :
 
 - Bump MINOR manuel (`v3.2.X` → `v3.3.0`)
-- `git push` → déploiement automatique VPS via `push.ps1`
+- `git push` → déploiement automatique VPS via `prod.ps1`
 - Générer le contenu de `School.jsx` à coller dans `D:\AFIA-FR\frontend-web\src\pages\School.jsx`
 - Utilisateur applique côté AFIA-FR (Claude ne touche jamais AFIA-FR depuis ce projet)
 
