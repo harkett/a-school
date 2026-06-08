@@ -415,13 +415,13 @@ const sections = [
     contenu: (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#1e40af' }}>
-          La dictée fonctionne sur tous les appareils — ordinateur, iPhone (Safari) et Android (Chrome). Transcription temps réel via Deepgram Nova-3 (français).
+          La dictée fonctionne sur tous les appareils — ordinateur, iPhone (Safari) et Android (Chrome). Vous enregistrez votre voix, puis elle est transcrite (Groq Whisper, français) et insérée dans la zone source.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Step n="1">Dans la zone "Texte source", cliquez sur le bouton <strong>Dicter</strong>.</Step>
           <Step n="2">Autorisez l'accès au microphone si le navigateur le demande.</Step>
-          <Step n="3">Patientez le bip <strong>"go"</strong>, puis parlez clairement — le texte se construit en direct (zone jaune pâle = transcription provisoire).</Step>
-          <Step n="4">Cliquez sur <strong>Arrêter</strong> quand vous avez terminé. Le texte final s'insère automatiquement dans la zone source.</Step>
+          <Step n="3">Patientez le bip, puis parlez clairement — pendant l'enregistrement, vous voyez le niveau du micro et le chrono (le texte n'apparaît qu'après l'arrêt).</Step>
+          <Step n="4">Cliquez sur <strong>Arrêter</strong> quand vous avez terminé : votre enregistrement est alors transcrit, puis le texte s'insère automatiquement dans la zone source.</Step>
           <Step n="5">Relisez la transcription et corrigez les éventuelles erreurs avant de générer.</Step>
         </div>
         <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
