@@ -248,7 +248,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 ### Triage Phase 2.3 (reprise, 31/05) — verdicts tranchés
 
 - [x] **P2** — Auto-save activité : perte silencieuse → **modal + helper testable**. **FAIT** (Phase 2.1, commit `95fec11`).
-- [ ] **P3.4** — `generate.py` : distinguer 401 / `KeyError` build_prompt (clé inconnue) / Groq down (vs `except Exception` → 500). → **CORRIGER** · ordre 1 · filet à compléter (KeyError + Groq-down).
+- [x] **P3.4** — `generate.py` : distinguer 401 / clé inconnue / Groq down (vs `except Exception` → 500). → **FAIT (08/06)** : `ValueError → 400` (clé inconnue, signal distinct du `KeyError` `.format()` réservé à P3.6) / `RuntimeError`+`RequestException` → 502 (Groq down) ; happy path inchangé. Filet **14 → 17 verts** (baseline réel 14, pas 17). Commit `f8d9317`.
 - [ ] **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **CORRIGER** · ordre 2 · test backend +.
 - [ ] **P5.11** — Niveau « Supérieur » non supporté (= item #21, non entamé). → **CORRIGER** · ordre 3 · **clarifier d'abord** : retirer du menu vs bloquer le bouton (ne pas présumer).
 - [ ] **P3.5** — Sur 401, rediriger vers /login. → **CORRIGER** · ordre 4 (le + sensible) · **relire le flux refresh token avant** (risque de boucle 401→login→retry→401).
