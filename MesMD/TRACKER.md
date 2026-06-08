@@ -59,6 +59,7 @@
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
 | [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](LEVIERS/I20.md) | ☐ |
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
+| [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
 
 ---
 
@@ -219,6 +220,14 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - [ ] **[Infra] Filet de test front (Vitest + React Testing Library)** | Chantier à part, non urgent
   *Le front aSchool n'a aucun test automatisé : chaque modif React (Aide, auto-save, AuthContext…) repose sur une vérif manuelle non rejouable. Installer Vitest + Testing-Library, câbler `npm test`, puis couvrir en priorité les composants critiques (dictée `TexteSource`, auto-save activités, `AuthContext`). Objectif : que toute modif front se solde par un test, comme le backend (règle CLAUDE.md n°8). Identifié 08/06/2026, en marge du nettoyage code (modif Aide.jsx validée à l'œil faute de filet front).*
+
+- [ ] **[Process] Organisation des tests à 3 étages + journal de versions** | Formalisation, hors gel
+  *Graver qui teste quoi et quand, pour qu'aucune tâche n'arrive direct chez les profs.*
+  ***Étage 1 — Test technique** : CC, à CHAQUE tâche, en DEV. Test auto (pytest backend) ou prépa front. Question : « le code fait-il ce qu'il doit sans rien casser ? »*
+  ***Étage 2 — Test d'usage** : Harketti, à CHAQUE tâche, en local. Vérif manuelle. Question : « ça marche pour un humain, c'est clair, le rendu est bon ? » Filtre obligatoire avant tout déploiement.*
+  ***Étage 3 — Test terrain** : profs pilotes, PAR VERSION déployée, en PROD. Question : « ça sert vraiment en classe, que manque-t-il ? » Feedback produit, pas test technique.*
+  ***Principe clé** : une tâche franchit étage 1 (CC) → étage 2 (Harketti), s'accumule avec d'autres en une VERSION cohérente, déployée via prod.ps1, et seulement LÀ testée par les profs (étage 3). Leur retour redevient des tâches → repart à l'étage 1.*
+  ***Besoin lié** : mini journal de versions (quelle version en prod, quand, quelles tâches dedans) pour relier le feedback prof à la version testée. Identifié 08/06/2026.*
 
 ---
 
@@ -457,6 +466,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-40"></a>
 - [ ] **40 — Signe distinctif « aSchool vous reconnaît » près du nom du prof** | Facile | 0,5 session — à scorer
   *Dès l'activation du few-shot (message « aSchool reconnaît maintenant votre façon de travailler… », `App.jsx:296`, au 3e save d'un même type), afficher un signe distinctif **persistant près du nom du prof dans le Header**. À trancher à l'implémentation : badge **global** (reconnu sur ≥1 type) ou **par type / compteur** ; source de l'état pour persister entre sessions (le `localStorage` par type actuel, ou données few-shot backend). Idée notée 31/05 — **GELÉE pendant la reprise** (pas de feature avant cœur solide + push rouvert).*
+
+<a id="item-41"></a>
+- [ ] **41 — Recherche dans la page Aide (plein-texte)** | Facile | 0,5 session — à scorer
+  *La page Aide grossit à chaque livraison (règle « Aide rédigée à chaud »). Solution **RETENUE = Option A** — champ de recherche plein-texte en haut de Aide, filtrage live sur titre + contenu réel des sections via un `extractText` récursif mémoïsé (aucune duplication de contenu), surlignage des termes, compteur de résultats, état vide propre. Desktop : liste de résultats à plat ; mobile : filtre l'accordéon. Accessible (focus, Échap pour vider). Périmètre : 1 seul fichier `Aide.jsx`, pas de backend, pas de dépendance. Option B (palette Cmd/Ctrl+K) : V2 éventuelle par-dessus A, non prioritaire. Distinct de l'item 18 (contenu d'aide personnalisé par matière) : ici c'est de la découvrabilité/navigation. Feature produit — soumise au gel.*
 
 ---
 
