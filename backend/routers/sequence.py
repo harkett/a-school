@@ -1,7 +1,7 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException, Cookie, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, Literal
+from typing import Optional
 
 from backend import auth as auth_lib
 from backend.database import get_db
@@ -26,31 +26,6 @@ class SequenceRequest(BaseModel):
 
 class SequenceResponse(BaseModel):
     resultat: str
-
-
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-
-
-class AffinerRequest(BaseModel):
-    sequence_actuelle: str
-    instruction: str
-    historique: list[ChatMessage] = []
-    matiere: str
-    niveau: str
-    theme: str
-    duree: int
-    mode: str = "standard"
-
-
-class RegenererRequest(BaseModel):
-    sequence_actuelle: str
-    matiere: str
-    niveau: str
-    theme: str
-    duree: int
-    mode: str = "standard"
 
 
 _PROMPT_STANDARD = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
@@ -93,63 +68,6 @@ Règles absolues :
 - Le contenu est adapté au niveau {niveau} et à la matière {matiere}
 - Aucune phase sans lien direct avec le thème "{theme}"
 - Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
-
-
-_SYSTEM_AFFINER = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée).
-
-Un enseignant de {matiere}, niveau {niveau}, travaille avec toi sur une séance de {duree} minutes portant sur :
-"{theme}"
-
-Tu maintiens UNE SEULE séance markdown au fil de la discussion. À chaque nouveau message du prof, tu appliques son instruction et tu renvoies la séance entièrement mise à jour.
-
-Règles absolues :
-- Tu renvoies UNIQUEMENT le markdown complet de la séance corrigée, rien d'autre — pas de phrase d'introduction, pas de commentaire, pas de balises ```markdown.
-- Tu conserves la structure générale (en-tête, phases, durée totale) sauf si le prof demande explicitement de la changer.
-- La somme des durées des phases reste égale à {duree} minutes.
-- Tu n'ajoutes pas de phase, ne supprimes pas de phase, ne renommes pas de phase sans demande explicite du prof.
-- Si le prof demande de revenir à une version antérieure, tu reconstruis cette version à partir de l'historique."""
-
-
-_PROMPT_REGENERER = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée).
-
-Un enseignant de {matiere}, niveau {niveau}, vient de générer une séance de {duree} minutes sur :
-"{theme}"
-
-Cette première proposition ne le convainc pas. Il te demande une AUTRE variante, structurellement différente, qui aborde la même notion sous un angle pédagogique distinct.
-
-Séance précédente à NE PAS reproduire :
----
-{sequence_precedente}
----
-
-Génère une variante qui :
-- Garde la même matière, le même niveau, le même thème, la même durée totale ({duree} minutes)
-- Utilise une approche pédagogique différente (autre angle d'entrée, autres modalités, autre rythme)
-- Propose des phases différentes (noms, ordre, durées internes peuvent changer)
-- Reste cohérente, applicable en classe, adaptée au niveau {niveau}
-
-Format de réponse — markdown strict, identique au format standard aSchool :
-
-# Séance : [titre court reprenant le thème]
-**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-[…continuer jusqu'à la dernière phase]
-
----
-
-> *Séance générée par aSchool*
-
-Règles absolues :
-- La somme des durées = exactement {duree} minutes
-- La variante doit être nettement différente de la séance précédente (pas une simple reformulation)
-- Réponds uniquement en markdown, rien avant ni après"""
 
 
 _PROMPT_REMEDIATION = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français.

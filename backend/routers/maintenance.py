@@ -2,7 +2,6 @@ import os
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.audit import log_admin_action
@@ -10,7 +9,7 @@ from backend.database import get_db
 from backend.models_db import (
     ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog,
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
-    Setting, User, UserSession,
+    User, UserSession,
 )
 from backend.routers.admin import _require_admin, _get_admin_email
 
