@@ -2,6 +2,7 @@ import logging
 import os
 import unicodedata
 
+import requests
 from fastapi import APIRouter, HTTPException, Cookie, Depends
 from sqlalchemy.orm import Session
 
@@ -127,5 +128,15 @@ def api_generate(
         return GenerateResponse(resultat=resultat, chunks=rag_chunks)
     except HTTPException:
         raise
+    except ValueError as e:
+        # Clé d'activité absente du catalogue — faute client, pas une 500.
+        raise HTTPException(status_code=400, detail=str(e))
+    except (RuntimeError, requests.exceptions.RequestException) as e:
+        # Groq indisponible (réponse non-ok ou réseau) — panne amont, pas une 500.
+        log.warning(f"/api/generate — génération indisponible : {e}")
+        raise HTTPException(
+            status_code=502,
+            detail="Le service de génération est momentanément indisponible. Réessayez dans un instant.",
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

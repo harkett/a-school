@@ -2718,6 +2718,8 @@ def build_prompt(
     **kwargs,
 ) -> str:
     all_prompts = {**PROMPTS, **PROMPTS_HISTGEO, **PROMPTS_AUTRES}
+    if activite not in all_prompts:
+        raise ValueError(f"Activité inconnue : {activite}")  # signal distinct du KeyError de .format() (nb manquant — P3.6)
     template = all_prompts[activite]
     prompt = template.format(texte=texte, **kwargs)
     if exemples:

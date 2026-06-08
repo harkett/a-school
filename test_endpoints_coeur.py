@@ -17,6 +17,8 @@ import os
 import sys
 from unittest.mock import patch
 
+import requests
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
@@ -218,6 +220,38 @@ def test_endpoint_propage_groq_down_502():
          patch("backend.routers.optimiseur.AI_PROVIDER", "groq"):
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
+    assert r.status_code == 502, r.text
+
+
+# ===================== P3.4 — /api/generate : durcissement des erreurs =====================
+# /api/generate ne passe PAS par call_groq (générateur src.generator). Son except fourre-tout
+# renvoyait 500 pour tout. P3.4 distingue : clé inconnue -> 400, Groq down -> 502.
+
+def test_generate_activite_inconnue_400():
+    """Clé d'activité absente du catalogue -> 400 (faute client), pas 500.
+    Échoue dans build_prompt avant tout appel Groq : aucun mock nécessaire."""
+    r = authed().post("/api/generate", json={
+        "texte": "La photosynthèse.", "activite_key": "nexiste_pas",
+        "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
+    assert r.status_code == 400, r.text
+
+
+def test_generate_groq_down_502():
+    """Groq répond non-ok (generate lève RuntimeError) -> 502 (panne amont), pas 500."""
+    with patch("backend.routers.generate.generate", side_effect=RuntimeError("Erreur 503: service unavailable")):
+        r = authed().post("/api/generate", json={
+            "texte": "La photosynthèse.", "activite_key": "comprehension",
+            "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
+    assert r.status_code == 502, r.text
+
+
+def test_generate_reseau_down_502():
+    """Réseau Groq injoignable (requests.ConnectionError) -> 502, pas 500."""
+    with patch("backend.routers.generate.generate",
+               side_effect=requests.exceptions.ConnectionError("connexion refusée")):
+        r = authed().post("/api/generate", json={
+            "texte": "La photosynthèse.", "activite_key": "comprehension",
+            "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
     assert r.status_code == 502, r.text
 
 
