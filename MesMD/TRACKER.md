@@ -59,7 +59,7 @@
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
 | [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](LEVIERS/I20.md) | ☐ |
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
-| [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
+| [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — | ☑ |
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
 
 ---
@@ -472,8 +472,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   *Dès l'activation du few-shot (message « aSchool reconnaît maintenant votre façon de travailler… », `App.jsx:296`, au 3e save d'un même type), afficher un signe distinctif **persistant près du nom du prof dans le Header**. À trancher à l'implémentation : badge **global** (reconnu sur ≥1 type) ou **par type / compteur** ; source de l'état pour persister entre sessions (le `localStorage` par type actuel, ou données few-shot backend). Idée notée 31/05 — **GELÉE pendant la reprise** (pas de feature avant cœur solide + push rouvert).*
 
 <a id="item-41"></a>
-- [ ] **41 — Recherche dans la page Aide (plein-texte)** | Facile | 0,5 session — à scorer
-  *La page Aide grossit à chaque livraison (règle « Aide rédigée à chaud »). Solution **RETENUE = Option A** — champ de recherche plein-texte en haut de Aide, filtrage live sur titre + contenu réel des sections via un `extractText` récursif mémoïsé (aucune duplication de contenu), surlignage des termes, compteur de résultats, état vide propre. Desktop : liste de résultats à plat ; mobile : filtre l'accordéon. Accessible (focus, Échap pour vider). Périmètre : 1 seul fichier `Aide.jsx`, pas de backend, pas de dépendance. Option B (palette Cmd/Ctrl+K) : V2 éventuelle par-dessus A, non prioritaire. Distinct de l'item 18 (contenu d'aide personnalisé par matière) : ici c'est de la découvrabilité/navigation. Feature produit — soumise au gel.*
+- [x] **41 — Recherche dans la page Aide (plein-texte)** | LIVRÉ EN LOCAL (testé étages 1+2), NON DÉPLOYÉ — en attente de la prochaine version poussée en prod
+  *La page Aide grossit à chaque livraison (règle « Aide rédigée à chaud »). Solution **RETENUE = Option A** — champ de recherche plein-texte en haut de Aide, filtrage live sur titre + contenu réel des sections via un `extractText` récursif mémoïsé (aucune duplication de contenu), surlignage des termes, compteur de résultats, état vide propre. Desktop : liste de résultats à plat ; mobile : filtre l'accordéon. Accessible (focus, Échap pour vider). Périmètre : 1 seul fichier `Aide.jsx`, pas de backend, pas de dépendance. Option B (palette Cmd/Ctrl+K) : V2 éventuelle par-dessus A, non prioritaire. Distinct de l'item 18 (contenu d'aide personnalisé par matière) : ici c'est de la découvrabilité/navigation. Gel levé volontairement le 08/06/2026 pour ce seul item ; **livré en local** (node:test 25/25 + build Vite + vérif usage étage 2), **non déployé** — partira dans la prochaine version poussée en prod.*
 
 <a id="item-42"></a>
 - [ ] **42 — Recherche globale dans l'application** | à cadrer | à scorer
