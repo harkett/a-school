@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -85,6 +86,72 @@ const Step = ({ n, children }) => (
     <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>{children}</span>
   </div>
 )
+
+const IconSearch = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+)
+
+// Surligne les termes trouvés dans un texte PLAT (titres, extraits) — jamais dans
+// le JSX riche du panneau. terms vide → renvoie le texte tel quel.
+const Highlight = ({ text, terms }) => {
+  if (!terms || terms.length === 0) return text
+  return highlightSegments(text, terms).map((seg, i) =>
+    seg.match
+      ? <mark key={i} style={{ background: '#fde68a', color: 'inherit', padding: 0, borderRadius: 2 }}>{seg.text}</mark>
+      : <span key={i}>{seg.text}</span>
+  )
+}
+
+// Champ de recherche — pensé pour le prof le moins à l'aise : grand, loupe visible,
+// placeholder clair, croix pour effacer, Échap pour vider, accessible.
+const SearchBox = ({ query, setQuery }) => {
+  const [focused, setFocused] = useState(false)
+  return (
+    <div style={{ position: 'relative', maxWidth: 520 }}>
+      <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: focused ? 'var(--bleu)' : '#9ca3af', display: 'flex', pointerEvents: 'none' }}>
+        <IconSearch />
+      </span>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => { if (e.key === 'Escape') setQuery('') }}
+        placeholder="Rechercher dans l'aide…"
+        aria-label="Rechercher dans l'aide"
+        title="Tapez un mot-clé (ex. « iPhone », « mot de passe », « dictée ») pour trouver une rubrique"
+        style={{
+          width: '100%', boxSizing: 'border-box',
+          padding: '12px 42px 12px 44px', fontSize: 15,
+          border: `2px solid ${focused ? 'var(--bleu)' : '#d1d5db'}`,
+          borderRadius: 10, outline: 'none', color: '#1f2937',
+          boxShadow: focused ? '0 0 0 3px rgba(31,110,235,0.12)' : 'none',
+          transition: 'border-color .15s, box-shadow .15s',
+        }}
+      />
+      {query && (
+        <button
+          type="button"
+          onClick={() => setQuery('')}
+          title="Effacer la recherche"
+          aria-label="Effacer la recherche"
+          style={{
+            position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+            width: 28, height: 28, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: '#f3f4f6', color: '#6b7280', fontSize: 15, lineHeight: 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
 
 function telechargerProcedure(titre, html) {
   const w = window.open('', '_blank')
@@ -1025,6 +1092,12 @@ export default function Aide() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const [selected, setSelected] = useState('comment')
   const [open, setOpen] = useState('comment')
+  const [query, setQuery] = useState('')
+
+  const searchIndex = useMemo(() => buildSearchIndex(sections), [])
+  const terms = queryTerms(query)
+  const isSearching = terms.length > 0
+  const results = useMemo(() => searchSections(searchIndex, query), [searchIndex, query])
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768)
@@ -1036,8 +1109,19 @@ export default function Aide() {
     return (
       <div className="flex flex-col gap-3 max-w-2xl">
         <h2 className="text-base font-semibold text-gray-800 mb-1">Aide</h2>
-        {sections.map(s => {
-          const isOpen = open === s.id
+        <SearchBox query={query} setQuery={setQuery} />
+        {isSearching && results.length > 0 && (
+          <p style={{ fontSize: 12.5, color: '#6b7280', margin: '2px 0' }}>
+            {results.length} résultat{results.length > 1 ? 's' : ''} pour « {query.trim()} »
+          </p>
+        )}
+        {isSearching && results.length === 0 && (
+          <div style={{ fontSize: 13, color: '#6b7280', background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '14px 16px' }}>
+            Aucune rubrique trouvée pour « {query.trim()} » — essayez un autre mot.
+          </div>
+        )}
+        {(isSearching ? results : sections).map(s => {
+          const isOpen = (isSearching && results.length === 1) ? true : open === s.id
           return (
             <div
               key={s.id}
@@ -1057,7 +1141,7 @@ export default function Aide() {
                 <span style={{ color: isOpen ? 'var(--bleu)' : '#6b7280', transition: 'color 0.2s ease' }}>
                   <s.Icon />
                 </span>
-                <span className="flex-1">{s.titre}</span>
+                <span className="flex-1"><Highlight text={s.titre} terms={terms} /></span>
                 <span style={{ color: isOpen ? 'var(--bleu)' : '#9ca3af', transition: 'color 0.2s ease' }}>
                   <ChevronDown open={isOpen} />
                 </span>
@@ -1076,70 +1160,117 @@ export default function Aide() {
     )
   }
 
-  const selectedSection = sections.find(s => s.id === selected)
+  const shownId = isSearching
+    ? (results.some(r => r.id === selected) ? selected : (results[0] && results[0].id))
+    : selected
+  const selectedSection = sections.find(s => s.id === shownId)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <h2 className="text-base font-semibold text-gray-800">Aide</h2>
 
+      <SearchBox query={query} setQuery={setQuery} />
+
       <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
 
-        {/* Nav latérale sticky */}
-        <nav style={{ width: 196, flexShrink: 0, position: 'sticky', top: 16 }}>
-          {CATEGORIES.map(cat => {
-            const catSections = cat.ids.map(id => sections.find(s => s.id === id)).filter(Boolean)
-            return (
-              <div key={cat.label} style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3, padding: '0 8px' }}>
-                  {cat.label}
-                </div>
-                {catSections.map(s => {
-                  const active = selected === s.id
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelected(s.id)}
-                      title={s.titre}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '5px 8px',
-                        borderRadius: 6,
-                        fontSize: 12.5,
-                        fontWeight: active ? 600 : 400,
-                        color: active ? 'var(--bleu)' : '#374151',
-                        background: active ? '#eff6ff' : 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        transition: 'background .12s, color .12s',
-                        lineHeight: 1.35,
-                      }}
-                    >
-                      <span style={{ color: active ? 'var(--bleu)' : '#9ca3af', flexShrink: 0, transition: 'color .12s' }}>
+        {/* Nav latérale sticky : catégories, ou résultats de recherche */}
+        <nav style={{ width: isSearching ? 250 : 196, flexShrink: 0, position: 'sticky', top: 16 }}>
+          {isSearching ? (
+            <>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: '#6b7280', padding: '0 8px 8px' }}>
+                {results.length === 0
+                  ? 'Aucun résultat'
+                  : `${results.length} résultat${results.length > 1 ? 's' : ''} pour « ${query.trim()} »`}
+              </div>
+              {results.map(s => {
+                const active = shownId === s.id
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setSelected(s.id)}
+                    title={s.titre}
+                    style={{
+                      display: 'flex', flexDirection: 'column', gap: 2,
+                      width: '100%', textAlign: 'left', padding: '7px 8px',
+                      borderRadius: 6, border: 'none', cursor: 'pointer', marginBottom: 2,
+                      background: active ? '#eff6ff' : 'transparent', transition: 'background .12s',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: active ? 600 : 500, color: active ? 'var(--bleu)' : '#374151' }}>
+                      <span style={{ color: active ? 'var(--bleu)' : '#9ca3af', flexShrink: 0 }}>
                         <s.Icon />
                       </span>
-                      {s.nav || s.titre}
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })}
+                      <Highlight text={s.nav || s.titre} terms={terms} />
+                    </span>
+                    <span style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.4, paddingLeft: 24 }}>
+                      <Highlight text={makeSnippet(s.plain, terms)} terms={terms} />
+                    </span>
+                  </button>
+                )
+              })}
+            </>
+          ) : (
+            CATEGORIES.map(cat => {
+              const catSections = cat.ids.map(id => sections.find(s => s.id === id)).filter(Boolean)
+              return (
+                <div key={cat.label} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3, padding: '0 8px' }}>
+                    {cat.label}
+                  </div>
+                  {catSections.map(s => {
+                    const active = selected === s.id
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelected(s.id)}
+                        title={s.titre}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 7,
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '5px 8px',
+                          borderRadius: 6,
+                          fontSize: 12.5,
+                          fontWeight: active ? 600 : 400,
+                          color: active ? 'var(--bleu)' : '#374151',
+                          background: active ? '#eff6ff' : 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'background .12s, color .12s',
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        <span style={{ color: active ? 'var(--bleu)' : '#9ca3af', flexShrink: 0, transition: 'color .12s' }}>
+                          <s.Icon />
+                        </span>
+                        {s.nav || s.titre}
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })
+          )}
         </nav>
 
         {/* Panneau contenu */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {selectedSection && (
+          {isSearching && results.length === 0 ? (
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm" style={{ padding: '24px' }}>
+              <p style={{ fontSize: 14, color: '#374151', margin: 0 }}>
+                Aucune rubrique trouvée pour « {query.trim()} » — essayez un autre mot.
+              </p>
+            </div>
+          ) : selectedSection && (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm" style={{ padding: '20px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 16, paddingBottom: 14, borderBottom: '1px solid #f1f5f9' }}>
                 <span style={{ color: 'var(--bleu)' }}>
                   <selectedSection.Icon />
                 </span>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1f2937', margin: 0 }}>
-                  {selectedSection.titre}
+                  <Highlight text={selectedSection.titre} terms={terms} />
                 </h3>
               </div>
               {selectedSection.contenu}
