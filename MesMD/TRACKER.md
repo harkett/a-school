@@ -213,6 +213,15 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 ---
 
+## OUTILLAGE / DETTE TECHNIQUE — hors gel des features
+
+> Chantiers d'infrastructure / outillage, **non soumis au gel du backlog features** (ce ne sont pas des features produit). Pas urgents — à traiter à la réouverture du développement.
+
+- [ ] **[Infra] Filet de test front (Vitest + React Testing Library)** | Chantier à part, non urgent
+  *Le front aSchool n'a aucun test automatisé : chaque modif React (Aide, auto-save, AuthContext…) repose sur une vérif manuelle non rejouable. Installer Vitest + Testing-Library, câbler `npm test`, puis couvrir en priorité les composants critiques (dictée `TexteSource`, auto-save activités, `AuthContext`). Objectif : que toute modif front se solde par un test, comme le backend (règle CLAUDE.md n°8). Identifié 08/06/2026, en marge du nettoyage code (modif Aide.jsx validée à l'œil faute de filet front).*
+
+---
+
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
 
 > Audit complet de la fonctionnalité. 11 issues identifiées, classées P1-P5 par gravité × urgence. Workflow point par point avec validation à chaque étape.
