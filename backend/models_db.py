@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, Float
+from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -207,60 +207,4 @@ class ToolUsageLog(Base):
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-# ---------------------------------------------------------------------------
-# STT — Speech-to-Text (Deepgram)
-# Spec : MesMD/DEEPGRAM/SPEC_DEEPGRAM_STT.md §3.3, §7.3, §9.4
-# ---------------------------------------------------------------------------
-
-# Constantes de validation (discipline applicative — pas de CHECK SQL)
-STT_MESSAGE_MODES = ("neutral", "volume")
-STT_MESSAGE_CODES = ("preventive", "unavailable", "saturation", "session_expired")
-STT_CREDIT_EVENT_TYPES = ("snapshot", "recharge", "reset")
-
-
-class STTCreditHistory(Base):
-    __tablename__ = "stt_credit_history"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    event_type: Mapped[str] = mapped_column(String(20), nullable=False)  # snapshot | recharge | reset
-    balance_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
-    remaining_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
-    new_total_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    admin_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-
-
-class STTMessage(Base):
-    __tablename__ = "stt_messages"
-    __table_args__ = (Index("ix_stt_messages_mode_code", "mode", "code", unique=True),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    mode: Mapped[str] = mapped_column(String(16), nullable=False)  # neutral | volume
-    code: Mapped[str] = mapped_column(String(32), nullable=False)  # preventive | unavailable | saturation | session_expired
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-class STTKeytermGlobal(Base):
-    __tablename__ = "stt_keyterms_global"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    term: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-class STTKeytermBySubject(Base):
-    __tablename__ = "stt_keyterms_by_subject"
-    __table_args__ = (
-        Index("ix_stt_keyterms_by_subject_uniq", "subject", "term", unique=True),
-        Index("ix_stt_keyterms_by_subject_subject", "subject"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    subject: Mapped[str] = mapped_column(String(64), nullable=False)
-    term: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
