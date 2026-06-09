@@ -30,12 +30,10 @@
 | Ordre | Item | État | Détail |
 |---|---|---|---|
 | 1 | 🎯 **Consolidation du cœur** (filet de tests + suspect sous filet) | Phase 1 close (filet 17/17) · Phase 2 en cours (P3.4 ✅, reste P3.6→P5.11→P3.5) · récupère l'ex-PLAN_REPRISE | [D16](D16.md) |
-| 2 | **Dictée — Groq batch stabilisée** ✅ | Revert Deepgram→Groq batch + fix 400 + retour visuel (31/05) · Deepgram gelé sur `wip/deepgram-streaming` | [D15](D15.md) |
-| 3 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](D07.md) |
-| 4 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · dictée livrée (D15) | [D12](D12.md) |
-| 5 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](D13.md) |
-| 6 | 🛠️ DOC — **Dégraissage BACKLOG.md** (586 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
-| 7 | 🛠️ DOC — **Dégraissage duplications roadmap/pilotage Deepgram** | Session dédiée · non bloquant | [D10](D10.md) |
+| 2 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](D07.md) |
+| 3 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · dictée livrée (D15) | [D12](D12.md) |
+| 4 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](D13.md) |
+| 5 | 🛠️ DOC — **Dégraissage BACKLOG.md** (630 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
 
 ## Checklist avant modification
 
@@ -46,14 +44,10 @@
 
 ---
 
-## Livré, à committer (fin de session 19/05)
-
-- **D08** — Dette branding `school.afia.fr` → `aschool.fr` : 44/44 corrigées (24 le 18/05 déjà commitées + 20 `MesAdmin/` le 19/05 **à commit**). Voir [D08](D08.md). Commit ciblé : `chore(branding): finaliser MesAdmin/`.
-
 ## Fiches livrées + commitées (à archiver dans BACKLOG FAIT lors du dégraissage D11)
 
-D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV) · D04 (Groq fallback) · D05 (errorDialog + niveau header) — commités le 18/05/2026.
+D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV) · D04 (Groq fallback) · D05 (errorDialog + niveau header) — commités le 18/05/2026. · D08 (branding `MesAdmin/` finalisé, 44/44) — commité le 19/05 (`cba2642`).
 
 ---
 
-[BACKLOG (39 items)](../BACKLOG.md) · [CLAUDE.md (règles)](../../CLAUDE.md)
+[BACKLOG (42 items)](../BACKLOG.md) · [CLAUDE.md (règles)](../../CLAUDE.md)

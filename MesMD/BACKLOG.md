@@ -1,6 +1,6 @@
 # aSchool — BACKLOG
 
-> **Source de vérité unique.** Toute idée, tâche ou livraison est ici — nulle part ailleurs.
+> **Réservoir d'idées (priorisées) + journal des livraisons (FAIT).** Toute idée se note ici. Le **pilotage** — ce qu'on fait, dans quel ordre — est dans la [BOUSSOLE](BOUSSOLE/BOUSSOLE.md), pas ici.
 > Specs techniques détaillées → `LEVIERS/`
 
 > Note dev : Bannière "Bientôt disponible" sidebar prof → `Sidebar.jsx`, bloc `{!collapsed && ...}` en bas.
@@ -20,7 +20,7 @@
 | # | Titre | Effort | Valeur | Faisabilité | Score | Section | Détail | ✅ |
 |---|---|---|---|---|---|---|---|---|
 | [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [L35](LEVIERS/L35.md) | ☐ |
-| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — chantier en cours | [L37](LEVIERS/L37.md) | ☐ |
+| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [L37](LEVIERS/L37.md) | ☐ |
 | [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [L36](LEVIERS/L36.md) | ☐ |
 | [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [L38](LEVIERS/L38.md) | ☐ |
 | [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](LEVIERS/L39.md) | ☐ |
@@ -453,7 +453,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   → [L36](LEVIERS/L36.md) (volumétrie corpus, pipeline ingestion, contrainte 2020/2026, test d'éval binaire, risques hétérogénéité sources)
 
 <a id="item-37"></a>
-- [ ] **37 — Affinage interactif de séquence (instruction prof + versions éphémères)** | Moyen | 1 session — chantier en cours 14/05
+- [ ] **37 — Affinage interactif de séquence (instruction prof + versions éphémères)** | Moyen | 1 session — code dormant / parké (D07)
   *Le prof pilote l'affinage par instruction libre ("phase 3 trop courte", "remplace par jeu de rôle"). Bouton "Affiner" + zone saisie texte/dictée + mini-pagination V1/V2/Vn. State React, perdu au refresh. Nouveau `POST /api/affiner-sequence`. Prérequis de [L35](LEVIERS/L35.md).*
   → [L37](LEVIERS/L37.md)
 

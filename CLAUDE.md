@@ -4,6 +4,17 @@
 
 ---
 
+## 🔍 Règle n°1 — Vérifier la cohérence AVANT de toucher (absolue)
+
+Avant toute modification, ou tout appui, sur un élément du projet — document, fichier de code, n'importe quoi — **vérifier d'abord qu'il est cohérent** :
+- le **lire en entier** (pas le diff, pas en survol) ;
+- contrôler que ses **liens / chemins / références existent** réellement ;
+- contrôler que son **contenu n'est pas périmé** ni contredit par la réalité (code, git, autres docs).
+
+Cette vérification est **systématique et ne dépend d'aucune demande** : elle précède toute action. Si une incohérence est trouvée, **la signaler avant d'agir** — ne jamais construire par-dessus. (Règle née le 09/06/2026 : sans elle, je bâtis sur du périmé jusqu'à ce qu'on m'arrête.)
+
+---
+
 ## Vision
 
 Plateforme web de génération d'activités pédagogiques pour les enseignants (collège → supérieur), sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
@@ -54,7 +65,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 **Deux gestes, deux scripts, jamais confondus :** `git push` / `save.ps1` = sauvegarde GitHub, n'affecte **pas** la prod. `prod.ps1` = déploiement VPS, **sous validation explicite**.
 
-Version courante : **3.2.3** — PATCH incrémenté automatiquement par `prod.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
+Version courante : **3.2.9** — PATCH incrémenté automatiquement par `prod.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
 
 **Cohabitation locale :** le port 8000 local est souvent pris par un autre projet (A-VIEWCAM). `run.ps1` lance donc aSchool sur **8001** (paramètre `-BackendPort`, défaut 8001), ne tue jamais le 8000 voisin, et passe `VITE_API_PORT` au frontend (proxy Vite configurable via `process.env.VITE_API_PORT`). Cohérent avec le VPS (aSchool en 8001 derrière Django AFIA-FR).
 
@@ -290,12 +301,12 @@ Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..
 
 ---
 
-## BACKLOG.md — Source unique de vérité
+## BACKLOG.md — Réservoir d'idées + journal des livraisons
 
-`MesMD/BACKLOG.md` est le seul endroit où sont tracés statut, idées et avancement. Règles :
+`MesMD/BACKLOG.md` est le **réservoir** : idées priorisées (backlog) + journal des livraisons (FAIT). Le **pilotage** (ce qu'on fait, dans quel ordre) est dans la BOUSSOLE — voir « Pilotage — un seul pilote » ci-dessus. Règles :
 - Toute idée mentionnée en session → notée dans BACKLOG.md **immédiatement**, dans la même réponse. Pas en fin de session.
-- Jamais de cases ☐/☑ dans un autre document (specs, dashboard, mémoire).
-- En fin de session : synchroniser BACKLOG.md (cocher les livrés, ajouter les nouvelles idées).
+- Les checklists de chantier ☐/☑ vivent dans la **BOUSSOLE** et ses fiches `Dxx` ; le BACKLOG garde le tableau priorisé + le journal FAIT. Pas de doublon de suivi ailleurs.
+- En fin de session : synchroniser BACKLOG.md (déplacer les livrés en FAIT, ajouter les nouvelles idées).
 
 ---
 
