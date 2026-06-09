@@ -19,11 +19,11 @@
 
 | # | Titre | Effort | Valeur | Faisabilité | Score | Section | Détail | ✅ |
 |---|---|---|---|---|---|---|---|---|
-| [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [L35](LEVIERS/L35.md) | ☐ |
-| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [L37](LEVIERS/L37.md) | ☐ |
+| [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [D26](BOUSSOLE/D26.md) | ☐ |
+| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [D07](BOUSSOLE/D07.md) | ☐ |
 | [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [D24](BOUSSOLE/D24.md) | 🟡 |
-| [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [L38](LEVIERS/L38.md) | ☐ |
-| [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](LEVIERS/L39.md) | ☐ |
+| [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [D27](BOUSSOLE/D27.md) | ☐ |
+| [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [D28](BOUSSOLE/D28.md) | ☐ |
 | [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☑ |
 | [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
 | [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
@@ -444,8 +444,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-35"></a>
 - [ ] **35 — Versioning & transposition de séquences** | Difficile | 3 sessions
-  *Permettre au prof de réutiliser/adapter une séquence existante au lieu de la régénérer — c'est le vrai moat. Nouvelle table `sequence_versions`, transposition automatique d'un niveau à l'autre, UI fork dans l'historique. Prérequis : [L37](LEVIERS/L37.md) (mécanique versions éphémère).*
-  → [L35](LEVIERS/L35.md)
+  *Permettre au prof de réutiliser/adapter une séquence existante au lieu de la régénérer — c'est le vrai moat. Nouvelle table `sequence_versions`, transposition automatique d'un niveau à l'autre, UI fork dans l'historique. Prérequis : [D07](BOUSSOLE/D07.md) (mécanique versions éphémère).*
+  → [D26](BOUSSOLE/D26.md)
 
 <a id="item-36"></a>
 - [ ] **36 — Corpus Programmes MEN (producteur RAG)** | Moyen-Difficile | 3,5-5 sessions restantes — 1/96 docs indexés
@@ -454,18 +454,18 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-37"></a>
 - [ ] **37 — Affinage interactif de séquence (instruction prof + versions éphémères)** | Moyen | 1 session — code dormant / parké (D07)
-  *Le prof pilote l'affinage par instruction libre ("phase 3 trop courte", "remplace par jeu de rôle"). Bouton "Affiner" + zone saisie texte/dictée + mini-pagination V1/V2/Vn. State React, perdu au refresh. Nouveau `POST /api/affiner-sequence`. Prérequis de [L35](LEVIERS/L35.md).*
-  → [L37](LEVIERS/L37.md)
+  *Le prof pilote l'affinage par instruction libre ("phase 3 trop courte", "remplace par jeu de rôle"). Bouton "Affiner" + zone saisie texte/dictée + mini-pagination V1/V2/Vn. State React, perdu au refresh. Nouveau `POST /api/affiner-sequence`. Prérequis de [D26](BOUSSOLE/D26.md).*
+  → [D07](BOUSSOLE/D07.md)
 
 <a id="item-38"></a>
 - [ ] **38 — Sortie séquence en JSON structuré (rendu pro)** | Moyen | 1 session — après 37
-  *Passe du markdown brut à un JSON typé + rendu React avec cartes par phase, badges durée, code couleur par type d'organisation. Migration douce (fallback markdown). Facilite [L37](LEVIERS/L37.md) et [L35](LEVIERS/L35.md).*
-  → [L38](LEVIERS/L38.md)
+  *Passe du markdown brut à un JSON typé + rendu React avec cartes par phase, badges durée, code couleur par type d'organisation. Migration douce (fallback markdown). Facilite [D07](BOUSSOLE/D07.md) et [D26](BOUSSOLE/D26.md).*
+  → [D27](BOUSSOLE/D27.md)
 
 <a id="item-39"></a>
 - [ ] **39 — Switch provider séquence → Claude Sonnet 4.6** | Facile | 2h — après 38
   *Évaluer Claude Sonnet 4.6 vs Groq llama-3.3-70b sur la génération de séquences. Ajouter `anthropic_client.py` + toggle ou variable `AI_PROVIDER_SEQUENCE`. Coût ~3$/Mtok input à monitorer.*
-  → [L39](LEVIERS/L39.md)
+  → [D28](BOUSSOLE/D28.md)
 
 <a id="item-40"></a>
 - [ ] **40 — Signe distinctif « aSchool vous reconnaît » près du nom du prof** | Facile | 0,5 session — à scorer

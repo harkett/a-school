@@ -3,7 +3,7 @@
 > **Statut :** ✅ codé en mode DEV · ✅ branché à `/api/generate` (15/05/2026) · ✅ Test 4 canary validé · ❌ pas en prod
 > **Effort restant :** ~1 session (hébergement prod chroma_db + opti cold start + branchement autres consommateurs)
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [L36](../LEVIERS/L36.md) (corpus MEN) · futurs producteurs : L30, L04, L31, L34
+> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : L30, L04, L31, L34
 
 ---
 
