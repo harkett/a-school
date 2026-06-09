@@ -26,7 +26,7 @@
 | [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](LEVIERS/L39.md) | ☐ |
 | [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☑ |
 | [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
-| [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L28](LEVIERS/L28.md) | ☐ |
+| [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
 | [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [L33](LEVIERS/L33.md) | ☐ |
 | [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](LEVIERS/I07.md) | ☐ |
 | [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [I14](LEVIERS/I14.md) | ☐ |
@@ -410,7 +410,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-28"></a>
 - [ ] **28 — Stratégie de remédiation** | Facile | 0,5 session
   *Étend L2 : pour chaque ambiguïté détectée, ajouter contre-exemple + activité de remédiation + formulation alternative. Modifie prompt L2 + ajuste Ambiguites.jsx. Pas de nouveau endpoint.*
-  → [L28](LEVIERS/L28.md)
+  → [D17](BOUSSOLE/D17.md)
 
 <a id="item-29"></a>
 - [ ] **29 — Mode expérience prof (T1 / confirmé / expert)** | Facile | 0,5 session
