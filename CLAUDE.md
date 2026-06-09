@@ -230,7 +230,7 @@ Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/
 
 ## Renommage — Règle de cascade obligatoire
 
-Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou si on note dans TRACKER sous "En attente de cascade". Ne jamais clore la session sans que chaque impact soit traité ou noté.
+Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou si on note dans BACKLOG sous "En attente de cascade". Ne jamais clore la session sans que chaque impact soit traité ou noté.
 
 ---
 
@@ -290,12 +290,27 @@ Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..
 
 ---
 
-## TRACKER.md — Source unique de vérité
+## BACKLOG.md — Source unique de vérité
 
-`MesMD/TRACKER.md` est le seul endroit où sont tracés statut, idées et avancement. Règles :
-- Toute idée mentionnée en session → notée dans TRACKER.md **immédiatement**, dans la même réponse. Pas en fin de session.
+`MesMD/BACKLOG.md` est le seul endroit où sont tracés statut, idées et avancement. Règles :
+- Toute idée mentionnée en session → notée dans BACKLOG.md **immédiatement**, dans la même réponse. Pas en fin de session.
 - Jamais de cases ☐/☑ dans un autre document (specs, dashboard, mémoire).
-- En fin de session : synchroniser TRACKER.md (cocher les livrés, ajouter les nouvelles idées).
+- En fin de session : synchroniser BACKLOG.md (cocher les livrés, ajouter les nouvelles idées).
+
+---
+
+## Pilotage — un seul pilote (règle absolue)
+
+**Deux documents vivants, deux rôles, zéro chevauchement :**
+
+| Document | Rôle unique |
+|---|---|
+| `MesMD/BOUSSOLE/` (BOUSSOLE.md + fiches Dxx) | **Pilote** — ce qu'on fait, dans quel ordre, tâche par tâche |
+| `MesMD/BACKLOG.md` | **Réservoir** — tout ce qui pourrait se faire, priorisé |
+
+- **La BOUSSOLE est le seul document qui pilote.** Aucun autre document n'a le droit de « ré-ordonner la boussole ». Tout plan, diagnostic ou audit ponctuel est **absorbé** dans la boussole en chantier `Dxx` — jamais un pilote concurrent.
+- **Pas de doc-archive dans l'arbre de travail.** Les anciens états (vieux CR, plans clôturés) vivent dans l'**historique git**, pas dans un fichier vivant. Ne jamais recréer de document d'archive dans l'arbre. Claude ne consulte l'historique git **que sur demande explicite** — un état daté lu spontanément induit en erreur (c'est ce piège qui a motivé la règle).
+- **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément — c'est du git, donc lecture **sur demande explicite** seulement. Mes outils par défaut ne voient que le checkout courant ; je ne lance pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de moi-même.
 
 ---
 
@@ -399,4 +414,4 @@ Ne jamais afficher mots de passe, clés API ou tokens en clair dans la discussio
 
 ## Sync docs — Règle de fin de session
 
-En fin de chaque session de dev importante : mettre à jour ce fichier (version, règles nouvelles) + synchroniser TRACKER.md.
+En fin de chaque session de dev importante : mettre à jour ce fichier (version, règles nouvelles) + synchroniser BACKLOG.md.

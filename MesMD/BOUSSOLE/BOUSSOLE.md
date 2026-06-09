@@ -3,15 +3,23 @@
 > Vue d'ensemble. Détail dans chaque `Dxx.md` du dossier courant.
 > Mise à jour : fin de chaque session.
 
-**Date :** 2026-05-31 · **Version :** 3.2.9 · **Focus :** Dictée Groq batch stabilisée (Deepgram gelé)
+**Date :** 2026-06-09 · **Version :** 3.2.9 · **Focus :** Consolidation du cœur (filet de tests) avant réouverture du push
+
+---
+
+## 🧭 Règle de pilotage — un seul pilote
+
+**La BOUSSOLE est le seul document qui pilote.** Aucun autre document n'a le droit de « ré-ordonner la boussole ». Tout plan, diagnostic ou audit ponctuel est **absorbé** ici en chantier `Dxx` — jamais un pilote concurrent. Réservoir d'idées = [BACKLOG](../BACKLOG.md). Les anciens états vivent dans l'**historique git**, pas dans un doc de l'arbre de travail.
+
+**Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément : c'est du git, lecture **sur demande explicite** seulement. Pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de ma propre initiative.
 
 ---
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)
 
-**Dictée vocale = stabilisée (31/05).** Retour à Groq Whisper batch + fix 400 + retour visuel temps réel (visualiseur de volume + chrono). Détail : [D15](D15.md). **Deepgram streaming = gelé**, isolé sur la branche `wip/deepgram-streaming` (amélioration future, rien perdu) → la Phase 3.2 / [D09](D09/D09.md) **n'est plus le focus**.
+**Chantier actif = Consolidation du cœur ([D16](D16.md)).** Filet de tests posé (Phase 1, 17/17 verts), on traite le suspect **tâche par tâche, sous filet**. **Fait :** auto-save durci (2.1), P3.4 (`/api/generate` → 400/502). **Prochain : P3.6**, puis P5.11, puis P3.5 (verdicts : [BACKLOG](../BACKLOG.md) § AUDIT). Objectif final : rouvrir le push proprement, **Deepgram restant hors push**.
 
-**Prochain chantier business** : reprendre [D12](D12.md) (Activité 100% fonctionnel) — la case « dictée » y est désormais cochée.
+**Rappel :** dictée stabilisée (31/05, [D15](D15.md)) ; Deepgram gelé sur `wip/deepgram-streaming`.
 
 ---
 
@@ -21,16 +29,17 @@
 
 | Ordre | Item | État | Détail |
 |---|---|---|---|
-| 1 | **Dictée — Groq batch stabilisée** ✅ | Revert Deepgram→Groq batch + fix 400 + retour visuel (31/05) · Deepgram gelé sur `wip/deepgram-streaming` | [D15](D15.md) |
-| 2 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](D07.md) |
-| 3 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · attend D09 partiel pour case dictée | [D12](D12.md) |
-| 4 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](D13.md) |
-| 5 | 🛠️ DOC — **Dégraissage TRACKER.md** (586 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
-| 6 | 🛠️ DOC — **Dégraissage duplications roadmap/pilotage Deepgram** | Session dédiée · non bloquant | [D10](D10.md) |
+| 1 | 🎯 **Consolidation du cœur** (filet de tests + suspect sous filet) | Phase 1 close (filet 17/17) · Phase 2 en cours (P3.4 ✅, reste P3.6→P5.11→P3.5) · récupère l'ex-PLAN_REPRISE | [D16](D16.md) |
+| 2 | **Dictée — Groq batch stabilisée** ✅ | Revert Deepgram→Groq batch + fix 400 + retour visuel (31/05) · Deepgram gelé sur `wip/deepgram-streaming` | [D15](D15.md) |
+| 3 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](D07.md) |
+| 4 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · dictée livrée (D15) | [D12](D12.md) |
+| 5 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](D13.md) |
+| 6 | 🛠️ DOC — **Dégraissage BACKLOG.md** (586 → ~150-200 lignes) | Session dédiée · non bloquant business | [D11](D11.md) |
+| 7 | 🛠️ DOC — **Dégraissage duplications roadmap/pilotage Deepgram** | Session dédiée · non bloquant | [D10](D10.md) |
 
 ## Checklist avant modification
 
-- [ ] Lire `FAIT ✅` du [TRACKER](../TRACKER.md) — la modif est peut-être déjà livrée
+- [ ] Lire `FAIT ✅` du [BACKLOG](../BACKLOG.md) — la modif est peut-être déjà livrée
 - [ ] Lire le fichier cible **complet**, pas le diff
 - [ ] Vérifier que routes/paths/fonctions cités existent
 - [ ] Confirmer avec l'équipe avant action destructive ou multi-fichiers
@@ -41,10 +50,10 @@
 
 - **D08** — Dette branding `school.afia.fr` → `aschool.fr` : 44/44 corrigées (24 le 18/05 déjà commitées + 20 `MesAdmin/` le 19/05 **à commit**). Voir [D08](D08.md). Commit ciblé : `chore(branding): finaliser MesAdmin/`.
 
-## Fiches livrées + commitées (à archiver dans TRACKER FAIT lors du dégraissage D11)
+## Fiches livrées + commitées (à archiver dans BACKLOG FAIT lors du dégraissage D11)
 
 D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV) · D04 (Groq fallback) · D05 (errorDialog + niveau header) — commités le 18/05/2026.
 
 ---
 
-[TRACKER (39 items)](../TRACKER.md) · [CLAUDE.md (règles)](../../CLAUDE.md)
+[BACKLOG (39 items)](../BACKLOG.md) · [CLAUDE.md (règles)](../../CLAUDE.md)

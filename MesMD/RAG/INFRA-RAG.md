@@ -3,7 +3,7 @@
 > **Statut :** ✅ codé en mode DEV · ✅ branché à `/api/generate` (15/05/2026) · ✅ Test 4 canary validé · ❌ pas en prod
 > **Effort restant :** ~1 session (hébergement prod chroma_db + opti cold start + branchement autres consommateurs)
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [TRACKER#infra-rag](../TRACKER.md#infra-rag) · producteurs : [L36](../LEVIERS/L36.md) (corpus MEN) · futurs producteurs : L30, L04, L31, L34
+> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [L36](../LEVIERS/L36.md) (corpus MEN) · futurs producteurs : L30, L04, L31, L34
 
 ---
 
@@ -110,7 +110,7 @@ Démo standalone (UI Flask sur `:8765`, indexait Maths cycle 4) ayant servi à v
 
 ## Position dans la décision d'architecture RAG
 
-Voir [TRACKER](../TRACKER.md) section *« DÉCISION D'ARCHITECTURE — RAG »* :
+Voir [BACKLOG](../BACKLOG.md) section *« DÉCISION D'ARCHITECTURE — RAG »* :
 - sous-section *« Pré-requis transverse — INFRA-RAG »* (cette fiche)
 - section 1 *« Principe & infrastructure »* (règles transverses)
 - section 3 *« Table active — Typologie pédagogique »* (qui consomme quoi)

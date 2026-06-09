@@ -1,4 +1,4 @@
-# aSchool — TRACKER
+# aSchool — BACKLOG
 
 > **Source de vérité unique.** Toute idée, tâche ou livraison est ici — nulle part ailleurs.
 > Specs techniques détaillées → `LEVIERS/`
@@ -547,7 +547,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   *Bug : optimisation séquence renvoyait 413 "Request too large" car le 1er fallback `llama-3.1-8b-instant` (TPM 6000) ne tient pas une requête d'optim (~7400 tokens). Correctif `backend/groq_client.py` : (1) ordre du fallback inversé — `gpt-oss-120b` → `gpt-oss-20b` → `8b-instant` (le moins capable en dernier recours), (2) le fallback se déclenche aussi sur 413 et 503 (plus seulement 429), (3) nettoyage variable morte `last_error`. La génération de séquence (~4500 tokens) n'était pas affectée car elle tenait sous la limite.*
 
 - [x] **Refonte structure docs — 1 fichier par item dans `LEVIERS/`** | Livré 15/05
-  *39 fichiers créés (L*.md pour leviers pédagogiques, I*.md pour items techniques/admin). TRACKER allégé : sections détaillées remplacées par résumés courts + lien. Colonne "Détail" ajoutée au tableau global. Architecture transverse (Cat. A/B/C, mapping RAG) maintenue dans TRACKER.*
+  *39 fichiers créés (L*.md pour leviers pédagogiques, I*.md pour items techniques/admin). BACKLOG allégé : sections détaillées remplacées par résumés courts + lien. Colonne "Détail" ajoutée au tableau global. Architecture transverse (Cat. A/B/C, mapping RAG) maintenue dans BACKLOG.*
 
 - [x] **L5 — Analyseur de consignes** | Livré 14/05
   *Backend `POST /api/analyser-consigne` (5 axes). Frontend `Consigne.jsx` complet (8 points standard). Accessible via mes-outils → "Qualité des consignes". L2 intégré dans ZoneResultat (bouton "Ambiguïtés" → pré-remplit Ambiguites). Section "Analyser" retirée du sidebar.*
