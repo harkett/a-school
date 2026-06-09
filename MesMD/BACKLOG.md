@@ -30,7 +30,7 @@
 | [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [D21](BOUSSOLE/D21.md) | ☐ |
 | [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](LEVIERS/I07.md) | ☐ |
 | [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [I14](LEVIERS/I14.md) | ☐ |
-| [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [L30](LEVIERS/L30.md) | ☐ |
+| [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [D23](BOUSSOLE/D23.md) | ☐ |
 | [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [D20](BOUSSOLE/D20.md) | ☐ |
 | [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](LEVIERS/I02.md) | ☐ |
 | [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](LEVIERS/I08.md) | ☐ |
@@ -420,7 +420,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-30"></a>
 - [ ] **30 — Différenciation DYS / FLE / approfondissement** | Moyen | 1 session
   *3 variantes d'une activité après génération : DYS (syntaxe épurée + OpenDyslexic), FLE (vocabulaire simplifié), approfondissement (nuances). 3 boutons dans ZoneResultat + 3 modificateurs de prompt. Grounding RAG sur guides MEN inclusion — infra commune avec [L36](LEVIERS/L36.md).*
-  → [L30](LEVIERS/L30.md)
+  → [D23](BOUSSOLE/D23.md)
 
 <a id="item-31"></a>
 - [ ] **31 — Appréciations bulletins & communication parents** | Moyen | 1 session
