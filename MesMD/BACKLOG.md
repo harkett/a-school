@@ -45,7 +45,7 @@
 | [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [I10](LEVIERS/I10.md) | ☐ |
 | [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](LEVIERS/I18.md) | ☐ |
 | [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
-| [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [L29](LEVIERS/L29.md) | ☐ |
+| [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [D18](BOUSSOLE/D18.md) | ☐ |
 | [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [L34](LEVIERS/L34.md) | ☐ |
 | [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](LEVIERS/I01.md) | ☐ |
 | [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I05](LEVIERS/I05.md) | ☐ |
@@ -415,7 +415,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-29"></a>
 - [ ] **29 — Mode expérience prof (T1 / confirmé / expert)** | Facile | 0,5 session
   *1 champ `experience` en BDD + variable injectée dans tous les prompts. T1 = détaillé ; expert = condensé. Plus on attend, plus il manque partout.*
-  → [L29](LEVIERS/L29.md)
+  → [D18](BOUSSOLE/D18.md)
 
 <a id="item-30"></a>
 - [ ] **30 — Différenciation DYS / FLE / approfondissement** | Moyen | 1 session
