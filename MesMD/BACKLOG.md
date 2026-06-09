@@ -24,8 +24,8 @@
 | [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [L36](LEVIERS/L36.md) | ☐ |
 | [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [L38](LEVIERS/L38.md) | ☐ |
 | [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [L39](LEVIERS/L39.md) | ☐ |
-| [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L03](LEVIERS/L03.md) | ☑ |
-| [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L04](LEVIERS/L04.md) | ☐ |
+| [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☑ |
+| [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
 | [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [L28](LEVIERS/L28.md) | ☐ |
 | [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [L33](LEVIERS/L33.md) | ☐ |
 | [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](LEVIERS/I07.md) | ☐ |
@@ -41,7 +41,7 @@
 | [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](LEVIERS/I17.md) | ☐ |
 | [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](LEVIERS/I21.md) | ☐ |
 | [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I24](LEVIERS/I24.md) | ☐ |
-| [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [L26](LEVIERS/L26.md) | ☐ |
+| [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D17](BOUSSOLE/D17.md) | ☐ |
 | [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [I10](LEVIERS/I10.md) | ☐ |
 | [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](LEVIERS/I18.md) | ☐ |
 | [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
@@ -285,12 +285,12 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-03"></a>
 - [x] **03 — Analyseur de consignes (L5)** | Livré 14/05
   *5 axes (clarté, précision didactique, ambiguïté, structure, erreurs typiques) + version optimisée. Backend + frontend en place.*
-  → [L03](LEVIERS/L03.md)
+  → [D17](BOUSSOLE/D17.md)
 
 <a id="item-04"></a>
 - [ ] **04 — Détecteur d'équité pédagogique** | Facile | 1 session
   *Audit d'une évaluation → 3 biais (contenu, difficulté, émotionnel). Grounding RAG sur charte de la laïcité + référentiels équité — infra commune avec [L36](LEVIERS/L36.md).*
-  → [L04](LEVIERS/L04.md)
+  → [D17](BOUSSOLE/D17.md)
 
 <a id="item-05"></a>
 - [ ] **05 — Page /contact** | Facile | 2h
@@ -400,7 +400,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-26"></a>
 - [ ] **26 — Pipeline qualité automatique** | Moyen | progressif
   *Assemblage des 6 leviers en un rapport qualité synthétique. Se construit au fil des leviers livrés.*
-  → [L26](LEVIERS/L26.md)
+  → [D17](BOUSSOLE/D17.md)
 
 <a id="item-27"></a>
 - [ ] **27 — Validation texte source par LLM (Option B)** | Facile | 2h
