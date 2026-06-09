@@ -40,16 +40,16 @@
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) | ☐ |
 | [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](LEVIERS/I17.md) | ☐ |
 | [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](LEVIERS/I21.md) | ☐ |
-| [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I24](LEVIERS/I24.md) | ☐ |
+| [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D32](BOUSSOLE/D32.md) | ☐ |
 | [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D17](BOUSSOLE/D17.md) | ☐ |
-| [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [I10](LEVIERS/I10.md) | ☐ |
+| [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [D31](BOUSSOLE/D31.md) | ☐ |
 | [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](LEVIERS/I18.md) | ☐ |
 | [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
 | [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [D18](BOUSSOLE/D18.md) | ☐ |
 | [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [D22](BOUSSOLE/D22.md) | ☐ |
 | [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](LEVIERS/I01.md) | ☐ |
 | [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D29](BOUSSOLE/D29.md) | ☐ |
-| [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I06](LEVIERS/I06.md) | ☐ |
+| [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D30](BOUSSOLE/D30.md) | ☐ |
 | [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md | ⟳ |
 | [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [I19](LEVIERS/I19.md) | ☐ |
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) | ☐ |
@@ -300,7 +300,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-06"></a>
 - [ ] **06 — Civilité M./Mme dans le profil** | Facile | 2h
   *Personnalisation de l'en-tête. Absorbé par Mon Profil.*
-  → [I06](LEVIERS/I06.md)
+  → [D30](BOUSSOLE/D30.md)
 
 <a id="item-07"></a>
 - [ ] **07 — Onboarding email J+2 / J+7 / J+14** | Moyen | 3 jours
@@ -320,7 +320,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-10"></a>
 - [ ] **10 — Timeouts sessions** | Facile | 2h
   *Sessions trop longues signalées. À traiter séparément — ne pas toucher à l'auth sans analyse préalable.*
-  → [I10](LEVIERS/I10.md)
+  → [D31](BOUSSOLE/D31.md)
 
 <a id="item-11"></a>
 - [ ] **11 — Fiche de révision Français + Fiche pédagogique HG** | Facile | 30 min
@@ -389,7 +389,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-24"></a>
 - [ ] **24 — Google OAuth** | Difficile | 2-3 semaines
   *Réduit la friction d'inscription. Inutile avant validation des pilotes.*
-  → [I24](LEVIERS/I24.md)
+  → [D32](BOUSSOLE/D32.md)
 
 <a id="item-25"></a>
 - [ ] **25 — Cohérence curriculaire inter-disciplines** | Difficile | 2-3 sessions
