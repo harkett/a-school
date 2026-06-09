@@ -130,7 +130,7 @@
 ## DÉCISION D'ARCHITECTURE — RAG : Architecture et corpus
 
 **Date :** 2026-05-15
-**Statut :** validée (provisoire — révision après implémentation effective de 3 leviers consommateurs : L1, L25, L30)
+**Statut :** validée (provisoire — révision après implémentation effective de 3 leviers consommateurs : Générateur de séquences, D25, D23)
 
 ---
 
@@ -158,16 +158,16 @@ Hors typologie pédagogique (infra pure, pas un levier).
 
 | # | Question pédagogique | Corpus principal | Consommateurs | Producteur |
 |---|---|---|---|---|
-| 1 | Que doit-on enseigner ? | Programmes officiels MEN | L1, L25, Générateur d'activités | L36 |
-| 2 | Comment adapter à un profil d'élève ? | Guides MEN inclusion / DYS / FLE | L30 | — |
-| 3 | Comment évaluer équitablement ? | Charte laïcité / référentiels équité | L04 | — |
-| 4 | Comment communiquer avec familles/admin ? | Guides académiques communication | L31 | — |
-| 5 | Comment stimuler la créativité élève ? | Recherche pédagogique créativité | L34 | — |
+| 1 | Que doit-on enseigner ? | Programmes officiels MEN | Générateur de séquences, D25, Générateur d'activités | D24 |
+| 2 | Comment adapter à un profil d'élève ? | Guides MEN inclusion / DYS / FLE | D23 | — |
+| 3 | Comment évaluer équitablement ? | Charte laïcité / référentiels équité | D17 | — |
+| 4 | Comment communiquer avec familles/admin ? | Guides académiques communication | D19 | — |
+| 5 | Comment stimuler la créativité élève ? | Recherche pédagogique créativité | D22 | — |
 
 **Légende :**
 - **Producteur** = levier responsable de l'ingestion/maintenance du corpus dans ChromaDB
 - `—` = pas de producteur défini, alimentation manuelle ou via un producteur futur non encore désigné
-- **L36** dans la colonne Producteur = producteur du corpus *Programmes MEN* uniquement. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](RAG/INFRA-RAG.md).
+- **D24** dans la colonne Producteur = producteur du corpus *Programmes MEN* uniquement. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](RAG/INFRA-RAG.md).
 
 ### 4. Leviers sans RAG
 

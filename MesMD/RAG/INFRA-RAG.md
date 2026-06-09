@@ -3,7 +3,7 @@
 > **Statut :** ✅ codé en mode DEV · ✅ branché à `/api/generate` (15/05/2026) · ✅ Test 4 canary validé · ❌ pas en prod
 > **Effort restant :** ~1 session (hébergement prod chroma_db + opti cold start + branchement autres consommateurs)
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : L30, L04, L31, L34
+> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
 
 ---
 
@@ -54,11 +54,11 @@ for c in chunks:
 
 | Producteur | Collection | Docs indexés | Disque |
 |---|---|---|---|
-| L36 | `corpus_programmes_men` | 1/96 (Maths cycle 4 via POC) | ~3 MB actuels, ~70-80 MB cible |
-| L30 | `corpus_inclusion_dys_fle` | 0 | — |
-| L04 | `corpus_equite_laicite` | 0 | — |
-| L31 | `corpus_communication_familles` | 0 | — |
-| L34 | `corpus_creativite_pedagogique` | 0 | — |
+| D24 | `corpus_programmes_men` | 1/96 (Maths cycle 4 via POC) | ~3 MB actuels, ~70-80 MB cible |
+| D23 | `corpus_inclusion_dys_fle` | 0 | — |
+| D17 | `corpus_equite_laicite` | 0 | — |
+| D19 | `corpus_communication_familles` | 0 | — |
+| D22 | `corpus_creativite_pedagogique` | 0 | — |
 | **Total prévisionnel à terme** | | ~150 docs | **~100-120 MB** |
 
 ---
@@ -94,7 +94,7 @@ Démo standalone (UI Flask sur `:8765`, indexait Maths cycle 4) ayant servi à v
 - [x] ~~Feature flag `RAG_ENABLED`~~ — fait
 - [x] ~~Affichage chunks dans la réponse API~~ — fait (`GenerateResponse.chunks`)
 - [ ] Pré-charger sentence-transformers au boot FastAPI (lifespan) — éviter le cold start ~38 s sur la 1ʳᵉ requête RAG après démarrage
-- [ ] Brancher les autres consommateurs : L1 (séquences), L25 (cohérence curriculaire), L30, L04, L31, L34 (collections différentes)
+- [ ] Brancher les autres consommateurs : Générateur de séquences, Cohérence curriculaire (D25), D23 (DYS/FLE), D17 (équité), D19 (communication), D22 (créativité) — collections différentes
 - [ ] Supprimer `rag_demo/` après validation (toujours en place)
 - [ ] Décider du devenir de `backend/rag/_canary_inject.py` — conservé pour l'instant comme outil de diagnostic réutilisable (futurs producteurs)
 
