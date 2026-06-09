@@ -20,7 +20,7 @@
 | # | Titre | Effort | Valeur | Faisabilité | Score | Section | Détail | ✅ |
 |---|---|---|---|---|---|---|---|---|
 | [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [D26](BOUSSOLE/D26.md) | ☐ |
-| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [D07](BOUSSOLE/D07.md) | ☐ |
+| [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [D07](BOUSSOLE/D07.md) | 🟡 |
 | [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [D24](BOUSSOLE/D24.md) | 🟡 |
 | [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [D27](BOUSSOLE/D27.md) | ☐ |
 | [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [D28](BOUSSOLE/D28.md) | ☐ |
