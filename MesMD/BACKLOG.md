@@ -48,16 +48,16 @@
 | [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [D18](BOUSSOLE/D18.md) | ☐ |
 | [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [D22](BOUSSOLE/D22.md) | ☐ |
 | [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](LEVIERS/I01.md) | ☐ |
-| [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I05](LEVIERS/I05.md) | ☐ |
+| [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D29](BOUSSOLE/D29.md) | ☐ |
 | [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I06](LEVIERS/I06.md) | ☐ |
-| [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | [I12](LEVIERS/I12.md) | ☐ |
+| [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md | ⟳ |
 | [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [I19](LEVIERS/I19.md) | ☐ |
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) | ☐ |
 | [09](#item-09) | Migration React Query (TanStack Query) | 1 session dédiée | ★★★☆☆ | ★★★☆☆ | **6/10** | IMPORTANT | [I09](LEVIERS/I09.md) | ☐ |
 | [13](#item-13) | Dette technique complète | 2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | SESSION DÉDIÉE | [I13](LEVIERS/I13.md) | ☐ |
 | [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I15](LEVIERS/I15.md) | ☐ |
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
-| [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | OPTIONNEL | [I20](LEVIERS/I20.md) | ☐ |
+| [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | HORS-PÉRIMÈTRE | hors-périmètre — projet séparé | ✗ |
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — | ☑ |
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
@@ -295,7 +295,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-05"></a>
 - [ ] **05 — Page /contact** | Facile | 2h
   *Remplace l'adresse email brute dans le footer — réduit le spam.*
-  → [I05](LEVIERS/I05.md)
+  → [D29](BOUSSOLE/D29.md)
 
 <a id="item-06"></a>
 - [ ] **06 — Civilité M./Mme dans le profil** | Facile | 2h
@@ -328,9 +328,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   → [I11](LEVIERS/I11.md)
 
 <a id="item-12"></a>
-- [ ] **12 — Synchronisation pages afia.fr ↔ projets** | Facile | Au prochain push MINOR/MAJOR
-  *Claude génère le contenu mis à jour de School.jsx (AFIA-FR) à chaque push MINOR ou MAJOR — prêt à coller. Règle dans CLAUDE.md.*
-  → [I12](LEVIERS/I12.md)
+- **12 — Synchronisation pages afia.fr ↔ projets** | règle permanente (pas un chantier)
+  *Claude génère le contenu mis à jour de School.jsx (AFIA-FR) à chaque push MINOR ou MAJOR — prêt à coller.*
+  → règle permanente — voir CLAUDE.md (§ Synchronisation afia.fr — Règle absolue)
 
 <a id="item-13"></a>
 - [ ] **13 — Dette technique complète** | 2 sessions — à planifier après 02 + 03 + 04
@@ -368,9 +368,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   → [I19](LEVIERS/I19.md)
 
 <a id="item-20"></a>
-- [ ] **20 — Projet demo-perf — FastAPI + PostgreSQL à l'échelle** | Difficile | En fin de projet
-  *Projet technique séparé. Stack FastAPI async + PostgreSQL + Docker. Tests scénarios index, pagination, N+1, connection pool.*
-  → [I20](LEVIERS/I20.md)
+- **20 — Projet demo-perf — FastAPI + PostgreSQL** | hors-périmètre aSchool
+  *Projet technique séparé (hors aSchool), non suivi comme chantier ici. Conservé pour mémoire : stack FastAPI async + PostgreSQL + Docker, tests de charge (index, pagination, N+1, connection pool).*
 
 <a id="item-21"></a>
 - [ ] **21 — Support niveau Supérieur (BTS/prépa/licence)** | Difficile | 2 semaines
