@@ -68,6 +68,7 @@
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — | ☑ |
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
+| [43](#item-43) | Module Petite Enfance 0-3 ans — 1er segment vision multi-niveaux | à scorer | à scorer | à scorer | à scorer | FUTUR / stratégique | D48 *(à créer)* | ☐ |
 
 ---
 
@@ -484,6 +485,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-42"></a>
 - [ ] **42 — Recherche globale dans l'application** | à cadrer | à scorer
   *Recherche transverse dans les données de l'app — distincte de l'item 41 (qui est une recherche LOCALE à la page Aide). Périmètre à définir le jour venu : chercher dans quoi exactement (activités sauvegardées, séquences, réseau des collègues…) ; touchera probablement le backend (endpoints de recherche) → chantier transverse, pas un simple composant front, à cadrer séparément. Emplacement pressenti (décidé par Harketti) : dans le HEADER, une LOUPE à côté du titre central « Générateur d'activités pédagogiques ». Au clic sur la loupe, le titre s'efface et le champ de recherche prend sa place au centre ; recherche terminée ou champ fermé (✕ / Échap), le champ disparaît et le titre réapparaît. Les autres éléments du header (matière, nom, déconnexion) ne bougent pas. Exigence (comme l'item 41) : utilisable par TOUS les profs, même peu à l'aise avec le numérique — fermeture évidente, rien de caché. Lien : le pattern codé pour l'item 41 (normalize, surlignage, ergonomie) sert de RÉFÉRENCE d'ergonomie, pas de code réutilisé tel quel (données différentes). Feature produit — soumise au gel.*
+
+<a id="item-43"></a>
+- [ ] **43 — Module Petite Enfance 0-3 ans** | FUTUR / stratégique — à scorer
+  *Premier maillon de la **vision multi-niveaux** (voir § Direction produit en tête de BACKLOG) — relié à l'autre maillon déjà amorcé, le **niveau Supérieur** ([D36](BOUSSOLE/D36.md), ex-I21) : les deux bouts de la vision (Crèche ↔ Supérieur) se maillent. Décliner aSchool pour la petite enfance 0-3 ans (crèches, micro-crèches, assistantes maternelles, EJE, CAP AEPE, PS). **⚠️ Garde-fou IA dur : l'IA ne doit JAMAIS diagnostiquer, interpréter médicalement, ni étiqueter un enfant** — rester factuelle, valoriser les progrès, proposer des activités adaptées. Spec complète + détail → D48 (à créer, tâche 3).*
 
 ---
 
