@@ -34,7 +34,7 @@
 | [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [D20](BOUSSOLE/D20.md) | ☐ |
 | [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D42](BOUSSOLE/D42.md) | ☐ |
 | [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D43](BOUSSOLE/D43.md) | ☐ |
-| [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](LEVIERS/I11.md) | ☐ |
+| [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D45](BOUSSOLE/D45.md) | ☐ |
 | [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) | ✅ |
 | [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D38](BOUSSOLE/D38.md) | ☐ |
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) | ☐ |
@@ -53,10 +53,8 @@
 | [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md | ⟳ |
 | [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [D44](BOUSSOLE/D44.md) | ☐ |
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) | ☐ |
-| [09](#item-09) | Migration React Query (TanStack Query) | 1 session dédiée | ★★★☆☆ | ★★★☆☆ | **6/10** | IMPORTANT | [I09](LEVIERS/I09.md) | ☐ |
-| [13](#item-13) | Dette technique complète | 2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | SESSION DÉDIÉE | [I13](LEVIERS/I13.md) | ☐ |
-| [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I15](LEVIERS/I15.md) | ☐ |
-| [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [I22](LEVIERS/I22.md) | ☐ |
+| [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D46](BOUSSOLE/D46.md) | ☐ |
+| [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D47](BOUSSOLE/D47.md) | ☐ |
 | [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | HORS-PÉRIMÈTRE | hors-périmètre — projet séparé | ✗ |
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — | ☑ |
@@ -91,8 +89,6 @@
 | 01 — Pages légales CNIL | Routes dédiées, aucun sens en option |
 | 05 — Page /contact | Route statique dédiée |
 | 07 — Onboarding email J+2/J+7/J+14 | Infrastructure APScheduler backend, invisible UI |
-| 09 — Migration React Query | Refactoring transverse |
-| 13 — Dette technique | Session dédiée |
 | 15 — Gestion emails sortants admin | Journal + stats + bounces, périmètre propre |
 | 17 — Quiz interactif élèves | Architecture entièrement différente (liens publics, live) |
 | 20 — Projet demo-perf | Projet technique séparé hors aSchool |
@@ -236,6 +232,12 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | Transverse — à appliquer sur TOUS les outils
   *Ajouter une rubrique « Exemple » (un cas concret entrée → sortie) à la structure commune des onglets « Comment ça marche », pour **chaque** outil de l'appli — pas seulement le détecteur d'ambiguïtés. But : rendre l'aide vivante, le prof voit ce qu'il obtient avant de tester. Le contenu d'exemple **propre à chaque outil** vit dans son D respectif (ex. détecteur → D17) ; cet item ne porte que la **règle de structure commune**. Identifié 10/06/2026.*
 
+- [ ] **[Refactor] Migration React Query (TanStack Query)** | Session dédiée, hors gel — ne pas mélanger
+  *Adopter le standard industrie 2024-2026 pour la gestion des données en React, en remplacement des 20+ `fetch` manuels actuels : timeout AbortController, retry automatique différencié (auth vs Groq), loading/error centralisés, cache `staleTime` par type de requête. À traiter en session dédiée, sans mélanger avec d'autres chantiers. (Ex-item backlog #09, score 6/10 — basculé en dette le 10/06/2026.)*
+
+- [ ] **[Maintenance] Dette technique complète (passe transverse)** | 2 sessions dédiées, hors gel
+  *Passe de consolidation transverse : dépendances obsolètes, cohérence de la gestion d'erreurs API, documentation des règles métier, revue sécurité des routes. La migration React Query, initialement listée ici, est suivie séparément (voir l'item **[Refactor]** ci-dessus). À planifier en sessions dédiées. (Ex-item backlog #13, score 6/10 — basculé en dette le 10/06/2026.)*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
@@ -315,11 +317,6 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   *Un prompt + un bloc dans AdminFeedbacks. Utile dès 15 retours pour orienter le produit.*
   → [D43](BOUSSOLE/D43.md)
 
-<a id="item-09"></a>
-- [ ] **09 — Migration React Query (TanStack Query)** | Difficile | 1 session dédiée
-  *Remplace 20+ fetch manuels par le standard industrie (timeout, retry, cache, loading/error centralisés). Session dédiée.*
-  → [I09](LEVIERS/I09.md)
-
 <a id="item-10"></a>
 - [ ] **10 — Timeouts sessions** | Facile | 2h
   *Sessions trop longues signalées. À traiter séparément — ne pas toucher à l'auth sans analyse préalable.*
@@ -328,17 +325,12 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-11"></a>
 - [ ] **11 — Fiche de révision Français + Fiche pédagogique HG** | Facile | 30 min
   *Deux types d'activités manquants à ajouter dans la matrice (sur le modèle des autres matières).*
-  → [I11](LEVIERS/I11.md)
+  → [D45](BOUSSOLE/D45.md)
 
 <a id="item-12"></a>
 - **12 — Synchronisation pages afia.fr ↔ projets** | règle permanente (pas un chantier)
   *Claude génère le contenu mis à jour de School.jsx (AFIA-FR) à chaque push MINOR ou MAJOR — prêt à coller.*
   → règle permanente — voir CLAUDE.md (§ Synchronisation afia.fr — Règle absolue)
-
-<a id="item-13"></a>
-- [ ] **13 — Dette technique complète** | 2 sessions — à planifier après 02 + 03 + 04
-  *Périmètre : dépendances obsolètes, gestion d'erreurs API, migration React Query, doc règles métier, revue sécurité routes.*
-  → [I13](LEVIERS/I13.md)
 
 <a id="item-14"></a>
 - [ ] **14 — Bouton "Partagez avec vos collègues"** | Moyen | 1 session
@@ -348,7 +340,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-15"></a>
 - [ ] **15 — Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions
   *Journal envois + stats + bounces → liste noire + lien désinscription. Prérequis : SMTP transactionnel (Brevo/Resend).*
-  → [I15](LEVIERS/I15.md)
+  → [D46](BOUSSOLE/D46.md)
 
 <a id="item-16"></a>
 - [ ] **16 — Ambiguité → Créer une séquence** | Facile | 1h
@@ -382,7 +374,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-22"></a>
 - [ ] **22 — Théâtre — 13e matière** | Moyen | 1-2 semaines
   *Activités dans MATRICE_ACTIVITES + parse_markdown.py. Prérequis : trouver un prof pilote théâtre.*
-  → [I22](LEVIERS/I22.md)
+  → [D47](BOUSSOLE/D47.md)
 
 <a id="item-23"></a>
 - [ ] **23 — Escape Game pédagogique** | Difficile | 2-3 semaines
