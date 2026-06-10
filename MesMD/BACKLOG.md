@@ -9,6 +9,15 @@
 
 ---
 
+## 🧭 Direction produit — aSchool décliné par niveau *(stratégique, conditionnel)*
+
+*Note de cap, **pas un engagement**.* Au-delà du collège-lycée actuel, déclinaison possible d'aSchool **par niveau de scolarité** : **Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur**. À engager **segment par segment, « si ça accroche »** (traction réelle) — jamais en bloc.
+
+- **Premier maillon exploré** : Module Petite Enfance 0-3 ans → *(fiche D48 — à créer, tâche 3)*.
+- **Maillon déjà amorcé** : support niveau Supérieur ([D36](BOUSSOLE/D36.md), ex-I21) — devient rétrospectivement un segment de cette vision.
+
+---
+
 ## BACKLOG — Vue globale
 
 > Tableau trié par **Score = Valeur + Faisabilité** (meilleur ROI en premier). Quand un item est livré → ~~barrer la ligne~~ + déplacer dans FAIT. La trace reste visible.
