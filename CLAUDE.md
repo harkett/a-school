@@ -21,6 +21,8 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 **Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
 
+**Vision multi-niveaux (cap, non engagé) :** aSchool décliné par niveau — Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur. Détail + statut : `MesMD/BACKLOG.md` → § « Direction produit ».
+
 ---
 
 ## Stack technique
