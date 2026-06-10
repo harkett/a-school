@@ -25,6 +25,12 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants (
 
 ---
 
+## Périmètre produit — aSchool est POUR l'enseignant (règle absolue)
+
+Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), est **l'enseignant**. Une fonctionnalité qui ne sert pas le prof à enseigner est **hors périmètre**, même si elle est « pédagogique ». Sont **exclus** : tout ce qui s'adresse directement à l'étudiant (emploi, CV, portfolio personnel) ou à un autre public (conseillers d'orientation, recruteurs). Tout ce que l'IA produit pour les étudiants est généré **par le prof**, qui reste l'unique utilisateur de l'outil.
+
+---
+
 ## Stack technique
 
 | Composant | Détail |
