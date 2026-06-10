@@ -32,8 +32,8 @@
 | [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [D41](BOUSSOLE/D41.md) | ☐ |
 | [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [D23](BOUSSOLE/D23.md) | ☐ |
 | [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [D20](BOUSSOLE/D20.md) | ☐ |
-| [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](LEVIERS/I02.md) | ☐ |
-| [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](LEVIERS/I08.md) | ☐ |
+| [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D42](BOUSSOLE/D42.md) | ☐ |
+| [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D43](BOUSSOLE/D43.md) | ☐ |
 | [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](LEVIERS/I11.md) | ☐ |
 | [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) | ✅ |
 | [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D38](BOUSSOLE/D38.md) | ☐ |
@@ -51,7 +51,7 @@
 | [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D29](BOUSSOLE/D29.md) | ☐ |
 | [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D30](BOUSSOLE/D30.md) | ☐ |
 | [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md | ⟳ |
-| [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [I19](LEVIERS/I19.md) | ☐ |
+| [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [D44](BOUSSOLE/D44.md) | ☐ |
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) | ☐ |
 | [09](#item-09) | Migration React Query (TanStack Query) | 1 session dédiée | ★★★☆☆ | ★★★☆☆ | **6/10** | IMPORTANT | [I09](LEVIERS/I09.md) | ☐ |
 | [13](#item-13) | Dette technique complète | 2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | SESSION DÉDIÉE | [I13](LEVIERS/I13.md) | ☐ |
@@ -283,7 +283,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-02"></a>
 - [ ] **02 — Email admin → prof** | Facile | 2h
   *Bouton "Contacter" dans AdminFeedbacks + 3 templates (Traité / Précision / Remerciement). Endpoint `POST /api/admin/feedbacks/{id}/email`.*
-  → [I02](LEVIERS/I02.md)
+  → [D42](BOUSSOLE/D42.md)
 
 <a id="item-03"></a>
 - [x] **03 — Analyseur de consignes (L5)** | Livré 14/05
@@ -313,7 +313,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-08"></a>
 - [ ] **08 — Analyse des notations Groq** | Facile | 1 jour
   *Un prompt + un bloc dans AdminFeedbacks. Utile dès 15 retours pour orienter le produit.*
-  → [I08](LEVIERS/I08.md)
+  → [D43](BOUSSOLE/D43.md)
 
 <a id="item-09"></a>
 - [ ] **09 — Migration React Query (TanStack Query)** | Difficile | 1 session dédiée
@@ -368,7 +368,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-19"></a>
 - [ ] **19 — Admin — Menu Activités en groupe** | Facile | 2h
   *Prépare la modération des activités partagées. Pattern `group: true` déjà disponible dans AdminLayout.*
-  → [I19](LEVIERS/I19.md)
+  → [D44](BOUSSOLE/D44.md)
 
 <a id="item-20"></a>
 - **20 — Projet demo-perf — FastAPI + PostgreSQL** | hors-périmètre aSchool
