@@ -233,6 +233,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Outillage] Mini journal de versions (version ↔ tâches livrées)** | Compagnon de l'étage 3, hors gel
   *Pas seulement lister « v3.3.0 = ces features » : **relier chaque version déployée aux tâches qu'elle embarque**, pour que lorsqu'un prof pilote remonte un problème, on sache **quelle version il utilise et ce qu'elle contient**. Traçabilité feedback prof ↔ version testée — compagnon direct de l'**étage 3** (item [Process] ci-dessus). Identifié 08/06/2026.*
 
+- [ ] **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | Transverse — à appliquer sur TOUS les outils
+  *Ajouter une rubrique « Exemple » (un cas concret entrée → sortie) à la structure commune des onglets « Comment ça marche », pour **chaque** outil de l'appli — pas seulement le détecteur d'ambiguïtés. But : rendre l'aide vivante, le prof voit ce qu'il obtient avant de tester. Le contenu d'exemple **propre à chaque outil** vit dans son D respectif (ex. détecteur → D17) ; cet item ne porte que la **règle de structure commune**. Identifié 10/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
