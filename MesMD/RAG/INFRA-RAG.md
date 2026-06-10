@@ -3,7 +3,7 @@
 > **Statut :** ✅ codé en mode DEV · ✅ branché à `/api/generate` (15/05/2026) · ✅ Test 4 canary validé · ❌ pas en prod
 > **Effort restant :** ~1 session (hébergement prod chroma_db + opti cold start + branchement autres consommateurs)
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [BACKLOG#infra-rag](../BACKLOG.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
+> **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
 
 ---
 
@@ -110,7 +110,7 @@ Démo standalone (UI Flask sur `:8765`, indexait Maths cycle 4) ayant servi à v
 
 ## Position dans la décision d'architecture RAG
 
-Voir [BACKLOG](../BACKLOG.md) section *« DÉCISION D'ARCHITECTURE — RAG »* :
+Voir [TABLEAU DE BORD](../TABLEAU-DE-BORD.md) section *« DÉCISION D'ARCHITECTURE — RAG »* :
 - sous-section *« Pré-requis transverse — INFRA-RAG »* (cette fiche)
 - section 1 *« Principe & infrastructure »* (règles transverses)
 - section 3 *« Table active — Typologie pédagogique »* (qui consomme quoi)
