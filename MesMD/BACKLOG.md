@@ -13,7 +13,7 @@
 
 *Note de cap, **pas un engagement**.* Au-delà du collège-lycée actuel, déclinaison possible d'aSchool **par niveau de scolarité** : **Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur**. À engager **segment par segment, « si ça accroche »** (traction réelle) — jamais en bloc.
 
-- **Premier maillon exploré** : Module Petite Enfance 0-3 ans → *(fiche D48 — à créer, tâche 3)*.
+- **Premier maillon exploré** : Module Petite Enfance 0-3 ans → [D48](BOUSSOLE/D48.md).
 - **Maillon déjà amorcé** : support niveau Supérieur ([D36](BOUSSOLE/D36.md), ex-I21) — devient rétrospectivement un segment de cette vision.
 
 ---
@@ -68,7 +68,7 @@
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — | ☐ |
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — | ☑ |
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — | ☐ |
-| [43](#item-43) | Module Petite Enfance 0-3 ans — 1er segment vision multi-niveaux | à scorer | à scorer | à scorer | à scorer | FUTUR / stratégique | D48 *(à créer)* | ☐ |
+| [43](#item-43) | Module Petite Enfance 0-3 ans — 1er segment vision multi-niveaux | à scorer | à scorer | à scorer | à scorer | FUTUR / stratégique | [D48](BOUSSOLE/D48.md) | ☐ |
 
 ---
 
@@ -488,7 +488,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-43"></a>
 - [ ] **43 — Module Petite Enfance 0-3 ans** | FUTUR / stratégique — à scorer
-  *Premier maillon de la **vision multi-niveaux** (voir § Direction produit en tête de BACKLOG) — relié à l'autre maillon déjà amorcé, le **niveau Supérieur** ([D36](BOUSSOLE/D36.md), ex-I21) : les deux bouts de la vision (Crèche ↔ Supérieur) se maillent. Décliner aSchool pour la petite enfance 0-3 ans (crèches, micro-crèches, assistantes maternelles, EJE, CAP AEPE, PS). **⚠️ Garde-fou IA dur : l'IA ne doit JAMAIS diagnostiquer, interpréter médicalement, ni étiqueter un enfant** — rester factuelle, valoriser les progrès, proposer des activités adaptées. Spec complète + détail → D48 (à créer, tâche 3).*
+  *Premier maillon de la **vision multi-niveaux** (voir § Direction produit en tête de BACKLOG) — relié à l'autre maillon déjà amorcé, le **niveau Supérieur** ([D36](BOUSSOLE/D36.md), ex-I21) : les deux bouts de la vision (Crèche ↔ Supérieur) se maillent. Décliner aSchool pour la petite enfance 0-3 ans (crèches, micro-crèches, assistantes maternelles, EJE, CAP AEPE, PS). **⚠️ Garde-fou IA dur : l'IA ne doit JAMAIS diagnostiquer, interpréter médicalement, ni étiqueter un enfant** — rester factuelle, valoriser les progrès, proposer des activités adaptées. Spec complète + détail → [D48](BOUSSOLE/D48.md).*
 
 ---
 
