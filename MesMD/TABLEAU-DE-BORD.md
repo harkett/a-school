@@ -33,7 +33,7 @@
 | Ordre | Item | État | Détail |
 |---|---|---|---|
 | 1 | 🎯 **Consolidation du cœur** (filet de tests + suspect sous filet) | Phase 1 close (filet 17/17) · Phase 2 en cours (P3.4 ✅, reste P3.6→P5.11→P3.5) · récupère l'ex-PLAN_REPRISE | [D16](BOUSSOLE/D16.md) |
-| 2 | **L37 Affinage séquence** (route à câbler) | Plumbing dormant · débloque D13 | [D07](BOUSSOLE/D07.md) |
+| 2 | **Affinage séquence** (item 37, route à câbler) | Plumbing dormant · débloque D13 | [D07](BOUSSOLE/D07.md) |
 | 3 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · dictée livrée (D15) | [D12](BOUSSOLE/D12.md) |
 | 4 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](BOUSSOLE/D13.md) |
 | 5 | 🛠️ DOC — **Dégraissage / fusion du tableau de bord** | Session dédiée · non bloquant business | [D11](BOUSSOLE/D11.md) |
@@ -218,7 +218,7 @@ Hors typologie pédagogique (infra pure, pas un levier).
 ### 4. Leviers sans RAG
 
 Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
-**L2, L3, L03, L26, L27, L28, L32, L33, L35, L37, L38**
+**L2, L3, items 03, 26, 27, 28, 32, 33, 35, 37, 38**
 
 ### 5. Réserve — questions identifiées sans corpus actuel
 
@@ -325,7 +325,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="infra-rag"></a>
 - [~] **INFRA-RAG — Pile RAG mutualisée** | 1 session restante — DEV branché et validé, prod non décidée
-  *Pile commune `backend/rag/` (singleton ChromaDB + sentence-transformers + fonction `retrieve` générique). Branchée sur `/api/generate` avec gates (matière/niveau/feature flag) + fallback silencieux + logs INFO. **Test 4 validé en DEV le 15/05** : canary `Z36-27` injecté puis retrouvé cité 4 fois dans la sortie LLM (preuve que les chunks influencent vraiment la génération) ; wording du préfixe RAG renforcé (avant : 0 marqueur institutionnel MEN dans la sortie / après : 14+ marqueurs « compétences », « connaissances », « attendus cycle 4 », sources `[BOEN_..., page X]`). Livrable une fois, réutilisée par tous les producteurs de corpus (L36 MEN, L30 DYS/FLE, L04 équité, L31 communication, L34 créativité) et tous les consommateurs (L1, L25, Générateur d'activités). Hors numérotation L — infra pure, pas un levier. Reste : hébergement chroma_db côté VPS, opti cold start sentence-transformers, branchement L1 (séquences) et autres consommateurs.*
+  *Pile commune `backend/rag/` (singleton ChromaDB + sentence-transformers + fonction `retrieve` générique). Branchée sur `/api/generate` avec gates (matière/niveau/feature flag) + fallback silencieux + logs INFO. **Test 4 validé en DEV le 15/05** : canary `Z36-27` injecté puis retrouvé cité 4 fois dans la sortie LLM (preuve que les chunks influencent vraiment la génération) ; wording du préfixe RAG renforcé (avant : 0 marqueur institutionnel MEN dans la sortie / après : 14+ marqueurs « compétences », « connaissances », « attendus cycle 4 », sources `[BOEN_..., page X]`). Livrable une fois, réutilisée par tous les producteurs de corpus (item 36 MEN, item 30 DYS/FLE, item 04 équité, item 31 communication, item 34 créativité) et tous les consommateurs (L1, L25, Générateur d'activités). Hors numérotation L — infra pure, pas un levier. Reste : hébergement chroma_db côté VPS, opti cold start sentence-transformers, branchement L1 (séquences) et autres consommateurs.*
   → [INFRA-RAG](RAG/INFRA-RAG.md)
 
 ### Items numérotés
