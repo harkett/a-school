@@ -28,8 +28,8 @@
 | [04](#item-04) | Détecteur d'équité pédagogique | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
 | [28](#item-28) | Stratégie de remédiation | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) | ☐ |
 | [33](#item-33) | Mémo flash (format révision rapide) | 0,5 session | ★★★★☆ | ★★★★★ | **9/10** | IMPORTANT — après 32 | [D21](BOUSSOLE/D21.md) | ☐ |
-| [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [I07](LEVIERS/I07.md) | ☐ |
-| [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [I14](LEVIERS/I14.md) | ☐ |
+| [07](#item-07) | Onboarding email J+2 / J+7 / J+14 | 3 jours | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [D40](BOUSSOLE/D40.md) | ☐ |
+| [14](#item-14) | Bouton "Partagez avec vos collègues" | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | OPTIONNEL | [D41](BOUSSOLE/D41.md) | ☐ |
 | [30](#item-30) | Différenciation DYS / FLE / approfondissement | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT | [D23](BOUSSOLE/D23.md) | ☐ |
 | [32](#item-32) | Visuels Mermaid / SVG | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — prérequis 33+34 | [D20](BOUSSOLE/D20.md) | ☐ |
 | [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](LEVIERS/I02.md) | ☐ |
@@ -308,7 +308,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-07"></a>
 - [ ] **07 — Onboarding email J+2 / J+7 / J+14** | Moyen | 3 jours
   *APScheduler installé, J+0 welcome existe. Relances J+2/J+7/J+14 = impact rétention direct.*
-  → [I07](LEVIERS/I07.md)
+  → [D40](BOUSSOLE/D40.md)
 
 <a id="item-08"></a>
 - [ ] **08 — Analyse des notations Groq** | Facile | 1 jour
@@ -343,7 +343,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-14"></a>
 - [ ] **14 — Bouton "Partagez avec vos collègues"** | Moyen | 1 session
   *Prof envoie invitation par email. Backend `POST /api/partager/` (max 5 adresses/jour). Modale `PartagerCollègues.jsx`.*
-  → [I14](LEVIERS/I14.md)
+  → [D41](BOUSSOLE/D41.md)
 
 <a id="item-15"></a>
 - [ ] **15 — Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions
