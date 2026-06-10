@@ -35,7 +35,7 @@
 | [02](#item-02) | Email admin → prof (3 templates) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I02](LEVIERS/I02.md) | ☐ |
 | [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](LEVIERS/I08.md) | ☐ |
 | [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](LEVIERS/I11.md) | ☐ |
-| [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I16](LEVIERS/I16.md) | ☐ |
+| [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) | ✅ |
 | [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I27](LEVIERS/I27.md) | ☐ |
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) | ☐ |
 | [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](LEVIERS/I17.md) | ☐ |
@@ -353,7 +353,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-16"></a>
 - [ ] **16 — Ambiguité → Créer une séquence** | Facile | 1h
   *Bouton "Créer une séquence →" sur chaque reformulation corrigée → pré-remplit le thème.*
-  → [I16](LEVIERS/I16.md)
+  → [D33](BOUSSOLE/D33.md)
 
 <a id="item-17"></a>
 - [ ] **17 — Quiz interactif élèves** | Difficile | 2 semaines
