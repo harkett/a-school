@@ -36,7 +36,6 @@
 | 2 | **Affinage séquence** (item 37, route à câbler) | Plumbing dormant · débloque D13 | [D07](BOUSSOLE/D07.md) |
 | 3 | 🎯 **PROD-BUSINESS — Activité 100% fonctionnel** | Tous angles (qualité + UX + pilotes + features) · dictée livrée (D15) | [D12](BOUSSOLE/D12.md) |
 | 4 | 🎯 **PROD-BUSINESS — Séquences 100% fonctionnel** | Tous angles · attend D07 cloturé | [D13](BOUSSOLE/D13.md) |
-| 5 | 🛠️ DOC — **Dégraissage / fusion du tableau de bord** | Session dédiée · non bloquant business | [D11](BOUSSOLE/D11.md) |
 
 ---
 
@@ -288,8 +287,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Maintenance] Dette technique complète (passe transverse)** | 2 sessions dédiées, hors gel
   *Passe de consolidation transverse : dépendances obsolètes, cohérence de la gestion d'erreurs API, documentation des règles métier, revue sécurité des routes. La migration React Query, initialement listée ici, est suivie séparément (voir l'item **[Refactor]** ci-dessus). À planifier en sessions dédiées. (Ex-item backlog #13, score 6/10 — basculé en dette le 10/06/2026.)*
 
-- [ ] **[Doc] Passe de réconciliation des références (codes L migrés + synergies)** | Geste unique, hors gel — point B tranché
-  *Après la migration des fiches I → D (terminée 10/06/2026), une passe finale pour que les vieilles références pointent vers les bons D. **Feuille de route, dans l'ordre :** **(1) Point B ACTÉ** — garder les codenames `L1/L2/L3/L4/L5/L25` tels quels (features vivantes en prod : Générateur, Détecteur, Optimiseur, Analyseur… — PAS des fiches de chantier ; ne jamais les remapper vers des D). **(2)** Compléter la table L→D pour `L26/L27/L28/L32/L33` (consulter l'historique git à ce moment-là, sur demande explicite). **(3)** Réconcilier la catégorie C — codes de fiches MIGRÉES vers leur D (connus : L03→D17, L35→D26, L37→D07, L38→D27, L39→D28 ; à mapper : L26/27/28/32/33), en **épargnant les faux positifs** (numéros de ligne dans D08, `MiniLM-L12-v2` dans INFRA-RAG) — jamais de replace aveugle. **(4)** Vérifier les synergies (§ Synergies, Cat A/B/C). Commit dédié à la passe. Identifié 10/06/2026.*
+- [ ] **[Mémoire] Nettoyer les memory files périmés (BOUSSOLE/BACKLOG → doc unique)** | Tâche mémoire dédiée, hors gel
+  *Après la fusion (P1-P5, voir FAIT), plusieurs memory files de `~/.claude` décrivent encore « BOUSSOLE pilote / BACKLOG réservoir » comme deux docs, et `feedback_tracker_levier_sync` porte une **ref morte `MesMD/LEVIERS/`**. À reprendre à froid, **hook d'index + fichier ensemble** (cohérence) : `feedback_pilotage_boussole`, `feedback_boussole_tout_tracker`, `feedback_noter_idees`, `feedback_tracker_levier_sync`, + hooks MEMORY.md (23/24/35/60/66). Identifié 11/06/2026.*
 
 ---
 
@@ -581,6 +580,9 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
 ---
 
 ## FAIT ✅
+
+- [x] **Fusion BOUSSOLE + BACKLOG → `TABLEAU-DE-BORD.md` (doc pilote unique)** | Livré 11/06
+  *Les deux docs pivots (BOUSSOLE = pilote, BACKLOG = réservoir) fusionnés en un seul `MesMD/TABLEAU-DE-BORD.md` : pilotage (tête) + réservoir scoré (corps) + journal FAIT (fin) ; les fiches `BOUSSOLE/Dxx` restent la couche détail. 5 phases scopées : **P1** création du doc (`fc21a86`) ; **P2** réconciliation des codes L migrés → numéro d'item (`c75be07`) ; **P3** cascade des back-links de 35 fiches Dxx → `TABLEAU-DE-BORD` (`fd0e9b4`) ; **P4** fusion des §« Pilotage » + §« Réservoir » de `CLAUDE.md` (`f62dfb2`) ; **P5** suppression de `BOUSSOLE.md` + `BACKLOG.md` + retarge INFRA-RAG + `MEMORY.md` L.34 (`d98450b`). Absorbe **D11** (dégraissage/fusion) et l'ex-item **[Doc]** (passe de réconciliation = P2). Reste en dette : nettoyage des memory files périmés (voir § Dette).*
 
 - [x] **Accès Ambiguïtés restauré dans la sidebar + I16 (Ambiguïté → séquence) confirmé livré** | Livré 10/06
   *Deux choses tranchées le 10/06. **(a) Accès corrigé** : la section « Analyser » du menu latéral avait été **retirée volontairement le 14/05** (livraison L5, cf. entrée plus bas) — conséquence non anticipée : les outils d'analyse devenaient introuvables depuis la sidebar. Remise d'une sous-section repliable « Analyser → Ambiguïtés » dans `Sidebar.jsx` (calquée sur « Historique », couvre desktop + mobile). **Consigne et Équité restent hors sidebar** pour l'instant (périmètre volontaire : Ambiguïtés seul). Commit `c63172f`. **(b) I16 — « Ambiguïté → Créer une séquence »** : découvert **déjà entièrement codé** (bouton sur chaque carte de reformulation + dialog + câblage `App.jsx onCreateSequence` → pré-remplit le thème) ; seul l'accès manquait (point a). Vérifié de bout en bout (run Harketti). Migré en [D33](BOUSSOLE/D33.md). Commit `dd41cd6`.*
