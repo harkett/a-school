@@ -38,12 +38,12 @@
 | [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) | ✅ |
 | [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I27](LEVIERS/I27.md) | ☐ |
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) | ☐ |
-| [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [I17](LEVIERS/I17.md) | ☐ |
+| [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [D34](BOUSSOLE/D34.md) | ☐ |
 | [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](LEVIERS/I21.md) | ☐ |
 | [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D32](BOUSSOLE/D32.md) | ☐ |
 | [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D17](BOUSSOLE/D17.md) | ☐ |
 | [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [D31](BOUSSOLE/D31.md) | ☐ |
-| [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I18](LEVIERS/I18.md) | ☐ |
+| [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [D35](BOUSSOLE/D35.md) | ☐ |
 | [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
 | [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [D18](BOUSSOLE/D18.md) | ☐ |
 | [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [D22](BOUSSOLE/D22.md) | ☐ |
@@ -358,12 +358,12 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-17"></a>
 - [ ] **17 — Quiz interactif élèves** | Difficile | 2 semaines
   *Prof génère QCM → lien public → élèves répondent sur téléphone → résultats live. Différenciateur fort. Spec v1 validée 07/05.*
-  → [I17](LEVIERS/I17.md)
+  → [D34](BOUSSOLE/D34.md)
 
 <a id="item-18"></a>
 - [ ] **18 — Aide spécifique par matière** | Moyen | 3-5 jours
   *Infrastructure prête (subject en BDD). Textes d'aide adaptés selon le profil prof.*
-  → [I18](LEVIERS/I18.md)
+  → [D35](BOUSSOLE/D35.md)
 
 <a id="item-19"></a>
 - [ ] **19 — Admin — Menu Activités en groupe** | Facile | 2h
