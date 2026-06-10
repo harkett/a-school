@@ -36,18 +36,18 @@
 | [08](#item-08) | Analyse des notations Groq | 1 jour | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I08](LEVIERS/I08.md) | ☐ |
 | [11](#item-11) | Fiche de révision Français + Fiche pédagogique HG | 30 min | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [I11](LEVIERS/I11.md) | ☐ |
 | [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) | ✅ |
-| [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [I27](LEVIERS/I27.md) | ☐ |
+| [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D38](BOUSSOLE/D38.md) | ☐ |
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) | ☐ |
 | [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [D34](BOUSSOLE/D34.md) | ☐ |
-| [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [I21](LEVIERS/I21.md) | ☐ |
+| [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D36](BOUSSOLE/D36.md) | ☐ |
 | [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D32](BOUSSOLE/D32.md) | ☐ |
 | [26](#item-26) | Pipeline qualité automatique | progressif | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D17](BOUSSOLE/D17.md) | ☐ |
 | [10](#item-10) | Timeouts sessions | 2h | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT | [D31](BOUSSOLE/D31.md) | ☐ |
 | [18](#item-18) | Aide spécifique par matière | 3-5 jours | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [D35](BOUSSOLE/D35.md) | ☐ |
-| [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [I23](LEVIERS/I23.md) | ☐ |
+| [23](#item-23) | Escape Game pédagogique | 2-3 semaines | ★★★☆☆ | ★★★★☆ | **7/10** | OPTIONNEL | [D37](BOUSSOLE/D37.md) | ☐ |
 | [29](#item-29) | Mode expérience prof (T1 / confirmé / expert) | 0,5 session | ★★★☆☆ | ★★★★☆ | **7/10** | Mes Outils | [D18](BOUSSOLE/D18.md) | ☐ |
 | [34](#item-34) | Supports de créativité élève | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | IMPORTANT — après 32 | [D22](BOUSSOLE/D22.md) | ☐ |
-| [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [I01](LEVIERS/I01.md) | ☐ |
+| [01](#item-01) | Pages légales CNIL — placeholders [À COMPLÉTER] | En attente infos admin | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D39](BOUSSOLE/D39.md) | ☐ |
 | [05](#item-05) | Page /contact | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D29](BOUSSOLE/D29.md) | ☐ |
 | [06](#item-06) | Civilité M./Mme dans le profil | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | IMPORTANT | [D30](BOUSSOLE/D30.md) | ☐ |
 | [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md | ⟳ |
@@ -278,7 +278,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-01"></a>
 - [ ] **01 — Pages légales CNIL — placeholders [À COMPLÉTER]** | En attente infos admin
   *4 pages légales rédigées dans `CNIL/`. Bloqué par délais administration française (forme juridique, SIRET, etc.). À compléter dès réception + intégrer dans React (4 routes + liens footer).*
-  → [I01](LEVIERS/I01.md)
+  → [D39](BOUSSOLE/D39.md)
 
 <a id="item-02"></a>
 - [ ] **02 — Email admin → prof** | Facile | 2h
@@ -377,7 +377,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-21"></a>
 - [ ] **21 — Support niveau Supérieur (BTS/prépa/licence)** | Difficile | 2 semaines
   *Ouvre un segment nouveau (formateurs BTS/prépa). Surtout du travail de prompts et d'activités.*
-  → [I21](LEVIERS/I21.md)
+  → [D36](BOUSSOLE/D36.md)
 
 <a id="item-22"></a>
 - [ ] **22 — Théâtre — 13e matière** | Moyen | 1-2 semaines
@@ -387,7 +387,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-23"></a>
 - [ ] **23 — Escape Game pédagogique** | Difficile | 2-3 semaines
   *Prof choisit matière + niveau + thème → scénario + énigmes + épreuve finale. HTML imprimable.*
-  → [I23](LEVIERS/I23.md)
+  → [D37](BOUSSOLE/D37.md)
 
 <a id="item-24"></a>
 - [ ] **24 — Google OAuth** | Difficile | 2-3 semaines
@@ -407,7 +407,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-27"></a>
 - [ ] **27 — Validation texte source par LLM (Option B)** | Facile | 2h
   *Appel Groq pré-génération : "texte pédagogique exploitable ?" → JSON `{valide, raison}`. À implémenter quand Option A (heuristique livrée 13/05) montrera ses limites.*
-  → [I27](LEVIERS/I27.md)
+  → [D38](BOUSSOLE/D38.md)
 
 <a id="item-28"></a>
 - [ ] **28 — Stratégie de remédiation** | Facile | 0,5 session
