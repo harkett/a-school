@@ -238,6 +238,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Maintenance] Dette technique complète (passe transverse)** | 2 sessions dédiées, hors gel
   *Passe de consolidation transverse : dépendances obsolètes, cohérence de la gestion d'erreurs API, documentation des règles métier, revue sécurité des routes. La migration React Query, initialement listée ici, est suivie séparément (voir l'item **[Refactor]** ci-dessus). À planifier en sessions dédiées. (Ex-item backlog #13, score 6/10 — basculé en dette le 10/06/2026.)*
 
+- [ ] **[Doc] Passe de réconciliation des références (codes L migrés + synergies)** | Geste unique, hors gel — point B tranché
+  *Après la migration des fiches I → D (terminée 10/06/2026), une passe finale pour que les vieilles références pointent vers les bons D. **Feuille de route, dans l'ordre :** **(1) Point B ACTÉ** — garder les codenames `L1/L2/L3/L4/L5/L25` tels quels (features vivantes en prod : Générateur, Détecteur, Optimiseur, Analyseur… — PAS des fiches de chantier ; ne jamais les remapper vers des D). **(2)** Compléter la table L→D pour `L26/L27/L28/L32/L33` (consulter l'historique git à ce moment-là, sur demande explicite). **(3)** Réconcilier la catégorie C — codes de fiches MIGRÉES vers leur D (connus : L03→D17, L35→D26, L37→D07, L38→D27, L39→D28 ; à mapper : L26/27/28/32/33), en **épargnant les faux positifs** (numéros de ligne dans D08, `MiniLM-L12-v2` dans INFRA-RAG) — jamais de replace aveugle. **(4)** Vérifier les synergies (BACKLOG Cat A/B/C). Commit dédié à la passe. Identifié 10/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
