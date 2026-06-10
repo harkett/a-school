@@ -96,6 +96,7 @@ const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'cree
 const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
 const CREER_PAGES = ['creer-activite', 'creer-sequence']
 const HISTORIQUE_PAGES = ['mes-activites', 'mes-sequences']
+const ANALYSER_PAGES = ['ambiguites']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
@@ -103,12 +104,14 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
   const [creerOpen, setCreerOpen] = useState(() => CREER_PAGES.includes(page))
   const [historiqueOpen, setHistoriqueOpen] = useState(() => HISTORIQUE_PAGES.includes(page))
+  const [analyserOpen, setAnalyserOpen] = useState(() => ANALYSER_PAGES.includes(page))
 
   useEffect(() => {
     if (MES_OUTILS_PAGES.includes(page)) setOutilsOpen(true)
     if (MON_RESEAU_PAGES.includes(page)) setBiblioOpen(true)
     if (CREER_PAGES.includes(page)) setCreerOpen(true)
     if (HISTORIQUE_PAGES.includes(page)) setHistoriqueOpen(true)
+    if (ANALYSER_PAGES.includes(page)) setAnalyserOpen(true)
   }, [page])
 
   const navItem = (id, label, Icon, title) => (
@@ -241,6 +244,24 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
                   <>
                     {subNavItem('creer-activite', 'Activité', 'Créer une activité pédagogique')}
                     {subNavItem('creer-sequence', 'Séquence', 'Créer une séquence pédagogique')}
+                  </>
+                )}
+
+                {/* Analyser */}
+                <button
+                  onClick={() => setAnalyserOpen(o => !o)}
+                  title="Analyser et diagnostiquer un exercice ou un énoncé"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 0 3px 4px' }}
+                >
+                  <span>Analyser</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                    style={{ transform: analyserOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s', marginRight: 2 }}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                {analyserOpen && (
+                  <>
+                    {subNavItem('ambiguites', 'Ambiguïtés', "Détecter les ambiguïtés cognitives d'un exercice ou énoncé")}
                   </>
                 )}
 
