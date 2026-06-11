@@ -29,6 +29,19 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
+## 🧩 Refonte curriculum (modèle relationnel niveaux/matières) — conçu, pas encore construit
+
+> Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**, dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.**
+
+| St | Tâche | Dépendance / réserve |
+|---|---|---|
+| ✅ | Modèle relationnel validé (5 tables, cardinalités, contraintes `unique`/PK composite) | dans le `.dbml` |
+| ☐ | **Construire les tables** (modèles + migration expand) | après arbitrage du seed (réserve 1) |
+| ☐ | **Réserve 1 — SEED de `matiere_niveaux`** : d'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction | + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue) |
+| ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** : expand/contract + **COUNT des orphelins** (chaque `subject`/`niveau` existant doit matcher une paire de `matiere_niveaux`) **AVANT** bascule. Un subject sans paire = à savoir avant, pas pendant | même discipline que la migration `user_id` |
+
+---
+
 ## HORIZON 1 — MAINTENANT : finir la consolidation du cœur (seul chantier ouvert)
 
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
