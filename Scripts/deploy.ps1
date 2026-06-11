@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────
-# Prod A-SCHOOL → GitHub + déploiement automatique sur VPS
-# Usage : .\prod.ps1
-#         .\prod.ps1 "mon message de commit"
+# deploy.ps1 — A-SCHOOL : GitHub + déploiement automatique sur VPS
+# Usage : .\Scripts\deploy.ps1
+#         .\Scripts\deploy.ps1 "mon message de commit"
 # ─────────────────────────────────────────────────────────────
 
 param(

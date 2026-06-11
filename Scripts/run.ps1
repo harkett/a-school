@@ -1,13 +1,14 @@
 # ─────────────────────────────────────────────────────
 # A-SCHOOL — Lancer l'environnement de dev complet
-# Usage : .\run.ps1
+# Usage : .\Scripts\run.ps1
 # ─────────────────────────────────────────────────────
 # Cohabitation locale : aSchool tourne sur $BackendPort (8001 par defaut),
 # le 8000 etant souvent occupe par un autre projet (ex. A-VIEWCAM / AFIA-FR).
-# Aligne sur l'archi VPS (aSchool en 8001). Surcharge : .\run.ps1 -BackendPort 8002
+# Aligne sur l'archi VPS (aSchool en 8001). Surcharge : .\Scripts\run.ps1 -BackendPort 8002
 param([int]$BackendPort = 8001)
 
-$root    = $PSScriptRoot
+# Le script vit dans Scripts\ ; la racine du projet est le dossier parent.
+$root    = Split-Path -Parent $PSScriptRoot
 $pidFile = "$root\.run_pids"
 
 # 1. Tuer les processus du lancement précédent via les PIDs sauvegardés

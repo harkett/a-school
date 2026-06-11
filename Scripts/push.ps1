@@ -1,11 +1,12 @@
 # ─────────────────────────────────────────────────────────────
-# Save A-SCHOOL → GitHub UNIQUEMENT
-# Usage : .\save.ps1
-# Sauvegarde distante. NE déploie PAS la prod. NE bump PAS la version.
+# push.ps1 — Sauvegarde sur GitHub
+# Pousse vers GitHub les commits déjà créés et validés en local.
+# Ne s'exécute qu'après au moins un commit, et seulement quand tu
+# le valides : Claude le propose, tu valides, puis exécution.
 # ─────────────────────────────────────────────────────────────
 
 Write-Host ""
-Write-Host "Sauvegarde GitHub (aucun deploiement prod)..." -ForegroundColor Cyan
+Write-Host "Sauvegarde GitHub..." -ForegroundColor Cyan
 
 git push
 
@@ -14,4 +15,4 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "GitHub OK -- la prod n'a pas bouge." -ForegroundColor Green
+Write-Host "GitHub OK." -ForegroundColor Green
