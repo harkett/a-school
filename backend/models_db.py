@@ -210,3 +210,53 @@ class ToolUsageLog(Base):
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Refonte curriculum — référentiel niveaux/matières (programme officiel)
+# ---------------------------------------------------------------------------
+
+class Cycle(Base):
+    __tablename__ = "cycles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class Niveau(Base):
+    __tablename__ = "niveaux"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cycle_id: Mapped[int] = mapped_column(Integer, ForeignKey("cycles.id"), nullable=False, index=True)
+    nom: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class Matiere(Base):
+    __tablename__ = "matieres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cle: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    nom: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = retirée du programme (historique conservé)
+
+
+class MatiereNiveau(Base):
+    """Programme officiel : quelle matière à quel niveau (paire valide)."""
+    __tablename__ = "matiere_niveaux"
+    __table_args__ = (Index("ix_matiere_niveaux_unique", "matiere_id", "niveau_id", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    matiere_id: Mapped[int] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=False, index=True)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = paire retirée du programme (historique conservé)
+
+
+class UserEnseignement(Base):
+    """Ce que CE prof enseigne : un sous-ensemble du programme (paire valide)."""
+    __tablename__ = "user_enseignements"
+
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
+    matiere_niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("matiere_niveaux.id"), primary_key=True)
