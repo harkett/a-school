@@ -20,7 +20,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
 |---|---|---|---|---|---|
-| 1 | ☐ | **P3.6** — protéger contre `KeyError` quand `nb` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
+| 1 | ✅ | **P3.6** — protéger contre `KeyError` quand `nb`/`sous_type` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
 | 2 | ☐ | **P5.11** — niveau « Supérieur » : retirer du menu *ou* bloquer le bouton | après P3.6 | technique : ordre audit ; **à clarifier menu vs bouton** avant de coder | [D16](BOUSSOLE/D16.md) |
 | 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P5.11 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |

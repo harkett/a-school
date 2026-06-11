@@ -2709,6 +2709,17 @@ def _build_rag_prefix(chunks: list[dict]) -> str:
     return "\n".join(lines)
 
 
+# P3.6 — params saisis par le prof que le frontend supprime s'ils sont vides
+# (App.jsx : `if (!body.nb) delete body.nb` / idem sous_type). S'ils manquent pour
+# une activité qui les exige, le .format() lève KeyError : c'est une faute client,
+# traduite en 400. Tout AUTRE placeholder manquant = bug template/code → on re-lève
+# (500), jamais masqué en faux 400.
+_USER_PARAMS = {
+    "nb": "le nombre de questions/items",
+    "sous_type": "le type d'exercice",
+}
+
+
 def build_prompt(
     activite: str,
     texte: str,
@@ -2719,9 +2730,15 @@ def build_prompt(
 ) -> str:
     all_prompts = {**PROMPTS, **PROMPTS_HISTGEO, **PROMPTS_AUTRES}
     if activite not in all_prompts:
-        raise ValueError(f"Activité inconnue : {activite}")  # signal distinct du KeyError de .format() (nb manquant — P3.6)
+        raise ValueError(f"Activité inconnue : {activite}")  # signal distinct du KeyError de .format() (param manquant — P3.6)
     template = all_prompts[activite]
-    prompt = template.format(texte=texte, **kwargs)
+    try:
+        prompt = template.format(texte=texte, **kwargs)
+    except KeyError as e:
+        missing = str(e).strip("'")
+        if missing not in _USER_PARAMS:
+            raise  # bug template/code → 500, on ne le masque pas
+        raise ValueError(f"Indiquez {_USER_PARAMS[missing]} pour cette activité.") from e
     if exemples:
         prompt = _build_few_shot_prefix(exemples) + prompt
     if rag_chunks:

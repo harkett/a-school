@@ -255,3 +255,24 @@ def test_generate_reseau_down_502():
     assert r.status_code == 502, r.text
 
 
+# ===================== P3.6 — /api/generate : param requis manquant -> 400 =====================
+# "comprehension" exige {nb} ET {sous_type} dans son template. Le frontend supprime ces champs
+# s'ils sont vides ; sans garde, .format() lève KeyError -> 500. P3.6 : faute client -> 400.
+# Échoue dans build_prompt avant tout appel Groq : aucun mock nécessaire.
+
+def test_generate_nb_manquant_400():
+    """Activité exigeant {nb} appelée sans nb -> 400 (faute client), pas 500."""
+    r = authed().post("/api/generate", json={
+        "texte": "La photosynthèse.", "activite_key": "comprehension",
+        "niveau": "3e", "sous_type": "simples", "avec_correction": False})
+    assert r.status_code == 400, r.text
+
+
+def test_generate_sous_type_manquant_400():
+    """Activité exigeant {sous_type} appelée sans sous_type -> 400 (faute client), pas 500."""
+    r = authed().post("/api/generate", json={
+        "texte": "La photosynthèse.", "activite_key": "comprehension",
+        "niveau": "3e", "nb": 3, "avec_correction": False})
+    assert r.status_code == 400, r.text
+
+

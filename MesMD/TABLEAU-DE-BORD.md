@@ -20,7 +20,7 @@
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)
 
-**Chantier actif = Consolidation du cœur ([D16](BOUSSOLE/D16.md)).** Filet de tests posé (Phase 1, 17/17 verts), on traite le suspect **tâche par tâche, sous filet**. **Fait :** auto-save durci (2.1), P3.4 (`/api/generate` → 400/502). **Prochain : P3.6**, puis P5.11, puis P3.5 (verdicts : § AUDIT, plus bas). Objectif final : rouvrir le push proprement, **Deepgram restant hors push**.
+**Chantier actif = Consolidation du cœur ([D16](BOUSSOLE/D16.md)).** Filet de tests posé (Phase 1), on traite le suspect **tâche par tâche, sous filet** (19/19 verts). **Fait :** auto-save durci (2.1), P3.4 (`/api/generate` → 400/502), P3.6 (`nb`/`sous_type` manquant → 400). **Prochain : P5.11** (clarifier menu vs bouton), puis P3.5 (verdicts : § AUDIT, plus bas). Objectif final : rouvrir le push proprement, **Deepgram restant hors push**.
 
 **Rappel :** dictée stabilisée (31/05, [D15](BOUSSOLE/D15.md)) ; Deepgram gelé sur `wip/deepgram-streaming`.
 
@@ -293,7 +293,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - [x] **P2** — Auto-save activité : perte silencieuse → **modal + helper testable**. **FAIT** (Phase 2.1, commit `95fec11`).
 - [x] **P3.4** — `generate.py` : distinguer 401 / clé inconnue / Groq down (vs `except Exception` → 500). → **FAIT (08/06)** : `ValueError → 400` (clé inconnue, signal distinct du `KeyError` `.format()` réservé à P3.6) / `RuntimeError`+`RequestException` → 502 (Groq down) ; happy path inchangé. Filet **14 → 17 verts** (baseline réel 14, pas 17). Commit `f8d9317`.
-- [ ] **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **CORRIGER** · ordre 2 · test backend +.
+- [x] **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **FAIT (11/06)** : `build_prompt` (`src/prompts.py`) entoure le `.format()` ; liste blanche `_USER_PARAMS = {nb, sous_type}` (params prof, supprimés par le frontend s'ils sont vides) → `ValueError → 400` (message clair, modale prof) ; tout autre placeholder manquant = bug template/code → re-levé → 500 (jamais masqué en faux 400). `generate.py` inchangé. Filet **17 → 19 verts**.
 - [ ] **P5.11** — Niveau « Supérieur » non supporté (= item #21, non entamé). → **CORRIGER** · ordre 3 · **clarifier d'abord** : retirer du menu vs bloquer le bouton (ne pas présumer).
 - [ ] **P3.5** — Sur 401, rediriger vers /login. → **CORRIGER** · ordre 4 (le + sensible) · **relire le flux refresh token avant** (risque de boucle 401→login→retry→401).
 - [ ] **P4.7** — Compteur few-shot `localStorage` → backend (désynchro toast vs BDD). → **SOUS-D** (refactor d'état, socle de l'item 40).
