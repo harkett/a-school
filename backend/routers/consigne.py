@@ -142,7 +142,7 @@ def api_analyser_consigne(
     nb = len(data.get("analyses", []))
 
     try:
-        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="consigne", score_label=str(nb)))
+        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="consigne", score_label=str(nb)))
         db.commit()
     except Exception:
         pass

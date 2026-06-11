@@ -175,7 +175,6 @@ def create_refresh_token(db: Session, email: str) -> str:
         SECRET_KEY, algorithm=ALGORITHM,
     )
     db.add(RefreshToken(
-        user_email=email,
         user_id=db.query(User.id).filter(User.email == email).scalar(),
         token_hash=_hash_token(token),
         expires_at=_now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),

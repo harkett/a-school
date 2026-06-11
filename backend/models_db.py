@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text
+from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -42,8 +42,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -64,8 +63,7 @@ class Feedback(Base):
     __tablename__ = "feedbacks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     type: Mapped[str] = mapped_column(String(16), nullable=False, default="feedback")  # feedback | notation
     message: Mapped[str] = mapped_column(Text, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -87,8 +85,7 @@ class SequenceSauvegardee(Base):
     __tablename__ = "sequences_sauvegardees"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     matiere: Mapped[str] = mapped_column(String(64), nullable=False)
     niveau: Mapped[str] = mapped_column(String(32), nullable=False)
     theme: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -105,8 +102,7 @@ class ActiviteSauvegardee(Base):
     __tablename__ = "activites_sauvegardees"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     activite_key: Mapped[str] = mapped_column(String(64), nullable=False)
     activite_label: Mapped[str] = mapped_column(String(128), nullable=False)
     niveau: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -130,8 +126,7 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     session_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -186,11 +181,10 @@ class AdminAlert(Base):
 
 class FeatureVote(Base):
     __tablename__ = "feature_votes"
-    __table_args__ = (Index("ix_feature_votes_unique", "user_email", "feature_key", unique=True),)
+    __table_args__ = (Index("ix_feature_votes_unique", "user_id", "feature_key", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     feature_key: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -212,8 +206,7 @@ class ToolUsageLog(Base):
     __tablename__ = "tool_usage_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que la phase contract n'est pas faite)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

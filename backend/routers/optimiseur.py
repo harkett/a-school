@@ -140,7 +140,7 @@ def api_optimize(
     score_label = score_raw.split(" — ")[0].strip() or None
 
     try:
-        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="optimiseur", score_label=score_label))
+        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="optimiseur", score_label=score_label))
         db.commit()
     except Exception:
         pass

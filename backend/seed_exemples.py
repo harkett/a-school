@@ -3210,13 +3210,13 @@ def run_seed(db):
     inserted = 0
     for ex in EXEMPLES:
         already = db.query(ActiviteSauvegardee).filter(
-            ActiviteSauvegardee.user_email == DEMO_EMAIL,
+            ActiviteSauvegardee.user_id == user.id,
             ActiviteSauvegardee.objet == ex["objet"],
         ).first()
         if already:
             continue
         db.add(ActiviteSauvegardee(
-            user_email=DEMO_EMAIL,
+            user_id=user.id,
             activite_key=ex["activite_key"],
             activite_label=ex["activite_label"],
             niveau=ex["niveau"],

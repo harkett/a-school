@@ -127,7 +127,6 @@ def submit_feedback(
 
     db.add(Feedback(
         type=body.type,
-        user_email=email,
         user_id=db.query(User.id).filter(User.email == email).scalar(),
         message=body.message,
         rating=body.rating,

@@ -173,7 +173,6 @@ def api_generate_sequence(
 
     try:
         db.add(SequenceSauvegardee(
-            user_email=email,
             user_id=db.query(User.id).filter(User.email == email).scalar(),
             matiere=req.matiere,
             niveau=req.niveau,
@@ -183,7 +182,7 @@ def api_generate_sequence(
             description_classe=req.description_classe.strip(),
             resultat=resultat,
         ))
-        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="sequence"))
+        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="sequence"))
         db.commit()
     except Exception:
         pass

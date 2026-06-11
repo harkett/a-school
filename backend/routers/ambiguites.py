@@ -138,7 +138,7 @@ def api_detect_ambiguites(
     nb = len(data.get("ambiguites", []))
 
     try:
-        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="ambiguites", score_label=str(nb)))
+        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="ambiguites", score_label=str(nb)))
         db.commit()
     except Exception:
         pass

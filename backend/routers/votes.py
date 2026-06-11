@@ -70,7 +70,7 @@ def toggle_vote(
         db.delete(existing)
         voted = False
     else:
-        db.add(FeatureVote(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), feature_key=body.feature_key))
+        db.add(FeatureVote(user_id=db.query(User.id).filter(User.email == email).scalar(), feature_key=body.feature_key))
         voted = True
 
     db.commit()

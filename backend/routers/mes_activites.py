@@ -47,7 +47,6 @@ def sauvegarder(
 ):
     email = _get_email(aschool_access)
     activite = ActiviteSauvegardee(
-        user_email=email,
         user_id=db.query(User.id).filter(User.email == email).scalar(),
         activite_key=req.activite_key,
         activite_label=req.activite_label,
