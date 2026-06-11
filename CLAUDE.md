@@ -332,6 +332,27 @@ Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..
 
 ---
 
+## Cadence de travail — une ligne du TRACKER par session (règle par défaut)
+
+**Par défaut : une session = une ligne du `TRACKER.md`.** On finit et on
+committe une ligne avant d'attaquer la suivante — jamais plusieurs en
+parallèle. C'est ce qui garde le statut du TRACKER honnête (rien à moitié fait).
+
+Deux exceptions, **jugées par Claude au moment d'« attaquer XX »,
+signalées AVANT de coder, tranchées par l'utilisateur** :
+- **Ligne minuscule** (cosmétique, ~30 min) → Claude propose de la regrouper
+  avec la ligne voisine.
+- **Gros chantier** (plusieurs semaines) → Claude propose de le découper en
+  plusieurs sessions.
+
+**Découpage d'un gros chantier — « stable » n'est pas « fini » :** chaque
+sous-session se clôt sur un état **stable et committable** (le code tourne,
+rien de cassé, c'est committé), pas forcément sur la feature entière livrée.
+On ne laisse jamais de code cassé entre deux sessions, mais on ne s'impose
+pas de tout boucler en une fois — intenable sur un chantier de semaines.
+
+---
+
 ## Règles UI permanentes
 
 - **Profil = source unique** pour matière et niveau. Jamais de `<select>` matière/niveau dans les features — toujours lire depuis le profil.
