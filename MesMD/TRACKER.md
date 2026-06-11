@@ -1,25 +1,142 @@
 # aSchool — TRACKER
 
-> **Vue de pilotage de l'utilisateur.** Une ligne par tâche, lisible d'un coup d'œil.
+> **Vue de pilotage de l'utilisateur** : la liste COMPLÈTE de tout ce qui reste à faire, ordonnée.
 > Le détail (score, description, synergies, audits, RAG, journal FAIT) vit dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md).
 >
 > **Règle de tenue :** Statut / ordre / dépendance → ce TRACKER fait foi. Détail / score / journal FAIT → le TABLEAU fait foi.
 > Le statut est mis à jour ICI, dans la même réponse où l'on démarre ou finit une tâche.
+>
+> **Tracker vivant :** quand le tracker dit « attaque la tâche XX (Dxx) », Claude vérifie d'abord que rien n'a bougé dans le projet (fiche Dxx + code concerné + FAIT) ; si quelque chose a changé, il ajuste le tracker (ordre, dépendances, tâches en +/−) **et montre le delta** AVANT de continuer.
 
-**Statut :** ☐ à faire · 🔄 en cours · ⏸️ en pause · ✅ fait
-**Prio :** P1 / P2 / P3 — *remplie par l'utilisateur*
+**Statut :** ☐ à faire · 🔄 en cours · ⏸️ en pause / différé · ✅ fait
+
+**Colonne vertébrale de l'ordre :** le **gel des features pendant la consolidation**. Donc :
+**1.** finir la consolidation du cœur (D16) → **2.** rouvrir le push → **3.** dette / outillage → **4.** features (par dépendance puis valeur) → **5.** conditionnel.
+Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon l'envie. **Dans** chaque chaîne : l'ordre est imposé.
 
 ---
 
-| Statut | Prio | Tâche | Dépend de | Fiche |
+## HORIZON 1 — MAINTENANT : finir la consolidation du cœur (seul chantier ouvert)
+
+| # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
+|---|---|---|---|---|---|
+| 1 | ☐ | **P3.6** — protéger contre `KeyError` quand `nb` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
+| 2 | ☐ | **P5.11** — niveau « Supérieur » : retirer du menu *ou* bloquer le bouton | après P3.6 | technique : ordre audit ; **à clarifier menu vs bouton** avant de coder | [D16](BOUSSOLE/D16.md) |
+| 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P5.11 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
+| 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
+| 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
+| 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
+
+> 🎯 **Jalon de fin d'horizon : push rouvert.** Tant que H1 n'est pas clos, tout le reste est gelé.
+
+---
+
+## HORIZON 2 — À LA RÉOUVERTURE : dette technique / outillage (hors features)
+
+| # | St | Tâche | Pourquoi ici |
+|---|---|---|---|
+| 7 | ☐ | **[Infra] Filet de test front (Vitest + Testing Library)** | complément front du filet backend D16 — le front n'a aucun test |
+| 8 | ☐ | **[Process] Tests à 3 étages + [Outillage] journal de versions** | grave qui teste quoi / quand + traçabilité feedback prof ↔ version |
+| 9 | ☐ | **[Mémoire] Nettoyer les memory files périmés** (refs BACKLOG / BOUSSOLE / LEVIERS) | cohérence — la dette laissée volontairement lors de la création du TRACKER |
+| 10 | ☐ | **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | transverse, tous les outils |
+| 11 | ☐ | **[Refactor] Migration React Query (TanStack)** | session dédiée, ne pas mélanger |
+| 12 | ☐ | **[Maintenance] Dette technique transverse** (2 sessions) | deps obsolètes, gestion d'erreurs API, sécurité des routes |
+
+---
+
+## HORIZON 3 — ENSUITE : features (gelées jusqu'au jalon H1)
+
+> Chaînes **parallèles** : entre chaînes, pas d'ordre technique → pique selon l'envie. **Dans** chaque chaîne, l'ordre du haut vers le bas est imposé.
+
+### Quick wins libres (aucune dépendance — à faire avant les chaînes lourdes)
+
+| St | Tâche | Effort | Fiche |
+|---|---|---|---|
+| ☐ | **11** — Fiche de révision Français + Fiche pédagogique HG | 30 min | [D45](BOUSSOLE/D45.md) |
+| ☐ | **06** — Civilité M./Mme dans le profil | 2h | [D30](BOUSSOLE/D30.md) |
+| ☐ | **05** — Page /contact | 2h | [D29](BOUSSOLE/D29.md) |
+| ☐ | **02** — Email admin → prof (3 templates) | 2h | [D42](BOUSSOLE/D42.md) |
+| ☐ | **19** — Admin : menu Activités en groupe | 2h | [D44](BOUSSOLE/D44.md) |
+| ☐ | **10** — Timeouts sessions | 2h | [D31](BOUSSOLE/D31.md) |
+| ☐ | **27** — Validation texte source par LLM (Option B) | 2h | [D38](BOUSSOLE/D38.md) |
+| ☐ | **28** — Stratégie de remédiation (absorbé L2) | 0,5 session | [D17](BOUSSOLE/D17.md) |
+| ☐ | **08** — Analyse des notations Groq | 1 jour | [D43](BOUSSOLE/D43.md) |
+
+### Chaîne Séquences (ordre imposé)
+
+| Ordre | St | Tâche | Dépend de | Fiche |
 |---|---|---|---|---|
-| 🔄 |  | Consolidation du cœur (filet de tests + suspect sous filet) | rien de bloquant | [D16](BOUSSOLE/D16.md) |
-| ⏸️ |  | Affinage interactif de séquence *(= item 37)* | câblage de la route à faire — code dormant, parké | [D07](BOUSSOLE/D07.md) |
-| 🔄 |  | PROD-BUSINESS — Activité 100% fonctionnel | rien de bloquant | [D12](BOUSSOLE/D12.md) |
-| ☐ |  | PROD-BUSINESS — Séquences 100% fonctionnel | attend la fin de l'Affinage séquence (D07) | [D13](BOUSSOLE/D13.md) |
-| 🔄 |  | INFRA-RAG — Pile RAG mutualisée | attend décision hébergement chroma_db (VPS) | [INFRA-RAG](RAG/INFRA-RAG.md) |
-| 🔄 |  | Corpus Programmes MEN (producteur RAG) *(= item 36)* | attend INFRA-RAG en place | [D24](BOUSSOLE/D24.md) |
+| 1 | ⏸️ | **37** — Affinage interactif de séquence (câbler la route) | code dormant, parké | [D07](BOUSSOLE/D07.md) |
+| 2 | ☐ | **38** — Sortie séquence en JSON structuré | après 37 | [D27](BOUSSOLE/D27.md) |
+| 3 | ☐ | **39** — Switch provider séquence → Claude Sonnet 4.6 | après 38 | [D28](BOUSSOLE/D28.md) |
+| 4 | ☐ | **35** — Versioning & transposition de séquences | prérequis D07 (37) | [D26](BOUSSOLE/D26.md) |
+| 5 | ☐ | **D13** — PROD Séquences 100% fonctionnel (umbrella) | attend D07 clôturé | [D13](BOUSSOLE/D13.md) |
+
+### Chaîne RAG (ordre imposé)
+
+| Ordre | St | Tâche | Dépend de | Fiche |
+|---|---|---|---|---|
+| 1 | 🔄 | **INFRA-RAG** — décision hébergement chroma_db (VPS) | DEV validé, prod à décider | [INFRA-RAG](RAG/INFRA-RAG.md) |
+| 2 | 🔄 | **36** — Corpus Programmes MEN (producteur) | attend INFRA-RAG | [D24](BOUSSOLE/D24.md) |
+| 3 | ☐ | **04** — Détecteur d'équité (consommateur RAG) | attend INFRA-RAG | [D17](BOUSSOLE/D17.md) |
+| 3 | ☐ | **30** — Différenciation DYS / FLE (consommateur RAG) | attend INFRA-RAG | [D23](BOUSSOLE/D23.md) |
+| 3 | ☐ | **25** — Cohérence curriculaire (consommateur RAG) | attend INFRA-RAG + corpus 36 | [D25](BOUSSOLE/D25.md) |
+| 3 | ☐ | **31** — Appréciations bulletins & parents (consommateur RAG) | attend INFRA-RAG | [D19](BOUSSOLE/D19.md) |
+
+### Chaîne Visuels (ordre imposé)
+
+| Ordre | St | Tâche | Dépend de | Fiche |
+|---|---|---|---|---|
+| 1 | ☐ | **32** — Visuels Mermaid / SVG (moteur) | rien | [D20](BOUSSOLE/D20.md) |
+| 2 | ☐ | **33** — Mémo flash (format révision rapide) | après 32 | [D21](BOUSSOLE/D21.md) |
+| 2 | ☐ | **34** — Supports de créativité élève | après 32 (+ grounding RAG créativité) | [D22](BOUSSOLE/D22.md) |
+
+### Autres features (dépendance ponctuelle, sinon libres)
+
+| St | Tâche | Dépend de | Fiche |
+|---|---|---|---|
+| ☐ | **40** — Badge « aSchool vous reconnaît » près du nom | après P4.7 (socle d'état) | — |
+| ☐ | **26** — Pipeline qualité automatique | après 04 (besoin L2+03+04) | [D17](BOUSSOLE/D17.md) |
+| ☐ | **14** — Bouton « Partagez avec vos collègues » | rien | [D41](BOUSSOLE/D41.md) |
+| ☐ | **07** — Onboarding email J+2 / J+7 / J+14 | rien (APScheduler en place) | [D40](BOUSSOLE/D40.md) |
+| ☐ | **29** — Mode expérience prof (T1 / confirmé / expert) | rien | [D18](BOUSSOLE/D18.md) |
+| ☐ | **18** — Aide spécifique par matière | rien | [D35](BOUSSOLE/D35.md) |
+| ☐ | **42** — Recherche globale dans l'application | rien (réf. ergo item 41) | — |
+| ☐ | **15** — Gestion emails sortants (backoffice) | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
+| ☐ | **01** — Pages légales CNIL | attend infos admin (blocage externe) | [D39](BOUSSOLE/D39.md) |
+
+### Gros chantiers (semaines)
+
+| St | Tâche | Dépend de | Fiche |
+|---|---|---|---|
+| ☐ | **17** — Quiz interactif élèves | rien (archi propre) | [D34](BOUSSOLE/D34.md) |
+| ☐ | **23** — Escape Game pédagogique | rien | [D37](BOUSSOLE/D37.md) |
+| ☐ | **24** — Google OAuth | rien | [D32](BOUSSOLE/D32.md) |
+| ☐ | **22** — Théâtre — 13e matière | attend un prof pilote théâtre | [D47](BOUSSOLE/D47.md) |
+| ☐ | **D12** — PROD Activité 100% fonctionnel (umbrella « tous angles ») | — (à éclater le jour venu) | [D12](BOUSSOLE/D12.md) |
 
 ---
 
-> **Pour ajouter une tâche :** quand tu décides d'attaquer un item du réservoir, tu le fais remonter ici (une ligne). Les 40 autres items du réservoir restent dans le [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) tant que tu ne les pilotes pas.
+## HORIZON 4 — PLUS TARD / CONDITIONNEL
+
+| St | Tâche | Note | Fiche |
+|---|---|---|---|
+| ☐ | **21** — Support niveau Supérieur (BTS/prépa/licence) | segment nouveau, « si ça accroche » | [D36](BOUSSOLE/D36.md) |
+| ☐ | **43** — Module Petite Enfance 0-3 ans | futur stratégique, garde-fou IA dur | [D48](BOUSSOLE/D48.md) |
+| ✗ | **20** — Projet demo-perf FastAPI + PostgreSQL | hors-périmètre aSchool (projet séparé) | — |
+
+> **Parking — NON RETENU** (à reconsidérer) : capture d'écran feedback · `logoutManager.ts` · recrutement profs Facebook/X · trajectoires multi-séances · labo simulation classe · modal multi-actions Oui/Non · tuning latence Deepgram · bug auth WS longues · etc. → détail dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) § NON RETENU.
+> **HORS SCOPE** (refusé) : ENT/Pronote · multi-profs établissement · SQLite→PostgreSQL · cartographie cognitive · PPD. → § HORS SCOPE.
+
+---
+
+## Transverse / récurrent (hors ordre)
+
+| St | Tâche | Quand |
+|---|---|---|
+| ⟳ | **12** — Synchronisation pages afia.fr (School.jsx) | automatique au prochain push **MINOR / MAJOR** |
+| ✅ | **41** — Recherche dans la page Aide (plein-texte) | **fait en local (non déployé)** — part au prochain déploiement |
+
+---
+
+> **Pour ajuster :** à chaque tâche finie, l'utilisateur demande une relecture ; Claude vérifie l'état réel du projet et met à jour ordre / dépendances / tâches avant de continuer.
