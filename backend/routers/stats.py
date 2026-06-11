@@ -40,7 +40,7 @@ def get_stats_matiere(
     total = _filter(db.query(func.count(ActiviteSauvegardee.id))).scalar() or 0
 
     nb_profs = (
-        _filter(db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))))
+        _filter(db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))))
         .scalar() or 0
     )
 
@@ -69,20 +69,20 @@ def get_dashboard(
     email = _get_email(aschool_access)
 
     mes_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_email == email
+        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
     ).scalar() or 0
 
     mes_partages = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_email == email,
+        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
         ActiviteSauvegardee.partagee == True,
     ).scalar() or 0
 
     communaute_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-    communaute_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))).scalar() or 0
+    communaute_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).scalar() or 0
 
     recentes = (
         db.query(ActiviteSauvegardee)
-        .filter(ActiviteSauvegardee.user_email == email)
+        .filter(ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .order_by(ActiviteSauvegardee.id.desc())
         .limit(3)
         .all()
@@ -90,7 +90,7 @@ def get_dashboard(
 
     derniere_seq = (
         db.query(SequenceSauvegardee)
-        .filter(SequenceSauvegardee.user_email == email)
+        .filter(SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .order_by(SequenceSauvegardee.id.desc())
         .first()
     )
@@ -139,7 +139,7 @@ def admin_stats_general(
     _=Depends(_require_admin),
 ):
     total_activites = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))).scalar() or 0
+    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).scalar() or 0
     top_mat = (
         db.query(ActiviteSauvegardee.matiere, func.count().label("nb"))
         .filter(ActiviteSauvegardee.matiere.isnot(None))
@@ -155,9 +155,9 @@ def admin_stats_general(
     )
 
     seq_total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == "sequence").scalar() or 0
-    seq_profs = db.query(func.count(func.distinct(ToolUsageLog.user_email))).filter(ToolUsageLog.tool == "sequence").scalar() or 0
+    seq_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == "sequence").scalar() or 0
     opt_total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == "optimiseur").scalar() or 0
-    opt_profs = db.query(func.count(func.distinct(ToolUsageLog.user_email))).filter(ToolUsageLog.tool == "optimiseur").scalar() or 0
+    opt_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == "optimiseur").scalar() or 0
     opt_scores = (
         db.query(ToolUsageLog.score_label, func.count().label("nb"))
         .filter(ToolUsageLog.tool == "optimiseur", ToolUsageLog.score_label.isnot(None))
@@ -166,7 +166,7 @@ def admin_stats_general(
     )
 
     total_partages = db.query(func.count(ActiviteSauvegardee.id)).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
-    nb_contributeurs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
+    nb_contributeurs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
 
     return {
         "activites": {
@@ -205,7 +205,7 @@ def admin_tool_usage(
 
     def _stats(tool_name: str) -> dict:
         total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == tool_name).scalar() or 0
-        nb_profs = db.query(func.count(func.distinct(ToolUsageLog.user_email))).filter(ToolUsageLog.tool == tool_name).scalar() or 0
+        nb_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == tool_name).scalar() or 0
         derniers_30j = db.query(func.count(ToolUsageLog.id)).filter(
             ToolUsageLog.tool == tool_name,
             ToolUsageLog.created_at >= depuis_30j,
@@ -236,7 +236,7 @@ def admin_communaute_stats(
     _=Depends(_require_admin),
 ):
     total = db.query(func.count(ActiviteSauvegardee.id)).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
-    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_email))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
+    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
 
     par_matiere = (
         db.query(ActiviteSauvegardee.matiere, func.count().label("nb"))
@@ -254,18 +254,18 @@ def admin_communaute_stats(
         .all()
     )
     contributeurs_raw = (
-        db.query(ActiviteSauvegardee.user_email, func.count().label("nb"))
+        db.query(User.email, User.prenom, User.nom, func.count().label("nb"))
+        .join(ActiviteSauvegardee, ActiviteSauvegardee.user_id == User.id)
         .filter(ActiviteSauvegardee.partagee == True)
-        .group_by(ActiviteSauvegardee.user_email)
+        .group_by(ActiviteSauvegardee.user_id)
         .order_by(func.count().desc())
         .all()
     )
 
     contributeurs = []
-    for email, nb in contributeurs_raw:
-        u = db.query(User).filter(User.email == email).first()
-        nom = " ".join(filter(None, [u.prenom, u.nom])) if u else ""
-        contributeurs.append({"email": email, "nom": nom or email, "nb": nb})
+    for email, prenom, nom, nb in contributeurs_raw:
+        nom_complet = " ".join(filter(None, [prenom, nom]))
+        contributeurs.append({"email": email, "nom": nom_complet or email, "nb": nb})
 
     return {
         "total_partages": total,
@@ -285,12 +285,12 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     email = _get_email(aschool_access)
 
     total_sequences = db.query(func.count(SequenceSauvegardee.id)).filter(
-        SequenceSauvegardee.user_email == email
+        SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
     ).scalar() or 0
 
     type_row = (
         db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
-        .filter(ActiviteSauvegardee.user_email == email)
+        .filter(ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .group_by(ActiviteSauvegardee.activite_label)
         .order_by(func.count().desc())
         .first()
@@ -300,19 +300,19 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     score_adaptation = 0 if max_par_type == 0 else min(100, int(max_par_type / 3 * 100))
 
     total_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_email == email
+        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
     ).scalar() or 0
     heures_gagnees = (total_activites * 15) // 60
 
     debut_mois = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     activites_ce_mois = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_email == email,
+        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
         ActiviteSauvegardee.created_at >= debut_mois,
     ).scalar() or 0
 
     login_dates_raw = (
         db.query(func.date(ConnexionLog.created_at).label("day"))
-        .filter(ConnexionLog.email == email, ConnexionLog.action == "login")
+        .filter(ConnexionLog.user_id == db.query(User.id).filter(User.email == email).scalar(), ConnexionLog.action == "login")
         .distinct()
         .all()
     )
@@ -347,12 +347,12 @@ def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = D
     today = datetime.utcnow().date()
     depuis_7j = datetime.utcnow() - timedelta(days=7)
 
-    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
         func.date(ConnexionLog.created_at) == str(today)
     ).scalar() or 0
 
-    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
         ConnexionLog.created_at >= depuis_7j
     ).scalar() or 0
@@ -380,12 +380,12 @@ def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin
     today = datetime.utcnow().date()
     depuis_7j = datetime.utcnow() - timedelta(days=7)
 
-    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+    profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
         func.date(ConnexionLog.created_at) == str(today)
     ).scalar() or 0
 
-    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.email))).filter(
+    profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
         ConnexionLog.created_at >= depuis_7j
     ).scalar() or 0

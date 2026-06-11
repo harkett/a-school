@@ -89,7 +89,7 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
 
-    db.add(ConnexionLog(email=user.email, action="signup", ip=request.client.host if request.client else None))
+    db.add(ConnexionLog(email=user.email, user_id=user.id, action="signup", ip=request.client.host if request.client else None))
     db.commit()
     return {"status": "ok", "message": "Vérifiez votre boîte mail pour activer votre compte."}
 
@@ -104,7 +104,7 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     access = auth_lib.create_access_token(user.email)
     refresh = auth_lib.create_refresh_token(db, user.email)
     _set_cookies(response, access, refresh)
-    db.add(ConnexionLog(email=user.email, action="login", ip=request.client.host if request.client else None))
+    db.add(ConnexionLog(email=user.email, user_id=user.id, action="login", ip=request.client.host if request.client else None))
     db.commit()
     return {
         "email":     user.email,
@@ -240,7 +240,7 @@ def logout_inactivite(
 ):
     email = auth_lib.verify_access_token(aschool_access) if aschool_access else None
     if email:
-        db.add(ConnexionLog(email=email, action="inactivite_logout"))
+        db.add(ConnexionLog(email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), action="inactivite_logout"))
         db.commit()
     return {"status": "ok"}
 

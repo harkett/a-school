@@ -24,9 +24,9 @@ def lister(
 
     query = (
         db.query(ActiviteSauvegardee, User)
-        .join(User, User.email == ActiviteSauvegardee.user_email)
+        .join(User, User.id == ActiviteSauvegardee.user_id)
         .filter(ActiviteSauvegardee.partagee == True)
-        .filter(ActiviteSauvegardee.user_email != email)
+        .filter(ActiviteSauvegardee.user_id != db.query(User.id).filter(User.email == email).scalar())
         .filter(User.is_active == True)
     )
 

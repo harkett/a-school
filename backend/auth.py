@@ -135,6 +135,7 @@ def generate_email_token(db: Session, email: str, purpose: str) -> str:
     db.add(EmailToken(
         token=token,
         email=email,
+        user_id=db.query(User.id).filter(User.email == email).scalar(),
         purpose=purpose,
         expires_at=_now() + timedelta(minutes=60),
     ))
@@ -175,6 +176,7 @@ def create_refresh_token(db: Session, email: str) -> str:
     )
     db.add(RefreshToken(
         user_email=email,
+        user_id=db.query(User.id).filter(User.email == email).scalar(),
         token_hash=_hash_token(token),
         expires_at=_now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
     ))
@@ -225,7 +227,7 @@ def revoke_refresh_token(db: Session, token: str):
 
 def revoke_all_refresh_tokens(db: Session, email: str):
     db.query(RefreshToken).filter(
-        RefreshToken.user_email == email,
+        RefreshToken.user_id == db.query(User.id).filter(User.email == email).scalar(),
         RefreshToken.revoked == False,
     ).update({"revoked": True})
     db.commit()

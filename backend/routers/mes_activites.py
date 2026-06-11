@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.models_db import ActiviteSauvegardee
+from backend.models_db import ActiviteSauvegardee, User
 from backend import auth as auth_lib
 
 
@@ -48,6 +48,7 @@ def sauvegarder(
     email = _get_email(aschool_access)
     activite = ActiviteSauvegardee(
         user_email=email,
+        user_id=db.query(User.id).filter(User.email == email).scalar(),
         activite_key=req.activite_key,
         activite_label=req.activite_label,
         matiere=req.matiere or None,
@@ -73,7 +74,7 @@ def lister(
     email = _get_email(aschool_access)
     rows = (
         db.query(ActiviteSauvegardee)
-        .filter(ActiviteSauvegardee.user_email == email)
+        .filter(ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .order_by(ActiviteSauvegardee.id.desc())
         .all()
     )
@@ -107,7 +108,7 @@ def basculer_partage(
     email = _get_email(aschool_access)
     activite = (
         db.query(ActiviteSauvegardee)
-        .filter(ActiviteSauvegardee.id == activite_id, ActiviteSauvegardee.user_email == email)
+        .filter(ActiviteSauvegardee.id == activite_id, ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .first()
     )
     if not activite:
@@ -128,7 +129,7 @@ def supprimer(
     email = _get_email(aschool_access)
     activite = (
         db.query(ActiviteSauvegardee)
-        .filter(ActiviteSauvegardee.id == activite_id, ActiviteSauvegardee.user_email == email)
+        .filter(ActiviteSauvegardee.id == activite_id, ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .first()
     )
     if not activite:

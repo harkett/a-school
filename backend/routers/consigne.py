@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.database import get_db
-from backend.models_db import ToolUsageLog
+from backend.models_db import ToolUsageLog, User
 from src.config import AI_MODEL, AI_PROVIDER
 from backend.groq_client import call_groq
 
@@ -142,7 +142,7 @@ def api_analyser_consigne(
     nb = len(data.get("analyses", []))
 
     try:
-        db.add(ToolUsageLog(user_email=email, tool="consigne", score_label=str(nb)))
+        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="consigne", score_label=str(nb)))
         db.commit()
     except Exception:
         pass

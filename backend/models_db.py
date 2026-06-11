@@ -32,6 +32,7 @@ class EmailToken(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     token: Mapped[str] = mapped_column(String(86), nullable=False, unique=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # NULLABLE : NULL si l'email n'est pas (encore) un user (journal)
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)  # verify_email | reset_password
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -42,6 +43,7 @@ class RefreshToken(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -52,6 +54,7 @@ class ConnexionLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # NULLABLE : NULL si l'email n'est pas un user (journal)
     action: Mapped[str] = mapped_column(String(16), nullable=False)  # signup | login
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -62,6 +65,7 @@ class Feedback(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     type: Mapped[str] = mapped_column(String(16), nullable=False, default="feedback")  # feedback | notation
     message: Mapped[str] = mapped_column(Text, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -84,6 +88,7 @@ class SequenceSauvegardee(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     matiere: Mapped[str] = mapped_column(String(64), nullable=False)
     niveau: Mapped[str] = mapped_column(String(32), nullable=False)
     theme: Mapped[str] = mapped_column(String(300), nullable=False)
@@ -101,6 +106,7 @@ class ActiviteSauvegardee(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     activite_key: Mapped[str] = mapped_column(String(64), nullable=False)
     activite_label: Mapped[str] = mapped_column(String(128), nullable=False)
     niveau: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -125,6 +131,7 @@ class UserSession(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     session_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -183,6 +190,7 @@ class FeatureVote(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que contract pas fait)
     feature_key: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -205,6 +213,7 @@ class ToolUsageLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # chantier user_email -> user_id (nullable tant que la phase contract n'est pas faite)
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

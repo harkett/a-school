@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.database import get_db
-from backend.models_db import FeatureVote
+from backend.models_db import FeatureVote, User
 from backend.routers.admin import _require_admin
 
 router = APIRouter()
@@ -38,7 +38,7 @@ def get_votes(
     rows = db.query(FeatureVote.feature_key, func.count(FeatureVote.id)).group_by(FeatureVote.feature_key).all()
     votes = {row[0]: row[1] for row in rows}
 
-    mes_votes = [v.feature_key for v in db.query(FeatureVote).filter(FeatureVote.user_email == email).all()]
+    mes_votes = [v.feature_key for v in db.query(FeatureVote).filter(FeatureVote.user_id == db.query(User.id).filter(User.email == email).scalar()).all()]
 
     return {"votes": votes, "mes_votes": mes_votes}
 
@@ -62,7 +62,7 @@ def toggle_vote(
         raise HTTPException(400, "Feature inconnue.")
 
     existing = db.query(FeatureVote).filter(
-        FeatureVote.user_email == email,
+        FeatureVote.user_id == db.query(User.id).filter(User.email == email).scalar(),
         FeatureVote.feature_key == body.feature_key,
     ).first()
 
@@ -70,7 +70,7 @@ def toggle_vote(
         db.delete(existing)
         voted = False
     else:
-        db.add(FeatureVote(user_email=email, feature_key=body.feature_key))
+        db.add(FeatureVote(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), feature_key=body.feature_key))
         voted = True
 
     db.commit()

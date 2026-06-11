@@ -80,6 +80,7 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
                         db.add(
                             UserSession(
                                 user_email=email,
+                                user_id=db.query(User.id).filter(User.email == email).scalar(),
                                 session_key=session_key,
                                 ip_address=request.client.host if request.client else None,
                                 user_agent=ua_string[:500],

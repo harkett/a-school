@@ -100,7 +100,7 @@ def get_attachment(
         fb = (
             db.query(Feedback)
             .filter(
-                Feedback.user_email == email,
+                Feedback.user_id == db.query(User.id).filter(User.email == email).scalar(),
                 Feedback.attachment_path.like(f"%{filename}%"),
             )
             .first()
@@ -128,6 +128,7 @@ def submit_feedback(
     db.add(Feedback(
         type=body.type,
         user_email=email,
+        user_id=db.query(User.id).filter(User.email == email).scalar(),
         message=body.message,
         rating=body.rating,
         category=body.category,
@@ -161,7 +162,7 @@ def mes_feedbacks(
     email = _get_email(aschool_access)
     rows = (
         db.query(Feedback)
-        .filter(Feedback.user_email == email, Feedback.type != "notation")
+        .filter(Feedback.user_id == db.query(User.id).filter(User.email == email).scalar(), Feedback.type != "notation")
         .order_by(Feedback.created_at.desc())
         .all()
     )
@@ -194,7 +195,7 @@ def update_feedback(
     fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
     if not fb:
         raise HTTPException(404, "Feedback introuvable.")
-    if fb.user_email != email:
+    if fb.user_id != db.query(User.id).filter(User.email == email).scalar():
         raise HTTPException(403, "Ce feedback ne vous appartient pas.")
     if (fb.statut or "nouveau") not in STATUTS_MODIFIABLES:
         raise HTTPException(400, "Ce feedback ne peut plus être modifié.")

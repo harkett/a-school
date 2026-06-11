@@ -174,6 +174,7 @@ def api_generate_sequence(
     try:
         db.add(SequenceSauvegardee(
             user_email=email,
+            user_id=db.query(User.id).filter(User.email == email).scalar(),
             matiere=req.matiere,
             niveau=req.niveau,
             theme=req.theme.strip(),
@@ -182,7 +183,7 @@ def api_generate_sequence(
             description_classe=req.description_classe.strip(),
             resultat=resultat,
         ))
-        db.add(ToolUsageLog(user_email=email, tool="sequence"))
+        db.add(ToolUsageLog(user_email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), tool="sequence"))
         db.commit()
     except Exception:
         pass
@@ -198,7 +199,7 @@ def api_mes_sequences(
     email = _get_email(aschool_access)
     rows = (
         db.query(SequenceSauvegardee)
-        .filter(SequenceSauvegardee.user_email == email)
+        .filter(SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
         .order_by(SequenceSauvegardee.created_at.desc())
         .all()
     )
@@ -227,7 +228,7 @@ def api_delete_sequence(
     email = _get_email(aschool_access)
     seq = db.query(SequenceSauvegardee).filter(
         SequenceSauvegardee.id == seq_id,
-        SequenceSauvegardee.user_email == email,
+        SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
     ).first()
     if not seq:
         raise HTTPException(404, "Séquence introuvable.")
@@ -251,7 +252,7 @@ def api_toggle_partage_sequence(
     email = _get_email(aschool_access)
     seq = db.query(SequenceSauvegardee).filter(
         SequenceSauvegardee.id == seq_id,
-        SequenceSauvegardee.user_email == email,
+        SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
     ).first()
     if not seq:
         raise HTTPException(404, "Séquence introuvable.")
@@ -272,9 +273,9 @@ def api_bibliotheque_sequences(
     email = _get_email(aschool_access)
     query = (
         db.query(SequenceSauvegardee, User)
-        .join(User, User.email == SequenceSauvegardee.user_email)
+        .join(User, User.id == SequenceSauvegardee.user_id)
         .filter(SequenceSauvegardee.partagee == True)
-        .filter(SequenceSauvegardee.user_email != email)
+        .filter(SequenceSauvegardee.user_id != db.query(User.id).filter(User.email == email).scalar())
         .filter(User.is_active == True)
     )
     if matiere:

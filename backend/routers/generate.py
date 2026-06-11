@@ -47,7 +47,7 @@ def _get_exemples(db: Session, email: str, activite_key: str) -> list[str]:
     rows = (
         db.query(ActiviteSauvegardee.resultat)
         .filter(
-            ActiviteSauvegardee.user_email == email,
+            ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
             ActiviteSauvegardee.activite_key == activite_key,
         )
         .order_by(ActiviteSauvegardee.id.desc())

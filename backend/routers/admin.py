@@ -136,7 +136,8 @@ def admin_check(_: None = Depends(_require_admin)):
 @router.get("/admin/feedbacks")
 def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     rows = (
-        db.query(Feedback)
+        db.query(Feedback, User.email)
+        .outerjoin(User, User.id == Feedback.user_id)
         .order_by(Feedback.created_at.desc())
         .limit(200)
         .all()
@@ -144,7 +145,7 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
     return [
         {
             "id":       f.id,
-            "email":    f.user_email,
+            "email":    email,
             "type":     f.type,
             "message":  f.message,
             "rating":   f.rating,
@@ -152,7 +153,7 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "statut":   f.statut,
             "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
         }
-        for f in rows
+        for f, email in rows
     ]
 
 
@@ -188,13 +189,14 @@ def delete_feedback(
     fb = db.get(Feedback, feedback_id)
     if not fb:
         raise HTTPException(404, "Feedback introuvable.")
+    target_email = db.query(User.email).filter(User.id == fb.user_id).scalar()
     db.delete(fb)
     db.commit()
     log_admin_action(
         db=db,
         admin_email=_get_admin_email(request),
         action="DELETE_FEEDBACK",
-        target_email=fb.user_email,
+        target_email=target_email,
         ip=request.client.host if request.client else None,
         details=f"Feedback #{feedback_id} supprimé ({fb.type} / {fb.category or '—'})",
     )
@@ -232,7 +234,7 @@ def get_activites_admin(db: Session = Depends(get_db), _: None = Depends(_requir
     total_generees = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
     generees_par_matiere = dict(
         db.query(User.subject, func.count(ActiviteSauvegardee.id))
-        .join(ActiviteSauvegardee, User.email == ActiviteSauvegardee.user_email)
+        .join(ActiviteSauvegardee, User.id == ActiviteSauvegardee.user_id)
         .filter(User.subject.isnot(None))
         .group_by(User.subject)
         .all()
@@ -263,8 +265,8 @@ class UpdateUserBody(BaseModel):
 def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     users = db.query(User).order_by(User.created_at.desc()).all()
     counts = dict(
-        db.query(ActiviteSauvegardee.user_email, func.count(ActiviteSauvegardee.id))
-        .group_by(ActiviteSauvegardee.user_email)
+        db.query(ActiviteSauvegardee.user_id, func.count(ActiviteSauvegardee.id))
+        .group_by(ActiviteSauvegardee.user_id)
         .all()
     )
     return [
@@ -278,7 +280,7 @@ def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
             "last_login":   u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
             "is_active":    u.is_active,
             "is_verified":  u.is_verified,
-            "nb_activites": counts.get(u.email, 0),
+            "nb_activites": counts.get(u.id, 0),
         }
         for u in users
     ]
@@ -303,11 +305,11 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
     db.query(EmailToken).filter(EmailToken.email == email).delete()
-    db.query(RefreshToken).filter(RefreshToken.user_email == email).delete()
-    db.query(UserSession).filter(UserSession.user_email == email).delete()
-    db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_email == email).delete()
-    db.query(ConnexionLog).filter(ConnexionLog.email == email).delete()
-    db.query(Feedback).filter(Feedback.user_email == email).delete()
+    db.query(RefreshToken).filter(RefreshToken.user_id == user.id).delete()
+    db.query(UserSession).filter(UserSession.user_id == user.id).delete()
+    db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_id == user.id).delete()
+    db.query(ConnexionLog).filter(ConnexionLog.user_id == user.id).delete()
+    db.query(Feedback).filter(Feedback.user_id == user.id).delete()
     db.delete(user)
     db.commit()
     log_admin_action(
@@ -449,7 +451,7 @@ def toggle_user_active(email: str, request: Request, db: Session = Depends(get_d
     user.is_active = not user.is_active
     if not user.is_active:
         db.query(UserSession).filter(
-            UserSession.user_email == email,
+            UserSession.user_id == user.id,
             UserSession.is_active == True,
         ).update({"is_active": False})
     db.commit()
@@ -541,6 +543,10 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
         .all()
     )
     now = datetime.utcnow()
+    user_ids = {s.user_id for s in sessions if s.user_id is not None}
+    email_par_id = dict(
+        db.query(User.id, User.email).filter(User.id.in_(user_ids)).all()
+    ) if user_ids else {}
 
     def _fmt_duration(s):
         delta = now - s.login_at
@@ -553,7 +559,7 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
     return [
         {
             "id":        s.id,
-            "email":     s.user_email,
+            "email":     email_par_id.get(s.user_id, "—"),
             "browser":   s.browser or "—",
             "os":        s.os or "—",
             "device":    s.device_type or "—",
@@ -583,8 +589,9 @@ def force_logout(
     session_obj = db.query(UserSession).filter(UserSession.id == session_id).first()
     if not session_obj:
         raise HTTPException(404, "Session introuvable.")
+    target_email = db.query(User.email).filter(User.id == session_obj.user_id).scalar()
     admin_email = os.getenv("ADMIN_EMAIL", "")
-    if admin_email and session_obj.user_email == admin_email:
+    if admin_email and target_email == admin_email:
         raise HTTPException(403, "Impossible de déconnecter la session administrateur.")
     session_obj.is_active = False
     db.commit()
@@ -596,14 +603,14 @@ def force_logout(
         db=db,
         admin_email=_get_admin_email(request),
         action="FORCE_LOGOUT",
-        target_email=session_obj.user_email,
+        target_email=target_email,
         ip=request.client.host if request.client else None,
         details=details,
     )
     try:
         raison_txt = f"\n\nRaison indiquée : {raison}" if raison else ""
         send_custom_email(
-            email=session_obj.user_email,
+            email=target_email,
             prenom=None,
             subject="Votre session aSchool a été fermée",
             body=(
@@ -779,7 +786,7 @@ def get_failed_attempts(db: Session = Depends(get_db), _: None = Depends(_requir
 def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     rows = (
         db.query(ConnexionLog, User.subject)
-        .outerjoin(User, User.email == ConnexionLog.email)
+        .outerjoin(User, User.id == ConnexionLog.user_id)
         .order_by(ConnexionLog.created_at.desc())
         .limit(200)
         .all()
@@ -801,7 +808,7 @@ def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
 def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     rows = (
         db.query(
-            ActiviteSauvegardee.user_email,
+            User.email,
             User.prenom,
             User.nom,
             User.subject,
@@ -812,9 +819,9 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             ActiviteSauvegardee.activite_label,
             func.count(ActiviteSauvegardee.id).label("nb"),
         )
-        .join(User, User.email == ActiviteSauvegardee.user_email, isouter=True)
+        .join(User, User.id == ActiviteSauvegardee.user_id, isouter=True)
         .group_by(
-            ActiviteSauvegardee.user_email,
+            ActiviteSauvegardee.user_id,
             ActiviteSauvegardee.matiere,
             ActiviteSauvegardee.niveau,
             ActiviteSauvegardee.activite_key,
@@ -830,7 +837,7 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
     grand_total = 0
 
     for row in rows:
-        email = row.user_email
+        email = row.email
         if email not in profs_dict:
             profs_dict[email] = {
                 "email": email,
