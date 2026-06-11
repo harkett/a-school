@@ -259,7 +259,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   ***Étage 1 — Test technique** : CC, à CHAQUE tâche, en DEV. Test auto (pytest backend) ou prépa front. Question : « le code fait-il ce qu'il doit sans rien casser ? »*
   ***Étage 2 — Test d'usage** : Harketti, à CHAQUE tâche, en local. Vérif manuelle. Question : « ça marche pour un humain, c'est clair, le rendu est bon ? » Filtre obligatoire avant tout déploiement.*
   ***Étage 3 — Test terrain** : profs pilotes, PAR VERSION déployée, en PROD. Question : « ça sert vraiment en classe, que manque-t-il ? » Feedback produit, pas test technique.*
-  ***Principe clé** : une tâche franchit étage 1 (CC) → étage 2 (Harketti), s'accumule avec d'autres en une VERSION cohérente, déployée via prod.ps1, et seulement LÀ testée par les profs (étage 3). Leur retour redevient des tâches → repart à l'étage 1.*
+  ***Principe clé** : une tâche franchit étage 1 (CC) → étage 2 (Harketti), s'accumule avec d'autres en une VERSION cohérente, déployée via deploy.ps1, et seulement LÀ testée par les profs (étage 3). Leur retour redevient des tâches → repart à l'étage 1.*
   ***Besoin lié** : un mini journal de versions reliant chaque version aux tâches livrées → entrée dédiée ci-dessous. Identifié 08/06/2026.*
 
 - [ ] **[Outillage] Mini journal de versions (version ↔ tâches livrées)** | Compagnon de l'étage 3, hors gel
@@ -568,6 +568,9 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
 
 ## FAIT ✅
 
+- [x] **Migration des relations BDD `user_email → user_id` (expand → contract) — DEV** | Livré 11/06
+  *Refonte du défaut de conception d'origine : toutes les tables liaient leurs FK sur `user_email` (clé naturelle string) au lieu de `users.id` (clé primaire numérique). Bascule par **expand/contract** (parallel change), table par table, app fonctionnelle à chaque étape, jamais de big-bang. **Outillage** : runner de migrations maison `migrations/run_migrations.py` (SQL numérotés idempotents, table `schema_migrations`, 1 transaction/fichier, `foreign_keys=ON`) + `migrations/README.md` ; pas d'Alembic. **Expand** (9 SQL `001→009`) : colonne `user_id` ajoutée + backfill déterministe `UPDATE … SET user_id=(SELECT id FROM users WHERE email=…)` sur 7 tables prof (NOT NULL visé) + 2 journaux (`connexion_logs`, `email_tokens`, `user_id` NULLABLE, colonne `email` conservée car peut viser un non-user). Dual-write `user_id` à tous les inserts ; lectures admin/stats basculées sur `user_id`/join (**4a**). **Contract** (`010`) : reconstruction SQLite des 7 tables prof → `user_id INTEGER NOT NULL REFERENCES users(id)`, **`user_email` SUPPRIMÉE**, index recréés. Vérifs sur copie puis vraie base : **0 perte** (568/4/4/101/440/0/35), FK posées, `foreign_key_check` vide, **pytest 19/19**. Backup local `data/aschool.db.bak-20260611`. Commits `9142327` (expand+4a) + `d2e28be` (contract). **Reste : intégration PROD non faite** — voir ligne 🚫 **BLOQUANT DÉPLOIEMENT** du [TRACKER](TRACKER.md) (brancher le runner dans `deploy.sh` + garde-fou backup/orphelins avant tout `deploy.ps1`).*
+
 - [x] **Fusion BOUSSOLE + BACKLOG → `TABLEAU-DE-BORD.md` (doc pilote unique)** | Livré 11/06
   *Les deux docs pivots (BOUSSOLE = pilote, BACKLOG = réservoir) fusionnés en un seul `MesMD/TABLEAU-DE-BORD.md` : pilotage (tête) + réservoir scoré (corps) + journal FAIT (fin) ; les fiches `BOUSSOLE/Dxx` restent la couche détail. 5 phases scopées : **P1** création du doc (`fc21a86`) ; **P2** réconciliation des codes L migrés → numéro d'item (`c75be07`) ; **P3** cascade des back-links de 35 fiches Dxx → `TABLEAU-DE-BORD` (`fd0e9b4`) ; **P4** fusion des §« Pilotage » + §« Réservoir » de `CLAUDE.md` (`f62dfb2`) ; **P5** suppression de `BOUSSOLE.md` + `BACKLOG.md` + retarge INFRA-RAG + `MEMORY.md` L.34 (`d98450b`). Absorbe **D11** (dégraissage/fusion) et l'ex-item **[Doc]** (passe de réconciliation = P2). Reste en dette : nettoyage des memory files périmés (voir § Dette).*
 
@@ -648,7 +651,7 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
 - [x] **Mon journal supprimé** — Placeholder inutile (doublon Historique Activités/Séquences) retiré de sidebar et App.jsx. (13/05)
 - [x] **Analyse → Historique supprimé** — Sous-menu inutile (Consignes/Équité pas encore codés, analyses one-shot). (13/05)
 
-- [x] **Auto-versioning PATCH** — prod.ps1 bumpe automatiquement le PATCH à chaque déploiement. Version initiale : 3.2.0 (12/05)
+- [x] **Auto-versioning PATCH** — deploy.ps1 bumpe automatiquement le PATCH à chaque déploiement. Version initiale : 3.2.0 (12/05)
 - [x] **SW mise à jour — bannière bordeaux + countdown 30s** — registerType: prompt, auto-reload 30s, bouton "Actualiser maintenant" (12/05)
 - [x] **Aide — Sections complètes** — PWA offline, PWA update, Dictée vocale, OCR, Partage activités, Séquences corrigé (L1 live) (12/05)
 - [x] **Bientôt disponible — mis à jour** — L2 + L4 ajoutés, Application mobile retirée (PWA livrée), sidebar "En développement" à jour (12/05)

@@ -16,6 +16,19 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
+## 🚫 BLOQUANT DÉPLOIEMENT — à faire AVANT tout `deploy.ps1`
+
+> Migration `user_email → user_id` : **dev = ✅ prouvée** (commits expand + contract, comptes préservés, FK posées, `foreign_key_check` vide, pytest 19/19). **Prod = pas encore intégrée.**
+
+| St | Tâche | Pourquoi bloquant | Preuve exigée (pas de parole) |
+|---|---|---|---|
+| ☐ | **Intégration prod de la migration `user_email → user_id`** — (1) brancher `run_migrations.py` dans `deploy/deploy.sh` (après `git pull`, **avant** le `restart systemd`) ; (2) garde-fou prod : **backup de la base + COUNT orphelins BLOQUANT** (no-go si > 0) **avant** tout DROP | le nouveau code n'écrit plus `user_email` ; sans migration jouée sur la prod, le schéma prod reste `user_email NOT NULL` → **crash certain au premier insert** (connexion, sauvegarde…) | montrer le `deploy.sh` qui **appelle réellement** le runner + le garde-fou orphelins qui **bloque pour de vrai**. Pas d'assurance verbale. |
+
+> **Règle dure : aucun `deploy.ps1` / déploiement prod tant que cette ligne n'est pas faite ET prouvée.**
+> Ordre : on ne câble la prod qu'**après** la migration dev prouvée — c'est acquis, mais la ligne reste différée par décision de l'utilisateur.
+
+---
+
 ## HORIZON 1 — MAINTENANT : finir la consolidation du cœur (seul chantier ouvert)
 
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
