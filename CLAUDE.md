@@ -309,22 +309,24 @@ Tout bouton, lien d'action ou icône cliquable doit avoir un attribut `title="..
 
 ---
 
-## Pilotage & réservoir — un seul document (règle absolue)
+## Pilotage — deux docs, deux rôles, un seul pilote par couche (règle absolue)
 
-**Un seul document vivant pilote ET stocke : `MesMD/TABLEAU-DE-BORD.md`.** Il réunit trois couches :
+**Deux documents vivants, jamais deux pilotes qui se contredisent :**
 
-| Couche | Rôle |
-|---|---|
-| Tête (Prochaine action + Chantiers en cours) | **Pilote** — ce qu'on fait, dans quel ordre, tâche par tâche |
-| Corps (tableau scoré + sections de référence) | **Réservoir** — tout ce qui pourrait se faire, priorisé |
-| Fin (FAIT ✅) | **Journal** — les livraisons, trace historique |
+| Document | Fait foi sur | Pour qui |
+|---|---|---|
+| `MesMD/TRACKER.md` | **Pilotage** — ordre + statut (☐ 🔄 ⏸️ ✅) + dépendance en clair | l'utilisateur (vue lisible d'un coup d'œil) |
+| `MesMD/TABLEAU-DE-BORD.md` | **Détail** — score, description, synergies, audits, RAG + **journal FAIT** | Claude (référence de fond) |
 
-> Les fiches `MesMD/BOUSSOLE/Dxx.md` restent la **couche détail** d'un chantier ; le tableau de bord porte le pilotage + le réservoir + le journal.
+> **Règle de tenue (absolue) :** Le TRACKER fait foi sur le pilotage (ordre + statut + dépendance). Le TABLEAU fait foi sur le détail (score, description, journal FAIT). Le statut est mis à jour dans le TRACKER, dans la même réponse où l'on démarre ou finit une tâche. Le tableau est synchronisé en fin de session, pour le journal FAIT seulement.
 
-- **`TABLEAU-DE-BORD.md` est le seul document qui pilote.** Aucun autre document n'a le droit de « ré-ordonner les priorités ». Tout plan, diagnostic ou audit ponctuel est **absorbé** ici en chantier `Dxx` (couche détail) — jamais un pilote concurrent.
-- **Toute idée mentionnée en session → notée dans `TABLEAU-DE-BORD.md` immédiatement**, dans la même réponse. Pas en fin de session.
-- **Les checklists de chantier ☐/☑** vivent dans les fiches `Dxx` ; le tableau de bord garde le tableau priorisé + le journal FAIT. Pas de doublon de suivi ailleurs.
-- **En fin de session : synchroniser `TABLEAU-DE-BORD.md`** (déplacer les livrés en FAIT, ajouter les nouvelles idées).
+> Les fiches `MesMD/BOUSSOLE/Dxx.md` restent la **couche détail** d'un chantier.
+
+- **Le statut vit à UN SEUL endroit : le TRACKER.** Le tableau de bord ne porte plus de colonne « État ». Garder un statut des deux côtés recrée le double pilote — interdit.
+- **L'ordre appartient à l'utilisateur** (priorité P1/P2/P3 dans le TRACKER) ; **les dépendances techniques à Claude**, écrites noir sur blanc dans le TRACKER et **prouvées en citant la fiche** — jamais gardées de tête.
+- **Aucun autre document ne ré-ordonne les priorités.** Tout plan, diagnostic ou audit ponctuel est **absorbé** en chantier `Dxx` (détail dans le TABLEAU) — jamais un pilote concurrent.
+- **Toute idée mentionnée en session → notée immédiatement dans le réservoir du `TABLEAU-DE-BORD.md`**, dans la même réponse. Quand l'utilisateur décide de l'attaquer, elle remonte en une ligne dans le TRACKER.
+- **Les checklists de chantier ☐/☑** vivent dans les fiches `Dxx`.
 - **Pas de doc-archive dans l'arbre de travail.** Les anciens états (vieux CR, plans clôturés) vivent dans l'**historique git**, pas dans un fichier vivant. Ne jamais recréer de document d'archive dans l'arbre. Claude ne consulte l'historique git **que sur demande explicite** — un état daté lu spontanément induit en erreur (c'est ce piège qui a motivé la règle).
 - **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément — c'est du git, donc lecture **sur demande explicite** seulement. Mes outils par défaut ne voient que le checkout courant ; je ne lance pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de moi-même.
 
