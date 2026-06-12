@@ -277,6 +277,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Mémoire] Nettoyer les memory files périmés (BOUSSOLE/BACKLOG → doc unique)** | Tâche mémoire dédiée, hors gel
   *Après la fusion (P1-P5, voir FAIT), plusieurs memory files de `~/.claude` décrivent encore « BOUSSOLE pilote / BACKLOG réservoir » comme deux docs, et `feedback_tracker_levier_sync` porte une **ref morte `MesMD/LEVIERS/`**. À reprendre à froid, **hook d'index + fichier ensemble** (cohérence) : `feedback_pilotage_boussole`, `feedback_boussole_tout_tracker`, `feedback_noter_idees`, `feedback_tracker_levier_sync`, + hooks MEMORY.md (23/24/35/60/66). Identifié 11/06/2026.*
 
+- [ ] **[UX] Accès à TOUT l'historique en multi-cycles** | Rattaché au chantier curriculum (TRACKER § Refonte curriculum, réserve 3) — à traiter AVEC le passage `user_enseignements`, pas en isolé
+  *« Mes activités » filtre **dur** sur matière+niveau du profil (`MesActivites.jsx:121-125`, aucune échappatoire). Inoffensif aujourd'hui (profil mono = 1 niveau), mais en multi un prof 3e+2nde ne verrait **jamais** la moitié de son travail. **Cible = garantir l'accès à tout l'historique** (« Voir tout » / chips niveau désactivables / autre — décision UI ouverte), PAS la mécanique du filtre en soi. Données jamais perdues (tri 100 % côté client, l'API renvoie tout). Le passage multi réécrira de toute façon la logique d'affichage → à regrouper là. Identifié 12/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)

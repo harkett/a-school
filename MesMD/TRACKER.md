@@ -39,6 +39,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | ☐ | **Construire les tables** (modèles + migration expand) | après arbitrage du seed (réserve 1) |
 | ☐ | **Réserve 1 — SEED de `matiere_niveaux`** : d'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction | + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue) |
 | ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** : expand/contract + **COUNT des orphelins** (chaque `subject`/`niveau` existant doit matcher une paire de `matiere_niveaux`) **AVANT** bascule. Un subject sans paire = à savoir avant, pas pendant | même discipline que la migration `user_id` |
+| ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** : « Mes activités » filtre **dur** sur matière+niveau du profil (`MesActivites.jsx:121-125`, aucune échappatoire) → en multi, un prof 3e+2nde ne verrait jamais la moitié de son travail. **Cible = garantir l'accès à TOUT l'historique** (un « Voir tout », des chips de niveau, ou autre — UI à trancher), pas la mécanique du filtre. Données jamais perdues (tri client). | **À régler AVEC le passage multi** (la logique d'affichage change de toute façon), pas en isolé |
 
 ---
 
