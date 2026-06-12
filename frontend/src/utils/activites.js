@@ -14,3 +14,33 @@ export async function sauvegarderActivite(payload) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
+
+// Clé d'un couple matière+niveau (vide -> chaîne vide, jamais de collision avec un vrai couple).
+export function coupleKey(matiere, niveau) {
+  return `${matiere || ''}|||${niveau || ''}`
+}
+
+// Regroupe les activités par couple (matière + niveau) pour l'onglet « Toutes mes activités ».
+// Ordre : couple courant épinglé en tête, « Non classé » (matière/niveau vide) en dernier,
+// le reste par ordre alphabétique. Fonction pure → testée dans activites.test.js.
+export function grouperParCouple(activites, currentKey = null) {
+  const groupes = {}
+  for (const a of activites) {
+    const k = coupleKey(a.matiere, a.niveau)
+    if (!groupes[k]) {
+      const label = (!a.matiere && !a.niveau)
+        ? 'Non classé'
+        : [a.matiere, a.niveau].filter(Boolean).join(' — ')
+      groupes[k] = { key: k, matiere: a.matiere || null, niveau: a.niveau || null, label, items: [] }
+    }
+    groupes[k].items.push(a)
+  }
+  return Object.values(groupes).sort((x, y) => {
+    if (x.key === currentKey) return -1            // couple courant épinglé en haut
+    if (y.key === currentKey) return 1
+    const xNon = !x.matiere && !x.niveau
+    const yNon = !y.matiere && !y.niveau
+    if (xNon !== yNon) return xNon ? 1 : -1         // « Non classé » en dernier
+    return x.label.localeCompare(y.label, 'fr')     // sinon alphabétique
+  })
+}

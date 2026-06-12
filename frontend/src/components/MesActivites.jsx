@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { coupleKey, grouperParCouple } from '../utils/activites.js'
 
 const IconTrash = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -76,6 +77,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const [anonymeDialog, setAnonymeDialog] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [deleting, setDeleting]     = useState(null)
+  const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
 
   useEffect(() => {
     fetch('/api/mes-activites', { credentials: 'include' })
@@ -126,6 +128,98 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
 
   const labelProfil = [sessionMatiere, sessionNiveau].filter(Boolean).join(', ')
 
+  // Onglet « Toutes » : sections par couple (logique pure testée dans utils/activites.test.js).
+  const currentKey  = coupleKey(sessionMatiere, sessionNiveau)
+  const sections    = grouperParCouple(activites, currentKey)
+  const headerCount = vue === 'courant' ? filtered.length : activites.length
+
+  // Ligne-carte d'une activité, réutilisée par les deux onglets.
+  const ActiviteRow = (a, last) => (
+    <div
+      key={a.id}
+      onMouseEnter={() => setHovered(a.id)}
+      onMouseLeave={() => setHovered(null)}
+      style={{
+        borderBottom: last ? 'none' : '1px solid #e5e7eb',
+        background: hovered === a.id ? '#f3f4f6' : 'white',
+        transition: 'background 0.15s',
+      }}
+    >
+      <div className="flex items-center gap-3 px-5 py-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-gray-800 truncate">
+              {a.objet || a.activite_label}
+            </span>
+            {a.partagee && (
+              <span style={{ fontSize: 11, color: 'var(--bleu)', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 99, padding: '1px 8px', flexShrink: 0 }}>
+                Partagé
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 flex-wrap mt-0.5">
+            <span className="text-xs text-gray-400">{a.activite_label}</span>
+            <span className="text-xs text-gray-400">· {a.niveau}</span>
+            {a.sous_type && <span className="text-xs text-gray-400">· {a.sous_type}</span>}
+            {a.nb && <span className="text-xs text-gray-400">· {a.nb} questions</span>}
+            <span className="text-xs text-gray-400">
+              · {a.avec_correction ? 'Avec correction' : 'Sans correction'}
+            </span>
+          </div>
+          {!a.objet && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate italic">{a.apercu}</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0"
+          style={{ opacity: (isMobile || hovered === a.id) ? 1 : 0, transition: 'opacity 0.15s' }}>
+          <button
+            onClick={() => setDetailModal(a)}
+            title="Voir le texte source et le résultat complet de l'activité"
+            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+          >
+            Plus de détails
+          </button>
+
+          <button
+            onClick={() => !a.partagee ? setAnonymeDialog(a.id) : togglePartage(a.id, false)}
+            disabled={toggling === a.id}
+            title={a.partagee ? 'Retirer de la bibliothèque partagée' : 'Partager cette activité avec vos collègues'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'none', border: '1px solid',
+              borderColor: a.partagee ? 'var(--bleu)' : '#e5e7eb',
+              borderRadius: 6, padding: '4px 8px',
+              cursor: toggling === a.id ? 'wait' : 'pointer',
+              color: a.partagee ? 'var(--bleu)' : '#9ca3af',
+              fontSize: 11, fontWeight: a.partagee ? 500 : 400,
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+          >
+            <IconShare />
+            {a.partagee ? 'Partagé' : 'Partager'}
+          </button>
+
+          <button
+            onClick={() => onCharger(a)}
+            title="Reprendre cette activité dans le formulaire"
+            className="btn-primary shrink-0"
+          >
+            Reprendre
+          </button>
+
+          <button
+            onClick={() => setDeleteDialog({ id: a.id, label: a.objet || a.activite_label })}
+            title="Supprimer définitivement cette activité"
+            style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', background: 'none', border: '1px solid #fca5a5', borderRadius: 6, color: 'var(--bordeaux)', cursor: 'pointer' }}
+          >
+            <IconTrash />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-3 w-full">
 
@@ -133,21 +227,45 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-3">
           <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
-          {!loading && filtered.length > 0 && (
+          {!loading && headerCount > 0 && (
             <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
-              {filtered.length} activité{filtered.length > 1 ? 's' : ''} créée{filtered.length > 1 ? 's' : ''}
+              {headerCount} activité{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}
             </span>
           )}
         </div>
-        {!loading && labelProfil && (
+        {!loading && vue === 'courant' && labelProfil && (
           <span className="text-xs text-gray-400">
             {labelProfil}
           </span>
         )}
       </div>
 
-      {/* Widget stats communauté */}
-      {!loading && <StatsCommunaute matiere={sessionMatiere} niveau={sessionNiveau} />}
+      {/* Onglets — visibles dès qu'il y a au moins une activité */}
+      {!loading && activites.length > 0 && (
+        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid #e5e7eb' }}>
+          {[['courant', 'Niveau en cours'], ['toutes', 'Toutes mes activités']].map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setVue(id)}
+              title={id === 'courant'
+                ? 'Les activités de votre matière et niveau actuels'
+                : 'Toutes vos activités, regroupées par matière et niveau'}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, padding: '6px 12px', marginBottom: -1,
+                color: vue === id ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: vue === id ? 600 : 400,
+                borderBottom: vue === id ? '2px solid var(--bordeaux)' : '2px solid transparent',
+              }}
+            >
+              {label}{id === 'toutes' ? ` (${activites.length})` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Widget stats communauté — propre au couple courant */}
+      {!loading && vue === 'courant' && <StatsCommunaute matiere={sessionMatiere} niveau={sessionNiveau} />}
 
       {loading && (
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
@@ -160,99 +278,47 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       )}
 
-      {!loading && activites.length > 0 && filtered.length === 0 && (
+      {!loading && vue === 'courant' && activites.length > 0 && filtered.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
           <p className="text-sm text-gray-500">Aucune activité pour {labelProfil}.</p>
-          <p className="text-xs text-gray-400 mt-1">Générez votre première activité depuis l'Accueil.</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Vos activités d'un autre niveau ou matière sont dans l'onglet{' '}
+            <button
+              onClick={() => setVue('toutes')}
+              style={{ color: 'var(--bordeaux)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }}
+            >
+              Toutes mes activités
+            </button>.
+          </p>
         </div>
       )}
 
-      {!loading && filtered.length > 0 && (
+      {/* Onglet « Niveau en cours » — liste filtrée sur le profil */}
+      {!loading && vue === 'courant' && filtered.length > 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          {filtered.map((a, i) => (
-            <div
-              key={a.id}
-              onMouseEnter={() => setHovered(a.id)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                borderBottom: i < filtered.length - 1 ? '1px solid #e5e7eb' : 'none',
-                background: hovered === a.id ? '#f3f4f6' : 'white',
-                transition: 'background 0.15s',
-              }}
-            >
-              <div className="flex items-center gap-3 px-5 py-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-800 truncate">
-                      {a.objet || a.activite_label}
-                    </span>
-                    {a.partagee && (
-                      <span style={{ fontSize: 11, color: 'var(--bleu)', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 99, padding: '1px 8px', flexShrink: 0 }}>
-                        Partagé
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                    <span className="text-xs text-gray-400">{a.activite_label}</span>
-                    <span className="text-xs text-gray-400">· {a.niveau}</span>
-                    {a.sous_type && <span className="text-xs text-gray-400">· {a.sous_type}</span>}
-                    {a.nb && <span className="text-xs text-gray-400">· {a.nb} questions</span>}
-                    <span className="text-xs text-gray-400">
-                      · {a.avec_correction ? 'Avec correction' : 'Sans correction'}
-                    </span>
-                  </div>
-                  {!a.objet && (
-                    <p className="text-xs text-gray-400 mt-0.5 truncate italic">{a.apercu}</p>
-                  )}
-                </div>
+          {filtered.map((a, i) => ActiviteRow(a, i === filtered.length - 1))}
+        </div>
+      )}
 
-                <div className="flex items-center gap-2 shrink-0"
-                  style={{ opacity: (isMobile || hovered === a.id) ? 1 : 0, transition: 'opacity 0.15s' }}>
-                  <button
-                    onClick={() => setDetailModal(a)}
-                    title="Voir le texte source et le résultat complet de l'activité"
-                    style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
-                  >
-                    Plus de détails
-                  </button>
-
-                  <button
-                    onClick={() => !a.partagee ? setAnonymeDialog(a.id) : togglePartage(a.id, false)}
-                    disabled={toggling === a.id}
-                    title={a.partagee ? 'Retirer de la bibliothèque partagée' : 'Partager cette activité avec vos collègues'}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      background: 'none', border: '1px solid',
-                      borderColor: a.partagee ? 'var(--bleu)' : '#e5e7eb',
-                      borderRadius: 6, padding: '4px 8px',
-                      cursor: toggling === a.id ? 'wait' : 'pointer',
-                      color: a.partagee ? 'var(--bleu)' : '#9ca3af',
-                      fontSize: 11, fontWeight: a.partagee ? 500 : 400,
-                      transition: 'color 0.15s, border-color 0.15s',
-                    }}
-                  >
-                    <IconShare />
-                    {a.partagee ? 'Partagé' : 'Partager'}
-                  </button>
-
-                  <button
-                    onClick={() => onCharger(a)}
-                    title="Reprendre cette activité dans le formulaire"
-                    className="btn-primary shrink-0"
-                  >
-                    Reprendre
-                  </button>
-
-                  <button
-                    onClick={() => setDeleteDialog({ id: a.id, label: a.objet || a.activite_label })}
-                    title="Supprimer définitivement cette activité"
-                    style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', background: 'none', border: '1px solid #fca5a5', borderRadius: 6, color: 'var(--bordeaux)', cursor: 'pointer' }}
-                  >
-                    <IconTrash />
-                  </button>
-                </div>
+      {/* Onglet « Toutes mes activités » — sections par couple (courant épinglé en haut) */}
+      {!loading && vue === 'toutes' && (
+        <div className="flex flex-col gap-4">
+          {sections.map(sec => (
+            <div key={sec.key} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 px-1">
+                <span className="text-sm font-semibold text-gray-700">{sec.label}</span>
+                <span style={{ fontSize: 11, color: '#6b7280', background: '#f1f5f9', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
+                  {sec.items.length}
+                </span>
+                {sec.key === currentKey && (
+                  <span style={{ fontSize: 11, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
+                    en cours
+                  </span>
+                )}
               </div>
-
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                {sec.items.map((a, i) => ActiviteRow(a, i === sec.items.length - 1))}
+              </div>
             </div>
           ))}
         </div>
@@ -406,7 +472,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       )}
 
-      {!loading && (
+      {!loading && vue === 'courant' && (
         <p className="text-xs text-gray-400 text-center mt-1">
           Vous enseignez plusieurs matières ?{' '}
           <button
