@@ -1,4 +1,4 @@
-"""Lecture du référentiel curriculum pour le frontend (matières + niveaux).
+"""Lecture du référentiel des programmes pour le frontend (matières + niveaux).
 
 Lecture seule. Source de vérité = les tables cycles/niveaux/matieres/matiere_niveaux.
 Ne renvoie que les niveaux UTILISABLES (au moins une paire active) → un cycle sans
@@ -16,8 +16,8 @@ from backend.routers.admin import _require_admin
 router = APIRouter()
 
 
-@router.get("/curriculum")
-def get_curriculum(db: Session = Depends(get_db)):
+@router.get("/programmes")
+def get_programmes(db: Session = Depends(get_db)):
     matiere_objs = (db.query(Matiere).filter(Matiere.actif == True)
                       .order_by(Matiere.ordre).all())
     matieres = [{"id": m.id, "cle": m.cle, "nom": m.nom} for m in matiere_objs]
@@ -65,12 +65,12 @@ def get_curriculum(db: Session = Depends(get_db)):
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Admin — édition du curriculum (garde admin, JAMAIS de DELETE sur une
+# Admin — édition des programmes (garde admin, JAMAIS de DELETE sur une
 # entrée de référence : on bascule `actif`, l'historique reste valide).
 # ───────────────────────────────────────────────────────────────────────────
 
-@router.get("/admin/curriculum", dependencies=[Depends(_require_admin)])
-def admin_curriculum(db: Session = Depends(get_db)):
+@router.get("/admin/programmes", dependencies=[Depends(_require_admin)])
+def admin_programmes(db: Session = Depends(get_db)):
     """Arbre COMPLET pour la grille admin : tous les cycles (même sans niveau),
     tous les niveaux, toutes les matières (INACTIVES incluses), toutes les paires."""
     cycles = []
@@ -99,7 +99,7 @@ class PaireUpdate(BaseModel):
     actif: bool
 
 
-@router.patch("/admin/curriculum/paire", dependencies=[Depends(_require_admin)])
+@router.patch("/admin/programmes/paire", dependencies=[Depends(_require_admin)])
 def admin_toggle_paire(body: PaireUpdate, db: Session = Depends(get_db)):
     """Bascule une paire matière×niveau : crée si absente, sinon met à jour `actif`.
     JAMAIS de DELETE — une paire désactivée reste en base (historique préservé)."""
@@ -128,7 +128,7 @@ class NiveauCreate(BaseModel):
     ordre: int | None = None
 
 
-@router.post("/admin/curriculum/niveau", dependencies=[Depends(_require_admin)])
+@router.post("/admin/programmes/niveau", dependencies=[Depends(_require_admin)])
 def admin_create_niveau(body: NiveauCreate, db: Session = Depends(get_db)):
     """Crée un niveau dans un cycle (débloque Supérieur / Crèche, sans programme officiel).
     Gardes : le cycle existe + pas de doublon de nom dans le même cycle."""

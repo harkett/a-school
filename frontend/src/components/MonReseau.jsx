@@ -13,7 +13,7 @@ export default function MonReseau({ onCharger, sessionMatiere, sessionNiveau }) 
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
 
   useEffect(() => {
-    fetch('/api/curriculum', { credentials: 'include' })
+    fetch('/api/programmes', { credentials: 'include' })
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) setNiveauxParCycle(data.niveaux_par_cycle || []) })
       .catch(() => {})

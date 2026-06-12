@@ -20,7 +20,7 @@ export default function MonProfil({ onNavigate }) {
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
 
   useEffect(() => {
-    fetchWithTimeout('/api/curriculum', { credentials: 'include' }, TIMEOUT_STD)
+    fetchWithTimeout('/api/programmes', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
       .then(data => { if (data) setNiveauxParCycle(data.niveaux_par_cycle || []) })
       .catch(() => {})

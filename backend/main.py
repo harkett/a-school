@@ -21,7 +21,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, curriculum
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -106,7 +106,7 @@ app.include_router(sequence.router, prefix="/api")
 app.include_router(ambiguites.router, prefix="/api")
 app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
-app.include_router(curriculum.router, prefix="/api")
+app.include_router(programmes.router, prefix="/api")
 
 # Seed exemples au démarrage (idempotent)
 try:

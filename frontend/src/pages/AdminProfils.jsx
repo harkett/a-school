@@ -47,7 +47,7 @@ export default function AdminProfils() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetch('/api/curriculum', { credentials: 'include' })
+    fetch('/api/programmes', { credentials: 'include' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
       .catch(() => {})

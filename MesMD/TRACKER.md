@@ -29,7 +29,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
-## 🧩 Refonte curriculum (modèle relationnel niveaux/matières) — conçu, pas encore construit
+## 🧩 Refonte programmes (modèle relationnel niveaux/matières) — conçu, pas encore construit
 
 > Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**, dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.**
 

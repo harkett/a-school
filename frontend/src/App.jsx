@@ -51,7 +51,7 @@ import AdminAnalytiqueCommunaute from './pages/AdminAnalytiqueCommunaute'
 import MesFeedbacks from './pages/MesFeedbacks'
 import MesStats from './components/MesStats'
 import AdminFiches from './pages/AdminFiches'
-import AdminCurriculum from './pages/AdminCurriculum'
+import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
@@ -1020,7 +1020,7 @@ export default function App() {
             <Route path="activites"  element={<AdminActivites />} />
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
-            <Route path="curriculum" element={<AdminCurriculum />} />
+            <Route path="programmes" element={<AdminProgrammes />} />
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />

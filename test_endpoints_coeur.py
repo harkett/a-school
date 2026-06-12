@@ -276,11 +276,11 @@ def test_generate_sous_type_manquant_400():
     assert r.status_code == 400, r.text
 
 
-# ===================== Curriculum — lecture référentiel (profil) =====================
+# ===================== Programmes — lecture référentiel (profil) =====================
 # Ne renvoie que les niveaux UTILISABLES (>= 1 paire active), groupés par cycle.
 # Un cycle sans paire (ex. Supérieur) ne doit PAS apparaître -> coeur du fix P5.11.
 
-def test_curriculum_niveaux_utilisables_groupes_par_cycle():
+def test_programmes_niveaux_utilisables_groupes_par_cycle():
     from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     col = Cycle(nom="Collège", ordre=4); db.add(col)
@@ -291,14 +291,14 @@ def test_curriculum_niveaux_utilisables_groupes_par_cycle():
     db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=n6.id))
     db.commit(); db.close()
 
-    data = noauth().get("/api/curriculum").json()
+    data = noauth().get("/api/programmes").json()
     assert any(m["cle"] == "maths" for m in data["matieres"])
     cycles = {g["cycle"]: [n["nom"] for n in g["niveaux"]] for g in data["niveaux_par_cycle"]}
     assert cycles.get("Collège") == ["6e"]      # niveau avec paire -> présent
     assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
 
 
-def test_curriculum_matieres_par_cycle():
+def test_programmes_matieres_par_cycle():
     # Matières scopées par cycle (menu matière du profil) : paire active + matière active.
     # BDD de test partagée -> identifiants uniques (mpc-*) pour ne rien collisionner.
     from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
@@ -317,13 +317,13 @@ def test_curriculum_matieres_par_cycle():
     db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nB.id, actif=False))     # paire INACTIVE -> Mat1 pas en Cycle-B
     db.commit(); db.close()
 
-    data = noauth().get("/api/curriculum").json()
+    data = noauth().get("/api/programmes").json()
     parc = {g["cycle"]: [m["nom"] for m in g["matieres"]] for g in data["matieres_par_cycle"]}
     assert parc.get("MPC-Cycle-A") == ["MPC-Mat1"]   # la matière inactive est exclue malgré sa paire
     assert parc.get("MPC-Cycle-B") == ["MPC-Mat2"]   # Mat1 absent : sa seule paire ici est inactive
 
 
-# ===================== Curriculum ADMIN — CRUD (T1) =====================
+# ===================== Programmes ADMIN — CRUD (T1) =====================
 # GET arbre complet (inactives incluses) + PATCH bascule paire (cree/desactive,
 # JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).
 
@@ -334,7 +334,7 @@ def admin_client():
     return c
 
 
-def test_admin_curriculum_arbre_complet_inactives_incluses():
+def test_admin_programmes_arbre_complet_inactives_incluses():
     from backend.models_db import Cycle, Niveau, Matiere
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycleAdminTest", ordre=99); db.add(cyc); db.flush()
@@ -342,9 +342,9 @@ def test_admin_curriculum_arbre_complet_inactives_incluses():
     db.add(Matiere(cle="adm-mat", nom="MatAdmin", ordre=99, actif=False))  # INACTIVE
     db.commit(); db.close()
 
-    assert noauth().get("/api/admin/curriculum").status_code == 401  # garde admin
+    assert noauth().get("/api/admin/programmes").status_code == 401  # garde admin
 
-    data = admin_client().get("/api/admin/curriculum").json()
+    data = admin_client().get("/api/admin/programmes").json()
     assert "CycleAdminTest" in {c["nom"] for c in data["cycles"]}
     assert any(m["cle"] == "adm-mat" and m["actif"] is False for m in data["matieres"])  # inactive presente
 
@@ -359,7 +359,7 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
     db.commit(); db.close()
 
     cl = admin_client()
-    assert cl.patch("/api/admin/curriculum/paire",
+    assert cl.patch("/api/admin/programmes/paire",
                     json={"matiere_id": mid, "niveau_id": nid, "actif": True}).status_code == 200
 
     def _paire():
@@ -370,10 +370,10 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
         return res
 
     assert _paire() == (True, True)   # creee active
-    cl.patch("/api/admin/curriculum/paire", json={"matiere_id": mid, "niveau_id": nid, "actif": False})
+    cl.patch("/api/admin/programmes/paire", json={"matiere_id": mid, "niveau_id": nid, "actif": False})
     assert _paire() == (True, False)  # ligne CONSERVEE, actif False (pas de DELETE)
 
-    assert cl.patch("/api/admin/curriculum/paire",
+    assert cl.patch("/api/admin/programmes/paire",
                     json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
 
 
@@ -383,15 +383,15 @@ def test_admin_create_niveau_et_gardes():
     cyc = Cycle(nom="CycNivCrea", ordre=97); db.add(cyc); db.commit(); cid = cyc.id; db.close()
 
     cl = admin_client()
-    r = cl.post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "BTS"})
+    r = cl.post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "BTS"})
     assert r.status_code == 200, r.text
     assert r.json()["nom"] == "BTS"
 
     # doublon dans le meme cycle -> 409
-    assert cl.post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "BTS"}).status_code == 409
+    assert cl.post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "BTS"}).status_code == 409
     # cycle inconnu -> 404
-    assert cl.post("/api/admin/curriculum/niveau", json={"cycle_id": 999999, "nom": "X"}).status_code == 404
+    assert cl.post("/api/admin/programmes/niveau", json={"cycle_id": 999999, "nom": "X"}).status_code == 404
     # sans cookie admin -> 401
-    assert noauth().post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "Y"}).status_code == 401
+    assert noauth().post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "Y"}).status_code == 401
 
 

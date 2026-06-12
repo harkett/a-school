@@ -15,7 +15,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
 
   useEffect(() => {
-    fetch('/api/curriculum', { credentials: 'include' })
+    fetch('/api/programmes', { credentials: 'include' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
       .catch(() => {})

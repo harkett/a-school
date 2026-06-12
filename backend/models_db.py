@@ -223,7 +223,7 @@ class ToolUsageLog(Base):
 
 
 # ---------------------------------------------------------------------------
-# Refonte curriculum — référentiel niveaux/matières (programme officiel)
+# Refonte programmes — référentiel niveaux/matières (programme officiel)
 # ---------------------------------------------------------------------------
 
 class Cycle(Base):

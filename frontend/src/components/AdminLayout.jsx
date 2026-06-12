@@ -108,7 +108,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to:    '/admin/curriculum',
+    to:    '/admin/programmes',
     label: 'Programmes',
     aide:  'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.',
     icon:  (

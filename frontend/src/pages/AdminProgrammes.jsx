@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
-export default function AdminCurriculum() {
+export default function AdminProgrammes() {
   const [data, setData]     = useState(null)   // { cycles, matieres, paires }
   const [msg, setMsg]       = useState(null)
   const [erreur, setErreur] = useState(null)
@@ -14,10 +14,10 @@ export default function AdminCurriculum() {
   }
 
   useEffect(() => {
-    fetch('/api/admin/curriculum', { credentials: 'include' })
+    fetch('/api/admin/programmes', { credentials: 'include' })
       .then(r => r.json())
       .then(setData)
-      .catch(() => flash('Impossible de charger le curriculum.', true))
+      .catch(() => flash('Impossible de charger les programmes.', true))
   }, [])
 
   function isActif(matiere_id, niveau_id) {
@@ -37,7 +37,7 @@ export default function AdminCurriculum() {
       return { ...d, paires }
     })
     try {
-      const r = await fetchWithTimeout('/api/admin/curriculum/paire', {
+      const r = await fetchWithTimeout('/api/admin/programmes/paire', {
         method: 'PATCH', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matiere_id, niveau_id, actif: newActif }),
@@ -53,7 +53,7 @@ export default function AdminCurriculum() {
     const nom = addNom.trim()
     if (!nom) return
     try {
-      const r = await fetchWithTimeout('/api/admin/curriculum/niveau', {
+      const r = await fetchWithTimeout('/api/admin/programmes/niveau', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id, nom }),
