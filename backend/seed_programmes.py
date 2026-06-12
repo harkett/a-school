@@ -25,9 +25,15 @@ NIVEAUX = {  # cycle -> [(nom, ordre)] — ordre interprété PAR cycle (jamais 
     "Primaire":   [("CP", 4), ("CE1", 5), ("CE2", 6), ("CM1", 7), ("CM2", 8)],
     "Collège":    [("6e", 9), ("5e", 10), ("4e", 11), ("3e", 12)],
     "Lycée":      [("2nde", 13), ("1ère", 14), ("Terminale", 15)],
-    "Supérieur":  [("BTS", 1), ("BUT", 2), ("Licence", 3), ("Master", 4),
+    "Supérieur":  [("BUT", 2), ("Licence", 3), ("Master", 4),
                    ("Écoles spécialisées", 5), ("CFA", 6), ("Formation continue", 7)],
+    # NB : pas de « BTS » générique (placeholder erroné — toujours « BTS + spécialité »).
+    # Les BTS réels sont des niveaux à part entière (ex. seed_bts_ciel.py).
 }
+
+# Cycles dont les niveaux ont reçu leur VRAI référentiel → traite=True (sélectionnables).
+# Les autres (Crèche, Supérieur encore en axes…) restent traite=False (« en cours »).
+CYCLES_TRAITES = {"Collège", "Lycée"}
 
 MATIERES = [  # cle, nom, ordre
     ("francais", "Français", 1), ("mathematiques", "Mathématiques", 2),
@@ -99,13 +105,26 @@ def run():
 
     niv = {}
     for cycle_nom, lst in NIVEAUX.items():
+        traite = cycle_nom in CYCLES_TRAITES
         for nom, ordre in lst:
             n = db.query(Niveau).filter(Niveau.nom == nom, Niveau.cycle_id == cyc[cycle_nom].id).first()
             if not n:
-                n = Niveau(cycle_id=cyc[cycle_nom].id, nom=nom, ordre=ordre)
+                n = Niveau(cycle_id=cyc[cycle_nom].id, nom=nom, ordre=ordre, traite=traite)
                 db.add(n)
                 db.flush()
+            elif n.traite != traite:
+                n.traite = traite   # le fichier fait foi sur l'état « traité » (réconciliation idempotente)
             niv[nom] = n
+
+    # Nettoyage : suppression FRANCHE du niveau « BTS » générique s'il existe (placeholder
+    # erroné, jamais une vraie donnée d'historique) + ses paires d'axes.
+    bts = db.query(Niveau).filter(Niveau.nom == "BTS", Niveau.cycle_id == cyc["Supérieur"].id).first()
+    bts_supprime = False
+    if bts:
+        db.query(MatiereNiveau).filter(MatiereNiveau.niveau_id == bts.id).delete()
+        db.delete(bts)
+        db.flush()
+        bts_supprime = True
 
     mat = {}
     for cle, nom, ordre in MATIERES:
@@ -131,9 +150,11 @@ def run():
                 pairs += 1
     db.commit()
 
-    print("cycles=%d  niveaux=%d  matieres=%d  paires=%d (nouvelles: %d)" % (
-        db.query(Cycle).count(), db.query(Niveau).count(),
+    traites = db.query(Niveau).filter(Niveau.traite == True).count()
+    print("cycles=%d  niveaux=%d (traités=%d)  matieres=%d  paires=%d (nouvelles: %d)" % (
+        db.query(Cycle).count(), db.query(Niveau).count(), traites,
         db.query(Matiere).count(), db.query(MatiereNiveau).count(), pairs))
+    print("BTS générique supprimé." if bts_supprime else "BTS générique : déjà absent.")
     db.close()
 
 

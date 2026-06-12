@@ -241,6 +241,9 @@ class Niveau(Base):
     cycle_id: Mapped[int] = mapped_column(Integer, ForeignKey("cycles.id"), nullable=False, index=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
+    # true = niveau ayant reçu son VRAI référentiel (sélectionnable au profil) ;
+    # false = pas encore traité (affiché « en cours », sélection bloquée par une modale).
+    traite: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0', nullable=False)
 
 
 class Matiere(Base):

@@ -49,6 +49,7 @@ with engine.connect() as _conn:
         "ALTER TABLE activites_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE sequences_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
         "ALTER TABLE sequences_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
+        "ALTER TABLE niveaux ADD COLUMN traite BOOLEAN NOT NULL DEFAULT 0",
     ]:
         try:
             _conn.execute(text(_col))

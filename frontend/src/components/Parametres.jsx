@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from 'react'
+import { niveauxTraites } from '../utils/profil.js'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
@@ -207,7 +208,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
                   value={ajustTemp.niveau}
                   onChange={e => setAjustTemp(t => ({ ...t, niveau: e.target.value }))}
                 >
-                  {niveauxParCycle.map(grp => (
+                  {niveauxTraites(niveauxParCycle).map(grp => (
                     <optgroup key={grp.cycle} label={grp.cycle}>
                       {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
                     </optgroup>

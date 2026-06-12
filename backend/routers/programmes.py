@@ -44,7 +44,7 @@ def get_programmes(db: Session = Depends(get_db)):
     matieres_par_cycle = []
     for c in db.query(Cycle).order_by(Cycle.ordre).all():
         nivs = [
-            {"id": n.id, "nom": n.nom}
+            {"id": n.id, "nom": n.nom, "traite": n.traite}
             for n in db.query(Niveau).filter(Niveau.cycle_id == c.id)
                        .order_by(Niveau.ordre).all()
             if n.id in niveau_ids_utiles
@@ -57,10 +57,28 @@ def get_programmes(db: Session = Depends(get_db)):
         if mats:
             matieres_par_cycle.append({"cycle": c.nom, "matieres": mats})
 
+    # Matières PAR NIVEAU (scope fin = le programme du diplôme/niveau, via les paires).
+    # C'est ce que lit le menu matière du profil : un niveau ne propose QUE ses matières
+    # (deux diplômes d'un même cycle ont des matières différentes — ex. BTS CIEL ≠ Master).
+    # Ordre = ordre d'insertion des paires (= ordre du référentiel au seed), stable car une
+    # paire n'est jamais supprimée (désactivation seulement). Clé = nom du niveau (unique
+    # dans le référentiel actuel).
+    par_niveau = {}
+    for niv_nom, mid, mcle, mnom in (
+        db.query(Niveau.nom, Matiere.id, Matiere.cle, Matiere.nom)
+          .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
+          .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
+          .filter(MatiereNiveau.actif == True, Matiere.actif == True)
+          .order_by(MatiereNiveau.id).all()
+    ):
+        par_niveau.setdefault(niv_nom, []).append({"id": mid, "cle": mcle, "nom": mnom})
+    matieres_par_niveau = [{"niveau": k, "matieres": v} for k, v in par_niveau.items()]
+
     return {
         "matieres": matieres,
         "niveaux_par_cycle": niveaux_par_cycle,
         "matieres_par_cycle": matieres_par_cycle,
+        "matieres_par_niveau": matieres_par_niveau,
     }
 
 

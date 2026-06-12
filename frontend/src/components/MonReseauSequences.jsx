@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { niveauxTraites } from '../utils/profil.js'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
@@ -71,7 +72,7 @@ export default function MonReseauSequences({ onCharger, sessionMatiere, sessionN
               className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
             >
               <option value="">Tous les niveaux</option>
-              {niveauxParCycle.map(grp => (
+              {niveauxTraites(niveauxParCycle).map(grp => (
                 <optgroup key={grp.cycle} label={grp.cycle}>
                   {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
                 </optgroup>

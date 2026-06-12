@@ -323,6 +323,51 @@ def test_programmes_matieres_par_cycle():
     assert parc.get("MPC-Cycle-B") == ["MPC-Mat2"]   # Mat1 absent : sa seule paire ici est inactive
 
 
+def test_programmes_matieres_par_niveau():
+    # Matières scopées par NIVEAU (le programme du diplôme) : paire active + matière active,
+    # dans l'ORDRE D'INSERTION des paires (= ordre du référentiel), PAS l'ordre global matiere.
+    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    db = dbmod.SessionLocal()
+    cyc = Cycle(nom="MPN-Cycle", ordre=50); db.add(cyc); db.flush()
+    niv = Niveau(cycle_id=cyc.id, nom="MPN-Diplome", ordre=50); db.add(niv); db.flush()
+    # ordre GLOBAL volontairement DÉCROISSANT (99,98,97) : si l'API ordonnait par matiere.ordre
+    # on aurait C,B,A — le test attend A,B,C, donc il prouve l'ordre d'insertion des paires.
+    mA = Matiere(cle="mpn-a", nom="MPN-A", ordre=99); db.add(mA)
+    mB = Matiere(cle="mpn-b", nom="MPN-B", ordre=98); db.add(mB)
+    mC = Matiere(cle="mpn-c", nom="MPN-C", ordre=97); db.add(mC)
+    mInact = Matiere(cle="mpn-inact", nom="MPN-Inact", ordre=96, actif=False); db.add(mInact)
+    mD = Matiere(cle="mpn-d", nom="MPN-D", ordre=95); db.add(mD)
+    db.flush()
+    db.add(MatiereNiveau(matiere_id=mA.id, niveau_id=niv.id))                 # A
+    db.add(MatiereNiveau(matiere_id=mB.id, niveau_id=niv.id))                 # B
+    db.add(MatiereNiveau(matiere_id=mC.id, niveau_id=niv.id))                 # C
+    db.add(MatiereNiveau(matiere_id=mInact.id, niveau_id=niv.id))             # matière INACTIVE -> exclue
+    db.add(MatiereNiveau(matiere_id=mD.id, niveau_id=niv.id, actif=False))    # paire INACTIVE -> exclue
+    db.commit(); db.close()
+
+    data = noauth().get("/api/programmes").json()
+    parn = {g["niveau"]: [m["nom"] for m in g["matieres"]] for g in data["matieres_par_niveau"]}
+    assert parn.get("MPN-Diplome") == ["MPN-A", "MPN-B", "MPN-C"]  # ordre d'insertion, exclusions OK
+
+
+def test_programmes_niveau_traite_expose():
+    # niveaux_par_cycle expose le drapeau `traite` : traité = sélectionnable / en cours = bloqué.
+    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    db = dbmod.SessionLocal()
+    cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
+    nT = Niveau(cycle_id=cyc.id, nom="NT-Traite", ordre=60, traite=True); db.add(nT)
+    nEC = Niveau(cycle_id=cyc.id, nom="NT-EnCours", ordre=61, traite=False); db.add(nEC); db.flush()
+    m = Matiere(cle="nt-mat", nom="NT-Mat", ordre=60); db.add(m); db.flush()
+    db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nT.id))   # paire => les niveaux apparaissent
+    db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nEC.id))
+    db.commit(); db.close()
+
+    data = noauth().get("/api/programmes").json()
+    grp = next(g for g in data["niveaux_par_cycle"] if g["cycle"] == "NT-Cycle")
+    flags = {n["nom"]: n["traite"] for n in grp["niveaux"]}
+    assert flags == {"NT-Traite": True, "NT-EnCours": False}
+
+
 # ===================== Programmes ADMIN — CRUD (T1) =====================
 # GET arbre complet (inactives incluses) + PATCH bascule paire (cree/desactive,
 # JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).
