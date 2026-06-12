@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -15,6 +14,14 @@ export default function MonReseauSequences({ onCharger, sessionMatiere, sessionN
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
   const [detailModal, setDetailModal] = useState(null)
+  const [niveauxParCycle, setNiveauxParCycle] = useState([])
+
+  useEffect(() => {
+    fetch('/api/curriculum', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) setNiveauxParCycle(data.niveaux_par_cycle || []) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -64,7 +71,11 @@ export default function MonReseauSequences({ onCharger, sessionMatiere, sessionN
               className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
             >
               <option value="">Tous les niveaux</option>
-              {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
+              {niveauxParCycle.map(grp => (
+                <optgroup key={grp.cycle} label={grp.cycle}>
+                  {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+                </optgroup>
+              ))}
             </select>
           </div>
         </div>

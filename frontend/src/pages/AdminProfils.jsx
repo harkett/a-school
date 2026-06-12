@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 
 const IconMail  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
 const IconEdit  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -44,7 +43,15 @@ export default function AdminProfils() {
   const [emailModal, setEmailModal] = useState(null)
   const [emailForm, setEmailForm]   = useState({ subject: '', body: '' })
   const [sending, setSending]       = useState(false)
+  const [niveauxParCycle, setNiveauxParCycle] = useState([])
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetch('/api/curriculum', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/api/admin/users', { credentials: 'include' })
@@ -253,7 +260,11 @@ export default function AdminProfils() {
                     <select value={editForm.niveau} onChange={e => setEditForm(f => ({ ...f, niveau: e.target.value }))}
                       className="border border-gray-300 rounded px-2 py-1 text-sm w-full bg-white">
                       <option value="">—</option>
-                      {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
+                      {niveauxParCycle.map(grp => (
+                        <optgroup key={grp.cycle} label={grp.cycle}>
+                          {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+                        </optgroup>
+                      ))}
                     </select>
                   </td>
                   <td className="px-3 py-2 text-gray-400 text-xs text-center">{u.nb_activites ?? 0}</td>

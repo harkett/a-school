@@ -1,6 +1,5 @@
-﻿import { useState } from 'react'
+﻿import { useState, useEffect } from 'react'
 
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
 
 const IconGenerer = () => (
@@ -13,6 +12,14 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
+  const [niveauxParCycle, setNiveauxParCycle] = useState([])
+
+  useEffect(() => {
+    fetch('/api/curriculum', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
+      .catch(() => {})
+  }, [])
 
   function set(field, value) {
     onChange({ ...params, [field]: value })
@@ -200,7 +207,11 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
                   value={ajustTemp.niveau}
                   onChange={e => setAjustTemp(t => ({ ...t, niveau: e.target.value }))}
                 >
-                  {NIVEAUX.map(n => <option key={n}>{n}</option>)}
+                  {niveauxParCycle.map(grp => (
+                    <optgroup key={grp.cycle} label={grp.cycle}>
+                      {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
             </div>

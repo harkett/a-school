@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX  = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 
 function KpiCard({ label, value, sub, color }) {
   return (
@@ -70,7 +69,15 @@ export default function AdminAnalytique() {
   const [expanded, setExpanded] = useState({})
   const [filterMat, setFilterMat] = useState('')
   const [filterNiv, setFilterNiv] = useState('')
+  const [niveauxParCycle, setNiveauxParCycle] = useState([])
   const navigate = useNavigate()
+
+  useEffect(() => {
+    fetch('/api/curriculum', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/api/admin/stats/analytique', { credentials: 'include' })
@@ -156,7 +163,11 @@ export default function AdminAnalytique() {
           style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 10px', fontSize: 12, background: 'white', color: '#1e293b' }}
         >
           <option value="">Tous les niveaux</option>
-          {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
+          {niveauxParCycle.map(grp => (
+            <optgroup key={grp.cycle} label={grp.cycle}>
+              {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+            </optgroup>
+          ))}
         </select>
         {(filterMat || filterNiv) && (
           <button
