@@ -90,6 +90,47 @@ Version courante : **3.2.9** — PATCH incrémenté automatiquement par `deploy.
 
 ---
 
+## Taxonomie des outils — note de conception (classement, pas mode d'emploi prof)
+
+> Grille pour RANGER tout outil prof. À usage interne (nous / futur dev), jamais
+> dans l'aide prof. Actée le 12/06/2026. Le réagencement du menu selon cette
+> grille est un chantier SÉPARÉ, non encore fait. Une version prof simplifiée de
+> cette logique est rédigée et **réservée pour le chantier menu** (à publier dans
+> l'Aide AVEC le réagencement, pour que l'aide colle au menu réel — pas avant).
+
+**4 verbes, pas un fourre-tout :**
+
+| Verbe | Définition | Exemples |
+|---|---|---|
+| **CRÉER** | Produire un contenu **de zéro** (point de départ vierge) | Activité, Séquence — et les *types de sortie* : Mémo flash, Fiche, Escape game, Supports de créativité, Quiz… |
+| **ANALYSER** | Examiner un contenu **existant** et constater (sans le modifier) | Ambiguïtés, Consigne, Équité |
+| **AMÉLIORER** | Agir sur l'**existant** pour l'optimiser (même finalité, en mieux) | Optimiseur de séquences |
+| **ADAPTER** | Transformer un contenu **existant** pour un besoin élève (re-ciblage) | Différenciation (proactif, AVANT : DYS/FLE/approfondissement) + Remédiation (réactif, APRÈS : combler un écart constaté) |
+
+**Critère de tri d'un nouvel outil (la question qui tranche) :**
+« Point de départ vierge (**Créer**) OU action sur un contenu déjà là ? »
+Si action sur l'existant → constater (**Analyser**) / optimiser à finalité égale
+(**Améliorer**) / re-cibler pour un autre besoin (**Adapter**).
+
+**Reclassements actés :**
+- **Remédiation n'est PAS un type créé de zéro** → elle transforme l'existant →
+  **ADAPTER** (avec Différenciation). Générée de zéro, elle serait indiscernable
+  d'une Activité « plus facile » → sans valeur propre. C'est sa transformation de
+  l'existant qui la justifie.
+- **Différenciation n'est pas une simple « option »** → c'est une opération
+  **ADAPTER** à part entière.
+
+**Ne pas confondre les niveaux :**
+- Les **verbes** (Créer/Analyser/Améliorer/Adapter) = familles d'outils (frères).
+- Sous Créer/Activité, les **types de sortie** (QCM, fiche, mémo flash…) = enfants, pas frères.
+- Les **options** de génération (avec/sans correction, nb de questions, visuels…) = réglages, pas des outils.
+
+**Hors menu (à ne pas remonter au rang d'outil) :**
+- Les fonctions « méta séquence » (versioning, affinage interactif, sortie JSON)
+  ne sont PAS des entrées de menu → fonctions internes à l'écran Séquence.
+
+---
+
 ## Routes API principales
 
 ### Auth (`backend/routers/auth.py`)

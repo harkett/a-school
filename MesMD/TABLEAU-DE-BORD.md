@@ -283,6 +283,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Évaluation] Échelles « niveaux d'acquisition » (Crèche & Supérieur)** | Module évaluation/observation futur — hors grille matière×niveau
   *Les deux référentiels définissent des **échelles d'évaluation**, distinctes de la grille programmes (matière×niveau) : Crèche = Non observé → En émergence → En cours d'acquisition → Acquis → Consolidé (SPEC-MODULE-CRECHE §3) ; Supérieur = Découverte → Débutant → Intermédiaire → Avancé → Expert (SPEC-MODULE-SUPERIEUR §4). **NON seedées** (ce ne sont pas des niveaux de classe), juste tracées : ressortiront quand on bâtira l'évaluation par compétences / l'observation. Identifié 12/06/2026.*
 
+- [ ] **[UX] Réagencement du menu « Mes outils » selon la taxonomie (par-levier / 4 verbes)** | Chantier séparé — la taxonomie est actée, le menu pas encore
+  *Taxonomie des outils **actée le 12/06** (grille de classement dans `CLAUDE.md` § « Taxonomie des outils ») : 4 verbes **Créer / Analyser / Améliorer / Adapter**, et organisation **par-levier** (chaque levier = sa section avec Créer + Historique dedans) plutôt que par-verbe (l'actuel `Sidebar.jsx` est par-verbe Créer/Analyser/Historique). Décision validée par avis raisonné (par-levier sert l'usage récurrent du prof). **À faire dans ce chantier :** réagencer `Sidebar.jsx` + **publier la version prof de l'aide** (rédigée, courte, sans jargon — « Vos outils sont rangés selon ce que vous voulez faire : Créer / Analyser / Améliorer / Adapter ») dans `Aide.jsx` catégorie « Comprendre », id `organisation-outils`. **Pas avant le réagencement** : sinon l'aide décrirait un menu (et des outils Améliorer/Adapter) qui n'existent pas encore → contradiction règle n°1. Identifié 12/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
