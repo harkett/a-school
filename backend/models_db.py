@@ -99,6 +99,16 @@ class SequenceSauvegardee(Base):
 
 
 class ActiviteSauvegardee(Base):
+    """Activité générée et sauvegardée — INSTANTANÉ FIGÉ (snapshot).
+
+    À la génération, `niveau` et `matiere` sont RECOPIÉS depuis l'état effectif
+    (profil par défaut, ou valeur ajustée via « Ajuster pour cette activité »,
+    Parametres.jsx) dans les colonnes de cette table. L'affichage relit CES
+    colonnes (MesActivites.jsx), jamais le profil.
+    Chaîne : référentiel (cycles/niveaux/matieres) -> profil -> [ajustable à la
+    génération] -> activité (immuable). Conséquence : modifier le profil ne
+    réécrit AUCUNE activité passée.
+    """
     __tablename__ = "activites_sauvegardees"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

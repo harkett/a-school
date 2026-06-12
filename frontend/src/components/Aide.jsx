@@ -914,6 +914,9 @@ const sections = [
         <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
           Les boutons <em>Plus de détails</em>, <em>Reprendre</em> et <em>Supprimer</em> sont visibles au survol de chaque ligne (ou en permanence sur mobile).
         </div>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          <strong className="text-gray-700">Vos activités conservent le niveau et la matière qu'elles avaient le jour de leur création.</strong> Modifier votre profil ensuite ne change rien aux activités passées : une activité créée en mars garde son niveau de mars, même si votre profil change en septembre.
+        </div>
       </div>
     ),
   },
