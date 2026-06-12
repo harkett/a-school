@@ -298,3 +298,75 @@ def test_curriculum_niveaux_utilisables_groupes_par_cycle():
     assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
 
 
+# ===================== Curriculum ADMIN — CRUD (T1) =====================
+# GET arbre complet (inactives incluses) + PATCH bascule paire (cree/desactive,
+# JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).
+
+def admin_client():
+    from backend.routers.admin import _make_admin_token
+    c = TestClient(app)
+    c.cookies.set("aschool_admin", _make_admin_token())
+    return c
+
+
+def test_admin_curriculum_arbre_complet_inactives_incluses():
+    from backend.models_db import Cycle, Niveau, Matiere
+    db = dbmod.SessionLocal()
+    cyc = Cycle(nom="CycleAdminTest", ordre=99); db.add(cyc); db.flush()
+    db.add(Niveau(cycle_id=cyc.id, nom="NivA", ordre=1))
+    db.add(Matiere(cle="adm-mat", nom="MatAdmin", ordre=99, actif=False))  # INACTIVE
+    db.commit(); db.close()
+
+    assert noauth().get("/api/admin/curriculum").status_code == 401  # garde admin
+
+    data = admin_client().get("/api/admin/curriculum").json()
+    assert "CycleAdminTest" in {c["nom"] for c in data["cycles"]}
+    assert any(m["cle"] == "adm-mat" and m["actif"] is False for m in data["matieres"])  # inactive presente
+
+
+def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
+    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    db = dbmod.SessionLocal()
+    cyc = Cycle(nom="CycPaire", ordre=98); db.add(cyc); db.flush()
+    niv = Niveau(cycle_id=cyc.id, nom="NivP", ordre=1); db.add(niv); db.flush()
+    mat = Matiere(cle="paire-mat", nom="MatPaire", ordre=98); db.add(mat); db.flush()
+    mid, nid = mat.id, niv.id
+    db.commit(); db.close()
+
+    cl = admin_client()
+    assert cl.patch("/api/admin/curriculum/paire",
+                    json={"matiere_id": mid, "niveau_id": nid, "actif": True}).status_code == 200
+
+    def _paire():
+        d = dbmod.SessionLocal()
+        p = d.query(MatiereNiveau).filter_by(matiere_id=mid, niveau_id=nid).first()
+        res = (p is not None, p.actif if p else None)
+        d.close()
+        return res
+
+    assert _paire() == (True, True)   # creee active
+    cl.patch("/api/admin/curriculum/paire", json={"matiere_id": mid, "niveau_id": nid, "actif": False})
+    assert _paire() == (True, False)  # ligne CONSERVEE, actif False (pas de DELETE)
+
+    assert cl.patch("/api/admin/curriculum/paire",
+                    json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
+
+
+def test_admin_create_niveau_et_gardes():
+    from backend.models_db import Cycle
+    db = dbmod.SessionLocal()
+    cyc = Cycle(nom="CycNivCrea", ordre=97); db.add(cyc); db.commit(); cid = cyc.id; db.close()
+
+    cl = admin_client()
+    r = cl.post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "BTS"})
+    assert r.status_code == 200, r.text
+    assert r.json()["nom"] == "BTS"
+
+    # doublon dans le meme cycle -> 409
+    assert cl.post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "BTS"}).status_code == 409
+    # cycle inconnu -> 404
+    assert cl.post("/api/admin/curriculum/niveau", json={"cycle_id": 999999, "nom": "X"}).status_code == 404
+    # sans cookie admin -> 401
+    assert noauth().post("/api/admin/curriculum/niveau", json={"cycle_id": cid, "nom": "Y"}).status_code == 401
+
+
