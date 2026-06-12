@@ -18,11 +18,10 @@ router = APIRouter()
 
 @router.get("/curriculum")
 def get_curriculum(db: Session = Depends(get_db)):
-    matieres = [
-        {"id": m.id, "cle": m.cle, "nom": m.nom}
-        for m in db.query(Matiere).filter(Matiere.actif == True)
-                   .order_by(Matiere.ordre).all()
-    ]
+    matiere_objs = (db.query(Matiere).filter(Matiere.actif == True)
+                      .order_by(Matiere.ordre).all())
+    matieres = [{"id": m.id, "cle": m.cle, "nom": m.nom} for m in matiere_objs]
+    matiere_ids_actifs = {m.id for m in matiere_objs}
 
     niveau_ids_utiles = {
         row[0]
@@ -30,7 +29,19 @@ def get_curriculum(db: Session = Depends(get_db)):
                      .filter(MatiereNiveau.actif == True).distinct().all()
     }
 
+    # Matières utilisables PAR CYCLE (paire active + matière active) → menu matière du profil,
+    # scopé sur le cycle du niveau choisi.
+    cycle_matiere_ids = {}
+    for cycle_id, matiere_id in (
+        db.query(Niveau.cycle_id, MatiereNiveau.matiere_id)
+          .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
+          .filter(MatiereNiveau.actif == True).distinct().all()
+    ):
+        if matiere_id in matiere_ids_actifs:
+            cycle_matiere_ids.setdefault(cycle_id, set()).add(matiere_id)
+
     niveaux_par_cycle = []
+    matieres_par_cycle = []
     for c in db.query(Cycle).order_by(Cycle.ordre).all():
         nivs = [
             {"id": n.id, "nom": n.nom}
@@ -41,7 +52,16 @@ def get_curriculum(db: Session = Depends(get_db)):
         if nivs:
             niveaux_par_cycle.append({"cycle": c.nom, "niveaux": nivs})
 
-    return {"matieres": matieres, "niveaux_par_cycle": niveaux_par_cycle}
+        ids = cycle_matiere_ids.get(c.id, set())
+        mats = [{"id": m.id, "cle": m.cle, "nom": m.nom} for m in matiere_objs if m.id in ids]
+        if mats:
+            matieres_par_cycle.append({"cycle": c.nom, "matieres": mats})
+
+    return {
+        "matieres": matieres,
+        "niveaux_par_cycle": niveaux_par_cycle,
+        "matieres_par_cycle": matieres_par_cycle,
+    }
 
 
 # ───────────────────────────────────────────────────────────────────────────

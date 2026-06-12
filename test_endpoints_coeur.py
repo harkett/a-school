@@ -298,6 +298,31 @@ def test_curriculum_niveaux_utilisables_groupes_par_cycle():
     assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
 
 
+def test_curriculum_matieres_par_cycle():
+    # Matières scopées par cycle (menu matière du profil) : paire active + matière active.
+    # BDD de test partagée -> identifiants uniques (mpc-*) pour ne rien collisionner.
+    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    db = dbmod.SessionLocal()
+    cA = Cycle(nom="MPC-Cycle-A", ordre=40); db.add(cA)
+    cB = Cycle(nom="MPC-Cycle-B", ordre=41); db.add(cB); db.flush()
+    nA = Niveau(cycle_id=cA.id, nom="MPC-nivA", ordre=40); db.add(nA)
+    nB = Niveau(cycle_id=cB.id, nom="MPC-nivB", ordre=41); db.add(nB); db.flush()
+    m1 = Matiere(cle="mpc-m1", nom="MPC-Mat1", ordre=40); db.add(m1)
+    m2 = Matiere(cle="mpc-m2", nom="MPC-Mat2", ordre=41); db.add(m2)
+    inact = Matiere(cle="mpc-inact", nom="MPC-Inactive", ordre=99, actif=False); db.add(inact)
+    db.flush()
+    db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nA.id))                  # Mat1 -> Cycle-A
+    db.add(MatiereNiveau(matiere_id=m2.id, niveau_id=nB.id))                  # Mat2 -> Cycle-B
+    db.add(MatiereNiveau(matiere_id=inact.id, niveau_id=nA.id))               # matière INACTIVE -> exclue
+    db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nB.id, actif=False))     # paire INACTIVE -> Mat1 pas en Cycle-B
+    db.commit(); db.close()
+
+    data = noauth().get("/api/curriculum").json()
+    parc = {g["cycle"]: [m["nom"] for m in g["matieres"]] for g in data["matieres_par_cycle"]}
+    assert parc.get("MPC-Cycle-A") == ["MPC-Mat1"]   # la matière inactive est exclue malgré sa paire
+    assert parc.get("MPC-Cycle-B") == ["MPC-Mat2"]   # Mat1 absent : sa seule paire ici est inactive
+
+
 # ===================== Curriculum ADMIN — CRUD (T1) =====================
 # GET arbre complet (inactives incluses) + PATCH bascule paire (cree/desactive,
 # JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).

@@ -31,7 +31,9 @@ NIVEAUX = {  # cycle -> [(nom, ordre)] — ordre interprété PAR cycle (jamais 
 
 MATIERES = [  # cle, nom, ordre
     ("francais", "Français", 1), ("mathematiques", "Mathématiques", 2),
-    ("histoire-geo", "Histoire-Géo", 3), ("langues-vivantes", "Langues Vivantes", 4),
+    # Libellés alignés sur le nom canonique du PROFIL (MonProfil.jsx) — réconciliation :
+    # « Langues Vivantes (LV) » est notamment testé par MonProfil.jsx:123 → ne pas changer.
+    ("histoire-geo", "Histoire-Géographie", 3), ("langues-vivantes", "Langues Vivantes (LV)", 4),
     ("physique-chimie", "Physique-Chimie", 5), ("svt", "SVT", 6),
     ("technologie", "Technologie", 7), ("nsi", "NSI", 8),
     ("ses", "SES", 9), ("philosophie", "Philosophie", 10),
@@ -112,6 +114,9 @@ def run():
             m = Matiere(cle=cle, nom=nom, ordre=ordre)
             db.add(m)
             db.flush()
+        elif m.nom != nom or m.ordre != ordre:
+            m.nom = nom        # le fichier fait foi sur le libellé → réconciliation idempotente (clé inchangée)
+            m.ordre = ordre
         mat[cle] = m
 
     pairs = 0
