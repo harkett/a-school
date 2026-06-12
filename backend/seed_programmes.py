@@ -1,10 +1,13 @@
-"""Seed initial du curriculum : cycles, niveaux, matieres, matiere_niveaux.
+"""Seed initial des programmes : cycles, niveaux, matieres, matiere_niveaux.
 
 Données de RÉFÉRENCE (programme officiel), éditables ensuite via le CRUD admin.
 Idempotent : ne réinsère jamais ce qui existe déjà → relançable sans risque.
 
-Crèche / Supérieur : cycles seedés, mais niveaux + paires LAISSÉS VIDES
-(sources à arbitrer — TRACKER § Refonte curriculum, réserve 1). À remplir via le CRUD.
+Collège / Lycée : organisés par MATIÈRES (les 12). Crèche / Supérieur : organisés
+par AXES (cf. SPEC-MODULE-CRECHE §4 et SPEC-MODULE-SUPERIEUR §3) — même grille
+« quelque chose × niveau », un axe est juste une matière au sens de la table.
+Collision « Autonomie » (axe crèche + axe supérieur) → clés préfixées par cycle
+(creche-* / sup-*), libellé affiché inchangé.
 """
 from backend.database import SessionLocal
 from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
@@ -14,11 +17,16 @@ CYCLES = [
     ("Collège", 4), ("Lycée", 5), ("Supérieur", 6),
 ]
 
-NIVEAUX = {  # cycle -> [(nom, ordre)]
+NIVEAUX = {  # cycle -> [(nom, ordre)] — ordre interprété PAR cycle (jamais comparé entre cycles)
+    "Crèche":     [("Groupe A — Nourrisson (0-12 mois)", 1),
+                   ("Groupe B — Jeune marcheur (12-24 mois)", 2),
+                   ("Groupe C — Grand explorateur (24-36 mois)", 3)],
     "Maternelle": [("PS", 1), ("MS", 2), ("GS", 3)],
     "Primaire":   [("CP", 4), ("CE1", 5), ("CE2", 6), ("CM1", 7), ("CM2", 8)],
     "Collège":    [("6e", 9), ("5e", 10), ("4e", 11), ("3e", 12)],
     "Lycée":      [("2nde", 13), ("1ère", 14), ("Terminale", 15)],
+    "Supérieur":  [("BTS", 1), ("BUT", 2), ("Licence", 3), ("Master", 4),
+                   ("Écoles spécialisées", 5), ("CFA", 6), ("Formation continue", 7)],
 }
 
 MATIERES = [  # cle, nom, ordre
@@ -28,6 +36,24 @@ MATIERES = [  # cle, nom, ordre
     ("technologie", "Technologie", 7), ("nsi", "NSI", 8),
     ("ses", "SES", 9), ("philosophie", "Philosophie", 10),
     ("arts", "Arts", 11), ("eps", "EPS", 12),
+    # Crèche — 9 axes (SPEC-MODULE-CRECHE §4), clés préfixées creche-
+    ("creche-securite-affective",     "Sécurité affective",         13),
+    ("creche-developpement-cognitif", "Développement cognitif",     14),
+    ("creche-developpement-langage",  "Développement du langage",   15),
+    ("creche-developpement-moteur",   "Développement moteur",       16),
+    ("creche-socialisation",          "Socialisation",              17),
+    ("creche-autonomie",              "Autonomie",                  18),
+    ("creche-bien-etre-quotidien",    "Bien-être quotidien",        19),
+    ("creche-relation-familles",      "Relation avec les familles", 20),
+    ("creche-amenagement-espaces",    "Aménagement des espaces",    21),
+    # Supérieur — 7 axes (SPEC-MODULE-SUPERIEUR §3, v2.1), clés préfixées sup-
+    ("sup-connaissances-disciplinaires", "Connaissances disciplinaires", 22),
+    ("sup-competences-professionnelles", "Compétences professionnelles", 23),
+    ("sup-competences-transversales",    "Compétences transversales",    24),
+    ("sup-autonomie",                    "Autonomie",                    25),
+    ("sup-recherche-innovation",         "Recherche et Innovation",      26),
+    ("sup-professionnalisation",         "Professionnalisation",         27),
+    ("sup-evaluation",                   "Évaluation",                   28),
 ]
 
 # Programme : matiere_cle -> niveaux où elle est enseignée
@@ -45,6 +71,16 @@ PROGRAMME = {
     "arts":             ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale"],
     "eps":              ["6e", "5e", "4e", "3e", "2nde", "1ère", "Terminale"],
 }
+
+# Crèche & Supérieur : grille PLEINE — chaque axe couvre TOUS les niveaux de son cycle
+# (aucune restriction par niveau dans les référentiels, contrairement au collège/lycée).
+_CRECHE_NIVEAUX = [nom for nom, _ in NIVEAUX["Crèche"]]
+_SUP_NIVEAUX    = [nom for nom, _ in NIVEAUX["Supérieur"]]
+for _cle, _nom, _ordre in MATIERES:
+    if _cle.startswith("creche-"):
+        PROGRAMME[_cle] = _CRECHE_NIVEAUX
+    elif _cle.startswith("sup-"):
+        PROGRAMME[_cle] = _SUP_NIVEAUX
 
 
 def run():
