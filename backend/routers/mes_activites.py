@@ -92,6 +92,7 @@ def lister(
             "texte_source": a.texte_source,
             "resultat": a.resultat,
             "apercu": a.texte_source[:60] + ("…" if len(a.texte_source) > 60 else ""),
+            "created_at": a.created_at.isoformat() if a.created_at else None,
         }
         for a in rows
     ]

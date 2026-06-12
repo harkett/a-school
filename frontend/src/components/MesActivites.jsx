@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
-import { coupleKey, grouperParCouple } from '../utils/activites.js'
+import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple } from '../utils/activites.js'
 
 const IconTrash = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -16,6 +16,15 @@ const IconShare = () => (
     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+  </svg>
+)
+
+const IconCalendar = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
   </svg>
 )
 
@@ -124,7 +133,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
     if (sessionMatiere && a.matiere !== sessionMatiere) return false
     if (sessionNiveau  && a.niveau  !== sessionNiveau)  return false
     return true
-  })
+  }).sort(parDateDesc)   // plus récent en haut
 
   const labelProfil = [sessionMatiere, sessionNiveau].filter(Boolean).join(', ')
 
@@ -134,7 +143,13 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const headerCount = vue === 'courant' ? filtered.length : activites.length
 
   // Ligne-carte d'une activité, réutilisée par les deux onglets.
-  const ActiviteRow = (a, last) => (
+  const ActiviteRow = (a, last) => {
+    const dt = formatDateActivite(a.created_at)
+    const couleur = couleurCouple(coupleKey(a.matiere, a.niveau))
+    const coupleLbl = [a.matiere, a.niveau].filter(Boolean).join(' — ') || 'Non classé'
+    // Récent → libellé relatif capitalisé ; ancien → date complète (sans « le »).
+    const dateLabel = dt.court ? (dt.recent ? dt.court.charAt(0).toUpperCase() + dt.court.slice(1) : dt.complet) : ''
+    return (
     <div
       key={a.id}
       onMouseEnter={() => setHovered(a.id)}
@@ -148,12 +163,27 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       <div className="flex items-center gap-3 px-5 py-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <span title={`Couleur du couple ${coupleLbl}`} style={{ width: 9, height: 9, borderRadius: '50%', background: couleur, flexShrink: 0, display: 'inline-block' }} />
             <span className="text-sm font-semibold text-gray-800 truncate">
               {a.objet || a.activite_label}
             </span>
             {a.partagee && (
               <span style={{ fontSize: 11, color: 'var(--bleu)', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 99, padding: '1px 8px', flexShrink: 0 }}>
                 Partagé
+              </span>
+            )}
+            {dateLabel && (
+              <span
+                title={dt.complet ? `Créée le ${dt.complet}` : undefined}
+                style={{
+                  marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 600, borderRadius: 99, padding: '2px 9px', flexShrink: 0,
+                  background: dt.recent ? '#eff6ff' : '#f1f5f9',
+                  color: dt.recent ? '#1d4ed8' : '#475569',
+                }}
+              >
+                <IconCalendar />
+                {dateLabel}
               </span>
             )}
           </div>
@@ -218,7 +248,8 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3 w-full">
@@ -306,6 +337,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
           {sections.map(sec => (
             <div key={sec.key} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 px-1">
+                <span style={{ width: 11, height: 11, borderRadius: '50%', background: couleurCouple(sec.key), flexShrink: 0, display: 'inline-block' }} />
                 <span className="text-sm font-semibold text-gray-700">{sec.label}</span>
                 <span style={{ fontSize: 11, color: '#6b7280', background: '#f1f5f9', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
                   {sec.items.length}
