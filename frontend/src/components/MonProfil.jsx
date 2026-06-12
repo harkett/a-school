@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const MATIERES   = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
-const NIVEAUX    = ['6e', '5e', '4e', '3e', '2nde', '1ère', 'Terminale', 'Supérieur']
 const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
 
 export default function MonProfil({ onNavigate }) {
@@ -18,6 +17,16 @@ export default function MonProfil({ onNavigate }) {
   })
   const [saving, setSaving] = useState(false)
   const [erreur, setErreur] = useState(null)
+  const [niveauxParCycle, setNiveauxParCycle] = useState([])
+
+  useEffect(() => {
+    fetchWithTimeout('/api/curriculum', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) setNiveauxParCycle(data.niveaux_par_cycle || []) })
+      .catch(() => {})
+  }, [])
+
+  const niveauConnu = niveauxParCycle.some(g => g.niveaux.some(n => n.nom === form.niveau))
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -133,7 +142,14 @@ export default function MonProfil({ onNavigate }) {
             onChange={e => set('niveau', e.target.value)}
           >
             <option value="">— Choisissez —</option>
-            {NIVEAUX.map(n => <option key={n} value={n}>{n}</option>)}
+            {niveauxParCycle.map(grp => (
+              <optgroup key={grp.cycle} label={grp.cycle}>
+                {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+              </optgroup>
+            ))}
+            {form.niveau && !niveauConnu && (
+              <option value={form.niveau}>{form.niveau} (à mettre à jour)</option>
+            )}
           </select>
         </div>
 

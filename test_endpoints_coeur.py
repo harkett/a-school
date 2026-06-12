@@ -276,3 +276,25 @@ def test_generate_sous_type_manquant_400():
     assert r.status_code == 400, r.text
 
 
+# ===================== Curriculum — lecture référentiel (profil) =====================
+# Ne renvoie que les niveaux UTILISABLES (>= 1 paire active), groupés par cycle.
+# Un cycle sans paire (ex. Supérieur) ne doit PAS apparaître -> coeur du fix P5.11.
+
+def test_curriculum_niveaux_utilisables_groupes_par_cycle():
+    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    db = dbmod.SessionLocal()
+    col = Cycle(nom="Collège", ordre=4); db.add(col)
+    sup = Cycle(nom="Supérieur", ordre=6); db.add(sup); db.flush()
+    n6 = Niveau(cycle_id=col.id, nom="6e", ordre=9); db.add(n6)
+    nbts = Niveau(cycle_id=sup.id, nom="BTS", ordre=20); db.add(nbts)  # aucune paire -> exclu
+    mat = Matiere(cle="maths", nom="Mathématiques", ordre=2); db.add(mat); db.flush()
+    db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=n6.id))
+    db.commit(); db.close()
+
+    data = noauth().get("/api/curriculum").json()
+    assert any(m["cle"] == "maths" for m in data["matieres"])
+    cycles = {g["cycle"]: [n["nom"] for n in g["niveaux"]] for g in data["niveaux_par_cycle"]}
+    assert cycles.get("Collège") == ["6e"]      # niveau avec paire -> présent
+    assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
+
+
