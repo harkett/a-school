@@ -1079,6 +1079,30 @@ const sections = [
       </dl>
     ),
   },
+  {
+    id: 'organisation-outils',
+    nav: 'Comment vos outils sont rangés',
+    titre: 'Comment vos outils sont rangés',
+    Icon: IconTarget,
+    contenu: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>
+          Vos outils sont regroupés par <strong>type</strong>, dans <strong>Mes outils</strong> — pour tout trouver au même endroit :
+        </p>
+        <ul style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151', lineHeight: 1.55 }}>
+          <li><strong>Activité</strong> — créer une activité, et retrouver vos activités passées.</li>
+          <li><strong>Séquence</strong> — créer une séquence, et retrouver les vôtres.</li>
+          <li><strong>Analyse</strong> — examiner un énoncé existant (repérer les ambiguïtés).</li>
+        </ul>
+        <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.55 }}>
+          Dans chaque famille, <strong>créer et retrouver sont côte à côte</strong> : pas besoin d'aller chercher ailleurs.
+        </p>
+        <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>
+          Les lignes grisées marquées <strong>« bientôt »</strong> sont des outils en préparation — visibles pour vous montrer ce qui arrive, mais pas encore disponibles.
+        </div>
+      </div>
+    ),
+  },
 ]
 
 const CATEGORIES = [
@@ -1087,7 +1111,7 @@ const CATEGORIES = [
   { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'champs', 'conseils', 'sequence', 'optimiseur'] },
   { label: 'Analyser', ids: ['ambiguites'] },
   { label: 'Gérer', ids: ['historique-activites', 'historique-sequences', 'partage', 'mon-reseau'] },
-  { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
+  { label: 'Comprendre', ids: ['organisation-outils', 'apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
   { label: 'Problèmes', ids: ['problemes'] },
 ]
 
