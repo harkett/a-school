@@ -58,6 +58,7 @@ import UpdateBanner from './components/UpdateBanner'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import { fetchWithTimeout, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
+import { estPageCreer, typeParDefaut } from './utils/activite.js'
 import './index.css'
 
 function ProtectedRoute({ children }) {
@@ -99,6 +100,7 @@ function MainApp() {
   const [sessionMatiere, setSessionMatiere] = useState(matiere)
   const [toast, setToast] = useState(null)
   const [activiteTab, setActiviteTab] = useState('creer')
+  const [typeConfirme, setTypeConfirme] = useState(false)  // guidage : le prof a-t-il vu/touché le sélecteur de type ?
   const [alertDialog, setAlertDialog] = useState(null)
   const [selectedCard, setSelectedCard] = useState('sequence')
   const [inactivityWarning, setInactivityWarning] = useState(false)
@@ -208,6 +210,13 @@ function MainApp() {
     setParams(newParams)
   }
 
+  // Guidage visuel : toute interaction du prof avec les paramètres (sélecteur de type,
+  // précision, nb…) signifie qu'il a VU le sélecteur → l'accent passe à l'étape « Générer ».
+  function changerParams(newParams) {
+    setTypeConfirme(true)
+    setParamsWithSave(newParams)
+  }
+
   // Resynchronise params.niveau quand user.niveau change (sauvegarde profil)
   // — sans ce useEffect, params.niveau reste figé à la valeur du mount.
   useEffect(() => {
@@ -222,18 +231,23 @@ function MainApp() {
     fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}`, {}, TIMEOUT_STD)
       .then(r => r.json())
       .then(data => {
-        setActivites(data)
-        if (data.length > 0) {
+        const list = Array.isArray(data) ? data : []  // garde-fou : toujours un tableau (jamais .find sur autre chose)
+        setActivites(list)
+        if (list.length > 0) {
           setParams(p => ({
             ...p,
-            activite_key: data[0].key,
-            sous_type: data[0].sous_types[0] || null,
-            nb: data[0].params.includes('nb') ? 5 : null,
+            activite_key: list[0].key,
+            sous_type: list[0].sous_types[0] || null,
+            nb: list[0].params.includes('nb') ? 5 : null,
           }))
         }
       })
       .catch(() => setAlertDialog('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere])
+
+  // Guidage : si le prof vide le texte source, on repart de l'étape 1 → l'accent doit
+  // remonter, donc on « oublie » que le type avait été vu.
+  useEffect(() => { if (!texte.trim()) setTypeConfirme(false) }, [texte])
 
   function isTexteGibberish(t) {
     const words = t.trim().split(/\s+/).filter(w => w.length > 2)
@@ -341,6 +355,42 @@ function MainApp() {
     setPage('creer-activite')
   }
 
+  // « Créer » ouvre TOUJOURS une activité vierge : on vide tout le contenu de la fois
+  // précédente (texte, objet, résultat, type sélectionné → défaut de la matière) et on
+  // revient sur l'onglet de saisie. Le bandeau « exemple » est effacé par TexteSource dès
+  // que le texte se vide. Le couple niveau+matière n'est PAS touché (contexte du profil).
+  // NB : « réutiliser depuis l'Historique » passe par chargerActivite() qui charge
+  // volontairement — il garde son setPage direct et ne subit donc pas cette remise à zéro.
+  function nouvelleActivite() {
+    setTexte('')
+    setObjet('')
+    setResultat(null)
+    setActiviteTab('creer')
+    setTypeConfirme(false)
+    setParams(p => ({ ...p, ...typeParDefaut(activites) }))
+    setPage('creer-activite')
+  }
+
+  // Routeur de navigation : toute arrivée sur « Créer » repart d'une activité vierge ;
+  // les autres pages naviguent normalement.
+  function naviguer(p) {
+    if (estPageCreer(p)) nouvelleActivite()
+    else setPage(p)
+  }
+
+  // Guidage visuel pas à pas de l'écran « Créer » : une SEULE zone active à la fois,
+  // suit l'état réel. 0 = rien (activité déjà générée) · 1 = Texte source · 2 = choisir
+  // le type · 3 = Générer. Retour arrière (texte vidé) → l'accent remonte tout seul.
+  const etapeGuide = resultat ? 0 : !texte.trim() ? 1 : typeConfirme ? 3 : 2
+
+  // Contour sobre (discret) sur la zone active. Outline → aucun décalage de mise en page.
+  const halo = (actif) => ({
+    outline: actif ? '2px solid #1F6EEB' : '2px solid transparent',
+    outlineOffset: '3px',
+    borderRadius: 8,
+    transition: 'outline-color 0.25s ease',
+  })
+
   const profilIncomplet = user && (!user.prenom || !user.nom)
 
   return (
@@ -372,12 +422,12 @@ function MainApp() {
         prenom={user?.prenom}
         nom={user?.nom}
         onLogout={logout}
-        onNavigate={setPage}
+        onNavigate={naviguer}
         onFeedback={() => setShowFeedback(true)}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
-        <Sidebar page={page} onNavigate={setPage} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
+        <Sidebar page={page} onNavigate={naviguer} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
@@ -385,7 +435,7 @@ function MainApp() {
               user={user}
               matiereLabel={matiereLabel}
               niveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
               onCharger={chargerActivite}
               onChargerSequence={chargerSequence}
             />
@@ -546,7 +596,7 @@ function MainApp() {
                           {/* ACTIVITÉ */}
                           <div>
                             <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Activité</div>
-                            <button onClick={() => setPage('creer-activite')} title="Créer une activité pédagogique"
+                            <button onClick={() => naviguer('creer-activite')} title="Créer une activité pédagogique"
                               style={{ width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer', textAlign: 'left' }}>
                               <div>
                                 <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>Créer une activité</div>
@@ -606,7 +656,7 @@ function MainApp() {
                       <div>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Activité</div>
                         <div
-                          onClick={() => setPage('creer-activite')}
+                          onClick={() => naviguer('creer-activite')}
                           style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}
                         >
                           <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une activité</span>
@@ -738,7 +788,7 @@ function MainApp() {
                     onClick={generer}
                     disabled={loading}
                     title="Lancer la génération de l'activité avec aSchool"
-                    style={{ marginLeft: 'auto', marginRight: 8 }}
+                    style={{ marginLeft: 'auto', marginRight: 8, ...halo(etapeGuide === 3) }}
                   >
                     {loading
                       ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
@@ -751,12 +801,15 @@ function MainApp() {
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {activiteTab === 'creer' && (
                 <>
-                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} />
+                  <div style={halo(etapeGuide === 1)}>
+                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} />
+                  </div>
                   {activites.length > 0 && (
                     <Parametres
                       activites={activites}
                       params={params}
-                      onChange={setParamsWithSave}
+                      accentType={etapeGuide === 2}
+                      onChange={changerParams}
                       onGenerer={generer}
                       loading={loading}
                       hasResultat={!!resultat}
@@ -826,7 +879,7 @@ function MainApp() {
             <SequenceForm
               matiere={sessionMatiere}
               niveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
               prefillTheme={prefillTheme}
               onPrefillUsed={() => setPrefillTheme('')}
               prefillSeq={prefillSeq}
@@ -839,7 +892,7 @@ function MainApp() {
               onCharger={chargerActivite}
               sessionMatiere={sessionMatiere}
               sessionNiveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
               userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
             />
           )}
@@ -849,7 +902,7 @@ function MainApp() {
               onCharger={chargerSequence}
               sessionMatiere={sessionMatiere}
               sessionNiveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
               userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
             />
           )}
@@ -874,7 +927,7 @@ function MainApp() {
             <Optimiseur
               defaultMatiere={sessionMatiere}
               defaultNiveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
             />
           )}
 
@@ -882,7 +935,7 @@ function MainApp() {
             <Ambiguites
               matiere={sessionMatiere}
               niveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
               onCreateSequence={(reformulation) => { setPrefillTheme(reformulation); setPage('creer-sequence') }}
               prefillTexte={prefillAmbiguites}
               onPrefillUsed={() => setPrefillAmbiguites('')}
@@ -893,7 +946,7 @@ function MainApp() {
             <Consigne
               matiere={sessionMatiere}
               niveau={params.niveau}
-              onNavigate={setPage}
+              onNavigate={naviguer}
             />
           )}
 
@@ -912,7 +965,7 @@ function MainApp() {
 
           {page === 'bientot-disponible' && <BientotDisponible />}
 
-          {page === 'mon-profil' && <MonProfil onNavigate={setPage} />}
+          {page === 'mon-profil' && <MonProfil onNavigate={naviguer} />}
 
 
           {page === 'aide' && <Aide />}

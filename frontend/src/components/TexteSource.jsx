@@ -69,6 +69,10 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   useEffect(() => { texteRef.current = texte }, [texte])
 
+  // Le bandeau « exemple généré » est attaché au texte courant : si le texte est vidé
+  // (ex. « Créer » repart d'une activité vierge), le bandeau n'a plus de sens → on l'efface.
+  useEffect(() => { if (!texte) setExempleNote(null) }, [texte])
+
   // Dictée vocale en mode BATCH : enregistrer → stop → POST /api/transcribe (Groq
   // Whisper) → texte inséré à la fin. Le streaming temps réel Deepgram est une
   // amélioration future isolée sur la branche wip/deepgram-streaming.

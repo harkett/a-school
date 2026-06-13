@@ -9,7 +9,7 @@ const IconGenerer = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
+export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
@@ -78,7 +78,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
 
       <div className="grid grid-cols-2 gap-4">
 
-        <div>
+        <div style={{
+          outline: accentType ? '2px solid #1F6EEB' : '2px solid transparent',
+          outlineOffset: '3px', borderRadius: 6, transition: 'outline-color 0.25s ease',
+        }}>
           <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
           <select
             className="w-full border border-gray-300 rounded p-2 text-sm"
