@@ -97,6 +97,7 @@
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — |
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — |
 | [43](#item-43) | Module Petite Enfance 0-3 ans — 1er segment vision multi-niveaux | à scorer | à scorer | à scorer | à scorer | FUTUR / stratégique | [D48](BOUSSOLE/D48.md) |
+| [44](#item-44) | Bouton « Encoder » — ingestion autonome de référentiels (admin) | à scorer | à scorer | à scorer | à scorer | INFRA / Admin — à cadrer | — |
 
 ---
 
@@ -532,6 +533,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-43"></a>
 - [ ] **43 — Module Petite Enfance 0-3 ans** | FUTUR / stratégique — à scorer
   *Premier maillon de la **vision multi-niveaux** (voir § Direction produit en tête de ce document) — relié à l'autre maillon déjà amorcé, le **niveau Supérieur** ([D36](BOUSSOLE/D36.md), ex-I21) : les deux bouts de la vision (Crèche ↔ Supérieur) se maillent. Décliner aSchool pour la petite enfance 0-3 ans (crèches, micro-crèches, assistantes maternelles, EJE, CAP AEPE, PS). **⚠️ Garde-fou IA dur : l'IA ne doit JAMAIS diagnostiquer, interpréter médicalement, ni étiqueter un enfant** — rester factuelle, valoriser les progrès, proposer des activités adaptées. Spec complète + détail → [D48](BOUSSOLE/D48.md).*
+
+<a id="item-44"></a>
+- [ ] **44 — Bouton « Encoder » : ingestion autonome de référentiels par l'admin** | INFRA / Admin — à cadrer
+  *Aujourd'hui, vectoriser un référentiel dans le RAG passe par un script dev lancé à la main (`backend/rag/ingest_referentiel.py`) → chaque nouveau référentiel exige une intervention dev. **Cible : un bouton « Encoder » côté backoffice admin** qui ingère un référentiel **de bout en bout SANS dev** (admin autonome). Deux piliers actés en réflexion : (1) le mapping « blocs du référentiel → matières » devient une donnée **ÉDITABLE** (plus du code en dur — l'admin l'ajuste) ; (2) le dev n'intervient plus que pour l'**EXCEPTION** (cas non prévu). Socle déjà en place : la procédure BTS CIEL (slice 1, métadonnée niveau) + INFRA-RAG. Distinct de l'ingestion elle-même (déjà faite) : ici la valeur, c'est l'**AUTONOMIE** de l'admin. Noté 13/06/2026, sorti des notes pour ne pas se perdre.*
 
 ---
 
