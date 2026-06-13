@@ -2656,6 +2656,45 @@ Document :
 }
 
 
+# ── PROMPTS GÉNÉRIQUES (repli pour matières hors catalogue, ex. BTS CIEL) ──────────
+# Framing NEUTRE : « Tu es un enseignant expérimenté » — la matière n'est jamais nommée,
+# le domaine vient du texte source. Donc justes pour n'importe quelle matière, sans
+# recréer le problème des prompts qui disent « professeur de français ».
+PROMPTS_GENERIQUES = {
+    "gen_comprehension": """Tu es un enseignant expérimenté.
+À partir du texte ci-dessous, génère {nb} questions de compréhension pour des élèves de {niveau}.
+Formule des questions progressives (du plus simple au plus complexe), claires et directement liées au texte.
+
+Texte :
+---
+{texte}
+---
+Réponds uniquement avec les questions numérotées.
+""",
+
+    "gen_questions_cours": """Tu es un enseignant expérimenté.
+À partir du contenu de cours ci-dessous, génère {nb} questions de cours pour des élèves de {niveau}.
+Les questions vérifient la compréhension des notions clés. Formule-les de la plus simple à la plus exigeante.
+
+Contenu :
+---
+{texte}
+---
+Réponds uniquement avec les questions numérotées.
+""",
+
+    "gen_fiche_revision": """Tu es un enseignant expérimenté.
+À partir du contenu ci-dessous, rédige une fiche de révision structurée pour des élèves de {niveau}.
+Organise-la en sections claires (notions essentielles, définitions, points à retenir). Sois synthétique et fidèle au contenu.
+
+Contenu :
+---
+{texte}
+---
+""",
+}
+
+
 SUFFIXE_CORRECTION = """
 
 ---
@@ -2728,7 +2767,7 @@ def build_prompt(
     rag_chunks: list[dict] | None = None,
     **kwargs,
 ) -> str:
-    all_prompts = {**PROMPTS, **PROMPTS_HISTGEO, **PROMPTS_AUTRES}
+    all_prompts = {**PROMPTS, **PROMPTS_HISTGEO, **PROMPTS_AUTRES, **PROMPTS_GENERIQUES}
     if activite not in all_prompts:
         raise ValueError(f"Activité inconnue : {activite}")  # signal distinct du KeyError de .format() (param manquant — P3.6)
     template = all_prompts[activite]

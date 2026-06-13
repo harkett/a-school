@@ -47,6 +47,8 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 >
 > 📁 **Règle d'emplacement (12/06/2026) :** tout référentiel **officiel**, **tous cycles confondus**, se range dans **`REFERENTIELS/`** à la racine (un **sous-dossier par référentiel** : PDF d'origine + extraction). C'est la **source de départ** de la procédure. Voir `REFERENTIELS/README.md` (index + manques). État : BTS CIEL option A = PDF présent ; Maths cycle 4 = PDF **manquant** (seulement en ChromaDB).
 
+> 🏗️ **À FAIRE — Catalogue d'activités CIEL : passer du repli générique (A) à un vrai catalogue dédié (B), comme NSI.** État au 13/06/2026 : les matières CIEL (Réseaux, Cybersécurité, Dév…) sont **hors** du catalogue d'activités → elles tombent sur un **repli générique provisoire (A)** = **3 types** universels (socle minimal, à élargir) à prompts **neutres** (`gen_*` dans `src/activities.py` + `src/prompts.py`). **A est un DÉPANNAGE, pas la cible.** **B (obligatoire)** = donner aux matières CIEL leurs **propres types taillés** + prompts qui **nomment la matière** (intégration au catalogue façon NSI, via la MATRICE). **Tant que B n'est pas fait, CIEL n'est PAS « traité » côté activités** — ne jamais laisser le générique (A) passer pour du sur-mesure, ni devenir définitif par négligence. Choix des types = décision pédagogique (utilisateur).
+
 ---
 
 ## HORIZON 1 — MAINTENANT : finir la consolidation du cœur (seul chantier ouvert)

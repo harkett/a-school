@@ -163,6 +163,17 @@ except ImportError:
 
 ACTIVITES_PAR_MATIERE.update(NOUVELLES_MATIERES)
 
+# --- Jeu d'activités GÉNÉRIQUES — repli pour les matières HORS catalogue (ex. BTS CIEL :
+# Réseaux, Cybersécurité…). Sans ça, ces matières n'ont aucun type d'activité et le prof
+# reste bloqué sur « Sélectionnez un type ». Prompts neutres (clés gen_*, ne nomment pas la
+# matière) → justes pour toute matière. Les types TAILLÉS par matière restent à définir
+# (décision pédagogique). Volontairement séparé : ne pollue pas l'index par matière. ---
+ACTIVITES_GENERIQUES = {
+    "Questions de compréhension": {"key": "gen_comprehension", "sous_types": [], "params": ["nb"]},
+    "Questions de cours":         {"key": "gen_questions_cours", "sous_types": [], "params": ["nb"]},
+    "Fiche de révision":          {"key": "gen_fiche_revision", "sous_types": [], "params": []},
+}
+
 # --- Index dérivé : activité → matière → données (calculé au démarrage) ---
 def build_index(source: dict) -> dict:
     index = {}

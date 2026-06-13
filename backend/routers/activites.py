@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException
-from src.activities import ACTIVITES_PAR_MATIERE
+from fastapi import APIRouter
+
+from src.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_GENERIQUES
 
 router = APIRouter()
 
 
 @router.get("/activites/{matiere}")
 def get_activites(matiere: str):
-    if matiere not in ACTIVITES_PAR_MATIERE:
-        raise HTTPException(status_code=404, detail=f"Matière inconnue : {matiere}")
-    data = ACTIVITES_PAR_MATIERE[matiere]
+    # Matière du catalogue → ses activités propres. Sinon (matières hors catalogue, ex.
+    # BTS CIEL : Réseaux, Cybersécurité…) → repli générique, pour ne JAMAIS bloquer le prof
+    # avec 0 type. On ne renvoie plus de 404 : le front recevait l'objet d'erreur à la place
+    # d'un tableau → crash `activites.find`.
+    data = ACTIVITES_PAR_MATIERE.get(matiere, ACTIVITES_GENERIQUES)
     return [
         {
             "label": label,
