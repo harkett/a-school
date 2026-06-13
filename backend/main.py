@@ -1,4 +1,17 @@
-﻿from contextlib import asynccontextmanager
+﻿# Windows : torch (sentence-transformers, RAG) et chromadb embarquent chacun leur
+# runtime OpenMP (libiomp5md.dll). Sans ces garde-fous, le 1er embedding dans le
+# process serveur (retrieve() via uvicorn) plante en « access violation ». Posés
+# AVANT tout import susceptible de charger torch.
+import os as _omp
+_omp.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+_omp.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+_omp.environ.setdefault("OMP_NUM_THREADS", "1")
+# Modèle d'embeddings déjà en cache local → on coupe les allers-retours réseau HF Hub
+# au chargement (petit gain, et pas de dépendance réseau au boot).
+_omp.environ.setdefault("HF_HUB_OFFLINE", "1")
+_omp.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+from contextlib import asynccontextmanager
 import json
 import logging
 from pathlib import Path
@@ -21,7 +34,7 @@ from backend.database import engine
 from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes, exemple_referentiel
 
 models_db.Base.metadata.create_all(bind=engine)
 
@@ -68,6 +81,23 @@ async def _lifespan(app: FastAPI):
     from backend.alerts import run_all_checks
     _scheduler.add_job(run_all_checks, "interval", minutes=5, id="alert_checks")
     _scheduler.start()
+
+    # Préchauffe le modèle d'embeddings RAG en tâche de fond. Sans ça, le 1er clic
+    # « Tester un exemple » paie ~30s de chargement à froid (torch + modèle). Ici le
+    # serveur démarre tout de suite et le modèle se charge pendant que le prof navigue ;
+    # le 1er clic tombe alors sur un modèle déjà chaud (~2-3s, juste la génération Groq).
+    import threading
+
+    def _warm_embeddings():
+        try:
+            from backend.rag.embeddings import get_embedding_function
+            get_embedding_function()
+            logging.getLogger("rag.warm").info("Modèle d'embeddings préchauffé.")
+        except Exception as e:
+            logging.getLogger("rag.warm").warning(f"Préchauffe embeddings échouée (non bloquant) : {e}")
+
+    threading.Thread(target=_warm_embeddings, daemon=True, name="rag-warm").start()
+
     yield
     _scheduler.shutdown(wait=False)
 
@@ -90,6 +120,7 @@ app.add_middleware(
 )
 
 app.include_router(generate.router, prefix="/api")
+app.include_router(exemple_referentiel.router, prefix="/api")
 app.include_router(activites.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(mes_activites.router, prefix="/api")

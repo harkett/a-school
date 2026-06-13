@@ -751,7 +751,7 @@ function MainApp() {
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {activiteTab === 'creer' && (
                 <>
-                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} />
+                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} />
                   {activites.length > 0 && (
                     <Parametres
                       activites={activites}
