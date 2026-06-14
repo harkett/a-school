@@ -5,7 +5,7 @@
 // pour que l'UI puisse notifier le prof — au lieu de l'avaler en silence.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sauvegarderActivite, grouperParCouple, coupleKey, formatDateActivite, couleurCouple } from './activites.js'
+import { sauvegarderActivite, grouperParCouple, coupleKey, formatDateActivite, couleurCouple, correspondProfil } from './activites.js'
 
 test('succès (HTTP ok) -> résout avec le JSON', async () => {
   global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ id: 42 }) })
@@ -72,6 +72,25 @@ test('dans une section, tri par date décroissante (null en dernier)', () => {
     { id: 3, matiere: 'Maths', niveau: '5e', created_at: '2026-06-10T10:00:00' },
   ])
   assert.deepEqual(secs[0].items.map(a => a.id), [3, 1, 2])
+})
+
+// --- correspondProfil : garde « Reprendre » (activité vs profil courant) ---
+
+test('correspondProfil : même matière ET même niveau -> true', () => {
+  assert.equal(correspondProfil({ matiere: 'Réseaux', niveau: 'BTS CIEL option A' }, 'Réseaux', 'BTS CIEL option A'), true)
+})
+
+test('correspondProfil : matière différente -> false', () => {
+  assert.equal(correspondProfil({ matiere: 'Français', niveau: 'BTS CIEL option A' }, 'Réseaux', 'BTS CIEL option A'), false)
+})
+
+test('correspondProfil : niveau différent -> false (même si matière OK)', () => {
+  assert.equal(correspondProfil({ matiere: 'Réseaux', niveau: 'Master' }, 'Réseaux', 'BTS CIEL option A'), false)
+})
+
+test('correspondProfil : activité nulle/indéfinie -> false (pas de crash)', () => {
+  assert.equal(correspondProfil(null, 'Réseaux', 'BTS CIEL option A'), false)
+  assert.equal(correspondProfil(undefined, 'Réseaux', 'BTS CIEL option A'), false)
 })
 
 // --- formatDateActivite ---

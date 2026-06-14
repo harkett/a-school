@@ -20,6 +20,13 @@ export function coupleKey(matiere, niveau) {
   return `${matiere || ''}|||${niveau || ''}`
 }
 
+// L'activité correspond-elle au profil courant (MÊME matière ET MÊME niveau) ?
+// Sert à garder « Reprendre » : on ne regénère pas une activité d'un autre couple que
+// le profil (on ne reprend pas du Français en étant prof de Réseaux) — on guide vers Mon profil.
+export function correspondProfil(activite, matiere, niveau) {
+  return !!activite && activite.matiere === matiere && activite.niveau === niveau
+}
+
 // Comparateur : plus récent d'abord, les activités sans date (created_at null) en dernier.
 export function parDateDesc(a, b) {
   const ta = a.created_at ? Date.parse(a.created_at) : -Infinity

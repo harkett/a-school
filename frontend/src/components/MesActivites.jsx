@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
-import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple } from '../utils/activites.js'
+import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
 
 const IconTrash = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -85,6 +85,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const [detailModal, setDetailModal]   = useState(null)
   const [anonymeDialog, setAnonymeDialog] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
+  const [profilDialog, setProfilDialog] = useState(null)  // activité hors profil courant → modale "passez sur le profil"
   const [deleting, setDeleting]     = useState(null)
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
 
@@ -127,6 +128,14 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
     } finally {
       setToggling(null)
     }
+  }
+
+  // « Reprendre » : on ne regénère QUE des activités du profil courant. Une activité d'un
+  // autre couple (matière/niveau) → modale bloquante qui renvoie vers Mon profil (règle maison :
+  // incohérence = on explique + on guide, jamais un marqueur passif / bouton grisé muet).
+  function tenterReprendre(a) {
+    if (correspondProfil(a, sessionMatiere, sessionNiveau)) onCharger(a)
+    else setProfilDialog(a)
   }
 
   const filtered = activites.filter(a => {
@@ -231,7 +240,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
           </button>
 
           <button
-            onClick={() => onCharger(a)}
+            onClick={() => tenterReprendre(a)}
             title="Reprendre cette activité dans le formulaire"
             className="btn-primary shrink-0"
           >
@@ -494,10 +503,45 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
                 style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Fermer
               </button>
-              <button onClick={() => { onCharger(detailModal); setDetailModal(null) }}
+              <button onClick={() => { setDetailModal(null); tenterReprendre(detailModal) }}
                 title="Reprendre cette activité dans le formulaire"
                 className="btn-primary">
                 Reprendre
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profilDialog && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setProfilDialog(null)}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '440px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
+              Activité d'un autre profil
+            </div>
+            <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 18px', lineHeight: 1.6 }}>
+              Cette activité est en <strong>{profilDialog.matiere || '—'} / {profilDialog.niveau || '—'}</strong>, différente de votre profil courant (<strong>{sessionMatiere || '—'} / {sessionNiveau || '—'}</strong>). Pour la reprendre, passez d'abord sur le profil correspondant.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setProfilDialog(null)}
+                title="Fermer sans rien changer"
+                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => { setProfilDialog(null); onNavigate?.('mon-profil') }}
+                title="Aller dans Mon profil pour changer de matière / niveau"
+                style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Aller à Mon profil
               </button>
             </div>
           </div>
