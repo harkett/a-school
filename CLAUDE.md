@@ -307,6 +307,7 @@ Proposer → valider → coder → tester. Ne jamais coder sans validation expli
 6. Ne pas lire de fichiers locaux non fournis explicitement dans la tâche.
 7. Une chose à la fois — traiter un point, le finir, passer au suivant.
 8. 🔒 Tout point critique codé s'accompagne de son test automatisé, écrit dans la même session, sinon la fonction est inachevée.
+9. 🔒 **Joignabilité AVANT la chaîne.** Pour toute affirmation « live / vert / fonctionnel », le **premier** contrôle est : *l'entrée est-elle exposée à l'utilisateur ?* (point d'entrée non gaté dans l'UI — pas `disabled`, pas « bientôt »). Seulement **après**, vérifier la chaîne de code. Un chemin de code qui marche mais que le prof ne peut pas atteindre n'est **PAS** fonctionnel — le dire « live » est faux. (Règle née le 14/06/2026 : « Consigne fonctionnel » affirmé sur la foi du backend, alors que la sidebar la masquait « bientôt ».)
 
 ---
 
