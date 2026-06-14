@@ -301,6 +301,14 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[UX/Séquence] « Tester un exemple » (écran Séquence) ne couvre pas les matières CIEL** | Cosmétique, indépendant du grounding embeddings
   *Le prefill statique `_EX` (`SequenceForm.jsx`) n'a pas de clé pour Réseaux/Cybersécurité/etc. + BTS hors des listes `_LYCEE`/`_COL_BAS` → fallback thèmes Français/littérature. L'écran Activité (TexteSource → `/api/exemple-referentiel` → embeddings CIEL) n'est PAS concerné. Fix = ajouter des thèmes CIEL ou neutraliser le fallback hors-catalogue. Identifié 14/06/2026.*
 
+- [ ] **[UX/Menu] Consigne + Optimiseur : code livré mais gatés « bientôt »** | Décider : rouvrir (retirer `disabled`) ou assumer le report
+  *`Sidebar.jsx` `disabled:true` sur `consigne` + `optimiseur` (et `equite`, lui PAS codé). Consigne (`/analyser-consigne` + `Consigne.jsx`) et Optimiseur (`/optimize-sequence`, bouton inline `SequenceForm`) sont fonctionnels mais invisibles au prof. Identifié 14/06/2026.*
+
+- [ ] **[Décision RAG] Brancher le référentiel CIEL sur `/api/generate` — décision #1, OUVERTE** | Discutée 14/06, reportée, non tranchée — ne pas perdre
+  *Aujourd'hui `/api/generate` n'active le RAG que si `RAG_ENABLED=true` ET matière∈{maths} ET niveau∈{5e,4e,3e} → RAG éteint pour tout CIEL. 3 options pesées : (a) branche CIEL dédiée + préfixe référentiel-aware (reco) ; (b) élargir le gate (cassé tel quel) ; (c) ne rien faire. Prérequis : régler aussi le défaut [Qualité/Supérieur]. Relève de Chantier B (TRACKER l.123). Identifié 14/06/2026.*
+
+- [ ] **[Vérif/Prod] Valeur de `RAG_ENABLED` dans le `.env` prod (VPS) inconnue** | À vérifier — dit seulement si maths cycle 4 a le RAG actif en prod ; sans effet sur CIEL. Identifié 14/06/2026.
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
@@ -686,7 +694,7 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
 - [x] **Historique Séquences — normalisé** — Modale "Plus de détails" fond sombre, bouton "Partager" + choix anonymat, suppression avec confirmation. (13/05)
 - [x] **Blocage profil incomplet** — Modal bloquant dans App.jsx si prenom ou nom manquant — redirige vers Mon profil. (13/05)
 - [x] **Mon journal supprimé** — Placeholder inutile (doublon Historique Activités/Séquences) retiré de sidebar et App.jsx. (13/05)
-- [x] **Analyse → Historique supprimé** — Sous-menu inutile (Consignes/Équité pas encore codés, analyses one-shot). (13/05)
+- [x] **Analyse → Historique supprimé** — Sous-menu inutile (analyses one-shot ; à l'époque Consignes/Équité non exposés). (13/05) — *MàJ 14/06 : Consigne a depuis été codée (14/05) mais reste gatée « bientôt » ; Équité toujours non codée. Cf. réservoir [UX/Menu].*
 
 - [x] **Auto-versioning PATCH** — deploy.ps1 bumpe automatiquement le PATCH à chaque déploiement. Version initiale : 3.2.0 (12/05)
 - [x] **SW mise à jour — bannière bordeaux + countdown 30s** — registerType: prompt, auto-reload 30s, bouton "Actualiser maintenant" (12/05)
