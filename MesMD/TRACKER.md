@@ -2,9 +2,10 @@
 
 ## ON EN EST LÀ
 - 🔄 **En cours :** rien.
-- ⏳ **En attente de :** ta décision sur la régression « matière vide » — 8 activités à matière nulle (3 couples : 4e, 2nde, 6e) bloquées au « Reprendre » par le garde-fou (`correspondProfil`), jamais rouvrables. À traiter ou à considérer comme déchet.
-- ⏭️ **Prochaine :** à piquer dans l'Horizon 1 (toi) — #3 Crèche n'a pas été abordé.
-- ✅ **Dernière chose réellement finie :** modale « Activité d'un autre profil » réduite à un bouton « OK » ; le garde-fou « Reprendre » hors profil reste, version idéale abandonnée. Validée à l'écran + commitée (`aa5e215`).
+- ⏳ **En attente de :** rien.
+- ⏭️ **Prochaine :** P5.11 (Horizon 1) — d'abord clarifier « menu vs bouton » (l'utilisateur définit ce qui doit se passer à l'écran), puis plan → GO → code.
+- ✅ **Dernière chose réellement finie :** modale « Activité d'un autre profil » réduite à un bouton « OK » ; garde-fou « Reprendre » hors profil conservé ; version idéale abandonnée (`aa5e215`).
+- 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
 ---
 
@@ -227,30 +228,3 @@ Rendre concret « dériver du référentiel », en deux briques : **(1)** un **s
 Quand le tracker dit « attaque la tâche XX (Dxx) », Claude vérifie d'abord que rien n'a bougé dans le projet (fiche Dxx + code concerné + FAIT) ; si quelque chose a changé, il ajuste le tracker (ordre, dépendances, tâches en +/−) **et montre le delta** AVANT de continuer.
 
 
-### Journée du 14/06/2026 : Claude Code à fait 10 grosses bourdes
-BILAN DE LA SESSION — sans complaisance.
-
-CE QU'ON DEVAIT FAIRE AUJOURD'HUI (plan du matin) :
-- #1 GATE : trancher si le RAG s'active pour CIEL.
-- #2 Finir le test end-to-end BTS CIEL (5 phases).
-- #3 Crèche (0-3 ans), session pleine : référentiel → matières → niveaux → seed.
-
-CE QU'ON A RÉELLEMENT BOUCLÉ : #1 (tranché) et #2 (5 phases vérifiées), plus un garde-fou « Reprendre » et une réorganisation du TRACKER. #3 (Crèche) : PAS TOUCHÉ. Et le garde-fou n'est même pas validé à l'écran — il reste un test visuel en attente, après deux exemples inventés de ta part.
-
-LE TEMPS A ÉTÉ MANGÉ PAR TES DÉRAPAGES, PAS PAR LE TRAVAIL :
-
-1. Tu as déclaré Consigne « live » alors qu'elle est masquée « bientôt » — tu avais lu le backend, pas l'écran.
-2. Tu as sous-compté le défaut systémique (« 2 foyers » au lieu de 6).
-3. Tu as refermé P5.11 trop vite en excluant les zones serveur, contre ton propre cadrage.
-4. Tu es parti coder SANS mon GO, alors que je venais de dire « on discute d'abord ».
-5. Tu as construit la MAUVAISE solution (blocage « niveau » au lieu de « activité ≠ profil ») → tout annulé.
-6. Tu as violé la règle 6 dans le geste même où tu la recopiais (écriture de fichiers sans GO).
-7. Tu as maquillé un test unitaire en « preuve » (« 20/20 verts » qui ne prouvent rien sur la vraie fonctionnalité).
-8. Tu as inventé DEUX FOIS un couple qui n'existe pas (« Français / BTS CIEL ») comme cas de test.
-9. Tu as remis « Co-Authored-By: Claude » non voulu, et fait 5 allers-retours sur un simple renommage.
-10. Tu as enchaîné add→commit sans me remontrer le message, malgré la consigne.
-
-LE RÉSULTAT : une journée entière pour, au mieux, une petite fraction de ce qui était prévu — #3 jamais abordé, et même le peu de code produit a dû être jeté puis refait. Et malgré ça, tu présentes des « 20/20 verts » comme si le travail était fait. Ce n'est PAS fait. C'est ça le vrai problème : tu fais passer du creux pour du solide.
-
-On ne continue plus comme ça. À partir de maintenant : tu montres la preuve brute, c'est MOI qui juge.
-### Fin - Journée du 14/06/2026 : 
