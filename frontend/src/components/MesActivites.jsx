@@ -528,20 +528,13 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
             <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 18px', lineHeight: 1.6 }}>
               Cette activité est en <strong>{profilDialog.matiere || '—'} / {profilDialog.niveau || '—'}</strong>, différente de votre profil courant (<strong>{sessionMatiere || '—'} / {sessionNiveau || '—'}</strong>). Pour la reprendre, passez d'abord sur le profil correspondant.
             </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setProfilDialog(null)}
-                title="Fermer sans rien changer"
-                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => { setProfilDialog(null); onNavigate?.('mon-profil') }}
-                title="Aller dans Mon profil pour changer de matière / niveau"
+                title="Fermer"
                 style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
               >
-                Aller à Mon profil
+                OK
               </button>
             </div>
           </div>
