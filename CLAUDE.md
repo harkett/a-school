@@ -297,6 +297,18 @@ Proposer → valider → coder → tester. Ne jamais coder sans validation expli
 
 ---
 
+## Vocabulaire — le mot « blocage / bloqué par » est banni (règle absolue)
+
+Le mot **« blocage »** et la formule **« bloqué par »** ne doivent apparaître **nulle part** dans le projet (TRACKER, docs, code, commits, UI). Logique : un obstacle qu'on peut lever, on le lève tout de suite (règle du caillou) → ce n'est plus un blocage ; un obstacle qu'on ne peut pas lever maintenant est une **tâche en attente** qui part au backlog → pas un blocage non plus. Le mot n'a donc jamais lieu d'être.
+
+Vocabulaire de remplacement, selon le sens :
+- **« dépend de »** — dépendance technique entre deux tâches réelles du tracker (B a besoin que A soit fait d'abord).
+- **« en attente de »** — la tâche attend un élément extérieur ou non encore planifiable (info admin, arbitrage non tranché).
+- **« prérequis / impératif »** — condition dure avant une action (ex. avant `deploy.ps1`).
+- **« désactiver » / « refuser » / « neutraliser »** — pour une action de code qui empêche quelque chose (un bouton, un insert). Jamais « bloquer ».
+
+---
+
 ## Règles de conduite Claude — absolues
 
 1. Pas de réponse hâtive — prendre le temps de lire avant de répondre.

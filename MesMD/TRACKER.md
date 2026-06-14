@@ -1,12 +1,19 @@
 # aSchool — TRACKER
 
+## ON EN EST LÀ
+- 🔄 **En cours :** version idéale « Reprendre » après changement de profil (codée, tests 20/20 verts, attend ton test visuel)
+- ⏭️ **Prochaine :** à piquer dans l'Horizon 1 (toi)
+- ⏳ **En attente de :** rien
+- ✅ **Dernière chose finie :** garde-fou « Reprendre » hors profil courant (commit `5800f88`)
+
+---
+
 > **Vue de pilotage de l'utilisateur** : la liste COMPLÈTE de tout ce qui reste à faire, ordonnée.
 > Le détail (score, description, synergies, audits, RAG, journal FAIT) vit dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md).
 >
 > **Règle de tenue :** Statut / ordre / dépendance → ce TRACKER fait foi. Détail / score / journal FAIT → le TABLEAU fait foi.
 > Le statut est mis à jour ICI, dans la même réponse où l'on démarre ou finit une tâche.
->
-> **Tracker vivant :** quand le tracker dit « attaque la tâche XX (Dxx) », Claude vérifie d'abord que rien n'a bougé dans le projet (fiche Dxx + code concerné + FAIT) ; si quelque chose a changé, il ajuste le tracker (ordre, dépendances, tâches en +/−) **et montre le delta** AVANT de continuer.
+> **Méthode « tracker vivant » : détail → Annexe A12.**
 
 **Statut :** ☐ à faire · 🔄 en cours · ⏸️ en pause / différé · ✅ fait
 
@@ -16,13 +23,13 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
-## 🚫 BLOQUANT DÉPLOIEMENT — à faire AVANT tout `deploy.ps1`
+## 🚫 PRÉREQUIS DÉPLOIEMENT — à faire AVANT tout `deploy.ps1`
 
 > Migration `user_email → user_id` : **dev = ✅ prouvée** (commits expand + contract, comptes préservés, FK posées, `foreign_key_check` vide, pytest 19/19). **Prod = pas encore intégrée.**
 
-| St | Tâche | Pourquoi bloquant | Preuve exigée (pas de parole) |
-|---|---|---|---|
-| ☐ | **Intégration prod de la migration `user_email → user_id`** — (1) brancher `run_migrations.py` dans `deploy/deploy.sh` (après `git pull`, **avant** le `restart systemd`) ; (2) garde-fou prod : **backup de la base + COUNT orphelins BLOQUANT** (no-go si > 0) **avant** tout DROP | le nouveau code n'écrit plus `user_email` ; sans migration jouée sur la prod, le schéma prod reste `user_email NOT NULL` → **crash certain au premier insert** (connexion, sauvegarde…) | montrer le `deploy.sh` qui **appelle réellement** le runner + le garde-fou orphelins qui **bloque pour de vrai**. Pas d'assurance verbale. |
+| St | Tâche | Détail |
+|---|---|---|
+| ☐ | **Intégration prod de la migration `user_email → user_id`** — (1) brancher `run_migrations.py` dans `deploy/deploy.sh` (après `git pull`, **avant** le `restart systemd`) ; (2) garde-fou prod : **backup de la base + COUNT orphelins rédhibitoire** (no-go si > 0) **avant** tout DROP | pourquoi impératif + preuve exigée → **A1** |
 
 > **Règle dure : aucun `deploy.ps1` / déploiement prod tant que cette ligne n'est pas faite ET prouvée.**
 > Ordre : on ne câble la prod qu'**après** la migration dev prouvée — c'est acquis, mais la ligne reste différée par décision de l'utilisateur.
@@ -31,23 +38,17 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ## 🧩 Refonte programmes (modèle relationnel niveaux/matières) — conçu, pas encore construit
 
-> Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**, dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.**
+> Modèle **validé 11/06** (5 tables, FK vers `user_id`), dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.** Contexte complet → **A2**.
 
 | St | Tâche | Dépendance / réserve |
 |---|---|---|
 | ✅ | Modèle relationnel validé (5 tables, cardinalités, contraintes `unique`/PK composite) | dans le `.dbml` |
-| ☐ | **Construire les tables** (modèles + migration expand) | après arbitrage du seed (réserve 1) |
-| ☐ | **Réserve 1 — SEED de `matiere_niveaux`** : d'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction | + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue) |
-| ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** : expand/contract + **COUNT des orphelins** (chaque `subject`/`niveau` existant doit matcher une paire de `matiere_niveaux`) **AVANT** bascule. Un subject sans paire = à savoir avant, pas pendant | même discipline que la migration `user_id` |
-| ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** : « Mes activités » filtre **dur** sur matière+niveau du profil (`MesActivites.jsx:121-125`, aucune échappatoire) → en multi, un prof 3e+2nde ne verrait jamais la moitié de son travail. **Cible = garantir l'accès à TOUT l'historique** (un « Voir tout », des chips de niveau, ou autre — UI à trancher), pas la mécanique du filtre. Données jamais perdues (tri client). | **À régler AVEC le passage multi** (la logique d'affichage change de toute façon), pas en isolé |
+| ☐ | **Construire les tables** (modèles + migration expand) | après arbitrage du seed (→ A3) |
+| ☐ | **Réserve 1 — SEED de `matiere_niveaux`** | détail → **A3** |
+| ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** | détail → **A4** |
+| ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** | détail → **A5** |
 
-> 📐 **Échelle (réflexion validée 12/06/2026, pour PLUS TARD) :** à ~145 BTS + Masters/Licences/FC, le 1er mur n'est ni la base ni le VPS mais **l'interface admin** (grille matières×niveaux qui s'effondre dès quelques dizaines de niveaux/cycle). Réponse vue prof = **filtrage par `user_enseignements`**, avec 3 pièges (admin à refondre à part · picker cherchable pour la déclaration · 2 endpoints scopé+recherche). Détail complet : TABLEAU § OUTILLAGE/DETTE → **[Archi/Échelle]**.
-
-> 🧪 **Procédure « référentiel officiel → matières » — en cours de mise au point. CAS-TEST n°1 : BTS CIEL option A (12/06/2026).** On met au point sur ce diplôme une méthode **répétable, pas un bricolage** : *référentiel officiel → extraire les matières → les intégrer comme un **niveau** (= le diplôme/option) avec ses **paires** matière×niveau → rendre dispo dans le menu prof via le CRUD*. **Liste validée pour CIEL option A : 9 matières** — 4 générales (Culture générale et expression · Anglais · Mathématiques · Physique) + 5 pro (Informatique · Réseaux · Cybersécurité · Développement · Maintenance). Source = réf. officiel éduscol STI (grille horaire p.81 + blocs de compétences p.29). Une fois la procédure propre sur ce cas → **généralisation** à tous les BTS puis aux autres cycles. Résout concrètement la **Réserve 1 (flou Supérieur)** ci-dessus.
->
-> 📁 **Règle d'emplacement (12/06/2026) :** tout référentiel **officiel**, **tous cycles confondus**, se range dans **`REFERENTIELS/`** à la racine (un **sous-dossier par référentiel** : PDF d'origine + extraction). C'est la **source de départ** de la procédure. Voir `REFERENTIELS/README.md` (index + manques). État : BTS CIEL option A = PDF présent ; Maths cycle 4 = PDF **manquant** (seulement en ChromaDB).
-
-> 🏗️ **À FAIRE — Catalogue d'activités CIEL : passer du repli générique (A) à un vrai catalogue dédié (B), comme NSI.** État au 13/06/2026 : les matières CIEL (Réseaux, Cybersécurité, Dév…) sont **hors** du catalogue d'activités → elles tombent sur un **repli générique provisoire (A)** = **3 types** universels (socle minimal, à élargir) à prompts **neutres** (`gen_*` dans `src/activities.py` + `src/prompts.py`). **A est un DÉPANNAGE, pas la cible.** **B (obligatoire)** = donner aux matières CIEL leurs **propres types taillés** + prompts qui **nomment la matière** (intégration au catalogue façon NSI, via la MATRICE). **Tant que B n'est pas fait, CIEL n'est PAS « traité » côté activités** — ne jamais laisser le générique (A) passer pour du sur-mesure, ni devenir définitif par négligence. Choix des types = décision pédagogique (utilisateur).
+> 📂 **Notes de fond rattachées (détail en annexe) :** Échelle → **A6** · Procédure « référentiel officiel → matières » (CAS-TEST BTS CIEL) → **A7** · Catalogue d'activités CIEL repli (A) → catalogue dédié (B) → **A8**.
 
 ---
 
@@ -56,7 +57,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
 |---|---|---|---|---|---|
 | 1 | ✅ | **P3.6** — protéger contre `KeyError` quand `nb`/`sous_type` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
-| 2 | ☐ | **P5.11** — niveau « Supérieur » : retirer du menu *ou* bloquer le bouton | après P3.6 | technique : ordre audit ; **à clarifier menu vs bouton** avant de coder | [D16](BOUSSOLE/D16.md) |
+| 2 | ☐ | **P5.11** — niveau « Supérieur » : retirer du menu *ou* désactiver le bouton | après P3.6 | technique : ordre audit ; **à clarifier menu vs bouton** avant de coder | [D16](BOUSSOLE/D16.md) |
 | 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P5.11 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
 | 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
@@ -118,9 +119,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | 3 | ☐ | **25** — Cohérence curriculaire (consommateur RAG) | attend INFRA-RAG + corpus 36 | [D25](BOUSSOLE/D25.md) |
 | 3 | ☐ | **31** — Appréciations bulletins & parents (consommateur RAG) | attend INFRA-RAG | [D19](BOUSSOLE/D19.md) |
 
-> 🗃️ **INFRA-RAG — binaire-en-git vs rebuild-au-déploiement (à trancher plus tard, NŒUD BLOQUÉ).** Le store ChromaDB est committé en binaire (`maths_cycle4` ; + `bts_ciel_optionA` depuis le 13/06/2026). Question ouverte : garder les vecteurs en git, ou les rebâtir au déploiement via le script d'ingestion ? **Blocage dur :** « rebuild-au-déploiement » n'est PAS faisable uniformément — **maths n'a pas de PDF source** (manquant, cf. `REFERENTIELS/README.md`), donc maths **ne peut pas** être reconstruit : son **unique source de vérité est le binaire committé**. Tant que la source maths manque, la seule option sûre reste binaire-en-git. **Débloquer = récupérer le BOEN cycle 4 (PDF)** pour rendre maths reconstructible, puis seulement trancher. (Note : ouvrir le store re-churne les octets des segments — contenu intact ; cosmétique.)
-
-> 🏗️ **Chantier B — Référentiel = colonne vertébrale du RAG (cadré 13/06/2026, GELÉ tant que H1 ouvert ; ordre dans la chaîne à fixer par l'utilisateur).** Rendre concret « dériver du référentiel », en deux briques : **(1)** un **script d'ingestion re-jouable** *référentiel → découpe → vecteurs → ChromaDB AVEC métadonnée `niveau`* — absente aujourd'hui : corpus actuel « cycle 4 en bloc », filtre niveau explicitement désactivé ([generate.py:78](../backend/routers/generate.py#L78)) ; **(2)** un **harnais de tests** qui vérifie que `retrieve()` remonte les bons extraits (= mesure la **qualité du RAG**, **pas** un « entraînement » du LLM — le Llama de Groq reste figé ; on alimente un référentiel, on ne ré-entraîne rien). **1er pas = ingestion BTS CIEL** : seule source vectorisable sous la main (référentiel en SQL) ; **maths n'a PAS de PDF source**, seulement ses ~699 vecteurs déjà en place. **Discipline (comme partout) : prouver l'apport du RAG sur UN couple** (BTS CIEL, une matière, sortie **avec vs sans** RAG) **avant d'élargir les gates** `SUBJECT_RAG_ELIGIBLE` / `CYCLE4_LEVELS`. But structurel : relier les **deux référentiels qui ne se parlent pas** — (a) SQL/menus ↔ (b) ChromaDB/RAG. Prolonge l'item **36** (corpus producteur) et la procédure « référentiel officiel → matières ».
+> 🗃️ **Notes de fond chaîne RAG (détail en annexe) :** nœud binaire-en-git vs rebuild-au-déploiement → **A9** · Chantier B (référentiel = colonne vertébrale du RAG) → **A10**.
 
 ### Chaîne Visuels (ordre imposé)
 
@@ -142,7 +141,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | ☐ | **18** — Aide spécifique par matière | rien | [D35](BOUSSOLE/D35.md) |
 | ☐ | **42** — Recherche globale dans l'application | rien (réf. ergo item 41) | — |
 | ☐ | **15** — Gestion emails sortants (backoffice) | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
-| ☐ | **01** — Pages légales CNIL | attend infos admin (blocage externe) | [D39](BOUSSOLE/D39.md) |
+| ☐ | **01** — Pages légales CNIL | en attente — infos admin (externe) | [D39](BOUSSOLE/D39.md) |
 
 ### Gros chantiers (semaines)
 
@@ -164,8 +163,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | ☐ | **43** — Module Petite Enfance 0-3 ans | futur stratégique, garde-fou IA dur | [D48](BOUSSOLE/D48.md) |
 | ✗ | **20** — Projet demo-perf FastAPI + PostgreSQL | hors-périmètre aSchool (projet séparé) | — |
 
-> **Parking — NON RETENU** (à reconsidérer) : capture d'écran feedback · `logoutManager.ts` · recrutement profs Facebook/X · trajectoires multi-séances · labo simulation classe · modal multi-actions Oui/Non · tuning latence Deepgram · bug auth WS longues · etc. → détail dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) § NON RETENU.
-> **HORS SCOPE** (refusé) : ENT/Pronote · multi-profs établissement · SQLite→PostgreSQL · cartographie cognitive · PPD. → § HORS SCOPE.
+> 🅿️ **Parking & hors-scope (détail en annexe) :** liste « NON RETENU » + liste « HORS SCOPE » → **A11**.
 
 ---
 
@@ -179,3 +177,51 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 ---
 
 > **Pour ajuster :** à chaque tâche finie, l'utilisateur demande une relecture ; Claude vérifie l'état réel du projet et met à jour ordre / dépendances / tâches avant de continuer.
+
+---
+---
+
+## ANNEXE — NOTES DE FOND
+
+> Tout le détail déménagé hors de la vue de pilotage, **intact**. Référencé depuis le milieu par « → Ax ».
+
+### A1 — Prérequis déploiement : pourquoi impératif + preuve exigée
+*(détail de la ligne « Intégration prod de la migration `user_email → user_id` »)*
+- **Pourquoi impératif :** le nouveau code n'écrit plus `user_email` ; sans migration jouée sur la prod, le schéma prod reste `user_email NOT NULL` → **crash certain au premier insert** (connexion, sauvegarde…).
+- **Preuve exigée (pas de parole) :** montrer le `deploy.sh` qui **appelle réellement** le runner + le garde-fou orphelins qui **refuse pour de vrai**. Pas d'assurance verbale.
+
+### A2 — Refonte programmes : contexte du modèle relationnel
+Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**, dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.**
+
+### A3 — Réserve 1 — SEED de `matiere_niveaux`
+D'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction. + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue).
+
+### A4 — Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`
+expand/contract + **COUNT des orphelins** (chaque `subject`/`niveau` existant doit matcher une paire de `matiere_niveaux`) **AVANT** bascule. Un subject sans paire = à savoir avant, pas pendant. Même discipline que la migration `user_id`.
+
+### A5 — Réserve 3 — Accès à l'historique en multi-cycles
+« Mes activités » filtre **dur** sur matière+niveau du profil (`MesActivites.jsx:121-125`, aucune échappatoire) → en multi, un prof 3e+2nde ne verrait jamais la moitié de son travail. **Cible = garantir l'accès à TOUT l'historique** (un « Voir tout », des chips de niveau, ou autre — UI à trancher), pas la mécanique du filtre. Données jamais perdues (tri client). À régler **AVEC** le passage multi (la logique d'affichage change de toute façon), pas en isolé.
+
+### A6 — Échelle (réflexion validée 12/06/2026, pour PLUS TARD)
+À ~145 BTS + Masters/Licences/FC, le 1er mur n'est ni la base ni le VPS mais **l'interface admin** (grille matières×niveaux qui s'effondre dès quelques dizaines de niveaux/cycle). Réponse vue prof = **filtrage par `user_enseignements`**, avec 3 pièges (admin à refondre à part · picker cherchable pour la déclaration · 2 endpoints scopé+recherche). Détail complet : TABLEAU § OUTILLAGE/DETTE → **[Archi/Échelle]**.
+
+### A7 — Procédure « référentiel officiel → matières » (CAS-TEST BTS CIEL option A, 12/06/2026)
+On met au point sur ce diplôme une méthode **répétable, pas un bricolage** : *référentiel officiel → extraire les matières → les intégrer comme un **niveau** (= le diplôme/option) avec ses **paires** matière×niveau → rendre dispo dans le menu prof via le CRUD*. **Liste validée pour CIEL option A : 9 matières** — 4 générales (Culture générale et expression · Anglais · Mathématiques · Physique) + 5 pro (Informatique · Réseaux · Cybersécurité · Développement · Maintenance). Source = réf. officiel éduscol STI (grille horaire p.81 + blocs de compétences p.29). Une fois la procédure propre sur ce cas → **généralisation** à tous les BTS puis aux autres cycles. Résout concrètement la **Réserve 1 (flou Supérieur)** (A3).
+
+📁 **Règle d'emplacement (12/06/2026) :** tout référentiel **officiel**, **tous cycles confondus**, se range dans **`REFERENTIELS/`** à la racine (un **sous-dossier par référentiel** : PDF d'origine + extraction). C'est la **source de départ** de la procédure. Voir `REFERENTIELS/README.md` (index + manques). État : BTS CIEL option A = PDF présent ; Maths cycle 4 = PDF **manquant** (seulement en ChromaDB).
+
+### A8 — Catalogue d'activités CIEL : repli générique (A) → catalogue dédié (B), comme NSI
+État au 13/06/2026 : les matières CIEL (Réseaux, Cybersécurité, Dév…) sont **hors** du catalogue d'activités → elles tombent sur un **repli générique provisoire (A)** = **3 types** universels (socle minimal, à élargir) à prompts **neutres** (`gen_*` dans `src/activities.py` + `src/prompts.py`). **A est un DÉPANNAGE, pas la cible.** **B (obligatoire)** = donner aux matières CIEL leurs **propres types taillés** + prompts qui **nomment la matière** (intégration au catalogue façon NSI, via la MATRICE). **Tant que B n'est pas fait, CIEL n'est PAS « traité » côté activités** — ne jamais laisser le générique (A) passer pour du sur-mesure, ni devenir définitif par négligence. Choix des types = décision pédagogique (utilisateur).
+
+### A9 — INFRA-RAG : binaire-en-git vs rebuild-au-déploiement (à trancher plus tard, EN ATTENTE D'ARBITRAGE)
+Le store ChromaDB est committé en binaire (`maths_cycle4` ; + `bts_ciel_optionA` depuis le 13/06/2026). Question ouverte : garder les vecteurs en git, ou les rebâtir au déploiement via le script d'ingestion ? **Contrainte dure :** « rebuild-au-déploiement » n'est PAS faisable uniformément — **maths n'a pas de PDF source** (manquant, cf. `REFERENTIELS/README.md`), donc maths **ne peut pas** être reconstruit : son **unique source de vérité est le binaire committé**. Tant que la source maths manque, la seule option sûre reste binaire-en-git. **Pour avancer = récupérer le BOEN cycle 4 (PDF)** pour rendre maths reconstructible, puis seulement trancher. (Note : ouvrir le store re-churne les octets des segments — contenu intact ; cosmétique.)
+
+### A10 — Chantier B — Référentiel = colonne vertébrale du RAG (cadré 13/06/2026, GELÉ tant que H1 ouvert ; ordre dans la chaîne à fixer par l'utilisateur)
+Rendre concret « dériver du référentiel », en deux briques : **(1)** un **script d'ingestion re-jouable** *référentiel → découpe → vecteurs → ChromaDB AVEC métadonnée `niveau`* — absente aujourd'hui : corpus actuel « cycle 4 en bloc », filtre niveau explicitement désactivé ([generate.py:78](../backend/routers/generate.py#L78)) ; **(2)** un **harnais de tests** qui vérifie que `retrieve()` remonte les bons extraits (= mesure la **qualité du RAG**, **pas** un « entraînement » du LLM — le Llama de Groq reste figé ; on alimente un référentiel, on ne ré-entraîne rien). **1er pas = ingestion BTS CIEL** : seule source vectorisable sous la main (référentiel en SQL) ; **maths n'a PAS de PDF source**, seulement ses ~699 vecteurs déjà en place. **Discipline (comme partout) : prouver l'apport du RAG sur UN couple** (BTS CIEL, une matière, sortie **avec vs sans** RAG) **avant d'élargir les gates** `SUBJECT_RAG_ELIGIBLE` / `CYCLE4_LEVELS`. But structurel : relier les **deux référentiels qui ne se parlent pas** — (a) SQL/menus ↔ (b) ChromaDB/RAG. Prolonge l'item **36** (corpus producteur) et la procédure « référentiel officiel → matières ».
+
+### A11 — Parking & hors-scope
+**Parking — NON RETENU** (à reconsidérer) : capture d'écran feedback · `logoutManager.ts` · recrutement profs Facebook/X · trajectoires multi-séances · labo simulation classe · modal multi-actions Oui/Non · tuning latence Deepgram · bug auth WS longues · etc. → détail dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) § NON RETENU.
+**HORS SCOPE** (refusé) : ENT/Pronote · multi-profs établissement · SQLite→PostgreSQL · cartographie cognitive · PPD. → § HORS SCOPE.
+
+### A12 — Méthode « tracker vivant »
+Quand le tracker dit « attaque la tâche XX (Dxx) », Claude vérifie d'abord que rien n'a bougé dans le projet (fiche Dxx + code concerné + FAIT) ; si quelque chose a changé, il ajuste le tracker (ordre, dépendances, tâches en +/−) **et montre le delta** AVANT de continuer.
