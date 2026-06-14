@@ -3,7 +3,7 @@
 ## ON EN EST LÀ
 - 🔄 **En cours :** rien.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** P5.11 (Horizon 1) — d'abord clarifier « menu vs bouton » (l'utilisateur définit ce qui doit se passer à l'écran), puis plan → GO → code.
+- ⏭️ **Prochaine :** P3.5 (Horizon 1) — sur 401, rediriger vers /login (relire d'abord le flux refresh token, risque de boucle).
 - ✅ **Dernière chose réellement finie :** modale « Activité d'un autre profil » réduite à un bouton « OK » ; garde-fou « Reprendre » hors profil conservé ; version idéale abandonnée (`aa5e215`).
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
@@ -58,8 +58,8 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
 |---|---|---|---|---|---|
 | 1 | ✅ | **P3.6** — protéger contre `KeyError` quand `nb`/`sous_type` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
-| 2 | ☐ | **P5.11** — niveau « Supérieur » : retirer du menu *ou* désactiver le bouton | après P3.6 | technique : ordre audit ; **à clarifier menu vs bouton** avant de coder | [D16](BOUSSOLE/D16.md) |
-| 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P5.11 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
+| 2 | ✅ | **P5.11 — réglé (sans objet)** : « Supérieur » est un *cycle* (en-tête du menu), pas un niveau sélectionnable → aucun bouton ni menu à corriger. Le flag `traite` ne montre que des niveaux supportés. | — | confusion cycle/niveau (audit 15/05) | [D16](BOUSSOLE/D16.md) |
+| 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P3.6 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
 | 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
 | 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
