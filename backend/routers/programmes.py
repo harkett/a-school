@@ -82,6 +82,30 @@ def get_programmes(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/matieres")
+def get_matieres_par_categorie(categorie: str, db: Session = Depends(get_db)):
+    """Les matières d'une CATÉGORIE de cycle (ex. 'secondaire' = Collège+Lycée), dérivées
+    par jointure matieres⋈matiere_niveaux⋈niveaux⋈cycles. Source unique = la base ; remplace
+    les listes en dur du frontend. Public (Signup en a besoin). Matière active + paire active.
+    « Mathématiques » ressort en 'secondaire' (paires Collège/Lycée) ET en 'superieur' (paire
+    BTS) : une matière partagée apparaît légitimement dans chaque catégorie où elle est enseignée."""
+    rows = (
+        db.query(Matiere)
+          .join(MatiereNiveau, MatiereNiveau.matiere_id == Matiere.id)
+          .join(Niveau, Niveau.id == MatiereNiveau.niveau_id)
+          .join(Cycle, Cycle.id == Niveau.cycle_id)
+          .filter(
+              Cycle.categorie == categorie,
+              Matiere.actif == True,
+              MatiereNiveau.actif == True,
+          )
+          .order_by(Matiere.ordre)
+          .distinct()
+          .all()
+    )
+    return [{"cle": m.cle, "nom": m.nom} for m in rows]
+
+
 # ───────────────────────────────────────────────────────────────────────────
 # Admin — édition des programmes (garde admin, JAMAIS de DELETE sur une
 # entrée de référence : on bascule `actif`, l'historique reste valide).
