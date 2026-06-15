@@ -3,8 +3,8 @@
 ## ON EN EST LÀ
 - 🔄 **En cours :** rien.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** P5.10 (Horizon 1) — centraliser la liste MATIERES (DRY, 3 endroits).
-- ✅ **Dernière chose réellement finie :** P4.7 — compteur few-shot « aSchool vous reconnaît » déplacé du `localStorage` vers la base (table `few_shot_milestones`, jalon posé une seule fois au franchissement du seuil, jamais raté ni rejoué). Le toast est remplacé par une **modale** (Fermer / Plus de détails → Aide). Wording « Tester un exemple » sur couple non traité : « Pas d'exemple tout prêt, pour le moment, pour {matière} / {niveau} ». 30 tests backend verts + build OK ; visuels validés. Commits `07fdbb5` + tracker.
+- ⏭️ **Prochaine :** à arbitrer — en Horizon 1 il ne reste que P4.8/P4.9 (cosmétiques, différés sous gel) puis le jalon « push rouvert ».
+- ✅ **Dernière chose réellement finie :** P5.10 — listes MATIERES en dur supprimées. Source unique = la base : champ `categorie` sur les cycles + endpoint `GET /api/matieres?categorie=secondaire` + hook `useMatieres`. 8 écrans (Signup, Mon réseau ×2, 3 admin, Paramètres, À propos) + la phrase de l'Aide lisent désormais la base. Preuve imparable : « Arts » renommé « Arts TEST » directement en base → remonté à l'écran. 32 tests backend verts + build OK ; validé visuellement. Commits `cd1a134` (backend) + `7742508` (frontend). Note différée : cas prof BTS CIEL (voir ses matières CIEL dans les filtres) = incohérence connue à trancher plus tard.
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
 ---
@@ -61,7 +61,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | 2 | ✅ | **P5.11 — réglé (sans objet)** : « Supérieur » est un *cycle* (en-tête du menu), pas un niveau sélectionnable → aucun bouton ni menu à corriger. Le flag `traite` ne montre que des niveaux supportés. | — | confusion cycle/niveau (audit 15/05) | [D16](BOUSSOLE/D16.md) |
 | 3 | ✅ | **P3.5** — sur 401, renouvellement silencieux puis redirection `/login` si refresh token mort (single-flight partagé apiFetch ↔ AuthContext) | après P3.6 | technique : le + sensible ; flux refresh relu (pas de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ✅ | **P4.7** — compteur few-shot `localStorage` → backend (table `few_shot_milestones`, jalon une fois) + toast → **modale** (lien Aide) | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
-| 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
+| 5 | ✅ | **P5.10** — listes MATIERES en dur supprimées : champ `categorie` sur cycles + endpoint `/api/matieres` + hook `useMatieres` ; 8 écrans + phrase Aide lisent la base (source unique). Relève de la refonte « modèle matières propre » | rien | technique : supprime la duplication — **8 copies, pas 3** | [D16](BOUSSOLE/D16.md) |
 | 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
 
 > 🎯 **Jalon de fin d'horizon : push rouvert.** Tant que H1 n'est pas clos, tout le reste est gelé.

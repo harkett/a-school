@@ -423,6 +423,7 @@ pas de tout boucler en une fois — intenable sur un chantier de semaines.
 ## Règles UI permanentes
 
 - **Profil = source unique** pour matière et niveau. Jamais de `<select>` matière/niveau dans les features — toujours lire depuis le profil.
+- **Aucune liste de référence en dur dans le frontend.** Les matières — et toute liste de référence (niveaux, cycles…) — se lisent depuis la base via l'API, jamais une liste codée en dur dans un composant. Pour les matières : hook `useMatieres` → `GET /api/matieres?categorie=secondaire`. Une liste en dur se périme en silence le jour où la donnée bouge. (Règle née 15/06/2026, P5.10 : 8 écrans dupliquaient la même liste de 12 matières.)
 - **Bouton d'action principale** = classe `btn-primary` + icône SVG + `title=` tooltip + positionné en bas à droite. Référence : bouton "Générer l'activité" dans `Parametres.jsx`.
 - **Header** : `height: 65px`, `overflow: hidden`. **Logo** : `height: 140px`. INTOUCHABLES.
 - **Tagline** "Générateur d'activités pédagogiques" = `<span>` HTML blanc dans le header, toujours présent, jamais dans le PNG seul.
