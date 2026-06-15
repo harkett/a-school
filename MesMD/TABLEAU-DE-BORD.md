@@ -301,6 +301,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[UX/Séquence] « Tester un exemple » (écran Séquence) ne couvre pas les matières CIEL** | Cosmétique, indépendant du grounding embeddings
   *Le prefill statique `_EX` (`SequenceForm.jsx`) n'a pas de clé pour Réseaux/Cybersécurité/etc. + BTS hors des listes `_LYCEE`/`_COL_BAS` → fallback thèmes Français/littérature. L'écran Activité (TexteSource → `/api/exemple-referentiel` → embeddings CIEL) n'est PAS concerné. Fix = ajouter des thèmes CIEL ou neutraliser le fallback hors-catalogue. Identifié 14/06/2026.*
 
+- **PRINCIPE — « Tester un exemple » (écran Activité), déploiement progressif** (acté 15/06/2026)
+  *Pour chaque couple matière+niveau dont le référentiel est **intégré et indexé** (1er fait : **BTS CIEL option A**), le bouton produit un **vrai texte d'exemple ancré** sur ce référentiel. Tant qu'un couple n'est **pas traité** → **modale** « Exemple non encore généré par l'application ». On avance **couple par couple**, à mesure qu'on traite chaque référentiel. C'est déjà le comportement du code ([exemple_referentiel.py](../backend/routers/exemple_referentiel.py) : couple sans référentiel → `available:false`, rien d'inventé) — la règle est ici notée pour piloter la suite.*
+
 - [ ] **[UX/Menu] Consigne + Optimiseur : code livré mais gatés « bientôt »** | Décider : rouvrir (retirer `disabled`) ou assumer le report
   *`Sidebar.jsx` `disabled:true` sur `consigne` + `optimiseur` (et `equite`, lui PAS codé). Consigne (`/analyser-consigne` + `Consigne.jsx`) et Optimiseur (`/optimize-sequence`, bouton inline `SequenceForm`) sont fonctionnels mais invisibles au prof. Identifié 14/06/2026.*
 

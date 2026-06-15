@@ -98,7 +98,8 @@ function MainApp() {
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [sessionMatiere, setSessionMatiere] = useState(matiere)
-  const [toast, setToast] = useState(null)
+  const [fewShotModal, setFewShotModal] = useState(false)  // « aSchool vous reconnaît » : modale au franchissement du seuil
+  const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
   const [activiteTab, setActiviteTab] = useState('creer')
   const [typeConfirme, setTypeConfirme] = useState(false)  // guidage : le prof a-t-il vu/touché le sélecteur de type ?
   const [alertDialog, setAlertDialog] = useState(null)
@@ -185,11 +186,13 @@ function MainApp() {
     return () => clearInterval(id)
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Nettoyage ponctuel : les compteurs few-shot vivaient en localStorage (avant P4.7) ;
+  // le backend fait foi désormais. On purge ces clés devenues mortes, au montage.
   useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 6000)
-    return () => clearTimeout(t)
-  }, [toast])
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('aschool_style_count_'))
+      .forEach(k => localStorage.removeItem(k))
+  }, [])
 
   useEffect(() => {
     setSessionMatiere(matiere)
@@ -305,16 +308,11 @@ function MainApp() {
       setResultat(data.resultat)
       setTimeout(() => resultatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
 
-      const countKey = `aschool_style_count_${params.activite_key}`
-      const newCount = (parseInt(localStorage.getItem(countKey) || '0')) + 1
-      localStorage.setItem(countKey, String(newCount))
-      if (newCount === 3) {
-        setToast('aSchool reconnaît maintenant votre façon de travailler sur ce type d\'activité.')
-      }
-
       // Sauvegarde best-effort mais JAMAIS silencieuse (Phase 2.1 reprise) : si elle échoue
       // (réseau OU statut HTTP non-ok), on prévient le prof — l'activité reste affichée, il
       // peut l'exporter ou réessayer. Payload inchangé (contrat éprouvé de /api/mes-activites).
+      // La modale « aSchool vous reconnaît » est pilotée par le backend (few_shot_just_reached) :
+      // une seule fois, au franchissement réel du seuil de sauvegardes (P4.7).
       sauvegarderActivite({
         activite_key: params.activite_key,
         activite_label: activites.find(a => a.key === params.activite_key)?.label || params.activite_key,
@@ -326,6 +324,10 @@ function MainApp() {
         objet: objet.trim() || null,
         texte_source: texte,
         resultat: data.resultat,
+      }).then(res => {
+        if (res?.few_shot_just_reached) {
+          setFewShotModal(true)
+        }
       }).catch(() => setAlertDialog(
         "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
       ))
@@ -374,6 +376,7 @@ function MainApp() {
   // Routeur de navigation : toute arrivée sur « Créer » repart d'une activité vierge ;
   // les autres pages naviguent normalement.
   function naviguer(p) {
+    setAideSection(null)   // navigation normale (sidebar) -> l'Aide s'ouvre sur sa section par défaut
     if (estPageCreer(p)) nouvelleActivite()
     else setPage(p)
   }
@@ -968,7 +971,7 @@ function MainApp() {
           {page === 'mon-profil' && <MonProfil onNavigate={naviguer} />}
 
 
-          {page === 'aide' && <Aide />}
+          {page === 'aide' && <Aide initialSection={aideSection} />}
 
           {page === 'mes-feedbacks' && <MesFeedbacks />}
 
@@ -1018,24 +1021,32 @@ function MainApp() {
         </div>
       )}
 
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '28px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: '#1e40af',
-          color: '#fff',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          fontSize: '14px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
-          zIndex: 1000,
-          maxWidth: '480px',
-          textAlign: 'center',
-          lineHeight: '1.5',
-        }}>
-          {toast}
+      {fewShotModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', marginBottom: '10px' }}>
+              aSchool reconnaît votre façon de travailler
+            </div>
+            <p style={{ fontSize: '13.5px', color: '#374151', lineHeight: 1.6, margin: '0 0 20px' }}>
+              À partir de 3 activités de ce type enregistrées, aSchool s'inspire de vos exemples pour générer dans votre style — automatiquement, sans rien régler.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setFewShotModal(false)}
+                title="Fermer ce message"
+                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Fermer
+              </button>
+              <button
+                onClick={() => { setAideSection('apprentissage'); setPage('aide'); setFewShotModal(false) }}
+                title="Ouvrir l'aide : comment aSchool apprend votre style"
+                style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Plus de détails
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

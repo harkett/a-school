@@ -241,7 +241,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         setExempleNote('ancre')
       } else {
         // Règle absolue : message d'absence = modale bloquante (showError) avec OK, jamais inline.
-        showError(`Pas encore d'exemple pour ce niveau${niveau ? ` (${niveau})` : ''}.\n\nCollez votre propre texte de cours ou d'exercice dans la zone ci-dessous — ou importez un fichier, une image, un PDF, ou dictez.`)
+        showError(`Pas d'exemple tout prêt, pour le moment, pour ${(matiere && niveau) ? `${matiere} / ${niveau}` : 'ce couple'}.\n\nCollez votre propre texte de cours ou d'exercice ci-dessous — ou importez un fichier, une image, un PDF, ou dictez.`)
       }
     } catch (err) {
       showError(`Génération de l'exemple impossible.\n\n${err.message}`)

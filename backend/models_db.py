@@ -222,6 +222,20 @@ class ToolUsageLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class FewShotMilestone(Base):
+    # Jalon « aSchool reconnaît votre façon de travailler » : posé UNE fois par couple
+    # (prof, type d'activité) au franchissement du seuil few-shot. L'unique garantit le
+    # one-shot durable (jamais rejoué, même si le compte retombe puis repasse le seuil).
+    # Table neuve et vide → créée par create_all au démarrage, l'existant n'est pas touché.
+    __tablename__ = "few_shot_milestones"
+    __table_args__ = (Index("ix_few_shot_milestones_unique", "user_id", "activite_key", unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    activite_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    reached_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Refonte programmes — référentiel niveaux/matières (programme officiel)
 # ---------------------------------------------------------------------------

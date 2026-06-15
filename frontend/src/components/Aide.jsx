@@ -1115,10 +1115,12 @@ const CATEGORIES = [
   { label: 'Problèmes', ids: ['problemes'] },
 ]
 
-export default function Aide() {
+export default function Aide({ initialSection = null }) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
-  const [selected, setSelected] = useState('comment')
-  const [open, setOpen] = useState('comment')
+  // Lien profond : l'Aide est remontée à chaque navigation, donc l'init suffit à cibler
+  // la bonne section (ex. « Plus de détails » de la modale few-shot -> 'apprentissage').
+  const [selected, setSelected] = useState(initialSection || 'comment')
+  const [open, setOpen] = useState(initialSection || 'comment')
   const [query, setQuery] = useState('')
 
   const searchIndex = useMemo(() => buildSearchIndex(sections), [])
