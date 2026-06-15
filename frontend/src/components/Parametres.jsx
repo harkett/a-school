@@ -1,7 +1,6 @@
 ﻿import { useState, useEffect } from 'react'
 import { niveauxTraites } from '../utils/profil.js'
-
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useMatieres } from '../utils/useMatieres.js'
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -11,6 +10,7 @@ const IconGenerer = () => (
 
 export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
@@ -200,8 +200,11 @@ export default function Parametres({ activites, params, accentType, onChange, on
                   className="w-full border border-gray-300 rounded p-2 text-sm"
                   value={ajustTemp.matiere}
                   onChange={e => setAjustTemp(t => ({ ...t, matiere: e.target.value }))}
+                  disabled={matieresChargement}
                 >
-                  {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+                  {matieresChargement
+                    ? <option value={ajustTemp.matiere}>Chargement…</option>
+                    : matieres.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>

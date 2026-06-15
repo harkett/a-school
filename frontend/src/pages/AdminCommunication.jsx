@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
-
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useMatieres } from '../utils/useMatieres.js'
 
 export default function AdminCommunication() {
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [users, setUsers]               = useState([])
   const [loading, setLoading]           = useState(true)
   const [selected, setSelected]         = useState(new Set())
@@ -165,9 +165,10 @@ export default function AdminCommunication() {
             className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-32"
           />
           <select value={filterMatiere} onChange={e => setFilterMatiere(e.target.value)}
+            disabled={matieresChargement}
             className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">
-            <option value="">Toutes les matières</option>
-            {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+            <option value="">{matieresChargement ? 'Chargement…' : 'Toutes les matières'}</option>
+            {matieres.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
           <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)}
             className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">

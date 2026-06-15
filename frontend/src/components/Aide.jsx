@@ -1,5 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
+import { useMatieres } from '../utils/useMatieres.js'
+
+// Phrase « matières disponibles » de l'Aide, alimentée par la base (source unique)
+// au lieu d'une énumération en dur — comme les déroulants (P5.10). Rendue dans l'arbre
+// React via une section statique, donc le hook s'exécute bien malgré le contenu module.
+function MatieresDisponibles() {
+  const { matieres, chargement } = useMatieres()
+  if (chargement || matieres.length === 0)
+    return <span>aSchool propose plusieurs matières.</span>
+  const liste = matieres.length > 1
+    ? `${matieres.slice(0, -1).join(', ')} et ${matieres[matieres.length - 1]}`
+    : matieres[0]
+  return <span>aSchool propose {matieres.length} matières : {liste}.</span>
+}
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -544,7 +558,7 @@ const sections = [
         <div>
           <dt className="font-semibold text-gray-700">Matière</dt>
           <dd className="mt-0.5 flex flex-col gap-2">
-            <span>aSchool propose 12 matières : Français, Histoire-Géographie, Mathématiques, Physique-Chimie, SVT, SES, NSI, Philosophie, Langues vivantes, Technologie, Arts et EPS.</span>
+            <MatieresDisponibles />
             <span><strong>Votre matière de profil</strong> est définie à l'inscription et modifiable via "Mon profil" — c'est votre identité par défaut, elle persiste d'une connexion à l'autre.</span>
             <span><strong>Le sélecteur de matière dans les paramètres</strong> vous permet de changer de matière pour la session en cours uniquement, sans toucher à votre profil. Utile si vous intervenez ponctuellement dans une autre discipline ou souhaitez tester des activités d'une autre matière.</span>
           </dd>

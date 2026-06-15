@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { niveauxTraites } from '../utils/profil.js'
-
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useMatieres } from '../utils/useMatieres.js'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -9,6 +8,7 @@ function formatDate(iso) {
 
 export default function MonReseauSequences({ onCharger, sessionMatiere, sessionNiveau }) {
   const isMobile = window.innerWidth < 768
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [matiere, setMatiere]     = useState(sessionMatiere || '')
   const [niveau,  setNiveau]      = useState('')
   const [sequences, setSequences] = useState([])
@@ -60,10 +60,11 @@ export default function MonReseauSequences({ onCharger, sessionMatiere, sessionN
               value={matiere}
               onChange={e => setMatiere(e.target.value)}
               title="Filtrer par matière"
+              disabled={matieresChargement}
               className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
             >
-              <option value="">Toutes les matières</option>
-              {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+              <option value="">{matieresChargement ? 'Chargement…' : 'Toutes les matières'}</option>
+              {matieres.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={niveau}

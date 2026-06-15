@@ -2,10 +2,10 @@
 import Feedback from './Feedback'
 import Notation from './Notation'
 import { APP_VERSION } from '../version'
-
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useMatieres } from '../utils/useMatieres.js'
 
 export default function APropos({ email, matiere }) {
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
   const [showFiche, setShowFiche] = useState(false)
@@ -51,9 +51,11 @@ export default function APropos({ email, matiere }) {
 
         {/* Bloc 3 — Matières */}
         <div className="px-8 py-5 border-b border-gray-100">
-          <div className="text-xs text-gray-400 mb-3">Matières disponibles ({MATIERES.length})</div>
+          <div className="text-xs text-gray-400 mb-3">
+            {matieresChargement ? 'Matières disponibles…' : `Matières disponibles (${matieres.length})`}
+          </div>
           <div className="flex flex-wrap gap-1.5">
-            {MATIERES.map(m => (
+            {matieres.map(m => (
               <span key={m} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
                 {m}
               </span>

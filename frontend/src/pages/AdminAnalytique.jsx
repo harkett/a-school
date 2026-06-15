@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-const MATIERES = ['Français', 'Histoire-Géographie', 'Mathématiques', 'Physique-Chimie', 'SVT', 'SES', 'NSI', 'Philosophie', 'Langues Vivantes (LV)', 'Technologie', 'Arts', 'EPS']
+import { useMatieres } from '../utils/useMatieres.js'
 
 function KpiCard({ label, value, sub, color }) {
   return (
@@ -64,6 +63,7 @@ function DetailRow({ matiere, matData }) {
 }
 
 export default function AdminAnalytique() {
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [data, setData]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [expanded, setExpanded] = useState({})
@@ -152,10 +152,11 @@ export default function AdminAnalytique() {
         <select
           value={filterMat}
           onChange={e => setFilterMat(e.target.value)}
+          disabled={matieresChargement}
           style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 10px', fontSize: 12, background: 'white', color: '#1e293b' }}
         >
-          <option value="">Toutes les matières</option>
-          {MATIERES.map(m => <option key={m} value={m}>{m}</option>)}
+          <option value="">{matieresChargement ? 'Chargement…' : 'Toutes les matières'}</option>
+          {matieres.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <select
           value={filterNiv}

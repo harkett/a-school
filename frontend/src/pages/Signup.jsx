@@ -2,8 +2,10 @@
 import { Link } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { useMatieres } from '../utils/useMatieres.js'
 
 export default function Signup() {
+  const { matieres, chargement: matieresChargement } = useMatieres()
   const [email, setEmail] = useState('')
   const [subject, setSubject] = useState('')
   const [langueLv, setLangueLv] = useState('')
@@ -96,21 +98,13 @@ export default function Signup() {
                     className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
                     value={subject}
                     onChange={e => { setSubject(e.target.value); setLangueLv('') }}
+                    disabled={matieresChargement}
                     required
                   >
-                    <option value="" disabled>— Choisissez une matière —</option>
-                    <option value="Français">Français</option>
-                    <option value="Histoire-Géographie">Histoire-Géographie</option>
-                    <option value="Mathématiques">Mathématiques</option>
-                    <option value="Physique-Chimie">Physique-Chimie</option>
-                    <option value="SVT">SVT</option>
-                    <option value="SES">SES</option>
-                    <option value="NSI">NSI</option>
-                    <option value="Philosophie">Philosophie</option>
-                    <option value="Langues Vivantes (LV)">Langues Vivantes (LV)</option>
-                    <option value="Technologie">Technologie</option>
-                    <option value="Arts">Arts</option>
-                    <option value="EPS">EPS</option>
+                    <option value="" disabled>
+                      {matieresChargement ? '— Chargement des matières… —' : '— Choisissez une matière —'}
+                    </option>
+                    {matieres.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
 
