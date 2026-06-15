@@ -3,8 +3,8 @@
 ## ON EN EST LÀ
 - 🔄 **En cours :** rien.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** P4.7 (Horizon 1) — compteur few-shot `localStorage` → backend.
-- ✅ **Dernière chose réellement finie :** P3.5 — sur 401, renouvellement silencieux (single-flight partagé apiFetch ↔ AuthContext) puis redirection `/login?raison=session_expiree` si le refresh token est mort. Câblé sur tout l'écran de création (generate, auto-save, TexteSource : exemple/OCR/dictée) + Mes activités, Mon profil, Séquence (créer/optimiser), Analyses (ambiguïtés/consigne). 23 tests verts ; geste réel validé (suppression des 2 cookies → sortie propre).
+- ⏭️ **Prochaine :** P5.10 (Horizon 1) — centraliser la liste MATIERES (DRY, 3 endroits).
+- ✅ **Dernière chose réellement finie :** P4.7 — compteur few-shot « aSchool vous reconnaît » déplacé du `localStorage` vers la base (table `few_shot_milestones`, jalon posé une seule fois au franchissement du seuil, jamais raté ni rejoué). Le toast est remplacé par une **modale** (Fermer / Plus de détails → Aide). Wording « Tester un exemple » sur couple non traité : « Pas d'exemple tout prêt, pour le moment, pour {matière} / {niveau} ». 30 tests backend verts + build OK ; visuels validés. Commits `07fdbb5` + tracker.
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
 ---
@@ -60,7 +60,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | 1 | ✅ | **P3.6** — protéger contre `KeyError` quand `nb`/`sous_type` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
 | 2 | ✅ | **P5.11 — réglé (sans objet)** : « Supérieur » est un *cycle* (en-tête du menu), pas un niveau sélectionnable → aucun bouton ni menu à corriger. Le flag `traite` ne montre que des niveaux supportés. | — | confusion cycle/niveau (audit 15/05) | [D16](BOUSSOLE/D16.md) |
 | 3 | ✅ | **P3.5** — sur 401, renouvellement silencieux puis redirection `/login` si refresh token mort (single-flight partagé apiFetch ↔ AuthContext) | après P3.6 | technique : le + sensible ; flux refresh relu (pas de boucle) | [D16](BOUSSOLE/D16.md) |
-| 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
+| 4 | ✅ | **P4.7** — compteur few-shot `localStorage` → backend (table `few_shot_milestones`, jalon une fois) + toast → **modale** (lien Aide) | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
 | 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
 | 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
 
