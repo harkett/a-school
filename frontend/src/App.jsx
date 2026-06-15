@@ -56,7 +56,7 @@ import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import IOSInstallBanner from './components/IOSInstallBanner'
-import { fetchWithTimeout, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
+import { fetchWithTimeout, apiFetch, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeParDefaut } from './utils/activite.js'
 import './index.css'
@@ -291,7 +291,7 @@ function MainApp() {
         body.langue_lv = user.langue_lv
       }
 
-      const res = await fetchWithTimeout('/api/generate', {
+      const res = await apiFetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

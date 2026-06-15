@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxTraites, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
 
@@ -39,7 +39,7 @@ export default function MonProfil({ onNavigate }) {
   const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
 
   useEffect(() => {
-    fetchWithTimeout('/api/programmes', { credentials: 'include' }, TIMEOUT_STD)
+    apiFetch('/api/programmes', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (!data) return
@@ -86,7 +86,7 @@ export default function MonProfil({ onNavigate }) {
     setSaving(true)
     setErreur(null)
     try {
-      const res = await fetchWithTimeout('/api/user/profile', {
+      const res = await apiFetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

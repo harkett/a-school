@@ -10,6 +10,7 @@ export default function Login() {
   const [searchParams] = useSearchParams()
   const deconnecteInactivite  = searchParams.get('raison') === 'inactivite'
   const deconnecteForce       = searchParams.get('raison') === 'force_deconnexion'
+  const sessionExpiree        = searchParams.get('raison') === 'session_expiree'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -75,7 +76,7 @@ export default function Login() {
             Accédez à votre espace aSchool.
           </p>
 
-          {isPWA && !deconnecteForce && !deconnecteInactivite && (
+          {isPWA && !deconnecteForce && !deconnecteInactivite && !sessionExpiree && (
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#1e40af' }}>
               Première ouverture de l'application ? Connectez-vous pour démarrer — votre session restera active 30 jours.
             </div>
@@ -90,6 +91,12 @@ export default function Login() {
           {deconnecteInactivite && (
             <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#854d0e' }}>
               Vous avez été déconnecté après une période d'inactivité. Veuillez vous reconnecter.
+            </div>
+          )}
+
+          {sessionExpiree && (
+            <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#854d0e' }}>
+              Votre session a expiré. Veuillez vous reconnecter pour continuer.
             </div>
           )}
 

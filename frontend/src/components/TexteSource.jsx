@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { formatTime, computeBarLevels } from '../utils/audioViz.js'
 
@@ -135,7 +135,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       const ext = mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'mp4' : 'webm'
       const form = new FormData()
       form.append('file', blob, `dictee.${ext}`)
-      const res = await fetchWithTimeout('/api/transcribe', {
+      const res = await apiFetch('/api/transcribe', {
         method: 'POST',
         credentials: 'include',
         body: form,
@@ -228,7 +228,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     setExempleLoading(true)
     setExempleNote(null)
     try {
-      const res = await fetchWithTimeout('/api/exemple-referentiel', {
+      const res = await apiFetch('/api/exemple-referentiel', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -267,7 +267,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     try {
       const form = new FormData()
       form.append('file', file)
-      const res = await fetchWithTimeout('/api/ocr', {
+      const res = await apiFetch('/api/ocr', {
         method: 'POST',
         credentials: 'include',
         body: form,

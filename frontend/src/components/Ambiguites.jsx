@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const EXEMPLES = {
@@ -135,7 +135,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
     setResultat(null)
     setLoading(true)
     try {
-      const res = await fetchWithTimeout('/api/detect-ambiguites', {
+      const res = await apiFetch('/api/detect-ambiguites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

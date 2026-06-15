@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_AUTH, refreshSession } from '../utils/api.js'
 
 const AuthContext = createContext(null)
 
@@ -15,11 +15,9 @@ export function AuthProvider({ children }) {
         return
       }
       if (r.status === 401) {
-        const ref = await fetchWithTimeout('/api/auth/refresh', {
-          method: 'POST',
-          credentials: 'include',
-        }, TIMEOUT_AUTH)
-        if (ref.ok) {
+        // Renouvellement partagé (single-flight) — jamais en parallèle d'un refresh apiFetch.
+        const renouvele = await refreshSession()
+        if (renouvele) {
           r = await fetchWithTimeout('/api/auth/me', { credentials: 'include' }, TIMEOUT_AUTH)
           if (r.ok) {
             setUser(await r.json())
@@ -37,9 +35,10 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     checkAuth()
-    // Refresh proactively every 10 min so the access token never expires mid-session
+    // Refresh proactively every 10 min so the access token never expires mid-session.
+    // Passe par le guichet partagé → jamais en concurrence avec un refresh apiFetch.
     const id = setInterval(() => {
-      fetchWithTimeout('/api/auth/refresh', { method: 'POST', credentials: 'include' }, TIMEOUT_AUTH)
+      refreshSession()
     }, 10 * 60 * 1000)
     return () => clearInterval(id)
   }, [checkAuth])

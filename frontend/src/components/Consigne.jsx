@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const EXEMPLES = {
@@ -102,7 +102,7 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
     setResultat(null)
     setLoading(true)
     try {
-      const res = await fetchWithTimeout('/api/analyser-consigne', {
+      const res = await apiFetch('/api/analyser-consigne', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

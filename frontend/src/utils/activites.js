@@ -1,3 +1,5 @@
+import { apiFetch } from './api.js'
+
 // Sauvegarde d'une activité dans « Mes activités ».
 //
 // Contrairement à l'ancien appel fire-and-forget (`.catch(() => {})` qui avalait tout),
@@ -5,7 +7,7 @@
 // pour que l'appelant puisse prévenir le prof. Supprime la perte silencieuse d'activités
 // (audit 15/05, Phase 2.1 du plan de reprise). Payload = contrat de POST /api/mes-activites.
 export async function sauvegarderActivite(payload) {
-  const res = await fetch('/api/mes-activites', {
+  const res = await apiFetch('/api/mes-activites', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',

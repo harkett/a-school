@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
 
 const IconTrash = () => (
@@ -90,7 +90,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
 
   useEffect(() => {
-    fetch('/api/mes-activites', { credentials: 'include' })
+    apiFetch('/api/mes-activites', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => r.json())
       .then(data => { setActivites(data); setLoading(false) })
       .catch(() => setLoading(false))
@@ -99,7 +99,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   async function supprimerActivite(id) {
     setDeleting(id)
     try {
-      const res = await fetchWithTimeout(`/api/mes-activites/${id}`, {
+      const res = await apiFetch(`/api/mes-activites/${id}`, {
         method: 'DELETE',
         credentials: 'include',
       }, TIMEOUT_STD)
@@ -116,7 +116,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   async function togglePartage(id, newValue, anonyme = false) {
     setToggling(id)
     try {
-      const res = await fetchWithTimeout(`/api/mes-activites/${id}`, {
+      const res = await apiFetch(`/api/mes-activites/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

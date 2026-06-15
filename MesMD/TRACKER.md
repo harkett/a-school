@@ -3,8 +3,8 @@
 ## ON EN EST LÀ
 - 🔄 **En cours :** rien.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** P3.5 (Horizon 1) — sur 401, rediriger vers /login (relire d'abord le flux refresh token, risque de boucle).
-- ✅ **Dernière chose réellement finie :** modale « Activité d'un autre profil » réduite à un bouton « OK » ; garde-fou « Reprendre » hors profil conservé ; version idéale abandonnée (`aa5e215`).
+- ⏭️ **Prochaine :** P4.7 (Horizon 1) — compteur few-shot `localStorage` → backend.
+- ✅ **Dernière chose réellement finie :** P3.5 — sur 401, renouvellement silencieux (single-flight partagé apiFetch ↔ AuthContext) puis redirection `/login?raison=session_expiree` si le refresh token est mort. Câblé sur tout l'écran de création (generate, auto-save, TexteSource : exemple/OCR/dictée) + Mes activités, Mon profil, Séquence (créer/optimiser), Analyses (ambiguïtés/consigne). 23 tests verts ; geste réel validé (suppression des 2 cookies → sortie propre).
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
 ---
@@ -59,7 +59,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 |---|---|---|---|---|---|
 | 1 | ✅ | **P3.6** — protéger contre `KeyError` quand `nb`/`sous_type` manque | rien (filet de tests vert) | technique : ordre audit #1 restant, prérequis réouverture push | [D16](BOUSSOLE/D16.md) |
 | 2 | ✅ | **P5.11 — réglé (sans objet)** : « Supérieur » est un *cycle* (en-tête du menu), pas un niveau sélectionnable → aucun bouton ni menu à corriger. Le flag `traite` ne montre que des niveaux supportés. | — | confusion cycle/niveau (audit 15/05) | [D16](BOUSSOLE/D16.md) |
-| 3 | ☐ | **P3.5** — sur 401, rediriger vers /login | après P3.6 | technique : le + sensible ; **relire le flux refresh token** avant (risque de boucle) | [D16](BOUSSOLE/D16.md) |
+| 3 | ✅ | **P3.5** — sur 401, renouvellement silencieux puis redirection `/login` si refresh token mort (single-flight partagé apiFetch ↔ AuthContext) | après P3.6 | technique : le + sensible ; flux refresh relu (pas de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ☐ | **P4.7** — compteur few-shot `localStorage` → backend | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
 | 5 | ☐ | **P5.10** — centraliser la liste MATIERES (DRY, 3 endroits) | rien | technique : isole une régression | [D16](BOUSSOLE/D16.md) |
 | 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
@@ -78,6 +78,8 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | 10 | ☐ | **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | transverse, tous les outils |
 | 11 | ☐ | **[Refactor] Migration React Query (TanStack)** | session dédiée, ne pas mélanger |
 | 12 | ☐ | **[Maintenance] Dette technique transverse** (2 sessions) | deps obsolètes, gestion d'erreurs API, sécurité des routes |
+| 13 | ☐ | **[Dette] Étendre `apiFetch` aux composants prof restants** — Notation, Mes stats, Mon réseau, Mes séquences, Feedback | reste de P3.5 (option b) : golden path couvert, ces écrans secondaires non migrés → leurs 401 n'aboutissent pas encore à une sortie propre |
+| 14 | ☐ | **[Idée] Détection de session expirée SANS clic** — étendre le heartbeat existant pour rediriger dès la session morte | item séparé hors H1, à étudier : aujourd'hui la sortie propre n'a lieu qu'au prochain appel prof |
 
 ---
 

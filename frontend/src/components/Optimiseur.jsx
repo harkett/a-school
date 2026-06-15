@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const EXEMPLES = {
@@ -121,7 +121,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
     setResultat(null)
     setLoading(true)
     try {
-      const res = await fetchWithTimeout('/api/optimize-sequence', {
+      const res = await apiFetch('/api/optimize-sequence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

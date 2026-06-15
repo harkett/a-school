@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchWithTimeout, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
@@ -154,7 +154,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
     setScoreOptim(null)
     setLoading(true)
     try {
-      const res = await fetchWithTimeout('/api/generate-sequence', {
+      const res = await apiFetch('/api/generate-sequence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -186,7 +186,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
     setConfirmOptim(false)
     setOptimLoading(true)
     try {
-      const res = await fetchWithTimeout('/api/optimize-sequence', {
+      const res = await apiFetch('/api/optimize-sequence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -211,7 +211,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
   async function sauvegarder() {
     if (!resultat) return
     try {
-      await fetchWithTimeout('/api/mes-activites', {
+      await apiFetch('/api/mes-activites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
