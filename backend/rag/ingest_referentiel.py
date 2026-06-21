@@ -98,6 +98,7 @@ def main() -> None:
         pages,
         max_chars=fiche.MAX_CHARS,
         min_chars=fiche.MIN_CHARS,
+        overlap_chars=fiche.OVERLAP_CHARS,
         is_boundary=fiche.section_boundary,
         chunk_metadata=fiche.chunk_metadata,
     )

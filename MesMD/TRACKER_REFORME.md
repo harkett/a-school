@@ -49,11 +49,16 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 ---
 
 ## Phase 3 — QUALITÉ DU DIFFÉRENCIATEUR (RAG CIEL fiable)
-- [ ] Seuil de score minimal (calibré sur données CIEL — mesurer, pas inventer)
+> Ordre acté : **2 overlap → 3 déduplication → 1 seuil de score → 4 alignement métadonnées**.
+> ⚠️ Ré-ingestion réelle de la collection CIEL **différée à la fin du chunking** : overlap ET dédup touchent le découpage → on ne ré-ingère qu'**une seule fois**, les deux ensemble. La base reste à overlap=0 d'ici là (volontaire et assumé).
+- [x] **(2) Chevauchement (overlap) au chunking** — validé (21/06), code commité, ré-ingestion différée
+  - mécanisme générique dans `chunker.py` (`overlap_chars`, défaut 0 = rétro-compatible) ; valeur `OVERLAP_CHARS=150` (~17 % de MAX_CHARS) dans la fiche CIEL ; passée par `ingest_referentiel.py`. Le moteur ne sait pas que c'est CIEL.
+  - overlap sur la coupe de TAILLE uniquement (pas frontière, pas inter-pages) → tag A/B intact. Cas limite : ligne unique > overlap ⇒ coupe nette.
+  - preuve : dry-run overlap=0 strictement identique (222 chunks, A:177/B:45) · mesure 0→222 / 100→234 / 150→238 / 200→244, **pages B identiques pour toutes** (partition A/B invariante) · `test_chunker.py` 6 verts · 13 tests verts au total.
+- [ ] (3) Déduplication au chunking
+- [ ] (1) Seuil de score minimal (calibré sur données CIEL — mesurer, pas inventer)
   - constat (21/06, mesuré sur la vraie base) : scores faibles — requête courte « Réseaux » → 0.31–0.42 ; requête longue de domaine → ~0.62 max. À calibrer ICI, pas avant (hors périmètre Tâche 3).
-- [ ] Chevauchement (overlap) au chunking
-- [ ] Déduplication au chunking
-- [ ] Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)
+- [ ] (4) Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)
 
 ---
 
