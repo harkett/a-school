@@ -59,8 +59,11 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
   - mécanisme générique dans `chunker.py` (passe post-découpage, param `dedup_key`, défaut `None` = rétro-compatible) ; `dedup_key=(text, option)` dans la fiche CIEL (ignore la page, respecte l'option → protège A/B) ; passée par `ingest_referentiel.py`.
   - détection EXACTE (texte complet), garde la **1re occurrence** (page la plus basse) ; dédup au **chunk entier** uniquement → ne touche jamais au recouvrement de l'overlap.
   - preuve : dédup OFF identique (222/238) · ON overlap=0 → **222→220**, overlap=150 → **238→236** (2 boilerplate p.81-82 option A retirés) · **partition A/B invariante** (B-pages identiques) · overlap non amputé (−3 paires = effet mécanique du retrait de 2 chunks, prouvé par `test_dedup_ne_mange_pas_loverlap`) · **18 tests verts**.
-- [ ] (1) Seuil de score minimal (calibré sur données CIEL — mesurer, pas inventer)
-  - constat (21/06, mesuré sur la vraie base) : scores faibles — requête courte « Réseaux » → 0.31–0.42 ; requête longue de domaine → ~0.62 max. À calibrer ICI, pas avant (hors périmètre Tâche 3).
+- [x] **(1) Seuil de score minimal** — validé (21/06), base définitive ré-ingérée, code commité
+  - constat (mesuré base définitive) : pas de coupure nette bruit/contenu ; l'administratif (annexes) peut scorer haut → le seuil n'est PAS un filtre de l'administratif, seulement un **filet anti-hors-sujet pur**. `SCORE_MIN=0.33` calibré sur la distribution mesurée (hors-sujet ≤0.28-0.34 vs intentions légitimes ≥0.35).
+  - `SCORE_MIN=0.33` dans la fiche CIEL ; **filtre strict au niveau endpoint** (`exemple_referentiel.py`, `retrieve()` reste pur) : un chunk <0.33 n'entre jamais dans le prompt.
+  - cas vide (rien ≥ seuil) → `available=False`, **`generate()` NON appelé**, champ `message` (wording C) renvoyé et affiché en **modale bloquante** côté prof (cascade frontend `TexteSource.jsx`, joignabilité).
+  - preuve : « ventilateur plafonnier » → 0 génération + message C ; « cybersécurité » → génère ; **20 tests verts** ; build frontend OK.
 - [ ] (4) Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)
 
 ---
@@ -89,6 +92,24 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 - [ ] P4.9 — toast sur réinitialisation paramètres
 - [ ] Bug Accueil : dernière SÉQUENCE affiche du Markdown brut
 - [ ] cleanup `src/prompts.py:_build_rag_prefix` (l.2720-2748) : préfixe RAG « programme MEN cycle 4 », mort depuis Phase 1 (jamais appelé — `generate.py` ne passe pas `rag_chunks`). À supprimer.
+- [ ] cleanup : sortir la base ChromaDB (`backend/rag/chroma_db/`) du suivi git → `.gitignore` + reconstruction par `ingest_referentiel` au déploiement (« données ≠ code »). Décision (c) du 21/06 ; aujourd'hui la base est versionnée et committée, ce nettoyage la décorrèle du repo plus tard.
+- [ ] Aide : expliquer au prof que l'exemple généré peut varier à chaque essai
+  (texte reformulé par le LLM) alors que l'ancrage référentiel, lui, reste
+  identique (recherche déterministe). Prévoir une version courte côté prof et
+  une version avec la distinction recherche/génération côté admin.
+- [ ] À ÉTUDIER (complexe, laissé en option) : épreuves dont le détail vit en
+  ANNEXE et diverge du corps du référentiel (ex. épreuve E6 du BTS CIEL). Les
+  annexes des référentiels FR portent souvent du contenu aussi important que
+  le corps → ne jamais présumer "annexe = bruit". Étude dédiée plus tard.
+
+---
+
+## 🖥️ Backlog — écran « RÉSULTAT GÉNÉRÉ » (écran central, ~90 % de l'usage prof)
+
+> Réservoir VIVANT propre à cet écran : chaque bug ou idée repéré ici s'ajoute au fil de l'eau, on se met d'accord puis on traite en session(s) dédiée(s). (Emplacement provisoire dans ce tracker — déplaçable plus tard si on préfère.)
+
+- [ ] **Éditer les RÉPONSES du résultat généré** : rétablir/créer la possibilité de corriger une réponse à la main (le crayon est sur les réponses, jamais sur le texte source). À cadrer : interaction avec « Régénérer » et « Mes activités ». Vérifier d'abord (historique git) si ça existait avant = régression, ou si c'est à créer.
+- [ ] **Texte source éditable après génération — logique validée (21/06)** : le texte source RESTE modifiable même après génération. Le résultat n'est qu'une PHOTO, mise à jour UNIQUEMENT au clic « Régénérer » (pas de mise à jour silencieuse, le prof décide). La désynchro source↔résultat se traite par un SIGNAL discret (« le résultat ne correspond plus au texte source — Régénérez » et/ou exports neutralisés tant que désynchro), JAMAIS par un verrou du source.
 
 ---
 
