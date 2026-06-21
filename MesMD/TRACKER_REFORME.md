@@ -50,12 +50,15 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 
 ## Phase 3 — QUALITÉ DU DIFFÉRENCIATEUR (RAG CIEL fiable)
 > Ordre acté : **2 overlap → 3 déduplication → 1 seuil de score → 4 alignement métadonnées**.
-> ⚠️ Ré-ingestion réelle de la collection CIEL **différée à la fin du chunking** : overlap ET dédup touchent le découpage → on ne ré-ingère qu'**une seule fois**, les deux ensemble. La base reste à overlap=0 d'ici là (volontaire et assumé).
+> ⚠️ Ré-ingestion réelle de la collection CIEL **différée à la fin du chunking** : overlap ET dédup touchent le découpage → on ne ré-ingère qu'**une seule fois**, les deux ensemble. La base reste à overlap=0 / sans dédup d'ici là (volontaire et assumé). Prochaine étape : **point (1) seuil de score**, PUIS ré-ingestion overlap+dédup ensemble.
 - [x] **(2) Chevauchement (overlap) au chunking** — validé (21/06), code commité, ré-ingestion différée
   - mécanisme générique dans `chunker.py` (`overlap_chars`, défaut 0 = rétro-compatible) ; valeur `OVERLAP_CHARS=150` (~17 % de MAX_CHARS) dans la fiche CIEL ; passée par `ingest_referentiel.py`. Le moteur ne sait pas que c'est CIEL.
   - overlap sur la coupe de TAILLE uniquement (pas frontière, pas inter-pages) → tag A/B intact. Cas limite : ligne unique > overlap ⇒ coupe nette.
   - preuve : dry-run overlap=0 strictement identique (222 chunks, A:177/B:45) · mesure 0→222 / 100→234 / 150→238 / 200→244, **pages B identiques pour toutes** (partition A/B invariante) · `test_chunker.py` 6 verts · 13 tests verts au total.
-- [ ] (3) Déduplication au chunking
+- [x] **(3) Déduplication au chunking** — validé (21/06), code commité, ré-ingestion différée
+  - mécanisme générique dans `chunker.py` (passe post-découpage, param `dedup_key`, défaut `None` = rétro-compatible) ; `dedup_key=(text, option)` dans la fiche CIEL (ignore la page, respecte l'option → protège A/B) ; passée par `ingest_referentiel.py`.
+  - détection EXACTE (texte complet), garde la **1re occurrence** (page la plus basse) ; dédup au **chunk entier** uniquement → ne touche jamais au recouvrement de l'overlap.
+  - preuve : dédup OFF identique (222/238) · ON overlap=0 → **222→220**, overlap=150 → **238→236** (2 boilerplate p.81-82 option A retirés) · **partition A/B invariante** (B-pages identiques) · overlap non amputé (−3 paires = effet mécanique du retrait de 2 chunks, prouvé par `test_dedup_ne_mange_pas_loverlap`) · **18 tests verts**.
 - [ ] (1) Seuil de score minimal (calibré sur données CIEL — mesurer, pas inventer)
   - constat (21/06, mesuré sur la vraie base) : scores faibles — requête courte « Réseaux » → 0.31–0.42 ; requête longue de domaine → ~0.62 max. À calibrer ICI, pas avant (hors périmètre Tâche 3).
 - [ ] (4) Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)

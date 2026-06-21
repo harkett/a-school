@@ -6,7 +6,11 @@ quel champ de métadonnée existe. La fiche du référentiel lui fournit tout :
   - overlap_chars : recouvrement repris d'un chunk au suivant sur une coupe de
     TAILLE (0 = aucun recouvrement = comportement historique) ;
   - is_boundary(line) -> marqueur opaque | None : signale une frontière de chunk ;
-  - chunk_metadata(marker, page) -> dict : métadonnées à attacher au chunk.
+  - chunk_metadata(marker, page) -> dict : métadonnées à attacher au chunk ;
+  - dedup_key(text, meta) -> clé hashable | None : 2 chunks de MÊME clé sont des
+    doublons (on garde le 1er). None (défaut) = aucune déduplication = historique.
+    La dédup porte sur le CHUNK ENTIER ; un segment d'overlap n'étant jamais un
+    chunk entier, le recouvrement volontaire n'est jamais supprimé.
 
 Le découpeur trimballe le « marqueur courant » tel que la fiche le lui a donné et
 ne l'interprète JAMAIS (il teste seulement « non-None ⇒ frontière »). Toute la
@@ -43,6 +47,7 @@ def build_chunks(
     overlap_chars: int = 0,
     is_boundary: Callable[[str], Optional[Any]],
     chunk_metadata: Callable[[Optional[Any], int], dict],
+    dedup_key: Optional[Callable[[str, dict], Any]] = None,
 ) -> list[dict]:
     """Découpe en chunks (≤ max_chars), une seule page par chunk, métadonnées posées
     par la fiche. Le marqueur de frontière traverse les pages et bascule aux en-têtes
@@ -92,4 +97,18 @@ def build_chunks(
             if buf_len >= max_chars:
                 emit(carry_overlap=True)   # coupe de taille : on reprend la fin dans le suivant
         emit(carry_overlap=False)          # fin de page : pas de recouvrement inter-pages
+
+    # Déduplication post-découpage : on garde la PREMIÈRE occurrence de chaque clé
+    # (ordre document). Clé fournie par la fiche, opaque pour le découpeur. Au chunk
+    # entier uniquement → ne touche jamais au recouvrement de l'overlap.
+    if dedup_key is not None:
+        seen: set = set()
+        deduped: list[dict] = []
+        for c in chunks:
+            k = dedup_key(c["text"], c["meta"])
+            if k in seen:
+                continue
+            seen.add(k)
+            deduped.append(c)
+        chunks = deduped
     return chunks

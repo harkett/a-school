@@ -101,6 +101,7 @@ def main() -> None:
         overlap_chars=fiche.OVERLAP_CHARS,
         is_boundary=fiche.section_boundary,
         chunk_metadata=fiche.chunk_metadata,
+        dedup_key=fiche.dedup_key,
     )
     _report(pages, chunks)
 

@@ -65,3 +65,11 @@ def chunk_metadata(marker: Optional[str], page: int) -> dict[str, Any]:
         "option": option,
         "page": page,
     }
+
+
+def dedup_key(text: str, meta: dict) -> tuple:
+    """Clé de déduplication CIEL : (texte complet, option). Deux chunks de même clé
+    sont des doublons (on garde le 1er). On IGNORE la page → un boilerplate répété sur
+    deux pages (ex. notes de grille horaire p.81-82) est vu comme doublon. On INCLUT
+    l'option → un texte identique présent en A et en B n'est JAMAIS fusionné (protège A/B)."""
+    return (text, meta["option"])

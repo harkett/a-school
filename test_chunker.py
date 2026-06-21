@@ -116,3 +116,71 @@ def test_marqueur_constant_sur_coupe_de_taille():
     chunks = _chunks(overlap=120, pages=[(1, text)])
     markers = {c["meta"]["marker"] for c in chunks}
     assert markers == {"## SECTION 1"}  # jamais de bascule de marqueur sur une coupe de taille
+
+
+# --- Déduplication (point 3) ---------------------------------------------------
+
+# clé (text, option) comme la fiche CIEL, et helper de construction paramétrable.
+def _build(pages, *, overlap=0, dedup=None, chunk_metadata=None, max_chars=900, min_chars=10):
+    return build_chunks(
+        pages,
+        max_chars=max_chars,
+        min_chars=min_chars,
+        overlap_chars=overlap,
+        is_boundary=_is_boundary,
+        chunk_metadata=chunk_metadata or _meta,
+        dedup_key=dedup,
+    )
+
+_KEY_TEXT = lambda text, meta: text                       # clé texte seul
+_KEY_TEXT_OPT = lambda text, meta: (text, meta["option"])  # clé CIEL : (text, option)
+
+_BODY = "Contenu identique repete tel quel sur deux pages distinctes du referentiel."
+
+
+def test_dedup_off_retrocompatible():
+    # Même corpus, dédup absente (None) → AUCUNE suppression : les 2 chunks restent.
+    chunks = _build([(1, _BODY), (2, _BODY)], dedup=None)
+    assert len(chunks) == 2
+    assert all(c["text"] == _BODY for c in chunks)
+
+
+def test_dedup_supprime_doublon_chunk_entier():
+    # Même texte sur p.1 et p.2 → un seul chunk après dédup (clé texte seul).
+    chunks = _build([(1, _BODY), (2, _BODY)], dedup=_KEY_TEXT)
+    assert len(chunks) == 1
+
+
+def test_dedup_garde_premiere_occurrence():
+    # On garde la page la plus basse (1), pas la 2.
+    chunks = _build([(1, _BODY), (2, _BODY)], dedup=_KEY_TEXT)
+    assert len(chunks) == 1
+    assert chunks[0]["page"] == 1
+
+
+def test_dedup_ne_fusionne_pas_A_et_B():
+    # Texte IDENTIQUE mais option différente (A en p.1, B en p.2) → clé (text, option)
+    # diffère → les DEUX sont conservés (protège la partition A/B).
+    chunks = build_chunks(
+        [(1, _BODY), (2, _BODY)],
+        max_chars=900, min_chars=10, overlap_chars=0,
+        is_boundary=_is_boundary,
+        chunk_metadata=lambda marker, page: {"page": page, "option": "A" if page == 1 else "B"},
+        dedup_key=_KEY_TEXT_OPT,
+    )
+    assert len(chunks) == 2
+    assert {c["meta"]["option"] for c in chunks} == {"A", "B"}
+
+
+def test_dedup_ne_mange_pas_loverlap():
+    # Lignes distinctes + overlap : les chunks partagent un segment mais diffèrent en
+    # ENTIER → la dédup (clé texte) n'en supprime aucun. Le recouvrement survit.
+    pages = [(1, _PAGE_TEXT)]
+    sans = _build(pages, overlap=120, dedup=None, max_chars=300)
+    avec = _build(pages, overlap=120, dedup=_KEY_TEXT, max_chars=300)
+    assert len(avec) == len(sans)  # aucune suppression
+    # et un segment partagé existe toujours entre voisins
+    assert any(
+        _shared_tail_head(avec[i]["text"], avec[i + 1]["text"])
+        for i in range(len(avec) - 1)
+    )
