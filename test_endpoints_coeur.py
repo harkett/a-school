@@ -7,7 +7,7 @@ Couverture (choix (b) : happy path + cas d'erreur connus) :
   - happy path : 200 + sortie cohérente (Groq MOCKÉ — aucun appel réseau)
   - auth      : 401 sans cookie / token invalide
   - validation: 400 (entrée vide / invalide) et 422 (champ requis manquant)
-  - résilience Groq : fallback 429/413/503 (testé au niveau de call_groq) + propagation 502
+  - résilience : panne LLM amont -> 502 (/api/generate) / 500 (outils via generate())
 
 Garde-fous : BDD SQLite EN MÉMOIRE (la vraie data/aschool.db n'est jamais ouverte),
 user de test fictif, JWT signé via create_access_token (secret jamais exposé).
@@ -38,8 +38,6 @@ models_db.Base.metadata.create_all(bind=_mem)
 
 from backend.main import app
 from backend.auth import create_access_token
-from backend.groq_client import call_groq
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 assert "memory" in str(dbmod.engine.url), "SECURITE: engine non redirige vers la memoire"
@@ -64,22 +62,6 @@ AMB_JSON = '{"ambiguites": [{"extrait": "analysez", "type": "Consigne vague", "r
 CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée", "extrait": "expliquez", "probleme": "vague", "conseil": "précisez"}], "verdict": "À clarifier.", "version_optimisee": "Consigne réécrite."}'
 
 
-class FakeResp:
-    def __init__(self, status, payload=None, text=""):
-        self.status_code = status
-        self.ok = 200 <= status < 300
-        self._payload = payload or {}
-        self.text = text
-
-    def json(self):
-        return self._payload
-
-
-def _groq_content(content):
-    """Réponse HTTP Groq OK avec le contenu donné (format chat completions)."""
-    return FakeResp(200, {"choices": [{"message": {"content": content}}]})
-
-
 # ===================== HAPPY PATH (200 + sortie cohérente) =====================
 
 def test_generate_happy():
@@ -92,8 +74,7 @@ def test_generate_happy():
 
 
 def test_generate_sequence_happy():
-    with patch("backend.routers.sequence.call_groq", return_value=SEQ_MD), \
-         patch("backend.routers.sequence.AI_PROVIDER", "groq"):
+    with patch("backend.routers.sequence.generate", return_value=SEQ_MD):
         r = authed().post("/api/generate-sequence", json={
             "theme": "Photosynthèse", "matiere": "SVT", "niveau": "3e",
             "duree": 55, "mode": "standard", "description_classe": ""})
@@ -102,8 +83,7 @@ def test_generate_sequence_happy():
 
 
 def test_optimize_happy():
-    with patch("backend.routers.optimiseur.call_groq", return_value=OPT_JSON), \
-         patch("backend.routers.optimiseur.AI_PROVIDER", "groq"):
+    with patch("backend.routers.optimiseur.generate", return_value=OPT_JSON):
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -112,8 +92,7 @@ def test_optimize_happy():
 
 
 def test_ambiguites_happy():
-    with patch("backend.routers.ambiguites.call_groq", return_value=AMB_JSON), \
-         patch("backend.routers.ambiguites.AI_PROVIDER", "groq"):
+    with patch("backend.routers.ambiguites.generate", return_value=AMB_JSON):
         r = authed().post("/api/detect-ambiguites", json={
             "texte": "Analysez le document.", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -122,8 +101,7 @@ def test_ambiguites_happy():
 
 
 def test_consigne_happy():
-    with patch("backend.routers.consigne.call_groq", return_value=CON_JSON), \
-         patch("backend.routers.consigne.AI_PROVIDER", "groq"):
+    with patch("backend.routers.consigne.generate", return_value=CON_JSON):
         r = authed().post("/api/analyser-consigne", json={
             "consigne": "Expliquez la photosynthèse.", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -175,57 +153,22 @@ def test_422_champ_requis_manquant():
     assert r.status_code == 422, r.text
 
 
-# ===================== RÉSILIENCE GROQ (fallback + propagation) =====================
+# ===================== RÉSILIENCE — panne LLM amont =====================
+# Les 4 outils (ambiguites/consigne/optimiseur/sequence) passent par generate().
+# Une panne LLM (generate lève RuntimeError) -> 500 côté outil (Tâche 2 : unification
+# sur 500 ; chaîne de repli abandonnée, plus de 502 « externe » Groq).
 
-def test_call_groq_fallback_429_puis_succes():
-    """429 sur le 1er modèle -> bascule sur le suivant -> succès."""
-    seq = [FakeResp(429, text="rate limit"), _groq_content("OK_FALLBACK")]
-    with patch("backend.groq_client.requests.post", side_effect=seq):
-        out = call_groq({"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "x"}]})
-    assert out == "OK_FALLBACK"
-
-
-def test_call_groq_413_et_503_declenchent_fallback():
-    """413 et 503 sont des statuts de fallback (pas seulement 429)."""
-    for status in (413, 503):
-        seq = [FakeResp(status, text="big/down"), _groq_content("OK")]
-        with patch("backend.groq_client.requests.post", side_effect=seq):
-            out = call_groq({"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "x"}]})
-        assert out == "OK", f"status {status} aurait dû déclencher le fallback"
-
-
-def test_call_groq_erreur_non_fallback_leve_502():
-    """Un statut hors fallback (400) -> HTTPException 502, pas de boucle infinie."""
-    with patch("backend.groq_client.requests.post", return_value=FakeResp(400, text="bad request")):
-        try:
-            call_groq({"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "x"}]})
-            assert False, "aurait dû lever HTTPException"
-        except HTTPException as e:
-            assert e.status_code == 502
-
-
-def test_call_groq_tous_modeles_satures_leve_429():
-    """Tous les modèles renvoient 429 -> HTTPException 429 (épuisement propre)."""
-    with patch("backend.groq_client.requests.post", return_value=FakeResp(429, text="rate limit")):
-        try:
-            call_groq({"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": "x"}]})
-            assert False, "aurait dû lever HTTPException"
-        except HTTPException as e:
-            assert e.status_code == 429
-
-
-def test_endpoint_propage_groq_down_502():
-    """Si Groq est down (call_groq lève 502), l'endpoint propage le 502."""
-    with patch("backend.routers.optimiseur.call_groq", side_effect=HTTPException(502, "Groq down")), \
-         patch("backend.routers.optimiseur.AI_PROVIDER", "groq"):
+def test_endpoint_outil_llm_down_500():
+    """Si le LLM est down (generate lève RuntimeError), l'optimiseur renvoie 500."""
+    with patch("backend.routers.optimiseur.generate", side_effect=RuntimeError("LLM down")):
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
-    assert r.status_code == 502, r.text
+    assert r.status_code == 500, r.text
 
 
 # ===================== P3.4 — /api/generate : durcissement des erreurs =====================
-# /api/generate ne passe PAS par call_groq (générateur src.generator). Son except fourre-tout
-# renvoyait 500 pour tout. P3.4 distingue : clé inconnue -> 400, Groq down -> 502.
+# /api/generate passe par generate() (src.generator). Son except distingue :
+# clé inconnue -> 400, LLM down -> 502 (RuntimeError / RequestException).
 
 def test_generate_activite_inconnue_400():
     """Clé d'activité absente du catalogue -> 400 (faute client), pas 500.

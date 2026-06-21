@@ -6,8 +6,7 @@ from typing import Optional
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, SequenceSauvegardee, User
-from src.config import AI_MODEL, AI_PROVIDER
-from backend.groq_client import call_groq
+from src.generator import generate
 
 router = APIRouter()
 
@@ -119,14 +118,6 @@ def _get_email(aschool_access: str | None) -> str:
     return email
 
 
-def _call_groq(prompt: str) -> str:
-    return call_groq({
-        "model": AI_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4000,
-    })
-
-
 @router.post("/generate-sequence", response_model=SequenceResponse)
 def api_generate_sequence(
     req: SequenceRequest,
@@ -161,11 +152,7 @@ def api_generate_sequence(
                 theme=req.theme.strip(),
             )
 
-        if AI_PROVIDER == "groq":
-            resultat = _call_groq(prompt)
-        else:
-            from src.generator import generate
-            resultat = generate(prompt)
+        resultat = generate(prompt, max_tokens=4000)
     except HTTPException:
         raise
     except Exception as e:

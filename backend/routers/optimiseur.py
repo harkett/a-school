@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, User
-from src.config import AI_MODEL, AI_PROVIDER
-from backend.groq_client import call_groq
+from src.generator import generate
 
 router = APIRouter()
 
@@ -78,16 +77,6 @@ def _get_email(aschool_access: str | None) -> str:
     return email
 
 
-def _call_groq(prompt: str) -> str:
-    return call_groq({
-        "model": AI_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 6000,
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
-    })
-
-
 def _parse_json(raw: str) -> dict:
     try:
         return json.loads(raw)
@@ -125,11 +114,7 @@ def api_optimize(
     )
 
     try:
-        if AI_PROVIDER == "groq":
-            raw = _call_groq(prompt)
-        else:
-            from src.generator import generate
-            raw = generate(prompt)
+        raw = generate(prompt, max_tokens=6000, temperature=0, json_mode=True)
         data = _parse_json(raw)
     except ValueError:
         raise HTTPException(500, "Le modèle n'a pas retourné un résultat exploitable. Réessayez.")

@@ -1,18 +1,37 @@
 from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL
 
 
-def generate(prompt: str) -> str:
+def generate(
+    prompt: str,
+    *,
+    max_tokens: int = 2048,
+    temperature: float | None = None,
+    json_mode: bool = False,
+) -> str:
+    """Point d'entrée UNIQUE pour tout appel LLM texte.
+
+    Les paramètres sont des INTENTIONS métier neutres (« combien de tokens »,
+    « du JSON », « déterministe »), jamais des formats fournisseur. Chaque
+    adaptateur les traduit dans la langue de son fournisseur — ou les ignore
+    quand le fournisseur ne les accepte pas (ex. temperature chez Anthropic).
+    """
     if AI_PROVIDER == "gemini":
-        return _gemini(prompt)
+        return _gemini(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     elif AI_PROVIDER == "groq":
-        return _groq(prompt)
+        return _groq(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     elif AI_PROVIDER == "anthropic":
-        return _anthropic(prompt)
+        return _anthropic(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     else:
         raise ValueError(f"Fournisseur inconnu : {AI_PROVIDER}")
 
 
-def _groq(prompt: str) -> str:
+def _groq(
+    prompt: str,
+    *,
+    max_tokens: int = 2048,
+    temperature: float | None = None,
+    json_mode: bool = False,
+) -> str:
     import requests
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -22,20 +41,38 @@ def _groq(prompt: str) -> str:
     body = {
         "model": AI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2048,
+        "max_tokens": max_tokens,
     }
+    if temperature is not None:
+        body["temperature"] = temperature
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
     response = requests.post(url, headers=headers, json=body, timeout=60)
     if not response.ok:
         raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
     return response.json()["choices"][0]["message"]["content"]
 
 
-def _gemini(prompt: str) -> str:
+def _gemini(
+    prompt: str,
+    *,
+    max_tokens: int = 2048,
+    temperature: float | None = None,
+    json_mode: bool = False,
+) -> str:
     import requests
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{AI_MODEL}:generateContent"
     headers = {"Content-Type": "application/json"}
     params = {"key": AI_API_KEY}
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
+    generation_config: dict = {"maxOutputTokens": max_tokens}
+    if temperature is not None:
+        generation_config["temperature"] = temperature
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": generation_config,
+    }
     response = requests.post(url, headers=headers, params=params, json=body, timeout=60)
     if not response.ok:
         raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
@@ -86,12 +123,26 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     return response.json()["choices"][0]["message"]["content"]
 
 
-def _anthropic(prompt: str) -> str:
+def _anthropic(
+    prompt: str,
+    *,
+    max_tokens: int = 2048,
+    temperature: float | None = None,
+    json_mode: bool = False,
+) -> str:
     import anthropic
+    # temperature : volontairement IGNORÉE — les modèles Claude Opus 4.x la
+    # rejettent (400). Le déterminisme se pilote par le prompt, pas par ce param.
+    # json_mode : Claude n'a pas de response_format. Sans schéma JSON (le métier
+    # parse en tolérant), on force le JSON par instruction système — jamais en
+    # recopiant le dict response_format de Groq.
+    kwargs = {
+        "model": AI_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if json_mode:
+        kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
     client = anthropic.Anthropic(api_key=AI_API_KEY)
-    message = client.messages.create(
-        model=AI_MODEL,
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    message = client.messages.create(**kwargs)
     return message.content[0].text
