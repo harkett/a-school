@@ -4,13 +4,13 @@ Usage :
     from backend.rag import retrieve
 
     chunks = retrieve(
-        collection_name="maths_cycle4",
-        question="Que doit-on enseigner sur les identites remarquables en 3e ?",
-        filters={"programme": "2020"},
+        collection_name="bts_ciel_optionA",
+        question="Installer et securiser un reseau informatique",
+        filters={"option": "A"},
         top_k=4,
     )
     for c in chunks:
-        print(c["text"], c["page"], c["programme"], c["score"])
+        print(c["text"], c["page"], c["source"], c["score"], c["meta"])
 """
 import logging
 from typing import Any
@@ -34,12 +34,11 @@ def retrieve(
         question: question prof a embedder et chercher.
         filters: filtres sur les metadonnees. Format ChromaDB `where`.
                  None ou {} = pas de filtre.
-                 Single-field : {"programme": "2020"} fonctionne directement.
+                 Single-field : {"option": "A"} fonctionne directement.
                  Multi-field  : ChromaDB rejette le dict implicite (un seul operateur par where).
                                 Utiliser la syntaxe $and explicite, exemple :
-                                {"$and": [{"programme": {"$eq": "2026"}},
-                                          {"niveau":    {"$eq": "5e"}}]}
-                                Pertinent quand le corpus 2026 (indexe par niveau) sera en place.
+                                {"$and": [{"niveau": {"$eq": "BTS CIEL option A"}},
+                                          {"option": {"$eq": "A"}}]}
         top_k: nombre de chunks renvoyes (defaut 4).
 
     Returns:
@@ -47,9 +46,11 @@ def retrieve(
             {
                 "text": str,         # contenu du chunk
                 "page": int|str,     # numero de page dans le document source
-                "source": str,       # identifiant document (ex: "BOEN_2020-07-30")
-                "programme": str,    # millesime programme (ex: "2020", "2026")
+                "source": str,       # identifiant document (ex: "REF-BTS-CIEL-2023")
                 "score": float,      # 1 - distance cosinus, [0, 1], plus haut = plus pertinent
+                "meta": dict,        # metadonnee BRUTE du chunk — le moteur ne nomme aucun
+                                     # champ de referentiel ; chaque fiche y met les siens
+                                     # (option, niveau, label, cycle…). A lire par le consommateur.
             }
     """
     q = (question or "").strip()
@@ -78,8 +79,8 @@ def retrieve(
             "text": doc,
             "page": meta.get("page", "?"),
             "source": meta.get("source", "?"),
-            "programme": meta.get("programme", "?"),
             "score": round(1 - d, 3) if d is not None else None,
+            "meta": dict(meta),  # metadonnee brute — aucun champ de referentiel nomme par le moteur
         }
         for doc, meta, d in zip(docs, metas, distances)
     ]

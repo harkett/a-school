@@ -1,20 +1,15 @@
-"""Ingestion d'un référentiel officiel dans ChromaDB — brique (1) du Chantier B.
+"""Ingestion d'un référentiel officiel dans ChromaDB — orchestrateur.
 
-Slice 1 — BTS CIEL option A (1er cas de la procédure « référentiel → RAG ») :
-re-extraction PROPRE du PDF (pdfplumber, UTF-8 — l'ancienne extraction-texte.txt
-était en encodage cassé) → découpe → embeddings avec le MÊME modèle que le corpus
-existant → collection dédiée `bts_ciel_optionA`, chaque chunk tagué {niveau, option}
-DÈS l'ingestion.
+Moteur générique (chunker) + fiche du référentiel : ce module ORCHESTRE, il ne porte
+plus aucune constante propre à un référentiel. La fiche (ici
+backend/rag/referentiels/bts_ciel_option_a.py) fournit le PDF, les tailles de chunk,
+le détecteur de frontière et le constructeur de métadonnées. Le découpeur (chunker.py)
+ne connaît aucun référentiel. Ajouter un référentiel = écrire une autre fiche, zéro
+ligne touchée au moteur.
 
-Non négociable : le `niveau` est posé à l'ingestion. Le corpus `maths_cycle4` ne
-l'a pas (« cycle 4 en bloc », filtre niveau désactivé dans generate.py) — c'est
-exactement le défaut qu'on ne reproduit PAS ici.
-
-Découpage option A / B : seules 3 sections du référentiel sont spécifiques à
-l'option B (II.2.3, III.1.3, III.2.2). Tout le reste (présentation, activités/
-compétences option A, et surtout les enseignements généraux III.3 — Maths,
-Anglais, Français…) s'applique à l'option A → tagué 'A'. Le détecteur se cale sur
-le NUMÉRO de section (ASCII, robuste à l'encodage), en ignorant le sommaire.
+re-extraction PROPRE du PDF (pdfplumber, UTF-8) → découpe générique → embeddings avec le
+MÊME modèle que le corpus existant → collection dédiée de la fiche, chaque chunk tagué
+{niveau, option} DÈS l'ingestion.
 
 Idempotent : la collection cible est supprimée puis reconstruite à chaque run.
 Ne touche JAMAIS les autres collections (`maths_cycle4` reste intacte).
@@ -26,7 +21,6 @@ Lancer (venv, depuis la racine) :
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -35,26 +29,8 @@ import pdfplumber
 
 from .client import get_client
 from .embeddings import get_embedding_function
-
-# --- Cible : BTS CIEL option A ---
-_ROOT = Path(__file__).resolve().parents[2]
-PDF_PATH = _ROOT / "REFERENTIELS" / "BTS-CIEL-option-A" / "15324-ref-bts-ciel-vpub-v01.pdf"
-EXTRACTION_TXT = PDF_PATH.parent / "extraction-texte.txt"
-
-COLLECTION = "bts_ciel_optionA"
-NIVEAU = "BTS CIEL option A"          # non négociable — posé sur CHAQUE chunk
-CYCLE = "Supérieur"
-SOURCE = "REF-BTS-CIEL-2023"
-LABEL = "Référentiel BTS CIEL — éduscol STI, rénovation 2023"
-
-MAX_CHARS = 900   # taille cible d'un chunk
-MIN_CHARS = 60    # en dessous, on ne crée pas un chunk isolé (bruit : n° de page, titres orphelins)
-
-# Sections SPÉCIFIQUES à l'option B → tag 'B'. Tout autre en-tête reconnu → retour 'A'.
-OPTION_B_SECTIONS = {"II.2.3", "III.1.3", "III.2.2"}
-# En-tête de section = « ANNEXE <romain> » OU un numéro « <romain>.<n>[.<n>[.<n>]] ».
-SECTION_RE = re.compile(r"^(ANNEXE\s+[IVX]+|[IVX]+\.\d+(?:\.\d+){0,2})\b")
-TOC_RE = re.compile(r"\.{4,}")  # lignes du sommaire (pointillés de table des matières)
+from .chunker import build_chunks
+from .referentiels import bts_ciel_option_a as fiche
 
 
 def extract_pages(pdf_path: Path) -> list[tuple[int, str]]:
@@ -66,52 +42,14 @@ def extract_pages(pdf_path: Path) -> list[tuple[int, str]]:
     return pages
 
 
-def _section_number(line: str) -> str | None:
-    """Numéro de section si `line` est un en-tête (hors sommaire), sinon None."""
-    s = line.strip()
-    if not s or TOC_RE.search(s):
-        return None
-    m = SECTION_RE.match(s)
-    return m.group(0) if m else None
-
-
-def build_chunks(pages: list[tuple[int, str]]) -> list[dict]:
-    """Découpe en chunks (≤ MAX_CHARS), un seul n° de page par chunk, tagué de
-    l'option courante. L'état option traverse les pages et bascule aux en-têtes."""
-    chunks: list[dict] = []
-    option = "A"  # défaut : commun / option A
-    for page_no, text in pages:
-        buf: list[str] = []
-        buf_len = 0
-
-        def flush() -> None:
-            nonlocal buf, buf_len
-            content = "\n".join(buf).strip()
-            if len(content) >= MIN_CHARS:
-                chunks.append({"text": content, "page": page_no, "option": option})
-            buf, buf_len = [], 0
-
-        for line in text.splitlines():
-            num = _section_number(line)
-            if num is not None:
-                flush()  # un nouvel en-tête ferme le chunk courant…
-                option = "B" if num in OPTION_B_SECTIONS else "A"  # …et (re)fixe l'option
-            buf.append(line)
-            buf_len += len(line) + 1
-            if buf_len >= MAX_CHARS:
-                flush()
-        flush()
-    return chunks
-
-
 def ingest(chunks: list[dict]) -> int:
     """(Re)construit la collection cible. Ne touche pas aux autres collections."""
     client = get_client()
     ef = get_embedding_function()
-    if COLLECTION in {c.name for c in client.list_collections()}:
-        client.delete_collection(COLLECTION)  # idempotent — rebuild propre
+    if fiche.COLLECTION in {c.name for c in client.list_collections()}:
+        client.delete_collection(fiche.COLLECTION)  # idempotent — rebuild propre
     col = client.create_collection(
-        name=COLLECTION,
+        name=fiche.COLLECTION,
         embedding_function=ef,
         metadata={"hnsw:space": "cosine"},  # cohérent avec retrieve() (score = 1 - distance)
     )
@@ -119,14 +57,7 @@ def ingest(chunks: list[dict]) -> int:
     for idx, ch in enumerate(chunks):
         ids.append(f"ciel-A-{idx:04d}")
         docs.append(ch["text"])
-        metas.append({
-            "source": SOURCE,
-            "label": LABEL,
-            "cycle": CYCLE,
-            "niveau": NIVEAU,        # <-- non négociable, sur CHAQUE chunk
-            "option": ch["option"],
-            "page": ch["page"],
-        })
+        metas.append(ch["meta"])  # métadonnées entièrement posées par la fiche
     BATCH = 64
     for i in range(0, len(ids), BATCH):
         col.add(ids=ids[i:i + BATCH], documents=docs[i:i + BATCH], metadatas=metas[i:i + BATCH])
@@ -140,15 +71,15 @@ def refresh_extraction_txt(pages: list[tuple[int, str]], out_path: Path) -> None
 
 
 def _report(pages: list[tuple[int, str]], chunks: list[dict]) -> None:
-    by_opt = Counter(c["option"] for c in chunks)
-    b_pages = sorted({c["page"] for c in chunks if c["option"] == "B"})
-    print(f"PDF        : {PDF_PATH.name}")
+    by_opt = Counter(c["meta"]["option"] for c in chunks)
+    b_pages = sorted({c["page"] for c in chunks if c["meta"]["option"] == "B"})
+    print(f"PDF        : {fiche.PDF_PATH.name}")
     print(f"Pages      : {len(pages)}")
     print(f"Chunks     : {len(chunks)}  (par option : {dict(by_opt)})")
-    print(f"Pages 'B'  : {b_pages}  (sections option B : {sorted(OPTION_B_SECTIONS)})")
+    print(f"Pages 'B'  : {b_pages}  (sections option B : {sorted(fiche.OPTION_B_SECTIONS)})")
     # 1er chunk de chaque bloc B + 1er chunk général (pour vérifier le découpage à l'œil)
     for opt in ("A", "B"):
-        sample = next((c for c in chunks if c["option"] == opt), None)
+        sample = next((c for c in chunks if c["meta"]["option"] == opt), None)
         if sample:
             head = sample["text"].replace("\n", " ")[:90]
             print(f"  [{opt}] p.{sample['page']} : {head}…")
@@ -159,11 +90,17 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="rapport de découpage sans écrire dans ChromaDB")
     args = ap.parse_args()
 
-    if not PDF_PATH.exists():
-        sys.exit(f"PDF introuvable : {PDF_PATH}")
+    if not fiche.PDF_PATH.exists():
+        sys.exit(f"PDF introuvable : {fiche.PDF_PATH}")
 
-    pages = extract_pages(PDF_PATH)
-    chunks = build_chunks(pages)
+    pages = extract_pages(fiche.PDF_PATH)
+    chunks = build_chunks(
+        pages,
+        max_chars=fiche.MAX_CHARS,
+        min_chars=fiche.MIN_CHARS,
+        is_boundary=fiche.section_boundary,
+        chunk_metadata=fiche.chunk_metadata,
+    )
     _report(pages, chunks)
 
     if args.dry_run:
@@ -171,9 +108,9 @@ def main() -> None:
         return
 
     n = ingest(chunks)
-    refresh_extraction_txt(pages, EXTRACTION_TXT)
-    print(f"Collection '{COLLECTION}' : {n} chunks écrits (niveau='{NIVEAU}').")
-    print(f"Extraction propre réécrite : {EXTRACTION_TXT.name}")
+    refresh_extraction_txt(pages, fiche.EXTRACTION_TXT)
+    print(f"Collection '{fiche.COLLECTION}' : {n} chunks écrits (niveau='{fiche.NIVEAU}').")
+    print(f"Extraction propre réécrite : {fiche.EXTRACTION_TXT.name}")
 
 
 if __name__ == "__main__":

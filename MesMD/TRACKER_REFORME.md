@@ -1,12 +1,12 @@
 # 🛠️ Tracker — Réforme A-School (moteur LLM + RAG)
 
 > Suivi partagé Harketti / Claude Code.
-Ce Mini-Tacker complet. Il reflète l'état réel d'aujourd'hui : audit terminé (tout coché), tâche 1 faite et commitée, tâche 2 en cours [~], le reste à venir.
+Ce Mini-Tacker complet. Il reflète l'état réel d'aujourd'hui : "le suivre et le mettre à jour". Ne touche à rien d'autre.
 Il couvre les 6 phases + les rappels transverses (la note Claude/température, la rectif doc SQLite, et Groq gardé pour Whisper/OCR uniquement) — pour qu'on n'oublie rien.
 
 
 
-> Règle :le suivre et kle mettre a jour une tâche à la fois, Plan Mode → GO → code → preuve → validation.
+> Règle :le suivre et le mettre a jour une tâche à la fois, Plan Mode → GO → code → preuve → validation.
 > `[x]` = fait et validé · `[~]` = en cours · `[ ]` = à faire
 
 ---
@@ -39,16 +39,18 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 ---
 
 ## Phase 2 — REFONTE RAG (moteur neutre + fiche CIEL)
-- [ ] **Tâche 3** — Séparer l'algorithme générique de la logique CIEL
-  - [ ] sortir les constantes CIEL (MAX_CHARS, MIN_CHARS, OPTION_B_SECTIONS, regex…) vers une fiche de réglages
-  - [ ] séparer découpe générique / sectionnement + tag option A/B (ingest_referentiel.py:94-102)
-  - [ ] neutraliser la forme de retour de retrieve() (retirer la clé « programme » en dur)
-  - [ ] critère : ajouter un référentiel = écrire une fiche, zéro ligne touchée au moteur
+- [x] **Tâche 3** — Séparer l'algorithme générique de la logique CIEL — validée + preuve bout en bout (21/06)
+  - [x] sortir les constantes CIEL (MAX_CHARS, MIN_CHARS, OPTION_B_SECTIONS, regex…) vers une fiche de réglages (`backend/rag/referentiels/bts_ciel_option_a.py`)
+  - [x] séparer découpe générique / sectionnement + tag option A/B (`backend/rag/chunker.py` ← ex-ingest_referentiel.py:94-102 ; décision A/B émigrée dans la fiche)
+  - [x] neutraliser la forme de retour de retrieve() (clé « programme » retirée, champ `meta` brut ajouté)
+  - [x] critère tenu : ajouter un référentiel = écrire une fiche, zéro ligne touchée au moteur
+  - preuve : dry-run avant/après identique (222 chunks A:177/B:45) · ingestion réelle 222 chunks niveau posé · extraction UTF-8 propre (0 caractère cassé) · retrieve() sans « programme » · /exemple-referentiel available=True · 7 tests verts
 
 ---
 
 ## Phase 3 — QUALITÉ DU DIFFÉRENCIATEUR (RAG CIEL fiable)
 - [ ] Seuil de score minimal (calibré sur données CIEL — mesurer, pas inventer)
+  - constat (21/06, mesuré sur la vraie base) : scores faibles — requête courte « Réseaux » → 0.31–0.42 ; requête longue de domaine → ~0.62 max. À calibrer ICI, pas avant (hors périmètre Tâche 3).
 - [ ] Chevauchement (overlap) au chunking
 - [ ] Déduplication au chunking
 - [ ] Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)
@@ -78,6 +80,7 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 - [ ] P4.8 — alignement styling des cartes
 - [ ] P4.9 — toast sur réinitialisation paramètres
 - [ ] Bug Accueil : dernière SÉQUENCE affiche du Markdown brut
+- [ ] cleanup `src/prompts.py:_build_rag_prefix` (l.2720-2748) : préfixe RAG « programme MEN cycle 4 », mort depuis Phase 1 (jamais appelé — `generate.py` ne passe pas `rag_chunks`). À supprimer.
 
 ---
 
