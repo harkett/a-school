@@ -33,6 +33,9 @@ LABEL = "Référentiel BTS CIEL — éduscol STI, rénovation 2023"
 MAX_CHARS = 900     # taille cible d'un chunk
 MIN_CHARS = 60      # en dessous, on ne crée pas un chunk isolé (bruit : n° de page, titres orphelins)
 OVERLAP_CHARS = 150  # recouvrement repris sur une coupe de TAILLE (~17 % de MAX_CHARS) — calibré sur dry-run CIEL
+SCORE_MIN = 0.33    # seuil de pertinence (1 - distance cosinus) : sous ce score, un chunk n'ancre JAMAIS
+                    # une génération. Filet anti-hors-sujet (pas un filtre de l'administratif), calibré sur
+                    # la distribution mesurée sur la base définitive (étape B). Ajustable.
 
 # Sections SPÉCIFIQUES à l'option B → tag 'B'. Tout autre en-tête reconnu → 'A'.
 OPTION_B_SECTIONS = {"II.2.3", "III.1.3", "III.2.2"}

@@ -239,8 +239,12 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       if (data.available && data.texte) {
         onChange(data.texte)
         setExempleNote('ancre')
+      } else if (data.message) {
+        // Référentiel présent mais aucun extrait assez pertinent (seuil) : message honnête du backend.
+        // Règle absolue : message = modale bloquante (showError), jamais inline.
+        showError(data.message)
       } else {
-        // Règle absolue : message d'absence = modale bloquante (showError) avec OK, jamais inline.
+        // Pas de référentiel pour ce couple : message générique (collez votre propre texte).
         showError(`Pas d'exemple tout prêt, pour le moment, pour ${(matiere && niveau) ? `${matiere} / ${niveau}` : 'ce couple'}.\n\nCollez votre propre texte de cours ou d'exercice ci-dessous — ou importez un fichier, une image, un PDF, ou dictez.`)
       }
     } catch (err) {

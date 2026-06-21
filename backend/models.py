@@ -26,3 +26,4 @@ class ExempleReferentielRequest(BaseModel):
 class ExempleReferentielResponse(BaseModel):
     available: bool          # False = pas de référentiel pour ce couple → on n'invente RIEN
     texte: Optional[str] = None
+    message: Optional[str] = None  # message honnête au prof quand rien d'assez pertinent (seuil) — affiché en modale

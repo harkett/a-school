@@ -17,11 +17,20 @@ from fastapi import APIRouter, Cookie, HTTPException
 from backend import auth as auth_lib
 from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.rag import retrieve
+from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
 from src.generator import generate
 from src.prompts import build_exemple_referentiel_prompt
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+
+# Wording validé (version C) — message honnête au prof quand aucun extrait n'est assez
+# pertinent. NE PAS reformuler sans validation : ce texte est le contrat avec le prof.
+AUCUN_EXTRAIT_PERTINENT = (
+    "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez "
+    "pertinent pour générer un exemple fidèle. Essayez de reformuler votre "
+    "demande avec des termes plus proches du programme."
+)
 
 
 def _resolve_collection(niveau: str) -> tuple[str, dict] | None:
@@ -62,11 +71,15 @@ def api_exemple_referentiel(
 
     collection, filters = resolved
     chunks = retrieve(collection, req.matiere, filters=filters, top_k=4)
+    # Filtre STRICT de pertinence : un chunk sous le seuil n'ancre JAMAIS une génération
+    # (pas de « meilleur quand même »). Le seuil vit dans la fiche du référentiel.
+    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= ciel_fiche.SCORE_MIN]
     if not chunks:
-        log.info(f"[exemple-ref] retrieve vide ({collection}, matiere='{req.matiere}') → available=false")
-        return ExempleReferentielResponse(available=False)
+        # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).
+        log.info(f"[exemple-ref] aucun chunk >= seuil {ciel_fiche.SCORE_MIN} ({collection}, matiere='{req.matiere}') → available=false + message")
+        return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
     prompt = build_exemple_referentiel_prompt(chunks, matiere=req.matiere, niveau=req.niveau)
     texte = generate(prompt)
-    log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés")
+    log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {ciel_fiche.SCORE_MIN})")
     return ExempleReferentielResponse(available=True, texte=texte)
