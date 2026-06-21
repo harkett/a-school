@@ -143,6 +143,8 @@ def _anthropic(
     }
     if json_mode:
         kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
-    client = anthropic.Anthropic(api_key=AI_API_KEY)
+    # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
+    # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
+    client = anthropic.Anthropic(api_key=AI_API_KEY, timeout=60)
     message = client.messages.create(**kwargs)
     return message.content[0].text

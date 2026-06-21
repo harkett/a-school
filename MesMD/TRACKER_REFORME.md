@@ -23,20 +23,18 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 
 ---
 
-## Phase 1 — CŒUR VITAL (nettoyage du moteur LLM)
+## Phase 1 — CŒUR VITAL (nettoyage du moteur LLM) ✅ TERMINÉE
 - [x] **Tâche 1** — Supprimer le chemin RAG « maths »
   - [x] gate maths/cycle4 + collection retirées (generate.py)
   - [x] flag RAG_ENABLED + RAG_PROGRAMME_DEFAULT retirés (.env)
   - [x] champ `chunks` retiré de GenerateResponse
   - [x] tests verts (36/36), CIEL intact, commit fait
-- [~] **Tâche 2** — Unifier tous les appels LLM via generate()
-  > ⏳ Code + preuve livrés (21/06) — **en attente de validation + commit**. Arbitrages : C1 generate() paramétrable, C2 repli abandonné, C3 erreur → 500.
+- [x] **Tâche 2** — Unifier tous les appels LLM via generate() — validée + commit `aa79351` (21/06)
   - [x] generate() paramétrable (max_tokens, temperature, json_mode) — intentions neutres, traduites par adaptateur (JSON Claude = instruction système ; température ignorée chez Anthropic)
   - [x] 4 routeurs basculés sur generate() — valeurs reportées : ambiguites 3000, consigne 2000, sequence 4000, optimiseur 6000+temp 0+json_mode (capture du body : conforme)
   - [x] code Groq texte mort supprimé (call_groq, GROQ_URL, FALLBACK_CHAIN, FALLBACK_STATUSES, _headers) — Whisper conservé
   - [x] tests adaptés (patch generate, 4 tests repli retirés, propagation → 500) — 35/35 verts
-  - [ ] validation utilisateur + commit
-- [ ] **Tâche 4** — Sécuriser Claude : timeout explicite sur la branche Anthropic (60 s)
+- [x] **Tâche 4** — Sécuriser Claude : timeout explicite (60 s) à la construction du client Anthropic — voie propre du SDK, aligné sur les autres branches. py_compile + 35/35 verts. Validée (21/06).
 
 ---
 
@@ -85,5 +83,6 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 
 ## 📌 Rappels transverses (ne pas oublier)
 - [ ] Le jour de la bascule Claude : vérifier temperature / mode JSON Opus → ajuster l'ADAPTATEUR, jamais le métier
+- [ ] Adaptateur Anthropic : forme actuelle = SDK + clé API ; cible = `claude -p` (compte/abonnement). À rebrancher à la bascule Claude, en vérifiant que le timeout 60 s se reporte sur cette voie. Dans l'adaptateur, jamais le métier.
 - [ ] Rectifier la doc d'archi (doc 2) : base réelle = SQLite, pas PostgreSQL
 - [ ] Groq conservé uniquement pour : transcription audio (Whisper) + OCR/vision
