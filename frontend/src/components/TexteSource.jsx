@@ -373,7 +373,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
       {exempleNote === 'ancre' && (
         <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
-          borderRadius: 6, fontSize: 12, color: '#1d4ed8' }}>
+          borderRadius: 6, fontSize: 12, color: '#1d4ed8', animation: 'fadeInSoft 0.4s ease-out' }}>
           Exemple généré depuis le référentiel officiel de votre niveau — adaptez-le si besoin.
         </div>
       )}
