@@ -54,6 +54,16 @@ SETTING_DEFAULTS = {
         "Parlez-en à vos collègues — plus on est nombreux, plus aSchool s'améliore !\n\n"
         "Bonne utilisation,\nL'équipe aSchool"
     ),
+    # max_tokens administrable (Phase 4.1.c) — HYBRIDE : un défaut global + surcharges
+    # par outil seulement là où c'est nécessaire. Lu au runtime via get_max_tokens(db, outil),
+    # jamais figé au boot (rechargeable à chaud, comme ai_model). Valeurs en chaîne (Setting.value).
+    # SEEDING des 3 surcharges = NON NÉGOCIABLE : sans elles, ambiguïtés/séquence/optimiseur
+    # retomberaient au défaut 2048 -> activités tronquées (régression). activité/exemple/consigne
+    # n'ont PAS de clé -> ils résolvent sur le défaut global.
+    "max_tokens_default": "2048",
+    "max_tokens_ambiguites": "3000",
+    "max_tokens_sequence": "4000",
+    "max_tokens_optimiseur": "6000",
 }
 
 
@@ -77,6 +87,27 @@ def get_ai_model(db: Session) -> str:
     l'existant (get_settings_dict). Côté backend uniquement : la valeur (chaîne) descend
     ensuite dans generate(), qui reste pur (aucune connaissance de la base)."""
     return get_settings_dict(db)["ai_model"]
+
+
+# Bornes de max_tokens (Phase 4.1.c). MIN = plancher dur : empêche une valeur si basse
+# qu'elle tronquerait tout (garde-fou répondant au risque de troncature silencieuse).
+# MAX = plafond INTERNE CIEL, VOLONTAIREMENT bien en-dessous du max output théorique du
+# modèle — ce n'est PAS le plafond du fournisseur, c'est notre garde-fou coût/quota figé.
+MAX_TOKENS_MIN = 256
+MAX_TOKENS_MAX = 8000
+
+
+def get_max_tokens(db: Session, outil: str) -> int:
+    """max_tokens courant pour un outil, lu en base au moment de l'appel (HYBRIDE :
+    surcharge `max_tokens_<outil>` si présente, sinon défaut global `max_tokens_default`,
+    sinon défaut code). Même motif que get_ai_model : lecture par requête -> rechargeable
+    à chaud. Renvoie un int (Setting.value est une chaîne)."""
+    s = get_settings_dict(db)
+    raw = s.get(f"max_tokens_{outil}", s["max_tokens_default"])
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return int(s["max_tokens_default"])
 
 
 class AdminLoginBody(BaseModel):
@@ -471,6 +502,68 @@ def save_ai_model(body: AiModelBody, request: Request, db: Session = Depends(get
         target_email=None,
         ip=request.client.host if request.client else None,
         details=f"Modèle LLM mis à jour : {valeur}",
+    )
+    return {"status": "ok"}
+
+
+class MaxTokensBody(BaseModel):
+    default: int
+    ambiguites: int
+    sequence: int
+    optimiseur: int
+
+
+@router.get("/admin/max-tokens")
+def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Valeurs max_tokens courantes (défaut global + 3 surcharges) + bornes — alimente
+    le formulaire admin et sa validation. Miroir de GET /admin/ai-models."""
+    s = get_settings_dict(db)
+    return {
+        "default": int(s["max_tokens_default"]),
+        "overrides": {
+            "ambiguites": int(s["max_tokens_ambiguites"]),
+            "sequence": int(s["max_tokens_sequence"]),
+            "optimiseur": int(s["max_tokens_optimiseur"]),
+        },
+        "bounds": {"min": MAX_TOKENS_MIN, "max": MAX_TOKENS_MAX},
+    }
+
+
+@router.put("/admin/max-tokens")
+def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit le défaut global + les 3 surcharges. Endpoint DÉDIÉ (PUT /admin/settings email
+    et PUT /admin/ai-model restent intacts). Validation stricte : chaque valeur doit être un
+    entier dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien n'est écrit."""
+    valeurs = {
+        "max_tokens_default": body.default,
+        "max_tokens_ambiguites": body.ambiguites,
+        "max_tokens_sequence": body.sequence,
+        "max_tokens_optimiseur": body.optimiseur,
+    }
+    for cle, v in valeurs.items():
+        if not (MAX_TOKENS_MIN <= v <= MAX_TOKENS_MAX):
+            raise HTTPException(
+                400,
+                f"Valeur hors limites : {v}. Chaque max_tokens doit être un nombre entier "
+                f"entre {MAX_TOKENS_MIN} et {MAX_TOKENS_MAX}.",
+            )
+    for cle, v in valeurs.items():
+        row = db.query(Setting).filter(Setting.key == cle).first()
+        if row:
+            row.value = str(v)
+        else:
+            db.add(Setting(key=cle, value=str(v)))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_MAX_TOKENS",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=(
+            f"max_tokens mis à jour — défaut {body.default}, ambiguïtés {body.ambiguites}, "
+            f"séquence {body.sequence}, optimiseur {body.optimiseur}"
+        ),
     )
     return {"status": "ok"}
 

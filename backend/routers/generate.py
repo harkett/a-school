@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import GenerateRequest, GenerateResponse
 from backend.models_db import ActiviteSauvegardee, User
-from backend.routers.admin import get_ai_model
+from backend.routers.admin import get_ai_model, get_max_tokens
 from backend import auth as auth_lib
 from src.prompts import build_prompt
 from src.generator import generate
@@ -67,7 +67,7 @@ def api_generate(
             exemples=exemples,
             **kwargs,
         )
-        resultat = generate(prompt, model=get_ai_model(db))
+        resultat = generate(prompt, model=get_ai_model(db), max_tokens=get_max_tokens(db, "activite"))
         return GenerateResponse(resultat=resultat)
     except HTTPException:
         raise
