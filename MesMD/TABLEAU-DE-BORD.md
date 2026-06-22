@@ -98,6 +98,7 @@
 | [42](#item-42) | Recherche globale dans l'application | à scorer | à scorer | à scorer | à scorer | OPTIONNEL | — |
 | [43](#item-43) | Module Petite Enfance 0-3 ans — 1er segment vision multi-niveaux | à scorer | à scorer | à scorer | à scorer | FUTUR / stratégique | [D48](BOUSSOLE/D48.md) |
 | [44](#item-44) | Bouton « Encoder » — ingestion autonome de référentiels (admin) | à scorer | à scorer | à scorer | à scorer | INFRA / Admin — à cadrer | — |
+| [45](#item-45) | Multi-fournisseurs IA — failover / tableau de bord / routage auto | à scorer | à scorer | à scorer | à scorer | FUTUR / Infra IA — à cadrer | — |
 
 ---
 
@@ -554,6 +555,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-44"></a>
 - [ ] **44 — Bouton « Encoder » : ingestion autonome de référentiels par l'admin** | INFRA / Admin — à cadrer
   *Aujourd'hui, vectoriser un référentiel dans le RAG passe par un script dev lancé à la main (`backend/rag/ingest_referentiel.py`) → chaque nouveau référentiel exige une intervention dev. **Cible : un bouton « Encoder » côté backoffice admin** qui ingère un référentiel **de bout en bout SANS dev** (admin autonome). Deux piliers actés en réflexion : (1) le mapping « blocs du référentiel → matières » devient une donnée **ÉDITABLE** (plus du code en dur — l'admin l'ajuste) ; (2) le dev n'intervient plus que pour l'**EXCEPTION** (cas non prévu). Socle déjà en place : la procédure BTS CIEL (slice 1, métadonnée niveau) + INFRA-RAG. Distinct de l'ingestion elle-même (déjà faite) : ici la valeur, c'est l'**AUTONOMIE** de l'admin. Noté 13/06/2026, sorti des notes pour ne pas se perdre.*
+
+<a id="item-45"></a>
+- [ ] **45 — Multi-fournisseurs IA (failover / tableau de bord / routage auto)** | Épic 3 niveaux — à cadrer
+  *Gros sujet à 3 niveaux qui s'emboîtent sur une même fondation : aSchool **mesure lui-même chaque appel** (temps, succès/échec, volume) et stocke ces données. **Niveau 1 — Failover** : un fournisseur principal + un/des secours ; si le principal échoue (panne/timeout/surcharge/erreur), bascule auto vers le suivant + message de basculement → la génération continue au lieu de planter (protège). **Niveau 2 — Tableau de bord fournisseurs** : écran admin comparant tous les fournisseurs (perf/temps de réponse, taux succès/échec, volume…) → pilotage (mesure). **Niveau 3 — Routage auto vers le meilleur** : route en continu vers le meilleur du moment sur la base des mesures du niveau 2 ; critère « meilleur » (vitesse/coût/fiabilité/combiné) à cadrer. **Prérequis dur : rendre le FOURNISSEUR administrable d'abord** — aujourd'hui seul le modèle l'est (4.1.a/b), `AI_PROVIDER` est figé dans `.env` (mêmes patrons à transposer au provider). **Lien Phase 5** (réforme moteur) : les codes d'erreur 503/429/500 distincts sont le prérequis de la détection de panne du niveau 1. Idée notée 22/06 — cap, rien à coder maintenant.*
 
 ---
 
