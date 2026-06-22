@@ -50,7 +50,7 @@ def retrieve(
                 "score": float,      # 1 - distance cosinus, [0, 1], plus haut = plus pertinent
                 "meta": dict,        # metadonnee BRUTE du chunk — le moteur ne nomme aucun
                                      # champ de referentiel ; chaque fiche y met les siens
-                                     # (option, niveau, label, cycle…). A lire par le consommateur.
+                                     # (option, niveau, source, page…). A lire par le consommateur.
             }
     """
     q = (question or "").strip()

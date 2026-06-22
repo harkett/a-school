@@ -50,7 +50,7 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 
 ## Phase 3 — QUALITÉ DU DIFFÉRENCIATEUR (RAG CIEL fiable)
 > Ordre acté : **2 overlap → 3 déduplication → 1 seuil de score → 4 alignement métadonnées**.
-> ⚠️ Ré-ingestion réelle de la collection CIEL **différée à la fin du chunking** : overlap ET dédup touchent le découpage → on ne ré-ingère qu'**une seule fois**, les deux ensemble. La base reste à overlap=0 / sans dédup d'ici là (volontaire et assumé). Prochaine étape : **point (1) seuil de score**, PUIS ré-ingestion overlap+dédup ensemble.
+> ✅ **Phase 3 close (22/06)** : overlap + déduplication + seuil de score + alignement métadonnées livrés. Base CIEL définitive ré-ingérée (236 chunks, A:187/B:49).
 - [x] **(2) Chevauchement (overlap) au chunking** — validé (21/06), code commité, ré-ingestion différée
   - mécanisme générique dans `chunker.py` (`overlap_chars`, défaut 0 = rétro-compatible) ; valeur `OVERLAP_CHARS=150` (~17 % de MAX_CHARS) dans la fiche CIEL ; passée par `ingest_referentiel.py`. Le moteur ne sait pas que c'est CIEL.
   - overlap sur la coupe de TAILLE uniquement (pas frontière, pas inter-pages) → tag A/B intact. Cas limite : ligne unique > overlap ⇒ coupe nette.
@@ -64,16 +64,22 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
   - `SCORE_MIN=0.33` dans la fiche CIEL ; **filtre strict au niveau endpoint** (`exemple_referentiel.py`, `retrieve()` reste pur) : un chunk <0.33 n'entre jamais dans le prompt.
   - cas vide (rien ≥ seuil) → `available=False`, **`generate()` NON appelé**, champ `message` (wording C) renvoyé et affiché en **modale bloquante** côté prof (cascade frontend `TexteSource.jsx`, joignabilité).
   - preuve : « ventilateur plafonnier » → 0 génération + message C ; « cybersécurité » → génère ; **20 tests verts** ; build frontend OK.
-- [ ] (4) Aligner métadonnées écriture/lecture (supprimer le « programme » fantôme)
+- [x] **(4) Aligner métadonnées écriture/lecture** — validé (22/06), base ré-ingérée, code commité
+  - constat (grep global, tests inclus) : la fiche CIEL écrivait 6 clés (`source, label, cycle, niveau, option, page`) ; `label` et `cycle` étaient **écrites mais lues NULLE PART** (ni code ni test). Le « programme » fantôme (clé *lue* dans `_build_rag_prefix` mort, jamais écrite) relève de la suppression du préfixe RAG mort → **reste en Phase 6** (ligne dédiée), non traité ici (volontaire).
+  - action : retrait de `label`/`cycle` de `chunk_metadata` (fiche CIEL) + constantes `LABEL`/`CYCLE` orphelines supprimées ; commentaire `retrieve.py` aligné (`option, niveau, source, page…`). `chunk_metadata` ne pose plus que **{source, niveau, option, page}**.
+  - preuve : ré-ingestion **236→236** (A:187/B:49, partition invariante) ; verrou `test_metadata_exactement_quatre_cles` (set des 4 clés sur base ré-ingérée) ; **55 tests verts**.
 
 ---
 
 ## Phase 4 — ADMINISTRABLE (piloter sans toucher au code)
 - [ ] Centraliser les réglages LLM (modèle, max_tokens, température, prompts) en base
+     * C’est exactement le cœur de la Phase 4. 
 - [ ] Interface admin qui lit/écrit ces réglages
+     * C’est la continuité logique de la table Setting, aucune ambiguïté.
 - [ ] Validation des valeurs (modale bloquante sur saisie invalide)
+     *  Indispensable : tu as déjà noté que PUT /admin/settings n’a aucune validation, c’est un point obligatoire.
 - [ ] Réglages rechargeables à chaud (pas de redémarrage)
-
+     * C’est la condition pour « administrable sans toucher au code ». Sans reload à chaud, la Phase 4 serait incomplète.
 ---
 
 ## Phase 5 — ROBUSTESSE / DETTE (non bloquant)

@@ -26,9 +26,7 @@ EXTRACTION_TXT = PDF_PATH.parent / "extraction-texte.txt"
 
 COLLECTION = "bts_ciel_optionA"
 NIVEAU = "BTS CIEL option A"          # non négociable — posé sur CHAQUE chunk
-CYCLE = "Supérieur"
 SOURCE = "REF-BTS-CIEL-2023"
-LABEL = "Référentiel BTS CIEL — éduscol STI, rénovation 2023"
 
 MAX_CHARS = 900     # taille cible d'un chunk
 MIN_CHARS = 60      # en dessous, on ne crée pas un chunk isolé (bruit : n° de page, titres orphelins)
@@ -62,8 +60,6 @@ def chunk_metadata(marker: Optional[str], page: int) -> dict[str, Any]:
     option = "B" if marker in OPTION_B_SECTIONS else "A"
     return {
         "source": SOURCE,
-        "label": LABEL,
-        "cycle": CYCLE,
         "niveau": NIVEAU,        # <-- non négociable, sur CHAQUE chunk
         "option": option,
         "page": page,

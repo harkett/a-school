@@ -60,6 +60,17 @@ def test_niveau_pose_sur_chaque_chunk():
     assert options == {"A", "B"}
 
 
+def test_metadata_exactement_quatre_cles():
+    # Verrou Phase 3 point 4 : la fiche ne pose QUE ces 4 clés de métadonnée.
+    # `label`/`cycle` ont été retirés (écrits jamais lus). Échoue tant que la
+    # collection n'a pas été ré-ingérée — c'est voulu (cohérence code ↔ base).
+    metas = _metadatas(COLLECTION)
+    assert metas, "collection vide — l'ingestion n'a pas tourné ?"
+    attendu = {"source", "niveau", "option", "page"}
+    assert all(set(m.keys()) == attendu for m in metas), \
+        f"clés méta inattendues : {sorted({k for m in metas for k in m.keys()} - attendu)}"
+
+
 def test_retrieve_generique_remonte_du_ciel():
     # La chaîne complète : question domaine → retrieve() → chunks du référentiel CIEL.
     chunks = retrieve(
