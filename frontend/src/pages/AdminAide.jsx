@@ -186,7 +186,8 @@ const SECTIONS = [
           </svg>
         ),
         contenu: [
-          'Personnalisation de l\'e‑mail de bienvenue envoyé lors de la validation d\'un nouveau compte.',
+          'Les réglages sont organisés en options : « Génération LLM » (modèle d\'IA) et « Email ».',
+          'Option Email : personnalisation de l\'e‑mail de bienvenue envoyé lors de la validation d\'un nouveau compte.',
           'Variables disponibles dans le modèle : {prenom} et {email}.',
           'Le bouton "Tester" envoie l\'e‑mail de bienvenue à l\'adresse de l\'administrateur pour vérification.',
           'Les modifications sont sauvegardées en base de données et prises en compte immédiatement.',

@@ -34,7 +34,8 @@ import AdminLogs from './pages/AdminLogs'
 import AdminActivites from './pages/AdminActivites'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
-import AdminParametres from './pages/AdminParametres'
+import AdminParametresGeneration from './pages/AdminParametresGeneration'
+import AdminParametresEmail from './pages/AdminParametresEmail'
 import AdminSessions from './pages/AdminSessions'
 import AdminServeur from './pages/AdminServeur'
 import AdminAudit from './pages/AdminAudit'
@@ -1089,7 +1090,11 @@ export default function App() {
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />
             <Route path="compte"        element={<AdminCompte />} />
-            <Route path="parametres"    element={<AdminParametres />} />
+            <Route path="parametres">
+              <Route index element={<Navigate to="/admin/parametres/generation" replace />} />
+              <Route path="generation" element={<AdminParametresGeneration />} />
+              <Route path="email"      element={<AdminParametresEmail />} />
+            </Route>
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />

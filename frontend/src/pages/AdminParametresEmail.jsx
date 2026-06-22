@@ -1,9 +1,9 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const VARIABLES = ['{prenom}', '{email}']
 
-export default function AdminParametres() {
+export default function AdminParametresEmail() {
   const [form, setForm] = useState({ welcome_email_subject: '', welcome_email_body: '' })
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
@@ -71,7 +71,7 @@ export default function AdminParametres() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <h2 className="text-sm font-semibold text-gray-700 mb-1">Paramètres</h2>
+      <h2 className="text-sm font-semibold text-gray-700 mb-1">Email de bienvenue</h2>
       <p className="text-xs text-gray-400 mb-6">
         Configurez l'email de bienvenue envoyé automatiquement à chaque nouvel inscrit.
       </p>

@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { registerErrorHandler } from '../errorDialog'
 
 const SEP = { separator: true }
 
@@ -207,15 +208,20 @@ const NAV_ITEMS = [
     ),
   },
   {
-    to:    '/admin/parametres',
-    label: 'Paramètres',
-    aide:  'Configuration de l\'email de bienvenue et des messages automatiques.',
+    group:  true,
+    label:  'Paramètres',
+    prefix: '/admin/parametres',
+    aide:   'Réglages de la plateforme : génération LLM et emails automatiques.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3"/>
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/parametres/generation', label: 'Génération LLM', aide: 'Modèle d\'IA et réglages du moteur de génération des activités.' },
+      { to: '/admin/parametres/email',      label: 'Email',          aide: 'Email de bienvenue envoyé automatiquement à chaque nouvel inscrit.' },
+    ],
   },
   {
     to:    '/admin/compte',
@@ -233,8 +239,14 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const [checked, setChecked] = useState(false)
   const [notifs, setNotifs]   = useState({ feedbacks_nouveaux: 0, alertes_nonlues: 0 })
+  const [adminAlert, setAdminAlert] = useState(null)  // modale bloquante côté admin
   const navigate  = useNavigate()
   const location  = useLocation()
+
+  // showError() est un singleton (errorDialog.js) : son handler est enregistré dans le
+  // shell prof, NON monté en admin. Sans ce réenregistrement, showError serait inactif
+  // sur /admin/* — l'erreur de saisie échouerait en silence. On rebranche la modale ici.
+  useEffect(() => { registerErrorHandler(setAdminAlert) }, [])
 
   useEffect(() => {
     fetch('/api/admin/check', { credentials: 'include' })
@@ -501,6 +513,22 @@ export default function AdminLayout() {
           </span>
         </footer>
       </main>
+
+      {/* Modale bloquante admin (showError) — overlay plein écran, impossible à ignorer */}
+      {adminAlert && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '420px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{adminAlert}</div>
+            <button
+              onClick={() => setAdminAlert(null)}
+              title="Fermer ce message"
+              style={{ background: '#1F6EEB', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 28px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   )
