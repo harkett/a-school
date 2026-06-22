@@ -4,6 +4,7 @@ from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL
 def generate(
     prompt: str,
     *,
+    model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
@@ -14,13 +15,17 @@ def generate(
     « du JSON », « déterministe »), jamais des formats fournisseur. Chaque
     adaptateur les traduit dans la langue de son fournisseur — ou les ignore
     quand le fournisseur ne les accepte pas (ex. temperature chez Anthropic).
+
+    `model` : modèle résolvé par l'appelant (côté backend, lu en base à chaud).
+    `None` ⇒ repli sur AI_MODEL (config/.env) — rétro-compatible. generate() reste
+    pur : il ne lit aucune base, il reçoit la chaîne déjà résolue.
     """
     if AI_PROVIDER == "gemini":
-        return _gemini(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+        return _gemini(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     elif AI_PROVIDER == "groq":
-        return _groq(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+        return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     elif AI_PROVIDER == "anthropic":
-        return _anthropic(prompt, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+        return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     else:
         raise ValueError(f"Fournisseur inconnu : {AI_PROVIDER}")
 
@@ -28,6 +33,7 @@ def generate(
 def _groq(
     prompt: str,
     *,
+    model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
@@ -39,7 +45,7 @@ def _groq(
         "Content-Type": "application/json",
     }
     body = {
-        "model": AI_MODEL,
+        "model": model or AI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
     }
@@ -56,12 +62,13 @@ def _groq(
 def _gemini(
     prompt: str,
     *,
+    model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
 ) -> str:
     import requests
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{AI_MODEL}:generateContent"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model or AI_MODEL}:generateContent"
     headers = {"Content-Type": "application/json"}
     params = {"key": AI_API_KEY}
     generation_config: dict = {"maxOutputTokens": max_tokens}
@@ -126,6 +133,7 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
 def _anthropic(
     prompt: str,
     *,
+    model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
@@ -137,7 +145,7 @@ def _anthropic(
     # parse en tolérant), on force le JSON par instruction système — jamais en
     # recopiant le dict response_format de Groq.
     kwargs = {
-        "model": AI_MODEL,
+        "model": model or AI_MODEL,
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }

@@ -74,6 +74,8 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 ## Phase 4 — ADMINISTRABLE (piloter sans toucher au code)
 - [ ] Centraliser les réglages LLM (modèle, max_tokens, température, prompts) en base
      * C’est exactement le cœur de la Phase 4. 
+     * Découpé en sous-points (un par session) : 4.1.a modèle · 4.1.b UI+validation · 4.1.c max_tokens · 4.1.d température.
+     * **[x] 4.1.a — modèle texte lu boot → runtime** — validé (22/06). Clé `ai_model` dans `SETTING_DEFAULTS` + résolveur `get_ai_model(db)` (réutilise `get_settings_dict`, table `Setting` existante, aucune table créée). `generate()` gagne `model` (reste pur, `src/` n'importe pas `backend/`) ; 6 routers câblés (`model=get_ai_model(db)`), `db` ajouté à `exemple_referentiel`. Lecture par requête → modèle **rechargeable à chaud** acquis en bonus. Preuve : `test_settings_model.py` (repli + lecture base + à chaud + chaîne `/api/generate`), **61 tests verts**. Reste : Whisper/OCR en dur (hors sujet), écriture du réglage = 4.1.b.
 - [ ] Interface admin qui lit/écrit ces réglages
      * C’est la continuité logique de la table Setting, aucune ambiguïté.
 - [ ] Validation des valeurs (modale bloquante sur saisie invalide)

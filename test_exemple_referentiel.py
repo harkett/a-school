@@ -60,7 +60,7 @@ def _authed():
 def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple():
     captured = {}
 
-    def fake_generate(prompt):
+    def fake_generate(prompt, **kwargs):  # **kwargs : accepte model= (4.1.a) et futurs params
         captured["prompt"] = prompt
         return "TEXTE SOURCE EXEMPLE (généré)"
 
@@ -135,7 +135,7 @@ def test_seuil_filtre_les_chunks_faibles_avant_le_prompt():
     mixtes = [_chunk("VRAI CONTENU pertinent reseau cybersecurite", 0.55),
               _chunk("BRUIT administratif sous le seuil", 0.20)]
     captured = {}
-    def fake_generate(prompt):
+    def fake_generate(prompt, **kwargs):  # **kwargs : accepte model= (4.1.a) et futurs params
         captured["p"] = prompt
         return "EXEMPLE"
     with patch("backend.routers.exemple_referentiel.retrieve", return_value=mixtes), \

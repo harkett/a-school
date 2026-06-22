@@ -12,12 +12,15 @@ routage couple→collection deviendra data-driven quand on élargira les gates R
 """
 import logging
 
-from fastapi import APIRouter, Cookie, HTTPException
+from fastapi import APIRouter, Cookie, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
+from backend.database import get_db
 from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.rag import retrieve
 from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
+from backend.routers.admin import get_ai_model
 from src.generator import generate
 from src.prompts import build_exemple_referentiel_prompt
 
@@ -60,6 +63,7 @@ def _get_email(aschool_access: str | None) -> str:
 def api_exemple_referentiel(
     req: ExempleReferentielRequest,
     aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
 ):
     _get_email(aschool_access)
 
@@ -80,6 +84,6 @@ def api_exemple_referentiel(
         return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
     prompt = build_exemple_referentiel_prompt(chunks, matiere=req.matiere, niveau=req.niveau)
-    texte = generate(prompt)
+    texte = generate(prompt, model=get_ai_model(db))
     log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {ciel_fiche.SCORE_MIN})")
     return ExempleReferentielResponse(available=True, texte=texte)
