@@ -503,7 +503,7 @@ Toute adaptation mobile utilise `const isMobile = window.innerWidth < 768` défi
 
 ## Fournisseur IA — Règle absolue
 
-Groq (`llama-3.3-70b-versatile`) par défaut. Google Gemini banni — compte Workspace afia.fr incompatible avec le free tier.
+Deux fournisseurs, pour pouvoir basculer de l'un à l'autre : **Groq** (`llama-3.3-70b-versatile`) par défaut + **Anthropic** (Claude) comme cible de bascule. Gemini n'est **pas** banni — l'adaptateur `_gemini` existe et reste fonctionnel, mais **dormant** : ni défaut, ni cible.
 
 ---
 
