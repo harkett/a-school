@@ -208,13 +208,13 @@ export default function AdminParametresGeneration() {
           </p>
 
           {champTokens('default', 'Défaut global',
-            'S\'applique à tous les outils sans réglage propre : création d\'activité, exemple de référentiel, analyse de consigne.')}
+            'S\'applique à tous les outils sans réglage propre : création d\'activité, exemple de référentiel, analyse de consigne. (valeur par défaut : 2048)')}
           {champTokens('ambiguites', 'Surcharge — Détecteur d\'ambiguïtés',
-            'Sortie souvent plus longue : laisser au-dessus du défaut.')}
+            'Sortie souvent plus longue : laisser au-dessus du défaut. (valeur par défaut : 3000)')}
           {champTokens('sequence', 'Surcharge — Générateur de séquences',
-            'Une séquence complète demande davantage de longueur.')}
+            'Une séquence complète demande davantage de longueur. (valeur par défaut : 4000)')}
           {champTokens('optimiseur', 'Surcharge — Optimiseur de séquences',
-            'Le plus long des outils : la valeur la plus haute.')}
+            'Le plus long des outils : la valeur la plus haute. (valeur par défaut : 6000)')}
 
           <div className="flex flex-col gap-3 pt-1">
             <button
