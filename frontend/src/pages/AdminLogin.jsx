@@ -35,11 +35,11 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#f0f4f8' }}>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
+      <div className="rounded-xl shadow-lg p-8 w-full max-w-sm" style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="flex justify-center mb-5">
           <img src="/icon.png" alt="aSchool" style={{ width: 56, height: 56, borderRadius: 12 }} />
         </div>
-        <h1 className="text-lg font-semibold text-gray-800 mb-1">Administration</h1>
+        <h1 className="text-lg font-semibold text-white mb-1">Administration</h1>
         <p className="text-xs text-gray-400 mb-6">Accès réservé</p>
 
         {erreur && (
@@ -50,7 +50,7 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-600">Identifiant</label>
+            <label className="text-xs font-medium text-gray-300">Identifiant</label>
             <input
               type="text"
               value={username}
@@ -62,7 +62,7 @@ export default function AdminLogin() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-600">Mot de passe</label>
+            <label className="text-xs font-medium text-gray-300">Mot de passe</label>
             <div className="relative">
               <input
                 type={showPwd ? 'text' : 'password'}
