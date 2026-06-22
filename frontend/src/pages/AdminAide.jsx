@@ -209,6 +209,11 @@ const SECTIONS = [
           'Sélection dans une liste déroulante des modèles pris en charge : impossible de saisir un modèle invalide.',
           'Le changement est pris en compte immédiatement, sans redémarrage du serveur.',
           'La liste des modèles pris en charge est définie dans le code (extensible) ; le choix est sauvegardé en base de données.',
+          'Onglet « Longueur (tokens) » : longueur maximale de la réponse de l\'IA, en tokens. Un défaut global s\'applique à tous les outils, complété par des surcharges pour ceux qui produisent des textes plus longs.',
+          'Défaut global (2048) : couvre la création d\'activité, l\'exemple de référentiel et l\'analyse de consigne.',
+          'Surcharges propres : Détecteur d\'ambiguïtés (3000), Générateur de séquences (4000), Optimiseur de séquences (6000).',
+          'Chaque valeur doit être comprise entre 256 et 8000. Trop basse, elle tronque les activités générées ; une saisie hors limites est refusée par une fenêtre d\'alerte tant qu\'elle n\'est pas corrigée.',
+          'Pris en compte immédiatement, sans redémarrage du serveur ; réglages sauvegardés en base de données.',
         ],
       },
       {
