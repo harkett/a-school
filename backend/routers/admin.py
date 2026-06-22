@@ -65,6 +65,12 @@ def get_settings_dict(db: Session) -> dict:
     return result
 
 
+# Liste blanche des modèles LLM texte autorisés (Phase 4.1.b). Une saisie hors de cette
+# liste est REFUSÉE avant d'atteindre la base (la génération ne tombera jamais sur un
+# modèle inconnu). Démarrage volontaire à une entrée — extensible : ajouter un ID Groq ici.
+SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]
+
+
 def get_ai_model(db: Session) -> str:
     """Modèle LLM texte courant, lu en base au moment de l'appel (repli sur le défaut
     code). Source unique de résolution du modèle pour tous les routers — branche sur
@@ -424,6 +430,47 @@ def save_settings(body: SettingsBody, request: Request, db: Session = Depends(ge
         target_email=None,
         ip=request.client.host if request.client else None,
         details="Paramètres email mis à jour",
+    )
+    return {"status": "ok"}
+
+
+class AiModelBody(BaseModel):
+    model_config = {"protected_namespaces": ()}  # autorise un champ nommé `model` (pydantic v2)
+    model: str
+
+
+@router.get("/admin/ai-models")
+def get_ai_models(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Modèles LLM texte pris en charge + modèle courant — alimente la validation
+    et le hint du formulaire admin."""
+    return {"supported": SUPPORTED_AI_MODELS, "current": get_ai_model(db)}
+
+
+@router.put("/admin/ai-model")
+def save_ai_model(body: AiModelBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit le modèle LLM texte. Endpoint DÉDIÉ (le PUT /admin/settings email reste
+    intact). Validation stricte : vide ou hors liste blanche → 400 (message humain pour
+    la modale admin), rien n'est écrit. Sinon upsert de la clé `ai_model` + audit."""
+    valeur = (body.model or "").strip()
+    if valeur not in SUPPORTED_AI_MODELS:
+        raise HTTPException(
+            400,
+            f"Modèle inconnu ou vide. Saisissez un modèle pris en charge : "
+            f"{', '.join(SUPPORTED_AI_MODELS)}.",
+        )
+    row = db.query(Setting).filter(Setting.key == "ai_model").first()
+    if row:
+        row.value = valeur
+    else:
+        db.add(Setting(key="ai_model", value=valeur))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_AI_MODEL",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Modèle LLM mis à jour : {valeur}",
     )
     return {"status": "ok"}
 
