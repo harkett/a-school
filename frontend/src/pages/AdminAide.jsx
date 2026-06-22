@@ -194,6 +194,24 @@ const SECTIONS = [
         ],
       },
       {
+        titre: 'Génération LLM',
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/>
+            <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
+            <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
+            <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
+            <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
+          </svg>
+        ),
+        contenu: [
+          'Choix du modèle d\'IA utilisé pour générer toutes les activités des profs.',
+          'Sélection dans une liste déroulante des modèles pris en charge : impossible de saisir un modèle invalide.',
+          'Le changement est pris en compte immédiatement, sans redémarrage du serveur.',
+          'La liste des modèles pris en charge est définie dans le code (extensible) ; le choix est sauvegardé en base de données.',
+        ],
+      },
+      {
         titre: 'Mon compte',
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
