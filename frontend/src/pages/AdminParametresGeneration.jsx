@@ -9,6 +9,12 @@ export default function AdminParametresGeneration() {
   const [saving, setSaving]   = useState(false)
   const [message, setMessage] = useState(null) // { type: 'ok', text }
 
+  // Fournisseur (Phase 4.1.e) — combo fermée des fournisseurs opérationnels (Groq seul aujourd'hui).
+  const [aiProvider, setAiProvider] = useState('')
+  const [supportedProviders, setSupportedProviders] = useState([])
+  const [savingProvider, setSavingProvider] = useState(false)
+  const [messageProvider, setMessageProvider] = useState(null)
+
   // max_tokens (Phase 4.1.c) — défaut global + 3 surcharges + bornes.
   const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '', optimiseur: '' })
   const [bounds, setBounds] = useState({ min: 256, max: 8000 })
@@ -36,6 +42,14 @@ export default function AdminParametresGeneration() {
         if (data.bounds) setBounds(data.bounds)
       })
       .catch(() => {})
+
+    fetch('/api/admin/ai-providers', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        setAiProvider(data.current || '')
+        setSupportedProviders(data.supported || [])
+      })
+      .catch(() => {})
   }, [])
 
   async function saveModel() {
@@ -55,6 +69,26 @@ export default function AdminParametresGeneration() {
       showError('Erreur réseau — vérifiez que le backend tourne.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function saveProvider() {
+    setSavingProvider(true)
+    setMessageProvider(null)
+    try {
+      const res = await fetchWithTimeout('/api/admin/ai-provider', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ provider: aiProvider }),
+      }, TIMEOUT_STD)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMessageProvider({ type: 'ok', text: 'Fournisseur enregistré.' })
+      else showError(data.detail || 'Erreur lors de l\'enregistrement du fournisseur.')
+    } catch {
+      showError('Erreur réseau — vérifiez que le backend tourne.')
+    } finally {
+      setSavingProvider(false)
     }
   }
 
@@ -143,6 +177,9 @@ export default function AdminParametresGeneration() {
         </button>
         <button style={tabStyle(onglet === 'tokens')} onClick={() => setOnglet('tokens')}>
           Longueur (tokens)
+        </button>
+        <button style={tabStyle(onglet === 'fournisseur')} onClick={() => setOnglet('fournisseur')}>
+          Fournisseur
         </button>
       </div>
 
@@ -237,6 +274,61 @@ export default function AdminParametresGeneration() {
                 borderRadius: 8, padding: '10px 14px', fontSize: 13,
               }}>
                 {messageTokens.text}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Onglet Fournisseur (Phase 4.1.e) — combo fermée des fournisseurs OPÉRATIONNELS
+          (joignabilité : Groq seul aujourd'hui). Aucun cas spécial par fournisseur : la combo
+          se remplit depuis la liste blanche backend. Note générique : les autres apparaîtront
+          ici une fois leur clé configurée. */}
+      {onglet === 'fournisseur' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Fournisseur d'IA
+            </label>
+            <select
+              value={aiProvider}
+              onChange={e => setAiProvider(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              {supportedProviders.length === 0 && <option value="">Chargement…</option>}
+              {supportedProviders.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Service d'IA qui exécute la génération des activités. Pris en compte immédiatement, sans redémarrage.
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              D'autres fournisseurs apparaîtront ici une fois leur clé configurée.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-1">
+            <button
+              onClick={saveProvider}
+              disabled={savingProvider || !aiProvider}
+              title="Enregistrer le fournisseur d'IA"
+              style={{
+                background: '#1F6EEB', color: 'white', border: 'none',
+                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                alignSelf: 'flex-start',
+                cursor: (savingProvider || !aiProvider) ? 'not-allowed' : 'pointer',
+                opacity: (savingProvider || !aiProvider) ? 0.6 : 1,
+              }}
+            >
+              {savingProvider ? 'Enregistrement…' : 'Enregistrer le fournisseur'}
+            </button>
+            {messageProvider && (
+              <div style={{
+                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+              }}>
+                {messageProvider.text}
               </div>
             )}
           </div>

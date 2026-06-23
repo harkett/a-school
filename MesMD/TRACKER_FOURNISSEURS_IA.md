@@ -73,10 +73,10 @@ Moteur : `src/generator.py`, `src/config.py`.
 | Email de bienvenue (objet/corps) | ✅ oui (`PUT /admin/settings`) | s'applique à l'envoi |
 | **Modèle** (`ai_model`) | ✅ oui (`PUT /admin/ai-model`) | ✅ oui — `get_ai_model(db)`, 6 routeurs câblés |
 | **max_tokens** (par outil) | ✅ oui (`PUT /admin/max-tokens`) | ✅ oui — `get_max_tokens(db, outil)` |
-| **Fournisseur** (`ai_provider`) | ✅ oui — clé `ai_provider` en base (`SETTING_DEFAULTS` + `get_ai_provider(db)`) ; **écriture admin (combo) = e.4** | ✅ oui — 6 routeurs passent `provider=get_ai_provider(db)`, lu **à chaud** (e.3 fait) |
+| **Fournisseur** (`ai_provider`) | ✅ oui — clé `ai_provider` en base (`SETTING_DEFAULTS` + `get_ai_provider(db)`) ; **écriture admin = combo + `PUT /admin/ai-provider` (e.4 fait)** | ✅ oui — 6 routeurs passent `provider=get_ai_provider(db)`, lu **à chaud** (e.3 fait) |
 | **Clé API** (`AI_API_KEY`) | ❌ non (et **doit** rester ❌ : c'est un secret) | ❌ non — `.env`, une seule clé |
 
-→ **e.3 fait (22/06)** : le fournisseur est désormais **lu en base à chaud** (les deux ❌ fermés, comportement inchangé = Groq). Reste l'**écriture admin** (combo UI = e.4) — la clé API demeure un sujet séparé, hors base.
+→ **e.3 + e.4 faits (23/06)** : le fournisseur est **lu en base à chaud** ET **administrable** — combo fermée (Groq seul aujourd'hui + note générique), endpoints dédiés `GET/PUT /admin/ai-provider` (liste blanche `SUPPORTED_AI_PROVIDERS`), Aide rédigée, test `test_admin_ai_provider.py` 7/7. Comportement inchangé = Groq. Reste la **clé API** (sujet séparé, hors base) pour activer une bascule réelle vers un autre fournisseur.
 
 ---
 

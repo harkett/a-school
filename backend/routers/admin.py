@@ -86,6 +86,14 @@ def get_settings_dict(db: Session) -> dict:
 SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]
 
 
+# Liste blanche des fournisseurs LLM offerts à l'admin (Phase 4.1.e). MÊME logique que
+# SUPPORTED_AI_MODELS : une saisie hors liste est REFUSÉE avant la base. On n'y met QUE les
+# fournisseurs réellement opérationnels (joignabilité) — aujourd'hui Groq seul. Ajouter un
+# fournisseur = une ligne ici, le jour où sa clé est provisionnée (générique, aucun cas
+# spécial : Anthropic/Gemini/… sont des fournisseurs comme les autres).
+SUPPORTED_AI_PROVIDERS = ["groq"]
+
+
 def get_ai_model(db: Session) -> str:
     """Modèle LLM texte courant, lu en base au moment de l'appel (repli sur le défaut
     code). Source unique de résolution du modèle pour tous les routers — branche sur
@@ -515,6 +523,47 @@ def save_ai_model(body: AiModelBody, request: Request, db: Session = Depends(get
         target_email=None,
         ip=request.client.host if request.client else None,
         details=f"Modèle LLM mis à jour : {valeur}",
+    )
+    return {"status": "ok"}
+
+
+class AiProviderBody(BaseModel):
+    provider: str
+
+
+@router.get("/admin/ai-providers")
+def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Fournisseurs LLM offerts (liste blanche) + fournisseur courant — alimente la combo
+    admin et sa validation. Miroir de GET /admin/ai-models. On n'expose QUE les fournisseurs
+    opérationnels (joignabilité) ; les autres apparaîtront ici une fois leur clé configurée."""
+    return {"supported": SUPPORTED_AI_PROVIDERS, "current": get_ai_provider(db)}
+
+
+@router.put("/admin/ai-provider")
+def save_ai_provider(body: AiProviderBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit le fournisseur LLM texte. Endpoint DÉDIÉ (PUT email + PUT ai-model + PUT max-tokens
+    restent intacts). Validation stricte : vide ou hors liste blanche → 400 (message humain pour
+    la modale admin), rien n'est écrit. Sinon upsert de la clé `ai_provider` + audit."""
+    valeur = (body.provider or "").strip()
+    if valeur not in SUPPORTED_AI_PROVIDERS:
+        raise HTTPException(
+            400,
+            f"Fournisseur inconnu ou vide. Choisissez un fournisseur pris en charge : "
+            f"{', '.join(SUPPORTED_AI_PROVIDERS)}.",
+        )
+    row = db.query(Setting).filter(Setting.key == "ai_provider").first()
+    if row:
+        row.value = valeur
+    else:
+        db.add(Setting(key="ai_provider", value=valeur))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_AI_PROVIDER",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Fournisseur LLM mis à jour : {valeur}",
     )
     return {"status": "ok"}
 

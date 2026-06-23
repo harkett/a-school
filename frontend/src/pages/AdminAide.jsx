@@ -209,6 +209,8 @@ const SECTIONS = [
           'Sélection dans une liste déroulante des modèles pris en charge : impossible de saisir un modèle invalide.',
           'Le changement est pris en compte immédiatement, sans redémarrage du serveur.',
           'La liste des modèles pris en charge est définie dans le code (extensible) ; le choix est sauvegardé en base de données.',
+          'Onglet « Fournisseur » : choix du service d\'IA qui exécute la génération. Sélection dans une liste déroulante des fournisseurs opérationnels (impossible de saisir une valeur invalide) ; sauvegardé en base, pris en compte immédiatement, sans redémarrage.',
+          'Seuls les fournisseurs réellement utilisables sont proposés ; d\'autres apparaîtront une fois leur clé configurée. Un fournisseur est traité comme n\'importe quel autre (aucun cas particulier).',
           'Onglet « Longueur (tokens) » : longueur maximale de la réponse de l\'IA, en tokens. Un défaut global s\'applique à tous les outils, complété par des surcharges pour ceux qui produisent des textes plus longs.',
           'Défaut global (2048) : couvre la création d\'activité, l\'exemple de référentiel et l\'analyse de consigne.',
           'Surcharges propres : Détecteur d\'ambiguïtés (3000), Générateur de séquences (4000), Optimiseur de séquences (6000).',
