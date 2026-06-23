@@ -44,6 +44,7 @@ import AdminTentatives from './pages/AdminTentatives'
 import AdminCompte from './pages/AdminCompte'
 import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
+import AdminReferentiels from './pages/AdminReferentiels'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
@@ -1085,6 +1086,7 @@ export default function App() {
             <Route path="activites"  element={<AdminActivites />} />
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
+            <Route path="referentiels" element={<AdminReferentiels />} />
             <Route path="programmes" element={<AdminProgrammes />} />
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
