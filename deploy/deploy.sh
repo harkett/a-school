@@ -17,6 +17,10 @@ echo "=== [2/7] Python venv + dépendances ==="
 .venv/bin/pip install --quiet -r requirements.txt
 
 echo ""
+echo "=== [2.5/7] Reconstruction de la base RAG (donnees generees, hors git) ==="
+.venv/bin/python -m backend.rag.ingest_referentiel
+
+echo ""
 echo "=== [3/7] Build frontend React ==="
 cd frontend
 npm ci --silent

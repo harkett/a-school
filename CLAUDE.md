@@ -514,6 +514,14 @@ Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la *
 
 ---
 
+## Base vectorielle (ChromaDB) — Règle absolue
+
+La base ChromaDB (`backend/rag/chroma_db/`) est une **donnée GÉNÉRÉE**, pas du code : « données ≠ code ». Source de vérité = le **PDF du référentiel** (`REFERENTIELS/`) + le **script d'ingestion**. Elle **ne se commite JAMAIS dans git** : `.gitignore` sur `backend/rag/chroma_db/`, **reconstruite au déploiement** via `python -m backend.rag.ingest_referentiel` (étape `[2.5/7]` de `deploy/deploy.sh`).
+
+(Acté + exécuté le 23/06 — corrige un raccourci de POC : la base avait été commitée par commodité le 18/05, jamais re-questionné. Conséquence : au 1er déploiement, le `git pull` retire la base commitée et l'étape d'ingestion la reconstruit.)
+
+---
+
 ## Secrets — Règle absolue
 
 Ne jamais afficher mots de passe, clés API ou tokens en clair dans la discussion, même si l'utilisateur le demande.
