@@ -73,10 +73,10 @@ Moteur : `src/generator.py`, `src/config.py`.
 | Email de bienvenue (objet/corps) | ✅ oui (`PUT /admin/settings`) | s'applique à l'envoi |
 | **Modèle** (`ai_model`) | ✅ oui (`PUT /admin/ai-model`) | ✅ oui — `get_ai_model(db)`, 6 routeurs câblés |
 | **max_tokens** (par outil) | ✅ oui (`PUT /admin/max-tokens`) | ✅ oui — `get_max_tokens(db, outil)` |
-| **Fournisseur** (`AI_PROVIDER`) | ❌ **non** — aucune clé, aucun champ UI | ❌ **non** — `.env`, lu une fois au boot (`config.py:6`) |
+| **Fournisseur** (`ai_provider`) | ✅ oui — clé `ai_provider` en base (`SETTING_DEFAULTS` + `get_ai_provider(db)`) ; **écriture admin (combo) = e.4** | ✅ oui — 6 routeurs passent `provider=get_ai_provider(db)`, lu **à chaud** (e.3 fait) |
 | **Clé API** (`AI_API_KEY`) | ❌ non (et **doit** rester ❌ : c'est un secret) | ❌ non — `.env`, une seule clé |
 
-→ Le seul **trou non-secret** est le **fournisseur**. C'est ce que 4.1.e comble.
+→ **e.3 fait (22/06)** : le fournisseur est désormais **lu en base à chaud** (les deux ❌ fermés, comportement inchangé = Groq). Reste l'**écriture admin** (combo UI = e.4) — la clé API demeure un sujet séparé, hors base.
 
 ---
 

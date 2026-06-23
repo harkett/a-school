@@ -44,6 +44,11 @@ SETTING_DEFAULTS = {
     # du .env ; surchargée par une ligne `ai_model` en base si présente. Lu au runtime
     # via get_ai_model(), jamais figé au boot.
     "ai_model": "llama-3.3-70b-versatile",
+    # Fournisseur LLM texte — administrable à chaud (Phase 4.1.e). Défaut = valeur historique
+    # du .env ; surchargée par une ligne `ai_provider` en base si présente. Lu au runtime via
+    # get_ai_provider(), jamais figé au boot. Même moule que ai_model. (La clé API reste un
+    # secret hors base — sujet séparé, pas traité ici.)
+    "ai_provider": "groq",
     "welcome_email_subject": "Bienvenue sur aSchool !",
     "welcome_email_body": (
         "Bonjour {prenom},\n\n"
@@ -87,6 +92,14 @@ def get_ai_model(db: Session) -> str:
     l'existant (get_settings_dict). Côté backend uniquement : la valeur (chaîne) descend
     ensuite dans generate(), qui reste pur (aucune connaissance de la base)."""
     return get_settings_dict(db)["ai_model"]
+
+
+def get_ai_provider(db: Session) -> str:
+    """Fournisseur LLM texte courant, lu en base au moment de l'appel (repli sur le défaut
+    code). Source unique de résolution du fournisseur pour tous les routers — même moule que
+    get_ai_model (branche sur get_settings_dict). La valeur (chaîne) descend ensuite dans
+    generate() via le paramètre `provider`, qui reste pur (aucune connaissance de la base)."""
+    return get_settings_dict(db)["ai_provider"]
 
 
 # Bornes de max_tokens (Phase 4.1.c). MIN = plancher dur : empêche une valeur si basse

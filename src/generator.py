@@ -4,6 +4,7 @@ from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL
 def generate(
     prompt: str,
     *,
+    provider: str | None = None,
     model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
@@ -16,18 +17,19 @@ def generate(
     adaptateur les traduit dans la langue de son fournisseur — ou les ignore
     quand le fournisseur ne les accepte pas (ex. temperature chez Anthropic).
 
-    `model` : modèle résolvé par l'appelant (côté backend, lu en base à chaud).
-    `None` ⇒ repli sur AI_MODEL (config/.env) — rétro-compatible. generate() reste
-    pur : il ne lit aucune base, il reçoit la chaîne déjà résolue.
+    `provider` / `model` : résolvés par l'appelant (côté backend, lus en base à chaud).
+    `None` ⇒ repli sur AI_PROVIDER / AI_MODEL (config/.env) — rétro-compatible. generate()
+    reste pur : il ne lit aucune base, il reçoit les chaînes déjà résolues.
     """
-    if AI_PROVIDER == "gemini":
+    fournisseur = provider or AI_PROVIDER
+    if fournisseur == "gemini":
         return _gemini(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-    elif AI_PROVIDER == "groq":
+    elif fournisseur == "groq":
         return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-    elif AI_PROVIDER == "anthropic":
+    elif fournisseur == "anthropic":
         return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
     else:
-        raise ValueError(f"Fournisseur inconnu : {AI_PROVIDER}")
+        raise ValueError(f"Fournisseur inconnu : {fournisseur}")
 
 
 def _groq(

@@ -6,7 +6,7 @@ from typing import Optional
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, SequenceSauvegardee, User
-from backend.routers.admin import get_ai_model, get_max_tokens
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens
 from src.generator import generate
 
 router = APIRouter()
@@ -153,7 +153,7 @@ def api_generate_sequence(
                 theme=req.theme.strip(),
             )
 
-        resultat = generate(prompt, model=get_ai_model(db), max_tokens=get_max_tokens(db, "sequence"))
+        resultat = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "sequence"))
     except HTTPException:
         raise
     except Exception as e:
