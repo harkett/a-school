@@ -1,9 +1,9 @@
 # INFRA-RAG — Pile RAG mutualisée
 
-> **Statut :** ✅ codé en mode DEV · ✅ branché à `/api/generate` (15/05/2026) · ✅ Test 4 canary validé · ❌ pas en prod
-> **Effort restant :** ~1 session (hébergement prod chroma_db + opti cold start + branchement autres consommateurs)
+> **Statut :** ✅ pile RAG codée et utilisée par l'exemple de référentiel (CIEL, BTS CIEL option A) · ❌ pas en prod
+> **Effort restant :** hébergement prod chroma_db + opti cold start + branchement autres consommateurs
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteurs : [D24](../BOUSSOLE/D24.md) (corpus MEN) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
+> **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteur réalisé : référentiel CIEL (BTS CIEL option A, un référentiel par couple matière+niveau) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
 
 ---
 
@@ -27,9 +27,9 @@ Usage côté router consommateur :
 from backend.rag import retrieve
 
 chunks = retrieve(
-    collection_name="corpus_programmes_men",
-    question="Que doit-on enseigner sur les identités remarquables en 3e ?",
-    filters={"programme": "2020", "niveau": "3e"},
+    collection_name="bts_ciel_optionA",
+    question="Installer et sécuriser un réseau informatique",
+    filters={"option": "A"},
     top_k=4,
 )
 for c in chunks:
@@ -54,7 +54,7 @@ for c in chunks:
 
 | Producteur | Collection | Docs indexés | Disque |
 |---|---|---|---|
-| D24 | `corpus_programmes_men` | 1/96 (Maths cycle 4 via POC) | ~3 MB actuels, ~70-80 MB cible |
+| Référentiel CIEL | `bts_ciel_optionA` | 236 chunks | ~3 MB |
 | D23 | `corpus_inclusion_dys_fle` | 0 | — |
 | D17 | `corpus_equite_laicite` | 0 | — |
 | D19 | `corpus_communication_familles` | 0 | — |
@@ -68,10 +68,10 @@ for c in chunks:
 | Composant | Statut |
 |---|---|
 | Code `client.py` / `embeddings.py` / `retrieve.py` | ✅ écrit, testé manuellement |
-| DB ChromaDB peuplée | ✅ partiellement (1 collection : `maths_cycle4`, 699 docs) |
-| Test manuel `_test_retrieve.py` | ✅ OK (question identités remarquables 3e) |
-| Branchement à un router | ✅ `backend/routers/generate.py` avec gates + fallback + logs INFO |
-| Feature flag | ✅ `RAG_ENABLED` + `RAG_PROGRAMME_DEFAULT` + `RAG_DEBUG_PROMPT` (retiré après tests) |
+| DB ChromaDB peuplée | ✅ 1 collection : `bts_ciel_optionA`, 236 chunks |
+| Test de raccordement | ✅ `test_rag_ciel.py` (niveau posé, retrieve remonte du CIEL) |
+| Branchement à un router | ✅ `backend/routers/exemple_referentiel.py` (exemple de référentiel CIEL) |
+| Feature flag | ❌ retiré — la réforme a supprimé tout gating RAG de `generate.py` |
 | Affichage chunks dans la réponse API | ✅ `GenerateResponse.chunks` (populé uniquement quand RAG actif) |
 | Test canary diagnostic | ✅ outil `backend/rag/_canary_inject.py` (mode injection + `--remove`) — 15/05 |
 | Wording préfixe RAG | ✅ renforcé 15/05 — bascule de "à utiliser comme référence" → "Tu DOIS ancrer..." avec demande citation explicite vocabulaire institutionnel |
@@ -81,22 +81,12 @@ for c in chunks:
 
 ---
 
-## POC isolé `rag_demo/` (héritage — à supprimer)
-
-Démo standalone (UI Flask sur `:8765`, indexait Maths cycle 4) ayant servi à valider la stack. Le code productif a été migré dans [backend/rag/](../../backend/rag/). **À supprimer après premier branchement router validé.**
-
----
-
 ## Reste à faire
 
 - [ ] Choisir hébergement prod du `chroma_db/` (`/var/www/aSchool/backend/rag/chroma_db/` ?)
-- [x] ~~Premier branchement router~~ — fait 15/05 sur `/api/generate`
-- [x] ~~Feature flag `RAG_ENABLED`~~ — fait
-- [x] ~~Affichage chunks dans la réponse API~~ — fait (`GenerateResponse.chunks`)
+- [x] ~~Premier branchement router~~ — fait : `exemple_referentiel.py` (référentiel CIEL)
 - [ ] Pré-charger sentence-transformers au boot FastAPI (lifespan) — éviter le cold start ~38 s sur la 1ʳᵉ requête RAG après démarrage
-- [ ] Brancher les autres consommateurs : Générateur de séquences, Cohérence curriculaire (D25), D23 (DYS/FLE), D17 (équité), D19 (communication), D22 (créativité) — collections différentes
-- [ ] Supprimer `rag_demo/` après validation (toujours en place)
-- [ ] Décider du devenir de `backend/rag/_canary_inject.py` — conservé pour l'instant comme outil de diagnostic réutilisable (futurs producteurs)
+- [ ] Brancher les autres consommateurs : Cohérence curriculaire (D25), D23 (DYS/FLE), D17 (équité), D19 (communication), D22 (créativité) — collections différentes
 
 ---
 

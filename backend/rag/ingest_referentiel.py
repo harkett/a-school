@@ -12,7 +12,7 @@ MÊME modèle que le corpus existant → collection dédiée de la fiche, chaque
 {niveau, option} DÈS l'ingestion.
 
 Idempotent : la collection cible est supprimée puis reconstruite à chaque run.
-Ne touche JAMAIS les autres collections (`maths_cycle4` reste intacte).
+Ne touche JAMAIS les autres collections.
 
 Lancer (venv, depuis la racine) :
     python -m backend.rag.ingest_referentiel             # construit la collection

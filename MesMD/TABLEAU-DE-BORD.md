@@ -58,7 +58,6 @@
 |---|---|---|---|---|---|---|---|
 | [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [D26](BOUSSOLE/D26.md) |
 | [37](#item-37) | Affinage interactif de séquence (instruction prof + versions éphémères) | 1 session | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT — code dormant (parké, D07) | [D07](BOUSSOLE/D07.md) |
-| [36](#item-36) | Corpus Programmes MEN (producteur RAG) | 3,5-5 sessions restantes | ★★★★★ | ★★★★☆ | **9/10** | OPTIONNEL | [D24](BOUSSOLE/D24.md) |
 | [38](#item-38) | Sortie séquence en JSON structuré (rendu pro) | 1 session | ★★★★☆ | ★★★★☆ | **8/10** | IMPORTANT — après 37 | [D27](BOUSSOLE/D27.md) |
 | [39](#item-39) | Switch provider séquence → Claude Sonnet 4.6 | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL — après 38 | [D28](BOUSSOLE/D28.md) |
 | [03](#item-03) | Analyseur de consignes | 1 session | ★★★★☆ | ★★★★★ | **9/10** | Mes Outils | [D17](BOUSSOLE/D17.md) |
@@ -194,7 +193,7 @@ Hors typologie pédagogique (infra pure, pas un levier).
 
 | # | Question pédagogique | Corpus principal | Consommateurs | Producteur |
 |---|---|---|---|---|
-| 1 | Que doit-on enseigner ? | Programmes officiels MEN | Générateur de séquences, D25, Générateur d'activités | D24 |
+| 1 | Que doit-on enseigner ? | Référentiel officiel du couple matière+niveau | Générateur de séquences, D25, Générateur d'activités | — (par référentiel, approche CIEL) |
 | 2 | Comment adapter à un profil d'élève ? | Guides MEN inclusion / DYS / FLE | D23 | — |
 | 3 | Comment évaluer équitablement ? | Charte laïcité / référentiels équité | D17 | — |
 | 4 | Comment communiquer avec familles/admin ? | Guides académiques communication | D19 | — |
@@ -203,7 +202,7 @@ Hors typologie pédagogique (infra pure, pas un levier).
 **Légende :**
 - **Producteur** = levier responsable de l'ingestion/maintenance du corpus dans ChromaDB
 - `—` = pas de producteur défini, alimentation manuelle ou via un producteur futur non encore désigné
-- **D24** dans la colonne Producteur = producteur du corpus *Programmes MEN* uniquement. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](RAG/INFRA-RAG.md).
+- Le grounding « programmes officiels » se fait **par référentiel du couple matière+niveau** (approche CIEL, 1er réalisé : BTS CIEL option A), jamais via un corpus unique. L'infrastructure RAG (pile mutualisée) est traitée séparément dans la fiche [INFRA-RAG](RAG/INFRA-RAG.md).
 
 ### 4. Leviers sans RAG
 
@@ -221,7 +220,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - [ ] Définir traduction technique **Principal/Secondaire** (pondération vs fallback vs purement documentaire)
 - [ ] Format de métadonnée ChromaDB pour le champ `question_pedagogique`
-- [ ] Convention de nommage des collections (ex. `corpus_programmes_men`, `corpus_inclusion_dys_fle`)
+- [ ] Convention de nommage des collections (ex. `bts_ciel_optionA`, `corpus_inclusion_dys_fle`)
 
 ### 7. Template fiche levier consommateur (référence)
 
@@ -282,10 +281,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   *Après la fusion (P1-P5, voir FAIT), plusieurs memory files de `~/.claude` décrivent encore « BOUSSOLE pilote / BACKLOG réservoir » comme deux docs, et `feedback_tracker_levier_sync` porte une **ref morte `MesMD/LEVIERS/`**. À reprendre à froid, **hook d'index + fichier ensemble** (cohérence) : `feedback_pilotage_boussole`, `feedback_boussole_tout_tracker`, `feedback_noter_idees`, `feedback_tracker_levier_sync`, + hooks MEMORY.md (23/24/35/60/66). Identifié 11/06/2026.*
 
 - [ ] **[Archi/Échelle] Passage à grande échelle du référentiel (≈145 BTS + Masters/Licences/FC…)** | Réflexion validée 12/06/2026 — à ressortir le jour où on attaque l'échelle, rien à coder avant
-  *Analyse de charge (factuelle). **Distinction clé** : la **structure** (niveaux/matières/paires) ne pèse rien — quelques milliers de lignes indexées, des Ko ; c'est le **CONTENU** (texte officiel embarqué en RAG, type BOEN 139 p / 699 vecteurs) qui pèse, **et seulement si on l'embarque**. **Ça casse par le HAUT, pas par le bas.** Ordre des vrais seuils : ① **INTERFACE ADMIN = le 1er mur, et il arrive tôt** — la grille matières×niveaux est un tableau lignes×colonnes par cycle ; au Supérieur ~200 niveaux × ~1000 matières = ~200 000 cases dans un seul tableau → DOM à genoux dès **quelques dizaines de niveaux/cycle** (~10k cases = lent, ~100k = inutilisable). ② **`/api/programmes` fourre-tout** : renvoie TOUT, appelé sur **6 pages, sans cache** → ~0,5-1 Mo/chargement à ~300-500 niveaux (gaspillage, pas blocage). ③ **Contenu RAG** si embarqué : 145 BTS × ~500-1000 chunks ≈ **100-150k vecteurs** Chroma → le vrai poste RAM/stockage VPS (optionnel, RAG éteint). ④ **SQLite (structure)** : jamais le problème à cette échelle. **Réponse VUE PROF = filtrage par `user_enseignements`** (déjà prévu par le modèle) : le prof déclare ce qu'il enseigne, l'appli ne montre que ça. **3 PIÈGES à garder** : (a) **ça ne règle PAS l'admin** → la refonte de la grille admin est un **chantier séparé, et c'est le vrai premier** ; (b) l'**écran de déclaration** a besoin d'un **picker cherchable/autocomplétion** (« tape BTS CIEL… »), jamais un `<select>` de 500 — sinon on déplace la lourdeur ; (c) **deux endpoints** : un « **mes programmes** » **scopé** (léger, quotidien) + un de **recherche paginé** (déclaration), pas le `/api/programmes` actuel. Le filtrage règle la **VUE**, pas la **GESTION** (admin) ni le **STOCKAGE** (contenu).*
+  *Analyse de charge (factuelle). **Distinction clé** : la **structure** (niveaux/matières/paires) ne pèse rien — quelques milliers de lignes indexées, des Ko ; c'est le **CONTENU** (texte officiel embarqué en RAG, type référentiel officiel embarqué) qui pèse, **et seulement si on l'embarque**. **Ça casse par le HAUT, pas par le bas.** Ordre des vrais seuils : ① **INTERFACE ADMIN = le 1er mur, et il arrive tôt** — la grille matières×niveaux est un tableau lignes×colonnes par cycle ; au Supérieur ~200 niveaux × ~1000 matières = ~200 000 cases dans un seul tableau → DOM à genoux dès **quelques dizaines de niveaux/cycle** (~10k cases = lent, ~100k = inutilisable). ② **`/api/programmes` fourre-tout** : renvoie TOUT, appelé sur **6 pages, sans cache** → ~0,5-1 Mo/chargement à ~300-500 niveaux (gaspillage, pas blocage). ③ **Contenu RAG** si embarqué : 145 BTS × ~500-1000 chunks ≈ **100-150k vecteurs** Chroma → le vrai poste RAM/stockage VPS (optionnel, RAG éteint). ④ **SQLite (structure)** : jamais le problème à cette échelle. **Réponse VUE PROF = filtrage par `user_enseignements`** (déjà prévu par le modèle) : le prof déclare ce qu'il enseigne, l'appli ne montre que ça. **3 PIÈGES à garder** : (a) **ça ne règle PAS l'admin** → la refonte de la grille admin est un **chantier séparé, et c'est le vrai premier** ; (b) l'**écran de déclaration** a besoin d'un **picker cherchable/autocomplétion** (« tape BTS CIEL… »), jamais un `<select>` de 500 — sinon on déplace la lourdeur ; (c) **deux endpoints** : un « **mes programmes** » **scopé** (léger, quotidien) + un de **recherche paginé** (déclaration), pas le `/api/programmes` actuel. Le filtrage règle la **VUE**, pas la **GESTION** (admin) ni le **STOCKAGE** (contenu).*
 
 - [ ] **[Notation] Deux nomenclatures de cycles qui ne se superposent pas** | À reprendre — NE PAS corriger seul, lié au chantier référentiel
-  *Notre app nomme les cycles par **étape de scolarité** (Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur, `seed_programmes.py:15-18`). L'**Éducation nationale**, elle, numérote des **cycles 1 à 4** (cycle 4 = 5e/4e/3e ; la 6e est en cycle 3). « cycle 4 » s'est invité chez nous **uniquement** par le référentiel maths : métadonnée `cycle="4"`, collection `maths_cycle4`, constante `CYCLE4_LEVELS={5e,4e,3e}` (`generate.py:23`). **Frictions factuelles** : (1) notre « Collège » (6e→3e) ≠ « cycle 4 » EN (5e→3e) ; (2) piège de chiffres — « Collège » est aussi le 4ᵉ de notre liste (`ordre=4`), sans aucun rapport avec le « cycle 4 » EN. À trancher AVEC le chantier référentiel (quelle nomenclature fait foi, comment relier les deux), pas en isolé. Identifié 12/06/2026, pendant l'analyse de l'existant du référentiel.*
+  *Notre app nomme les cycles par **étape de scolarité** (Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur, `seed_programmes.py:15-18`). L'**Éducation nationale**, elle, numérote des **cycles 1 à 4** (cycle 4 EN = 5e/4e/3e ; la 6e est en cycle 3). La numérotation EN s'était invitée chez nous par un ancien référentiel de test (une collection morte + une constante de niveaux), **supprimés le 23/06**. **La friction de fond demeure** si une future indexation réintroduit la numérotation EN : (1) notre « Collège » (6e→3e) ≠ « cycle 4 » EN (5e→3e) ; (2) piège de chiffres — « Collège » est aussi le 4ᵉ de notre liste (`ordre=4`), sans aucun rapport avec le « cycle 4 » EN. À trancher AVEC le chantier référentiel (quelle nomenclature fait foi, comment relier les deux), pas en isolé. Identifié 12/06/2026.*
 
 - [ ] **[UX] Accès à TOUT l'historique en multi-cycles** | Rattaché au chantier programmes (TRACKER § Refonte programmes, réserve 3) — à traiter AVEC le passage `user_enseignements`, pas en isolé
   *« Mes activités » filtre **dur** sur matière+niveau du profil (`MesActivites.jsx:121-125`, aucune échappatoire). Inoffensif aujourd'hui (profil mono = 1 niveau), mais en multi un prof 3e+2nde ne verrait **jamais** la moitié de son travail. **Cible = garantir l'accès à tout l'historique** (« Voir tout » / chips niveau désactivables / autre — décision UI ouverte), PAS la mécanique du filtre en soi. Données jamais perdues (tri 100 % côté client, l'API renvoie tout). Le passage multi réécrira de toute façon la logique d'affichage → à regrouper là. Identifié 12/06/2026.*
@@ -296,8 +295,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Aide] Passe pro finale — qualité du contenu de toute l'aide** | En fin de parcours, hors gel
   *Les rubriques d'aide sont volontairement **légères** au fil de l'eau (on documente à chaque livraison — règle absolue `CLAUDE.md` § Aide). Une **passe dédiée en fin de parcours** étoffe TOUT le contenu : chaque rubrique complète, **exemples concrets** (entrée → sortie), ton pro, cohérence d'ensemble. Distincte de la refonte **visuelle** déjà faite (12/05, layout 2 colonnes) : ici c'est le **contenu**, pas le contenant. Absorbe les items partiels #269 (rubrique « Exemple » par outil) et #18 (aide personnalisée par matière). Identifié 12/06/2026.*
 
-- [ ] **[Qualité/Supérieur] Wording « secondaire / cycle 4 » codé en dur, appliqué à tous les niveaux** | Défaut systémique (relevé 14/06) — tâche transverse, pas un patch CIEL
-  *Foyers (prompts cadrant le LLM en « secondaire / cycle 4 » quel que soit le niveau) : (1) `_build_rag_prefix` (`src/prompts.py`) → « Programme MEN cycle 4 » / « attendus de fin de cycle 4 » (génération RAG) ; (2) `sequence.py` `_PROMPT_STANDARD` + (3) `_PROMPT_REMEDIATION` ; (4) `ambiguites.py` `_PROMPT` ; (5) `consigne.py` `_PROMPT` ; (6) `optimiseur.py` `_PROMPT` — tous « enseignement secondaire français (collège-lycée, 6e→Terminale) ». Cas connexe distinct : `fiches.py:287` (fiche marketing « du secondaire »). Le `{niveau}`/`{matiere}` est injecté correctement, mais le CADRAGE système contredit le Supérieur (BTS) — et contredira Crèche/Primaire. Symptôme observé (14/06) : séquence BTS CIEL correcte sur le fond mais « élèves » au lieu d'« étudiants ». Fix = paramétrer le cadrage par cycle/niveau — touche AUSSI collège/lycée. Lié à la décision #1 (RAG CIEL). **Voir aussi P5.11** (Supérieur : retirer/bloquer du menu, D16 §AUDIT) — même cluster « Supérieur à moitié supporté », **à NE PAS fusionner** (P5.11 = garde-fou menu ; ici = qualité du wording généré).*
+- [ ] **[Qualité/Supérieur] Wording « secondaire » codé en dur, appliqué à tous les niveaux** | Défaut systémique (relevé 14/06) — tâche transverse, pas un patch CIEL
+  *Foyers (prompts cadrant le LLM en « secondaire » quel que soit le niveau) : (1) `sequence.py` `_PROMPT_STANDARD` + (2) `_PROMPT_REMEDIATION` ; (3) `ambiguites.py` `_PROMPT` ; (4) `consigne.py` `_PROMPT` ; (5) `optimiseur.py` `_PROMPT` — tous « enseignement secondaire français (collège-lycée, 6e→Terminale) ». Cas connexe distinct : `fiches.py:287` (fiche marketing « du secondaire »). Le `{niveau}`/`{matiere}` est injecté correctement, mais le CADRAGE système contredit le Supérieur (BTS) — et contredira Crèche/Primaire. Symptôme observé (14/06) : séquence BTS CIEL correcte sur le fond mais « élèves » au lieu d'« étudiants ». Fix = paramétrer le cadrage par cycle/niveau — touche AUSSI collège/lycée. **Voir aussi P5.11** (Supérieur, D16 §AUDIT) — même cluster « Supérieur à moitié supporté », **à NE PAS fusionner** (P5.11 = garde-fou menu ; ici = qualité du wording généré).*
 
 - [ ] **[UX/Séquence] « Tester un exemple » (écran Séquence) ne couvre pas les matières CIEL** | Cosmétique, indépendant du grounding embeddings
   *Le prefill statique `_EX` (`SequenceForm.jsx`) n'a pas de clé pour Réseaux/Cybersécurité/etc. + BTS hors des listes `_LYCEE`/`_COL_BAS` → fallback thèmes Français/littérature. L'écran Activité (TexteSource → `/api/exemple-referentiel` → embeddings CIEL) n'est PAS concerné. Fix = ajouter des thèmes CIEL ou neutraliser le fallback hors-catalogue. Identifié 14/06/2026.*
@@ -308,10 +307,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[UX/Menu] Consigne + Optimiseur : code livré mais gatés « bientôt »** | Décider : rouvrir (retirer `disabled`) ou assumer le report
   *`Sidebar.jsx` `disabled:true` sur `consigne` + `optimiseur` (et `equite`, lui PAS codé). Consigne (`/analyser-consigne` + `Consigne.jsx`) et Optimiseur (`/optimize-sequence`, bouton inline `SequenceForm`) sont fonctionnels mais invisibles au prof. Identifié 14/06/2026.*
 
-- [ ] **[Décision RAG] Brancher le référentiel CIEL sur `/api/generate` — décision #1, OUVERTE** | Discutée 14/06, reportée, non tranchée — ne pas perdre
-  *Aujourd'hui `/api/generate` n'active le RAG que si `RAG_ENABLED=true` ET matière∈{maths} ET niveau∈{5e,4e,3e} → RAG éteint pour tout CIEL. 3 options pesées : (a) branche CIEL dédiée + préfixe référentiel-aware (reco) ; (b) élargir le gate (cassé tel quel) ; (c) ne rien faire. Prérequis : régler aussi le défaut [Qualité/Supérieur]. Relève de Chantier B (TRACKER l.123). Identifié 14/06/2026.*
-
-- [ ] **[Vérif/Prod] Valeur de `RAG_ENABLED` dans le `.env` prod (VPS) inconnue** | À vérifier — dit seulement si maths cycle 4 a le RAG actif en prod ; sans effet sur CIEL. Identifié 14/06/2026.
+- [ ] **[Décision RAG] Ancrer `/api/generate` sur le référentiel du couple — décision #1, OUVERTE** | Discutée 14/06, mise à jour 23/06 — non tranchée
+  *Depuis la réforme, `/api/generate` n'a **plus aucun** RAG (l'ancien gate maths a été retiré). Le RAG vit aujourd'hui dans `/api/exemple-referentiel` (référentiel CIEL). Question ouverte : faut-il **aussi** ancrer `/api/generate` sur le référentiel du couple matière+niveau ? Options : (a) brancher le référentiel du couple sur generate (reco) ; (b) ne rien faire (le RAG reste sur l'exemple de référentiel). Prérequis : régler aussi le défaut [Qualité/Supérieur]. Relève de Chantier B. Identifié 14/06/2026.*
 
 ---
 
@@ -347,7 +344,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="infra-rag"></a>
 - [~] **INFRA-RAG — Pile RAG mutualisée** | 1 session restante — DEV branché et validé, prod non décidée
-  *Pile commune `backend/rag/` (singleton ChromaDB + sentence-transformers + fonction `retrieve` générique). Branchée sur `/api/generate` avec gates (matière/niveau/feature flag) + fallback silencieux + logs INFO. **Test 4 validé en DEV le 15/05** : canary `Z36-27` injecté puis retrouvé cité 4 fois dans la sortie LLM (preuve que les chunks influencent vraiment la génération) ; wording du préfixe RAG renforcé (avant : 0 marqueur institutionnel MEN dans la sortie / après : 14+ marqueurs « compétences », « connaissances », « attendus cycle 4 », sources `[BOEN_..., page X]`). Livrable une fois, réutilisée par tous les producteurs de corpus (item 36 MEN, item 30 DYS/FLE, item 04 équité, item 31 communication, item 34 créativité) et tous les consommateurs (L1, L25, Générateur d'activités). Hors numérotation L — infra pure, pas un levier. Reste : hébergement chroma_db côté VPS, opti cold start sentence-transformers, branchement L1 (séquences) et autres consommateurs.*
+  *Pile commune `backend/rag/` (singleton ChromaDB + sentence-transformers + fonction `retrieve` générique). Branchée sur `/api/exemple-referentiel` (référentiel CIEL, BTS CIEL option A) — **un référentiel par couple matière+niveau**, niveau posé sur chaque chunk dès l'ingestion. Livrable une fois, réutilisée par tous les futurs producteurs de corpus (item 30 DYS/FLE, item 04 équité, item 31 communication, item 34 créativité) et consommateurs. Hors numérotation L — infra pure, pas un levier. Reste : hébergement chroma_db côté VPS, opti cold start sentence-transformers, branchement des autres consommateurs.*
   → [INFRA-RAG](RAG/INFRA-RAG.md)
 
 ### Items numérotés
@@ -369,7 +366,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-04"></a>
 - [ ] **04 — Détecteur d'équité pédagogique** | Facile | 1 session
-  *Audit d'une évaluation → 3 biais (contenu, difficulté, émotionnel). Grounding RAG sur charte de la laïcité + référentiels équité — infra commune avec [D24](BOUSSOLE/D24.md).*
+  *Audit d'une évaluation → 3 biais (contenu, difficulté, émotionnel). Grounding RAG sur charte de la laïcité + référentiels équité — infra commune [INFRA-RAG](RAG/INFRA-RAG.md).*
   → [D17](BOUSSOLE/D17.md)
 
 <a id="item-05"></a>
@@ -463,7 +460,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-25"></a>
 - [ ] **25 — Cohérence curriculaire inter-disciplines** | Difficile | 2-3 sessions
-  *Aligne notions et progressions entre matières. 3 étapes : structurer programmes MEN, similarité sémantique inter-notions, définir la sortie. Approche : commencer 1 matière × 1 niveau. Grounding RAG mutualisé avec [D24](BOUSSOLE/D24.md).*
+  *Aligne notions et progressions entre matières. 3 étapes : structurer programmes MEN, similarité sémantique inter-notions, définir la sortie. Approche : commencer 1 matière × 1 niveau. Grounding RAG mutualisé via [INFRA-RAG](RAG/INFRA-RAG.md).*
   → [D25](BOUSSOLE/D25.md)
 
 <a id="item-26"></a>
@@ -488,7 +485,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-30"></a>
 - [ ] **30 — Différenciation DYS / FLE / approfondissement** | Moyen | 1 session
-  *3 variantes d'une activité après génération : DYS (syntaxe épurée + OpenDyslexic), FLE (vocabulaire simplifié), approfondissement (nuances). 3 boutons dans ZoneResultat + 3 modificateurs de prompt. Grounding RAG sur guides MEN inclusion — infra commune avec [D24](BOUSSOLE/D24.md).*
+  *3 variantes d'une activité après génération : DYS (syntaxe épurée + OpenDyslexic), FLE (vocabulaire simplifié), approfondissement (nuances). 3 boutons dans ZoneResultat + 3 modificateurs de prompt. Grounding RAG sur guides MEN inclusion — infra commune [INFRA-RAG](RAG/INFRA-RAG.md).*
   → [D23](BOUSSOLE/D23.md)
 
 <a id="item-31"></a>
@@ -515,11 +512,6 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **35 — Versioning & transposition de séquences** | Difficile | 3 sessions
   *Permettre au prof de réutiliser/adapter une séquence existante au lieu de la régénérer — c'est le vrai moat. Nouvelle table `sequence_versions`, transposition automatique d'un niveau à l'autre, UI fork dans l'historique. Prérequis : [D07](BOUSSOLE/D07.md) (mécanique versions éphémère).*
   → [D26](BOUSSOLE/D26.md)
-
-<a id="item-36"></a>
-- [ ] **36 — Corpus Programmes MEN (producteur RAG)** | Moyen-Difficile | 3,5-5 sessions restantes — 1/96 docs indexés
-  *Producteur de la collection `corpus_programmes_men` (~96 docs, 12 matières × 8 niveaux + programme 2026 cycle 4 progressif). Consommateurs : L1, L25, Générateur d'activités. Contrainte critique : coexistence 2020/2026 sur 3 ans → filtrage par métadonnée `programme` + `niveau` + `matiere` obligatoire. Prérequis : [INFRA-RAG](RAG/INFRA-RAG.md). État actuel : collection `maths_cycle4` indexée via POC, 95 docs restants.*
-  → [D24](BOUSSOLE/D24.md) (volumétrie corpus, pipeline ingestion, contrainte 2020/2026, test d'éval binaire, risques hétérogénéité sources)
 
 <a id="item-37"></a>
 - [ ] **37 — Affinage interactif de séquence (instruction prof + versions éphémères)** | Moyen | 1 session — code dormant / parké (D07)
@@ -646,7 +638,7 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
   *Refactor `STTSessionTracker` (décision D5γ de la Phase 2.2) : `max_concurrent` relu live à chaque `acquire()` via helper `_read_max()` — suppression de `self._max` figé pour avoir une seule source de vérité (l'env). Permet la mutation dynamique sans restart serveur (utile pour tests scénarios saturation + future Phase 4.1 admin). Compteur agrégé R4 par catégorie de denial pré-accept exposé via `snapshot() → STTSessionSnapshot` TypedDict, à brancher dans `/admin/stt-status` Phase 4.1. **3 catégories** (élargies par rapport au scope R4 initial qui prévoyait 2) : `anonymous` (pas de cookie), `bad_token` (cookie présent mais JWT invalide/expiré), `saturated` (quota concurrence atteint, ajouté pour cohérence sémantique — la saturation est aussi un denial pré-accept, exposer 2/3 côté admin serait trompeur). 7 tests unitaires standalone (3 migrés Phase 1.4 + 4 nouveaux) : race condition strict 41/40, bump dynamique env entre acquires, concurrence 50+30+20 sur `record_pre_accept_reject`, structure snapshot, whitelist runtime defense-in-depth.*
 
 - [x] **Branchement RAG en DEV — Générateur d'activités** | Livré 15/05
-  *INFRA-RAG branchée sur `/api/generate` avec gates (RAG_ENABLED + subject Maths normalisé NFKD + niveau cycle 4) + fallback silencieux + logs INFO observables. `GenerateResponse.chunks` populé quand RAG actif. Protocole 4 tests DEV validés : (1) non-régression RAG-off, (2) gate subject Français, (3) gate niveau Terminale, (4) activation effective prouvée par canary `Z36-27` + wording du préfixe RAG renforcé pour forcer la citation explicite du vocabulaire institutionnel MEN. Fix collatéraux : logger applicatif INFO activé dans `backend/main.py`, sync `params.niveau` ↔ `user.niveau` après sauvegarde profil dans `frontend/src/App.jsx`, niveau affiché dans le header, migration manquante `ALTER TABLE sequences_sauvegardees ADD COLUMN partagee`. Mode DEV uniquement — décision hébergement chroma_db côté VPS reportée. Outil canary conservé dans `backend/rag/_canary_inject.py` (utile pour validation futurs producteurs).*
+  *Branchement RAG initial livré le 15/05 en DEV sur `/api/generate`. **Entièrement remplacé par la réforme (21-23/06)** : le RAG a été retiré de `/api/generate` et vit désormais dans `/api/exemple-referentiel` (référentiel CIEL, un par couple matière+niveau). Détail technique de l'époque (gates, canary, préfixe) : dans l'historique git.*
 
 - [x] **Fiabilisation fallback Groq (413/503)** | Livré 15/05
   *Bug : optimisation séquence renvoyait 413 "Request too large" car le 1er fallback `llama-3.1-8b-instant` (TPM 6000) ne tient pas une requête d'optim (~7400 tokens). Correctif `backend/groq_client.py` : (1) ordre du fallback inversé — `gpt-oss-120b` → `gpt-oss-20b` → `8b-instant` (le moins capable en dernier recours), (2) le fallback se déclenche aussi sur 413 et 503 (plus seulement 429), (3) nettoyage variable morte `last_error`. La génération de séquence (~4500 tokens) n'était pas affectée car elle tenait sous la limite.*

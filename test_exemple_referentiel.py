@@ -84,7 +84,7 @@ def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple():
     kept = [c for c in chunks if c["score"] is not None and c["score"] >= ciel_fiche.SCORE_MIN]
     assert kept, "aucun chunk >= seuil pour ce couple (le test suppose au moins un pertinent)"
     for c in kept:
-        assert c["source"] == "REF-BTS-CIEL-2023"      # bien du CIEL, pas du maths cycle 4
+        assert c["source"] == "REF-BTS-CIEL-2023"      # bien du CIEL, pas d'une autre collection
         assert c["text"][:60] in prompt                # le matériel retenu est injecté
     # Un chunk SOUS le seuil ne doit jamais entrer dans le prompt.
     for c in chunks:

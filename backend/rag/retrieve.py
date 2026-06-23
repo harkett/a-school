@@ -30,7 +30,7 @@ def retrieve(
     """Recherche les chunks les plus pertinents pour une question.
 
     Args:
-        collection_name: nom de la collection ChromaDB (ex: "maths_cycle4").
+        collection_name: nom de la collection ChromaDB (ex: "bts_ciel_optionA").
         question: question prof a embedder et chercher.
         filters: filtres sur les metadonnees. Format ChromaDB `where`.
                  None ou {} = pas de filtre.

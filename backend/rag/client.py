@@ -23,7 +23,7 @@ def get_client() -> Any:
         if not DB_DIR.exists():
             raise RuntimeError(
                 f"ChromaDB introuvable : {DB_DIR}. "
-                f"Verifie que la collection a bien ete copiee depuis rag_demo/chroma_db/."
+                f"Lance l'ingestion d'un referentiel (python -m backend.rag.ingest_referentiel)."
             )
         logger.info(f"[RAG] Initialisation ChromaDB depuis {DB_DIR}")
         _client = chromadb.PersistentClient(path=str(DB_DIR))

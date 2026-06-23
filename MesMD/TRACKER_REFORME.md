@@ -25,7 +25,7 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 
 ## Phase 1 — CŒUR VITAL (nettoyage du moteur LLM) ✅ TERMINÉE
 - [x] **Tâche 1** — Supprimer le chemin RAG « maths »
-  - [x] gate maths/cycle4 + collection retirées (generate.py)
+  - [x] gate maths retirée de generate.py ; collection morte supprimée de ChromaDB (23/06)
   - [x] flag RAG_ENABLED + RAG_PROGRAMME_DEFAULT retirés (.env)
   - [x] champ `chunks` retiré de GenerateResponse
   - [x] tests verts (36/36), CIEL intact, commit fait
@@ -105,7 +105,7 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 - [ ] P4.8 — alignement styling des cartes
 - [ ] P4.9 — toast sur réinitialisation paramètres
 - [ ] Bug Accueil : dernière SÉQUENCE affiche du Markdown brut
-- [ ] cleanup `src/prompts.py:_build_rag_prefix` (l.2720-2748) : préfixe RAG « programme MEN cycle 4 », mort depuis Phase 1 (jamais appelé — `generate.py` ne passe pas `rag_chunks`). À supprimer.
+- [x] cleanup `src/prompts.py:_build_rag_prefix` — préfixe RAG mort supprimé le 23/06 (+ paramètre `rag_chunks` de `build_prompt`, plus aucun appelant).
 - [ ] cleanup : sortir la base ChromaDB (`backend/rag/chroma_db/`) du suivi git → `.gitignore` + reconstruction par `ingest_referentiel` au déploiement (« données ≠ code »). Décision (c) du 21/06 ; aujourd'hui la base est versionnée et committée, ce nettoyage la décorrèle du repo plus tard.
 - [ ] Aide : expliquer au prof que l'exemple généré peut varier à chaque essai
   (texte reformulé par le LLM) alors que l'ancrage référentiel, lui, reste

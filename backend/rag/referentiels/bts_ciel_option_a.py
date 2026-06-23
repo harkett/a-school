@@ -10,8 +10,8 @@ et surtout les enseignements généraux III.3 — Maths, Anglais, Français…) 
 l'option A → tagué 'A'. Le détecteur se cale sur le NUMÉRO de section (ASCII, robuste à
 l'encodage), en ignorant le sommaire.
 
-Non négociable : le `niveau` est posé sur CHAQUE chunk dès l'ingestion — c'est le défaut
-de `maths_cycle4` (pas de niveau) qu'on ne reproduit PAS ici.
+Non négociable : le `niveau` est posé sur CHAQUE chunk dès l'ingestion — jamais un corpus
+sans niveau, qui mélangerait plusieurs référentiels en un seul bloc.
 """
 from __future__ import annotations
 

@@ -3,12 +3,9 @@
 Ce que le test PROUVE (pas « le code existe » — la chaîne réelle donne le bon résultat) :
   1. La collection `bts_ciel_optionA` existe et est peuplée depuis le PDF officiel.
   2. NON NÉGOCIABLE : chaque chunk porte le bon `niveau` dès l'ingestion
-     (le défaut de `maths_cycle4` — pas de niveau — n'est PAS reproduit).
+     (jamais un corpus sans niveau qui mélangerait plusieurs référentiels).
   3. La fonction générique `retrieve()` remonte bien du CIEL pour une requête du
      domaine (réseaux / cybersécurité) → le raccordement ingestion ↔ retrieve marche.
-  4. GARDE-FOU : `maths_cycle4` reste intacte (699) et n'est pas polluée ; et la
-     collection CIEL ne contient aucun chunk maths. Une requête CIEL ne peut pas
-     remonter du maths cycle 4.
 
 Prérequis : la collection a été construite —
     .\.venv\Scripts\python.exe -m backend.rag.ingest_referentiel
@@ -34,7 +31,6 @@ from backend.rag import retrieve
 COLLECTION = "bts_ciel_optionA"
 NIVEAU = "BTS CIEL option A"
 SOURCE_CIEL = "REF-BTS-CIEL-2023"
-SOURCE_MATHS = "BOEN_2020-07-30"
 
 
 def _metadatas(name):
@@ -81,13 +77,3 @@ def test_retrieve_generique_remonte_du_ciel():
     assert chunks, "retrieve() ne remonte rien"
     assert all(c["source"] == SOURCE_CIEL for c in chunks)
     assert chunks[0]["score"] is not None
-
-
-def test_garde_fou_maths_intact_et_non_pollue():
-    # maths_cycle4 inchangée…
-    maths = get_client().get_collection(name="maths_cycle4")
-    assert maths.count() == 699
-    # …et le niveau CIEL n'a pas fui dedans.
-    assert all(m.get("niveau") != NIVEAU for m in _metadatas("maths_cycle4"))
-    # Réciproque : aucun chunk maths n'a atterri dans la collection CIEL.
-    assert all(m.get("source") != SOURCE_MATHS for m in _metadatas(COLLECTION))
