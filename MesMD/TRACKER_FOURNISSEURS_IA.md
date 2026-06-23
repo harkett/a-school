@@ -1,10 +1,33 @@
 # TRACKER FOURNISSEURS IA — aSchool
 
-> **Version : 0.3** (brouillon chat — à finaliser par CC, puis validation HARKETTI)
+> **Version : 0.4** (brouillon chat — à finaliser par CC, puis validation HARKETTI)
 > **Rôle :** référence partagée unique sur le sujet « fournisseurs IA ». Toi, CC et le chat
 > partent du même état, pour éviter les divergences (ex. écart constaté sur `max_tokens`).
 > **Source des faits code :** audit terrain CC (20–22/06). Le terrain fait foi.
 > **Indicateur de désync :** le numéro de version en tête.
+
+---
+
+## ⏸️ STATUT — Chantier SUSPENDU volontairement après e.4 (23/06)
+
+**Décision produit (23/06) :** on **gèle** le chantier fournisseurs (Option B + Anthropic-abonnement), on **reste sur Groq**. **Pourquoi :** gros chantier d'**infrastructure** (registre à sondes, adaptateur `claude -p`, prérequis opérateur local+VPS, reprise de code committé) qui **n'ajoute aucune activité pédagogique** — Groq marche déjà, et bien. Priorité rendue au **produit** (référentiel CIEL, qui sert directement les profs). Le multi-fournisseurs est de l'infra qui **peut attendre que le produit soit prêt**. (Charrue avant les bœufs assumée et corrigée.)
+
+**Acquis conservés (rien jeté) :** e.0 (constat) · e.3 (fournisseur lu en base à chaud) · e.4 (UI admin combo Groq + endpoints dédiés) → **Groq pleinement opérationnel et administrable**. Base de décision Anthropic-abonnement (pause Anthropic du 15/06, vérifiée) valable « tant que ça dure ».
+
+---
+
+## 🔁 Reprise — plan figé du chantier suspendu
+
+**Découpage B.1 → B.5** (ordre imposé par les dépendances techniques) :
+- **B.1 — Registre + sondes (fondation).** Chaque fournisseur déclare sa sonde « opérationnel ? » : groq = `AI_API_KEY` présente ; anthropic = CLI `claude` présente + session (**sonde (i)** retenue). *Preuve : test sondes, aucun endpoint touché.*
+- **B.2 — Combo lit les sondes (évolution NON RÉGRESSIVE d'e.4).** `GET /admin/ai-providers` renvoie la liste **sondée** au lieu de `["groq"]` en dur. **Exigence : 94 tests verts inchangés** (env actuel = seule `AI_API_KEY` → liste = `["groq"]`, identique à e.4). *Preuve : 94 verts + test « anthropic apparaît si sonde forcée ».*
+- **B.3 — Adaptateur Anthropic via `claude -p`.** Prompt par stdin, sortie texte, mapping `--model`, timeout 60 s + kill propre, `ANTHROPIC_API_KEY` retirée de l'env du sous-processus, erreur honnête si non connecté. *Preuve : test sous-processus mocké, aucun appel réel.*
+- **B.4 — Prérequis opérateur (GESTE HARKETTI, pas du code) :** `claude` installé + connecté en **local ET sur le VPS** (login device-code headless). Tant que non fait : sonde = « non joignable » → Anthropic masqué (correct), bascule réelle non testable. *« Preuve » = geste, pas un test.*
+- **B.5 — Bascule réelle bout-en-bout + clôture.** Admin sélectionne Anthropic → génération via `claude -p` sur l'abonnement. **+ Aide « Génération LLM › Fournisseur » rédigée ici** (réservée pour la fin). *Preuve : geste réel + Aide + journal + push.*
+
+**Micro-décision à trancher à la reprise (ouvre B.3) — NON tranchée volontairement :** quel modèle Anthropic utilise, puisque `ai_model` est un modèle Groq (`SUPPORTED_AI_MODELS` = Groq seul) → `claude -p --model llama-…` échouerait. Piste : Anthropic **ignore** le `ai_model` administré et prend un **modèle Claude** propre (défaut abonnement ou modèle Claude dédié).
+
+**Garde-fou de reprise :** la pause Anthropic du 15/06 est **réversible** → revérifier l'état en vigueur (puise-t-elle encore dans l'abonnement ?) **avant** de reprendre.
 
 ---
 
@@ -136,6 +159,8 @@ Voisin : item #39 / D28 — tester Claude Sonnet 4.6 sur les séquences (~3 $/Mt
 ---
 
 ## 9. Chronologie d'avancement 4.1.e (pilotage — CC propose le « comment »)
+
+> ⏸️ Chantier suspendu après e.4 (23/06) — voir bandeau **STATUT** en tête.
 
 Étapes ordonnées par dépendance, avec preuve attendue. **L'ordre, les dépendances et les
 preuves sont du pilotage ; la solution technique de chaque étape, c'est CC qui la propose.**
