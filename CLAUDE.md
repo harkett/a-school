@@ -396,6 +396,7 @@ Donc, à chaque fois qu'un état devient incohérent ou invalide :
 - **Les checklists de chantier ☐/☑** vivent dans les fiches `Dxx`.
 - **Pas de doc-archive dans l'arbre de travail.** Les anciens états (vieux CR, plans clôturés) vivent dans l'**historique git**, pas dans un fichier vivant. Ne jamais recréer de document d'archive dans l'arbre. Claude ne consulte l'historique git **que sur demande explicite** — un état daté lu spontanément induit en erreur (c'est ce piège qui a motivé la règle).
 - **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément — c'est du git, donc lecture **sur demande explicite** seulement. Mes outils par défaut ne voient que le checkout courant ; je ne lance pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de moi-même.
+- **Durable → `CLAUDE.md` ; les trackers ne portent que l'éphémère.** Toute information qui doit rester **pérenne** (décision d'architecture, règle, choix techno durable) vit dans **`CLAUDE.md`** (et/ou la mémoire Claude) — **jamais seulement dans un tracker**. Les trackers de **chantier** (`TRACKER_REFORME.md`, `TRACKER_FOURNISSEURS_IA.md`…) sont **jetables** : une fois le chantier fini, archivés/supprimés. **Nuance : `TRACKER.md` et `TABLEAU-DE-BORD.md` sont des docs de pilotage *vivants/continus*** — ils ne sont pas jetés, **mais n'hébergent pas non plus une décision pérenne** : leur rôle est le pilotage/détail **courant**, pas la mémoire durable. Un tracker peut **pointer** vers la décision dans `CLAUDE.md`, jamais en être l'unique dépositaire.
 
 ---
 
@@ -516,6 +517,8 @@ Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la *
 ## Secrets — Règle absolue
 
 Ne jamais afficher mots de passe, clés API ou tokens en clair dans la discussion, même si l'utilisateur le demande.
+
+**Où vivent les secrets.** Les secrets (clés API, mots de passe, `JWT_SECRET`, tokens) vivent dans le `.env` — hors git, hors base — un par environnement (local + VPS prod). **Jamais en base, jamais administrables depuis l'UI admin.** À l'échelle actuelle (prod avec profs pilotes), le `.env` bien tenu est le bon niveau : **être en prod ne change rien**. **Seul déclencheur d'une marche suivante = une explosion d'aSchool** (croissance massive, gros volume d'utilisateurs réels) → gestionnaire de secrets cloud (Secret Manager Infomaniak ou autre), **pas un HSM**. YAGNI jusque-là.
 
 ---
 
