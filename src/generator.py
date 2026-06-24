@@ -4,6 +4,14 @@ from contextlib import contextmanager
 from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
 
 
+class LLMRateLimitError(RuntimeError):
+    """Saturation : soit trop d'appels LLM simultanés chez nous (créneau indisponible), soit
+    le fournisseur qui nous limite (HTTP 429). C'est transitoire, PAS une panne -> les routeurs
+    la traduisent en 429 « réessayez dans un instant », jamais en 500/502. Sous-classe de
+    RuntimeError : si un routeur l'oublie, le filet générique l'attrape encore (au pire 500,
+    jamais un crash)."""
+
+
 # Régulation de concurrence : UN seul sémaphore pour TOUS les appels sortants Groq
 # (génération + OCR + dictée), car ils partagent le même quota de compte. Les endpoints
 # sont synchrones -> exécutés dans le pool de threads de FastAPI : le primitif correct est
@@ -16,7 +24,7 @@ def _llm_slot():
     """Réserve un créneau d'appel LLM. Attend au plus AI_SLOT_TIMEOUT secondes ; si aucun
     créneau ne se libère, lève une erreur honnête plutôt que de laisser la requête pendre."""
     if not _llm_semaphore.acquire(timeout=AI_SLOT_TIMEOUT):
-        raise RuntimeError("Trop de générations simultanées en ce moment. Réessayez dans un instant.")
+        raise LLMRateLimitError("Trop de générations simultanées en ce moment. Réessayez dans un instant.")
     try:
         yield
     finally:
@@ -79,6 +87,8 @@ def _groq(
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     response = requests.post(url, headers=headers, json=body, timeout=60)
+    if response.status_code == 429:
+        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
     if not response.ok:
         raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
     return response.json()["choices"][0]["message"]["content"]
@@ -106,22 +116,15 @@ def _gemini(
         "generationConfig": generation_config,
     }
     response = requests.post(url, headers=headers, params=params, json=body, timeout=60)
+    if response.status_code == 429:
+        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
     if not response.ok:
         raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
     return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def transcribe_audio(audio_bytes: bytes) -> str:
-    import requests
-    url = "https://api.groq.com/openai/v1/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {AI_API_KEY}"}
-    files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
-    data = {"model": "whisper-large-v3", "language": "fr"}
-    with _llm_slot():
-        response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-    if not response.ok:
-        raise RuntimeError(f"Erreur transcription {response.status_code}: {response.text}")
-    return response.json()["text"]
+# Note : la dictée (Whisper) passe par backend/groq_client.transcribe_audio, pas ici.
+# (L'ancien transcribe_audio de ce module était du code mort — supprimé.)
 
 
 def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
@@ -152,6 +155,8 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     }
     with _llm_slot():
         response = requests.post(url, headers=headers, json=body, timeout=60)
+    if response.status_code == 429:
+        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
     if not response.ok:
         raise RuntimeError(f"Erreur OCR {response.status_code}: {response.text}")
     return response.json()["choices"][0]["message"]["content"]
@@ -181,5 +186,8 @@ def _anthropic(
     # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
     # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
     client = anthropic.Anthropic(api_key=AI_API_KEY, timeout=60)
-    message = client.messages.create(**kwargs)
+    try:
+        message = client.messages.create(**kwargs)
+    except anthropic.RateLimitError:
+        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
     return message.content[0].text

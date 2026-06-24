@@ -10,7 +10,7 @@ from backend.models_db import ActiviteSauvegardee, User
 from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
 from backend import auth as auth_lib
 from src.prompts import build_prompt
-from src.generator import generate
+from src.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -74,6 +74,9 @@ def api_generate(
     except ValueError as e:
         # Clé d'activité absente du catalogue — faute client, pas une 500.
         raise HTTPException(status_code=400, detail=str(e))
+    except LLMRateLimitError as e:
+        # Surchargé / trop de demandes : transitoire (429 « réessayez »), pas une panne (502).
+        raise HTTPException(status_code=429, detail=str(e))
     except (RuntimeError, requests.exceptions.RequestException) as e:
         # Groq indisponible (réponse non-ok ou réseau) — panne amont, pas une 500.
         log.warning(f"/api/generate — génération indisponible : {e}")

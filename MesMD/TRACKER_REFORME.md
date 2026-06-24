@@ -28,7 +28,7 @@
 - [x] Régulation de concurrence sur les appels LLM (sémaphore partagé, limite env, attente bornée)
 - [x] Unifier les migrations (plus d'ALTER inline)
 - [ ] Décider : rester SQLite ou migrer PostgreSQL
-- [ ] Code d'erreur 429 distinct (400/401/500/502 déjà là)
+- [x] Code d'erreur 429 distinct (surcharge / rate limit → « réessayez », sur tous les outils + OCR + dictée)
 - [ ] Robustesse de l'indexation RAG (filet autour de col.add)
 
 ## Phase 6 — Cosmétique / différé

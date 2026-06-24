@@ -9,7 +9,7 @@ from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, User
 from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
-from src.generator import generate
+from src.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 
@@ -83,6 +83,8 @@ def api_detect_ambiguites(
     try:
         raw = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "ambiguites"), temperature=get_temperature(db))
         data = _parse_json(raw)
+    except LLMRateLimitError as e:
+        raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     except ValueError:
         raise HTTPException(500, "Le modèle n'a pas retourné un résultat exploitable. Réessayez.")
     except RuntimeError as e:

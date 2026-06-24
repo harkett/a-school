@@ -21,7 +21,7 @@ from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.rag import retrieve
 from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
 from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
-from src.generator import generate
+from src.generator import generate, LLMRateLimitError
 from src.prompts import build_exemple_referentiel_prompt
 
 router = APIRouter()
@@ -84,6 +84,9 @@ def api_exemple_referentiel(
         return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
     prompt = build_exemple_referentiel_prompt(chunks, matiere=req.matiere, niveau=req.niveau)
-    texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
+    try:
+        texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
+    except LLMRateLimitError as e:
+        raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {ciel_fiche.SCORE_MIN})")
     return ExempleReferentielResponse(available=True, texte=texte)

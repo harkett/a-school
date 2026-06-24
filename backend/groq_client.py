@@ -1,6 +1,7 @@
 import requests
 from fastapi import HTTPException
 from src.config import AI_API_KEY
+from src.generator import _llm_slot, LLMRateLimitError
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 TRANSCRIBE_MODEL = "whisper-large-v3"
@@ -22,7 +23,14 @@ def transcribe_audio(data: bytes, filename: str, content_type: str | None = None
     headers = {"Authorization": f"Bearer {AI_API_KEY}"}
     files = {"file": (filename, data, content_type or "application/octet-stream")}
     payload = {"model": TRANSCRIBE_MODEL, "language": "fr"}
-    r = requests.post(GROQ_TRANSCRIBE_URL, headers=headers, files=files, data=payload, timeout=90)
+    # Même créneau partagé que la génération/OCR (même quota Groq) ; saturation -> 429 « réessayez ».
+    try:
+        with _llm_slot():
+            r = requests.post(GROQ_TRANSCRIBE_URL, headers=headers, files=files, data=payload, timeout=90)
+    except LLMRateLimitError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    if r.status_code == 429:
+        raise HTTPException(status_code=429, detail="Trop de demandes en ce moment. Réessayez dans un instant.")
     if not r.ok:
         raise HTTPException(status_code=502, detail=f"Erreur transcription Groq {r.status_code}: {r.text[:200]}")
     return (r.json().get("text") or "").strip()

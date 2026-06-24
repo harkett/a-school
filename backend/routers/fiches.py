@@ -14,7 +14,7 @@ from backend.database import get_db
 from backend.models_db import FicheMatiere
 from backend.routers.admin import _require_admin
 from src.activities import ACTIVITES_PAR_MATIERE
-from src.generator import generate
+from src.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 
@@ -308,6 +308,8 @@ Règles :
         if not match:
             raise ValueError("Réponse JSON introuvable")
         data = json.loads(match.group())
+    except LLMRateLimitError as e:
+        raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     except Exception as e:
         raise HTTPException(500, f"Erreur de génération : {e}")
 

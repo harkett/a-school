@@ -1,7 +1,7 @@
 import io
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from src.generator import transcribe_image
+from src.generator import transcribe_image, LLMRateLimitError
 
 router = APIRouter()
 
@@ -16,6 +16,8 @@ async def ocr(file: UploadFile):
         mime = "image/png" if ext == "png" else "image/jpeg"
         try:
             texte = transcribe_image(data, mime)
+        except LLMRateLimitError as e:
+            raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
         except Exception as e:
             raise HTTPException(500, f"Erreur OCR image : {e}")
         return {"texte": texte}
