@@ -216,6 +216,9 @@ const SECTIONS = [
           'Surcharges propres : Détecteur d\'ambiguïtés (3000), Générateur de séquences (4000), Optimiseur de séquences (6000).',
           'Chaque valeur doit être comprise entre 256 et 8000. Trop basse, elle tronque les activités générées ; une saisie hors limites est refusée par une fenêtre d\'alerte tant qu\'elle n\'est pas corrigée.',
           'Pris en compte immédiatement, sans redémarrage du serveur ; réglages sauvegardés en base de données.',
+          'Onglet « Température » : règle la variabilité des générations, de 0 (stable, répétable) à 2 (très varié). Attention — plus haut N\'EST PAS mieux : une température élevée rend les réponses moins fiables (erreurs, format cassé). Pour des activités pédagogiques, rester bas à modéré.',
+          'Laisser le champ vide = utiliser le réglage par défaut du fournisseur (aucun changement par rapport au comportement actuel). Une valeur hors de [0, 2] est refusée par une fenêtre d\'alerte.',
+          'L\'Optimiseur de séquences n\'est pas concerné : sa température reste à 0 pour produire un résultat fiable et bien formé. Pris en compte immédiatement, sans redémarrage.',
         ],
       },
       {

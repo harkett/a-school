@@ -69,6 +69,12 @@ SETTING_DEFAULTS = {
     "max_tokens_ambiguites": "3000",
     "max_tokens_sequence": "4000",
     "max_tokens_optimiseur": "6000",
+    # Température LLM — administrable à chaud (Phase 4.1.d), GLOBALE (un seul réglage pour tous
+    # les outils de génération). Défaut = "" (non réglée) -> get_temperature() renvoie None ->
+    # generate() n'envoie rien -> le fournisseur applique SON défaut = comportement historique,
+    # zéro régression. L'optimiseur n'utilise PAS ce réglage (température 0 figée en dur, JSON
+    # déterministe). « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
+    "ai_temperature": "",
 }
 
 
@@ -129,6 +135,29 @@ def get_max_tokens(db: Session, outil: str) -> int:
         return int(raw)
     except (TypeError, ValueError):
         return int(s["max_tokens_default"])
+
+
+# Bornes de température (Phase 4.1.d). Plage standard des API compatibles OpenAI/Groq.
+# Rappel : « le mieux » N'EST PAS « le plus haut » — haute température = sorties moins fiables
+# (hallucinations, format cassé). Pour du pédagogique, le bon réglage est bas à modéré.
+TEMPERATURE_MIN = 0.0
+TEMPERATURE_MAX = 2.0
+
+
+def get_temperature(db: Session):
+    """Température courante (GLOBALE), lue en base au moment de l'appel (rechargeable à chaud,
+    même motif que get_max_tokens). Renvoie un float dans [MIN, MAX], ou None si non réglée ->
+    generate() n'envoie alors RIEN et le fournisseur applique son défaut (comportement
+    historique = zéro régression). Valeur corrompue / hors bornes -> None (jamais d'exception).
+    L'optimiseur n'utilise PAS ce réglage (température 0 figée en dur pour un JSON déterministe)."""
+    raw = get_settings_dict(db).get("ai_temperature", "")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if TEMPERATURE_MIN <= v <= TEMPERATURE_MAX else None
 
 
 class AdminLoginBody(BaseModel):
@@ -626,6 +655,57 @@ def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends
             f"max_tokens mis à jour — défaut {body.default}, ambiguïtés {body.ambiguites}, "
             f"séquence {body.sequence}, optimiseur {body.optimiseur}"
         ),
+    )
+    return {"status": "ok"}
+
+
+class TemperatureBody(BaseModel):
+    temperature: float | None = None  # None / absente = défaut du fournisseur (non réglée)
+
+
+@router.get("/admin/temperature")
+def get_temperature_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Température courante (float, ou None = défaut fournisseur) + bornes — alimente le
+    formulaire admin et sa validation. Miroir de GET /admin/max-tokens."""
+    raw = get_settings_dict(db).get("ai_temperature", "")
+    val = None
+    if raw not in (None, ""):
+        try:
+            val = float(raw)
+        except (TypeError, ValueError):
+            val = None
+    return {"temperature": val, "bounds": {"min": TEMPERATURE_MIN, "max": TEMPERATURE_MAX}}
+
+
+@router.put("/admin/temperature")
+def save_temperature(body: TemperatureBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit la température globale. Endpoint DÉDIÉ (les autres PUT restent intacts).
+    `temperature` absente/None -> on revient au défaut du fournisseur (clé vidée). Sinon
+    validation stricte dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien
+    écrit. L'optimiseur n'est pas concerné (température 0 figée en dur)."""
+    if body.temperature is None:
+        valeur = ""
+    else:
+        if not (TEMPERATURE_MIN <= body.temperature <= TEMPERATURE_MAX):
+            raise HTTPException(
+                400,
+                f"Température hors limites : {body.temperature}. Elle doit être un nombre entre "
+                f"{TEMPERATURE_MIN} et {TEMPERATURE_MAX} (laisser vide = défaut du fournisseur).",
+            )
+        valeur = str(body.temperature)
+    row = db.query(Setting).filter(Setting.key == "ai_temperature").first()
+    if row:
+        row.value = valeur
+    else:
+        db.add(Setting(key="ai_temperature", value=valeur))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_TEMPERATURE",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Température mise à jour : {valeur or 'défaut fournisseur'}",
     )
     return {"status": "ok"}
 

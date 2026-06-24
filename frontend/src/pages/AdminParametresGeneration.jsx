@@ -21,6 +21,12 @@ export default function AdminParametresGeneration() {
   const [savingTokens, setSavingTokens] = useState(false)
   const [messageTokens, setMessageTokens] = useState(null)
 
+  // Température (Phase 4.1.d) — GLOBALE. Vide = défaut du fournisseur (non réglée), sinon 0.0–2.0.
+  const [temperature, setTemperature] = useState('')
+  const [tempBounds, setTempBounds] = useState({ min: 0, max: 2 })
+  const [savingTemp, setSavingTemp] = useState(false)
+  const [messageTemp, setMessageTemp] = useState(null)
+
   useEffect(() => {
     fetch('/api/admin/ai-models', { credentials: 'include' })
       .then(r => r.json())
@@ -48,6 +54,14 @@ export default function AdminParametresGeneration() {
       .then(data => {
         setAiProvider(data.current || '')
         setSupportedProviders(data.supported || [])
+      })
+      .catch(() => {})
+
+    fetch('/api/admin/temperature', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        setTemperature(data.temperature == null ? '' : String(data.temperature))
+        if (data.bounds) setTempBounds(data.bounds)
       })
       .catch(() => {})
   }, [])
@@ -136,6 +150,41 @@ export default function AdminParametresGeneration() {
     }
   }
 
+  // Température : vide = valide (= défaut fournisseur) ; sinon nombre dans [min, max].
+  const tempInvalide = v => {
+    if (v === '') return false
+    const n = Number(v)
+    return !Number.isFinite(n) || n < tempBounds.min || n > tempBounds.max
+  }
+
+  async function saveTemperature() {
+    if (tempInvalide(temperature)) {
+      showError(
+        `La température doit être un nombre entre ${tempBounds.min} et ${tempBounds.max}, ` +
+        `ou laissée vide pour utiliser le défaut du fournisseur. Rappel : une température élevée ` +
+        `rend les générations moins fiables (réponses fausses, format cassé) — pour du pédagogique, restez bas à modéré.`
+      )
+      return
+    }
+    setSavingTemp(true)
+    setMessageTemp(null)
+    try {
+      const res = await fetchWithTimeout('/api/admin/temperature', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ temperature: temperature === '' ? null : Number(temperature) }),
+      }, TIMEOUT_STD)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMessageTemp({ type: 'ok', text: 'Température enregistrée.' })
+      else showError(data.detail || 'Erreur lors de l\'enregistrement de la température.')
+    } catch {
+      showError('Erreur réseau — vérifiez que le backend tourne.')
+    } finally {
+      setSavingTemp(false)
+    }
+  }
+
   const tabStyle = active => ({
     padding: '7px 18px', borderRadius: 6, fontSize: 13, fontWeight: active ? 600 : 400,
     cursor: 'pointer', border: 'none',
@@ -180,6 +229,9 @@ export default function AdminParametresGeneration() {
         </button>
         <button style={tabStyle(onglet === 'fournisseur')} onClick={() => setOnglet('fournisseur')}>
           Fournisseur
+        </button>
+        <button style={tabStyle(onglet === 'temperature')} onClick={() => setOnglet('temperature')}>
+          Température
         </button>
       </div>
 
@@ -329,6 +381,63 @@ export default function AdminParametresGeneration() {
                 borderRadius: 8, padding: '10px 14px', fontSize: 13,
               }}>
                 {messageProvider.text}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Onglet Température (Phase 4.1.d) — GLOBALE. Vide = défaut du fournisseur, sinon 0.0–2.0.
+          « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables. L'optimiseur
+          n'est PAS concerné (température 0 figée en dur). Hors bornes -> bord rouge + modale + bouton off. */}
+      {onglet === 'temperature' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
+          <p className="text-xs text-gray-500">
+            Contrôle la variabilité des générations, entre {tempBounds.min} (stable, répétable) et {tempBounds.max} (très varié).
+            Pour des activités fiables, rester bas à modéré : une valeur élevée rend les réponses moins sûres (erreurs, format cassé).
+            Laisser vide = défaut du fournisseur. Pris en compte immédiatement, sans redémarrage.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Température (vide = défaut du fournisseur)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min={tempBounds.min}
+              max={tempBounds.max}
+              value={temperature}
+              onChange={e => setTemperature(e.target.value)}
+              placeholder="Défaut du fournisseur"
+              className="w-full border rounded px-3 py-2 text-sm"
+              style={{ borderColor: tempInvalide(temperature) ? '#dc2626' : '#d1d5db' }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              L'optimiseur de séquences n'est pas concerné : il reste à 0 pour une sortie fiable.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-1">
+            <button
+              onClick={saveTemperature}
+              disabled={savingTemp || tempInvalide(temperature)}
+              title="Enregistrer la température"
+              style={{
+                background: '#1F6EEB', color: 'white', border: 'none',
+                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                alignSelf: 'flex-start',
+                cursor: (savingTemp || tempInvalide(temperature)) ? 'not-allowed' : 'pointer',
+                opacity: (savingTemp || tempInvalide(temperature)) ? 0.6 : 1,
+              }}
+            >
+              {savingTemp ? 'Enregistrement…' : 'Enregistrer la température'}
+            </button>
+            {messageTemp && (
+              <div style={{
+                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+              }}>
+                {messageTemp.text}
               </div>
             )}
           </div>

@@ -18,7 +18,7 @@
 - [x] 4.1.a — modèle texte administrable
 - [x] 4.1.b — écriture admin du modèle (combo fermée)
 - [x] 4.1.c — max_tokens administrable
-- [ ] 4.1.d — température administrable (faisable maintenant, même patron que max_tokens)
+- [x] 4.1.d — température administrable (globale ; optimiseur reste à 0)
 - [ ] 4.1.e — bascule fournisseur — ⏸️ parqué (→ TRACKER_FOURNISSEURS_IA.md)
 - [x] Interface admin qui lit/écrit les réglages
 - [x] Validation des valeurs (modale bloquante)
