@@ -72,9 +72,19 @@ def create_alert(level: str, title: str, message: str):
 
 
 def check_cpu_alert():
-    cpu = psutil.cpu_percent(interval=1)
-    if cpu > 90:
-        create_alert("critical", f"CPU critique : {cpu}%", "Le CPU dépasse 90%. Vérifier les processus actifs sur le VPS.")
+    # Charge SOUTENUE sur 5 min, pas un flash d'1 s : psutil.cpu_percent(interval=1)
+    # lisait une seule seconde, donc un pic ponctuel déclenchait une fausse alerte
+    # alors que la machine était au repos (cas réel du 23/06 : 100% affiché, ~0,3% réel).
+    # getloadavg()[1] = nb moyen de processus en attente CPU sur 5 min ; normalisé par
+    # le nombre de cœurs, 100 % = tous les cœurs pleinement occupés en continu sur 5 min.
+    cores = psutil.cpu_count() or 1
+    charge_pct = round(psutil.getloadavg()[1] / cores * 100, 1)
+    if charge_pct > 90:
+        create_alert(
+            "critical",
+            f"CPU critique : {charge_pct}%",
+            "Le CPU dépasse 90% en moyenne sur 5 minutes. Vérifier les processus actifs sur le VPS.",
+        )
 
 
 def check_disk_alert():
