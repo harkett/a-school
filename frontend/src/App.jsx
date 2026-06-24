@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { registerErrorHandler } from './errorDialog'
+import { registerServerHealthHandler, MSG_SERVEUR_INDISPONIBLE } from './serverHealth'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -57,7 +58,6 @@ import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
-import ServerBanner from './components/ServerBanner'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import { fetchWithTimeout, apiFetch, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
@@ -116,6 +116,8 @@ function MainApp() {
 
   useEffect(() => {
     registerErrorHandler((msg) => setAlertDialog(msg))
+    // Serveur en difficulté (échecs répétés) → même modale d'erreur bloquante que tout le reste.
+    registerServerHealthHandler((degraded) => { if (degraded) setAlertDialog(MSG_SERVEUR_INDISPONIBLE) })
   }, [])
 
   useEffect(() => {
@@ -1012,6 +1014,11 @@ function MainApp() {
       {alertDialog && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <svg width="52" height="52" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 16px' }} aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="#dc2626" />
+              <rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff" />
+              <circle cx="12" cy="16.6" r="1.25" fill="#fff" />
+            </svg>
             <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{alertDialog}</div>
             <button
               onClick={() => setAlertDialog(null)}
@@ -1061,7 +1068,6 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <UpdateBanner />
-        <ServerBanner />
         <OfflineBanner />
         <IOSInstallBanner />
         <Routes>

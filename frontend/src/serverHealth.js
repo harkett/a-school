@@ -10,6 +10,12 @@ let _degraded = false
 
 export const SEUIL_PANNE = 3 // nb d'échecs consécutifs avant d'afficher le message
 
+// Message affiché au prof dans la modale d'erreur bloquante quand le serveur ne répond plus.
+export const MSG_SERVEUR_INDISPONIBLE =
+  'aSchool est temporairement ralenti et certaines actions peuvent mettre du temps à répondre. ' +
+  'Nous travaillons déjà à rétablir le service. Réessayez dans quelques minutes — ' +
+  'vos activités enregistrées sont en sécurité.'
+
 export function registerServerHealthHandler(fn) {
   _handler = fn
 }
