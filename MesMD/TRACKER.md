@@ -3,7 +3,7 @@
 ## ON EN EST LÀ
 - 🔄 **En cours :** remise en cohérence des docs de pilotage ([CHANTIER_COHERENCE.md](CHANTIER_COHERENCE.md), éphémère) — §3 TABLEAU fait (commit `1dd6cc7`), §4 TRACKER en cours.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** à arbitrer (l'ordre t'appartient) — reprendre la refonte pro du back-office + procédure CIEL, et/ou la suite de la réforme (Phase 4 administrable, Phases 5-6). Horizon 1 **clos** (restent P4.8/P4.9 cosmétiques, gelés).
+- ⏭️ **Prochaine :** à arbitrer (l'ordre t'appartient) — reprendre la refonte pro du back-office + procédure CIEL, et/ou la suite de la réforme (Phase 4 administrable, Phases 5-6). Horizon 1 **clos** (restent P4.8/P4.9 cosmétiques, différés).
 - ✅ **Dernière chose réellement finie :** **réforme moteur LLM + RAG** (Phases 0→3, base CIEL définitive 236 chunks) + **Phase 4 administrable** 4.1.a/b/c + **chantier fournisseurs** e.0→e.4 (suspendu) — **tout poussé**. Détail → [TRACKER_REFORME.md](TRACKER_REFORME.md) / [TRACKER_FOURNISSEURS_IA.md](TRACKER_FOURNISSEURS_IA.md). Puis §3 du chantier cohérence.
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
@@ -80,7 +80,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | 3 | ✅ | **P3.5** — sur 401, renouvellement silencieux puis redirection `/login` si refresh token mort (single-flight partagé apiFetch ↔ AuthContext) | après P3.6 | technique : le + sensible ; flux refresh relu (pas de boucle) | [D16](BOUSSOLE/D16.md) |
 | 4 | ✅ | **P4.7** — compteur few-shot `localStorage` → backend (table `few_shot_milestones`, jalon une fois) + toast → **modale** (lien Aide) | rien dur | technique : **socle de l'item 40** (badge) ; refactor d'état | [D16](BOUSSOLE/D16.md) |
 | 5 | ✅ | **P5.10** — listes MATIERES en dur supprimées : champ `categorie` sur cycles + endpoint `/api/matieres` + hook `useMatieres` ; 8 écrans + phrase Aide lisent la base (source unique). Relève de la refonte « modèle matières propre » | rien | technique : supprime la duplication — **8 copies, pas 3** | [D16](BOUSSOLE/D16.md) |
-| 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
+| 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés**, en fin de bloc | [D16](BOUSSOLE/D16.md) |
 
 > 🎯 **Jalon atteint : push rouvert, gel levé** (réforme + fournisseurs menés et poussés depuis).
 
@@ -236,7 +236,7 @@ On met au point sur ce diplôme une méthode **répétable, pas un bricolage** :
 ### A9 — INFRA-RAG : binaire-en-git vs rebuild-au-déploiement (à trancher)
 Le store ChromaDB committé ne contient plus qu'une collection : `bts_ciel_optionA` (236 chunks). Elle est **entièrement reconstructible** depuis son PDF officiel (`REFERENTIELS/BTS-CIEL-option-A/`) via le script d'ingestion. L'ancienne contrainte « maths non reconstructible » **n'existe plus** : la collection morte concernée (un vestige de test, à la mauvaise granularité « cycle en bloc ») a été supprimée le 23/06. Question ouverte, désormais **sans obstacle** : garder les vecteurs en git, ou les rebâtir au déploiement ? (Note : ouvrir le store re-churne les octets des segments — contenu intact ; cosmétique.)
 
-### A10 — Chantier B — Référentiel = colonne vertébrale du RAG (cadré 13/06/2026, GELÉ tant que H1 ouvert)
+### A10 — Chantier B — Référentiel = colonne vertébrale du RAG (cadré 13/06/2026 ; H1 clos, briques 1+2 livrées — reste : prouver l'apport RAG sur un couple)
 Rendre concret « dériver du référentiel », en deux briques : **(1)** un **script d'ingestion re-jouable** *référentiel → découpe → vecteurs → ChromaDB AVEC métadonnée `niveau`* — **livré** pour CIEL (`backend/rag/ingest_referentiel.py` + fiche `bts_ciel_option_a.py`, niveau posé sur **chaque** chunk dès l'ingestion) ; **(2)** un **harnais de tests** qui vérifie que `retrieve()` remonte les bons extraits (`test_rag_ciel.py`) — **livré** (mesure la **qualité du RAG**, **pas** un « entraînement » du LLM — le Llama de Groq reste figé ; on alimente un référentiel, on ne ré-entraîne rien). **Granularité non négociable : un référentiel par couple matière+niveau** — jamais un corpus « cycle en bloc » qui mélange plusieurs programmes. **Reste : prouver l'apport du RAG sur UN couple** (BTS CIEL, une matière, sortie **avec vs sans** RAG) **avant d'élargir**. But structurel : relier les **deux référentiels qui ne se parlent pas** — (a) SQL/menus ↔ (b) ChromaDB/RAG.
 
 ### A11 — Parking & hors-scope

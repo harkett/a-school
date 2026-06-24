@@ -20,7 +20,7 @@
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)
 
-> ⏭️ **L'ordre vit dans le [TRACKER](TRACKER.md) — le lire en premier.** État réel au 24/06 : Horizon 1 (consolidation du cœur, [D16](BOUSSOLE/D16.md)) est **clos** (P3.5, P3.6, P4.7, P5.10, P5.11 finis ; seuls P4.8/P4.9 cosmétiques restent, différés sous gel). La **réforme moteur LLM + RAG** et le **chantier fournisseurs IA** ont été menés **et poussés** depuis.
+> ⏭️ **L'ordre vit dans le [TRACKER](TRACKER.md) — le lire en premier.** État réel au 24/06 : Horizon 1 (consolidation du cœur, [D16](BOUSSOLE/D16.md)) est **clos** (P3.5, P3.6, P4.7, P5.10, P5.11 finis ; seuls P4.8/P4.9 cosmétiques restent, différés). La **réforme moteur LLM + RAG** et le **chantier fournisseurs IA** ont été menés **et poussés** depuis.
 
 **Chantier courant :** remise en cohérence des docs de pilotage ([CHANTIER_COHERENCE.md](CHANTIER_COHERENCE.md), éphémère) — réaligner TABLEAU/TRACKER sur le réel, puis le supprimer.
 
@@ -252,14 +252,14 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 ---
 
-## OUTILLAGE / DETTE TECHNIQUE — hors gel des features
+## OUTILLAGE / DETTE TECHNIQUE
 
-> Chantiers d'infrastructure / outillage, **non soumis au gel du backlog features** (ce ne sont pas des features produit). Pas urgents — à traiter à la réouverture du développement.
+> Chantiers d'infrastructure / outillage (ce ne sont pas des features produit). Pas urgents — désormais traitables, ordre à l'envie.
 
 - [ ] **[Infra] Filet de test front (Vitest + React Testing Library)** | Chantier à part, non urgent
   *Le front aSchool n'a aucun test automatisé : chaque modif React (Aide, auto-save, AuthContext…) repose sur une vérif manuelle non rejouable. Installer Vitest + Testing-Library, câbler `npm test`, puis couvrir en priorité les composants critiques (dictée `TexteSource`, auto-save activités, `AuthContext`). Objectif : que toute modif front se solde par un test, comme le backend (règle CLAUDE.md n°8). Identifié 08/06/2026, en marge du nettoyage code (modif Aide.jsx validée à l'œil faute de filet front).*
 
-- [ ] **[Process] Organisation des tests à 3 étages + journal de versions** | Formalisation, hors gel
+- [ ] **[Process] Organisation des tests à 3 étages + journal de versions** | Formalisation
   *Graver qui teste quoi et quand, pour qu'aucune tâche n'arrive direct chez les profs.*
   ***Étage 1 — Test technique** : CC, à CHAQUE tâche, en DEV. Test auto (pytest backend) ou prépa front. Question : « le code fait-il ce qu'il doit sans rien casser ? »*
   ***Étage 2 — Test d'usage** : Harketti, à CHAQUE tâche, en local. Vérif manuelle. Question : « ça marche pour un humain, c'est clair, le rendu est bon ? » Filtre obligatoire avant tout déploiement.*
@@ -267,19 +267,19 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   ***Principe clé** : une tâche franchit étage 1 (CC) → étage 2 (Harketti), s'accumule avec d'autres en une VERSION cohérente, déployée via deploy.ps1, et seulement LÀ testée par les profs (étage 3). Leur retour redevient des tâches → repart à l'étage 1.*
   ***Besoin lié** : un mini journal de versions reliant chaque version aux tâches livrées → entrée dédiée ci-dessous. Identifié 08/06/2026.*
 
-- [ ] **[Outillage] Mini journal de versions (version ↔ tâches livrées)** | Compagnon de l'étage 3, hors gel
+- [ ] **[Outillage] Mini journal de versions (version ↔ tâches livrées)** | Compagnon de l'étage 3
   *Pas seulement lister « v3.3.0 = ces features » : **relier chaque version déployée aux tâches qu'elle embarque**, pour que lorsqu'un prof pilote remonte un problème, on sache **quelle version il utilise et ce qu'elle contient**. Traçabilité feedback prof ↔ version testée — compagnon direct de l'**étage 3** (item [Process] ci-dessus). Identifié 08/06/2026.*
 
 - [ ] **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | Transverse — à appliquer sur TOUS les outils
   *Ajouter une rubrique « Exemple » (un cas concret entrée → sortie) à la structure commune des onglets « Comment ça marche », pour **chaque** outil de l'appli — pas seulement le détecteur d'ambiguïtés. But : rendre l'aide vivante, le prof voit ce qu'il obtient avant de tester. Le contenu d'exemple **propre à chaque outil** vit dans son D respectif (ex. détecteur → D17) ; cet item ne porte que la **règle de structure commune**. Identifié 10/06/2026.*
 
-- [ ] **[Refactor] Migration React Query (TanStack Query)** | Session dédiée, hors gel — ne pas mélanger
+- [ ] **[Refactor] Migration React Query (TanStack Query)** | Session dédiée — ne pas mélanger
   *Adopter le standard industrie 2024-2026 pour la gestion des données en React, en remplacement des 20+ `fetch` manuels actuels : timeout AbortController, retry automatique différencié (auth vs Groq), loading/error centralisés, cache `staleTime` par type de requête. À traiter en session dédiée, sans mélanger avec d'autres chantiers. (Ex-item backlog #09, score 6/10 — basculé en dette le 10/06/2026.)*
 
-- [ ] **[Maintenance] Dette technique complète (passe transverse)** | 2 sessions dédiées, hors gel
+- [ ] **[Maintenance] Dette technique complète (passe transverse)** | 2 sessions dédiées
   *Passe de consolidation transverse : dépendances obsolètes, cohérence de la gestion d'erreurs API, documentation des règles métier, revue sécurité des routes. La migration React Query, initialement listée ici, est suivie séparément (voir l'item **[Refactor]** ci-dessus). À planifier en sessions dédiées. (Ex-item backlog #13, score 6/10 — basculé en dette le 10/06/2026.)*
 
-- [ ] **[Mémoire] Nettoyer les memory files périmés (BOUSSOLE/BACKLOG → doc unique)** | Tâche mémoire dédiée, hors gel
+- [ ] **[Mémoire] Nettoyer les memory files périmés (BOUSSOLE/BACKLOG → doc unique)** | Tâche mémoire dédiée
   *Après la fusion (P1-P5, voir FAIT), plusieurs memory files de `~/.claude` décrivent encore « BOUSSOLE pilote / BACKLOG réservoir » comme deux docs, et `feedback_tracker_levier_sync` porte une **ref morte `MesMD/LEVIERS/`**. À reprendre à froid, **hook d'index + fichier ensemble** (cohérence) : `feedback_pilotage_boussole`, `feedback_boussole_tout_tracker`, `feedback_noter_idees`, `feedback_tracker_levier_sync`, + hooks MEMORY.md (23/24/35/60/66). Identifié 11/06/2026.*
 
 - [ ] **[UI/Admin] Refonte pro du back-office (shell + menu)** | En cours — à reprendre pour finir
@@ -297,7 +297,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Évaluation] Échelles « niveaux d'acquisition » (Crèche & Supérieur)** | Module évaluation/observation futur — hors grille matière×niveau
   *Les deux référentiels définissent des **échelles d'évaluation**, distinctes de la grille programmes (matière×niveau) : Crèche = Non observé → En émergence → En cours d'acquisition → Acquis → Consolidé (SPEC-MODULE-CRECHE §3) ; Supérieur = Découverte → Débutant → Intermédiaire → Avancé → Expert (SPEC-MODULE-SUPERIEUR §4). **NON seedées** (ce ne sont pas des niveaux de classe), juste tracées : ressortiront quand on bâtira l'évaluation par compétences / l'observation. Identifié 12/06/2026.*
 
-- [ ] **[Aide] Passe pro finale — qualité du contenu de toute l'aide** | En fin de parcours, hors gel
+- [ ] **[Aide] Passe pro finale — qualité du contenu de toute l'aide** | En fin de parcours
   *Les rubriques d'aide sont volontairement **légères** au fil de l'eau (on documente à chaque livraison — règle absolue `CLAUDE.md` § Aide). Une **passe dédiée en fin de parcours** étoffe TOUT le contenu : chaque rubrique complète, **exemples concrets** (entrée → sortie), ton pro, cohérence d'ensemble. Distincte de la refonte **visuelle** déjà faite (12/05, layout 2 colonnes) : ici c'est le **contenu**, pas le contenant. Absorbe les items partiels #269 (rubrique « Exemple » par outil) et #18 (aide personnalisée par matière). Identifié 12/06/2026.*
 
 - [ ] **[Qualité/Supérieur] Wording « secondaire » codé en dur, appliqué à tous les niveaux** | Défaut systémique (relevé 14/06) — tâche transverse, pas un patch CIEL
@@ -338,7 +338,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - **P3.5** — résolu : renouvellement silencieux sur 401 + redirection /login (single-flight partagé apiFetch ↔ AuthContext).
 - **P4.7** — résolu : compteur few-shot migré `localStorage` → backend (table `few_shot_milestones`).
 - **P5.10** — FAIT (15/06) : listes MATIERES en dur supprimées — **8 copies identiques, pas « 3 endroits »**. Source unique = la base : champ `categorie` sur `cycles` + endpoint `GET /api/matieres?categorie=secondaire` + hook partagé `useMatieres` ; 8 écrans (Signup, Mon réseau ×2, AdminAnalytique, AdminCommunication, AdminProfils, Paramètres, À propos) + la phrase de l'Aide (composant `MatieresDisponibles`) lisent la base. Relève de la refonte « modèle matières propre ». 32 tests backend verts + build OK ; preuve « Arts TEST » remontée à l'écran. Commits `cd1a134` (backend, Lot 1) + `7742508` (frontend, Lot 2). **Note différée :** cas prof BTS CIEL — voir ses matières CIEL dans les filtres = incohérence connue, à trancher séparément (le hook bascule sur `?categorie=` adapté ou un endpoint par profil le moment venu).
-- **P4.8 / P4.9** — différés sous gel (cosmétiques : carte Activité btn-primary · toast reset params).
+- **P4.8 / P4.9** — différés (cosmétiques : carte Activité btn-primary · toast reset params).
 
 > **TEMPS 2** (historique) — corrections menées une par une, filet vert entre chaque ; toutes traitées ou différées. Ordre courant → TRACKER.
 
@@ -536,7 +536,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-40"></a>
 - [ ] **40 — Signe distinctif « aSchool vous reconnaît » près du nom du prof** | Facile | 0,5 session — à scorer
-  *Dès l'activation du few-shot (message « aSchool reconnaît maintenant votre façon de travailler… », `App.jsx:296`, au 3e save d'un même type), afficher un signe distinctif **persistant près du nom du prof dans le Header**. À trancher à l'implémentation : badge **global** (reconnu sur ≥1 type) ou **par type / compteur** ; source de l'état pour persister entre sessions (le `localStorage` par type actuel, ou données few-shot backend). Idée notée 31/05 — **GELÉE pendant la reprise** (pas de feature avant cœur solide + push rouvert).*
+  *Dès l'activation du few-shot (message « aSchool reconnaît maintenant votre façon de travailler… », `App.jsx:296`, au 3e save d'un même type), afficher un signe distinctif **persistant près du nom du prof dans le Header**. À trancher à l'implémentation : badge **global** (reconnu sur ≥1 type) ou **par type / compteur** ; source de l'état pour persister entre sessions (le `localStorage` par type actuel, ou données few-shot backend). Idée notée 31/05. Socle P4.7 (compteur few-shot backend) désormais livré → attaquable, voir TRACKER.*
 
 <a id="item-41"></a>
 - [x] **41 — Recherche dans la page Aide (plein-texte)** | LIVRÉ EN LOCAL (testé étages 1+2), NON DÉPLOYÉ — en attente de la prochaine version poussée en prod
@@ -544,7 +544,7 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 <a id="item-42"></a>
 - [ ] **42 — Recherche globale dans l'application** | à cadrer | à scorer
-  *Recherche transverse dans les données de l'app — distincte de l'item 41 (qui est une recherche LOCALE à la page Aide). Périmètre à définir le jour venu : chercher dans quoi exactement (activités sauvegardées, séquences, réseau des collègues…) ; touchera probablement le backend (endpoints de recherche) → chantier transverse, pas un simple composant front, à cadrer séparément. Emplacement pressenti (décidé par Harketti) : dans le HEADER, une LOUPE à côté du titre central « Générateur d'activités pédagogiques ». Au clic sur la loupe, le titre s'efface et le champ de recherche prend sa place au centre ; recherche terminée ou champ fermé (✕ / Échap), le champ disparaît et le titre réapparaît. Les autres éléments du header (matière, nom, déconnexion) ne bougent pas. Exigence (comme l'item 41) : utilisable par TOUS les profs, même peu à l'aise avec le numérique — fermeture évidente, rien de caché. Lien : le pattern codé pour l'item 41 (normalize, surlignage, ergonomie) sert de RÉFÉRENCE d'ergonomie, pas de code réutilisé tel quel (données différentes). Feature produit — soumise au gel.*
+  *Recherche transverse dans les données de l'app — distincte de l'item 41 (qui est une recherche LOCALE à la page Aide). Périmètre à définir le jour venu : chercher dans quoi exactement (activités sauvegardées, séquences, réseau des collègues…) ; touchera probablement le backend (endpoints de recherche) → chantier transverse, pas un simple composant front, à cadrer séparément. Emplacement pressenti (décidé par Harketti) : dans le HEADER, une LOUPE à côté du titre central « Générateur d'activités pédagogiques ». Au clic sur la loupe, le titre s'efface et le champ de recherche prend sa place au centre ; recherche terminée ou champ fermé (✕ / Échap), le champ disparaît et le titre réapparaît. Les autres éléments du header (matière, nom, déconnexion) ne bougent pas. Exigence (comme l'item 41) : utilisable par TOUS les profs, même peu à l'aise avec le numérique — fermeture évidente, rien de caché. Lien : le pattern codé pour l'item 41 (normalize, surlignage, ergonomie) sert de RÉFÉRENCE d'ergonomie, pas de code réutilisé tel quel (données différentes). Feature produit — à cadrer le jour venu.*
 
 <a id="item-43"></a>
 - [ ] **43 — Module Petite Enfance 0-3 ans** | FUTUR / stratégique — à scorer
