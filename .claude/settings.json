@@ -9,7 +9,20 @@
       "PowerShell(Get-ChildItem -Path \"D:\\\\A-SCHOOL\" | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
       "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src\\\\pages -ErrorAction SilentlyContinue)",
       "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src -ErrorAction SilentlyContinue)",
-      "Bash(Copy-Item \"D:\\\\A-SCHOOL\\\\MesMD\\\\PAGE_AFIA_SCHOOL.md\" \"D:\\\\AFIASAVE\\\\PAGE_AFIA_SCHOOL.md\" -Force)"
+      "Bash(Copy-Item \"D:\\\\A-SCHOOL\\\\MesMD\\\\PAGE_AFIA_SCHOOL.md\" \"D:\\\\AFIASAVE\\\\PAGE_AFIA_SCHOOL.md\" -Force)",
+      "Bash(\\\\.venv\")",
+      "Bash(ls -1 \"/c/Users/harketti/.claude/projects/d--A-SCHOOL/memory/\" 2>/dev/null || echo \"MEMORY DIR EMPTY OR MISSING\")",
+      "Read(//c/Users/harketti/.claude/projects/d--A-SCHOOL/memory//**)",
+      "Bash(git config *)",
+      "Read(//c/Users/harketti/.claude/projects//**)",
+      "Read(//c/Users/harketti/.claude//**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -File .claude/hooks/rappel-faits.ps1" } ] }
     ]
   }
 }
