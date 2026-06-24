@@ -530,8 +530,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   → [D27](BOUSSOLE/D27.md)
 
 <a id="item-39"></a>
-- [ ] **39 — Switch provider séquence → Claude Sonnet 4.6** | Facile | 2h — après 38
-  *Évaluer Claude Sonnet 4.6 vs Groq llama-3.3-70b sur la génération de séquences. Ajouter `anthropic_client.py` + toggle ou variable `AI_PROVIDER_SEQUENCE`. Coût ~3$/Mtok input à monitorer.*
+- [ ] **39 — Tester Claude Sonnet 4.6 sur les séquences** | Facile | 2h — après 38
+  *Évaluer Claude Sonnet 4.6 vs Groq llama-3.3-70b sur la génération de séquences. ⚠️ **Prémisse D28 périmée** (réforme Tâche 2, 21/06) : la génération texte passe déjà par `generate()` et l'**adaptateur Anthropic existe** → **pas de `anthropic_client.py` à créer** ; le switch fournisseur relève de 4.1.e (administrable). Coût ~3 $/Mtok input à monitorer.*
   → [D28](BOUSSOLE/D28.md)
 
 <a id="item-40"></a>

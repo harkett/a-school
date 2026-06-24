@@ -1,10 +1,10 @@
 # aSchool — TRACKER
 
 ## ON EN EST LÀ
-- 🔄 **En cours :** rien.
+- 🔄 **En cours :** remise en cohérence des docs de pilotage ([CHANTIER_COHERENCE.md](CHANTIER_COHERENCE.md), éphémère) — §3 TABLEAU fait (commit `1dd6cc7`), §4 TRACKER en cours.
 - ⏳ **En attente de :** rien.
-- ⏭️ **Prochaine :** à arbitrer — en Horizon 1 il ne reste que P4.8/P4.9 (cosmétiques, différés sous gel) puis le jalon « push rouvert ».
-- ✅ **Dernière chose réellement finie :** P5.10 — listes MATIERES en dur supprimées. Source unique = la base : champ `categorie` sur les cycles + endpoint `GET /api/matieres?categorie=secondaire` + hook `useMatieres`. 8 écrans (Signup, Mon réseau ×2, 3 admin, Paramètres, À propos) + la phrase de l'Aide lisent désormais la base. Preuve imparable : « Arts » renommé « Arts TEST » directement en base → remonté à l'écran. 32 tests backend verts + build OK ; validé visuellement. Commits `cd1a134` (backend) + `7742508` (frontend). Note différée : cas prof BTS CIEL (voir ses matières CIEL dans les filtres) = incohérence connue à trancher plus tard.
+- ⏭️ **Prochaine :** à arbitrer (l'ordre t'appartient) — reprendre la refonte pro du back-office + procédure CIEL, et/ou la suite de la réforme (Phase 4 administrable, Phases 5-6). Horizon 1 **clos** (restent P4.8/P4.9 cosmétiques, gelés).
+- ✅ **Dernière chose réellement finie :** **réforme moteur LLM + RAG** (Phases 0→3, base CIEL définitive 236 chunks) + **Phase 4 administrable** 4.1.a/b/c + **chantier fournisseurs** e.0→e.4 (suspendu) — **tout poussé**. Détail → [TRACKER_REFORME.md](TRACKER_REFORME.md) / [TRACKER_FOURNISSEURS_IA.md](TRACKER_FOURNISSEURS_IA.md). Puis §3 du chantier cohérence.
 - 🗑️ **Décision 14/06 :** régression « matière vide » (8 activités à matière nulle — 4e×6, 2nde×1, 6e×1 — non rouvrables via Reprendre) = **ignorée volontairement** (vieilles activités de test = déchet). Aucun code.
 
 ---
@@ -18,9 +18,9 @@
 
 **Statut :** ☐ à faire · 🔄 en cours · ⏸️ en pause / différé · ✅ fait
 
-**Colonne vertébrale de l'ordre :** le **gel des features pendant la consolidation**. Donc :
-**1.** finir la consolidation du cœur (D16) → **2.** rouvrir le push → **3.** dette / outillage → **4.** features (par dépendance puis valeur) → **5.** conditionnel.
-Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon l'envie. **Dans** chaque chaîne : l'ordre est imposé.
+**Colonne vertébrale de l'ordre — état au 24/06 :** la consolidation du cœur (D16) est **close** et le **gel des features est levé** (réforme moteur LLM + RAG et chantier fournisseurs menés **ET poussés** depuis). Restent en parallèle, ordre à l'envie sauf dépendances :
+**(a)** reprise produit (back-office, CIEL) · **(b)** suite de la réforme (Phase 4 administrable, Phases 5-6 dette/cosmétique → [TRACKER_REFORME.md](TRACKER_REFORME.md)) · **(c)** chaînes de features (Horizon 3 ci-dessous).
+Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. **Dans** chaque chaîne : l'ordre est imposé.
 
 ---
 
@@ -53,7 +53,25 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
-## HORIZON 1 — MAINTENANT : finir la consolidation du cœur (seul chantier ouvert)
+## ⚙️ Réforme moteur LLM + RAG — menée et poussée (Phases 0→3 ✅, Phase 4 en cours)
+
+> Chantier majeur de juin : rendre le moteur **LLM-agnostique** + refondre le **RAG** (moteur générique + une fiche par référentiel). Mené **et poussé**. **Pilotage fin (jetable) → [TRACKER_REFORME.md](TRACKER_REFORME.md).** Résumé :
+
+| Phase | Objet | État |
+|---|---|---|
+| 0 | Audit (6 blocs) | ✅ |
+| 1 | Nettoyage moteur LLM (tout via `generate()`, gate maths retirée, Groq texte mort supprimé) | ✅ |
+| 2 | Refonte RAG (moteur générique + fiche CIEL) | ✅ |
+| 3 | Qualité du différenciateur (overlap · dédup · seuil de score · métadonnées) — base CIEL définitive **236 chunks** | ✅ |
+| 4 | Administrable (réglages LLM en base) | 🔄 4.1.a/b/c ✅ · 4.1.d ☐ · 4.1.e ⏸️ |
+| 5 | Robustesse / dette | ☐ |
+| 6 | Cosmétique / différé (P4.8/P4.9 aussi ici) | ☐ |
+
+> **Fournisseurs IA (4.1.e + épic réservoir #45) :** chantier **suspendu** après e.4 → [TRACKER_FOURNISSEURS_IA.md](TRACKER_FOURNISSEURS_IA.md).
+
+---
+
+## HORIZON 1 — ✅ CLOS : consolidation du cœur terminée
 
 | # | St | Tâche | Dépend de | Pourquoi ici | Fiche |
 |---|---|---|---|---|---|
@@ -64,11 +82,11 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 | 5 | ✅ | **P5.10** — listes MATIERES en dur supprimées : champ `categorie` sur cycles + endpoint `/api/matieres` + hook `useMatieres` ; 8 écrans + phrase Aide lisent la base (source unique). Relève de la refonte « modèle matières propre » | rien | technique : supprime la duplication — **8 copies, pas 3** | [D16](BOUSSOLE/D16.md) |
 | 6 | ⏸️ | **P4.8 / P4.9** — carte Activité btn-primary · toast reset params | — | cosmétique : **différés** (sous gel), en fin de bloc | [D16](BOUSSOLE/D16.md) |
 
-> 🎯 **Jalon de fin d'horizon : push rouvert.** Tant que H1 n'est pas clos, tout le reste est gelé.
+> 🎯 **Jalon atteint : push rouvert, gel levé** (réforme + fournisseurs menés et poussés depuis).
 
 ---
 
-## HORIZON 2 — À LA RÉOUVERTURE : dette technique / outillage (hors features)
+## HORIZON 2 — dette technique / outillage (hors features)
 
 | # | St | Tâche | Pourquoi ici |
 |---|---|---|---|
@@ -83,7 +101,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 
 ---
 
-## HORIZON 3 — ENSUITE : features (gelées jusqu'au jalon H1)
+## HORIZON 3 — features (gel levé, librement attaquables)
 
 > Chaînes **parallèles** : entre chaînes, pas d'ordre technique → pique selon l'envie. **Dans** chaque chaîne, l'ordre du haut vers le bas est imposé.
 
@@ -107,7 +125,7 @@ Entre chaînes de features : pas d'ordre technique → l'utilisateur pique selon
 |---|---|---|---|---|
 | 1 | ⏸️ | **37** — Affinage interactif de séquence (câbler la route) | code dormant, parké | [D07](BOUSSOLE/D07.md) |
 | 2 | ☐ | **38** — Sortie séquence en JSON structuré | après 37 | [D27](BOUSSOLE/D27.md) |
-| 3 | ☐ | **39** — Switch provider séquence → Claude Sonnet 4.6 | après 38 | [D28](BOUSSOLE/D28.md) |
+| 3 | ☐ | **39** — Tester Claude Sonnet 4.6 sur les séquences (~3 $/Mtok). ⚠️ Prémisse D28 périmée : génération déjà via `generate()` + adaptateur Anthropic existant → pas de `anthropic_client.py` à créer (switch fournisseur = 4.1.e) | après 38 | [D28](BOUSSOLE/D28.md) |
 | 4 | ☐ | **35** — Versioning & transposition de séquences | prérequis D07 (37) | [D26](BOUSSOLE/D26.md) |
 | 5 | ☐ | **D13** — PROD Séquences 100% fonctionnel (umbrella) | attend D07 clôturé | [D13](BOUSSOLE/D13.md) |
 
