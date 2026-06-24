@@ -57,6 +57,7 @@ import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
+import ServerBanner from './components/ServerBanner'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import { fetchWithTimeout, apiFetch, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
@@ -1060,6 +1061,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <UpdateBanner />
+        <ServerBanner />
         <OfflineBanner />
         <IOSInstallBanner />
         <Routes>

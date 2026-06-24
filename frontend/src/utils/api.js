@@ -4,12 +4,20 @@ export const TIMEOUT_GROQ = 45_000  // génération Groq, OCR, mail-groupe, purg
 
 export const MSG_TIMEOUT = 'Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.'
 
+import { reportApiSuccess, reportApiFailure } from '../serverHealth.js'
+
 export async function fetchWithTimeout(url, options = {}, timeout = TIMEOUT_STD) {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeout)
   try {
-    return await fetch(url, { ...options, signal: controller.signal })
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    // Santé serveur : 5xx = serveur en difficulté ; <500 (y compris 4xx auth/saisie)
+    // = serveur joignable, donc « sain » de son point de vue.
+    if (res.status >= 500) reportApiFailure()
+    else reportApiSuccess()
+    return res
   } catch (err) {
+    reportApiFailure() // timeout ou réseau : le serveur ne répond pas
     if (err.name === 'AbortError') throw new Error(MSG_TIMEOUT)
     throw err
   } finally {
