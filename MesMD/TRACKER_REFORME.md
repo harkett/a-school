@@ -25,7 +25,7 @@
 - [x] Prompts administrables en base (5 outils ; repères obligatoires protégés ; retour au défaut)
 
 ## Phase 5 — Robustesse / dette
-- [ ] Régulation de concurrence sur les appels LLM
+- [x] Régulation de concurrence sur les appels LLM (sémaphore partagé, limite env, attente bornée)
 - [x] Unifier les migrations (plus d'ALTER inline)
 - [ ] Décider : rester SQLite ou migrer PostgreSQL
 - [ ] Code d'erreur 429 distinct (400/401/500/502 déjà là)

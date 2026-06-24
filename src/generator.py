@@ -1,4 +1,26 @@
-from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL
+import threading
+from contextlib import contextmanager
+
+from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+
+
+# Régulation de concurrence : UN seul sémaphore pour TOUS les appels sortants Groq
+# (génération + OCR + dictée), car ils partagent le même quota de compte. Les endpoints
+# sont synchrones -> exécutés dans le pool de threads de FastAPI : le primitif correct est
+# threading, pas asyncio. Au-delà de la limite, les appels en trop attendent un créneau.
+_llm_semaphore = threading.BoundedSemaphore(AI_MAX_CONCURRENCY)
+
+
+@contextmanager
+def _llm_slot():
+    """Réserve un créneau d'appel LLM. Attend au plus AI_SLOT_TIMEOUT secondes ; si aucun
+    créneau ne se libère, lève une erreur honnête plutôt que de laisser la requête pendre."""
+    if not _llm_semaphore.acquire(timeout=AI_SLOT_TIMEOUT):
+        raise RuntimeError("Trop de générations simultanées en ce moment. Réessayez dans un instant.")
+    try:
+        yield
+    finally:
+        _llm_semaphore.release()
 
 
 def generate(
@@ -22,14 +44,15 @@ def generate(
     reste pur : il ne lit aucune base, il reçoit les chaînes déjà résolues.
     """
     fournisseur = provider or AI_PROVIDER
-    if fournisseur == "gemini":
-        return _gemini(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-    elif fournisseur == "groq":
-        return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-    elif fournisseur == "anthropic":
-        return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-    else:
-        raise ValueError(f"Fournisseur inconnu : {fournisseur}")
+    if fournisseur not in ("gemini", "groq", "anthropic"):
+        raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
+    with _llm_slot():
+        if fournisseur == "gemini":
+            return _gemini(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+        elif fournisseur == "groq":
+            return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+        else:  # anthropic
+            return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
 
 
 def _groq(
@@ -94,7 +117,8 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     headers = {"Authorization": f"Bearer {AI_API_KEY}"}
     files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
     data = {"model": "whisper-large-v3", "language": "fr"}
-    response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+    with _llm_slot():
+        response = requests.post(url, headers=headers, files=files, data=data, timeout=60)
     if not response.ok:
         raise RuntimeError(f"Erreur transcription {response.status_code}: {response.text}")
     return response.json()["text"]
@@ -126,7 +150,8 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
         }],
         "max_tokens": 2048,
     }
-    response = requests.post(url, headers=headers, json=body, timeout=60)
+    with _llm_slot():
+        response = requests.post(url, headers=headers, json=body, timeout=60)
     if not response.ok:
         raise RuntimeError(f"Erreur OCR {response.status_code}: {response.text}")
     return response.json()["choices"][0]["message"]["content"]
