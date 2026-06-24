@@ -430,6 +430,7 @@ pas de tout boucler en une fois — intenable sur un chantier de semaines.
 - **Tagline** "Générateur d'activités pédagogiques" = `<span>` HTML blanc dans le header, toujours présent, jamais dans le PNG seul.
 - Pas d'emojis dans l'interface.
 - Navigateur de référence : **Edge** (jamais Chrome dans les instructions).
+- **Menu / navigation = du général au détaillé.** Tout menu se range en **familles (catégories) → options**, jamais une liste à plat où l'on ajoute une entrée de plus à chaque page. Toute nouvelle page se loge **sous une famille existante**. Standard pro appliqué au back-office le 23/06 (5 catégories + accordéon repliable, chevron visible, hiérarchie de tailles titre>option, liseré **bleu = section active** / **bordeaux #A63045 = page active**, shell figé sidebar+header+footer, header = fil d'Ariane « catégorie › page »). Même esprit que la taxonomie outils prof (« ne pas confondre les niveaux »).
 
 ### Layout général
 
