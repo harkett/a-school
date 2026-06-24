@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect, useRef } from 'react'
-import { registerErrorHandler } from './errorDialog'
-import { registerServerHealthHandler, MSG_SERVEUR_INDISPONIBLE } from './serverHealth'
+import { showError } from './errorDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -58,6 +57,7 @@ import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
+import ErrorDialog from './components/ErrorDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import { fetchWithTimeout, apiFetch, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_GROQ } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
@@ -105,7 +105,6 @@ function MainApp() {
   const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
   const [activiteTab, setActiviteTab] = useState('creer')
   const [typeConfirme, setTypeConfirme] = useState(false)  // guidage : le prof a-t-il vu/touché le sélecteur de type ?
-  const [alertDialog, setAlertDialog] = useState(null)
   const [selectedCard, setSelectedCard] = useState('sequence')
   const [inactivityWarning, setInactivityWarning] = useState(false)
   const [countdown, setCountdown] = useState(WARNING_SECS)
@@ -113,12 +112,6 @@ function MainApp() {
   const cdRef      = useRef(null)
   const warningRef = useRef(false)
   const resultatRef = useRef(null)
-
-  useEffect(() => {
-    registerErrorHandler((msg) => setAlertDialog(msg))
-    // Serveur en difficulté (échecs répétés) → même modale d'erreur bloquante que tout le reste.
-    registerServerHealthHandler((degraded) => { if (degraded) setAlertDialog(MSG_SERVEUR_INDISPONIBLE) })
-  }, [])
 
   useEffect(() => {
     function arm() {
@@ -250,7 +243,7 @@ function MainApp() {
           }))
         }
       })
-      .catch(() => setAlertDialog('Impossible de charger les activités — vérifiez que le backend tourne.'))
+      .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere])
 
   // Guidage : si le prof vide le texte source, on repart de l'étape 1 → l'accent doit
@@ -274,18 +267,18 @@ function MainApp() {
 
   async function generer() {
     if (!params.activite_key) {
-      setAlertDialog('Sélectionnez un type d\'activité avant de générer.')
+      showError('Sélectionnez un type d\'activité avant de générer.')
       return
     }
     if (!texte.trim()) {
-      setAlertDialog(
+      showError(
         'Saisissez un texte source avant de générer — collez un extrait, dictez ou importez un fichier.' +
         (!params.avec_correction ? '\n\nSaviez-vous que vous pouvez inclure un corrigé complet ? Cochez « Avec correction » dans les paramètres.' : '')
       )
       return
     }
     if (isTexteGibberish(texte)) {
-      setAlertDialog('Le texte saisi ne ressemble pas à un contenu pédagogique exploitable.\n\nCollez un extrait de cours ou d\'article, dictez à la voix, ou importez un fichier.')
+      showError('Le texte saisi ne ressemble pas à un contenu pédagogique exploitable.\n\nCollez un extrait de cours ou d\'article, dictez à la voix, ou importez un fichier.')
       return
     }
     setErreur(null)
@@ -333,11 +326,11 @@ function MainApp() {
         if (res?.few_shot_just_reached) {
           setFewShotModal(true)
         }
-      }).catch(() => setAlertDialog(
+      }).catch(() => showError(
         "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
       ))
     } catch (e) {
-      setAlertDialog(`Erreur : ${e.message}`)
+      showError(`Erreur : ${e.message}`)
     } finally {
       setLoading(false)
     }
@@ -1011,25 +1004,6 @@ function MainApp() {
         </div>
       )}
 
-      {alertDialog && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <svg width="52" height="52" viewBox="0 0 24 24" style={{ display: 'block', margin: '0 auto 16px' }} aria-hidden="true">
-              <circle cx="12" cy="12" r="10" fill="#dc2626" />
-              <rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff" />
-              <circle cx="12" cy="16.6" r="1.25" fill="#fff" />
-            </svg>
-            <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{alertDialog}</div>
-            <button
-              onClick={() => setAlertDialog(null)}
-              title="Fermer ce message"
-              style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 28px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
 
       {fewShotModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1068,6 +1042,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <UpdateBanner />
+        <ErrorDialog />
         <OfflineBanner />
         <IOSInstallBanner />
         <Routes>
