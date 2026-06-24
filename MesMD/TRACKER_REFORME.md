@@ -105,7 +105,6 @@ Il couvre les 6 phases + les rappels transverses (la note Claude/température, l
 - [ ] CRUD Gap A : créer de nouvelles matières via interface admin
 - [ ] P4.8 — alignement styling des cartes
 - [ ] P4.9 — toast sur réinitialisation paramètres
-- [ ] Bug Accueil : dernière SÉQUENCE affiche du Markdown brut
 - [x] cleanup `src/prompts.py:_build_rag_prefix` — préfixe RAG mort supprimé le 23/06 (+ paramètre `rag_chunks` de `build_prompt`, plus aucun appelant).
 - [ ] cleanup : sortir la base ChromaDB (`backend/rag/chroma_db/`) du suivi git → `.gitignore` + reconstruction par `ingest_referentiel` au déploiement (« données ≠ code »). Décision (c) du 21/06 ; aujourd'hui la base est versionnée et committée, ce nettoyage la décorrèle du repo plus tard.
 - [ ] Aide : expliquer au prof que l'exemple généré peut varier à chaque essai
