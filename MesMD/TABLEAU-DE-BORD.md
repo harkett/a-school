@@ -3,7 +3,7 @@
 > Document de **détail** (pour Claude) : réservoir d'idées priorisé (corps) + sections de référence + historique livré (FAIT). Le **pilotage** (ordre + statut + dépendance) vit dans [TRACKER.md](TRACKER.md).
 > Détail de chaque chantier → fiche `BOUSSOLE/Dxx.md`. Mise à jour : fin de chaque session.
 
-**Date :** 2026-06-11 · **Version :** 3.3.0 · **Focus :** Consolidation du cœur (filet de tests) avant réouverture du push
+**Date :** 2026-06-24 · **Version :** 3.2.9 · **Focus :** Remise en cohérence des docs de pilotage (post-réforme LLM+RAG), puis reprise produit
 
 > Note dev : Bannière "Bientôt disponible" sidebar prof → `Sidebar.jsx`, bloc `{!collapsed && ...}` en bas.
 > **Règle Aide :** Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la même session — à chaud, pendant que c'est frais. Jamais en retard.
@@ -20,9 +20,11 @@
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)
 
-> ⏭️ **PREMIÈRE TÂCHE — matin du 13/06/2026 : TRAITER LA CRÈCHE (0-3 ans).** Stratégie : **même procédure que BTS CIEL option A** — (1) trouver le **référentiel officiel** de la petite enfance (0-3 ans, ex. cadre national d'accueil du jeune enfant — **à chercher/confirmer**) ; (2) en extraire les **vraies matières/domaines** (et **revoir les niveaux** Crèche : aujourd'hui 3 groupes d'âge `Groupe A/B/C` issus d'une spec interne, pas du référentiel officiel) ; (3) **script de seed** (niveau(x) Crèche + matières + paires) ; (4) `traite=true` → la **Crèche réapparaît** dans la vue prof (elle est **cachée** aujourd'hui car non traitée). C'est la **réintégration** de la Crèche par la procédure. Détail méthode : TRACKER § Refonte programmes (🧪 cas-test).
+> ⏭️ **L'ordre vit dans le [TRACKER](TRACKER.md) — le lire en premier.** État réel au 24/06 : Horizon 1 (consolidation du cœur, [D16](BOUSSOLE/D16.md)) est **clos** (P3.5, P3.6, P4.7, P5.10, P5.11 finis ; seuls P4.8/P4.9 cosmétiques restent, différés sous gel). La **réforme moteur LLM + RAG** et le **chantier fournisseurs IA** ont été menés **et poussés** depuis.
 
-**Chantier actif = Consolidation du cœur ([D16](BOUSSOLE/D16.md)).** Filet de tests posé (Phase 1), on traite le suspect **tâche par tâche, sous filet** (19/19 verts). **Fait :** auto-save durci (2.1), P3.4 (`/api/generate` → 400/502), P3.6 (`nb`/`sous_type` manquant → 400). **Prochain : P5.11** (clarifier menu vs bouton), puis P3.5 (verdicts : § AUDIT, plus bas). Objectif final : rouvrir le push proprement, **Deepgram restant hors push**.
+**Chantier courant :** remise en cohérence des docs de pilotage ([CHANTIER_COHERENCE.md](CHANTIER_COHERENCE.md), éphémère) — réaligner TABLEAU/TRACKER sur le réel, puis le supprimer.
+
+**Ensuite :** reprendre la **refonte pro du back-office** (en cours — réservoir ci-dessous : polish + vraie page Référentiels) et la procédure CIEL. L'ordre exact se tranche dans le TRACKER.
 
 **Rappel :** dictée stabilisée (31/05, [D15](BOUSSOLE/D15.md)) ; Deepgram gelé sur `wip/deepgram-streaming`.
 
@@ -327,17 +329,18 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 ### Triage Phase 2.3 (reprise, 31/05) — verdicts tranchés
 
-- [x] **P2** — Auto-save activité : perte silencieuse → **modal + helper testable**. **FAIT** (Phase 2.1, commit `95fec11`).
-- [x] **P3.4** — `generate.py` : distinguer 401 / clé inconnue / Groq down (vs `except Exception` → 500). → **FAIT (08/06)** : `ValueError → 400` (clé inconnue, signal distinct du `KeyError` `.format()` réservé à P3.6) / `RuntimeError`+`RequestException` → 502 (Groq down) ; happy path inchangé. Filet **14 → 17 verts** (baseline réel 14, pas 17). Commit `f8d9317`.
-- [x] **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **FAIT (11/06)** : `build_prompt` (`src/prompts.py`) entoure le `.format()` ; liste blanche `_USER_PARAMS = {nb, sous_type}` (params prof, supprimés par le frontend s'ils sont vides) → `ValueError → 400` (message clair, modale prof) ; tout autre placeholder manquant = bug template/code → re-levé → 500 (jamais masqué en faux 400). `generate.py` inchangé. Filet **17 → 19 verts**.
-- [ ] **P5.11** — Niveau « Supérieur » non supporté (= item #21, non entamé). → **CORRIGER** · ordre 3 · **clarifier d'abord** : retirer du menu vs bloquer le bouton (ne pas présumer).
-- [ ] **P3.5** — Sur 401, rediriger vers /login. → **CORRIGER** · ordre 4 (le + sensible) · **relire le flux refresh token avant** (risque de boucle 401→login→retry→401).
-- [ ] **P4.7** — Compteur few-shot `localStorage` → backend (désynchro toast vs BDD). → **SOUS-D** (refactor d'état, socle de l'item 40).
-- [x] **P5.10** — FAIT (15/06) : listes MATIERES en dur supprimées — **8 copies identiques, pas « 3 endroits »**. Source unique = la base : champ `categorie` sur `cycles` + endpoint `GET /api/matieres?categorie=secondaire` + hook partagé `useMatieres` ; 8 écrans (Signup, Mon réseau ×2, AdminAnalytique, AdminCommunication, AdminProfils, Paramètres, À propos) + la phrase de l'Aide (composant `MatieresDisponibles`) lisent la base. Relève de la refonte « modèle matières propre ». 32 tests backend verts + build OK ; preuve « Arts TEST » remontée à l'écran. Commits `cd1a134` (backend, Lot 1) + `7742508` (frontend, Lot 2). **Note différée :** cas prof BTS CIEL — voir ses matières CIEL dans les filtres = incohérence connue, à trancher séparément (le hook bascule sur `?categorie=` adapté ou un endpoint par profil le moment venu).
-- [ ] **P4.8** — Aligner carte Activité sur pattern btn-primary (App.jsx:606-614). → **GARDER/DÉFER** (cosmétique, backlog gelé).
-- [ ] **P4.9** — Toast informatif au reset params (changement matière, App.jsx:225-231). → **GARDER/DÉFER** (mini-UX, backlog gelé).
+> ⚠️ **Historique — clos.** Statut + ordre de chaque item → [TRACKER](TRACKER.md) (fait foi). Ci-dessous = verdicts + journal de l'audit, conservés comme détail — ne pilotent plus rien.
 
-> **TEMPS 2** (corrections une par une, filet vert entre chaque) — ordre : **P3.4 → P3.6 → P5.11 → P3.5**.
+- **P2** — Auto-save activité : perte silencieuse → **modal + helper testable**. **FAIT** (Phase 2.1, commit `95fec11`).
+- **P3.4** — `generate.py` : distinguer 401 / clé inconnue / Groq down (vs `except Exception` → 500). → **FAIT (08/06)** : `ValueError → 400` (clé inconnue, signal distinct du `KeyError` `.format()` réservé à P3.6) / `RuntimeError`+`RequestException` → 502 (Groq down) ; happy path inchangé. Filet **14 → 17 verts** (baseline réel 14, pas 17). Commit `f8d9317`.
+- **P3.6** — Protéger contre `KeyError` quand `nb` manque pour une activité qui l'exige (App.jsx:272 + prompt). → **FAIT (11/06)** : `build_prompt` (`src/prompts.py`) entoure le `.format()` ; liste blanche `_USER_PARAMS = {nb, sous_type}` (params prof, supprimés par le frontend s'ils sont vides) → `ValueError → 400` (message clair, modale prof) ; tout autre placeholder manquant = bug template/code → re-levé → 500 (jamais masqué en faux 400). `generate.py` inchangé. Filet **17 → 19 verts**.
+- **P5.11** — résolu : « Supérieur » est un *cycle* (en-tête de menu), pas un niveau sélectionnable → rien à corriger.
+- **P3.5** — résolu : renouvellement silencieux sur 401 + redirection /login (single-flight partagé apiFetch ↔ AuthContext).
+- **P4.7** — résolu : compteur few-shot migré `localStorage` → backend (table `few_shot_milestones`).
+- **P5.10** — FAIT (15/06) : listes MATIERES en dur supprimées — **8 copies identiques, pas « 3 endroits »**. Source unique = la base : champ `categorie` sur `cycles` + endpoint `GET /api/matieres?categorie=secondaire` + hook partagé `useMatieres` ; 8 écrans (Signup, Mon réseau ×2, AdminAnalytique, AdminCommunication, AdminProfils, Paramètres, À propos) + la phrase de l'Aide (composant `MatieresDisponibles`) lisent la base. Relève de la refonte « modèle matières propre ». 32 tests backend verts + build OK ; preuve « Arts TEST » remontée à l'écran. Commits `cd1a134` (backend, Lot 1) + `7742508` (frontend, Lot 2). **Note différée :** cas prof BTS CIEL — voir ses matières CIEL dans les filtres = incohérence connue, à trancher séparément (le hook bascule sur `?categorie=` adapté ou un endpoint par profil le moment venu).
+- **P4.8 / P4.9** — différés sous gel (cosmétiques : carte Activité btn-primary · toast reset params).
+
+> **TEMPS 2** (historique) — corrections menées une par une, filet vert entre chaque ; toutes traitées ou différées. Ordre courant → TRACKER.
 
 ---
 
