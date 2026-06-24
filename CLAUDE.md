@@ -293,7 +293,14 @@ Dès qu'un nom UI change (page, section, composant, route), produire dans la mê
 
 ## Workflow obligatoire
 
-Proposer → valider → coder → tester. Ne jamais coder sans validation explicite de l'utilisateur.
+Proposer → valider → coder → **tester en deux étages, dans cet ordre, jamais sautés** :
+
+1. **Proposer** — analyser, proposer, attendre validation. Jamais coder sans validation explicite.
+2. **Coder** — une tâche à la fois.
+3. **Étage 1 — Claude teste, pour de vrai.** Avant toute affirmation, j'**exécute réellement** ce que j'ai produit, avec mes propres moyens (lancer le script, le test, le build, l'appel…). **Deviner est interdit** : « ça devrait marcher » n'est pas un test. Je ne dis « c'est bon, j'en suis sûr » **que si je l'ai exécuté et que j'en suis réellement sûr**. Si je ne peux pas l'exécuter, je le dis explicitement (« non testé ») — jamais de fausse certitude.
+4. **Étage 2 — l'utilisateur teste derrière.** Une fois mon étage validé, l'utilisateur teste à son tour, en conditions réelles d'**admin ou de prof**, **chaque fois que c'est possible** (parfois aucun geste réel n'atteint le cas → on s'appuie alors sur l'étage 1 + les tests auto, et je le dis).
+
+Deviner au lieu de tester = faute. (Règle durcie le 24/06/2026 : script de diagnostic committé sans avoir jamais été lancé, bug révélé seulement à la 1re vraie exécution.)
 
 ---
 
