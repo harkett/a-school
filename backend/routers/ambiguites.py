@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, User
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
 from src.generator import generate
 
 router = APIRouter()
@@ -32,42 +32,7 @@ class AmbigsResponse(BaseModel):
     verdict: str
 
 
-_PROMPT = """Tu es un expert en didactique et en conception de consignes pédagogiques pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, te soumet un exercice ou un énoncé.
-
-Ta mission : détecter toutes les ambiguïtés cognitives — les formulations qui peuvent être mal comprises ou mal interprétées par les élèves — et proposer une reformulation corrigée pour chacune.
-
-Énoncé soumis :
-{texte}
-
-Types d'ambiguïtés à détecter :
-1. Consigne vague — verbe trop général ("analysez", "commentez", "étudiez") sans critères précis
-2. Vocabulaire technique non défini — terme spécialisé supposé connu sans garantie
-3. Double sens — formulation pouvant être interprétée de deux façons différentes
-4. Critères de réussite absents — l'élève ne sait pas ce qu'on attend (longueur, forme, nombre de points…)
-5. Référence implicite — "le texte", "l'auteur", "le document" sans préciser lequel
-6. Consigne trop longue — plusieurs tâches combinées sans séparation claire
-
-Format de réponse — JSON strict, rien d'autre autour :
-{{
-  "ambiguites": [
-    {{
-      "extrait": "fragment exact de l'énoncé problématique",
-      "type": "Consigne vague",
-      "risque": "Ce que l'élève risque de comprendre ou de faire à tort",
-      "reformulation": "Version corrigée de cet extrait, directement réutilisable"
-    }}
-  ],
-  "verdict": "Phrase de synthèse courte sur la qualité globale de l'énoncé."
-}}
-
-Règles :
-- Si l'énoncé est clair et sans ambiguïté, retourner "ambiguites": [] et un verdict positif.
-- Citer des extraits textuels exacts dans le champ "extrait" (reprendre mot pour mot).
-- Les reformulations doivent être concrètes, adaptées au niveau {niveau} et directement utilisables.
-- Ne pas inventer de problèmes — ne signaler que les vraies zones à risque.
-- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+# Prompt déplacé dans backend/llm_prompts.py (administrable en base, lu via get_prompt).
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -109,7 +74,7 @@ def api_detect_ambiguites(
     if not req.texte.strip():
         raise HTTPException(400, "L'énoncé ne peut pas être vide.")
 
-    prompt = _PROMPT.format(
+    prompt = get_prompt(db, "ambiguites").format(
         matiere=req.matiere,
         niveau=req.niveau,
         texte=req.texte.strip(),

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.audit import log_admin_action
 from backend.database import get_db
 from backend.limiter import limiter
+from backend.llm_prompts import PROMPTS
 from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
@@ -158,6 +159,37 @@ def get_temperature(db: Session):
     except (TypeError, ValueError):
         return None
     return v if TEMPERATURE_MIN <= v <= TEMPERATURE_MAX else None
+
+
+def get_prompt(db: Session, key: str) -> str:
+    """Prompt courant d'un outil : surcharge base `prompt_<key>` si présente et non vide,
+    sinon défaut code (llm_prompts.PROMPTS). Lu par requête -> rechargeable à chaud. Le contenu
+    en base est validé À L'ÉCRITURE (repères obligatoires présents + .format() sans casse),
+    donc sûr ici."""
+    base = get_settings_dict(db).get(f"prompt_{key}", "")
+    if base and base.strip():
+        return base
+    return PROMPTS[key]["default"]
+
+
+def valider_prompt(key: str, template: str) -> str | None:
+    """Garde-fou d'écriture d'un prompt. Renvoie un message d'erreur (langage humain) si le
+    prompt est invalide, sinon None. (1) chaque repère obligatoire `{x}` doit rester présent ;
+    (2) le texte doit `.format()` sans lever (repère inconnu / accolades mal équilibrées)."""
+    meta = PROMPTS.get(key)
+    if meta is None:
+        return "Prompt inconnu."
+    required = meta["placeholders"]
+    for ph in required:
+        if "{" + ph + "}" not in template:
+            return (f"Le repère {{{ph}}} est obligatoire dans ce prompt et a disparu. "
+                    f"Remettez-le tel quel avant d'enregistrer.")
+    try:
+        template.format(**{ph: "x" for ph in required})
+    except (KeyError, IndexError, ValueError):
+        return ("Le prompt contient un repère inconnu ou des accolades mal équilibrées. "
+                "N'utilisez que les repères indiqués ; dans un exemple JSON, doublez les accolades : {{ }}.")
+    return None
 
 
 class AdminLoginBody(BaseModel):
@@ -707,6 +739,82 @@ def save_temperature(body: TemperatureBody, request: Request, db: Session = Depe
         ip=request.client.host if request.client else None,
         details=f"Température mise à jour : {valeur or 'défaut fournisseur'}",
     )
+    return {"status": "ok"}
+
+
+class PromptBody(BaseModel):
+    key: str
+    text: str
+
+
+@router.get("/admin/prompts")
+def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Liste des prompts d'outils administrables : libellé, repères obligatoires, texte courant
+    (surcharge base ou défaut), et drapeau is_default + texte par défaut (pour « revenir au
+    défaut »). Les activités (catalogue) ne sont PAS ici."""
+    s = get_settings_dict(db)
+    out = []
+    for key, meta in PROMPTS.items():
+        override = s.get(f"prompt_{key}", "")
+        actif = override if (override and override.strip()) else meta["default"]
+        out.append({
+            "key": key,
+            "label": meta["label"],
+            "placeholders": meta["placeholders"],
+            "current": actif,
+            "default": meta["default"],
+            "is_default": not (override and override.strip()),
+        })
+    return {"prompts": out}
+
+
+@router.put("/admin/prompts")
+def save_prompt(body: PromptBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit un prompt d'outil. Endpoint DÉDIÉ. Garde-fou : un repère obligatoire manquant ou
+    des accolades cassées -> 400 + message humain pour la modale, RIEN écrit (plantage rendu
+    impossible). Texte identique au défaut accepté tel quel (override volontaire)."""
+    if body.key not in PROMPTS:
+        raise HTTPException(400, "Prompt inconnu.")
+    err = valider_prompt(body.key, body.text)
+    if err:
+        raise HTTPException(400, err)
+    cle = f"prompt_{body.key}"
+    row = db.query(Setting).filter(Setting.key == cle).first()
+    if row:
+        row.value = body.text
+    else:
+        db.add(Setting(key=cle, value=body.text))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_PROMPT",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Prompt '{body.key}' mis à jour",
+    )
+    return {"status": "ok"}
+
+
+@router.delete("/admin/prompts/{key}")
+def reset_prompt(key: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Vrai retour au défaut d'un outil : SUPPRIME la surcharge en base (ligne `prompt_<key>`).
+    `get_prompt` retombe alors sur le défaut code — qui pourra évoluer librement. Idempotent :
+    rien en base -> déjà au défaut, on renvoie ok sans erreur."""
+    if key not in PROMPTS:
+        raise HTTPException(400, "Prompt inconnu.")
+    row = db.query(Setting).filter(Setting.key == f"prompt_{key}").first()
+    if row:
+        db.delete(row)
+        db.commit()
+        log_admin_action(
+            db=db,
+            admin_email=_get_admin_email(request),
+            action="RESET_PROMPT",
+            target_email=None,
+            ip=request.client.host if request.client else None,
+            details=f"Prompt '{key}' remis au défaut",
+        )
     return {"status": "ok"}
 
 

@@ -219,6 +219,11 @@ const SECTIONS = [
           'Onglet « Température » : règle la variabilité des générations, de 0 (stable, répétable) à 2 (très varié). Attention — plus haut N\'EST PAS mieux : une température élevée rend les réponses moins fiables (erreurs, format cassé). Pour des activités pédagogiques, rester bas à modéré.',
           'Laisser le champ vide = utiliser le réglage par défaut du fournisseur (aucun changement par rapport au comportement actuel). Une valeur hors de [0, 2] est refusée par une fenêtre d\'alerte.',
           'L\'Optimiseur de séquences n\'est pas concerné : sa température reste à 0 pour produire un résultat fiable et bien formé. Pris en compte immédiatement, sans redémarrage.',
+          'Onglet « Prompts » : le texte d\'instruction exact envoyé à l\'IA pour chaque outil (détecteur d\'ambiguïtés, analyse de consigne, séquence standard et remédiation, optimiseur). On choisit l\'outil dans une liste, on édite son texte, on enregistre. Pris en compte immédiatement, sans redémarrage.',
+          'Les repères entre accolades (par exemple {matiere}, {niveau}) sont remplacés à l\'exécution par les vraies valeurs. Ils sont obligatoires : un repère effacé est signalé en rouge, et l\'enregistrement est refusé par une fenêtre d\'alerte tant qu\'il n\'est pas remis — sans lui, la matière, le niveau ou le contenu de l\'enseignant ne seraient pas transmis à l\'IA.',
+          'Dans un exemple de format JSON à l\'intérieur du prompt, les accolades doivent être doublées ({{ }}) pour ne pas être prises pour un repère ; un texte mal formé est refusé.',
+          'Une pastille indique si l\'outil utilise le prompt « Par défaut » ou une version « Personnalisé ». Le bouton « Revenir au défaut » supprime la version personnalisée et restaure le texte d\'origine (avec confirmation).',
+          'Le catalogue d\'activités des profs (les 140 entrées) n\'est PAS modifiable ici : il relève du produit, pas d\'un réglage.',
         ],
       },
       {

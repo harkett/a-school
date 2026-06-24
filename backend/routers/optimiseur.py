@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, User
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_prompt
 from src.generator import generate
 
 router = APIRouter()
@@ -32,41 +32,7 @@ class OptimiseResponse(BaseModel):
     avertissement: str | None = None
 
 
-_PROMPT = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, te soumet une séquence pédagogique existante à optimiser.
-
-Ta mission : analyser la séquence selon les 6 critères ci-dessous, identifier les problèmes présents, puis produire la version optimisée.
-
-Les 6 critères d'analyse :
-1. Rupture conceptuelle — une phase suppose une notion non encore construite dans la séquence
-2. Surcharge cognitive — trop de notions nouvelles concentrées dans un temps trop court
-3. Consigne ambiguë — formulation pouvant être mal interprétée par les élèves
-4. Activité inefficace — exercice sans lien réel avec l'objectif pédagogique déclaré
-5. Progression déséquilibrée — phases trop courtes ou trop longues, rythme inadapté
-6. Ancrage mémoriel manquant — absence de consolidation avant la fin ou l'évaluation
-
-Séquence soumise :
-{sequence}
-
-Format de réponse — JSON strict, rien d'autre autour :
-{{
-  "problemes": [
-    {{"type": "Rupture conceptuelle", "detail": "description précise et concrète du problème détecté"}},
-    {{"type": "Surcharge cognitive", "detail": "..."}}
-  ],
-  "sequence_optimisee": "# Séance : [titre]\n**Matière :** ... | **Niveau :** ... | **Durée :** ... min\n\n---\n\n## Phase 1 — [Nom] ([X] min)\n**Objectif :** ...\n**Déroulement :** ...\n**Organisation :** ...\n\n## Phase 2 — [Nom] ([X] min)\n...",
-  "score": "Bon|Moyen|À revoir — X problème(s) détecté(s)",
-  "avertissement": "Message optionnel si incohérence détectée — sinon ne pas inclure ce champ."
-}}
-
-Règles :
-- N'inclure dans "problemes" que les critères réellement problématiques. Ignorer les critères sans problème.
-- Si la séquence est déjà de bonne qualité, "problemes" est une liste vide [].
-- La séquence optimisée conserve la structure générale du prof. Elle corrige les problèmes détectés sans tout réécrire de zéro.
-- Le champ sequence_optimisee doit contenir le texte complet avec les vrais sauts de ligne (\\n) entre chaque phase — exactement le même format markdown que la séquence originale soumise.
-- Si la séquence soumise ne correspond manifestement pas à la matière {matiere} (ex : contenu de Français soumis pour Mathématiques, exercice de sport soumis pour Philosophie), remplis le champ "avertissement" avec un message court et précis signalant l'incohérence. Sinon, n'inclus pas ce champ.
-- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+# Prompt deplace dans backend/llm_prompts.py (administrable en base, lu via get_prompt).
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -108,7 +74,7 @@ def api_optimize(
     if not req.sequence.strip():
         raise HTTPException(400, "La séquence ne peut pas être vide.")
 
-    prompt = _PROMPT.format(
+    prompt = get_prompt(db, "optimiseur").format(
         matiere=req.matiere,
         niveau=req.niveau,
         sequence=req.sequence.strip(),

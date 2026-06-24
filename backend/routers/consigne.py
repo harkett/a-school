@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, User
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
 from src.generator import generate
 
 router = APIRouter()
@@ -34,44 +34,7 @@ class ConsigneResponse(BaseModel):
     version_optimisee: str
 
 
-_PROMPT = """Tu es un expert en didactique et en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, te soumet une consigne isolée à analyser.
-
-Consigne soumise :
-{consigne}
-
-Ta mission : analyser la qualité didactique de cette consigne sur 5 axes, puis proposer une version optimisée.
-
-Axes d'analyse :
-1. Clarté linguistique — formulations floues, vagues, trop longues ou mal construites
-2. Précision didactique — la consigne dit-elle exactement ce que l'enseignant veut évaluer ?
-3. Ambiguïté conceptuelle — mots à double sens, termes polysémiques ("analyser", "expliquer", "décrire", "produit", "simplifier"…)
-4. Structure logique — étapes implicites, tâches multiples non séparées, sauts logiques
-5. Risque d'erreurs typiques — formulations qui provoquent des erreurs récurrentes chez les élèves de ce niveau
-
-Format de réponse — JSON strict, rien d'autre autour :
-{{
-  "analyses": [
-    {{
-      "axe": "Clarté linguistique",
-      "severite": "Élevée",
-      "extrait": "fragment exact de la consigne posant problème",
-      "probleme": "Description précise du problème identifié",
-      "conseil": "Suggestion concrète pour corriger ce point"
-    }}
-  ],
-  "verdict": "Phrase de synthèse courte sur la qualité globale de la consigne.",
-  "version_optimisee": "La consigne entièrement réécrite avec tous les problèmes corrigés, directement utilisable."
-}}
-
-Règles :
-- Si la consigne est déjà claire et sans problème, retourner "analyses": [] et un verdict positif. La version_optimisee peut reprendre la consigne telle quelle.
-- Citer des extraits textuels exacts dans le champ "extrait" (mot pour mot).
-- La version_optimisee doit être adaptée au niveau {niveau} et directement utilisable en classe.
-- La sévérité vaut "Modérée" ou "Élevée" uniquement.
-- Ne signaler que les vrais problèmes. Ne pas inventer de défauts.
-- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+# Prompt déplacé dans backend/llm_prompts.py (administrable en base, lu via get_prompt).
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -113,7 +76,7 @@ def api_analyser_consigne(
     if not req.consigne.strip():
         raise HTTPException(400, "La consigne ne peut pas être vide.")
 
-    prompt = _PROMPT.format(
+    prompt = get_prompt(db, "consigne").format(
         matiere=req.matiere,
         niveau=req.niveau,
         consigne=req.consigne.strip(),

@@ -6,7 +6,7 @@ from typing import Optional
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import ToolUsageLog, SequenceSauvegardee, User
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
 from src.generator import generate
 
 router = APIRouter()
@@ -28,86 +28,8 @@ class SequenceResponse(BaseModel):
     resultat: str
 
 
-_PROMPT_STANDARD = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, prépare une séance de {duree} minutes sur :
-"{theme}"
-
-Génère une séance pédagogique complète, cohérente et directement utilisable en classe.
-
-Structure attendue : 5 à 6 phases couvrant exactement {duree} minutes.
-Progression conseillée : Activation → Exploration/Découverte → Structuration/Formalisation → Entraînement → Ancrage/Consolidation.
-
-Format de réponse — markdown strict :
-
-# Séance : [titre court reprenant le thème]
-**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** [Ce que les élèves construisent ou réalisent]
-**Déroulement :** [Description concrète — ce que fait le prof, ce que font les élèves]
-**Organisation :** [Individuel / Binôme / Groupe / Collectif]
-
-## Phase 2 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-[…continuer jusqu'à la dernière phase]
-
----
-
-> *Séance générée par aSchool*
-
-Règles absolues :
-- La somme des durées des phases = exactement {duree} minutes
-- Chaque phase a un rôle clair et distinct dans la progression
-- Le déroulement est concret, précis et directement applicable en classe
-- Le contenu est adapté au niveau {niveau} et à la matière {matiere}
-- Aucune phase sans lien direct avec le thème "{theme}"
-- Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
-
-
-_PROMPT_REMEDIATION = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français.
-
-Un enseignant de {matiere}, niveau {niveau}, décrit la situation de sa classe :
-"{description_classe}"
-
-La notion à retravailler est : "{theme}"
-Durée disponible : {duree} minutes
-
-Génère un scénario de remédiation créatif qui :
-1. Exploite la situation décrite (difficultés, contexte, centres d'intérêt) comme point d'accroche
-2. Cible précisément la notion à consolider
-3. Propose une approche différente de la présentation initiale, plus engageante
-4. Alterne entre phases courtes pour maintenir l'attention
-
-Format de réponse — markdown strict :
-
-# Remédiation : [titre court lié à la notion et au contexte]
-**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-[…continuer jusqu'à la dernière phase]
-
----
-
-> *Séance de remédiation générée par aSchool*
-
-Règles absolues :
-- La somme des durées des phases = exactement {duree} minutes
-- Le scénario exploite concrètement la situation décrite par l'enseignant
-- Chaque phase a un rôle clair dans la reconsolidation de la notion "{theme}"
-- Le contenu est adapté au niveau {niveau}
-- Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
+# Prompts (standard + remédiation) déplacés dans backend/llm_prompts.py
+# (administrables en base, lus via get_prompt).
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -138,7 +60,7 @@ def api_generate_sequence(
 
     try:
         if req.mode == "remediation":
-            prompt = _PROMPT_REMEDIATION.format(
+            prompt = get_prompt(db, "sequence_remediation").format(
                 matiere=req.matiere,
                 niveau=req.niveau,
                 duree=req.duree,
@@ -146,7 +68,7 @@ def api_generate_sequence(
                 description_classe=req.description_classe.strip(),
             )
         else:
-            prompt = _PROMPT_STANDARD.format(
+            prompt = get_prompt(db, "sequence_standard").format(
                 matiere=req.matiere,
                 niveau=req.niveau,
                 duree=req.duree,

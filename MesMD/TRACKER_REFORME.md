@@ -23,7 +23,7 @@
 - [x] Interface admin qui lit/écrit les réglages
 - [x] Validation des valeurs (modale bloquante)
 - [x] Réglages rechargeables à chaud
-- [ ] Prompts administrables en base
+- [x] Prompts administrables en base (5 outils ; repères obligatoires protégés ; retour au défaut)
 
 ## Phase 5 — Robustesse / dette
 - [ ] Régulation de concurrence sur les appels LLM
