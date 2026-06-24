@@ -19,7 +19,6 @@
 - [x] 4.1.b — écriture admin du modèle (combo fermée)
 - [x] 4.1.c — max_tokens administrable
 - [x] 4.1.d — température administrable (globale ; optimiseur reste à 0)
-- [ ] 4.1.e — bascule fournisseur — ⏸️ parqué (→ TRACKER_FOURNISSEURS_IA.md)
 - [x] Interface admin qui lit/écrit les réglages
 - [x] Validation des valeurs (modale bloquante)
 - [x] Réglages rechargeables à chaud
@@ -43,8 +42,6 @@
 - [ ] Étude : annexes de référentiels (ex. E6 BTS CIEL)
 
 ## Rappels transverses
-- [ ] Bascule Claude : vérifier température / mode JSON Opus dans l'adaptateur
-- [ ] Rebrancher l'adaptateur Anthropic via claude -p à la bascule
 - [ ] Rectifier la doc d'archi : base réelle = SQLite
 - [x] Groq conservé seulement pour Whisper / OCR
 
