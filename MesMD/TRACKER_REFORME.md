@@ -29,7 +29,7 @@
 - [x] Unifier les migrations (plus d'ALTER inline)
 - [ ] Décider : rester SQLite ou migrer PostgreSQL
 - [x] Code d'erreur 429 distinct (surcharge / rate limit → « réessayez », sur tous les outils + OCR + dictée)
-- [ ] Robustesse de l'indexation RAG (filet autour de col.add)
+- [x] Robustesse de l'indexation RAG (chaque lot protégé + vérif d'intégrité ; jamais de base à moitié construite en silence)
 
 ## Phase 6 — Cosmétique / différé
 - [ ] Retirer le défaut 'Français' en dur (3 endroits frontend)

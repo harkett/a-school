@@ -60,8 +60,26 @@ def ingest(chunks: list[dict]) -> int:
         metas.append(ch["meta"])  # métadonnées entièrement posées par la fiche
     BATCH = 64
     for i in range(0, len(ids), BATCH):
-        col.add(ids=ids[i:i + BATCH], documents=docs[i:i + BATCH], metadatas=metas[i:i + BATCH])
-    return col.count()
+        lot = ids[i:i + BATCH]
+        try:
+            col.add(ids=lot, documents=docs[i:i + BATCH], metadatas=metas[i:i + BATCH])
+        except Exception as e:
+            # Filet : un lot qui échoue ne doit JAMAIS laisser une base à moitié construite
+            # en silence. On arrête net avec un message clair (quel lot, quelle cause) -> le
+            # déploiement échoue VISIBLEMENT, jamais une base trouée qui a l'air normale.
+            raise RuntimeError(
+                f"Indexation interrompue : échec du lot {lot[0]}..{lot[-1]} "
+                f"({len(lot)} morceaux) dans la collection '{fiche.COLLECTION}' : {e}"
+            ) from e
+
+    # Vérif d'intégrité : tout ce qui devait être rangé l'est bien (sinon base incomplète).
+    n = col.count()
+    if n != len(ids):
+        raise RuntimeError(
+            f"Base de connaissances incomplète : {n} morceaux rangés sur {len(ids)} attendus "
+            f"(collection '{fiche.COLLECTION}'). Reconstruction à relancer."
+        )
+    return n
 
 
 def refresh_extraction_txt(pages: list[tuple[int, str]], out_path: Path) -> None:
