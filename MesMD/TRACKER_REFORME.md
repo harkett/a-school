@@ -32,10 +32,10 @@
 - [x] Robustesse de l'indexation RAG (chaque lot protégé + vérif d'intégrité ; jamais de base à moitié construite en silence)
 
 ## Phase 6 — Cosmétique / différé
-- [ ] Retirer le défaut 'Français' en dur (3 endroits frontend)
+- [x] Retirer le 'Français'/'4e' en dur — au-delà des 3 endroits : exemples en dur des 4 outils supprimés (bouton → « pas d'exemple disponible pour le moment »), défauts App.jsx retirés (matière/niveau = profil), table ABREV admin retirée. Commit 593073d.
 - [ ] CRUD matières via l'admin
 - [ ] P4.8 — alignement des cartes
-- [ ] P4.9 — toast à la réinitialisation des paramètres
+- [x] P4.9 — confirmation inline qui RESTE (toast écarté) : enregistrer un prompt → encadré rouge « Prompt modifié » (= personnalisé, ≠ défaut) ; revenir au défaut → encadré vert « Prompt remis au défaut ».
 - [x] Cleanup préfixe RAG mort (_build_rag_prefix)
 - [x] Sortir ChromaDB du git (rebuild au déploiement)
 - [ ] Aide : expliquer que l'exemple varie, l'ancrage reste

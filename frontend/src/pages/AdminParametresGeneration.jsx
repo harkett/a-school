@@ -249,7 +249,7 @@ export default function AdminParametresGeneration() {
       }, TIMEOUT_STD)
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setMessagePrompt({ type: 'ok', text: 'Prompt enregistré.' })
+        setMessagePrompt({ type: 'warn', text: 'Prompt modifié.' })
         await loadPrompts(promptKey)
       } else {
         showError(data.detail || 'Erreur lors de l\'enregistrement du prompt.')
@@ -656,7 +656,9 @@ export default function AdminParametresGeneration() {
                 </button>
                 {messagePrompt && (
                   <div style={{
-                    background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
+                    background: messagePrompt.type === 'warn' ? '#fef2f2' : '#f0fdf4',
+                    border: `1px solid ${messagePrompt.type === 'warn' ? '#fecaca' : '#bbf7d0'}`,
+                    color: messagePrompt.type === 'warn' ? '#dc2626' : '#166534',
                     borderRadius: 8, padding: '10px 14px', fontSize: 13,
                   }}>
                     {messagePrompt.text}
