@@ -19,10 +19,5 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)"
     ]
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "powershell -NoProfile -File .claude/hooks/rappel-faits.ps1" } ] }
-    ]
   }
 }
