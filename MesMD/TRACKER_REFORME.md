@@ -34,7 +34,7 @@
 ## Phase 6 — Cosmétique / différé
 - [x] Retirer le 'Français'/'4e' en dur — au-delà des 3 endroits : exemples en dur des 4 outils supprimés (bouton → « pas d'exemple disponible pour le moment »), défauts App.jsx retirés (matière/niveau = profil), table ABREV admin retirée. Commit 593073d.
 - [ ] CRUD matières via l'admin
-- [ ] P4.8 — alignement des cartes
+- [x] P4.8 — alignement des cartes — déjà fait antérieurement (confirmé par Harketti le 25/06). Cette case était restée [ ] à tort ; réouverture erronée annulée (modif App.jsx revertie). Leçon : vérifier l'état réel, pas se fier à une case périmée.
 - [x] P4.9 — confirmation inline qui RESTE (toast écarté) : enregistrer un prompt → encadré rouge « Prompt modifié » (= personnalisé, ≠ défaut) ; revenir au défaut → encadré vert « Prompt remis au défaut ».
 - [x] Cleanup préfixe RAG mort (_build_rag_prefix)
 - [x] Sortir ChromaDB du git (rebuild au déploiement)
@@ -42,7 +42,7 @@
 - [ ] Étude : annexes de référentiels (ex. E6 BTS CIEL)
 
 ## Rappels transverses
-- [ ] Rectifier la doc d'archi : base réelle = SQLite
+- [x] Rectifier la doc d'archi : base réelle = SQLite — RIEN à corriger (vérifié 25/06) : CLAUDE.md dit déjà « BDD : SQLite (local + VPS) » ; les mentions Postgres sont toutes légitimes (item 20 hors-scope · décision Phase 5 · note « migration si charge »). Le `.dbml` ne déclare aucun database_type Postgres.
 - [x] Groq conservé seulement pour Whisper / OCR
 
 ## Backlog écran "Résultat généré" (réservoir, à déplacer plus tard)
