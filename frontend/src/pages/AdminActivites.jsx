@@ -1,20 +1,5 @@
 import { useEffect, useState } from 'react'
 
-const ABREV = {
-  'Français':               'FR',
-  'Histoire-Géographie':    'HG',
-  'Philosophie':            'Philo',
-  'Mathématiques':          'Maths',
-  'SVT':                    'SVT',
-  'Physique-Chimie':        'PC',
-  'Technologie':            'Techno',
-  'SES':                    'SES',
-  'NSI':                    'NSI',
-  'Langues Vivantes (LV)':  'LV',
-  'Arts':                   'Arts',
-  'EPS':                    'EPS',
-}
-
 export default function AdminActivites() {
   const [data, setData]         = useState(null)
   const [erreur, setErreur]     = useState(null)
@@ -173,7 +158,7 @@ export default function AdminActivites() {
                     className="px-2 py-3 font-medium text-gray-500 bg-gray-50 text-center whitespace-nowrap"
                     title={m}
                   >
-                    {ABREV[m] || m}
+                    {m}
                   </th>
                 ))}
               </tr>

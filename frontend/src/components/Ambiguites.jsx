@@ -2,56 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
-const EXEMPLES = {
-  'Français': () => `Lisez le texte et répondez aux questions suivantes.
-
-1. Analysez le personnage principal.
-2. Que pensez-vous du style de l'auteur ?
-3. Commentez la fin du texte en donnant votre avis.`,
-
-  'Histoire-Géographie': () => `Étudiez le document et répondez.
-
-1. Expliquez le contexte historique.
-2. Montrez que cet événement est important.
-3. Quelles sont les conséquences ?`,
-
-  'Mathématiques': () => `Résolvez le problème suivant en montrant votre démarche.
-
-On dispose d'une figure géométrique. Calculez sa surface. Justifiez votre réponse et vérifiez.`,
-
-  'Physique-Chimie': () => `À partir de vos observations, répondez aux questions.
-
-1. Décrivez ce qui se passe.
-2. Expliquez le phénomène.
-3. Concluez sur les résultats obtenus.`,
-
-  'SVT': () => `Exploitez les documents et rédigez un texte structuré expliquant le mécanisme étudié. Vous utiliserez vos connaissances.`,
-
-  'SES': () => `À l'aide du document et de vos connaissances, répondez à la question suivante.
-
-Montrez que le marché peut présenter des dysfonctionnements. Illustrez avec des exemples.`,
-
-  'NSI': () => `Écrire un algorithme qui résout le problème. Tester et expliquer votre solution.
-
-Le programme doit être efficace. Vous justifierez vos choix.`,
-
-  'Philosophie': () => `Traitez le sujet suivant en rédigeant un devoir complet.
-
-"Peut-on tout dire ?" — Analysez la question et donnez votre point de vue argumenté.`,
-
-  'Langues Vivantes (LV)': () => `Read the text and answer the following questions.
-
-1. What is the text about? Explain.
-2. Comment on the author's point of view.
-3. Give your opinion on the topic using examples.`,
-
-  'Technologie': () => `Étudiez l'objet technique et complétez le tableau. Expliquez son fonctionnement et proposez une amélioration possible.`,
-
-  'Arts': () => `Réalisez une production plastique en vous inspirant du document. Vous expliquerez votre démarche et vos choix artistiques.`,
-
-  'EPS': () => `Exécutez l'exercice proposé en respectant les critères. Évaluez votre performance et commentez vos résultats.`,
-}
-
 const TYPE_COLOR = {
   'Consigne vague':                  { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
   'Vocabulaire technique non défini': { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
@@ -107,8 +57,8 @@ function isTexteGibberish(t) {
 }
 
 export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence, prefillTexte, onPrefillUsed }) {
-  const mat = matiere || 'Français'
-  const niv = niveau  || '4e'
+  const mat = matiere
+  const niv = niveau
 
   const [tab, setTab]             = useState('analyser')
   const [texte, setTexte]         = useState(prefillTexte || '')
@@ -218,8 +168,8 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
                 </label>
                 {!resultat && !texte.trim() && (
                   <button
-                    onClick={() => setTexte((EXEMPLES[mat] || EXEMPLES['Français'])())}
-                    title="Pré-remplir avec un énoncé exemple adapté à votre matière — pour tester sans avoir d'exercice sous la main"
+                    onClick={() => setAlertDialog('Pas d\'exemple disponible pour le moment.')}
+                    title="Aucun exemple disponible pour le moment"
                     disabled={loading}
                     style={{ fontSize: '11px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
@@ -359,7 +309,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Collez votre énoncé</div>
                 <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
                   <li>Collez un exercice, une série de questions ou une consigne</li>
-                  <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
+                  <li>Le bouton <strong>Tester un exemple</strong> (exemple ancré sur le programme) est en cours de préparation.</li>
                 </ul>
               </div>
               <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
@@ -450,9 +400,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
             style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Énoncé manquant
-            </div>
             <p style={{ fontSize: '13.5px', color: '#475569', margin: '0 0 20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
               {alertDialog}
             </p>

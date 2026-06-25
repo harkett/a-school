@@ -2,21 +2,6 @@ import { useState, useRef } from 'react'
 import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
-const EXEMPLES = {
-  'Français':                () => `Analysez le personnage principal en faisant référence au texte.`,
-  'Histoire-Géographie':     () => `Montrez que cet événement est important en vous appuyant sur le document.`,
-  'Mathématiques':           () => `Trace un triangle isocèle de base 6 cm et calcule son aire.`,
-  'Physique-Chimie':         () => `Expliquez le phénomène observé en utilisant vos connaissances.`,
-  'SVT':                     () => `Décrivez et expliquez le mécanisme étudié à partir des documents.`,
-  'SES':                     () => `Montrez que le marché peut présenter des dysfonctionnements.`,
-  'NSI':                     () => `Écrivez un algorithme efficace pour résoudre ce problème et justifiez vos choix.`,
-  'Philosophie':             () => `Analysez la question et donnez votre point de vue argumenté.`,
-  'Langues Vivantes (LV)':   () => `Comment on the author's point of view using examples from the text.`,
-  'Technologie':             () => `Expliquez le fonctionnement de l'objet et proposez une amélioration possible.`,
-  'Arts':                    () => `Réalisez une production en vous inspirant du document et expliquez votre démarche.`,
-  'EPS':                     () => `Exécutez l'exercice en respectant les critères et évaluez vos résultats.`,
-}
-
 const AXE_COLOR = {
   'Clarté linguistique':       { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
   'Précision didactique':      { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
@@ -75,8 +60,8 @@ function isConsigneGibberish(t) {
 }
 
 export default function Consigne({ matiere, niveau, onNavigate }) {
-  const mat = matiere || 'Français'
-  const niv = niveau  || '4e'
+  const mat = matiere
+  const niv = niveau
 
   const [tab, setTab]                 = useState('analyser')
   const [consigne, setConsigne]       = useState('')
@@ -185,8 +170,8 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
                 </label>
                 {!resultat && !consigne.trim() && (
                   <button
-                    onClick={() => setConsigne((EXEMPLES[mat] || EXEMPLES['Français'])())}
-                    title="Pré-remplir avec une consigne exemple adaptée à votre matière — pour tester sans avoir de consigne sous la main"
+                    onClick={() => setAlertDialog('Pas d\'exemple disponible pour le moment.')}
+                    title="Aucun exemple disponible pour le moment"
                     disabled={loading}
                     style={{ fontSize: '11px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
@@ -329,7 +314,7 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
                 <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
                   <li>Une consigne = une instruction adressée à l'élève (pas un exercice entier)</li>
                   <li>Exemple : "Analysez le personnage en faisant référence au texte."</li>
-                  <li><strong>Pas de consigne sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite) pour pré-remplir avec un exemple adapté à votre matière.</li>
+                  <li>Le bouton <strong>Tester un exemple</strong> (exemple ancré sur le programme) est en cours de préparation.</li>
                 </ul>
               </div>
               <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
@@ -382,9 +367,6 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
             style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Consigne manquante
-            </div>
             <p style={{ fontSize: '13.5px', color: '#475569', margin: '0 0 20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
               {alertDialog}
             </p>

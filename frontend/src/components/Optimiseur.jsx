@@ -2,32 +2,6 @@ import { useState, useRef } from 'react'
 import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
-const EXEMPLES = {
-  'Français': (n) => `Séquence — Français, ${n} — La nouvelle réaliste au XIXe siècle\n\nPhase 1 — Évaluation finale (50 min)\nLes élèves rédigent une analyse littéraire complète d'une nouvelle de Maupassant : introduction, développement en 3 parties (contexte, caractéristiques du réalisme, procédés stylistiques), conclusion.\n\nPhase 2 — Présentation du genre (20 min)\nCours magistral sur la nouvelle réaliste : définition, auteurs majeurs, vocabulaire (incipit, chute, ellipse temporelle, focalisation). Distribution d'un tableau récapitulatif.\n\nPhase 3 — Lecture analytique (45 min)\nLecture d'un extrait de "Boule de Suif". Questions écrites de compréhension et d'analyse. Mise en commun orale de 5 minutes.\n\nPhase 4 — Exercice d'écriture (30 min)\nRédaction d'une chute de nouvelle réaliste. Contrainte : 15 à 20 lignes, utiliser au moins 2 procédés étudiés.`,
-
-  'Histoire-Géographie': (n) => `Séquence — Histoire-Géographie, ${n} — La Première Guerre mondiale\n\nPhase 1 — Analyse documentaire (55 min)\nÉtude en groupes de 8 documents (photographies, témoignages, cartes, statistiques). 6 questions portant sur les causes, les conditions dans les tranchées, le bilan humain, les conséquences géopolitiques et la notion de guerre totale.\n\nPhase 2 — Mise en commun et cours (20 min)\nCorrection collective. Le professeur complète avec les dates clés et les traités de paix.\n\nPhase 3 — Évaluation sommative (45 min)\nComposition de 2 pages : "En quoi la Première Guerre mondiale a-t-elle été une guerre totale ?"`,
-
-  'Mathématiques': (n) => `Séquence — Mathématiques, ${n} — Les fonctions affines\n\nPhase 1 — Exercices d'application (45 min)\nSérie de 15 exercices sur le calcul de la pente et de l'ordonnée à l'origine. Les élèves travaillent en autonomie sur la fiche distribuée.\n\nPhase 2 — Définition et propriétés (15 min)\nLe professeur donne la définition de f(x) = ax + b, précise le vocabulaire (coefficient directeur, ordonnée à l'origine) et les cas particuliers.\n\nPhase 3 — Représentation graphique (30 min)\nTracé de droites dans un repère orthogonal. Construction à partir de deux points. Lecture graphique des paramètres.`,
-
-  'Physique-Chimie': (n) => `Séquence — Physique-Chimie, ${n} — Les réactions chimiques\n\nPhase 1 — Cours magistral (30 min)\nDéfinition d'une réaction chimique : réactifs, produits, conservation de la masse. Écriture et équilibrage d'équations de réaction.\n\nPhase 2 — TP : fabrication de caramel (55 min)\nLes élèves font fondre du sucre, observent les transformations et répondent à un questionnaire sur leurs observations sensorielles et culinaires.\n\nPhase 3 — Exercices d'application (25 min)\nÉcriture et équilibrage de 8 équations de réactions chimiques classiques.`,
-
-  'SVT': (n) => `Séquence — SVT, ${n} — La division cellulaire\n\nPhase 1 — Observation microscopique (45 min)\nLes élèves observent des préparations de racines d'oignons en mitose et en méiose. Ils identifient et dessinent les phases de chaque division.\n\nPhase 2 — Cours : la mitose (20 min)\nPrésentation des 4 phases (prophase, métaphase, anaphase, télophase) et du rôle de la mitose dans la croissance.\n\nPhase 3 — Cours : la méiose et exercices (35 min)\nPrésentation rapide de la méiose en 5 minutes. Exercices de comparaison mitose/méiose sur 30 minutes.`,
-
-  'SES': (n) => `Séquence — SES, ${n} — Marché et formation des prix\n\nPhase 1 — Introduction (10 min)\nQuestion ouverte : "Comment le prix d'un bien est-il déterminé ?" Discussion avec la classe.\n\nPhase 2 — Analyse de documents (40 min)\nÉtude de 4 documents (graphiques offre/demande, données pétrole, presse semi-conducteurs, texte de cours). Questions : définir offre et demande, expliquer le prix d'équilibre, analyser un choc d'offre, comparer avec un monopole.\n\nPhase 3 — Évaluation sommative (50 min)\nDissertation : "Le marché permet-il toujours une allocation efficace des ressources ?"`,
-
-  'NSI': (n) => `Séquence — NSI, ${n} — Algorithmique : les tris\n\nPhase 1 — Cours et implémentation (90 min)\nPrésentation du tri à bulles, par sélection, par insertion et rapide. Pour chaque algorithme : principe, pseudocode, complexité O(n²) et O(n log n), cas favorables/défavorables. Implémentation des 4 algorithmes en Python.\n\nPhase 2 — Comparaison et évaluation (30 min)\nTests de performance sur des listes de 1000 éléments. Compte rendu comparatif. Évaluation sur table : implémenter le tri par sélection et calculer sa complexité.`,
-
-  'Philosophie': (n) => `Séquence — Philosophie, ${n} — La liberté\n\nPhase 1 — Dissertation (4h)\nSujet au choix : "Être libre, est-ce faire ce que l'on veut ?" ou "La liberté est-elle compatible avec l'existence d'autrui ?" Rédaction complète en autonomie.\n\nPhase 2 — Étude de textes (2h)\nLecture et analyse de textes de Sartre, Spinoza et Rousseau. Questions d'explication de texte.\n\nPhase 3 — Cours notionnel (1h)\nDéfinitions et distinctions : libre-arbitre, déterminisme, liberté politique, liberté intérieure.`,
-
-  'Langues Vivantes (LV)': (n) => `Séquence — Langues Vivantes, ${n} — Parler de son quotidien\n\nPhase 1 — Production orale (30 min)\nChaque élève décrit sa journée type en langue étrangère devant la classe (2 minutes par élève).\n\nPhase 2 — Étude lexicale (25 min)\nListe de 30 mots liés au quotidien. Apprentissage par cœur et exercices de traduction.\n\nPhase 3 — Compréhension écrite (35 min)\nLecture d'un texte journalistique authentique sur les habitudes des jeunes. Questions de compréhension fine.\n\nPhase 4 — Jeu de rôle (20 min)\nPar binômes, simulation d'une conversation chez le médecin.`,
-
-  'Technologie': (n) => `Séquence — Technologie, ${n} — Conception d'un objet technique\n\nPhase 1 — Fabrication (2h)\nLes élèves fabriquent un distributeur de stylos en carton selon un plan fourni : découpe (30 min), assemblage (45 min), finitions (45 min).\n\nPhase 2 — Analyse fonctionnelle (30 min)\nIdentification des fonctions de service et des fonctions techniques. Remplissage d'un diagramme FAST.\n\nPhase 3 — Cahier des charges (20 min)\nRédaction du cahier des charges fonctionnel en déduisant les contraintes a posteriori.`,
-
-  'Arts': (n) => `Séquence — Arts plastiques, ${n} — L'impressionnisme\n\nPhase 1 — Production plastique (55 min)\nRéalisation d'une peinture "à la manière des impressionnistes" : paysage ou nature morte, touche divisée, palette vive. Format A3, peinture acrylique.\n\nPhase 2 — Histoire de l'art (20 min)\nPrésentation du mouvement : contexte (Paris 1870-1880), artistes majeurs (Monet, Renoir, Degas), caractéristiques techniques.\n\nPhase 3 — Analyse d'œuvres (25 min)\nÉtude de 3 reproductions. Vocabulaire d'analyse plastique appliqué aux œuvres.`,
-
-  'EPS': (n) => `Séquence — EPS, ${n} — Natation : nage libre\n\nPhase 1 — Évaluation chronométrée (20 min)\nLes élèves nagent 50 mètres, chronométrés individuellement. Note attribuée selon le barème officiel.\n\nPhase 2 — Apprentissage technique (35 min)\nDémonstration et exercices : position du corps, travail des bras, coordination bras/jambes, respiration bilatérale.\n\nPhase 3 — Situations d'entraînement (15 min)\n3 séries de 25 mètres avec consignes spécifiques sur un élément technique par série.`,
-}
-
 const SCORE_STYLE = {
   'Bon':      { background: '#dcfce7', color: '#166534', border: '1px solid #86efac' },
   'Moyen':    { background: '#fef9c3', color: '#854d0e', border: '1px solid #fde047' },
@@ -97,8 +71,8 @@ function isSequenceGibberish(t) {
 }
 
 export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }) {
-  const matiere = defaultMatiere || 'Français'
-  const niveau  = defaultNiveau  || '4e'
+  const matiere = defaultMatiere
+  const niveau  = defaultNiveau
 
   const [tab, setTab]             = useState('ameliorer')
   const [sequence, setSequence]   = useState('')
@@ -215,8 +189,8 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
                 </label>
                 {!resultat && !sequence.trim() && (
                   <button
-                    onClick={() => setSequence((EXEMPLES[matiere] || EXEMPLES['Français'])(niveau))}
-                    title="Pré-remplir avec une séquence exemple adaptée à votre matière et niveau — pour tester sans avoir de séquence sous la main"
+                    onClick={() => setAlertDialog('Pas d\'exemple disponible pour le moment.')}
+                    title="Aucun exemple disponible pour le moment"
                     disabled={loading}
                     style={{ fontSize: '11px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
                   >
@@ -358,7 +332,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Collez votre séquence</div>
                 <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
                   <li>Collez une séquence existante — planning de cours, progression rédigée, fichier de préparation</li>
-                  <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
+                  <li>Le bouton <strong>Tester un exemple</strong> (exemple ancré sur le programme) est en cours de préparation.</li>
                 </ul>
               </div>
               <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
@@ -405,9 +379,6 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
             style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Séquence manquante
-            </div>
             <p style={{ fontSize: '13.5px', color: '#475569', margin: '0 0 20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
               {alertDialog}
             </p>

@@ -82,7 +82,7 @@ const WARNING_SECS  = 300
 function MainApp() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const matiere = user?.subject || 'Français'
+  const matiere = user?.subject
   const matiereLabel = matiere === 'Langues Vivantes (LV)' && user?.langue_lv
     ? `LV - ${user.langue_lv}`
     : matiere
@@ -198,7 +198,7 @@ function MainApp() {
 
   const [params, setParams] = useState({
     activite_key: '',
-    niveau: user?.niveau || localStorage.getItem('aschool_niveau') || '4e',
+    niveau: user?.niveau || localStorage.getItem('aschool_niveau'),
     sous_type: null,
     nb: 5,
     avec_correction: false,
@@ -975,7 +975,7 @@ function MainApp() {
 
           {page === 'mes-stats' && <MesStats user={user} />}
 
-          {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject || 'Français'} />}
+          {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject} />}
         </main>
       </div>
 

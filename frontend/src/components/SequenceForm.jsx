@@ -3,77 +3,6 @@ import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
-const _LYCEE   = ['Seconde', '1ère', 'Terminale', 'CAP', 'Bac Pro']
-const _COL_BAS = ['6e', '5e']
-
-const _EX = {
-  'Français': {
-    bas:   ['Le conte merveilleux', 'La fable de La Fontaine', 'Décrire un personnage'],
-    haut:  ['Le point de vue narratif', 'Le texte argumentatif', 'La nouvelle réaliste au XIXe'],
-    lycee: ['Le commentaire littéraire', "La dissertation sur un texte de Camus", "L'analyse d'un poème de Rimbaud"],
-  },
-  'Mathématiques': {
-    bas:   ['La proportionnalité', 'Les fractions', 'La symétrie axiale'],
-    haut:  ['Les fonctions affines', 'Le théorème de Pythagore', 'Les probabilités'],
-    lycee: ['Les dérivées de fonctions', 'Les suites arithmétiques et géométriques', 'Les probabilités conditionnelles'],
-  },
-  'Histoire-Géographie': {
-    bas:   ["L'Antiquité grecque et romaine", 'Les grandes découvertes', 'La ville et ses quartiers'],
-    haut:  ['La Première Guerre mondiale', 'La Révolution française', 'Les espaces ruraux en France'],
-    lycee: ['La Seconde Guerre mondiale et ses mémoires', 'La mondialisation', 'Les territoires ultramarins français'],
-  },
-  'Physique-Chimie': {
-    bas:   ['La lumière et les ombres', 'Les mélanges et corps purs', 'La matière et ses états'],
-    haut:  ['Les réactions chimiques', 'Le circuit électrique en série et en dérivation', 'Les forces et la résultante'],
-    lycee: ['La cinématique et les lois de Newton', 'La thermodynamique', "L'électrochimie et les piles"],
-  },
-  'SVT': {
-    bas:   ['La cellule végétale', 'Les êtres vivants dans leur milieu', "L'alimentation et la digestion"],
-    haut:  ['La division cellulaire', "L'hérédité et la génétique", 'La photosynthèse'],
-    lycee: ["La génétique moléculaire et l'ADN", "L'évolution des espèces", "L'immunologie et les défenses de l'organisme"],
-  },
-  'SES': {
-    bas:   ['Le marché et la formation des prix', "L'entreprise et sa valeur ajoutée", 'Le chômage et ses causes'],
-    haut:  ['Le marché et la formation des prix', "L'entreprise et sa valeur ajoutée", 'Le chômage et ses causes'],
-    lycee: ['La formation des prix sur un marché concurrentiel', 'Les inégalités sociales et la mobilité', "Le rôle économique de l'État"],
-  },
-  'NSI': {
-    bas:   ["L'algorithmique et les tris", 'Les bases de données relationnelles', 'La récursivité'],
-    haut:  ["L'algorithmique et les tris", 'Les bases de données relationnelles', 'La récursivité'],
-    lycee: ["L'algorithmique et les tris", 'Les bases de données relationnelles', 'La récursivité en Python'],
-  },
-  'Philosophie': {
-    bas:   ['La liberté et le déterminisme', "La conscience et l'inconscient", 'Le travail et la technique'],
-    haut:  ['La liberté et le déterminisme', "La conscience et l'inconscient", 'Le travail et la technique'],
-    lycee: ['La liberté et le déterminisme', "La conscience et l'inconscient", 'Le bonheur et le devoir moral'],
-  },
-  'Langues Vivantes (LV)': {
-    bas:   ['Se présenter et parler de sa famille', 'Les activités quotidiennes et les loisirs', 'Les animaux et la nature'],
-    haut:  ['Les voyages et les transports', "L'environnement et le développement durable", 'Les médias et la presse'],
-    lycee: ["L'identité et la diversité culturelle", 'Les mythes fondateurs', 'Les progrès scientifiques et leurs enjeux'],
-  },
-  'Technologie': {
-    bas:   ['Les matériaux et leurs propriétés', 'Les systèmes mécaniques simples', 'La programmation en Scratch'],
-    haut:  ["La conception d'un objet technique", 'Les systèmes automatisés', "L'électronique et les capteurs"],
-    lycee: ['La CAO et le prototypage numérique', "L'électronique numérique", "Les systèmes embarqués et l'IoT"],
-  },
-  'Arts': {
-    bas:   ['La couleur et ses propriétés', "La perspective et la représentation de l'espace", "L'abstraction et la figuration"],
-    haut:  ["L'impressionnisme", 'La photographie comme pratique artistique', "L'installation et le land art"],
-    lycee: ["L'art et le politique", "Le corps dans l'art contemporain", 'La matière, la forme et le geste'],
-  },
-  'EPS': {
-    bas:   ['La course de vitesse et les départs', 'La natation — flottaison et propulsion', 'Les jeux collectifs et coopération'],
-    haut:  ['La natation — nage libre 50 m', "L'athlétisme — saut en hauteur", 'Le handball — attaque/défense'],
-    lycee: ["L'escalade — voies de niveau 4 à 5", 'La danse contemporaine', 'Le badminton en tournoi'],
-  },
-}
-
-function getPlaceholder(matiere, niveau) {
-  const groupe = _LYCEE.includes(niveau) ? 'lycee' : _COL_BAS.includes(niveau) ? 'bas' : 'haut'
-  const exemples = (_EX[matiere] || _EX['Français'])[groupe]
-  return `Ex : ${exemples.join(' · ')}`
-}
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -303,11 +232,8 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                   {!theme.trim() && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const groupe = _LYCEE.includes(niveau) ? 'lycee' : _COL_BAS.includes(niveau) ? 'bas' : 'haut'
-                        setTheme((_EX[matiere] || _EX['Français'])[groupe][0])
-                      }}
-                      title="Pré-remplir avec un thème exemple adapté à votre matière et niveau — pour tester sans avoir de sujet sous la main"
+                      onClick={() => setAlertDialog('Pas d\'exemple disponible pour le moment.')}
+                      title="Aucun exemple disponible pour le moment"
                       style={{ fontSize: '11px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe',
                         borderRadius: '5px', padding: '3px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
                     >
@@ -321,7 +247,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                 <textarea
                   value={theme}
                   onChange={e => setTheme(e.target.value)}
-                  placeholder={getPlaceholder(matiere, niveau)}
+                  placeholder="Décrivez le thème ou l'objectif de la séance…"
                   disabled={loading}
                   rows={2}
                   style={{ width: '100%', padding: '9px 12px', fontSize: '13px', lineHeight: 1.6,
@@ -481,7 +407,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                   <li>Précisez le contexte si besoin : contraintes de la classe, acquis préalables</li>
                   <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
                   <li><strong>Depuis Analyse → Ambiguïté</strong> — si vous avez détecté des ambiguïtés sur un énoncé, cliquez sur "Créer une séquence →" depuis une reformulation corrigée : le champ Thème sera pré-rempli automatiquement</li>
-                  <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
+                  <li>Le bouton <strong>Tester un exemple</strong> (exemple ancré sur le programme) est en cours de préparation.</li>
                 </ul>
               </div>
               <hr style={HR} />
