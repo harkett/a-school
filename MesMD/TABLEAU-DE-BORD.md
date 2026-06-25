@@ -16,6 +16,26 @@
 
 **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément : c'est du git, lecture **sur demande explicite** seulement. Pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de ma propre initiative.
 
+### Le cycle de vie d'une idée (du berceau au rangement)
+
+Une idée **naît dans la discussion** et se travaille dans un **tracker éphémère**
+(son berceau) : on l'ancre, on la pèse, on la mûrit tranquillement. **Tant qu'elle
+est une idée, elle reste dans l'éphémère — elle ne touche rien d'autre** (ni le
+TRACKER, ni ce tableau de bord, ni une fiche).
+
+Quand elle est **mûre et validée**, elle n'est plus une idée : c'est un **travail**.
+Là seulement elle s'éclate dans les documents permanents :
+- **TRACKER** → une ligne simple et humaine, le jour où on décide de la faire.
+- **Fiche Dxx (BOUSSOLE)** → tout son détail technique.
+- **Tableau de bord** → elle apparaît ici, dans l'inventaire des travaux, avec un
+  lien vers sa fiche.
+
+Si ce qu'on a tranché est une **règle durable** (pas une tâche) → elle va dans
+`CLAUDE.md`, jamais dans un tracker.
+
+Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubelle**
+(historique git).
+
 ---
 
 ## ▶️ Prochaine action (ouvre une nouvelle session ? lis ici en premier)

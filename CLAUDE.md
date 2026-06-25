@@ -405,6 +405,27 @@ Donc, à chaque fois qu'un état devient incohérent ou invalide :
 - **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément — c'est du git, donc lecture **sur demande explicite** seulement. Mes outils par défaut ne voient que le checkout courant ; je ne lance pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de moi-même.
 - **Durable → `CLAUDE.md` ; les trackers ne portent que l'éphémère.** Toute information qui doit rester **pérenne** (décision d'architecture, règle, choix techno durable) vit dans **`CLAUDE.md`** (et/ou la mémoire Claude) — **jamais seulement dans un tracker**. Les trackers de **chantier** (`TRACKER_REFORME.md`, `TRACKER_FOURNISSEURS_IA.md`…) sont **jetables** : une fois le chantier fini, archivés/supprimés. **Nuance : `TRACKER.md` et `TABLEAU-DE-BORD.md` sont des docs de pilotage *vivants/continus*** — ils ne sont pas jetés, **mais n'hébergent pas non plus une décision pérenne** : leur rôle est le pilotage/détail **courant**, pas la mémoire durable. Un tracker peut **pointer** vers la décision dans `CLAUDE.md`, jamais en être l'unique dépositaire.
 
+### Le cycle de vie d'une idée (du berceau au rangement)
+
+Une idée **naît dans la discussion** et se travaille dans un **tracker éphémère**
+(son berceau) : on l'ancre, on la pèse, on la mûrit tranquillement. **Tant qu'elle
+est une idée, elle reste dans l'éphémère — elle ne touche rien d'autre** (ni TRACKER,
+ni tableau de bord, ni fiche).
+
+Quand elle est **mûre et validée par l'utilisateur**, elle n'est plus une idée :
+c'est un **travail**. Là seulement elle s'éclate dans les documents permanents :
+- **TRACKER** → une ligne simple et humaine, le jour où on décide de la faire
+  (ce que l'utilisateur suit).
+- **Fiche Dxx (BOUSSOLE)** → tout son détail technique.
+- **Tableau de bord** → elle apparaît dans l'inventaire des travaux, avec un lien
+  vers sa fiche.
+
+Si ce qu'on a tranché est une **règle durable** (pas une tâche) → elle va dans
+**`CLAUDE.md`**, jamais dans un tracker.
+
+Le tracker éphémère, une fois vidé de cette idée, **finit à la poubelle**
+(historique git).
+
 ---
 
 ## Cadence de travail — une ligne du TRACKER par session (règle par défaut)

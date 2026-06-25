@@ -16,6 +16,27 @@
 > Le statut est mis à jour ICI, dans la même réponse où l'on démarre ou finit une tâche.
 > **Méthode « tracker vivant » : détail → Annexe A12.**
 
+### Le cycle de vie d'une idée (du berceau au rangement)
+
+Une idée **naît dans la discussion** et se travaille dans un **tracker éphémère**
+(son berceau) : on l'ancre, on la pèse, on la mûrit tranquillement. **Tant qu'elle
+est une idée, elle reste dans l'éphémère — elle ne touche rien d'autre** (ni ce
+TRACKER, ni le tableau de bord, ni une fiche).
+
+Quand elle est **mûre et que tu la valides**, elle n'est plus une idée : c'est un
+**travail**. Là seulement elle s'éclate dans les documents permanents :
+- **TRACKER** → une ligne simple et humaine, le jour où on décide de la faire
+  (ce que tu suis).
+- **Fiche Dxx (BOUSSOLE)** → tout son détail technique.
+- **Tableau de bord** → elle apparaît dans l'inventaire des travaux, avec un lien
+  vers sa fiche.
+
+Si ce qu'on a tranché est une **règle durable** (pas une tâche) → elle va dans
+`CLAUDE.md`, jamais dans un tracker.
+
+Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubelle**
+(historique git).
+
 **Statut :** ☐ à faire · 🔄 en cours · ⏸️ en pause / différé · ✅ fait
 
 **Colonne vertébrale de l'ordre — état au 24/06 :** la consolidation du cœur (D16) est **close** et le **gel des features est levé** (réforme moteur LLM + RAG et chantier fournisseurs menés **ET poussés** depuis). Restent en parallèle, ordre à l'envie sauf dépendances :
