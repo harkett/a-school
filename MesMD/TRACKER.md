@@ -58,15 +58,15 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 
 ---
 
-## 🧩 Refonte programmes (modèle relationnel niveaux/matières) — conçu, pas encore construit
+## 🧩 Refonte programmes (modèle relationnel niveaux/matières) — modèle + seed construits (en code) ; restent backfill + historique
 
-> Modèle **validé 11/06** (5 tables, FK vers `user_id`), dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.** Contexte complet → **A2**.
+> Modèle **validé 11/06** (5 tables, FK vers `user_id`). **En code** : les 5 tables (`models_db.py:244-293`) + seed complet & arbitré (`seed_programmes.py`). *(Exécution sur la base = non vérifiée ici.)* Restent Réserve 2 (backfill) + Réserve 3. Contexte complet → **A2**.
 
 | St | Tâche | Dépendance / réserve |
 |---|---|---|
-| ✅ | Modèle relationnel validé (5 tables, cardinalités, contraintes `unique`/PK composite) | dans le `.dbml` |
-| ☐ | **Construire les tables** (modèles + migration expand) | après arbitrage du seed (→ A3) |
-| ☐ | **Réserve 1 — SEED de `matiere_niveaux`** | détail → **A3** |
+| ✅ | Modèle relationnel validé (5 tables, cardinalités, contraintes `unique`/PK composite) | en code : `models_db.py:244-293` |
+| ✅ | **Construire les tables** (modèles + migration expand) | fait : `models_db.py:244-293` (create_all `main.py:39`) |
+| ✅ | **Réserve 1 — SEED de `matiere_niveaux`** | fait & arbitré : `seed_programmes.py` (3 pièges résolus) — détail → **A3** |
 | ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** | détail → **A4** |
 | ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** | détail → **A5** |
 
@@ -232,10 +232,10 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 - **Preuve exigée (pas de parole) :** montrer le `deploy.sh` qui **appelle réellement** le runner + le garde-fou orphelins qui **refuse pour de vrai**. Pas d'assurance verbale.
 
 ### A2 — Refonte programmes : contexte du modèle relationnel
-Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**, dans `data/aschool.dbml` (section « PROPOSÉ »). **Rien encore en base ni en code.**
+Origine du fil : `P5.11` (Supérieur dans le menu) → incohérence de la liste niveaux → besoin d'un vrai référentiel. Remplace les colonnes texte `users.subject` / `users.niveau` par 5 tables : `cycles`, `niveaux`, `matieres`, **`matiere_niveaux`** (programme officiel — l'intégrité référentielle interdit les paires impossibles type « Philo en 6e »), **`user_enseignements`** (ce que le prof couvre, FK vers le programme). Clé vers `users` = `user_id` (acquis de la migration). Modèle **validé 11/06**. **En code** : 5 tables `models_db.py:244-293` + seed `seed_programmes.py` *(exécution base non vérifiée)*.
 
 ### A3 — Réserve 1 — SEED de `matiere_niveaux`
-D'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction. + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue).
+D'où viennent les paires matière×niveau ? Carré collège/lycée ; **flou Supérieur** (un BTS n'a pas de programme matière×niveau au même sens) **et Crèche**. Sans paires pour ces cycles, un prof du supérieur n'a rien à choisir. → arbitrage **avant** construction. + les 3 pièges déjà connus (Crèche = tranches d'âge, Supérieur = diplômes, discordance cycles Élémentaire / Formation continue). — ✅ **Résolu** dans `seed_programmes.py` (Crèche = 3 tranches, Supérieur = diplômes/axes, « Primaire » gardé + « Formation continue » en niveau, PROGRAMME défini).
 
 ### A4 — Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`
 expand/contract + **COUNT des orphelins** (chaque `subject`/`niveau` existant doit matcher une paire de `matiere_niveaux`) **AVANT** bascule. Un subject sans paire = à savoir avant, pas pendant. Même discipline que la migration `user_id`.
