@@ -72,6 +72,13 @@ const IconMesOutils = () => (
     <rect x="3" y="14" width="7" height="7"/>
   </svg>
 )
+const IconMesEvaluations = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+    <path d="M9 14l2 2 4-4"/>
+  </svg>
+)
 const IconMenu = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -99,6 +106,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
   const [outilsOpen, setOutilsOpen] = useState(() => MES_OUTILS_PAGES.includes(page))
   const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
+  const [evalOpen, setEvalOpen] = useState(false)
 
   useEffect(() => {
     if (MES_OUTILS_PAGES.includes(page)) setOutilsOpen(true)
@@ -259,6 +267,44 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
           </div>
         )}
 
+        {/* Mes évaluations — toit posé, contenu à venir (formation = Mes outils ; évaluation = ici) */}
+        {collapsed ? (
+          <span
+            title="Mes évaluations — bientôt"
+            className="py-1.5 flex items-center justify-center text-sm text-gray-400"
+            style={{ cursor: 'default' }}
+          >
+            <IconMesEvaluations />
+          </span>
+        ) : (
+          <div>
+            <button
+              onClick={() => setEvalOpen(o => !o)}
+              title="Mes évaluations — développer ou réduire le menu"
+              className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+                color: '#6b7280', fontWeight: 400,
+              }}
+            >
+              <IconMesEvaluations />
+              <span>Mes évaluations</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: evalOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {evalOpen && (
+              <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
+                {subNavItem('eval-a-venir', 'Sujets · grilles · quiz', 'Bientôt disponible — créer et gérer vos évaluations', { disabled: true })}
+              </div>
+            )}
+          </div>
+        )}
+
         {collapsed ? (
           navItem('mon-reseau-activites', 'Mon réseau', IconMonReseau, 'Mon réseau — activités et séquences partagées par vos collègues')
         ) : (
@@ -298,7 +344,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
       <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
         {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
-        {navItem('aide', 'Aide', IconHelp, 'Consulter la documentation et l\'aide')}
+        {navItem('aide', 'Centre d\'aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
           href="#"
           title="Notez aSchool — donnez votre avis sur la plateforme en 30 secondes"

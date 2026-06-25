@@ -39,7 +39,7 @@
 - [x] Cleanup préfixe RAG mort (_build_rag_prefix)
 - [x] Sortir ChromaDB du git (rebuild au déploiement)
 - [ ] Aide : expliquer que l'exemple varie, l'ancrage reste
-- [ ] Étude : annexes de référentiels (ex. E6 BTS CIEL)
+- [x] Étude : annexes de référentiels (ex. E6 BTS CIEL) — fait 25/06. CONCLUSION : RAG inchangé (PDF déjà ingéré en entier, filtrage option correct). Annexes scindées en enseignable (II/III → ancrent les activités de formation) vs évaluation/organisation (IV dont E6, V, VI → méta pour le RAG formation). E6 = évaluation pure → ne sert pas l'ancrage d'activités ; débouché = futur pilier « Mes évaluations » (TABLEAU item 46). Rien à changer côté RAG.
 
 ## Rappels transverses
 - [x] Rectifier la doc d'archi : base réelle = SQLite — RIEN à corriger (vérifié 25/06) : CLAUDE.md dit déjà « BDD : SQLite (local + VPS) » ; les mentions Postgres sont toutes légitimes (item 20 hors-scope · décision Phase 5 · note « migration si charge »). Le `.dbml` ne déclare aucun database_type Postgres.
