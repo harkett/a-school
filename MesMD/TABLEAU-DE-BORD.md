@@ -121,6 +121,8 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [44](#item-44) | Bouton « Encoder » — ingestion autonome de référentiels (admin) | à scorer | à scorer | à scorer | à scorer | INFRA / Admin — à cadrer | — |
 | [45](#item-45) | Multi-fournisseurs IA — failover / tableau de bord / routage auto | à scorer | à scorer | à scorer | à scorer | FUTUR / Infra IA — à cadrer | — |
 | [46](#item-46) | Famille menu « Mes évaluations » — pilier évaluation (≠ formation) | à scorer | à scorer | à scorer | à scorer | PRODUIT / Menu — à cadrer | — |
+| [47](#item-47) | Éditer les réponses du résultat généré | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
+| [48](#item-48) | Texte source éditable après génération | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
 
 ---
 
@@ -582,6 +584,14 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-46"></a>
 - [ ] **46 — Famille menu « Mes évaluations » : pilier évaluation, distinct de la formation** | PRODUIT / Menu — à cadrer
   *Constat fondateur (étude E6, 25/06) : un référentiel porte **deux aspects** — la **formation** (ce qu'on enseigne : annexes II activités + III compétences/connaissances associées) et l'**évaluation** (comment on certifie l'étudiant : annexe IV, épreuves E1→E6, grilles, barèmes, projet). aSchool couvre **bien la formation** (catalogue d'activités + les 4 verbes CRÉER/ANALYSER/AMÉLIORER/ADAPTER) mais **quasiment pas l'évaluation** : seuls quelques drills notés existent (Évaluation de grammaire #11, d'orthographe #12, de logique en Maths/NSI), aucun outil pour bâtir un **sujet aligné sur une compétence**, une **grille/barème**, ou évaluer un **projet** d'examen. **Idée (Harketti) : créer une famille de menu « Mes évaluations »**, sœur de « Mes outils », où le prof gère vraiment l'évaluation — **le quiz interactif (item 17) y devient un membre**, rejoint par sujets/grilles/projet. **Source d'alimentation directe : certaines annexes d'un référentiel — les annexes d'évaluation — peuvent DEVENIR des évaluations dans ce bloc** (là où les annexes de formation, II/III, alimentent « Mes outils »). Cas typique et fondateur : l'**épreuve E6 du BTS CIEL** (le cas qui nous a menés ici) — elle existe dans les **deux options** (A « Valorisation de la donnée et cybersécurité », B « Réalisation et maintenance de produits électroniques », toutes deux U6, coef 7) ; c'est l'**option A**, celle qu'on a en base, qui a déclenché l'étude. Chaque outil sur le **même patron qu'une activité** (procédure standard Mes Outils). Justification structurelle : « évaluer » est une **5e finalité**, hors des 4 verbes de formation → mérite sa propre famille (règle menu « familles → options »). Reste POUR l'enseignant (le prof construit et fait passer l'évaluation). Le traitement de E6 se **généralisera** aux autres référentiels. ⚠️ Gros pilier → à **découper** en sessions le jour venu. Cascade à prévoir : les types « Évaluation de X » du catalogue formation migreraient ici. Idée notée 25/06, rien à coder.*
+
+<a id="item-47"></a>
+- [ ] **47 — Éditer les réponses du résultat généré** | PRODUIT / Résultat généré — à cadrer | à scorer
+  *Sur l'écran « Résultat généré » (après génération d'une activité), permettre au prof de corriger À LA MAIN ce que l'IA a produit, via un crayon posé sur LES RÉPONSES / le corrigé — PAS sur le texte source (≠ item 48). Idée née d'un test terrain (Harketti), notée 25/06 pour ne pas se perdre. Périmètre exact à cadrer le jour venu. Lié à l'item 48 (même écran).*
+
+<a id="item-48"></a>
+- [ ] **48 — Texte source éditable après génération** | PRODUIT / Résultat généré — à cadrer | à scorer
+  *Pouvoir retoucher le TEXTE SOURCE (l'énoncé de départ) une fois l'activité générée. Comportement attendu : le résultat affiché est un INSTANTANÉ FIGÉ (« résultat = photo ») qui ne se met à jour QUE si le prof reclique sur « Régénérer » — tant qu'il ne reclique pas, la photo reste celle d'avant. Idée née d'un test terrain (Harketti), notée 25/06. À cadrer le jour venu. Lié à l'item 47 (même écran, l'autre porte sur les réponses).*
 
 ---
 

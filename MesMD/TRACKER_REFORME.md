@@ -45,6 +45,6 @@
 - [x] Rectifier la doc d'archi : base réelle = SQLite — RIEN à corriger (vérifié 25/06) : CLAUDE.md dit déjà « BDD : SQLite (local + VPS) » ; les mentions Postgres sont toutes légitimes (item 20 hors-scope · décision Phase 5 · note « migration si charge »). Le `.dbml` ne déclare aucun database_type Postgres.
 - [x] Groq conservé seulement pour Whisper / OCR
 
-## Backlog écran "Résultat généré" (réservoir, à déplacer plus tard)
-- [ ] Éditer les réponses du résultat généré (crayon sur les réponses, pas le texte source)
-- [ ] Texte source éditable après génération (résultat = photo, MAJ au clic "Régénérer")
+> Le bloc « Backlog écran Résultat généré » a été déplacé dans le réservoir du
+> [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) → items **47** (éditer les réponses) et
+> **48** (texte source éditable après génération). Le 25/06.
