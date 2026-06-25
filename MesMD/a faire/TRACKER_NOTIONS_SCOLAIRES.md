@@ -4,7 +4,7 @@
 > levier 13 — « Moteur de granularisation intelligente des notions ») en une spec
 > costaud, pas à pas.
 >
-> **Comment on s'en sert :** on *réfléchit* dans « Questions ouvertes ». Dès qu'un
+> **Comment on s'en sert :** on *réfléchit* en discussion. Dès qu'un
 > point est tranché, il **monte** dans « Acquis » ou « Principes directeurs ». Le
 > doc est à tout instant la photo de l'état de la pensée — pas un fil de discussion
 > à relire en entier. Le « Journal » en bas garde la trace datée, en une ligne.
@@ -45,7 +45,7 @@ Les notions sont une couche de connaissance qui nourrit les outils d'aSchool.
 
 ## Sommaire
 
-[1. Source](#1-source) · [2. Vision](#2-vision-synthèse) · [3. Acquis](#3-acquis--décisions-tranchés--on-ne-rediscute-plus) · [4. Principes](#4-principes-directeurs-les-règles-quon-se-donne-pour-ce-chantier) · [5. Évaluation des briques](#5-évaluation-des-briques) · [6. Questions ouvertes](#6-questions-ouvertes--à-trancher-file-de-réflexion) · [7. Chantiers](#7-chantiers--découpage-construction) · [8. Lexique](#8-lexique) · [9. Journal](#9-journal)
+[1. Source](#1-source) · [2. Vision](#2-vision-synthèse) · [3. Acquis](#3-acquis--décisions-tranchés--on-ne-rediscute-plus) · [4. Principes](#4-principes-directeurs-les-règles-quon-se-donne-pour-ce-chantier) · [5. Évaluation des briques](#5-évaluation-des-briques) · [6. À trancher](#6-à-trancher-au-moment-de-construire-chaque-brique-pas-maintenant) · [7. Plan de dispatch](#7-plan-de-dispatch-où-va-chaque-brique-dans-le-tableau-de-bord) · [8. Lexique](#8-lexique) · [9. Journal](#9-journal)
 
 ---
 
@@ -849,7 +849,8 @@ décident quand on l'attaque, pas au stade de l'inventaire.
   (format), params}`, match **par nom exact**, **aucun lien à la micro-notion**. → brique 8 =
   **hybride à dominante générative** : extractif grossier (matière/type/format lus) +
   génératif (lien jusqu'au crochet inféré, prof = garde-fou). Type d'activité **implicite
-  dans le nom** (pas un champ) ; pas de type « remédiation » → pas de raccord direct à la 6.
+  dans le nom** (pas un champ) ; pas de type « remédiation » → le lien 6→activité n'est
+  **pas porté par un tag**, il reste **inféré** (la 8 est enrichie par la 6, cf. fiche).
   **RÉSERVE D'ÉTAT :** sur les **9 matières BTS CIEL**, **1 couverte** (Mathématiques),
   **8 sur 3 génériques** → la 8 est **définie mais quasi vide sur BTS CIEL tant que le
   catalogue n'est pas étoffé**. **Chantier à part « étoffer le catalogue BTS CIEL »** acté
