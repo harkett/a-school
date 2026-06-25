@@ -27,7 +27,7 @@
 ## Phase 5 — Robustesse / dette
 - [x] Régulation de concurrence sur les appels LLM (sémaphore partagé, limite env, attente bornée)
 - [x] Unifier les migrations (plus d'ALTER inline)
-- [ ] Décider : rester SQLite ou migrer PostgreSQL
+- [x] Décider : rester SQLite ou migrer PostgreSQL — TRANCHÉ 25/06 : on RESTE sur SQLite (YAGNI). PostgreSQL seulement sur signal réel de charge (volume massif / contention d'écriture), jamais par anticipation. Cohérent avec la doctrine d'échelle de CLAUDE.md + item 20 réservoir (HORS-PÉRIMÈTRE). La doctrine durable vit déjà dans CLAUDE.md (BDD = SQLite local+VPS).
 - [x] Code d'erreur 429 distinct (surcharge / rate limit → « réessayez », sur tous les outils + OCR + dictée)
 - [x] Robustesse de l'indexation RAG (chaque lot protégé + vérif d'intégrité ; jamais de base à moitié construite en silence)
 
