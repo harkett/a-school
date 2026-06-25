@@ -38,7 +38,7 @@
 - [x] P4.9 — confirmation inline qui RESTE (toast écarté) : enregistrer un prompt → encadré rouge « Prompt modifié » (= personnalisé, ≠ défaut) ; revenir au défaut → encadré vert « Prompt remis au défaut ».
 - [x] Cleanup préfixe RAG mort (_build_rag_prefix)
 - [x] Sortir ChromaDB du git (rebuild au déploiement)
-- [ ] Aide : expliquer que l'exemple varie, l'ancrage reste
+- [x] Aide : expliquer que l'exemple varie, l'ancrage reste — fait 25/06. Tip « Créer une activité » (Aide.jsx) : « Tester un exemple » génère un extrait ancré sur le référentiel officiel du niveau → change à chaque clic mais reste fidèle au programme ; niveau sans référentiel = message + texte perso. Doublons du tip (Aide 301/693/731, App.jsx 845, dont Optimiseur/Ambiguïtés « en préparation ») laissés en l'état.
 - [x] Étude : annexes de référentiels (ex. E6 BTS CIEL) — fait 25/06. CONCLUSION : RAG inchangé (PDF déjà ingéré en entier, filtrage option correct). Annexes scindées en enseignable (II/III → ancrent les activités de formation) vs évaluation/organisation (IV dont E6, V, VI → méta pour le RAG formation). E6 = évaluation pure → ne sert pas l'ancrage d'activités ; débouché = futur pilier « Mes évaluations » (TABLEAU item 46). Rien à changer côté RAG.
 
 ## Rappels transverses

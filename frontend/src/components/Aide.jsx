@@ -167,6 +167,48 @@ const SearchBox = ({ query, setQuery }) => {
   )
 }
 
+// Les 3 options du Centre d'aide (Niveau 2 de la spec) : Aide (fiches) · FAQ · Prise en main.
+// FAQ et Prise en main sont des emplacements « bientôt » à ce stade (N2-a) ; leur contenu
+// arrive dans les passes suivantes.
+const OPTIONS = [
+  { id: 'aide',          label: 'Aide',          title: 'Les fiches et guides : comment l\'application fonctionne' },
+  { id: 'faq',           label: 'FAQ',           title: 'Les questions fréquentes (bientôt)' },
+  { id: 'prise-en-main', label: 'Prise en main', title: 'Un assistant pour prendre en main aSchool (bientôt)' },
+]
+
+const OptionTabs = ({ option, setOption }) => (
+  <div style={{ display: 'inline-flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4, alignSelf: 'flex-start' }}>
+    {OPTIONS.map(o => {
+      const active = option === o.id
+      return (
+        <button
+          key={o.id}
+          onClick={() => setOption(o.id)}
+          title={o.title}
+          style={{
+            padding: '7px 16px', fontSize: 13, fontWeight: active ? 600 : 500,
+            borderRadius: 7, border: 'none', cursor: 'pointer',
+            background: active ? '#fff' : 'transparent',
+            color: active ? 'var(--bleu)' : '#475569',
+            boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+            transition: 'background .15s, color .15s',
+          }}
+        >
+          {o.label}
+        </button>
+      )
+    })}
+  </div>
+)
+
+const OptionPlaceholder = ({ titre, texte }) => (
+  <div className="bg-white rounded-lg border border-gray-200 shadow-sm" style={{ padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
+    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{titre}</div>
+    <p style={{ fontSize: 13, color: '#64748b', margin: 0, maxWidth: 420, lineHeight: 1.6 }}>{texte}</p>
+    <span style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 99, padding: '2px 10px' }}>Bientôt</span>
+  </div>
+)
+
 function telechargerProcedure(titre, html) {
   const w = window.open('', '_blank')
   w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
@@ -447,7 +489,7 @@ const sections = [
             <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
             <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
             <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
-            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
+            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source). aSchool génère un extrait <strong>ancré sur le référentiel officiel de votre niveau</strong> — il <strong>change à chaque clic</strong>, mais reste toujours fidèle au programme. (Niveau sans référentiel : aSchool vous le dit, et vous collez votre propre texte.)</li>
           </ul>
         </div>
         <hr className="border-gray-100" />
