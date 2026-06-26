@@ -7,9 +7,10 @@ officiel du couple matière+niveau actif.
 Règle d'or : si le couple n'a pas de référentiel vectorisé, on répond {available:false}
 — le bouton n'inventera RIEN (pas d'appel LLM, pas de texte fabriqué).
 
-Aujourd'hui un seul couple-source est vectorisé (BTS CIEL option A, cf. slice 1). Le
-routage couple→collection deviendra data-driven quand on élargira les gates RAG.
+Les couples-sources vectorisés vivent dans la table referentiels ; le routage
+couple→collection est data-driven : il lit cette table (morceau 2).
 """
+import json
 import logging
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
+from backend.models_db import Niveau, Referentiel
 from backend.rag import retrieve
 from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
 from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
@@ -36,18 +38,36 @@ AUCUN_EXTRAIT_PERTINENT = (
 )
 
 
-def _resolve_collection(niveau: str) -> tuple[str, dict] | None:
-    """Couple → (collection, filtres ChromaDB). None = pas de référentiel pour ce couple.
+def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None] | None:
+    """Niveau → (collection, filtres ChromaDB). None = pas de référentiel pour ce couple.
 
-    Minimal aujourd'hui (1 référentiel vectorisé : BTS CIEL option A). Les filtres
-    cadenassent le bon couple : niveau exact + option A (jamais l'option B électronique)."""
-    if (niveau or "").strip() == "BTS CIEL option A":
-        filters = {"$and": [
-            {"niveau": {"$eq": "BTS CIEL option A"}},
-            {"option": {"$eq": "A"}},
-        ]}
-        return "bts_ciel_optionA", filters
-    return None
+    Data-driven : lit la table `referentiels` (plus de couple en dur). Jointure DIRECTE
+    referentiels → niveaux en UN seul SELECT (n.nom = :niveau AND matiere_id IS NULL),
+    pas « résoudre l'id puis requêter » (forme fragile si un nom de niveau n'est pas unique).
+
+    Trois branches assumées :
+      - 0 ligne → None (couple « en construction » : on n'invente RIEN).
+      - 1 ligne → (collection, filtres parsés depuis la colonne JSON).
+      - >1 ligne → on LÈVE bruyamment. Deux niveaux de même nom dans deux cycles
+        différents sont légitimes par design (clé réelle = (nom, cycle_id)) et /api/...
+        n'envoie pas le cycle → on ne peut pas trancher ici. C'est une AMBIGUÏTÉ de nom,
+        pas une corruption : on refuse plutôt que de choisir une ligne au hasard."""
+    if not niveau:
+        return None
+    rows = (
+        db.query(Referentiel.collection, Referentiel.filtres)
+        .join(Niveau, Niveau.id == Referentiel.niveau_id)
+        .filter(Niveau.nom == niveau, Referentiel.matiere_id.is_(None))
+        .all()
+    )
+    if not rows:
+        return None
+    if len(rows) > 1:
+        log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r} (matiere_id NULL)")
+        raise HTTPException(500, f"Ambiguïté niveau : {len(rows)} référentiels trouvés pour ce nom de niveau. Configuration à corriger.")
+    collection, filtres_json = rows[0]
+    filters = json.loads(filtres_json) if filtres_json else None
+    return collection, filters
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -67,7 +87,7 @@ def api_exemple_referentiel(
 ):
     _get_email(aschool_access)
 
-    resolved = _resolve_collection(req.niveau)
+    resolved = _resolve_collection(db, req.niveau)
     if resolved is None:
         # Règle d'or : pas de référentiel pour ce couple → on n'invente RIEN.
         log.info(f"[exemple-ref] aucun référentiel pour niveau='{req.niveau}' → available=false")
