@@ -17,6 +17,20 @@ Cette vérification est **systématique et ne dépend d'aucune demande** : elle 
 
 ## Vision
 
+### 🏆 Le cap — en lettres d'or (ambition fondatrice, absolue)
+
+> **aSchool est un logiciel PROFESSIONNEL — pas un bricolage, pas un prototype, pas « un truc qui marche à peu près ». Il ne vise pas à être *un* bon outil pour profs : il vise à être *LE* logiciel de référence de sa catégorie, au standard professionnel le plus exigeant, celui qui place la barre si haut qu'il ne laisse pas de place à un autre.**
+>
+> **Socle non négociable : aSchool tourne autour d'une BASE DE DONNÉES RELATIONNELLE professionnelle. TOUTES les données vivent en base — matières, niveaux, types d'activité, prompts, référentiels, réglages, contenus. Rien de métier n'est codé en dur. Une donnée en dur est un défaut à corriger, jamais un état acceptable.**
+>
+> **Source de la donnée : aSchool ne s'invente rien. Son contenu pédagogique est EXTRAIT des référentiels officiels, puis affiné et ciblé par un RAG (recherche augmentée) qui filtre et ne retient que ce qui est réellement pertinent pour le couple matière + niveau. Pas de référentiel pour un couple → aSchool ne génère pas plutôt que d'inventer.**
+>
+> **Chaque ligne de code, chaque écran, chaque décision se juge à cette aune : « est-ce digne d'un logiciel professionnel de référence, adossé à la base, ancré sur le référentiel ? » Si la réponse est non, ce n'est pas fini.**
+
+> ⚠️ **Cap, pas état atteint.** La base relationnelle existe (cycles/niveaux/matières/référentiels) et le RAG ancré fonctionne pour « Tester un exemple » sur BTS CIEL option A, mais le cœur `/api/generate`, les types d'activité et les prompts sont **encore en dur** (audit en cours). La formule décrit l'objectif que la réalité doit rejoindre.
+
+---
+
 Plateforme web de génération d'activités pédagogiques pour les enseignants (collège → supérieur), sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
 
 **Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
