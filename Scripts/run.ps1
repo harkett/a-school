@@ -46,11 +46,6 @@ Get-ChildItem "$logoSrc\*.png","$logoSrc\*.svg","$logoSrc\*.webp" -ErrorAction S
     Copy-Item -Destination $logoDst -Force
 Write-Host ""
 
-# 5. Régénérer les activités depuis la matrice markdown
-Write-Host "  Regeneration activities..." -ForegroundColor Yellow
-& "$root\.venv\Scripts\python.exe" "$root\parse_markdown.py"
-Write-Host ""
-
 # 5. Démarrer le backend FastAPI et sauvegarder son PID
 $backend = Start-Process powershell -PassThru -ArgumentList "-Command",
     "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Backend'; cd '$root'; Write-Host '=== BACKEND FastAPI (:$BackendPort) ===' -ForegroundColor Cyan; .\.venv\Scripts\uvicorn backend.main:app --reload --port $BackendPort; pause"
