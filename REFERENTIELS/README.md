@@ -21,9 +21,17 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 > - **Usage quotidien** (chaque génération) : on lit **ChromaDB**, **jamais** le PDF.
 
 ### Principes
-- **P1 — Téléchargement manuel par l'admin.** Pas de robot qui va chercher sur les sites de l'EN (sources instables, changement rare, le coup d'œil humain est une sécurité). Décision assumée, pas un report.
+- **P1 — L'IA propose, l'admin valide.** L'IA cherche le document sur la **source officielle** (éduscol / Bulletin Officiel) et le **propose** ; l'**admin certifie** (c'est bien le bon, en vigueur) et **télécharge**. Le garde-fou humain reste — **déplacé** de « chercher » à « valider la proposition ». (Remplace l'ancienne règle « téléchargement entièrement manuel, pas de robot » — acté 26/06/2026.)
 - **P2 — Nom interne fixe, décidé par nous.** Chaque référentiel a un identifiant stable (nom de sous-dossier + nom de collection, ex. `bts_ciel_optionA`). Le **nom volatil de l'EN** — qui change à chaque sortie (« 15324… » → « 32368… ») — **n'entre jamais dans le code**.
 - **P3 — Métadonnées en base, pas dans un fichier écrit à la main.** Une table SQLite `referentiels` porte : nom interne fixe · vrai nom du fichier téléchargé · date · source/URL. (Donnée administrable — cohérent avec « tout en base sauf les secrets ». L'écran admin de saisie est à construire ; en attendant, seedé.)
+
+### Procédure complète validée (cible — 26/06/2026)
+> Vue d'ensemble côté produit. Le détail technique reste « A — Premier ajout » ci-dessous.
+- **Temps 1 — Déclarer le couple.** L'admin saisit, en **deux zones libres**, le **niveau** et la **matière** (saisie libre → on peut déclarer un niveau/matière qui n'existe pas encore). aSchool en déduit le **nom de dossier-clé** (`4e-francais/`), le propose, l'admin confirme. Clé **unique et non renommable**.
+- **Temps 2 — Trouver / valider le document.** L'IA propose le document officiel (cf. P1) ; l'admin certifie et le dépose dans `REFERENTIELS/<dossier>/` + renseigne (vrai nom, date, source).
+- **Temps 3 — Intégrer.** aSchool découpe → relie → teste. *(Aujourd'hui manuel/dev. L'étape « relier » porte deux manques connus : routage en dur + cœur `/api/generate` non branché → chantier « automatiser le Temps 3 : routage data-driven + branchement du cœur ».)*
+- **Temps 4 — Ouvert.** Couple relié = génère sur le vrai programme ; sans référentiel = « en construction ».
+- **Deux preuves distinctes :** « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 ### A — Premier ajout
 1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<NomFixe>/`.

@@ -1,5 +1,27 @@
 const SECTIONS = [
   {
+    categorie: 'Contenu pédagogique',
+    items: [
+      {
+        titre: 'Référentiels — ajouter un programme (à venir)',
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        ),
+        contenu: [
+          'Un référentiel, c\'est le programme officiel d\'un couple matière + niveau (par exemple Français 4e). Tant qu\'un couple n\'a pas son référentiel, il reste « en construction » et ne génère pas.',
+          'Étape 1 — Déclarer le couple : vous saisissez le niveau et la matière (deux champs libres). aSchool en déduit un nom de dossier et vous le propose ; vous confirmez.',
+          'Étape 2 — Le document : aSchool vous propose le document officiel (depuis le site de l\'Éducation nationale). Vous vérifiez que c\'est bien le bon, puis vous le déposez.',
+          'Étape 3 — L\'intégration : aSchool découpe le document et le rattache au couple.',
+          'Étape 4 — Ouverture : le couple est ouvert. Les profs de ce couple génèrent désormais sur le vrai programme.',
+          'Votre rôle se limite à valider : confirmer le bon couple, puis le bon document. Le reste se fait tout seul.',
+        ],
+        astuce: 'Cet écran décrit le fonctionnement à venir : il n\'est pas encore disponible. Tant qu\'il n\'est pas livré, l\'ajout d\'un référentiel se fait côté technique.',
+      },
+    ],
+  },
+  {
     categorie: 'Surveillance',
     items: [
       {
