@@ -10,7 +10,7 @@ Collision « Autonomie » (axe crèche + axe supérieur) → clés préfixées p
 (creche-* / sup-*), libellé affiché inchangé.
 """
 from backend.database import SessionLocal
-from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel
 
 CYCLES = [  # nom, ordre, categorie (famille du cycle)
     ("Crèche", 1, "creche"), ("Maternelle", 2, "maternelle"), ("Primaire", 3, "primaire"),
@@ -28,7 +28,7 @@ NIVEAUX = {  # cycle -> [(nom, ordre)] — ordre interprété PAR cycle (jamais 
     "Supérieur":  [("BUT", 2), ("Licence", 3), ("Master", 4),
                    ("Écoles spécialisées", 5), ("CFA", 6), ("Formation continue", 7)],
     # NB : pas de « BTS » générique (placeholder erroné — toujours « BTS + spécialité »).
-    # Les BTS réels sont des niveaux à part entière (ex. seed_bts_ciel.py).
+    # Les BTS réels sont des niveaux à part entière (déclarés dans DIPLOMES, plus bas).
 }
 
 # Cycles dont les niveaux ont reçu leur VRAI référentiel → traite=True (sélectionnables).
@@ -62,6 +62,16 @@ MATIERES = [  # cle, nom, ordre
     ("sup-recherche-innovation",         "Recherche et Innovation",      26),
     ("sup-professionnalisation",         "Professionnalisation",         27),
     ("sup-evaluation",                   "Évaluation",                   28),
+    # BTS CIEL option A — matières propres (libellés EXACTS du référentiel ; couple déclaré dans DIPLOMES).
+    # « mathematiques » est déjà au catalogue (ordre 2) → réutilisée par sa clé, pas redéclarée.
+    ("culture-generale-expression", "Culture générale et expression", 29),
+    ("anglais",                     "Anglais",                        30),
+    ("physique",                    "Physique",                       31),
+    ("informatique",                "Informatique",                   32),
+    ("reseaux",                     "Réseaux",                        33),
+    ("cybersecurite",               "Cybersécurité",                  34),
+    ("developpement",               "Développement",                  35),
+    ("maintenance",                 "Maintenance",                    36),
 ]
 
 # Programme : matiere_cle -> niveaux où elle est enseignée
@@ -89,6 +99,32 @@ for _cle, _nom, _ordre in MATIERES:
         PROGRAMME[_cle] = _CRECHE_NIVEAUX
     elif _cle.startswith("sup-"):
         PROGRAMME[_cle] = _SUP_NIVEAUX
+
+# Diplômes/options à matières propres (hors grille collège/lycée) : un niveau dans son
+# cycle + SES matières (clés du catalogue MATIERES) + SON référentiel imbriqué. UNE LIGNE =
+# UN COUPLE ; option B, Master chimie… = une entrée de plus ici, jamais un nouveau fichier.
+# Liens posés par IDENTIFIANT (.id), jamais par texte.
+DIPLOMES = [
+    {
+        "cycle":   "Supérieur",
+        "niveau":  "BTS CIEL option A",
+        "ordre":   8,            # suite du cycle Supérieur (max des niveaux génériques = 7), valeur lue en base
+        "traite":  True,
+        "matieres": [
+            "culture-generale-expression", "anglais", "mathematiques", "physique",
+            "informatique", "reseaux", "cybersecurite", "developpement", "maintenance",
+        ],
+        "referentiel": {
+            "matiere":    None,            # None = le référentiel couvre TOUT le niveau
+            "nom_fixe":   "bts_ciel_optionA",
+            "collection": "bts_ciel_optionA",
+            "filtres":    '{"option":"A"}',
+            "fichier":    "15324-ref-bts-ciel-vpub-v01.pdf",
+            "source":     "REF-BTS-CIEL-2023",
+            "date_doc":   "2023",
+        },
+    },
+]
 
 
 def run():
@@ -150,6 +186,44 @@ def run():
             if not mn:
                 db.add(MatiereNiveau(matiere_id=mat[cle].id, niveau_id=niv[nnom].id))
                 pairs += 1
+
+    # Diplômes à matières propres (DIPLOMES) : niveau + paires + référentiel, dérivés de la donnée.
+    dip_niv, dip_paires, ref_crees = 0, 0, 0
+    for d in DIPLOMES:
+        # 1. le niveau du diplôme — get-or-create par clé naturelle (nom+cycle), idempotent
+        n = (db.query(Niveau)
+               .filter(Niveau.nom == d["niveau"], Niveau.cycle_id == cyc[d["cycle"]].id).first())
+        if not n:
+            n = Niveau(cycle_id=cyc[d["cycle"]].id, nom=d["niveau"],
+                       ordre=d["ordre"], traite=d["traite"])
+            db.add(n)
+            db.flush()
+            dip_niv += 1
+        else:                                  # le fichier fait foi (réconciliation idempotente)
+            if n.ordre != d["ordre"]:   n.ordre = d["ordre"]
+            if n.traite != d["traite"]: n.traite = d["traite"]
+
+        # 2. ses paires — reliées par IDENTIFIANT : mat[cle].id (registre en mémoire) × n.id
+        for cle in d["matieres"]:
+            mn = (db.query(MatiereNiveau)
+                    .filter(MatiereNiveau.matiere_id == mat[cle].id,
+                            MatiereNiveau.niveau_id == n.id).first())
+            if not mn:
+                db.add(MatiereNiveau(matiere_id=mat[cle].id, niveau_id=n.id))
+                dip_paires += 1
+
+        # 3. son référentiel — relié par IDENTIFIANT : niveau_id = n.id (aucune requête texte)
+        ref = d.get("referentiel")
+        if ref and not db.query(Referentiel).filter_by(nom_fixe=ref["nom_fixe"]).first():
+            mat_obj = mat[ref["matiere"]] if ref["matiere"] else None
+            db.add(Referentiel(
+                niveau_id=n.id,
+                matiere_id=(mat_obj.id if mat_obj else None),
+                nom_fixe=ref["nom_fixe"], collection=ref["collection"], filtres=ref["filtres"],
+                fichier=ref["fichier"], source=ref["source"], date_doc=ref["date_doc"],
+            ))
+            ref_crees += 1
+
     db.commit()
 
     traites = db.query(Niveau).filter(Niveau.traite == True).count()
@@ -157,6 +231,8 @@ def run():
         db.query(Cycle).count(), db.query(Niveau).count(), traites,
         db.query(Matiere).count(), db.query(MatiereNiveau).count(), pairs))
     print("BTS générique supprimé." if bts_supprime else "BTS générique : déjà absent.")
+    print("diplômes: %d niveau(x) créé(s), %d paire(s) ; référentiels: %d créé(s)." % (
+        dip_niv, dip_paires, ref_crees))
     db.close()
 
 
