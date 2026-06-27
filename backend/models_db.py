@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignKey, UniqueConstraint, text
+from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -296,15 +296,14 @@ class UserEnseignement(Base):
 class Referentiel(Base):
     """Référentiel officiel d'un couple → collection ChromaDB + filtres de retrieval.
 
-    Miroir EXACT de la migration `012_create_referentiels.sql` (= source de vérité du DDL ;
-    ce modèle ne fait que la refléter pour la lecture, il ne la redéfinit pas).
+    Schéma aligné sur PostgreSQL (Pas 6) : id en IDENTITY, created_at DateTime/func.now() —
+    diffère désormais de la migration 012 SQLite d'origine (AUTOINCREMENT, datetime('now')).
     Clé d'identification = le COUPLE (niveau_id, matiere_id), jamais niveau_id seul.
     matiere_id NULL = le référentiel couvre TOUT le niveau (toutes ses matières)."""
     __tablename__ = "referentiels"
-    # sqlite_autoincrement : émet `AUTOINCREMENT` comme la migration 012 (miroir fidèle).
-    __table_args__ = (UniqueConstraint("niveau_id", "matiere_id"), {"sqlite_autoincrement": True})
+    __table_args__ = (UniqueConstraint("niveau_id", "matiere_id"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
     matiere_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)
     nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
@@ -313,4 +312,4 @@ class Referentiel(Base):
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("(datetime('now'))"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

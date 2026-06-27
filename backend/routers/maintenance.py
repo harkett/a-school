@@ -1,11 +1,10 @@
-import os
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.audit import log_admin_action
-from backend.database import get_db
+from backend.database import get_db, get_db_size_mb
 from backend.models_db import (
     ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog,
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
@@ -14,8 +13,6 @@ from backend.models_db import (
 from backend.routers.admin import _require_admin, _get_admin_email
 
 router = APIRouter()
-
-DB_PATH = os.path.join("data", "aschool.db")
 
 CATEGORIES = {
     "tokens_email_expires": {
@@ -83,7 +80,7 @@ def _count_orphans(db: Session, now: datetime) -> dict:
 def get_maintenance_stats(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     now = datetime.utcnow()
 
-    db_size_mb = round(os.path.getsize(DB_PATH) / (1024 * 1024), 2) if os.path.exists(DB_PATH) else 0
+    db_size_mb = get_db_size_mb()
 
     tables = {
         "Utilisateurs":         db.query(User).count(),

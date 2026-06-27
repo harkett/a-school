@@ -28,47 +28,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import text
 
-from backend.database import engine
-from backend import models_db
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
 from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes, exemple_referentiel
 
-models_db.Base.metadata.create_all(bind=engine)
+# Schéma géré par Alembic (`alembic upgrade head`) — plus de create_all au démarrage (Pas 9).
 
-# Migrations colonnes ajoutées après création initiale
-with engine.connect() as _conn:
-    for _col in [
-        "ALTER TABLE users ADD COLUMN subject VARCHAR(64)",
-        "ALTER TABLE users ADD COLUMN prenom VARCHAR(64)",
-        "ALTER TABLE users ADD COLUMN nom VARCHAR(64)",
-        "ALTER TABLE users ADD COLUMN niveau VARCHAR(16)",
-        "ALTER TABLE feedbacks ADD COLUMN type VARCHAR(16) DEFAULT 'feedback'",
-        "ALTER TABLE users ADD COLUMN langue_lv VARCHAR(32)",
-        "ALTER TABLE users ADD COLUMN mobile VARCHAR(20)",
-        "ALTER TABLE feedbacks ADD COLUMN statut VARCHAR(16) NOT NULL DEFAULT 'nouveau'",
-        "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
-        "ALTER TABLE activites_sauvegardees ADD COLUMN matiere VARCHAR(64)",
-        "ALTER TABLE activites_sauvegardees ADD COLUMN objet VARCHAR(150)",
-        "ALTER TABLE activites_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
-        "CREATE TABLE IF NOT EXISTS fiches_matieres (id INTEGER PRIMARY KEY AUTOINCREMENT, matiere_key VARCHAR(64) NOT NULL UNIQUE, statut VARCHAR(16) NOT NULL DEFAULT 'brouillon', accroche TEXT, pour_qui TEXT, ameliorations TEXT, updated_at DATETIME, updated_by VARCHAR(255))",
-        "CREATE TABLE IF NOT EXISTS feature_votes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), feature_key VARCHAR(64) NOT NULL, created_at DATETIME, UNIQUE(user_id, feature_key))",
-        "CREATE TABLE IF NOT EXISTS tool_usage_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), tool VARCHAR(32) NOT NULL, score_label VARCHAR(32), created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)",
-        "ALTER TABLE feedbacks ADD COLUMN updated_at DATETIME",
-        "ALTER TABLE feedbacks ADD COLUMN attachment_path VARCHAR(500)",
-        "ALTER TABLE activites_sauvegardees ADD COLUMN created_at DATETIME",
-        "ALTER TABLE activites_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
-        "ALTER TABLE sequences_sauvegardees ADD COLUMN anonyme BOOLEAN NOT NULL DEFAULT 0",
-        "ALTER TABLE sequences_sauvegardees ADD COLUMN partagee BOOLEAN NOT NULL DEFAULT 0",
-        "ALTER TABLE niveaux ADD COLUMN traite BOOLEAN NOT NULL DEFAULT 0",
-    ]:
-        try:
-            _conn.execute(text(_col))
-            _conn.commit()
-        except Exception:
-            pass
 
 import os as _os
 if not _os.getenv("ADMIN_USERNAME") or not _os.getenv("ADMIN_PASSWORD"):

@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.audit import log_admin_action
-from backend.database import get_db
+from backend.database import get_db, get_db_size_mb
 from backend.limiter import limiter
 from backend.llm_prompts import PROMPTS
 from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
@@ -1083,12 +1083,7 @@ def server_metrics(db: Session = Depends(get_db), _: None = Depends(_require_adm
 
 @router.get("/admin/db-size")
 def db_size(_: None = Depends(_require_admin)):
-    path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "aschool.db")
-    try:
-        size_mb = round(os.path.getsize(os.path.normpath(path)) / 1024**2, 2)
-    except FileNotFoundError:
-        size_mb = 0
-    return {"size_mb": size_mb}
+    return {"size_mb": get_db_size_mb()}
 
 
 @router.get("/admin/alerts")

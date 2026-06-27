@@ -22,3 +22,5 @@ MesMD/MATRICE_ACTIVITES_ASCHOOL.md
 MesMD/**/*.wav
 # Base vectorielle ChromaDB — donnee GENEREE, reconstruite au deploiement (jamais commitee)
 backend/rag/chroma_db/
+# Sauvegardes locales .bak (filets avant edition/suppression) — jamais commitees
+*.bak-*
