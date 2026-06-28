@@ -10,7 +10,7 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 
 | Référentiel | Sous-dossier | État | Contenu réel |
 |---|---|---|---|
-| **BTS CIEL option A** (Informatique et réseaux) — éduscol STI, rénovation 2023 | `BTS-CIEL-option-A/` | ✅ complet | PDF officiel (`15324-ref-bts-ciel-vpub-v01.pdf`, 88 p.) + `extraction-texte.txt` |
+| **BTS CIEL option A** (Informatique et réseaux) — éduscol STI, rénovation 2023 | `BTS_CIEL_OPTION_A/` | ✅ complet | PDF officiel `referentiel.pdf` (88 p.) + `extraction-texte.txt` |
 
 ---
 
@@ -27,14 +27,14 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 
 ### Procédure complète validée (cible — 26/06/2026)
 > Vue d'ensemble côté produit. Le détail technique reste « A — Premier ajout » ci-dessous.
-- **Temps 1 — Déclarer le couple.** L'admin saisit, en **deux zones libres**, le **niveau** et la **matière** (saisie libre → on peut déclarer un niveau/matière qui n'existe pas encore). aSchool en déduit le **nom de dossier-clé** (`4e-francais/`), le propose, l'admin confirme. Clé **unique et non renommable**.
+- **Temps 1 — Déclarer le niveau.** L'admin choisit le **cycle** puis le **niveau** dans des combos (liste fermée, jamais de saisie libre — cf. `MesMD/aSchool-cycles-niveaux.md`). aSchool en déduit le **nom de dossier-clé** = le nom du niveau normalisé en **MAJUSCULES_UNDERSCORE** (accents enlevés), ex. `BTS_CIEL_OPTION_A/`. Le référentiel couvre **tout le niveau** ; les matières en sont **extraites** ensuite (Temps 3), pas déclarées à la main. Clé **unique et non renommable** ; l'identifiant interne `nom_fixe` en est la version minuscule (`bts_ciel_option_a`).
 - **Temps 2 — Trouver / valider le document.** L'IA propose le document officiel (cf. P1) ; l'admin certifie et le dépose dans `REFERENTIELS/<dossier>/` + renseigne (vrai nom, date, source).
 - **Temps 3 — Intégrer.** aSchool découpe → relie → teste. *(Aujourd'hui manuel/dev. L'étape « relier » porte deux manques connus : routage en dur + cœur `/api/generate` non branché → chantier « automatiser le Temps 3 : routage data-driven + branchement du cœur ».)*
 - **Temps 4 — Ouvert.** Couple relié = génère sur le vrai programme ; sans référentiel = « en construction ».
 - **Deux preuves distinctes :** « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 ### A — Premier ajout
-1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<NomFixe>/`.
+1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<DOSSIER_CLE>/` (nom du niveau normalisé, ex. `BTS_CIEL_OPTION_A/`).
 2. **(Admin)** renseigne en base (table `referentiels`) : nom interne fixe, vrai nom du fichier, date, source.
 3. **(Dev)** écrit la **fiche** (`backend/rag/referentiels/<nomfixe>.py`) : règles de découpe + étiquetage (niveau, option).
 4. **(Dev)** lance la construction : `python -m backend.rag.ingest_referentiel` → collection `<NomFixe>` créée, chunks tagués.

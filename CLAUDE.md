@@ -587,7 +587,7 @@ La base ChromaDB (`backend/rag/chroma_db/`) est une **donnée GÉNÉRÉE**, pas 
 
 Le **référentiel officiel** du couple matière+niveau est **LA source de vérité**. **Un couple sans référentiel ne génère pas** : il reste « en construction ». La génération (`/api/generate`) **doit s'ancrer sur le référentiel du couple** — décision tranchée le **26/06/2026**, **pas encore branchée** : aujourd'hui seul le bouton « Tester un exemple » (`/api/exemple-referentiel`) lit le référentiel ; `/api/generate` n'en lit **aucun** (le niveau n'est qu'une étiquette dans le prompt).
 
-Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin déclare niveau+matière en **saisie libre** → aSchool génère le **dossier-clé** (`4e-francais/`, unique et non renommable) → l'IA **propose** le PDF officiel → l'admin **valide** → découper / **relier** / tester. Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
+Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BTS_CIEL_OPTION_A/`, unique et non renommable) → l'IA **propose** le PDF officiel → l'admin **valide** → découper / **relier** / tester. Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 **Reste à faire (chantier à part) :** « automatiser le Temps 3 » — routage couple→référentiel **data-driven** (aujourd'hui en dur dans `exemple_referentiel.py`) **+ branchement du cœur** `/api/generate`.
 

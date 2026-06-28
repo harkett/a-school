@@ -10,6 +10,7 @@ On reçoit un PDF que l'admin fournit, on le lui montre, on le range et on trace
 """
 import re
 import shutil
+import unicodedata
 import uuid
 from pathlib import Path
 
@@ -34,12 +35,13 @@ MAX_PDF_BYTES = 30 * 1024 * 1024   # 30 Mo : un référentiel officiel peut êtr
 APERCU_LIGNES = 25                 # lignes de texte montrées à l'admin pour le contrôle
 
 
-def _slug(nom: str) -> str:
-    """Nom de niveau → dossier-clé stable (sans caractère spécial ni espace).
-    Ex. « BTS CIEL option B » → « BTS-CIEL-option-B »."""
-    s = re.sub(r"[^\w\s-]", "", nom.strip(), flags=re.UNICODE)
-    s = re.sub(r"\s+", "-", s)
-    return s.strip("-") or "referentiel"
+def _dossier_cle(nom: str) -> str:
+    """Nom de niveau → nom de dossier-clé lisible : accents enlevés, MAJUSCULES, tout
+    caractère non alphanumérique remplacé par « _ ». Ex. « BTS CIEL Option A » →
+    « BTS_CIEL_OPTION_A ». L'identifiant interne (nom_fixe) en est la version minuscule."""
+    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
+    return s or "REFERENTIEL"
 
 
 def _apercu(pdf_path: Path) -> tuple[int, str]:
@@ -109,6 +111,7 @@ class ValiderBody(BaseModel):
     token: str
     cycle_id: int
     niveau: str
+    fichier_origine: str | None = None   # vrai nom du PDF déposé/téléchargé — gardé en base comme trace
     source: str | None = None
     date_doc: str | None = None
 
@@ -142,11 +145,11 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
                                     Referentiel.matiere_id.is_(None)).first():
         raise HTTPException(409, f"Un référentiel existe déjà pour « {niveau_nom} ».")
 
-    nom_fixe = _slug(niveau_nom).lower().replace("-", "_")
+    nom_fixe = _dossier_cle(niveau_nom).lower()
     if db.query(Referentiel).filter(Referentiel.nom_fixe == nom_fixe).first():
         raise HTTPException(409, f"Identifiant de référentiel déjà utilisé : {nom_fixe}.")
 
-    dossier = REFERENTIELS_DIR / _slug(niveau_nom)
+    dossier = REFERENTIELS_DIR / _dossier_cle(niveau_nom)
     dossier.mkdir(parents=True, exist_ok=True)
     pdf_final = dossier / "referentiel.pdf"
     shutil.move(str(staged), str(pdf_final))
@@ -161,10 +164,14 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(400, f"Extraction du texte impossible : {e}")
 
+    # Disque = nom fixe `referentiel.pdf` (le code ne dépend jamais du nom mouvant de l'EN).
+    # Base = `fichier` garde le VRAI nom d'origine (trace, affiché à l'admin), sans contrainte
+    # de système de fichiers (c'est du texte). Repli sur le nom de disque si non fourni.
+    fichier_origine = (body.fichier_origine.strip() if body.fichier_origine else "") or "referentiel.pdf"
     ref = Referentiel(
         niveau_id=niveau.id, matiere_id=None,
         nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
-        fichier="referentiel.pdf",
+        fichier=fichier_origine,
         source=(body.source.strip() if body.source else None),
         date_doc=(body.date_doc.strip() if body.date_doc else None),
     )
@@ -175,8 +182,9 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         "ok": True,
         "cycle": cycle.nom,
         "niveau": niveau_nom,
-        "dossier": _slug(niveau_nom),
-        "fichier": "referentiel.pdf",
+        "dossier": _dossier_cle(niveau_nom),
+        "fichier_disque": "referentiel.pdf",   # nom physique sur le disque (chemin du message)
+        "fichier_origine": fichier_origine,     # vrai nom conservé en base
         "nom_fixe": nom_fixe,
         "pages": len(pages),
         "caracteres_extraits": len(texte),

@@ -13,6 +13,7 @@ export default function AdminReferentiels() {
   const [niveau, setNiveau] = useState('')
   const [mode, setMode] = useState('lien')        // 'lien' | 'depot'
   const [url, setUrl] = useState('')
+  const [nomFichier, setNomFichier] = useState('')  // nom du PDF choisi (zone « Par dépôt »)
   const [source, setSource] = useState('')
   const [busy, setBusy] = useState(false)
   const [apercu, setApercu] = useState(null)      // { token, filename, pages, taille_ko, apercu }
@@ -43,6 +44,7 @@ export default function AdminReferentiels() {
 
   async function recupererDepot(file) {
     if (!file) return
+    setNomFichier(file.name)
     setBusy(true); setApercu(null); setResultat(null)
     try {
       const form = new FormData()
@@ -66,7 +68,7 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/valider', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), source }),
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), source, fichier_origine: apercu.filename }),
       }, TIMEOUT_GROQ)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
@@ -133,10 +135,17 @@ export default function AdminReferentiels() {
             </button>
           </div>
         ) : (
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
-            <input type="file" accept="application/pdf,.pdf" disabled={busy}
-              onChange={e => recupererDepot(e.target.files[0])} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
+              <input style={champ} value={nomFichier} readOnly placeholder="Aucun fichier choisi" />
+            </div>
+            <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+              disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
+            <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
+              style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+              {busy ? 'Lecture…' : 'Choisir le fichier'}
+            </label>
           </div>
         )}
 
@@ -169,7 +178,8 @@ export default function AdminReferentiels() {
         {resultat && (
           <div style={{ border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: 8, padding: 14, fontSize: 12, color: '#166534' }}>
             Référentiel enregistré pour <strong>{resultat.niveau}</strong> ({resultat.cycle}).<br />
-            Rangé dans <code>REFERENTIELS/{resultat.dossier}/</code> · {resultat.pages} page(s) · {resultat.caracteres_extraits} caractères extraits.
+            Document d’origine : <strong>{resultat.fichier_origine}</strong> (conservé en base).<br />
+            Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s) · {resultat.caracteres_extraits} caractères extraits.
           </div>
         )}
 
