@@ -1,15 +1,45 @@
 # aSchool — DOCTRINE FONDATRICE & AUDIT « en base » vs « en dur »
 
-> ## 🧭 OÙ J'EN SUIS (repère de navigation)
->
-> Le chantier « REFONTE SOCLE » avance en **3 niveaux, dans l'ordre** :
->
-> - **NIVEAU 0 — le PLAN de la base (MLD)** ............ ✅ **TERMINÉ** (27/06)
-> - **NIVEAU 1 — le MOTEUR (SQLite → PostgreSQL)** ..... 🔄 **EN COURS** 🔴 ← je suis ici
-> - **NIVEAU 2 — le REMPLISSAGE + bascules gelées** .... ⏳ pas commencé
->
-> **Le Niveau 1 est devenu une migration découpée en 13 PAS** (détail dans la section NIVEAU 1 ci-dessous).
-> Avancement : Pas 1 ✅ · Pas 3 ✅ · Pas 4 ✅ · Pas 5 ✅ · Pas 6 ✅ · Pas 7 ✅ · **Pas 8 ← prochain** · Pas 9 à 13 à venir.
+> ## 🧭 OÙ J'EN SUIS — CHANTIER aSchool (repère de navigation)
+
+## RÈGLES PERMANENTES (rappel)
+- Zéro "sqlite" dans le code après bascule
+- On relie par IDENTIFIANT, jamais par texte
+- Suppression = sauvegarde .bak + preuve avant
+- CC installe, Harketti supervise (sauf saisie mot de passe)
+- CC écrit dans .env, Harketti pose juste le mot de passe
+- Un GO par étape, jamais global
+
+## NIVEAUX (les 3 grands blocs)
+- NIVEAU 0 — Plan de la base (MLD)              ✅ terminé (27/06)
+- NIVEAU 1 — Moteur SQLite → PostgreSQL         🔄 EN COURS
+- NIVEAU 2 — Sortir tout ce qui est en dur      ⏳ pas commencé
+
+## NIVEAU 1 — les 14 PAS
+- Pas 1  — Intégrité des données                ✅
+- Pas 2  — Décider quoi garder (base neuve)     ✅ (fait au Pas 8)
+- Pas 3  — Driver PostgreSQL (psycopg)          ✅
+- Pas 4  — Interrupteur .env (DATABASE_URL)     ✅
+- Pas 5  — Taille de la base selon moteur       ✅
+- Pas 6  — Nettoyer les spécificités SQLite     ✅
+- Pas 7  — Installer PostgreSQL local + .env    ✅
+- Pas 8  — Schéma + données réf. (BTS CIEL)     ✅
+- Pas 9  — Système de migrations (Alembic)      ✅ (F déplacé au Pas 13)
+- Pas 10 — Tout tester en local sur PostgreSQL  ✅ (tests auto / étage 1 — Claude)
+- Pas 11 — Corriger les textes d'écran          ✅
+- Pas 12 — Test local par l'admin (run.ps1)     ⏳ ← PROCHAIN (étage 2, le plus important)
+- Pas 13 — Déploiement VPS (bascule prod) + F   ⏳ (session dédiée)
+- Pas 14 — Test final en conditions prof        ⏳
+
+## PAS 9 — les sous-étapes (lettres)
+- A — Installer Alembic                         ✅
+- B — Câbler Alembic (env.py)                   ✅
+- C — Poser la baseline                         ✅
+- D — Retirer le create_all                     ✅
+- E — Ranger la ligne BTS CIEL                  ✅ (absorbée dans le chargeur unique)
+- (chantier) Chargeur unique data-driven        ✅  ← gros travail du jour
+- Commits A + B (+ push)                        ✅ faits et poussés
+- F — Retirer le runner maison + .sql           ⏳ déplacé au Pas 13 (avec la bascule prod)
 
 ---
 
@@ -68,33 +98,34 @@ Pourquoi : base quasi vide aujourd'hui → presque rien à migrer, c'est le bon 
 
 **4 décisions de méthode tranchées :** (1) **synchrone** (driver `psycopg`, pas async) ; (2) **schéma neuf** depuis l'ORM (`create_all`), pas de rejeu des vieilles migrations SQLite ; (3) tests sur SQLite en mémoire pour l'instant ; (4) PostgreSQL auto-hébergé sur le VPS + mot de passe dans `.env` (jamais en dur).
 
-> **Filet de sécurité :** tant qu'aucune `DATABASE_URL` n'est posée, l'app reste sur SQLite. La prod ne bascule qu'au tout dernier moment (Pas 12). Chaque pas est réversible sauf la coupure finale (protégée par sauvegarde).
+> **Filet de sécurité :** tant qu'aucune `DATABASE_URL` n'est posée, l'app reste sur SQLite. La prod ne bascule qu'au tout dernier moment (Pas 13). Chaque pas est réversible sauf la coupure finale (protégée par sauvegarde).
 
-#### Les 13 PAS de la migration (avancement)
+#### Les 14 PAS de la migration (avancement)
 
 | Pas | Ce qu'il fait | État |
 |---|---|---|
 | **1** | Contrôle d'intégrité des données (aucune donnée orpheline) | ✅ fait (0 orphelin) |
-| **2** | Décider quoi garder / recréer quand on repart sur une base neuve | ⏳ reporté au Pas 8 |
+| **2** | Décider quoi garder / recréer quand on repart sur une base neuve | ✅ fait (au Pas 8) |
 | **3** | Ajouter le driver PostgreSQL (`psycopg`) | ✅ fait |
 | **4** | Interrupteur : adresse de la base pilotée par `.env`, défaut SQLite | ✅ fait |
 | **5** | Adapter la fonction « taille de la base » selon le moteur | ✅ fait |
 | **6** | Nettoyer le code des spécificités SQLite (schéma neutre) | ✅ fait |
 | **7** | Installer PostgreSQL (en local d'abord) + poser la `DATABASE_URL` | ✅ fait |
-| **8** | Recréer le schéma propre + remettre les données de référence (BTS CIEL intact) | 🔴 ← je suis ici (prochain) |
-| **9** | Adapter le système de migrations (baseline PostgreSQL) | ⏳ à venir |
-| **10** | Tout tester en local sur PostgreSQL | ⏳ à venir |
-| **11** | Corriger les textes d'écran (« SQLite » → « PostgreSQL ») | ⏳ à venir |
-| **12** | **Déploiement sur le VPS** (sauvegarde avant, bascule prod) | ⏳ à venir |
-| **13** | **TON test en vrai, en conditions prof** (juge de paix) | ⏳ à venir |
+| **8** | Recréer le schéma propre + remettre les données de référence (BTS CIEL intact) | ✅ fait |
+| **9** | Adapter le système de migrations (baseline PostgreSQL) | ✅ fait (F → Pas 13) |
+| **10** | Tout tester en local sur PostgreSQL | ✅ fait (tests auto / étage 1 — Claude) |
+| **11** | Corriger les textes d'écran (« SQLite » → « PostgreSQL ») | ✅ fait |
+| **12** | Test local par l'admin (`run.ps1`), en conditions réelles | 🔴 ← je suis ici (prochain) |
+| **13** | **Déploiement sur le VPS** (sauvegarde avant, bascule prod) + retrait du runner maison (F) | ⏳ à venir (session dédiée) |
+| **14** | **TON test en vrai, en conditions prof** (juge de paix) | ⏳ à venir |
 
-Quand le Pas 13 est validé → le Niveau 1 est **terminé**, on passe au Niveau 2.
+Quand le Pas 14 est validé → le Niveau 1 est **terminé**, on passe au Niveau 2.
 
 #### Tâches en attente du Niveau 1 (repérées au Pas 7, à traiter au moment dit)
 
 > **Contexte install local (27/06) :** PostgreSQL **16.14** installé sous `C:\Users\harketti\PostgreSQL\16` (archive binaire EDB), instance **dédiée port 5433** (le 5432 est déjà pris par une autre instance PostgreSQL — isolée, jamais touchée), base + rôle `aschool` créés, serveur lancé via `pg_ctl` sous compte Windows **non-admin**. Auth encore en `trust` local (mot de passe `aschool` posé mais pas encore exigé tant que le `trust` est là).
 
-- **(a) Durcissement admin — EN BLOC, impératif en prod (Pas 12).** Les quatre gestes vont ensemble : renommer `postgres` → identifiant choisi · poser le mot de passe admin · **couper le `trust`** (passer `pg_hba.conf` en `scram-sha-256`) · **refaire le mot de passe `aschool`** au même moment. Un mot de passe sans coupure du `trust` est ignoré → indissociables. En local : **optionnel** (écoute `127.0.0.1`, compte non-admin) ; en prod : **non négociable**.
+- **(a) Durcissement admin — EN BLOC, impératif en prod (Pas 13).** Les quatre gestes vont ensemble : renommer `postgres` → identifiant choisi · poser le mot de passe admin · **couper le `trust`** (passer `pg_hba.conf` en `scram-sha-256`) · **refaire le mot de passe `aschool`** au même moment. Un mot de passe sans coupure du `trust` est ignoré → indissociables. En local : **optionnel** (écoute `127.0.0.1`, compte non-admin) ; en prod : **non négociable**.
 - **(b) Service PostgreSQL auto-démarrant — optionnel.** Aujourd'hui le serveur tourne via `pg_ctl` (pas de redémarrage automatique au boot). Enregistrer un vrai service Windows demande un **terminal administrateur** (le compte courant n'est pas admin).
 - **(c) Petit ménage `.pyc` du Pas 6 — trivial.** Le cache `backend/__pycache__/models_db.cpython-312.pyc` se régénère seul ; rien d'urgent (cache régénérable, pas du code source).
 
@@ -295,82 +326,3 @@ C'est le constat. On décide après, sur cette base.
 
 
 
-
-
------------------------- LES NIVEAUX------------------------------------
-# CHANTIER aSchool — SOMMAIRE
-
-fait ✅Niveau 0 : vérifier le plan de la base (le MLD) → 
-fait ✅ Niveau 1 : changer le moteur, SQLite → PostgreSQL → en cours (on est au Pas 8)
-pas commencé ⏳ Niveau 2 : sortir tout ce qui est encore en dur (prompts, types d'activité, aide, durées, langues...) et le mettre en 
-
-## RÈGLES PERMANENTES (rappel)
-- Zéro "sqlite" dans le code après bascule
-- On relie par IDENTIFIANT, jamais par texte
-- Suppression = sauvegarde .bak + preuve avant
-- CC installe, Harketti supervise (sauf saisie mot de passe)
-- CC écrit dans .env, Harketti pose juste le mot de passe
-- Un GO par étape, jamais global
-
-
-## NIVEAUX (les 3 grands blocs)
-- NIVEAU 0 — Plan de la base (MLD)              ✅ terminé
-- NIVEAU 1 — Moteur SQLite → PostgreSQL         🔄 EN COURS
-- NIVEAU 2 — Sortir tout ce qui est en dur      ⏳ pas commencé
-
-## NIVEAU 1 — les 13 PAS
-- Pas 1  — Intégrité des données                ✅
-- Pas 2  — Décider quoi garder (base neuve)     ✅ (fait au Pas 8)
-- Pas 3  — Driver PostgreSQL (psycopg)          ✅
-- Pas 4  — Interrupteur .env (DATABASE_URL)     ✅
-- Pas 5  — Taille de la base selon moteur       ✅
-- Pas 6  — Nettoyer les spécificités SQLite     ✅
-- Pas 7  — Installer PostgreSQL local + .env    ✅
-- Pas 8  — Schéma + données réf. (BTS CIEL)     ✅
-- Pas 9  — Système de migrations (Alembic)      🔄 EN COURS  ← ON EST LA
-- Pas 10 — Tout tester en local sur PostgreSQL  ⏳
-- Pas 11 — Corriger les textes d'écran          ⏳
-- Pas 12 — Déploiement VPS (bascule prod)       ⏳
-- Pas 13 — Test final en conditions prof        ⏳
-
-## PAS 9 — les sous-étapes (lettres)
-- A — Installer Alembic                         ✅
-- B — Câbler Alembic (env.py)                   ✅
-- C — Poser la baseline                         ✅
-- D — Retirer le create_all                     ✅
-- E — Ranger la ligne BTS CIEL                  ✅ (absorbée dans le chargeur unique)
-- (chantier) Chargeur unique data-driven        ✅  ← gros travail du jour
-- (commits A + B)                               🔄 EN COURS
-- F — Retirer le runner maison + .sql           ⏳  ← prochain
-- G — Preuves finales du Pas 9                  ⏳
-
-
-
-************
-
-# ----> F. Retirer le runner maison
-Supprimer migrations/run_migrations.py + les 12 .sql SQLite + le README (l'historique reste dans git). C'est sans risque : vérifié, il n'est pas branché au déploiement. (À valider — suppression.)
-
-# G. Comment je prouve que rien n'est cassé
-alembic current → la base est bien à la révision baseline.
-alembic check (autogenerate à blanc) → « no changes detected » = le modèle correspond exactement à la base (preuve que la baseline reflète le schéma réel).
-recompte des 22 tables + données de référence (cycles/niveaux/matières/référentiel BTS CIEL) → inchangés.
-l'app démarre + pytest inchangé (mêmes 4 rouges préexistants).
-
-# H. Hors Pas 9 (noté)
-Brancher Alembic dans le déploiement VPS = Pas 12 (le runner maison n'y était pas branché de toute façon).
-
-Décisions que tu valides avant que je touche à quoi que ce soit :
-
-Dossier alembic/ à la racine — OK ?
-Baseline = migration initiale complète + stamp sur la base existante — OK ?
-Retirer le create_all du boot (Alembic devient l'autorité) — OK ?
-Ligne référentiel → dans le chargeur unique `seed_programmes.py` (DIPLOMES) — fait.
-Supprimer le runner maison + 12 .sql — OK ?
-Tu valides (tout ou point par point), et seulement après j'exécute, étape par étape.
-
-#  ----> et avce BIENSUR
-Pas 10 = tester l'app en vrai sur PostgreSQL (vérifier que ça marche)
-Pas 11 = corriger les textes d'écran (« SQLite » → « PostgreSQL »)
-Pas 12 = déploiement sur le VPS (basculer la prod)
-Pas 13 = ton test final en conditions prof

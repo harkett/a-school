@@ -62,7 +62,7 @@ export default function AdminMaintenance() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Maintenance base de données</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Fichier SQLite · {data.db_size_mb} Mo · {totalRecords.toLocaleString('fr')} enregistrements au total</p>
+          <p className="text-xs text-gray-400 mt-0.5">Base PostgreSQL · {data.db_size_mb} Mo · {totalRecords.toLocaleString('fr')} enregistrements au total</p>
         </div>
         <button onClick={load}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1px solid #d1d5db', borderRadius: 7, padding: '6px 14px', fontSize: 12, color: '#374151', cursor: 'pointer' }}>

@@ -50,7 +50,7 @@ const SECTIONS = [
           'Métriques VPS en temps réel : CPU, RAM, espace disque, uptime.',
           'Graphe des connexions sur les 30 derniers jours.',
           'Répartition des connexions par heure de la journée (utile pour planifier les maintenances).',
-          'Taille de la base de données SQLite.',
+          'Taille de la base de données PostgreSQL.',
           'Seuils d\'alerte automatiques : CPU > 85 %, RAM > 90 %, disque > 85 % déclenchent une alerte dans l\'onglet Alertes.',
         ],
       },
