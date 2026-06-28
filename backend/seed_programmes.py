@@ -12,9 +12,9 @@ Collision « Autonomie » (axe crèche + axe supérieur) → clés préfixées p
 from backend.database import SessionLocal
 from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel
 
-CYCLES = [  # nom, ordre, categorie (famille du cycle)
-    ("Crèche", 1, "creche"), ("Maternelle", 2, "maternelle"), ("Primaire", 3, "primaire"),
-    ("Collège", 4, "secondaire"), ("Lycée", 5, "secondaire"), ("Supérieur", 6, "superieur"),
+CYCLES = [  # nom, ordre
+    ("Crèche", 1), ("Maternelle", 2), ("Primaire", 3),
+    ("Collège", 4), ("Lycée", 5), ("Supérieur", 6),
 ]
 
 NIVEAUX = {  # cycle -> [(nom, ordre)] — ordre interprété PAR cycle (jamais comparé entre cycles)
@@ -131,14 +131,12 @@ def run():
     db = SessionLocal()
 
     cyc = {}
-    for nom, ordre, categorie in CYCLES:
+    for nom, ordre in CYCLES:
         c = db.query(Cycle).filter(Cycle.nom == nom).first()
         if not c:
-            c = Cycle(nom=nom, ordre=ordre, categorie=categorie)
+            c = Cycle(nom=nom, ordre=ordre)
             db.add(c)
             db.flush()
-        elif c.categorie != categorie:
-            c.categorie = categorie   # le fichier fait foi sur la catégorie (réconciliation idempotente)
         cyc[nom] = c
 
     niv = {}

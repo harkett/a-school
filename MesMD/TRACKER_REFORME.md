@@ -27,7 +27,7 @@
 ## Phase 5 — Robustesse / dette
 - [x] Régulation de concurrence sur les appels LLM (sémaphore partagé, limite env, attente bornée)
 - [x] Unifier les migrations (plus d'ALTER inline)
-- [x] Décider : rester SQLite ou migrer PostgreSQL — TRANCHÉ 25/06 : on RESTE sur SQLite (YAGNI). PostgreSQL seulement sur signal réel de charge (volume massif / contention d'écriture), jamais par anticipation. Cohérent avec la doctrine d'échelle de CLAUDE.md + item 20 réservoir (HORS-PÉRIMÈTRE). La doctrine durable vit déjà dans CLAUDE.md (BDD = SQLite local+VPS).
+- [x] Décider : rester SQLite ou migrer PostgreSQL — TRANCHÉ 25/06 : rester SQLite (YAGNI). **RENVERSÉ le 27/06 : moteur cible = PostgreSQL** — éléments nouveaux : (1) le Niveau 2 = modifs de tables, pénibles sous SQLite (cf. migration 010 = reconstruction de 7 tables) ; (2) base quasi vide → migrer coûte le moins maintenant. Migration **pas encore faite** (cap décidé, exécution à venir, chantier à part). Doctrine durable mise à jour dans CLAUDE.md.
 - [x] Code d'erreur 429 distinct (surcharge / rate limit → « réessayez », sur tous les outils + OCR + dictée)
 - [x] Robustesse de l'indexation RAG (chaque lot protégé + vérif d'intégrité ; jamais de base à moitié construite en silence)
 
@@ -42,7 +42,7 @@
 - [x] Étude : annexes de référentiels (ex. E6 BTS CIEL) — fait 25/06. CONCLUSION : RAG inchangé (PDF déjà ingéré en entier, filtrage option correct). Annexes scindées en enseignable (II/III → ancrent les activités de formation) vs évaluation/organisation (IV dont E6, V, VI → méta pour le RAG formation). E6 = évaluation pure → ne sert pas l'ancrage d'activités ; débouché = futur pilier « Mes évaluations » (TABLEAU item 46). Rien à changer côté RAG.
 
 ## Rappels transverses
-- [x] Rectifier la doc d'archi : base réelle = SQLite — RIEN à corriger (vérifié 25/06) : CLAUDE.md dit déjà « BDD : SQLite (local + VPS) » ; les mentions Postgres sont toutes légitimes (item 20 hors-scope · décision Phase 5 · note « migration si charge »). Le `.dbml` ne déclare aucun database_type Postgres.
+- [x] Rectifier la doc d'archi : base réelle = SQLite — vérifié 25/06 (rien à corriger *alors*). **Caduc depuis le 27/06** : moteur cible = PostgreSQL (cf. ligne Phase 5 ci-dessus). Aujourd'hui la base est encore SQLite ; la doc devra refléter la cible PostgreSQL une fois la migration faite.
 - [x] Groq conservé seulement pour Whisper / OCR
 
 > Le bloc « Backlog écran Résultat généré » a été déplacé dans le réservoir du

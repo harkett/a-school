@@ -1,5 +1,41 @@
 # TRACKER — Notions Scolaires
 
+> ## 🧭 OÙ J'EN SUIS — DISPATCH DES NOTIONS (repère de navigation)
+>
+> **Tâche en cours :** vider ce tracker éphémère dans le pilotage permanent, **brique par brique**, puis le supprimer (décision finale = Harketti).
+>
+> **Contenant — tranché (28/06) :** **item 51** (TABLEAU-DE-BORD) → **D49** (BOUSSOLE — 1 dossier, 12 sections) → **lignes TRACKER** (pilotage). *(item 51 ↔ dossier D49 : le n° d'item ≠ le n° de dossier, normal.)*
+>
+> **Règles de ce chantier :**
+> - **Un GO par brique, jamais global** — on ne passe à la suivante que quand la précédente est rangée.
+> - **Montrer avant d'écrire** (avant/après), toujours.
+> - **Vérifier le fait (n° d'item, fichier) AVANT d'écrire** — l'erreur « item 47 » ne se reproduit pas.
+> - **Fichiers partagés vs exclusifs** — `TABLEAU-DE-BORD.md` et `TRACKER.md` sont **partagés** (d'autres sessions y écrivent — ex. items 47→50) : je **revérifie l'état à jour avant d'y écrire**, et le **n° d'item se fixe au dernier moment**. Seuls `TRACKER_NOTIONS_SCOLAIRES.md` et `BOUSSOLE/D49.md` sont **exclusifs** à cette session.
+>
+> **Avancement (les 12 briques = les 12 pas) :**
+> - Pas 0 — Contenant tranché ............................. ✅
+> - Pas 1 — Brique 1 · Découpage en micro-notions ........ 🔴 ← je suis ici
+> - Pas 2 — Brique 2 · Niveaux de granularité ............ ☐
+> - Pas 3 — Brique 3 · Granularité cognitive ............. ☐
+> - Pas 4 — Brique 4 · Granularité didactique (ordre) .... ☐
+> - Pas 5 — Brique 5 · Granularité disciplinaire ......... ☐
+> - Pas 6 — Brique 6 · Erreurs typiques .................. ☐
+> - Pas 7 — Brique 7 · Ambiguïtés ........................ ☐
+> - Pas 8 — Brique 8 · Activités compatibles ............. ☐
+> - Pas 9 — Brique 11 · Interdisciplinaire (future) ...... ☐
+> - Pas 10 — Brique 12 · Spiralaire (future) ............. ☐
+> - Pas 11 — Brique 13 · Émotionnelle légère (future) .... ☐
+> - Pas 12 — Brique 14 · Cognitive profonde (future) ..... ☐
+> - Pas final — vider le tracker + le supprimer .......... ☐
+>
+> **4 fichiers cibles (périmètre fermé) :** `TRACKER_NOTIONS_SCOLAIRES.md` · `TABLEAU-DE-BORD.md` (item 51 ✅) · `TRACKER.md` (lignes pilotage) · `BOUSSOLE/D49.md` (créé ✅).
+>
+> **Parking — hors session :** 2 règles durables (ligne rouge RGPD « jamais d'élève » + « notions = le sol ») → à router vers `CLAUDE.md` quand il sera stabilisé.
+>
+> **Maintenance de ce repère :** mis à jour **à la fin de chaque brique validée** (pas en continu), **montré avant d'être écrit**. Le 🔴 se déplace d'un pas à chaque brique rangée.
+
+---
+
 > **Doc de travail vivant.** On transforme une vision (`NOTION_SCOLAIRE.md`,
 > levier 13 — « Moteur de granularisation intelligente des notions ») en une spec
 > costaud, pas à pas.
@@ -23,20 +59,15 @@
 > est la racine), les **frontières** (ne pas confondre deux briques) et le **garde-fou
 > RGPD** (rester sur la notion générique, **jamais** sur un élève).
 >
-> **Procédure de reprise (prochaine étape — PAS encore faite) :** ce tracker est un
-> **chantier éphémère**. À la reprise, on le **dispatche brique par brique** vers le
-> pilotage permanent :
-> - **TRACKER.md** → les lignes de pilotage (construire le moteur ; prérequis
->   « **étoffer le catalogue BTS CIEL** ») ;
-> - **TABLEAU-DE-BORD.md** → l'entrée dans l'inventaire des travaux (avec lien) ;
-> - **BOUSSOLE / Dxx** → le **détail** (les 12 fiches).
->
-> Une fois tout dispatché, **ce document disparaît** : son contenu vit dans les trois
-> ci-dessus, son historique reste dans git → **on le commite avant de le supprimer**.
+> **Procédure de reprise — EN COURS (depuis le 28/06).** Le dispatch est lancé et piloté
+> par le repère « OÙ J'EN SUIS » (en tête) + la table du §7. Prérequis noté : « **étoffer le
+> catalogue BTS CIEL** » (brique 8). Une fois tout dispatché, **ce document disparaît** :
+> son contenu vit dans les trois docs permanents, son historique reste dans git →
+> **on le commite avant de le supprimer.**
 
 ---
 
-## Panorama (état au 24/06)
+## Panorama (état au 28/06)
 
 Les notions sont une couche de connaissance qui nourrit les outils d'aSchool.
 12 briques évaluées — détail et notes au §5, qui fait foi.
@@ -711,15 +742,38 @@ décident quand on l'attaque, pas au stade de l'inventaire.
 
 ## 7. Plan de dispatch (où va chaque brique dans le tableau de bord)
 
-> Pour chaque brique : **« Nouvel item »** (à créer) ou **« Enrichit l'item X »**
-> (item qui existe déjà). Une ligne à la fois, validée ensemble. Rien d'écrit dans
-> le tableau de bord aujourd'hui — c'est juste le plan.
+> **Pour chaque brique, une seule question :** elle reste une **section interne de D49**
+> (cœur du moteur, piloté sous l'item 51) **ou** elle **enrichit un item déjà existant**
+> du réservoir (si elle se raccorde à un outil déjà là) ? Une brique à la fois, **un GO
+> chacune**. Rien dans le TABLEAU / TRACKER permanents tant que la brique n'est pas tranchée.
 
-| Brique | Où elle va |
-|---|---|
-| 1. Découpage en micro-notions | Nouvel item |
+**Contenant tranché (28/06) — trois objets, trois rôles (on n'en rediscute plus) :**
+- **Item 51** (TABLEAU-DE-BORD) = l'entrée d'inventaire (« ce chantier existe ») + lien vers D49.
+  *(Items 47→50 déjà pris ; 49 = Migration PostgreSQL, 50 = dette tests. Le n° d'item ≠ le n° de dossier → le dossier reste D49.)*
+- **D49** (BOUSSOLE) = **un seul dossier, 12 sections** (une par brique) = le détail, lu ensemble.
+- **Lignes TRACKER** = le pilotage, l'avancement brique par brique.
 
-*(Briques suivantes : à analyser une par une.)*
+L'item de réservoir pointe vers D49 pour le détail ; le TRACKER porte l'état d'avancement.
+*(Parking — hors session : 2 règles durables — ligne rouge RGPD « jamais d'élève » +
+« notions = le sol » — à router vers `CLAUDE.md` quand il sera stabilisé.)*
+
+| Pas | Brique | État | Destination (tranchée brique par brique) |
+|---|---|---|---|
+| 1 | 1 · Découpage en micro-notions | 🔴 en cours | à trancher |
+| 2 | 2 · Niveaux de granularité | ☐ | à trancher |
+| 3 | 3 · Granularité cognitive | ☐ | à trancher |
+| 4 | 4 · Granularité didactique (ordre) | ☐ | à trancher |
+| 5 | 5 · Granularité disciplinaire | ☐ | à trancher |
+| 6 | 6 · Erreurs typiques | ☐ | à trancher |
+| 7 | 7 · Ambiguïtés | ☐ | à trancher |
+| 8 | 8 · Activités compatibles | ☐ | à trancher |
+| 9 | 11 · Interdisciplinaire (future) | ☐ | candidate → enrichit item 25 (Cohérence curriculaire) |
+| 10 | 12 · Spiralaire (future) | ☐ | candidate → outils Séquences (prod) |
+| 11 | 13 · Émotionnelle légère (future) | ☐ | à trancher |
+| 12 | 14 · Cognitive profonde (future) | ☐ | à trancher |
+
+*(La colonne « Destination » se remplit une brique à la fois, avec un GO chacune. Les
+« candidate → » des briques 11/12 sont des pistes lues dans les fiches, pas des décisions.)*
 
 ---
 
@@ -909,3 +963,21 @@ décident quand on l'attaque, pas au stade de l'inventaire.
   bénéfice cosmétique) → **ligne d'explication du trou 9/10** ajoutée sous le tableau.
   (4) Note « ligne rouge élève » (coup d'œil) ajoutée sous le tableau. → **TRACKER =
   spécification complète des 12 briques du moteur de granularisation.**
+- **28/06** — **Dispatch ouvert — contenant tranché.** Trois objets : **item = prochain libre** (TABLEAU
+  = entrée d'inventaire + lien ; n° NON gravé, 47→50 déjà pris au 28/06) · **D49** (BOUSSOLE = un seul
+  dossier, 12 sections) · **lignes TRACKER** (pilotage). 2 règles durables (RGPD « jamais
+  d'élève », « notions = le sol ») **parkées** → `CLAUDE.md` plus tard.
+- **28/06** — **Squelette de suivi posé** (inspiré de `AUDIT-EN-BASE-VS-EN-DUR.md`) : bloc
+  « OÙ J'EN SUIS » en tête (12 briques = 12 pas, marqueur 🔴), §7 transformé en table de
+  dispatch (état + destination par brique), clause de maintenance. Le dispatch reprend
+  brique par brique, un GO chacune. *(Correction : entrées de cette session datées **28/06**,
+  pas 25/06.)*
+- **28/06** — **Collision de numéro évitée.** Vérifié : items **49 (Migration PostgreSQL)** et
+  **50 (dette tests)** déjà pris dans TABLEAU (session parallèle). Décision : **ne plus graver le
+  n° d'item** → fixé au moment d'écrire dans TABLEAU (prochain libre, ≥51). **Dossier D49 conservé**
+  (n° de dossier ≠ n° d'item). Triplication du plan de dispatch dégonflée (l.62-71 → pointeur).
+  Bug « Item 47 » (l.761) corrigé.
+- **28/06** — **Item fixé à 51.** Chantier inscrit dans `TABLEAU-DE-BORD.md` (item 51 = tableau
+  scoré + corps du réservoir `#item-51`) → **D49** ; « Item sommaire » de D49 répercuté en [51].
+  Placeholder « prochain libre » remplacé par « item 51 » dans les références vivantes. Reste
+  l'étape C (ligne de pilotage dans `TRACKER.md`).

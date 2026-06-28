@@ -3,6 +3,8 @@
 > **Doc interne (admin).** Jamais visible par les profs. Sert à travailler sur la base
 > et à visualiser son schéma en 2D.
 
+> ⚠️ **À REFAIRE COMPLÈTEMENT (périmé, constaté le 27/06).** Décrit l'ancien schéma (« 20 tables », pivot `email`) et le moteur SQLite. Réalité actuelle : 22 tables vivantes, pivot `user_id`, et **moteur cible = PostgreSQL** (décision Niveau 1 du 27/06). À reprendre en entier — ne pas s'y fier en l'état.
+
 ---
 
 ## La base

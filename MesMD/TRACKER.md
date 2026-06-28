@@ -202,6 +202,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 |---|---|---|---|
 | ☐ | **21** — Support niveau Supérieur (BTS/prépa/licence) | segment nouveau, « si ça accroche » | [D36](BOUSSOLE/D36.md) |
 | ☐ | **43** — Module Petite Enfance 0-3 ans | futur stratégique, garde-fou IA dur | [D48](BOUSSOLE/D48.md) |
+| ☐ | **51** — Moteur de granularisation des notions (12 briques) | futur / socle stratégique — spec prête (D49) ; dispatch en cours (brique 1/12) | [D49](BOUSSOLE/D49.md) |
 | ✗ | **20** — Projet demo-perf FastAPI + PostgreSQL | hors-périmètre aSchool (projet séparé) | — |
 
 > 🅿️ **Parking & hors-scope (détail en annexe) :** liste « NON RETENU » + liste « HORS SCOPE » → **A11**.
@@ -262,7 +263,7 @@ Rendre concret « dériver du référentiel », en deux briques : **(1)** un **s
 
 ### A11 — Parking & hors-scope
 **Parking — NON RETENU** (à reconsidérer) : capture d'écran feedback · `logoutManager.ts` · recrutement profs Facebook/X · trajectoires multi-séances · labo simulation classe · modal multi-actions Oui/Non · tuning latence Deepgram · bug auth WS longues · etc. → détail dans [TABLEAU-DE-BORD.md](TABLEAU-DE-BORD.md) § NON RETENU.
-**HORS SCOPE** (refusé) : ENT/Pronote · multi-profs établissement · SQLite→PostgreSQL · cartographie cognitive · PPD. → § HORS SCOPE.
+**HORS SCOPE** (refusé) : ENT/Pronote · multi-profs établissement · cartographie cognitive · PPD. → § HORS SCOPE.
 
 ### A12 — Méthode « tracker vivant »
 Quand le tracker dit « attaque la tâche XX (Dxx) », Claude vérifie d'abord que rien n'a bougé dans le projet (fiche Dxx + code concerné + FAIT) ; si quelque chose a changé, il ajuste le tracker (ordre, dépendances, tâches en +/−) **et montre le delta** AVANT de continuer.

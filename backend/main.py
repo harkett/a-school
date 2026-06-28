@@ -31,7 +31,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes, exemple_referentiel
+from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes, exemple_referentiel, referentiels_admin
 
 # Schéma géré par Alembic (`alembic upgrade head`) — plus de create_all au démarrage (Pas 9).
 
@@ -105,6 +105,7 @@ app.include_router(ambiguites.router, prefix="/api")
 app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
+app.include_router(referentiels_admin.router, prefix="/api")
 
 # Seed exemples au démarrage (idempotent)
 try:

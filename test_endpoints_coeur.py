@@ -454,40 +454,24 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
     assert _reached(c, "saut") is False    # ensuite -> jalon déjà posé -> plus jamais
 
 
-# ===================== P5.10 (Lot 1) — matières dérivées par catégorie de cycle =====================
-# GET /api/matieres?categorie=... dérive les matières de la BASE par jointure
-# matieres⋈matiere_niveaux⋈niveaux⋈cycles (plus de liste en dur). Catégorie unique par test
-# (BDD partagée) pour ne rien collisionner.
+# ===================== /api/matieres — matières dérivées de la base =====================
+# GET /api/matieres dérive les matières de la BASE par jointure matieres⋈matiere_niveaux
+# (plus de liste en dur, plus de filtre par catégorie). Données préfixées (BDD partagée)
+# pour ne rien collisionner.
 
-def test_matieres_par_categorie_derive_de_la_base():
+def test_matieres_derive_de_la_base():
     from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
-    cSec = Cycle(nom="P510-Sec", ordre=510, categorie="p510-secondaire"); db.add(cSec)
-    cSup = Cycle(nom="P510-Sup", ordre=511, categorie="p510-superieur"); db.add(cSup); db.flush()
-    nSec = Niveau(cycle_id=cSec.id, nom="P510-4e",  ordre=510); db.add(nSec)
-    nSup = Niveau(cycle_id=cSup.id, nom="P510-BTS", ordre=511); db.add(nSup); db.flush()
+    c = Cycle(nom="P510-Cyc", ordre=510); db.add(c); db.flush()
+    n = Niveau(cycle_id=c.id, nom="P510-4e", ordre=510); db.add(n); db.flush()
     mFr   = Matiere(cle="p510-fr",   nom="P510-Français", ordre=5101); db.add(mFr)
-    mMath = Matiere(cle="p510-math", nom="P510-Maths",    ordre=5102); db.add(mMath)  # PARTAGÉE
-    mRes  = Matiere(cle="p510-res",  nom="P510-Réseaux",  ordre=5103); db.add(mRes)
+    mMath = Matiere(cle="p510-math", nom="P510-Maths",    ordre=5102); db.add(mMath)
     db.flush()
-    db.add(MatiereNiveau(matiere_id=mFr.id,   niveau_id=nSec.id))   # Fr      -> secondaire
-    db.add(MatiereNiveau(matiere_id=mMath.id, niveau_id=nSec.id))   # Maths   -> secondaire
-    db.add(MatiereNiveau(matiere_id=mMath.id, niveau_id=nSup.id))   # Maths   -> superieur AUSSI (partagée)
-    db.add(MatiereNiveau(matiere_id=mRes.id,  niveau_id=nSup.id))   # Réseaux -> superieur seulement
+    db.add(MatiereNiveau(matiere_id=mFr.id,   niveau_id=n.id))
+    db.add(MatiereNiveau(matiere_id=mMath.id, niveau_id=n.id))
     db.commit(); db.close()
 
-    sec = [m["nom"] for m in noauth().get("/api/matieres?categorie=p510-secondaire").json()]
-    assert sec == ["P510-Français", "P510-Maths"]      # ordre par Matiere.ordre ; Réseaux EXCLU
-    sup = [m["nom"] for m in noauth().get("/api/matieres?categorie=p510-superieur").json()]
-    assert "P510-Maths" in sup and "P510-Réseaux" in sup   # matière partagée présente ici aussi
-    assert "P510-Français" not in sup                      # cantonnée à sa catégorie
-
-
-def test_seed_cycles_ont_tous_une_categorie():
-    # Garde-fou : un cycle ajouté à la liste canonique sans catégorie ferait disparaître
-    # ses matières des écrans -> on l'attrape ici, à la source.
-    from backend.seed_programmes import CYCLES
-    sans_cat = [c[0] for c in CYCLES if len(c) < 3 or not c[2]]
-    assert sans_cat == [], f"cycles sans categorie dans la liste canonique : {sans_cat}"
+    noms = [m["nom"] for m in noauth().get("/api/matieres").json()]
+    assert "P510-Français" in noms and "P510-Maths" in noms   # matières actives à paire active
 
 

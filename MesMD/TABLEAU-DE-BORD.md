@@ -123,6 +123,9 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [46](#item-46) | Famille menu « Mes évaluations » — pilier évaluation (≠ formation) | à scorer | à scorer | à scorer | à scorer | PRODUIT / Menu — à cadrer | — |
 | [47](#item-47) | Éditer les réponses du résultat généré | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
 | [48](#item-48) | Texte source éditable après génération | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
+| [49](#item-49) | Migration moteur SQLite → PostgreSQL (renverse le 25/06) | à cadrer | à scorer | à scorer | à scorer | **DÉCIDÉ — Niveau 1 (moteur cible PostgreSQL, 27/06)** ; migration non encore faite | — |
+| [50](#item-50) | Dette : 4 tests rouges préexistants (1 catalogue `test_activites_ciel` + 3 RAG `test_exemple_referentiel`) | à cadrer | — | — | — | DETTE — hors migration moteur, à traiter à part (constaté 27/06) | — |
+| [51](#item-51) | Moteur de granularisation des notions — couche de connaissance (12 briques) | à scorer | à scorer | à scorer | à scorer | FUTUR / socle — détail D49 | [D49](BOUSSOLE/D49.md) |
 
 ---
 
@@ -593,6 +596,11 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **48 — Texte source éditable après génération** | PRODUIT / Résultat généré — à cadrer | à scorer
   *Pouvoir retoucher le TEXTE SOURCE (l'énoncé de départ) une fois l'activité générée. Comportement attendu : le résultat affiché est un INSTANTANÉ FIGÉ (« résultat = photo ») qui ne se met à jour QUE si le prof reclique sur « Régénérer » — tant qu'il ne reclique pas, la photo reste celle d'avant. Idée née d'un test terrain (Harketti), notée 25/06. À cadrer le jour venu. Lié à l'item 47 (même écran, l'autre porte sur les réponses).*
 
+<a id="item-51"></a>
+- [ ] **51 — Moteur de granularisation des notions (couche de connaissance, 12 briques)** | FUTUR / socle — à cadrer | à scorer
+  *Couche de connaissance sous-jacente : pour chaque notion, une carte détaillée (micro-notions, ordre, erreurs typiques, ambiguïtés, effort cognitif, activités compatibles) EXTRAITE du référentiel officiel + validée prof — jamais sur un élève nommé (ligne rouge RGPD). Nourrit les outils existants (Détecteur d'ambiguïtés, Différenciation/Remédiation, catalogue, Séquences), pas un outil de plus. Spec complète des 12 briques (8 cœur + 4 futures) ; brique 1 (Découpage) = racine. Dispatch en cours depuis le tracker éphémère TRACKER_NOTIONS_SCOLAIRES.md. Détail → D49.*
+  → [D49](BOUSSOLE/D49.md)
+
 ---
 
 ## NON RETENU — À reconsidérer plus tard
@@ -631,7 +639,6 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 
 - **Intégration ENT / Pronote** — API propriétaires, accords institutionnels, des mois de travail
 - **Tableau de bord multi-profs établissement** — Nécessite concept "établissement" en BDD + rôles
-- **Migration SQLite → PostgreSQL** — Uniquement si charge réelle. SQLite tient jusqu'à 500 users actifs/jour
 - **Cartographie cognitive des classes** — Nécessite que les élèves interagissent avec aSchool. Contraire à la philosophie du produit (outil prof uniquement).
 - **Profilage Pédagogique Dynamique (PPD)** — Même problème + contrainte RGPD lourde sur les mineurs.
 
@@ -751,7 +758,7 @@ D01 (L5 Analyseur de consignes) · D02 (Optimiseur inline) · D03 (INFRA-RAG DEV
 - [x] **Filtre automatique Mes activités par profil** — Suppression dropdowns, badge compteur bordeaux (09/05)
 - [x] **Tableau analytique admin** — KPI cards, tableau prof×matière×niveau×type, top 20 types (09/05)
 - [x] **Widget stats communauté** — Total plateforme + nb profs + top 3 types (09/05)
-- [x] **Fiches Matières** — Backend + Frontend (09/05)
+- [ ] **Fiches Matières** — Backend + Frontend livrés (09/05), mais ⚠️ À REVOIR : les fiches n'ont jamais été remplies (génération admin jamais lancée — les 12 sont vides) et le point est actuellement inatteignable (catalogue d'activités vidé → `MATIERES=[]` → 404, lié à D1). Revoir la faisabilité ET prévoir un autre moyen de remplir les fiches, complémentaire à la génération admin (à définir).
 - [x] **Rebranding aSchool + migration domaine** — aschool.fr en production, school.afia.fr obsolète (11/05)
 - [x] **Logo et icône finalisés** (09/05)
 - [x] **Bibliothèque complète** — 73 exemples, 100% des couples matière×niveau (08/05)

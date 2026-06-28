@@ -27,7 +27,8 @@
 - Pas 9  — Système de migrations (Alembic)      ✅ (F déplacé au Pas 13)
 - Pas 10 — Tout tester en local sur PostgreSQL  ✅ (tests auto / étage 1 — Claude)
 - Pas 11 — Corriger les textes d'écran          ✅
-- Pas 12 — Test local par l'admin (run.ps1)     ⏳ ← PROCHAIN (étage 2, le plus important)
+- 4e passe — vérification zéro dur               ⏳ verrou obligatoire avant de reprendre le Pas 12
+- Pas 12 — Test local par l'admin (run.ps1)     ⏸️ EN PAUSE — chantier « Référentiel → matières + chunks » ouvert
 - Pas 13 — Déploiement VPS (bascule prod) + F   ⏳ (session dédiée)
 - Pas 14 — Test final en conditions prof        ⏳
 
@@ -115,11 +116,25 @@ Pourquoi : base quasi vide aujourd'hui → presque rien à migrer, c'est le bon 
 | **9** | Adapter le système de migrations (baseline PostgreSQL) | ✅ fait (F → Pas 13) |
 | **10** | Tout tester en local sur PostgreSQL | ✅ fait (tests auto / étage 1 — Claude) |
 | **11** | Corriger les textes d'écran (« SQLite » → « PostgreSQL ») | ✅ fait |
-| **12** | Test local par l'admin (`run.ps1`), en conditions réelles | 🔴 ← je suis ici (prochain) |
+| **—** | 4e passe — vérification zéro dur : relire le code, prouver qu'il ne reste plus rien d'écrit en dur (tout le métier généré depuis les référentiels, stocké en base, enrichi par les profs) | ⏳ verrou obligatoire avant de reprendre le Pas 12 |
+| **12** | Test local par l'admin (`run.ps1`), en conditions réelles | ⏸️ EN PAUSE (voir chantier ci-dessous) |
 | **13** | **Déploiement sur le VPS** (sauvegarde avant, bascule prod) + retrait du runner maison (F) | ⏳ à venir (session dédiée) |
 | **14** | **TON test en vrai, en conditions prof** (juge de paix) | ⏳ à venir |
 
 Quand le Pas 14 est validé → le Niveau 1 est **terminé**, on passe au Niveau 2.
+
+### ⏸️ PAS 12 EN PAUSE — chantier en cours : « Référentiel → matières + chunks » 🔴 ← je suis ici
+
+7 étapes (une par une, avec GO) :
+1. Téléverser le PDF du référentiel + extraire le texte.
+2. Extraire une proposition de matières (LLM, lecture seule).
+3. Créer / désactiver une matière (brique backend manquante).
+4. Garde-fou : aucune disponibilité d'un niveau sans référentiel validé (conséquence de la validation, jamais un interrupteur libre).
+5. Enregistrer le couple validé (matières + couples + ligne `referentiels` + mise à disposition du niveau).
+6. Fabriquer les chunks de façon générique (ChromaDB) — mini-conception dédiée avant de coder.
+7. Écran admin « Référentiels » (téléverser → relire → valider).
+
+Reprise du Pas 12 une fois ce chantier livré.
 
 #### Tâches en attente du Niveau 1 (repérées au Pas 7, à traiter au moment dit)
 
@@ -134,7 +149,6 @@ Quand le Pas 14 est validé → le Niveau 1 est **terminé**, on passe au Niveau
 Mettre en base tout ce que l'audit ci-dessous a marqué « en dur » et qui doit y vivre (types d'activité, ~140 prompts, listes de référence, contenu éditorial…), directement dans la bonne base. Réparer au passage les 2 orphelins cassés et le vote fantôme (voir §5).
 
 ---
-#### Avant d'attaquer ce point -REFAIRE UNE 4em PASSE pour est coforme suite aux derniers changements de code
 > **Document de référence.** Issu de trois passes d'audit successives (1 → rapide, 2 → exhaustif, 3 → clôture sans trou). Ce fichier conserve **l'audit final complet (passe 3)** comme corps, précédé de la **preuve de couverture (passe 2)**. Les passes 1 et 2 étaient des versions intermédiaires, intégralement absorbées par la passe 3 ; seule leur section « méthode / couverture » est conservée ci-dessous car elle prouve l'exhaustivité.
 >
 > Date de consolidation : 26 juin 2026.

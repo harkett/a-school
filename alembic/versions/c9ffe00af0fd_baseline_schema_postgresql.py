@@ -57,7 +57,6 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('nom', sa.String(length=64), nullable=False),
     sa.Column('ordre', sa.Integer(), nullable=False),
-    sa.Column('categorie', sa.String(length=20), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('nom')
     )

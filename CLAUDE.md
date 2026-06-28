@@ -51,7 +51,7 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 |---|---|
 | Backend | FastAPI — `backend/main.py` — port 8001 (local, cohabitation) / 8001 (VPS) |
 | Frontend | React + Vite — `frontend/` — port 5173 |
-| BDD | SQLite (local + VPS) |
+| BDD | SQLite (local + VPS) aujourd'hui — **moteur cible : PostgreSQL** (décidé 27/06, renverse sciemment le « rester SQLite » du 25/06 ; migration pas encore faite, cap décidé) |
 | IA | Groq API — `llama-3.3-70b-versatile` |
 | Dictée | Groq Whisper API — batch `whisper-large-v3` (streaming Deepgram gelé sur `wip/deepgram-streaming`) |
 | Auth profs | email + bcrypt + JWT (python-jose) + httpOnly cookies |
@@ -484,7 +484,7 @@ pas de tout boucler en une fois — intenable sur un chantier de semaines.
 ## Règles UI permanentes
 
 - **Profil = source unique** pour matière et niveau. Jamais de `<select>` matière/niveau dans les features — toujours lire depuis le profil.
-- **Aucune liste de référence en dur dans le frontend.** Les matières — et toute liste de référence (niveaux, cycles…) — se lisent depuis la base via l'API, jamais une liste codée en dur dans un composant. Pour les matières : hook `useMatieres` → `GET /api/matieres?categorie=secondaire`. Une liste en dur se périme en silence le jour où la donnée bouge. (Règle née 15/06/2026, P5.10 : 8 écrans dupliquaient la même liste de 12 matières.)
+- **Aucune liste de référence en dur dans le frontend.** Les matières — et toute liste de référence (niveaux, cycles…) — se lisent depuis la base via l'API, jamais une liste codée en dur dans un composant. Pour les matières : hook `useMatieres` → `GET /api/matieres`. Une liste en dur se périme en silence le jour où la donnée bouge. (Règle née 15/06/2026, P5.10 : 8 écrans dupliquaient la même liste de 12 matières.)
 - **Bouton d'action principale** = classe `btn-primary` + icône SVG + `title=` tooltip + positionné en bas à droite. Référence : bouton "Générer l'activité" dans `Parametres.jsx`.
 - **Header** : `height: 65px`, `overflow: hidden`. **Logo** : `height: 140px`. INTOUCHABLES.
 - **Tagline** "Générateur d'activités pédagogiques" = `<span>` HTML blanc dans le header, toujours présent, jamais dans le PNG seul.

@@ -246,10 +246,6 @@ class Cycle(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Catégorie du cycle (famille) : 'secondaire' (Collège, Lycée) · 'superieur' · 'creche'
-    # · 'primaire' · 'maternelle'. Sert à dériver « les matières classiques » par jointure
-    # (categorie='secondaire'), au lieu des listes en dur recopiées dans le frontend.
-    categorie: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class Niveau(Base):
