@@ -47,14 +47,13 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 
 ## 🚫 PRÉREQUIS DÉPLOIEMENT — à faire AVANT tout `deploy.ps1`
 
-> Migration `user_email → user_id` : **dev = ✅ prouvée** (commits expand + contract, comptes préservés, FK posées, `foreign_key_check` vide, pytest 19/19). **Prod = pas encore intégrée.**
+> Migration `user_email → user_id` : **bascule de structure FAITE ✅** — la base PostgreSQL et la baseline Alembic (`c9ffe00af0fd_baseline_schema_postgresql.py`) sont nées directement sur `user_id` (les 10 tables filles ont `user_id`, aucune n'a plus `user_email`) ; code aligné (`deps.py:9` n'en garde que le nom du chantier, en commentaire). L'ancien mécanisme SQLite — runner maison `run_migrations.py` + fichiers `.sql` — est **abandonné** : dossier `migrations/` supprimé le 29/06 (résidu SQLite).
 
 | St | Tâche | Détail |
 |---|---|---|
-| ☐ | **Intégration prod de la migration `user_email → user_id`** — (1) brancher `run_migrations.py` dans `deploy/deploy.sh` (après `git pull`, **avant** le `restart systemd`) ; (2) garde-fou prod : **backup de la base + COUNT orphelins rédhibitoire** (no-go si > 0) **avant** tout DROP | pourquoi impératif + preuve exigée → **A1** |
+| ☐ | **Transfert des données de prod vers le schéma `user_id`** — relève désormais du **Pas 13** (bascule prod SQLite → PostgreSQL, cf. `MesMD/AUDIT-EN-BASE-VS-EN-DUR.md`), **plus** du vieux runner. Garde-fou maintenu pour ce pas : **backup de la base + COUNT orphelins rédhibitoire (no-go si > 0)** avant la bascule. | besoin de fond conservé, déplacé → Pas 13 |
 
-> **Règle dure : aucun `deploy.ps1` / déploiement prod tant que cette ligne n'est pas faite ET prouvée.**
-> Ordre : on ne câble la prod qu'**après** la migration dev prouvée — c'est acquis, mais la ligne reste différée par décision de l'utilisateur.
+> **Règle dure : aucun `deploy.ps1` / déploiement prod tant que le transfert des données prod (Pas 13) n'est pas fait ET prouvé.**
 
 ---
 

@@ -51,7 +51,7 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 |---|---|
 | Backend | FastAPI — `backend/main.py` — port 8001 (local, cohabitation) / 8001 (VPS) |
 | Frontend | React + Vite — `frontend/` — port 5173 |
-| BDD | SQLite (local + VPS) aujourd'hui — **moteur cible : PostgreSQL** (décidé 27/06, renverse sciemment le « rester SQLite » du 25/06 ; migration pas encore faite, cap décidé) |
+| BDD | **PostgreSQL** (psycopg, port 5433) — moteur **unique** ; SQLite **banni** (garde-fou `backend/database.py` qui refuse de démarrer sans `DATABASE_URL` PostgreSQL ; tests sur base dédiée `aschool_test` via `conftest.py`, 3 verrous). pgvector pour le RAG. |
 | IA | Groq API — `llama-3.3-70b-versatile` |
 | Dictée | Groq Whisper API — batch `whisper-large-v3` (streaming Deepgram gelé sur `wip/deepgram-streaming`) |
 | Auth profs | email + bcrypt + JWT (python-jose) + httpOnly cookies |

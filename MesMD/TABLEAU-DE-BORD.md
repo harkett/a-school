@@ -124,8 +124,9 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [47](#item-47) | Éditer les réponses du résultat généré | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
 | [48](#item-48) | Texte source éditable après génération | à scorer | à scorer | à scorer | à scorer | PRODUIT / Résultat généré — à cadrer | — |
 | [49](#item-49) | Migration moteur SQLite → PostgreSQL (renverse le 25/06) | à cadrer | à scorer | à scorer | à scorer | **DÉCIDÉ — Niveau 1 (moteur cible PostgreSQL, 27/06)** ; migration non encore faite | — |
-| [50](#item-50) | Dette : 4 tests rouges préexistants (1 catalogue `test_activites_ciel` + 3 RAG `test_exemple_referentiel`) | à cadrer | — | — | — | DETTE — hors migration moteur, à traiter à part (constaté 27/06) | — |
+| [50](#item-50) | Dette : tests rouges préexistants — **3/4 fermés le 29/06** (les 3 RAG `test_exemple_referentiel` passent au vert avec le branchement pgvector de l'étape 5) ; reste **1** : le catalogue `test_activites_ciel` (`'comprehension'` vs `'gen_comprehension'`) | à cadrer | — | — | — | DETTE — reste le rouge catalogue (constaté 27/06, MAJ 29/06) | — |
 | [51](#item-51) | Moteur de granularisation des notions — couche de connaissance (12 briques) | à scorer | à scorer | à scorer | à scorer | FUTUR / socle — détail D49 | [D49](BOUSSOLE/D49.md) |
+| [52](#item-52) | Revoir la page admin de récupération du référentiel (Lien / Dépôt + 3e voie « IA propose ») | à scorer | à scorer | à scorer | à scorer | PRODUIT / Admin — à cadrer | — |
 
 ---
 
@@ -600,6 +601,10 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **51 — Moteur de granularisation des notions (couche de connaissance, 12 briques)** | FUTUR / socle — à cadrer | à scorer
   *Couche de connaissance sous-jacente : pour chaque notion, une carte détaillée (micro-notions, ordre, erreurs typiques, ambiguïtés, effort cognitif, activités compatibles) EXTRAITE du référentiel officiel + validée prof — jamais sur un élève nommé (ligne rouge RGPD). Nourrit les outils existants (Détecteur d'ambiguïtés, Différenciation/Remédiation, catalogue, Séquences), pas un outil de plus. Spec complète des 12 briques (8 cœur + 4 futures) ; brique 1 (Découpage) = racine. Dispatch en cours depuis le tracker éphémère TRACKER_NOTIONS_SCOLAIRES.md. Détail → D49.*
   → [D49](BOUSSOLE/D49.md)
+
+<a id="item-52"></a>
+- [ ] **52 — Revoir la page admin de récupération du référentiel** | PRODUIT / Admin — à cadrer | à scorer
+  *La page de réception d'un référentiel (`backend/routers/referentiels_admin.py`, `frontend/src/pages/AdminReferentiels.jsx`) offre aujourd'hui deux méthodes qui aboutissent au même PDF : **Par lien** (téléchargement httpx d'une URL — `referentiels_admin.py:92`) et **Par dépôt** (upload du fichier — `:102-105`). Constat (Harketti) : le Lien n'apporte quasi rien de plus que le Dépôt — du confort, pas de la valeur. Une **3e voie est actée mais NON codée** : « l'IA propose le PDF officiel, l'admin valide » (`REFERENTIELS/README.md:24`, P1, 26/06 ; `referentiels_admin.py:8` : « pas de recherche web automatique… palier suivant »). **Verdict tranché (Harketti + Claude, 29/06) : tant que cette récupération par IA n'est PAS adossée à une VRAIE recherche web (outil réel, pas une URL devinée de mémoire par le modèle = hallucination), elle est SANS VALEUR** — un LLM seul fabrique des liens plausibles mais faux ou morts. Angle à creuser le jour venu : fournir le **LIEN vers la source officielle** (éduscol / Bulletin Officiel) plutôt que télécharger, MAIS même problème de fiabilité sans vraie recherche, + arbitrage **stabilité** (PDF figé) vs **fraîcheur** (lien vivant mais fragile). Plus largement, cette page a **beaucoup à revoir** — chantier « comment l'améliorer » à ouvrir plus tard. **Distinct de l'item 44** (« Encoder » = ingestion/vectorisation autonome EN AVAL) : ici c'est la RÉCEPTION du PDF EN AMONT. Idée notée 29/06, rien à coder — on pose juste le repère pour ne pas perdre l'idée.*
 
 ---
 
