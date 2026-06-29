@@ -21,10 +21,70 @@
       "Bash(git -C \"D:\\\\A-SCHOOL\" ls-files frontend/public/ Logo_aSchool/)",
       "Bash(git -C \"D:\\\\A-SCHOOL\" show HEAD:frontend/src/components/Sidebar.jsx)",
       "Bash(git -C \"D:\\\\A-SCHOOL\" checkout HEAD -- frontend/src/)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(echo \"global name: $\\(git config --global --get user.name\\)\")",
+      "Bash(echo \"global email: $\\(git config --global --get user.email\\)\")",
+      "Bash(echo \"global name : $\\(git config --global --get user.name\\)\")",
+      "Bash(echo \"local name  : '$\\(git config --local --get user.name\\)'  \\(doit être vide → vient désormais du global\\)\")",
+      "Bash(git commit -m 'docs\\(cr\\): requalifie le gel des push comme décision assumée \\(pas une paralysie\\) *)",
+      "Bash(git log *)",
+      "WebFetch(domain:console.groq.com)",
+      "Bash(.venv/Scripts/python.exe -)",
+      "Bash(git branch *)",
+      "Bash(git rm *)",
+      "Bash(.venv/Scripts/python.exe -c \"import backend.main; print\\('BOOT OK — routers montés, aucun import cassé'\\)\")",
+      "PowerShell(git rm frontend/src/hooks/useTranscribeStream.js)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import pytest, httpx, fastapi.testclient; print\\('pytest', pytest.__version__\\); print\\('httpx', httpx.__version__\\); print\\('TestClient OK'\\)\")",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import httpx; print\\('httpx', httpx.__version__\\)\")",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"from fastapi.testclient import TestClient; print\\('TestClient import OK'\\)\")",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe test_transcribe.py)",
+      "PowerShell(try { $h = Invoke-RestMethod -Uri \"http://localhost:8000/api/health\" -TimeoutSec 5; Write-Output \"BACKEND UP: $\\($h | ConvertTo-Json -Compress\\)\" } catch { Write-Output \"BACKEND INJOIGNABLE sur :8000 — $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ Port=$_.LocalPort; PID=$_.OwningProcess; Process=$p.ProcessName; Path=$p.Path; Started=$p.StartTime } } | Format-List; Write-Output \"---- ports 5173 / 8001 ----\"; Get-NetTCPConnection -LocalPort 5173,8001 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ Port=$_.LocalPort; PID=$_.OwningProcess; Process=$p.ProcessName } } | Format-List)",
+      "PowerShell(foreach \\($port in @\\(8002,8003,8080,8888\\)\\) { $busy = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if \\($busy\\) { Write-Output \"$port : OCCUPE \\(PID $\\($busy.OwningProcess\\)\\)\" } else { Write-Output \"$port : LIBRE\" } })",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\uvicorn.exe backend.main:app --port 8001)",
+      "PowerShell($b = Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue; if \\($b\\) { \"8001 : encore OCCUPE \\(PID $\\($b.OwningProcess\\)\\)\" } else { \"8001 : LIBRE\" })",
+      "PowerShell(Write-Output \"==== git status ====\"; git status --short; Write-Output \"`n==== port 8001 \\(mon backend bg doit etre arrete\\) ====\"; $b = Get-NetTCPConnection -LocalPort 8001 -State Listen -ErrorAction SilentlyContinue; if \\($b\\) { \"8001 OCCUPE PID $\\($b.OwningProcess\\)\" } else { \"8001 LIBRE\" }; Write-Output \"`n==== vite.config proxy \\(la modif port doit etre la\\) ====\"; Select-String -Path frontend/vite.config.js -Pattern \"VITE_API_PORT\" | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell($errs = $null; [void][System.Management.Automation.Language.Parser]::ParseFile\\(\"D:\\\\A-SCHOOL\\\\Scripts\\\\run.ps1\", [ref]$null, [ref]$errs\\); if \\($errs\\) { Write-Output \"ERREURS DE SYNTAXE :\"; $errs | ForEach-Object { $_.Message } } else { Write-Output \"SYNTAXE OK\" })",
+      "PowerShell(git add Scripts/run.ps1 frontend/vite.config.js)",
+      "PowerShell(git add MesAdmin/DIFFUSION_ASCHOOL.md MesAdmin/EMAIL_PILOTES.md MesAdmin/PLAN_LANCEMENT_ASCHOOL.md MesMD/BOUSSOLE/D08.md)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\harketti\\\\AppData\\\\Local\\\\Temp\\\\phase0_pisteB.py\" 2>$null)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe \"C:\\\\Users\\\\harketti\\\\AppData\\\\Local\\\\Temp\\\\phase0_persistence.py\" 2>$null)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe test_endpoints_coeur.py 2>$null)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\pip.exe install pytest --quiet --disable-pip-version-check)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import pytest; print\\('pytest', pytest.__version__, 'installe'\\)\")",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -m pytest 2>$null)",
+      "PowerShell(git add test_endpoints_coeur.py test_transcribe.py pytest.ini requirements.txt)",
+      "PowerShell(git mv test_smtp.py smtp_check.py)",
+      "PowerShell(if \\($?\\) { \"renomme: test_smtp.py -> smtp_check.py\" })",
+      "PowerShell(git add pytest.ini smtp_check.py test_smtp.py)",
+      "PowerShell(git add pytest.ini)",
+      "PowerShell(git commit --amend --no-edit)",
+      "PowerShell(git add frontend/src/utils/activites.js frontend/src/utils/activites.test.js frontend/src/App.jsx)",
+      "PowerShell(git add MesMD/BACKLOG.md)",
+      "Bash(ssh ubuntu@83.228.245.163 \"sudo nginx -T 2>/dev/null | grep -n -iE 'server_name|return 301|rewrite|school.afia'\")",
+      "Bash(ssh-keygen -F 83.228.245.163)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(ssh-keyscan -t ed25519,rsa 83.228.245.163)",
+      "Bash(ssh -o BatchMode=yes ubuntu@83.228.245.163 \"sudo nginx -T 2>/dev/null | grep -n -iE 'server_name|return 301|rewrite|school.afia'\")",
+      "PowerShell(ssh ubuntu@83.228.245.163 \"sudo nginx -T 2>/dev/null | grep -n -iE 'server_name|return 301|rewrite|school.afia'\")",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.ssh\" -Force | Select-Object Name, Length; \"--- agent ---\"; Get-Service ssh-agent | Select-Object Status, StartType)",
+      "PowerShell(ssh-add -l 2>&1; \"exit=$LASTEXITCODE\")"
     ],
     "additionalDirectories": [
-      "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL"
+      "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",
+      "C:\\Users\\harketti\\AppData\\Local\\Temp"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PROJECT_DIR:-/d/A-SCHOOL}/.claude/rappel-faire-completement.txt\" 2>/dev/null || true"
+          }
+        ]
+      }
     ]
   }
 }

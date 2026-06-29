@@ -25,17 +25,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
+# engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.database as dbmod
-_mem = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-dbmod.engine = _mem
-dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_mem)
-
-from backend import models_db
-models_db.Base.metadata.create_all(bind=_mem)
 
 from backend.main import app
 from backend.auth import create_access_token
@@ -43,8 +34,6 @@ import src.generator as gen
 import backend.groq_client as gc
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-
-assert "memory" in str(dbmod.engine.url), "SECURITE: engine non redirige vers la memoire"
 
 TOKEN = create_access_token("prof.test@aschool.fr")
 

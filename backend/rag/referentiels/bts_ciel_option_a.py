@@ -21,10 +21,10 @@ from typing import Any, Optional
 
 # --- Source : BTS CIEL option A ---
 _ROOT = Path(__file__).resolve().parents[3]
-PDF_PATH = _ROOT / "REFERENTIELS" / "BTS-CIEL-option-A" / "15324-ref-bts-ciel-vpub-v01.pdf"
+PDF_PATH = _ROOT / "REFERENTIELS" / "BTS_CIEL_OPTION_A" / "referentiel.pdf"
 EXTRACTION_TXT = PDF_PATH.parent / "extraction-texte.txt"
 
-COLLECTION = "bts_ciel_optionA"
+COLLECTION = "bts_ciel_option_a"
 NIVEAU = "BTS CIEL option A"          # non négociable — posé sur CHAQUE chunk
 SOURCE = "REF-BTS-CIEL-2023"
 

@@ -1,7 +1,7 @@
 """Preuve de raccordement — Slice 1 du Chantier B (référentiel BTS CIEL → RAG).
 
 Ce que le test PROUVE (pas « le code existe » — la chaîne réelle donne le bon résultat) :
-  1. La collection `bts_ciel_optionA` existe et est peuplée depuis le PDF officiel.
+  1. La collection `bts_ciel_option_a` existe et est peuplée depuis le PDF officiel.
   2. NON NÉGOCIABLE : chaque chunk porte le bon `niveau` dès l'ingestion
      (jamais un corpus sans niveau qui mélangerait plusieurs référentiels).
   3. La fonction générique `retrieve()` remonte bien du CIEL pour une requête du
@@ -28,7 +28,7 @@ sys.path.insert(0, ROOT)
 from backend.rag.client import get_client
 from backend.rag import retrieve
 
-COLLECTION = "bts_ciel_optionA"
+COLLECTION = "bts_ciel_option_a"
 NIVEAU = "BTS CIEL option A"
 SOURCE_CIEL = "REF-BTS-CIEL-2023"
 

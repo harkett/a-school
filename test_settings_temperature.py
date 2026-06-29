@@ -26,18 +26,8 @@ sys.path.insert(0, ROOT)
 
 from unittest.mock import MagicMock, patch
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-# --- BDD SQLite EN MEMOIRE avant d'importer l'app (la vraie data/aschool.db jamais ouverte) ---
+# engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.database as dbmod
-_mem = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-dbmod.engine = _mem
-dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_mem)
-
-from backend import models_db
-models_db.Base.metadata.create_all(bind=_mem)
 
 from backend.main import app
 from backend.auth import create_access_token
@@ -47,8 +37,6 @@ from backend.routers.admin import (
 )
 import src.generator as gen
 from fastapi.testclient import TestClient
-
-assert "memory" in str(dbmod.engine.url), "SECURITE: engine non redirige vers la memoire"
 
 TOKEN = create_access_token("prof.test@aschool.fr")
 

@@ -4,7 +4,7 @@ Usage :
     from backend.rag import retrieve
 
     chunks = retrieve(
-        collection_name="bts_ciel_optionA",
+        collection_name="bts_ciel_option_a",
         question="Installer et securiser un reseau informatique",
         filters={"option": "A"},
         top_k=4,
@@ -30,7 +30,7 @@ def retrieve(
     """Recherche les chunks les plus pertinents pour une question.
 
     Args:
-        collection_name: nom de la collection ChromaDB (ex: "bts_ciel_optionA").
+        collection_name: nom de la collection ChromaDB (ex: "bts_ciel_option_a").
         question: question prof a embedder et chercher.
         filters: filtres sur les metadonnees. Format ChromaDB `where`.
                  None ou {} = pas de filtre.

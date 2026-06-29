@@ -23,25 +23,13 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-# --- BDD SQLite EN MEMOIRE avant d'importer l'app ---
+# engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.database as dbmod
-_mem = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-dbmod.engine = _mem
-dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_mem)
-
-from backend import models_db
-models_db.Base.metadata.create_all(bind=_mem)
 
 from backend.main import app
 from backend.models_db import Setting
 from backend.routers.admin import _make_admin_token, SUPPORTED_AI_MODELS, get_ai_model
 from fastapi.testclient import TestClient
-
-assert "memory" in str(dbmod.engine.url), "SECURITE: engine non redirige vers la memoire"
 
 VALID = SUPPORTED_AI_MODELS[0]
 

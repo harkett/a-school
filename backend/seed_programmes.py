@@ -116,10 +116,10 @@ DIPLOMES = [
         ],
         "referentiel": {
             "matiere":    None,            # None = le référentiel couvre TOUT le niveau
-            "nom_fixe":   "bts_ciel_optionA",
-            "collection": "bts_ciel_optionA",
+            "nom_fixe":   "bts_ciel_option_a",
+            "collection": "bts_ciel_option_a",
             "filtres":    '{"option":"A"}',
-            "fichier":    "15324-ref-bts-ciel-vpub-v01.pdf",
+            "fichier":    "referentiel.pdf",
             "source":     "REF-BTS-CIEL-2023",
             "date_doc":   "2023",
         },

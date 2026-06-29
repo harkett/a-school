@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func
 from sqlalchemy.orm import Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
 
 from backend.database import Base
 
@@ -292,8 +293,7 @@ class UserEnseignement(Base):
 class Referentiel(Base):
     """Référentiel officiel d'un couple → collection ChromaDB + filtres de retrieval.
 
-    Schéma aligné sur PostgreSQL (Pas 6) : id en IDENTITY, created_at DateTime/func.now() —
-    diffère désormais de la migration 012 SQLite d'origine (AUTOINCREMENT, datetime('now')).
+    Schéma PostgreSQL : id en IDENTITY, created_at DateTime/func.now().
     Clé d'identification = le COUPLE (niveau_id, matiere_id), jamais niveau_id seul.
     matiere_id NULL = le référentiel couvre TOUT le niveau (toutes ses matières)."""
     __tablename__ = "referentiels"
@@ -308,4 +308,30 @@ class Referentiel(Base):
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class ReferentielChunk(Base):
+    """Chunk d'un référentiel + son embedding (RAG sur PostgreSQL/pgvector — remplace ChromaDB).
+
+    niveau/source NON dupliqués : récupérés par jointure via referentiel_id (cap relationnel).
+    embedding_model = garde-fou : interdit de comparer un jour des vecteurs de modèles différents.
+    Aligné strictement sur la migration b7e4c1a90f23."""
+    __tablename__ = "referentiel_chunks"
+    __table_args__ = (
+        Index("ix_referentiel_chunks_referentiel_id", "referentiel_id"),
+        Index("ix_referentiel_chunks_ref_option", "referentiel_id", "option_ab"),
+        Index("ix_referentiel_chunks_embedding_hnsw", "embedding",
+              postgresql_using="hnsw", postgresql_ops={"embedding": "vector_cosine_ops"}),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    option_ab: Mapped[str] = mapped_column(Text, nullable=False)
+    page: Mapped[int] = mapped_column(Integer, nullable=False)
+    texte: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)
+    embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

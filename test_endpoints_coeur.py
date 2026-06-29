@@ -9,7 +9,7 @@ Couverture (choix (b) : happy path + cas d'erreur connus) :
   - validation: 400 (entrée vide / invalide) et 422 (champ requis manquant)
   - résilience : panne LLM amont -> 502 (/api/generate) / 500 (outils via generate())
 
-Garde-fous : BDD SQLite EN MÉMOIRE (la vraie data/aschool.db n'est jamais ouverte),
+Garde-fous : BDD de test PostgreSQL dédiée (aschool_test, via conftest.py — jamais la base dev),
 user de test fictif, JWT signé via create_access_token (secret jamais exposé).
 Verrouille l'existant contre une régression — n'introduit aucun comportement nouveau.
 """
@@ -23,24 +23,12 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
-# --- Rediriger la BDD vers une SQLite EN MÉMOIRE avant d'importer l'app ---
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
+# engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.database as dbmod
-_mem = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-dbmod.engine = _mem
-dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_mem)
-
-from backend import models_db
-models_db.Base.metadata.create_all(bind=_mem)
 
 from backend.main import app
 from backend.auth import create_access_token
 from fastapi.testclient import TestClient
-
-assert "memory" in str(dbmod.engine.url), "SECURITE: engine non redirige vers la memoire"
 
 TOKEN = create_access_token("filet-test@local.test")
 
