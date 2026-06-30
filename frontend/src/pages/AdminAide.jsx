@@ -112,7 +112,6 @@ const SECTIONS = [
           '— Enveloppe : envoyer un e‑mail personnalisé à ce prof (objet + corps, avec variables {prenom} et {email}).',
           '— Corbeille : supprimer définitivement le compte et toutes ses données (activités, feedbacks, tokens). Irréversible.',
         ],
-        astuce: 'Le compte demo@aschool.fr est le compte système qui héberge les 24 activités d\'exemple de la Bibliothèque. Désactiver ce compte masque instantanément tous les exemples pour tous les profs. Le réactiver les fait réapparaître. C\'est le seul mécanisme pour piloter l\'affichage des exemples.',
       },
       {
         titre: 'Mail groupé',

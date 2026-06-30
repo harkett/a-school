@@ -119,13 +119,8 @@ export default function MonReseau({ onCharger, sessionMatiere, sessionNiveau }) 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-gray-800 truncate">
-                      {a.objet ? a.objet.replace(/^\[Exemple\]\s*/, '') : a.activite_label}
+                      {a.objet || a.activite_label}
                     </span>
-                    {a.partagee_par === 'Équipe aSchool' && (
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 99, padding: '1px 7px', flexShrink: 0 }}>
-                        Exemple
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1 flex-wrap mt-0.5">
                     <span className="text-xs text-gray-400">{a.activite_label}</span>

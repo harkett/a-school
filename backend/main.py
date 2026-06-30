@@ -107,18 +107,6 @@ app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
 app.include_router(referentiels_admin.router, prefix="/api")
 
-# Seed exemples au démarrage (idempotent)
-try:
-    from backend.seed_exemples import run_seed
-    from backend.database import SessionLocal as _SL
-    _db = _SL()
-    try:
-        run_seed(_db)
-    finally:
-        _db.close()
-except Exception as _e:
-    print(f"⚠️  Seed exemples ignoré : {_e}")
-
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "aSchool API"}
