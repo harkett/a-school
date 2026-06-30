@@ -2,6 +2,7 @@
 
 ## ON EN EST LÀ
 - 🔄 **En cours :** remise en cohérence des docs de pilotage ([CHANTIER_COHERENCE.md](CHANTIER_COHERENCE.md), éphémère) — §3 TABLEAU fait (commit `1dd6cc7`), §4 TRACKER en cours.
+- 🧹 **Parenthèse ménage (30/06) :** cailloux 1·2·3·4·7 faits — restent **5** (matières en dur depuis le référentiel ; ⚠️ `seed_programmes.py` désaligné, à traiter en premier) et **6** (état réel des vecteurs en base, PostgreSQL à allumer).
 - ⏳ **En attente de :** rien.
 - ⏭️ **Prochaine :** à arbitrer (l'ordre t'appartient) — reprendre la refonte pro du back-office + procédure CIEL, et/ou la suite de la réforme (Phase 4 administrable, Phases 5-6). Horizon 1 **clos** (restent P4.8/P4.9 cosmétiques, différés).
 - ✅ **Dernière chose réellement finie :** **réforme moteur LLM + RAG** (Phases 0→3, base CIEL définitive 236 chunks) + **Phase 4 administrable** 4.1.a/b/c + **chantier fournisseurs** e.0→e.4 (suspendu) — **tout poussé**. Détail → [TRACKER_REFORME.md](TRACKER_REFORME.md) / [TRACKER_FOURNISSEURS_IA.md](TRACKER_FOURNISSEURS_IA.md). Puis §3 du chantier cohérence.
