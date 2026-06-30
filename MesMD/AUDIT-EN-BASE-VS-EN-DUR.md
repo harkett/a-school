@@ -27,7 +27,7 @@
 - Pas 9  — Système de migrations (Alembic)      ✅ (F déplacé au Pas 13)
 - Pas 10 — Tout tester en local sur PostgreSQL  ✅ (tests auto / étage 1 — Claude)
 - Pas 11 — Corriger les textes d'écran          ✅
-- 4e passe — vérification zéro dur               ⏳ verrou obligatoire avant de reprendre le Pas 12
+- 4e passe — relecture de NON-RÉGRESSION post-migration   ✅ faite le 30/06 (aucun dur métier neuf ; §3 enrichi du Bucket 4) — reste, avant le Pas 12 : le chantier « Référentiel → matières » (caillou 5)
 - Pas 12 — Test local par l'admin (run.ps1)     ⏸️ EN PAUSE — chantier « Référentiel → matières + chunks » ouvert
 - Pas 13 — Déploiement VPS (bascule prod) + F   ⏳ (session dédiée)
 - Pas 14 — Test final en conditions prof        ⏳
@@ -50,6 +50,7 @@
 > - **Quand** : la progression est mise à jour **à la FIN de chaque pas validé** (et de chaque niveau), **pas en continu**.
 > - **Comment** : chaque mise à jour est **montrée en avant/après AVANT d'être écrite**.
 > - **Périmètre** : CC maintient les **faits et la progression** ; il ne touche **pas la doctrine ni la structure** sans demande explicite.
+> - **Origine tracée des exigences (règle absolue)** : ce document est le doc PILOTE de l'utilisateur, mais c'est **CC** qui le maintient. Donc **toute exigence, tout « verrou » ou prérequis** qui y apparaît doit avoir une **origine tracée = une décision de l'utilisateur**. Une ligne posée sans décision de l'utilisateur est un **artefact à signaler**, jamais une règle — et ne doit **jamais mettre une étape en pause en silence**. (Né le 30/06/2026 : le « verrou 4e passe » avait été forgé par CC depuis la doctrine, sans décision tracée, et figeait le Pas 12.)
 
 ---
 
@@ -116,7 +117,7 @@ Pourquoi : base quasi vide aujourd'hui → presque rien à migrer, c'est le bon 
 | **9** | Adapter le système de migrations (baseline PostgreSQL) | ✅ fait (F → Pas 13) |
 | **10** | Tout tester en local sur PostgreSQL | ✅ fait (tests auto / étage 1 — Claude) |
 | **11** | Corriger les textes d'écran (« SQLite » → « PostgreSQL ») | ✅ fait |
-| **—** | 4e passe — vérification zéro dur : relire le code, prouver qu'il ne reste plus rien d'écrit en dur (tout le métier généré depuis les référentiels, stocké en base, enrichi par les profs) | ⏳ verrou obligatoire avant de reprendre le Pas 12 |
+| **—** | 4e passe — relecture de NON-RÉGRESSION post-migration : prouvé que la bascule PostgreSQL (pas 1-11, cœur + user_id) n'a introduit AUCUN nouveau dur ; le §3 a été enrichi (Bucket 4) et requalifié (§7 non exhaustif). Le zéro-dur complet reste l'objectif du **Niveau 2**. | ✅ faite le 30/06 (non-régression prouvée) |
 | **12** | Test local par l'admin (`run.ps1`), en conditions réelles | ⏸️ EN PAUSE (voir chantier ci-dessous) |
 | **13** | **Déploiement sur le VPS** (sauvegarde avant, bascule prod) + retrait du runner maison (F) | ⏳ à venir (session dédiée) |
 | **14** | **TON test en vrai, en conditions prof** (juge de paix) | ⏳ à venir |
@@ -215,7 +216,7 @@ Un second jeu de prompts (les **outils** : ambiguïtés, consigne, séquence, op
 | 8 | Statuts feedback + transitions (front+back) | `admin.py:294` + `feedback.py:29` + `MesFeedbacks.jsx:10-16` | ❌ |
 | 9 | Statuts fiches (brouillon/publie/a_reviser) — option en dur = valeurs du modèle | `AdminFiches.jsx:197-199` | ❌ |
 | 10 | Durées de séquence `{30,45,50,55,60,90,120}` (front+back) | `sequence.py:14` + `SequenceForm.jsx:5` | ❌ |
-| 11 | Catégories de maintenance BDD | `maintenance.py:20` | ❌ |
+| 11 | Catégories de maintenance BDD | `maintenance.py:17` | ❌ |
 | 12 | IDs des modèles IA non-texte (Whisper, embeddings, OCR) — *le texte, lui, est en base* | `groq_client.py:7`, `embeddings.py:15`, `generator.py:140` | ❌ |
 
 ### Bucket 2 — Prompts / templates en dur (contenu généré ou éditorial)
@@ -234,9 +235,31 @@ Un second jeu de prompts (les **outils** : ambiguïtés, consigne, séquence, op
 
 ### Bucket 3 — EN DUR à juste titre (config / infra / style — NE PAS mettre en base) ✅
 
-- **Secrets & infra :** `SECRET_KEY`, durées tokens, lockout (`auth.py:17-22`) · `DATABASE_URL` (dans `.env` depuis le Pas 4 — `database.py` la lit via `os.getenv`, défaut SQLite ; plus « en dur ») · défauts LLM `.env` (`config.py`) · cookies / algos JWT · bornes max_tokens/température · limites upload/audio/MIME (`feedback.py`, `transcribe.py`).
+- **Secrets & infra :** `SECRET_KEY`, durées tokens, lockout (`auth.py:17-22`) · `DATABASE_URL` (dans `.env` — `database.py` la lit via `os.getenv` et REFUSE de démarrer si elle est absente ou pointe SQLite : `raise RuntimeError`, `database.py:9-13` ; plus de « défaut SQLite » depuis la bascule PostgreSQL) · défauts LLM `.env` (`config.py`) · cookies / algos JWT · bornes max_tokens/température · limites upload/audio/MIME (`feedback.py`, `transcribe.py`).
 - **Navigation / structure UI :** `NAV_ITEMS` (`AdminLayout.jsx:12`), pages Sidebar.
 - **Style :** toutes les constantes couleurs/CSS (`TYPE_COLOR`, `SCORE_COLORS`, `HR`, `S`, `UL`…) sur tout le front.
+
+### Bucket 4 — Durs repérés à la 4e passe (30/06/2026), non listés aux passes 1-3 ⚠️
+
+> Trouvés par grep des constantes-listes/dicts au niveau module (même balayage que la 4e passe de non-régression). Même limite que le §7 : ce grep ne voit ni les durs inline ni les listes en minuscules. (Volontairement sans numéro : la numérotation #1-21 ci-dessus télescope déjà avec les items du réservoir.)
+
+| Élément | Fichier:ligne | Note |
+|---|---|---|
+| `SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]` (whitelist modèle texte) | `admin.py:93` | nouveau |
+| `SUPPORTED_AI_PROVIDERS = ["groq"]` (whitelist fournisseur) | `admin.py:101` | nouveau |
+| `SETTING_DEFAULTS` (défauts des réglages LLM administrables) | `admin.py:43` | demi-pont : défaut en dur, surchargé par `settings` en base |
+| `MODES_VALIDES = {"standard","remediation"}` (modes de séquence) | `sequence.py:15` | nouveau — voisin de #10 (durées) |
+| `_USER_PARAMS` (glose des params `nb`/`sous_type`) | `src/prompts.py:2725` | rattaché au système de prompts #2 |
+| `MES_OUTILS_PAGES` / `MON_RESEAU_PAGES` (IDs de pages, navigation) | `Sidebar.jsx:102-103` | nouveau |
+| `FILTRES` (filtres logs : signup/login/admin_login) | `AdminLogs.jsx:4` | nouveau |
+| `VARIABLES = ['{prenom}','{email}']` (variables templating email) | `AdminParametresEmail.jsx:4` | nouveau |
+
+**Duplications d'entrées déjà listées (occurrences supplémentaires, pas des concepts neufs) :**
+- `STATUTS` + `TRANSITIONS` + `FILTRES_FB` + `FILTRES_LABELS` — `AdminFeedbacks.jsx:7,18,31,32` → **3e copie des statuts feedback** (#8 ne cite qu'`admin.py` + `MesFeedbacks.jsx`).
+- `STATUT_LABELS` — `AdminFiches.jsx:4` → autre occurrence des **statuts fiches** (#9 ne cite que `AdminFiches.jsx:197-199`).
+- `LABELS` — `AdminMaintenance.jsx:5` → **duplication front** des catégories maintenance (#11 ne cite que le backend).
+
+> Écartés après lecture : `ALLOWED_TYPES` (`feedback.py:21`) = limites MIME upload → déjà couvert par le Bucket 3 ; `STARS` (`Notation.jsx:4`) = mécanique d'affichage, pas une valeur métier → hors inventaire.
 
 ---
 
@@ -285,11 +308,13 @@ Back  SANS front (jamais affiché) = ['app-mobile']
 
 ---
 
-## 7. Déclaration de complétude
+## 7. État de l'inventaire (au 30/06/2026) — PAS une déclaration d'exhaustivité
 
-Tout le code applicatif (backend `.py` + frontend `.jsx`/`.js`) a été parcouru, au niveau module **et** dans le corps des fonctions, les points en suspens confirmés par exécution. Ceci est **la totalité de ce qui est en dur** dans le logiciel ; après cette lecture, il n'y a rien d'autre.
+Cet inventaire recense les durs **connus à ce jour**, établis en deux temps : une lecture backend+frontend (passes 1-3, 26/06) puis un **grep des constantes-listes au niveau module** (4e passe, 30/06 → Bucket 4).
 
-**Réserve honnête, par rigueur :** les 3254 lignes de `seed_exemples.py` (24 activités de démo) n'ont pas été relues ligne à ligne — caractérisées comme graine destinée à la base, pas comme donnée de référence runtime. À éplucher uniquement si besoin.
+⚠️ **L'inventaire n'est PAS exhaustif et ne prétend pas l'être.** Le grep ne capte que les **constantes-listes/dicts définies au niveau module** ; il **ne voit pas** les durs **inline** (valeurs dans le corps des fonctions), les listes en **minuscules**, ni les chaînes éparses. D'autres durs existent donc très probablement. **L'inventaire complet se construira au fil du Niveau 2**, où chaque dur est traité (mis en base) un par un.
+
+**Réserve :** les 3254 lignes de `seed_exemples.py` (24 activités de démo) ne sont pas relues ligne à ligne — graine destinée à la base, pas donnée de référence runtime.
 
 ---
 
