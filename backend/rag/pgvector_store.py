@@ -1,4 +1,4 @@
-"""Stockage RAG sur PostgreSQL/pgvector — remplacant futur de client.py (ChromaDB).
+"""Stockage RAG sur PostgreSQL/pgvector — moteur unique du RAG (ChromaDB retire le 29/06/2026).
 
 Etape 2 (refonte RAG) : ingestion d'un referentiel DEPUIS LE PDF vers la table
 referentiel_chunks. Ce module N'IMPORTE NI N'APPELLE ChromaDB : pas de client.py,
@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 def extract_pages(pdf_path: Path) -> list[tuple[int, str]]:
     """(n° page depuis 1, texte) — re-extraction directe du PDF (pdfplumber).
-    Reimplemente ici pour que ce module ne depende PAS de ingest_referentiel.py
-    (lequel importe client.py/ChromaDB). Meme logique d'extraction."""
+    Extraction directe du PDF (pdfplumber), sans aucune brique ChromaDB. Meme
+    logique d'extraction que la fiche du referentiel."""
     pages: list[tuple[int, str]] = []
     with pdfplumber.open(str(pdf_path)) as pdf:
         for i, page in enumerate(pdf.pages, start=1):

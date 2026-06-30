@@ -575,11 +575,13 @@ Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la *
 
 ---
 
-## Base vectorielle (ChromaDB) — Règle absolue
+## Base vectorielle (PostgreSQL / pgvector) — Règle absolue
 
-La base ChromaDB (`backend/rag/chroma_db/`) est une **donnée GÉNÉRÉE**, pas du code : « données ≠ code ». Source de vérité = le **PDF du référentiel** (`REFERENTIELS/`) + le **script d'ingestion**. Elle **ne se commite JAMAIS dans git** : `.gitignore` sur `backend/rag/chroma_db/`, **reconstruite au déploiement** via `python -m backend.rag.ingest_referentiel` (étape `[2.5/7]` de `deploy/deploy.sh`).
+Les vecteurs du RAG vivent dans **PostgreSQL** (table `referentiel_chunks`, colonne `embedding` de type `vector` via **pgvector**) — **plus aucun dossier `chroma_db/`**, ChromaDB a été **retiré définitivement le 29/06/2026**. Comme toute base, c'est une **donnée GÉNÉRÉE**, pas du code : « données ≠ code ». Source de vérité = le **PDF du référentiel** (`REFERENTIELS/`) + le **script d'ingestion** (`backend/rag/pgvector_store.py`). Les vecteurs ne vivent **jamais dans git** (ils sont en base), **reconstruits au déploiement** via `python -m backend.rag.pgvector_store` (étape `[2.5/7]` de `deploy/deploy.sh`).
 
-(Acté + exécuté le 23/06 — corrige un raccourci de POC : la base avait été commitée par commodité le 18/05, jamais re-questionné. Conséquence : au 1er déploiement, le `git pull` retire la base commitée et l'étape d'ingestion la reconstruit.)
+Prérequis d'ingestion : la table `referentiel_chunks` doit être **migrée** (Alembic) et la ligne `referentiels` du couple présente — sinon l'ingestion lève une **erreur claire** (jamais une base trouée en silence).
+
+(Bascule pgvector actée le 29/06/2026 — éradication de ChromaDB : code, dépendance et dossier `chroma_db/` supprimés ; le moteur RAG est désormais PostgreSQL unique, cohérent avec « SQLite banni ».)
 
 ---
 

@@ -342,6 +342,21 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Décision RAG] Ancrer `/api/generate` sur le référentiel du couple — décision #1, OUVERTE** | Discutée 14/06, mise à jour 23/06 — non tranchée
   *Depuis la réforme, `/api/generate` n'a **plus aucun** RAG (l'ancien gate maths a été retiré). Le RAG vit aujourd'hui dans `/api/exemple-referentiel` (référentiel CIEL). Question ouverte : faut-il **aussi** ancrer `/api/generate` sur le référentiel du couple matière+niveau ? Options : (a) brancher le référentiel du couple sur generate (reco) ; (b) ne rien faire (le RAG reste sur l'exemple de référentiel). Prérequis : régler aussi le défaut [Qualité/Supérieur]. Relève de Chantier B. Identifié 14/06/2026.*
 
+- [ ] **[Test] `test_activites_ciel` rouge — décalage de clé catalogue** | Préexistant, hors Étape 6 (RAG/pgvector) — prouvé par `git stash`
+  *`test_activites_ciel.py:42` attend la clé d'activité `comprehension`, mais le catalogue expose désormais `gen_comprehension` (`{gen_comprehension, gen_fiche_revision, gen_questions_cours}`). Rouge **avant** l'Étape 6 (vérifié : `git stash` du travail Étape 6 → test toujours rouge) → sans rapport avec le retrait de ChromaDB. Fix = aligner le test sur les clés `gen_*` du catalogue. Identifié 29/06/2026.*
+
+- [ ] **[Déploiement] `deploy.sh` n'exécute pas `alembic upgrade head` avant l'ingestion RAG** | Relevé pendant l'Étape 6 — non traité (hors périmètre)
+  *Depuis la bascule pgvector, l'étape `[2.5/7]` de `deploy/deploy.sh` lance `python -m backend.rag.pgvector_store`, qui suppose la table `referentiel_chunks` **déjà migrée** (Alembic) et une ligne `referentiels` présente. Or `deploy.sh` ne contient aucun `alembic upgrade head` dans ses 7 étapes. À trancher : ajouter l'étape de migration (+ seed du référentiel) au déploiement. Identifié 29/06/2026.*
+
+- [ ] **[Packaging] `sentence-transformers`/`torch` absents de `requirements.txt`** | Relevé pendant l'Étape 6 — pré-existant
+  *`requirements.txt` (22 lignes) ne déclare ni `chromadb` (désormais inutile, retiré), ni `sentence-transformers`, ni `torch` — pourtant requis par la voie pgvector (`embeddings.py` → `get_st_model`). Ces paquets vivent dans le venv sans être épinglés → un `pip install -r requirements.txt` propre (déploiement) ne les réinstallerait pas. À trancher : épingler `sentence-transformers` (qui tire `torch`). Identifié 29/06/2026.*
+
+- [ ] **[Inscription] La création de compte ne capture pas le couple niveau+matière** | Chantier refonte cycles/niveaux/matières — découvert 29/06
+  *`Signup.jsx` ne demande QUE la matière (`subject`) — **aucun champ niveau** ; le payload `/api/auth/signup` (l.33-39) n'envoie pas de niveau. Or le modèle aSchool est le **couple niveau+matière**. L'inscription doit faire saisir **niveau PUIS matière** (cascade, comme ailleurs dans l'app). Évolution légitime du chantier refonte, **pas un défaut Étape 6**. Identifié 29/06/2026.*
+
+- [ ] **[Données/Refonte] Matières non semées dans la nouvelle structure 11 cycles / 88 niveaux** | Bloque inscription + profil en dev — chantier refonte
+  *Base dev : `cycles=11, niveaux=88` (nouvelle structure `MesMD/aSchool-cycles-niveaux.md`, 28/06) mais `matieres=0, matiere_niveaux=0`. `/api/matieres` renvoie vide → liste matière vide à l'**inscription** ET dans **Mon profil**. ⚠️ `backend/seed_programmes.py` est **désaligné** (6 cycles, anciens noms de niveaux) → **NE PAS le lancer tel quel** sur cette base. À reprendre dans le chantier refonte : semer les matières + paires **alignées sur les 88 niveaux actuels**. Identifié 29/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)

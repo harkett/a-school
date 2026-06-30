@@ -1,7 +1,7 @@
-﻿# Windows : torch (sentence-transformers, RAG) et chromadb embarquent chacun leur
-# runtime OpenMP (libiomp5md.dll). Sans ces garde-fous, le 1er embedding dans le
-# process serveur (retrieve() via uvicorn) plante en « access violation ». Posés
-# AVANT tout import susceptible de charger torch.
+﻿# Windows : torch (sentence-transformers, RAG) embarque son runtime OpenMP
+# (libiomp5md.dll). Sans ces garde-fous, le 1er embedding dans le process serveur
+# (retrieve_pg via uvicorn) plante en « access violation ». Posés AVANT tout import
+# susceptible de charger torch.
 import os as _omp
 _omp.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 _omp.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -56,8 +56,8 @@ async def _lifespan(app: FastAPI):
 
     def _warm_embeddings():
         try:
-            from backend.rag.embeddings import get_embedding_function
-            get_embedding_function()
+            from backend.rag.embeddings import get_st_model
+            get_st_model()
             logging.getLogger("rag.warm").info("Modèle d'embeddings préchauffé.")
         except Exception as e:
             logging.getLogger("rag.warm").warning(f"Préchauffe embeddings échouée (non bloquant) : {e}")

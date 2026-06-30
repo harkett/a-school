@@ -1,7 +1,7 @@
 # INFRA-RAG — Pile RAG mutualisée
 
 > **Statut :** ✅ pile RAG codée et utilisée par l'exemple de référentiel (CIEL, BTS CIEL option A) · ❌ pas en prod
-> **Effort restant :** hébergement prod chroma_db + opti cold start + branchement autres consommateurs
+> **Effort restant :** moteur pgvector (PostgreSQL) en place + préchauffe modèle au boot faite ; reste le branchement des autres consommateurs
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
 > **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteur réalisé : référentiel CIEL (BTS CIEL option A, un référentiel par couple matière+niveau) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
 
@@ -9,7 +9,7 @@
 
 ## Objectif
 
-Fournir une pile RAG unique (ChromaDB + sentence-transformers + retrieve) que chaque router de l'app peut appeler. **Une infra, plusieurs collections — pas un RAG par feature.**
+Fournir une pile RAG unique (PostgreSQL/pgvector + sentence-transformers + retrieve_pg) que chaque router de l'app peut appeler. **Une infra, plusieurs collections — pas un RAG par feature.**
 
 La couche infrastructure est mutualisée ; seul change le corpus indexé, le prompt et les métadonnées selon le levier consommateur.
 
@@ -17,17 +17,17 @@ La couche infrastructure est mutualisée ; seul change le corpus indexé, le pro
 
 ## Stack
 
-- **ChromaDB persistant** — singleton dans [client.py](../../backend/rag/client.py)
-- **sentence-transformers** `paraphrase-multilingual-MiniLM-L12-v2` — singleton dans [embeddings.py](../../backend/rag/embeddings.py)
-- **Fonction générique** `retrieve(collection_name, question, filters, top_k)` — [retrieve.py](../../backend/rag/retrieve.py)
+- **PostgreSQL / pgvector** — table `referentiel_chunks` (colonne `embedding` `vector(384)`) : ingestion + recherche cosinus dans [pgvector_store.py](../../backend/rag/pgvector_store.py)
+- **sentence-transformers** `paraphrase-multilingual-MiniLM-L12-v2` — singleton (voie directe `get_st_model`) dans [embeddings.py](../../backend/rag/embeddings.py)
+- **Fonction générique** `retrieve_pg(collection_name, question, filters, top_k)` — [pgvector_store.py](../../backend/rag/pgvector_store.py)
 
 Usage côté router consommateur :
 
 ```python
-from backend.rag import retrieve
+from backend.rag import retrieve_pg
 
-chunks = retrieve(
-    collection_name="bts_ciel_optionA",
+chunks = retrieve_pg(
+    collection_name="bts_ciel_option_a",
     question="Installer et sécuriser un réseau informatique",
     filters={"option": "A"},
     top_k=4,
@@ -46,7 +46,7 @@ for c in chunks:
 | Embedding d'une requête (CPU) | ~30 ms |
 | Recherche vectorielle top-k | ~30 ms |
 | Latence ressentie totale (avec Groq) | ~2-4 s |
-| Empreinte disque ChromaDB | variable — voir agrégation par producteur (section ci-dessous, à remplir au fil des corpus indexés) |
+| Empreinte vecteurs en base (pgvector) | variable — voir agrégation par producteur (section ci-dessous, à remplir au fil des corpus indexés) |
 
 **Goulot :** TPM Groq, jamais le VPS. Chaque requête RAG consomme ~7 000 tokens Groq (~4 000 de contexte + question + réponse).
 
@@ -67,25 +67,25 @@ for c in chunks:
 
 | Composant | Statut |
 |---|---|
-| Code `client.py` / `embeddings.py` / `retrieve.py` | ✅ écrit, testé manuellement |
-| DB ChromaDB peuplée | ✅ 1 collection : `bts_ciel_optionA`, 236 chunks |
-| Test de raccordement | ✅ `test_rag_ciel.py` (niveau posé, retrieve remonte du CIEL) |
+| Code `pgvector_store.py` / `embeddings.py` | ✅ écrit + couvert par `test_rag_ciel.py` |
+| Table `referentiel_chunks` peuplée | ✅ collection `bts_ciel_option_a`, 236 chunks |
+| Test de raccordement | ✅ `test_rag_ciel.py` (niveau posé, `retrieve_pg` remonte du CIEL) |
 | Branchement à un router | ✅ `backend/routers/exemple_referentiel.py` (exemple de référentiel CIEL) |
 | Feature flag | ❌ retiré — la réforme a supprimé tout gating RAG de `generate.py` |
 | Affichage chunks dans la réponse API | ✅ `GenerateResponse.chunks` (populé uniquement quand RAG actif) |
 | Test canary diagnostic | ✅ outil `backend/rag/_canary_inject.py` (mode injection + `--remove`) — 15/05 |
 | Wording préfixe RAG | ✅ renforcé 15/05 — bascule de "à utiliser comme référence" → "Tu DOIS ancrer..." avec demande citation explicite vocabulaire institutionnel |
 | Logging applicatif (uvicorn) | ✅ `logging.basicConfig(INFO)` ajouté dans `backend/main.py` |
-| Hébergement prod | ❌ non décidé |
-| Pré-chargement modèle au boot (anti cold start ~38 s) | ❌ pas fait — opti à venir |
+| Hébergement prod | ✅ PostgreSQL/pgvector — aucun fichier à héberger (vecteurs en base) |
+| Pré-chargement modèle au boot (anti cold start ~38 s) | ✅ fait — préchauffe lifespan (`get_st_model`, `backend/main.py`) |
 
 ---
 
 ## Reste à faire
 
-- [ ] Choisir hébergement prod du `chroma_db/` (`/var/www/aSchool/backend/rag/chroma_db/` ?)
+- [x] ~~Hébergement prod du `chroma_db/`~~ — sans objet : moteur **PostgreSQL/pgvector** (vecteurs en base, table `referentiel_chunks`), aucun dossier à héberger
 - [x] ~~Premier branchement router~~ — fait : `exemple_referentiel.py` (référentiel CIEL)
-- [ ] Pré-charger sentence-transformers au boot FastAPI (lifespan) — éviter le cold start ~38 s sur la 1ʳᵉ requête RAG après démarrage
+- [x] ~~Pré-charger sentence-transformers au boot FastAPI (lifespan)~~ — fait : préchauffe `get_st_model` dans le lifespan de `backend/main.py`
 - [ ] Brancher les autres consommateurs : Cohérence curriculaire (D25), D23 (DYS/FLE), D17 (équité), D19 (communication), D22 (créativité) — collections différentes
 
 ---
@@ -94,7 +94,7 @@ for c in chunks:
 
 - **TPM Groq saturation** : si plusieurs profs utilisent le RAG simultanément, Groq sature avant le VPS (scénario qui a causé le 413 du 15/05 sur l'optimiseur de séquence). Prévoir fallback via `backend/groq_client.py` + feature flag.
 - **Empreinte disque cumulée** : à 5 collections producteurs, ~100-120 MB cumulés. Reste largement sous la marge VPS (250 GB) mais à surveiller dans le backoffice admin.
-- **Maintenance des singletons** : le client ChromaDB et le modèle d'embedding sont chargés une fois au boot FastAPI. Toute modification du modèle (changement de dimension par exemple) impose un re-index complet de toutes les collections.
+- **Maintenance du singleton modèle** : le modèle d'embedding est chargé une fois au boot FastAPI (préchauffe). Toute modification du modèle (changement de dimension par exemple) impose un re-index complet de `referentiel_chunks` (toutes collections).
 
 ---
 

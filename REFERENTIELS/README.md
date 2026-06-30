@@ -17,13 +17,13 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 ## Cycle de vie d'un référentiel (procédure)
 
 > **Deux moments à ne jamais confondre :**
-> - **Construction de la base** (à l'ajout, puis à chaque mise à jour) : on lit le PDF **une seule fois**, on le découpe, on remplit ChromaDB. Seul moment où le PDF sert.
-> - **Usage quotidien** (chaque génération) : on lit **ChromaDB**, **jamais** le PDF.
+> - **Construction de la base** (à l'ajout, puis à chaque mise à jour) : on lit le PDF **une seule fois**, on le découpe, on remplit la table `referentiel_chunks` (PostgreSQL/pgvector). Seul moment où le PDF sert.
+> - **Usage quotidien** (chaque génération) : on lit **`referentiel_chunks` (pgvector)**, **jamais** le PDF.
 
 ### Principes
 - **P1 — L'IA propose, l'admin valide.** L'IA cherche le document sur la **source officielle** (éduscol / Bulletin Officiel) et le **propose** ; l'**admin certifie** (c'est bien le bon, en vigueur) et **télécharge**. Le garde-fou humain reste — **déplacé** de « chercher » à « valider la proposition ». (Remplace l'ancienne règle « téléchargement entièrement manuel, pas de robot » — acté 26/06/2026.)
 - **P2 — Nom interne fixe, décidé par nous.** Chaque référentiel a un identifiant stable (nom de sous-dossier + nom de collection, ex. `bts_ciel_optionA`). Le **nom volatil de l'EN** — qui change à chaque sortie (« 15324… » → « 32368… ») — **n'entre jamais dans le code**.
-- **P3 — Métadonnées en base, pas dans un fichier écrit à la main.** La table SQLite `referentiels` porte **deux choses** : (a) la **provenance** — `nom_fixe` (nom interne stable) · `fichier` (vrai nom du PDF) · `date_doc` · `source`/URL ; (b) le **routage** — le **couple** (`niveau_id` + `matiere_id`, ce dernier **NULL = tout le niveau**) et **où chercher** (`collection` ChromaDB + `filtres` JSON, ex. `{"option":"A"}`). Clé par **id** (FK `niveaux`/`matieres`) pour l'intégrité ; la lecture retrouvera la ligne par **jointure sur les libellés** (`niveaux.nom`). Table créée par la migration `012_create_referentiels.sql`, seedée avec la ligne **BTS CIEL option A** (matiere_id NULL = tout le diplôme). (Donnée administrable — l'écran admin de saisie reste à construire.)
+- **P3 — Métadonnées en base, pas dans un fichier écrit à la main.** La table PostgreSQL `referentiels` porte **deux choses** : (a) la **provenance** — `nom_fixe` (nom interne stable) · `fichier` (vrai nom du PDF) · `date_doc` · `source`/URL ; (b) le **routage** — le **couple** (`niveau_id` + `matiere_id`, ce dernier **NULL = tout le niveau**) et **où chercher** (`collection` + `filtres` JSON, ex. `{"option":"A"}`). Clé par **id** (FK `niveaux`/`matieres`) pour l'intégrité ; la lecture retrouvera la ligne par **jointure sur les libellés** (`niveaux.nom`). Table définie dans `backend/models_db.py` (schéma géré par Alembic), seedée avec la ligne **BTS CIEL option A** (matiere_id NULL = tout le diplôme). (Donnée administrable — l'écran admin de saisie reste à construire.)
 
 ### Procédure complète validée (cible — 26/06/2026)
 > Vue d'ensemble côté produit. Le détail technique reste « A — Premier ajout » ci-dessous.
@@ -37,13 +37,13 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<DOSSIER_CLE>/` (nom du niveau normalisé, ex. `BTS_CIEL_OPTION_A/`).
 2. **(Admin)** renseigne en base (table `referentiels`) : nom interne fixe, vrai nom du fichier, date, source.
 3. **(Dev)** écrit la **fiche** (`backend/rag/referentiels/<nomfixe>.py`) : règles de découpe + étiquetage (niveau, option).
-4. **(Dev)** lance la construction : `python -m backend.rag.ingest_referentiel` → collection `<NomFixe>` créée, chunks tagués.
-5. **(Dev)** test de raccordement (`retrieve()` remonte du bon référentiel).
+4. **(Dev)** lance la construction : `python -m backend.rag.pgvector_store` → chunks insérés dans `referentiel_chunks`, tagués (niveau via jointure, option).
+5. **(Dev)** test de raccordement (`retrieve_pg()` remonte du bon référentiel).
 
 ### B — Mise à jour (l'EN sort une nouvelle version, avec un nouveau nom)
 1. **(Admin)** télécharge le nouveau PDF, **remplace** l'ancien dans le dossier.
 2. **(Admin)** met à jour la ligne en base (nouveau vrai nom + date).
-3. **(Dev)** relance la construction : idempotente → efface l'ancienne collection, reconstruit à neuf.
+3. **(Dev)** relance la construction : idempotente → efface les anciens chunks du référentiel, reconstruit à neuf.
 4. **(Dev)** test.
 → Le **nom interne fixe ne change jamais** → rien d'autre à toucher.
 

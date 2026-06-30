@@ -1,17 +1,16 @@
-"""Pile RAG mutualisee aSchool (levier 36).
+"""Pile RAG mutualisee aSchool (levier 36) — moteur sur PostgreSQL/pgvector.
 
-Une seule infrastructure (ChromaDB + sentence-transformers), plusieurs
-collections selon le corpus indexe. Chaque router qui veut grounder ses
-generations appelle `retrieve(collection_name, question, filters)` en
-precisant sa collection cible.
+Une seule infrastructure (pgvector + sentence-transformers), plusieurs referentiels
+dans la table referentiel_chunks. Chaque router qui veut grounder ses generations
+appelle `retrieve_pg(collection_name, question, filters)` en precisant sa cible.
 
 Modules :
-  client     : singleton ChromaPersistentClient (pointe sur backend/rag/chroma_db)
-  embeddings : singleton SentenceTransformerEmbeddingFunction (charge une fois au boot)
-  retrieve   : fonction generique retrieve(collection, question, filters, top_k)
+  pgvector_store : ingestion (PDF -> referentiel_chunks) + retrieve_pg (recherche cosinus)
+  embeddings     : singleton SentenceTransformer (voie directe, charge une fois)
+  chunker        : decoupage generique (aucun referentiel code en dur)
 
 Voir MesMD/LEVIERS/L36.md pour le mapping leviers <-> corpus.
 """
-from .retrieve import retrieve
+from .pgvector_store import retrieve_pg
 
-__all__ = ["retrieve"]
+__all__ = ["retrieve_pg"]

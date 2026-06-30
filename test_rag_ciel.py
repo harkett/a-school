@@ -1,79 +1,92 @@
-"""Preuve de raccordement — Slice 1 du Chantier B (référentiel BTS CIEL → RAG).
+r"""Preuve de raccordement — référentiel BTS CIEL → RAG pgvector (remplace ChromaDB).
 
-Ce que le test PROUVE (pas « le code existe » — la chaîne réelle donne le bon résultat) :
-  1. La collection `bts_ciel_option_a` existe et est peuplée depuis le PDF officiel.
-  2. NON NÉGOCIABLE : chaque chunk porte le bon `niveau` dès l'ingestion
-     (jamais un corpus sans niveau qui mélangerait plusieurs référentiels).
-  3. La fonction générique `retrieve()` remonte bien du CIEL pour une requête du
-     domaine (réseaux / cybersécurité) → le raccordement ingestion ↔ retrieve marche.
+Ce que le test PROUVE (la chaîne réelle donne le bon résultat, pas « le code existe ») :
+  1. La table referentiel_chunks est peuplée DEPUIS LE PDF officiel (ingest_pgvector).
+  2. NON NÉGOCIABLE : chaque chunk porte le bon niveau (par jointure referentiel_id)
+     et une option A/B — jamais un corpus qui mélangerait plusieurs référentiels.
+  3. retrieve_pg() remonte bien du CIEL pour une requête du domaine (réseaux /
+     cybersécurité) → le raccordement ingestion ↔ retrieve marche sur pgvector.
 
-Prérequis : la collection a été construite —
-    .\.venv\Scripts\python.exe -m backend.rag.ingest_referentiel
-Lancer :
-    .\.venv\Scripts\python.exe -m pytest test_rag_ciel.py -q
+Base de test PostgreSQL dédiée (aschool_test via conftest.py) — JAMAIS SQLite, JAMAIS ChromaDB.
+Le test sème le couple (Cycle→Niveau→Referentiel) puis lance la VRAIE ingestion
+(PDF officiel + embeddings) : intégration lourde assumée (modèle torch chargé une fois).
+Lancer : .\.venv\Scripts\python.exe -m pytest test_rag_ciel.py -q
 """
 import os
 import sys
 
-# Windows : torch (sentence-transformers) et chromadb embarquent chacun libiomp5md.dll.
-# Sans ces garde-fous, l'embedding de la requête sous pytest plante en « access
-# violation » (deux runtimes OpenMP chargés). Posés AVANT tout import de torch.
+# Windows : torch (sentence-transformers) embarque son runtime OpenMP (libiomp5md.dll).
+# Sans ces garde-fous, l'embedding sous pytest plante en « access violation ».
+# Posés AVANT tout import susceptible de charger torch.
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
-from backend.rag.client import get_client
-from backend.rag import retrieve
+from sqlalchemy import select, func
+
+# engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+import backend.database as dbmod
+from backend.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.rag import retrieve_pg
+from backend.rag.pgvector_store import ingest_pgvector
 
 COLLECTION = "bts_ciel_option_a"
 NIVEAU = "BTS CIEL option A"
 SOURCE_CIEL = "REF-BTS-CIEL-2023"
 
 
-def _metadatas(name):
-    col = get_client().get_collection(name=name)
-    return col.get(include=["metadatas"])["metadatas"]
+def _seed_couple_ciel():
+    """Sème Cycle→Niveau→Referentiel pour que ingest_pgvector/retrieve_pg trouvent le couple.
+    Nettoyé par le TRUNCATE de conftest.py après le test."""
+    db = dbmod.SessionLocal()
+    try:
+        cyc = Cycle(nom="Supérieur", ordre=6)
+        db.add(cyc); db.flush()
+        niv = Niveau(cycle_id=cyc.id, nom=NIVEAU, ordre=1, traite=True)
+        db.add(niv); db.flush()
+        db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=NIVEAU,
+                           collection=COLLECTION, filtres=None, source=SOURCE_CIEL))
+        db.commit()
+    finally:
+        db.close()
 
 
-def test_collection_existe_et_peuplee():
-    col = get_client().get_collection(name=COLLECTION)
-    # le référentiel fait 88 p. → bien plus que quelques chunks
-    assert col.count() > 50
+def test_referentiel_ciel_bout_en_bout_sur_pgvector():
+    # Un seul test : sème, lance la VRAIE ingestion (modèle chargé une fois), puis prouve tout.
+    _seed_couple_ciel()
+    rapport = ingest_pgvector()
+    # 1. Peuplée depuis le PDF — 88 p. → bien plus que quelques chunks.
+    assert rapport["inseres_en_base"] > 50, rapport
 
+    db = dbmod.SessionLocal()
+    try:
+        n = db.scalar(select(func.count()).select_from(ReferentielChunk))
+        assert n > 50
 
-def test_niveau_pose_sur_chaque_chunk():
-    metas = _metadatas(COLLECTION)
-    assert metas, "collection vide — l'ingestion n'a pas tourné ?"
-    # Non négociable : le niveau est posé DÈS l'ingestion, sur TOUS les chunks.
-    assert all(m.get("niveau") == NIVEAU for m in metas)
-    # L'option est taguée (A = option A + commun, B = sections spécifiques option B).
-    assert all(m.get("option") in ("A", "B") for m in metas)
-    # Le détecteur a bien trouvé les deux : sinon le découpage A/B est cassé.
-    options = {m["option"] for m in metas}
-    assert options == {"A", "B"}
+        # 2. Niveau (par jointure) + option A/B + embedding_model sur CHAQUE chunk.
+        rows = db.execute(
+            select(ReferentielChunk.option_ab, ReferentielChunk.embedding_model, Niveau.nom)
+            .join(Referentiel, Referentiel.id == ReferentielChunk.referentiel_id)
+            .join(Niveau, Niveau.id == Referentiel.niveau_id)
+        ).all()
+        assert rows, "aucun chunk en base — l'ingestion n'a pas tourné ?"
+        assert all(niv == NIVEAU for _, _, niv in rows)         # niveau correct partout
+        assert all(opt in ("A", "B") for opt, _, _ in rows)     # option taguée
+        assert {opt for opt, _, _ in rows} == {"A", "B"}        # les deux présentes (découpage A/B)
+        assert all(model for _, model, _ in rows)               # garde-fou embedding_model posé
+    finally:
+        db.close()
 
-
-def test_metadata_exactement_quatre_cles():
-    # Verrou Phase 3 point 4 : la fiche ne pose QUE ces 4 clés de métadonnée.
-    # `label`/`cycle` ont été retirés (écrits jamais lus). Échoue tant que la
-    # collection n'a pas été ré-ingérée — c'est voulu (cohérence code ↔ base).
-    metas = _metadatas(COLLECTION)
-    assert metas, "collection vide — l'ingestion n'a pas tourné ?"
-    attendu = {"source", "niveau", "option", "page"}
-    assert all(set(m.keys()) == attendu for m in metas), \
-        f"clés méta inattendues : {sorted({k for m in metas for k in m.keys()} - attendu)}"
-
-
-def test_retrieve_generique_remonte_du_ciel():
-    # La chaîne complète : question domaine → retrieve() → chunks du référentiel CIEL.
-    chunks = retrieve(
+    # 3. La chaîne complète : question domaine → retrieve_pg → chunks du CIEL.
+    chunks = retrieve_pg(
         COLLECTION,
         "Installer, exploiter et sécuriser un réseau informatique ; cybersécurité",
         top_k=4,
     )
-    assert chunks, "retrieve() ne remonte rien"
+    assert chunks, "retrieve_pg() ne remonte rien"
     assert all(c["source"] == SOURCE_CIEL for c in chunks)
     assert chunks[0]["score"] is not None
