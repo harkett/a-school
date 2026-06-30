@@ -15,6 +15,18 @@ Cette vérification est **systématique et ne dépend d'aucune demande** : elle 
 
 ---
 
+## 🔒 Règle de périmètre — le dossier aSchool, rien d'autre (absolue, permanente)
+
+**Le seul périmètre de travail est le dossier `D:\A-SCHOOL` et son environnement direct** (comme un dossier ouvert dans VS Code — ce dossier et son environnement, c'est tout le monde de Claude). En dehors de ce dossier : **interdiction absolue** d'aller chercher, lire, scanner ou fouiller quoi que ce soit — **surtout pas le disque `C:\`, ni Windows, ni les autres installations / bases / applications** de la machine. Elles appartiennent à d'autres projets de Harketti et **ne regardent pas aSchool**.
+
+Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un chemin, une info système), **le demander explicitement à Harketti et attendre son GO** — ou le laisser fournir la réponse lui-même. **On ne sort jamais du dossier de son propre chef.**
+
+(Règle née le 30/06/2026 : un scan de tout Windows est tombé sur le PostgreSQL d'une **autre** application, pris à tort pour celui d'aSchool ; tout un faux diagnostic bâti dessus, et la suppression des données d'un projet tiers **qui fonctionne** évitée de justesse. Une journée perdue. Ne se reproduit plus.)
+
+> **Seule exception, explicitement désignée par Harketti :** le cluster PostgreSQL d'aSchool vit hors du dossier projet, dans `C:\Users\harketti\PostgreSQL\16` (port 5433). On n'y touche **que** parce que Harketti l'a nommément rattaché à aSchool. **Tout autre PostgreSQL de la machine est hors périmètre** (notamment l'install v17 `Program Files` / port 5432 = autres applications).
+
+---
+
 ## Vision
 
 ### 🏆 Le cap — en lettres d'or (ambition fondatrice, absolue)
@@ -28,6 +40,22 @@ Cette vérification est **systématique et ne dépend d'aucune demande** : elle 
 > **Chaque ligne de code, chaque écran, chaque décision se juge à cette aune : « est-ce digne d'un logiciel professionnel de référence, adossé à la base, ancré sur le référentiel ? » Si la réponse est non, ce n'est pas fini.**
 
 > ⚠️ **Cap, pas état atteint.** La base relationnelle existe (cycles/niveaux/matières/référentiels) et le RAG ancré fonctionne pour « Tester un exemple » sur BTS CIEL option A, mais le cœur `/api/generate`, les types d'activité et les prompts sont **encore en dur** (audit en cours). La formule décrit l'objectif que la réalité doit rejoindre.
+
+---
+
+## 📜 Script éphémère — le SEUL moyen de remplir la base (règle absolue)
+
+**Le mot « seed » est banni. On dit « script éphémère ».**
+
+Toutes les données métier vivent dans la **BASE** — **zéro donnée métier en dur dans le code** (cap fondateur ci-dessus). Quand il faut **remplir la base**, on n'écrit **jamais** un fichier permanent qui porte des données en dur (comme l'était `seed_programmes.py`, supprimé). On écrit un **script éphémère**.
+
+**Définition.** Un script éphémère est un script **jetable**, créé dans un **seul but** : lire une **source officielle**, **alimenter la base une fois**, puis **être supprimé**. Il ne fait **jamais** partie de l'application, il ne **reste jamais** dans le projet.
+
+**Cycle de vie, non négociable :** **créer → alimenter la base → supprimer.** Une fois la base remplie, le script **disparaît** (historique git si besoin). Un script qui *reste* dans le projet en portant de la donnée métier est un **défaut** — c'est exactement ce qu'on ne veut plus.
+
+**Distinction clé :** ce n'est pas l'usage d'un script qui est interdit, c'est qu'un script **persiste** en portant la donnée. Remplir puis disparaître = sain. Rester avec des données en dur = à virer.
+
+> Cas en cours (30/06/2026) : le socle `MesMD/aSchool-matieres.md` + un futur **script éphémère** qui lira cette source, remplira `matieres` / `matiere_niveaux`, puis sera **supprimé**.
 
 ---
 
@@ -190,7 +218,7 @@ Dans aSchool : table `cycles` = Crèche · Maternelle · Primaire · Collège ·
 
 ---
 
-## Tables BDD (`data/aschool.db`)
+## Tables BDD (PostgreSQL — base `aschool`)
 
 > **Source de vérité = `backend/models_db.py`** (+ migrations `ALTER`/`CREATE` dans `backend/main.py`). Liste vérifiée le 25/06 contre le code. Clé prof = **`user_id`** (FK `users.id`) — l'ancien `user_email` a été migré. `?` = colonne nullable.
 

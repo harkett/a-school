@@ -69,6 +69,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ✅ | **Réserve 1 — SEED de `matiere_niveaux`** | fait & arbitré : `seed_programmes.py` (3 pièges résolus) — détail → **A3** |
 | ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** | détail → **A4** |
 | ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** | détail → **A5** |
+| ☐ | **Extraire les matières des BTS depuis leur référentiel** *(tâche séparée — ne bloque PAS le socle matières)* : les « niveaux » BTS sont des **spécialités** ; leurs matières s'extraient du référentiel de chaque spécialité (prouvé sur **BTS CIEL Option A** = ses 9 matières), jamais saisies à la main. Problème récurrent (d'autres référentiels le reposeront). | détail → **A7** |
 
 > 📂 **Notes de fond rattachées (détail en annexe) :** Échelle → **A6** · Procédure « référentiel officiel → matières » (CAS-TEST BTS CIEL) → **A7** · Catalogue d'activités CIEL repli (A) → catalogue dédié (B) → **A8**.
 

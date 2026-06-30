@@ -88,7 +88,7 @@ Vérifier que la base relationnelle est juste et logique : tables, relations, ca
 ⚠️ **Constat de départ (historique) : les documents de modèle étaient périmés, seul le code (`models_db.py`) était à jour.** Le Niveau 0 a donc commencé par **régénérer un MLD propre depuis le code réel**, puis juger la logique sur ce MLD à jour.
 
 Points concrets à traiter :
-1. `data/aschool.dbml` (MLD, daté 11/06) **ne contient pas la table `referentiels`** (créée depuis). À régénérer.
+1. `data/aschool.dbml` **SUPPRIMÉ le 30/06** : c'était une copie manuelle du schéma qui dérivait (il manquait déjà `referentiels`). **Non régénéré** — le schéma se lit désormais via l'**ERD natif** (pgAdmin / DBeaver) directement sur la base PostgreSQL, plus de copie à entretenir.
 2. Tables `stt_*` (×4) → ✅ **élucidé (27/06)** : présentes dans `data/aschool.db` (certaines avec données : `stt_messages` 8 lignes, `stt_keyterms_global` 80) mais créées par **aucun code de `main`** ni aucune migration (`schema_migrations` ne liste que 001→012) → **tables mortes**, vraisemblablement vestiges de la branche gelée `wip/deepgram-streaming` (dictée). **Exclues du MLD régénéré.**
 3. `MesMD/BASE-DE-DONNEES.md` **périmé** : décrit l'ancien schéma (pivot `email`, FK implicites) alors que le schéma actuel est passé en `user_id` avec FK déclarées.
 4. Incohérence de modèle connue : `niveau` est une **colonne texte libre** (`users`, `activites_sauvegardees`, `sequences_sauvegardees`), pas une entité/relation — à repenser.
@@ -313,8 +313,6 @@ Back  SANS front (jamais affiché) = ['app-mobile']
 Cet inventaire recense les durs **connus à ce jour**, établis en deux temps : une lecture backend+frontend (passes 1-3, 26/06) puis un **grep des constantes-listes au niveau module** (4e passe, 30/06 → Bucket 4).
 
 ⚠️ **L'inventaire n'est PAS exhaustif et ne prétend pas l'être.** Le grep ne capte que les **constantes-listes/dicts définies au niveau module** ; il **ne voit pas** les durs **inline** (valeurs dans le corps des fonctions), les listes en **minuscules**, ni les chaînes éparses. D'autres durs existent donc très probablement. **L'inventaire complet se construira au fil du Niveau 2**, où chaque dur est traité (mis en base) un par un.
-
-**Réserve :** les 3254 lignes de `seed_exemples.py` (24 activités de démo) ne sont pas relues ligne à ligne — graine destinée à la base, pas donnée de référence runtime.
 
 ---
 
