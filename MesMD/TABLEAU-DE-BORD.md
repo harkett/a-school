@@ -357,6 +357,9 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **[Données/Refonte] Matières non semées dans la nouvelle structure 11 cycles / 88 niveaux** | Bloque inscription + profil en dev — chantier refonte
   *Base dev : `cycles=11, niveaux=88` (nouvelle structure `MesMD/aSchool-cycles-niveaux.md`, 28/06) mais `matieres=0, matiere_niveaux=0`. `/api/matieres` renvoie vide → liste matière vide à l'**inscription** ET dans **Mon profil**. ⚠️ `backend/seed_programmes.py` est **désaligné** (6 cycles, anciens noms de niveaux) → **NE PAS le lancer tel quel** sur cette base. À reprendre dans le chantier refonte : semer les matières + paires **alignées sur les 88 niveaux actuels**. Identifié 29/06/2026.*
 
+- [ ] **[Sécurité/RAG] Garde « sauvegarde avant purge » des chunks — vérif étage 2 (vrai delete) DUE** | Livrée (commit `5601bfd`) mais prouvée en db factice seulement — rattachée au caillou 6 / Pas 12
+  *`_sauvegarder_chunks_avant_purge` écrit un dump `.bak-*` horodaté AVANT le `delete` dans `ingest_pgvector` (`backend/rag/pgvector_store.py:152-153`) ; couverte par `test_rag_backup.py` (3 tests, **db factice — aucune connexion PostgreSQL**). Le chemin complet (sauvegarde → **vrai delete** → réinsert) n'a **jamais tourné contre PostgreSQL**. Vérification OBLIGATOIRE quand on allumera PG (caillou 6 / Pas 12), **AVANT tout premier ré-embedding réel** : confirmer que le `.bak-*` s'écrit bien avant le delete et que les chunks d'avant sont récupérables. Identifié 30/06/2026.*
+
 ---
 
 ## AUDIT — Mes outils → Créer → Activité (15/05/2026)
