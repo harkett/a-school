@@ -213,7 +213,6 @@ Streamlit a été abandonné définitivement le 24/04/2026. Le projet tourne sur
 - `SMTP_FROM` = `aSchool <contact@aschool.fr>` (emails vers les profs)
 - `FEEDBACK_FROM` = `aSchool Feedback <feedback@aschool.fr>` (notifications admin)
 - Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — ne jamais créer de connexion SMTP ailleurs
-- `feedback_client.py` est deprecated — ne jamais réutiliser
 - Voir `MesMD/EMAILS.md` avant toute modification email
 
 **Action en attente :** Infomaniak force l'adresse d'expédition à correspondre au compte authentifié — les emails partent avec `harketti@afia.fr` au lieu de `contact@aschool.fr`. Solution : acheter les boîtes `contact@aschool.fr` + `feedback@aschool.fr` (~3€/mois chacune) et mettre à jour `SMTP_USERNAME`/`SMTP_PASSWORD` dans `.env`. Le code n'a pas besoin de changer.
