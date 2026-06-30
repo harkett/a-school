@@ -11,8 +11,10 @@ Lancer (venv, racine, .env charge) :
 """
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,64 @@ from .embeddings import embed_texts, EMBEDDING_MODEL  # voie DIRECTE etape 1 (pa
 from .referentiels import bts_ciel_option_a as fiche
 
 logger = logging.getLogger(__name__)
+
+# Dossier des sauvegardes horodatees, filets AVANT toute suppression de chunks.
+# Convention projet *.bak-* (jamais commitee, cf. .gitignore).
+BACKUP_DIR = Path(__file__).parent / "backups"
+
+
+def _sauvegarder_chunks_avant_purge(db, rid: int) -> dict:
+    """Sauvegarde horodatee des chunks d'un referentiel AVANT toute suppression.
+
+    Regle absolue : suppression = sauvegarde .bak + preuve avant. Lit les chunks
+    existants du referentiel `rid`, ecrit un dump JSONL (1 chunk/ligne) sous
+    BACKUP_DIR (nom *.bak-*, gitignore), relit le fichier et exige
+    lignes_ecrites == chunks_lus -- sinon RAISE, de sorte que le delete appelant
+    n'est jamais atteint. Cas 0 chunk : rien a ecraser, aucun fichier ecrit."""
+    rows = db.execute(
+        select(
+            ReferentielChunk.chunk_index,
+            ReferentielChunk.option_ab,
+            ReferentielChunk.page,
+            ReferentielChunk.texte,
+            ReferentielChunk.embedding,
+            ReferentielChunk.embedding_model,
+        )
+        .where(ReferentielChunk.referentiel_id == rid)
+        .order_by(ReferentielChunk.chunk_index)
+    ).all()
+
+    if not rows:
+        return {"sauvegarde": None, "lignes": 0, "note": "0 chunk existant -- rien a sauvegarder"}
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")  # microsecondes : pas de collision
+    chemin = BACKUP_DIR / f"referentiel_chunks-{fiche.COLLECTION}.bak-{horodatage}.jsonl"
+
+    # Mode exclusif "x" : si le nom existe deja, on RAISE plutot que d'ecraser un
+    # backup existant (un filet ne detruit jamais un autre filet).
+    with chemin.open("x", encoding="utf-8") as f:
+        for (chunk_index, option_ab, page, texte, embedding, embedding_model) in rows:
+            f.write(json.dumps({
+                "referentiel_id": rid,
+                "chunk_index": chunk_index,
+                "option_ab": option_ab,
+                "page": page,
+                "texte": texte,
+                "embedding": [float(x) for x in embedding],
+                "embedding_model": embedding_model,
+            }, ensure_ascii=False) + "\n")
+
+    # Preuve avant : relire le fichier et exiger le bon compte, sinon ANNULER (raise).
+    with chemin.open("r", encoding="utf-8") as f:
+        lignes_ecrites = sum(1 for _ in f)
+    if lignes_ecrites != len(rows):
+        raise RuntimeError(
+            f"Sauvegarde incomplete : {lignes_ecrites} lignes ecrites sur {len(rows)} "
+            f"chunks ({chemin.name}). Suppression annulee."
+        )
+    logger.info(f"[RAG-pg] Sauvegarde avant purge : {lignes_ecrites} chunks -> {chemin.name}")
+    return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
 def extract_pages(pdf_path: Path) -> list[tuple[int, str]]:
@@ -89,6 +149,7 @@ def ingest_pgvector(dry_run: bool = False) -> dict:
     db = SessionLocal()
     try:
         rid = _resolve_referentiel_id(db)
+        sauvegarde = _sauvegarder_chunks_avant_purge(db, rid)  # RAISE si echec -> delete jamais atteint
         db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
         for idx, (ch, vec) in enumerate(zip(chunks, vecs)):
             db.add(ReferentielChunk(
@@ -114,6 +175,7 @@ def ingest_pgvector(dry_run: bool = False) -> dict:
         ).all())
         report.update({
             "referentiel_id": rid,
+            "sauvegarde_avant_purge": sauvegarde,
             "inseres_en_base": n,
             "par_option_en_base": per_opt,
             "embedding_model": EMBEDDING_MODEL,
