@@ -131,7 +131,7 @@ Quand le Pas 14 est validé → le Niveau 1 est **terminé**, on passe au Niveau
 3. Créer / désactiver une matière (brique backend manquante).
 4. Garde-fou : aucune disponibilité d'un niveau sans référentiel validé (conséquence de la validation, jamais un interrupteur libre).
 5. Enregistrer le couple validé (matières + couples + ligne `referentiels` + mise à disposition du niveau).
-6. Fabriquer les chunks de façon générique (ChromaDB) — mini-conception dédiée avant de coder.
+6. Fabriquer les chunks de façon générique (pgvector) — mini-conception dédiée avant de coder.
 7. Écran admin « Référentiels » (téléverser → relire → valider).
 
 Reprise du Pas 12 une fois ce chantier livré.
@@ -183,7 +183,7 @@ Un second jeu de prompts (les **outils** : ambiguïtés, consigne, séquence, op
 
 ---
 
-## 2. Ce qui est DÉJÀ EN BASE ✅ (lecture runtime depuis SQLite)
+## 2. Ce qui est DÉJÀ EN BASE ✅ (lecture runtime depuis PostgreSQL)
 
 | Élément | Table(s) | Preuve |
 |---|---|---|
