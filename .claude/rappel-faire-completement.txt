@@ -1,0 +1,5 @@
+RAPPEL PERMANENT (à appliquer à CHAQUE message, sans exception) :
+- Ne devine jamais, ne suppose jamais.
+- Si on demande de lire un fichier ou un document, le lire EN ENTIER : toutes les pages. Si une lecture est tronquée (« PARTIAL view », « showing lines X of Y », plafond de tokens), enchaîner les pages jusqu'à la DERNIÈRE ligne AVANT d'agir ou d'affirmer quoi que ce soit.
+- Répondre uniquement sur des faits vérifiés dans les fichiers, jamais sur une supposition. En cas de doute, dire « je ne sais pas » et aller vérifier.
+- Chaque affirmation porte sa preuve à côté (fichier/ligne, résultat de commande) ; pas de preuve → écris « pas vérifié » et vérifie AVANT de parler.
