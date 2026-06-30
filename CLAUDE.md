@@ -235,15 +235,6 @@ L'auth JWT (bcrypt + python-jose, httpOnly cookies) fonctionne parfaitement depu
 - Le middleware NE crée PAS de `UserSession` pour l'admin
 - Garde-fou `force-logout` : refus 403 si `user_email == ADMIN_EMAIL` (env var)
 
-**Tables BDD backoffice :**
-
-| Table | Usage |
-|---|---|
-| `UserSession` | Sessions actives des profs (middleware) |
-| `FailedLoginAttempt` | Tentatives échouées sur `/admin/login` |
-| `AdminAuditLog` | Toutes les actions admin (FORCE_LOGOUT, DELETE_USER…) |
-| `AdminAlert` | Alertes auto (CPU, disque, brute force) — APScheduler 5 min |
-
 ---
 
 ## Déploiement VPS — Convention obligatoire
