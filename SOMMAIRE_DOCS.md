@@ -56,7 +56,7 @@
 | MesMD\RAG\INFRA-RAG.md | Décrit la pile ChromaDB — faux après bascule pgvector. | Seule fiche d'archi du RAG — à réécrire post-migration. |
 | REFERENTIELS\README.md | Procédure décrivant ChromaDB. | Procédure d'ajout de référentiel toujours utilisée. |
 
-> **Réserve à trancher (signalée le 29/06, pas encore appliquée ci-dessous) :** `TRACKER_REFORME.md` (#23) et `AUDIT-EN-BASE-VS-EN-DUR.md` (#11) portent des lignes **fausses** (base décrite « encore SQLite » / runtime SQLite / chunks ChromaDB) → candidats 🟠 PÉRIMÉ MAIS UTILE. Encore notés 🟢 dans le tableau ci-dessous en attente de décision.
+> **Réserve à trancher (signalée le 29/06) :** `TRACKER_REFORME.md` (#23) porte des lignes **fausses** (base décrite « encore SQLite ») → candidat 🟠 PÉRIMÉ MAIS UTILE, en attente de décision. *(L'AUDIT (#11) en a été retiré : ses lignes 134/186 corrigées le 30/06 → pgvector / runtime PostgreSQL.)*
 
 ### ⚪ INCERTAIN
 
@@ -82,7 +82,7 @@
 | 8 | 🟢 VIVANT | d:\A-SCHOOL\MesAdmin\DIFFUSION_ASCHOOL.md | Stratégie de communication : positionnement, personas, messages, leviers viraux, canaux, métriques. |
 | 9 | 🟢 VIVANT | d:\A-SCHOOL\MesAdmin\EMAIL_PILOTES.md | Templates d'emails d'activation/suivi des profs pilotes + tableau de suivi des envois. |
 | 10 | 🟢 VIVANT | d:\A-SCHOOL\MesAdmin\PLAN_LANCEMENT_ASCHOOL.md | Plan d'action daté du lancement (avr→sept 2026) : phases, cibles, leviers, séquence onboarding, KPI. |
-| 11 | 🟢 VIVANT | d:\A-SCHOOL\MesMD\AUDIT-EN-BASE-VS-EN-DUR.md | Doctrine « tout en base, rien en dur » + plan en 3 niveaux (BDD / migration SQLite→PostgreSQL en 14 pas / sortie du dur) + audit prouvé code base-vs-dur. Feuille de route du socle. **(Lignes 134/186 périmées : ChromaDB / runtime SQLite — voir réserve.)** |
+| 11 | 🟢 VIVANT | d:\A-SCHOOL\MesMD\AUDIT-EN-BASE-VS-EN-DUR.md | Doctrine « tout en base, rien en dur » + plan en 3 niveaux (BDD / migration SQLite→PostgreSQL en 14 pas / sortie du dur) + audit prouvé code base-vs-dur. Feuille de route du socle. |
 | 12 | ⚪ INCERTAIN | d:\A-SCHOOL\MesMD\AUDIT_COHERENCE_C_HAB.md | Audit ponctuel doc-vs-doc des incohérences entre les 4 docs de pilotage, par cluster/gravité. Liste de contrôle, rien corrigé dedans. |
 | 13 | 🟠 PÉRIMÉ-UTILE | d:\A-SCHOOL\MesMD\BASE-DE-DONNEES.md | Doc admin du schéma + outillage (DB Browser/dbdiagram). **Marqué périmé** (décrit l'ancien SQLite 20 tables/pivot email). |
 | 14 | 🟢 VIVANT | d:\A-SCHOOL\MesMD\EMAILS.md | Référence obligatoire emails : SMTP Infomaniak, 2 adresses, .env, 4 fonctions d'envoi, principe `_smtp_send` unique. À lire avant toute modif email. |
@@ -150,4 +150,4 @@
 
 ---
 
-**Note de fraîcheur (29/06/2026) :** trois fichiers décrivent encore l'ancien socle technique (SQLite/ChromaDB) — `BASE-DE-DONNEES.md` (#13, auto-marqué périmé), `INFRA-RAG.md` (#16) et `REFERENTIELS/README.md` (#74). Deux autres portent des lignes fausses signalées mais non encore reclassées — `AUDIT-EN-BASE-VS-EN-DUR.md` (#11) et `TRACKER_REFORME.md` (#23). Mise à jour prévue dans une session docs dédiée.
+**Note de fraîcheur (29/06, maj 30/06/2026) :** deux fichiers décrivent encore l'ancien socle (SQLite/ChromaDB) — `BASE-DE-DONNEES.md` (#13, auto-marqué périmé) et `TRACKER_REFORME.md` (#23, lignes fausses non reclassées) → session docs dédiée. *(Corrigés depuis : AUDIT (#11) lignes 134/186 le 30/06 ; INFRA-RAG (#16) et REFERENTIELS/README (#74) au caillou 1 — passés à pgvector/PostgreSQL.)*
