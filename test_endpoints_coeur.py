@@ -218,12 +218,12 @@ def test_programmes_niveaux_utilisables_groupes_par_cycle():
     sup = Cycle(nom="Supérieur", ordre=6); db.add(sup); db.flush()
     n6 = Niveau(cycle_id=col.id, nom="6e", ordre=9); db.add(n6)
     nbts = Niveau(cycle_id=sup.id, nom="BTS", ordre=20); db.add(nbts)  # aucune paire -> exclu
-    mat = Matiere(cle="maths", nom="Mathématiques", ordre=2); db.add(mat); db.flush()
+    mat = Matiere(nom="Mathématiques", ordre=2); db.add(mat); db.flush()
     db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=n6.id))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
-    assert any(m["cle"] == "maths" for m in data["matieres"])
+    assert any(m["nom"] == "Mathématiques" for m in data["matieres"])
     cycles = {g["cycle"]: [n["nom"] for n in g["niveaux"]] for g in data["niveaux_par_cycle"]}
     assert cycles.get("Collège") == ["6e"]      # niveau avec paire -> présent
     assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
@@ -238,9 +238,9 @@ def test_programmes_matieres_par_cycle():
     cB = Cycle(nom="MPC-Cycle-B", ordre=41); db.add(cB); db.flush()
     nA = Niveau(cycle_id=cA.id, nom="MPC-nivA", ordre=40); db.add(nA)
     nB = Niveau(cycle_id=cB.id, nom="MPC-nivB", ordre=41); db.add(nB); db.flush()
-    m1 = Matiere(cle="mpc-m1", nom="MPC-Mat1", ordre=40); db.add(m1)
-    m2 = Matiere(cle="mpc-m2", nom="MPC-Mat2", ordre=41); db.add(m2)
-    inact = Matiere(cle="mpc-inact", nom="MPC-Inactive", ordre=99, actif=False); db.add(inact)
+    m1 = Matiere(nom="MPC-Mat1", ordre=40); db.add(m1)
+    m2 = Matiere(nom="MPC-Mat2", ordre=41); db.add(m2)
+    inact = Matiere(nom="MPC-Inactive", ordre=99, actif=False); db.add(inact)
     db.flush()
     db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nA.id))                  # Mat1 -> Cycle-A
     db.add(MatiereNiveau(matiere_id=m2.id, niveau_id=nB.id))                  # Mat2 -> Cycle-B
@@ -263,11 +263,11 @@ def test_programmes_matieres_par_niveau():
     niv = Niveau(cycle_id=cyc.id, nom="MPN-Diplome", ordre=50); db.add(niv); db.flush()
     # ordre GLOBAL volontairement DÉCROISSANT (99,98,97) : si l'API ordonnait par matiere.ordre
     # on aurait C,B,A — le test attend A,B,C, donc il prouve l'ordre d'insertion des paires.
-    mA = Matiere(cle="mpn-a", nom="MPN-A", ordre=99); db.add(mA)
-    mB = Matiere(cle="mpn-b", nom="MPN-B", ordre=98); db.add(mB)
-    mC = Matiere(cle="mpn-c", nom="MPN-C", ordre=97); db.add(mC)
-    mInact = Matiere(cle="mpn-inact", nom="MPN-Inact", ordre=96, actif=False); db.add(mInact)
-    mD = Matiere(cle="mpn-d", nom="MPN-D", ordre=95); db.add(mD)
+    mA = Matiere(nom="MPN-A", ordre=99); db.add(mA)
+    mB = Matiere(nom="MPN-B", ordre=98); db.add(mB)
+    mC = Matiere(nom="MPN-C", ordre=97); db.add(mC)
+    mInact = Matiere(nom="MPN-Inact", ordre=96, actif=False); db.add(mInact)
+    mD = Matiere(nom="MPN-D", ordre=95); db.add(mD)
     db.flush()
     db.add(MatiereNiveau(matiere_id=mA.id, niveau_id=niv.id))                 # A
     db.add(MatiereNiveau(matiere_id=mB.id, niveau_id=niv.id))                 # B
@@ -288,7 +288,7 @@ def test_programmes_niveau_traite_expose():
     cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
     nT = Niveau(cycle_id=cyc.id, nom="NT-Traite", ordre=60, traite=True); db.add(nT)
     nEC = Niveau(cycle_id=cyc.id, nom="NT-EnCours", ordre=61, traite=False); db.add(nEC); db.flush()
-    m = Matiere(cle="nt-mat", nom="NT-Mat", ordre=60); db.add(m); db.flush()
+    m = Matiere(nom="NT-Mat", ordre=60); db.add(m); db.flush()
     db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nT.id))   # paire => les niveaux apparaissent
     db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nEC.id))
     db.commit(); db.close()
@@ -315,14 +315,14 @@ def test_admin_programmes_arbre_complet_inactives_incluses():
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycleAdminTest", ordre=99); db.add(cyc); db.flush()
     db.add(Niveau(cycle_id=cyc.id, nom="NivA", ordre=1))
-    db.add(Matiere(cle="adm-mat", nom="MatAdmin", ordre=99, actif=False))  # INACTIVE
+    db.add(Matiere(nom="MatAdmin", ordre=99, actif=False))  # INACTIVE
     db.commit(); db.close()
 
     assert noauth().get("/api/admin/programmes").status_code == 401  # garde admin
 
     data = admin_client().get("/api/admin/programmes").json()
     assert "CycleAdminTest" in {c["nom"] for c in data["cycles"]}
-    assert any(m["cle"] == "adm-mat" and m["actif"] is False for m in data["matieres"])  # inactive presente
+    assert any(m["nom"] == "MatAdmin" and m["actif"] is False for m in data["matieres"])  # inactive presente
 
 
 def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
@@ -330,7 +330,7 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycPaire", ordre=98); db.add(cyc); db.flush()
     niv = Niveau(cycle_id=cyc.id, nom="NivP", ordre=1); db.add(niv); db.flush()
-    mat = Matiere(cle="paire-mat", nom="MatPaire", ordre=98); db.add(mat); db.flush()
+    mat = Matiere(nom="MatPaire", ordre=98); db.add(mat); db.flush()
     mid, nid = mat.id, niv.id
     db.commit(); db.close()
 
@@ -452,8 +452,8 @@ def test_matieres_derive_de_la_base():
     db = dbmod.SessionLocal()
     c = Cycle(nom="P510-Cyc", ordre=510); db.add(c); db.flush()
     n = Niveau(cycle_id=c.id, nom="P510-4e", ordre=510); db.add(n); db.flush()
-    mFr   = Matiere(cle="p510-fr",   nom="P510-Français", ordre=5101); db.add(mFr)
-    mMath = Matiere(cle="p510-math", nom="P510-Maths",    ordre=5102); db.add(mMath)
+    mFr   = Matiere(nom="P510-Français", ordre=5101); db.add(mFr)
+    mMath = Matiere(nom="P510-Maths",    ordre=5102); db.add(mMath)
     db.flush()
     db.add(MatiereNiveau(matiere_id=mFr.id,   niveau_id=n.id))
     db.add(MatiereNiveau(matiere_id=mMath.id, niveau_id=n.id))

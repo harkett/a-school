@@ -265,7 +265,6 @@ class Matiere(Base):
     __tablename__ = "matieres"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    cle: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = retirée du programme (historique conservé)

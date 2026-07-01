@@ -20,7 +20,7 @@ router = APIRouter()
 def get_programmes(db: Session = Depends(get_db)):
     matiere_objs = (db.query(Matiere).filter(Matiere.actif == True)
                       .order_by(Matiere.ordre).all())
-    matieres = [{"id": m.id, "cle": m.cle, "nom": m.nom} for m in matiere_objs]
+    matieres = [{"id": m.id, "nom": m.nom} for m in matiere_objs]
     matiere_ids_actifs = {m.id for m in matiere_objs}
 
     niveau_ids_utiles = {
@@ -53,7 +53,7 @@ def get_programmes(db: Session = Depends(get_db)):
             niveaux_par_cycle.append({"cycle": c.nom, "niveaux": nivs})
 
         ids = cycle_matiere_ids.get(c.id, set())
-        mats = [{"id": m.id, "cle": m.cle, "nom": m.nom} for m in matiere_objs if m.id in ids]
+        mats = [{"id": m.id, "nom": m.nom} for m in matiere_objs if m.id in ids]
         if mats:
             matieres_par_cycle.append({"cycle": c.nom, "matieres": mats})
 
@@ -64,14 +64,14 @@ def get_programmes(db: Session = Depends(get_db)):
     # paire n'est jamais supprimée (désactivation seulement). Clé = nom du niveau (unique
     # dans le référentiel actuel).
     par_niveau = {}
-    for niv_nom, mid, mcle, mnom in (
-        db.query(Niveau.nom, Matiere.id, Matiere.cle, Matiere.nom)
+    for niv_nom, mid, mnom in (
+        db.query(Niveau.nom, Matiere.id, Matiere.nom)
           .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
           .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
           .filter(MatiereNiveau.actif == True, Matiere.actif == True)
           .order_by(MatiereNiveau.id).all()
     ):
-        par_niveau.setdefault(niv_nom, []).append({"id": mid, "cle": mcle, "nom": mnom})
+        par_niveau.setdefault(niv_nom, []).append({"id": mid, "nom": mnom})
     matieres_par_niveau = [{"niveau": k, "matieres": v} for k, v in par_niveau.items()]
 
     return {
@@ -98,7 +98,7 @@ def get_matieres(db: Session = Depends(get_db)):
           .distinct()
           .all()
     )
-    return [{"cle": m.cle, "nom": m.nom} for m in rows]
+    return [{"nom": m.nom} for m in rows]
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ def admin_programmes(db: Session = Depends(get_db)):
         cycles.append({"id": c.id, "nom": c.nom, "ordre": c.ordre, "niveaux": niveaux})
 
     matieres = [
-        {"id": m.id, "cle": m.cle, "nom": m.nom, "ordre": m.ordre, "actif": m.actif}
+        {"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif}
         for m in db.query(Matiere).order_by(Matiere.ordre).all()
     ]
     paires = [

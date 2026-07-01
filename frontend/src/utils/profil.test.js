@@ -12,15 +12,15 @@ import { matieresDuNiveau, matiereConnue, matiereIncoherente, profilPretAValider
 // Réplique fidèle d'un /api/programmes → matieres_par_niveau (ordre = ordre du référentiel).
 const PAR_NIVEAU = [
   { niveau: 'BTS CIEL option A', matieres: [
-    { id: 1, cle: 'culture-generale-expression', nom: 'Culture générale et expression' },
-    { id: 2, cle: 'anglais',         nom: 'Anglais' },
-    { id: 3, cle: 'mathematiques',   nom: 'Mathématiques' },
-    { id: 4, cle: 'physique',        nom: 'Physique' },
-    { id: 5, cle: 'informatique',    nom: 'Informatique' },
+    { id: 1, nom: 'Culture générale et expression' },
+    { id: 2, nom: 'Anglais' },
+    { id: 3, nom: 'Mathématiques' },
+    { id: 4, nom: 'Physique' },
+    { id: 5, nom: 'Informatique' },
   ] },
   { niveau: '3e', matieres: [
-    { id: 10, cle: 'francais',         nom: 'Français' },
-    { id: 11, cle: 'langues-vivantes', nom: 'Langues Vivantes (LV)' },
+    { id: 10, nom: 'Français' },
+    { id: 11, nom: 'Langues Vivantes (LV)' },
   ] },
 ]
 

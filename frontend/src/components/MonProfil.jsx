@@ -184,10 +184,10 @@ export default function MonProfil({ onNavigate }) {
           >
             <option value="">— Choisissez —</option>
             {matieresNiveau
-              ? matieresNiveau.map(m => <option key={m.cle} value={m.nom}>{m.nom}</option>)
+              ? matieresNiveau.map(m => <option key={m.id} value={m.nom}>{m.nom}</option>)
               : matieresParCycle.map(grp => (
                   <optgroup key={grp.cycle} label={grp.cycle}>
-                    {grp.matieres.map(m => <option key={m.cle} value={m.nom}>{m.nom}</option>)}
+                    {grp.matieres.map(m => <option key={m.id} value={m.nom}>{m.nom}</option>)}
                   </optgroup>
                 ))}
           </select>
