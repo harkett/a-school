@@ -91,11 +91,11 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 | URL | https://aschool.fr |
 | IP | 83.228.245.163 |
 | SSH | ubuntu@83.228.245.163 |
-| Chemin | /var/www/aSchool/ |
+| Chemin | /var/www/a-school/ |
 | Service | `aschool.service` (systemd) |
 | Port | 8001 (8000 occupé par Django AFIA-FR) |
-| OS | Ubuntu 24.04 LTS |
-| SSL expiry | 2026-07-15 |
+| OS | Ubuntu 24.04.4 LTS |
+| SSL expiry | 2026-08-05 |
 
 **Statut : opérationnel en production — des profs réels l'utilisent. Ne jamais remettre en doute.**
 
@@ -262,7 +262,7 @@ Toutes les applications web sont dans `/var/www/<nom-app>/` — standard Linux F
 
 | Application | Chemin | .env |
 |---|---|---|
-| aSchool | `/var/www/aSchool/` | `/var/www/aSchool/.env` |
+| aSchool | `/var/www/a-school/` | `/var/www/a-school/.env` |
 | AFIA-FR | `/home/ubuntu/AFIA-FR/` ⚠️ | `/home/ubuntu/AFIA-FR/backend/.env` ⚠️ à migrer |
 
 Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/var/www/`.
