@@ -311,7 +311,9 @@ PATCH = aucune action requise.
 
 ## Nom du produit — aSchool
 
-Le nom affiché dans toute l'interface, les textes, les boutons et les messages est **aSchool** (a minuscule, S majuscule). Jamais "ASchool", jamais "IA".
+Le nom du produit s'écrit **aSchool** : un « a » minuscule et un « S » majuscule. On ne l'écrit jamais « ASchool ».
+
+**Choix de marque.** aSchool est présenté aux utilisateurs comme un logiciel pédagogique, jamais comme « une IA ». Dans tout ce que voit l'utilisateur (les écrans, les textes, les boutons, les messages), on n'affiche jamais les mots « IA » ni « intelligence artificielle ». Cette règle concerne seulement ce que voit l'utilisateur. Elle ne concerne pas les documents internes comme ce fichier, le code, ou les messages de commit.
 
 **Ressources graphiques (hors projet — ne pas modifier depuis ici) :**
 - Charte graphique : `D:\A-PUB\PUB_ASCHOOL\PLAN_CAMPAGNE-ASCHOOL\Charte_Graphique.md`
