@@ -45,15 +45,13 @@ Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un che
 
 **Le mot « seed » est banni. On dit « script éphémère ».**
 
-Toutes les données métier vivent dans la **BASE** — **zéro donnée métier en dur dans le code** (cap fondateur ci-dessus). Quand il faut **remplir la base**, on n'écrit **jamais** un fichier permanent qui porte des données en dur (comme l'était `seed_programmes.py`, supprimé). On écrit un **script éphémère**.
+Toutes les données métier **doivent vivre** dans la **BASE** — **aucune donnée métier ne doit être codée en dur** (cap fondateur ci-dessus). Quand il faut **remplir la base**, on n'écrit **jamais** un fichier permanent qui porte des données en dur (comme l'était `seed_programmes.py`, supprimé). On écrit un **script éphémère**.
 
 **Définition.** Un script éphémère est un script **jetable**, créé dans un **seul but** : lire une **source officielle**, **alimenter la base une fois**, puis **être supprimé**. Il ne fait **jamais** partie de l'application, il ne **reste jamais** dans le projet.
 
 **Cycle de vie, non négociable :** **créer → alimenter la base → supprimer.** Une fois la base remplie, le script **disparaît** (historique git si besoin). Un script qui *reste* dans le projet en portant de la donnée métier est un **défaut** — c'est exactement ce qu'on ne veut plus.
 
 **Distinction clé :** ce n'est pas l'usage d'un script qui est interdit, c'est qu'un script **persiste** en portant la donnée. Remplir puis disparaître = sain. Rester avec des données en dur = à virer.
-
-> Cas en cours (30/06/2026) : le socle `MesMD/aSchool-matieres.md` + un futur **script éphémère** qui lira cette source, remplira `matieres` / `matiere_niveaux`, puis sera **supprimé**.
 
 ---
 
