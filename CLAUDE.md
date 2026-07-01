@@ -104,14 +104,14 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 ## Scripts clés
 
 ```powershell
-.\Scripts\run.ps1              # Lance backend (:8001) + frontend (:5173) — régénère activities auto · param -BackendPort (défaut 8001)
+.\Scripts\run.ps1              # Lance backend (:8001) + frontend (:5173) — sync dépendances Python + logos avant de démarrer · param -BackendPort (défaut 8001)
 .\Scripts\push.ps1             # Sauvegarde GitHub UNIQUEMENT (git push seul) — ne déploie PAS la prod, ne bump PAS la version
 .\Scripts\deploy.ps1 "message" # Bump PATCH auto → commit → push GitHub → déploiement VPS (geste sous validation explicite)
 ```
 
 **Deux gestes, deux scripts, jamais confondus :** `git push` / `push.ps1` = sauvegarde GitHub, n'affecte **pas** la prod. `deploy.ps1` = déploiement VPS, **sous validation explicite**.
 
-Version courante : **3.2.9** — PATCH incrémenté automatiquement par `deploy.ps1` (`npm version patch`). MINOR et MAJOR = manuels.
+La version vit dans `frontend/package.json`. Le PATCH est incrémenté automatiquement par `deploy.ps1` (`npm version patch`). MINOR et MAJOR sont manuels.
 
 **Cohabitation locale :** le port 8000 local est souvent pris par un autre projet (A-VIEWCAM). `run.ps1` lance donc aSchool sur **8001** (paramètre `-BackendPort`, défaut 8001), ne tue jamais le 8000 voisin, et passe `VITE_API_PORT` au frontend (proxy Vite configurable via `process.env.VITE_API_PORT`). Cohérent avec le VPS (aSchool en 8001 derrière Django AFIA-FR).
 
