@@ -55,7 +55,7 @@ Toutes les données métier **doivent vivre** dans la **BASE** — **aucune donn
 
 ---
 
-Plateforme web de génération d'activités pédagogiques pour les enseignants (collège → supérieur), sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
+Plateforme web de génération d'activités pédagogiques pour les enseignants, sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
 
 **Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
 
