@@ -80,7 +80,7 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 | Dictée | Groq Whisper API — batch `whisper-large-v3` (streaming Deepgram gelé sur `wip/deepgram-streaming`) |
 | Auth profs | email + bcrypt + JWT (python-jose) + httpOnly cookies |
 | Auth admin | Cookie `aschool_admin` — JWT séparé `{"role": "admin"}` |
-| SMTP | mail.infomaniak.com:587 — identifiant exact dans le `.env` (variable `SMTP_USERNAME`) |
+| Emails | Infomaniak (SMTP) — voir § Gestion des emails |
 
 ---
 
@@ -203,15 +203,39 @@ Streamlit a été abandonné définitivement le 24/04/2026. Le projet tourne sur
 
 ---
 
-## SMTP — Règles absolues
+## Gestion des emails
 
-- Ne jamais changer de fournisseur SMTP sans demande explicite
-- `SMTP_FROM` = `aSchool <contact@aschool.fr>` (emails vers les profs)
-- `FEEDBACK_FROM` = `aSchool Feedback <feedback@aschool.fr>` (notifications admin)
-- Tout le code SMTP passe par `_smtp_send()` dans `backend/auth.py` — ne jamais créer de connexion SMTP ailleurs
-- Voir `MesMD/EMAILS.md` avant toute modification email
+Tout ce qui concerne les emails est regroupé ici. Le détail complet (chaque
+adresse, chaque fonction d'envoi) vit dans `MesMD/EMAILS.md`, à lire avant toute
+modification email.
 
-**Action en attente :** Infomaniak force l'adresse d'expédition à correspondre au compte authentifié — les emails partent avec `harketti@afia.fr` au lieu de `contact@aschool.fr`. Solution : acheter les boîtes `contact@aschool.fr` + `feedback@aschool.fr` (~3€/mois chacune) et mettre à jour `SMTP_USERNAME`/`SMTP_PASSWORD` dans `.env`. Le code n'a pas besoin de changer.
+### Fournisseur
+aSchool envoie ses emails via Infomaniak (`mail.infomaniak.com`, port `587`).
+Ne jamais changer de fournisseur sans demande explicite.
+
+### Connexion — le point qui nous a coûté cher
+Pour se connecter au serveur d'envoi, Infomaniak refuse le mot de passe du
+webmail. Il faut un mot de passe dédié, généré dans Infomaniak (Service Mail,
+puis l'adresse, puis Appareils, puis Ajouter un appareil). C'est ce mot de passe
+que l'on met dans le `.env`. Sans lui, la connexion est refusée avec l'erreur
+« 535 Invalid login or password ».
+
+### Où vivent les réglages
+Toutes les adresses et le mot de passe vivent dans le `.env`. On ne les recopie
+jamais dans ce fichier, jamais dans le code, et on ne les affiche jamais en clair.
+Le compte de connexion et l'adresse d'expéditeur doivent être la même adresse,
+car Infomaniak l'exige. Les emails d'aSchool sont sur le domaine aschool.fr : on
+n'utilise plus afia.fr pour les emails d'aSchool.
+
+### Une seule porte de sortie
+Tout le code d'envoi passe par la fonction `_smtp_send()` dans `backend/auth.py`.
+Ne jamais ouvrir une connexion SMTP ailleurs.
+
+### Qui reçoit quoi
+Les emails aux profs (activation, bienvenue, mot de passe oublié) partent vers
+l'adresse de chaque prof. Les notifications que l'administrateur lit (feedbacks,
+nouvelles inscriptions) arrivent dans l'adresse `FEEDBACK_NOTIFY_EMAIL` du `.env`.
+Les alertes techniques du serveur arrivent dans `ADMIN_EMAIL` du `.env`.
 
 ---
 
