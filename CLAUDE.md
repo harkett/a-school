@@ -120,10 +120,9 @@ La version vit dans `frontend/package.json`. Le PATCH est incrémenté automatiq
 ## Taxonomie des outils — note de conception (classement, pas mode d'emploi prof)
 
 > Grille pour RANGER tout outil prof. À usage interne (nous / futur dev), jamais
-> dans l'aide prof. Actée le 12/06/2026. Le réagencement du menu selon cette
-> grille est un chantier SÉPARÉ, non encore fait. Une version prof simplifiée de
-> cette logique est rédigée et **réservée pour le chantier menu** (à publier dans
-> l'Aide AVEC le réagencement, pour que l'aide colle au menu réel — pas avant).
+> dans l'aide prof. Actée le 12/06/2026.
+
+Les exemples ci-dessous illustrent le classement : ils incluent des outils déjà livrés et des outils encore à venir. Cette grille range les outils, elle ne dit pas ce qui est disponible.
 
 **4 verbes, pas un fourre-tout :**
 
