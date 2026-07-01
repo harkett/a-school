@@ -80,7 +80,7 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 | Dictée | Groq Whisper API — batch `whisper-large-v3` (streaming Deepgram gelé sur `wip/deepgram-streaming`) |
 | Auth profs | email + bcrypt + JWT (python-jose) + httpOnly cookies |
 | Auth admin | Cookie `aschool_admin` — JWT séparé `{"role": "admin"}` |
-| SMTP | mail.infomaniak.com:587 — `SMTP_USERNAME=harketti@afia.fr` |
+| SMTP | mail.infomaniak.com:587 — identifiant exact dans le `.env` (variable `SMTP_USERNAME`) |
 
 ---
 
