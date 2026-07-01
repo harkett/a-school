@@ -224,8 +224,10 @@ que l'on met dans le `.env`. Sans lui, la connexion est refusée avec l'erreur
 Toutes les adresses et le mot de passe vivent dans le `.env`. On ne les recopie
 jamais dans ce fichier, jamais dans le code, et on ne les affiche jamais en clair.
 Le compte de connexion et l'adresse d'expéditeur doivent être la même adresse,
-car Infomaniak l'exige. Les emails d'aSchool sont sur le domaine aschool.fr : on
-n'utilise plus afia.fr pour les emails d'aSchool.
+car Infomaniak l'exige. Les emails d'aSchool sont **envoyés depuis** le domaine
+aschool.fr (identité expéditrice). Seule exception : les alertes techniques
+d'administration sont **reçues** sur `ADMIN_EMAIL`, qui reste une adresse afia.fr
+par choix.
 
 ### Une seule porte de sortie
 Tout le code d'envoi passe par la fonction `_smtp_send()` dans `backend/auth.py`.
