@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel
 from backend.routers.admin import _require_admin
 
 router = APIRouter()
@@ -99,6 +99,26 @@ def get_matieres(db: Session = Depends(get_db)):
           .all()
     )
     return [{"nom": m.nom} for m in rows]
+
+
+@router.get("/referentiel-disponible")
+def referentiel_disponible(niveau: str, matiere: str | None = None, db: Session = Depends(get_db)):
+    """Le garde-fou « génération » : un référentiel officiel existe-t-il pour ce couple ?
+
+    Répond {"disponible": true/false}. Vrai si un référentiel couvre tout le niveau
+    (matiere_id NULL) OU est propre à la matière du prof. Faux sinon (couple « en
+    construction » : rien à générer). Lecture seule, source = la table `referentiels`.
+    C'est la brique lue à la connexion pour poser le drapeau côté prof.
+    """
+    q = (db.query(Referentiel.id)
+           .join(Niveau, Niveau.id == Referentiel.niveau_id)
+           .filter(Niveau.nom == niveau))
+    if matiere:
+        mid = db.query(Matiere.id).filter(Matiere.nom == matiere).scalar()
+        q = q.filter((Referentiel.matiere_id.is_(None)) | (Referentiel.matiere_id == mid))
+    else:
+        q = q.filter(Referentiel.matiere_id.is_(None))
+    return {"disponible": q.first() is not None}
 
 
 # ───────────────────────────────────────────────────────────────────────────
