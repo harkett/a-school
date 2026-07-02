@@ -73,13 +73,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(UserSessionMiddleware)
 
+# Origines CORS autorisées — externalisées en config de déploiement (D). La variable
+# CORS_ALLOWED_ORIGINS est une liste séparée par des virgules ; VIDE ou absente = exactement
+# les mêmes valeurs qu'avant (dev localhost + prod aschool.fr) → zéro changement de comportement.
+_cors_defaut = ["http://localhost:5173", "http://localhost:3000", "https://aschool.fr"]
+_cors_origins = [o.strip() for o in _os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()] or _cors_defaut
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://aschool.fr",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["*"],

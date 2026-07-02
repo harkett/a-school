@@ -22,7 +22,7 @@ from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
 from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
+from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
 from src.generator import generate, LLMRateLimitError
 from src.prompts import build_exemple_referentiel_prompt
 
@@ -94,7 +94,7 @@ def api_exemple_referentiel(
         return ExempleReferentielResponse(available=False)
 
     collection, filters = resolved
-    chunks = retrieve_pg(collection, req.matiere, filters=filters, top_k=4)
+    chunks = retrieve_pg(collection, req.matiere, filters=filters, top_k=get_rag_top_k(db))
     # Filtre STRICT de pertinence : un chunk sous le seuil n'ancre JAMAIS une génération
     # (pas de « meilleur quand même »). Le seuil vit dans la fiche du référentiel.
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= ciel_fiche.SCORE_MIN]

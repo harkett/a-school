@@ -76,6 +76,9 @@ SETTING_DEFAULTS = {
     # zéro régression. L'optimiseur n'utilise PAS ce réglage (température 0 figée en dur, JSON
     # déterministe). « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
     "ai_temperature": "",
+    # Nb de chunks que le RAG ramène (top_k) pour ancrer une génération. Réglage admin en
+    # base, sûr à changer à chaud (aucun ré-index). Défaut 4. Lu via get_rag_top_k(db).
+    "rag_top_k": "4",
 }
 
 
@@ -115,6 +118,24 @@ def get_ai_provider(db: Session) -> str:
     get_ai_model (branche sur get_settings_dict). La valeur (chaîne) descend ensuite dans
     generate() via le paramètre `provider`, qui reste pur (aucune connaissance de la base)."""
     return get_settings_dict(db)["ai_provider"]
+
+
+# Bornes de top_k (nb de chunks ramenés par le RAG). MIN 1 (au moins un extrait) ;
+# MAX = garde-fou coût/pertinence.
+RAG_TOP_K_MIN = 1
+RAG_TOP_K_MAX = 20
+
+
+def get_rag_top_k(db: Session) -> int:
+    """Nombre de chunks ramenés par le RAG (top_k), lu en base au moment de l'appel (repli
+    sur le défaut code). Même motif que get_max_tokens : rechargeable à chaud. Renvoie un int
+    borné [MIN, MAX] ; valeur corrompue / hors bornes -> défaut."""
+    raw = get_settings_dict(db)["rag_top_k"]
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return int(SETTING_DEFAULTS["rag_top_k"])
+    return max(RAG_TOP_K_MIN, min(RAG_TOP_K_MAX, v))
 
 
 # Bornes de max_tokens (Phase 4.1.c). MIN = plancher dur : empêche une valeur si basse
