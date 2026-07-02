@@ -273,12 +273,15 @@ class Matiere(Base):
 class MatiereNiveau(Base):
     """Programme officiel : quelle matière à quel niveau (paire valide)."""
     __tablename__ = "matiere_niveaux"
-    __table_args__ = (Index("ix_matiere_niveaux_unique", "matiere_id", "niveau_id", unique=True),)
+    __table_args__ = (Index("ix_matiere_niveaux_unique", "matiere_id", "niveau_id", "variante", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     matiere_id: Mapped[int] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=False, index=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = paire retirée du programme (historique conservé)
+    # '' = pas de variante ; sinon 'A' / 'B'… — même matière déclinée au même niveau (cf. règle
+    # « Matière, variante, spécialité »). NOT NULL default '' : l'unique protège partout sans piège NULL.
+    variante: Mapped[str] = mapped_column(String(32), nullable=False, server_default='', default='')
 
 
 class UserEnseignement(Base):

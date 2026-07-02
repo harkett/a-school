@@ -24,6 +24,14 @@ Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un che
 (Règle née le 30/06/2026 : un scan de tout Windows est tombé sur le PostgreSQL d'une **autre** application, pris à tort pour celui d'aSchool ; tout un faux diagnostic bâti dessus, et la suppression des données d'un projet tiers **qui fonctionne** évitée de justesse. Une journée perdue. Ne se reproduit plus.)
 
 > **Seule exception, explicitement désignée par Harketti :** le cluster PostgreSQL d'aSchool vit hors du dossier projet, dans `C:\Users\harketti\PostgreSQL\16` (port 5433). On n'y touche **que** parce que Harketti l'a nommément rattaché à aSchool. **Tout autre PostgreSQL de la machine est hors périmètre** (notamment l'install v17 `Program Files` / port 5432 = autres applications).
+>
+> **Démarrer / arrêter ce cluster (PAS de service Windows — démarrage manuel, ne survit pas à un reboot ; `run.ps1` ne le démarre pas) :**
+> ```powershell
+> # démarrer (port 5433)
+> & "C:\Users\harketti\PostgreSQL\16\pgsql\bin\pg_ctl.exe" -D "C:\Users\harketti\PostgreSQL\16\data" -l "C:\Users\harketti\PostgreSQL\16\data\startup.log" -w start
+> # arrêter
+> & "C:\Users\harketti\PostgreSQL\16\pgsql\bin\pg_ctl.exe" -D "C:\Users\harketti\PostgreSQL\16\data" stop
+> ```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -168,6 +176,28 @@ Source de vérité = `backend/routers/` (le code fait foi). Deux endpoints utili
 **Un cycle et un niveau sont deux choses différentes.** Un **niveau** = une seule année scolaire (ex. la 4e). Un **cycle** = un **groupe de niveaux** (ex. le cycle 4 de l'EN = 5e + 4e + 3e). Le cycle **contient** des niveaux : c'est le **contenant**, le niveau est le **contenu**. Jamais l'un pour l'autre — surtout en codant (`cycle_id` ≠ `niveau_id`, requête « par cycle » ≠ « par niveau »).
 
 Dans aSchool : table `cycles` = Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur ; table `niveaux` = 6e, 5e, 4e, 3e, 2nde… (chaque niveau rattaché à un cycle). **Piège connu** : l'Éducation nationale appelle aussi « cycle » ses **cycles 1 à 4**, qui regroupent les niveaux **autrement** et **ne s'alignent pas** sur nos cycles (ex. la 6e est en cycle 3 EN mais dans notre cycle Collège).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Matière, variante, spécialité — trois distinctions, trois emplacements (règle absolue)
+
+Trois questions différentes, à ne jamais confondre. Le test qui départage :
+
+- **Ça duplique UNE matière au même niveau → variante.**
+- **Ça change QUELLES matières existent → niveau.**
+
+**1. Variante — la même matière apparaît deux fois au même niveau.**
+Exemple : « Langue vivante » en 3e existe en A et en B en même temps. La matière ne se dédouble pas : une seule ligne canonique dans `matieres` (« Langue vivante »), et la variante est portée sur le couple, dans `matiere_niveaux.variante` (`NOT NULL default ''`, vide = pas de variante — même choix que `option_ab`). Index unique du couple = `(matiere_id, niveau_id, variante)`. Injection : table d'alias explicite (« Langue vivante A » → matière « Langue vivante » + variante « A »), jamais de devinette sur le libellé. Affichage prof : composer « nom + variante », sinon la matière sort deux fois à l'identique.
+
+**2. Spécialité — elle décide quelles matières existent.**
+Exemple : un BTS. « BTS 1re année » seul ne veut rien dire ; c'est la spécialité (CIEL…) qui sélectionne l'ensemble des matières. Ce n'est pas une variante d'une matière (la mettre en `variante` la répéterait partout — « CIEL » sur chaque ligne — et serait faux de sens). Sa place est le **niveau** : niveau = année + spécialité. C'est déjà la convention du référentiel (`NIVEAU = "BTS CIEL option A"`).
+
+**3. Option A/B du diplôme — déjà gérée par `option_ab`.**
+L'option A/B d'un même diplôme (ex. BTS CIEL option A / B) est taguée sur les chunks du référentiel (`referentiel_chunks.option_ab`, NOT NULL) et sert de filtre au RAG. On n'y touche pas, et on ne la remodélise ni en variante ni en niveau.
+
+`variante` reste `''` partout, sauf les rares cas type Langue A/B — y compris pour tout le BTS.
+
+(Décidé le 02/07/2026.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -510,6 +540,37 @@ Le **référentiel officiel** du couple matière+niveau est **LA source de véri
 Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BTS_CIEL_OPTION_A/`, unique et non renommable) → l'IA **propose** le PDF officiel → l'admin **valide** → découper / **relier** / tester. Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 **Reste à faire (chantier à part) :** « automatiser le Temps 3 » — routage couple→référentiel **data-driven** (aujourd'hui en dur dans `exemple_referentiel.py`) **+ branchement du cœur** `/api/generate`.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Procédure — un couple devient utilisable : de l'admin au prof (règle absolue)
+
+**Principe fondateur.** aSchool ne génère rien sans référentiel officiel. La seule condition pour générer, c'est qu'un référentiel existe pour le couple du prof : son cycle, sa matière, son niveau.
+
+**Le déclencheur.** Un prof appelle l'admin. Exemple : une animatrice de crèche dit qu'elle est en cycle Crèche, niveau Bébés (0-1 an), matière Développement affectif, et demande si elle peut utiliser aSchool. L'admin répond qu'il s'en occupe.
+
+**Côté admin — préparer le couple.**
+1. Les 11 cycles et les 88 niveaux existent déjà en base. On n'en crée pas.
+2. Les matières du niveau doivent être présentes en base et reliées au niveau. On les remplit depuis le fichier des matières avec un script éphémère (créer, remplir, supprimer).
+3. L'admin ouvre aSchool, va dans Paramètres puis Référentiels. Il choisit le cycle, puis le niveau.
+4. Il dépose le PDF du référentiel officiel et valide. C'est ce dépôt qui rend le couple utilisable.
+
+**Ce qu'on fait du PDF (deux choses).**
+1. Le texte est extrait et rangé, et la provenance est enregistrée dans la table des référentiels.
+2. Le PDF est découpé en extraits (les chunks) et vectorisé, pour que la génération puisse s'appuyer dessus.
+
+**Le drapeau (dans le code, pas dans les tables).**
+1. À la connexion du prof, le code pose un drapeau vrai ou faux.
+2. Il est vrai si un référentiel existe pour le couple du prof : cycle, matière, niveau. Sinon il est faux.
+3. Ce drapeau vit pendant toute la session du prof, dans cet état.
+4. C'est le même drapeau partout. Tout ce qui s'appuie sur le référentiel s'y réfère.
+
+**Côté prof — ce qu'il vit.**
+1. Le prof se connecte librement dès qu'il a une matière et un niveau. On ne le bloque jamais à l'entrée.
+2. Il peut se promener partout : accueil, centre d'aide, mon réseau, mon profil, mes feedbacks, mes stats, l'historique de ses activités.
+3. Tout ce qui utilise le référentiel dépend du drapeau. Ce qui utilise le référentiel, ce sont ses extraits, les chunks. Si le drapeau est faux, on affiche un message clair qui dit qu'il n'y a pas encore de référentiel pour ce niveau, et rien n'est généré. Le reste, qui n'utilise pas le référentiel, reste ouvert.
+
+**Portée dans le temps — défini maintenant, appliqué au fur et à mesure.** On pose ce garde-fou maintenant, on l'applique à mesure que les outils sont branchés sur le référentiel. Aujourd'hui, un seul élément côté prof utilise le référentiel : « Tester un exemple », et il se protège déjà tout seul (pas de référentiel, il répond indisponible et n'invente rien). « Créer une activité » et les autres outils ne lisent pas encore le référentiel. Ils dépendront du drapeau une fois branchés sur les chunks. C'est un chantier à part.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
