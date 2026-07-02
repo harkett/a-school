@@ -2,7 +2,21 @@
 
 > Chargé automatiquement à chaque session. Règles + contexte technique — source unique de vérité.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★       RÈGLE N°0 — ORGANISATION DE CE FICHIER           ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+
+## 🗂️ Règle n°0 — Organisation de CLAUDE.md : regrouper par thème (absolue)
+
+CLAUDE.md doit rester facile à lire et à chercher. Tout ce qui concerne un même thème vit dans UNE seule section dédiée, jamais éparpillé en plusieurs endroits du fichier.
+
+Chaque section est encadrée d'un bandeau d'étoiles bien visible — comme la section « BASES DE DONNÉES » — pour la retrouver d'un coup d'œil.
+
+À chaque fois que Claude Code ajoute une règle ou une information, il la range dans la bonne section existante ; il n'ajoute jamais une énième entrée isolée. Si le thème n'a pas encore de section, il en crée une, au même standard.
+
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★                  FIN — RÈGLE N°0                       ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
 
 ## 🔍 Règle n°1 — Vérifier la cohérence AVANT de toucher (absolue)
 
@@ -201,9 +215,44 @@ L'option A/B d'un même diplôme (ex. BTS CIEL option A / B) est taguée sur les
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Tables BDD (PostgreSQL — base `aschool`)
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★                    BASES DE DONNÉES                    ★★★
+★★★    (tout ce qui concerne les bases est regroupé ici)   ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+
+### Tables BDD (PostgreSQL — base `aschool`)
 
 Source de vérité = `backend/models_db.py` (le code fait foi).
+
+### La base "miroir" (règle absolue)
+
+Trois bases, trois noms, à ne jamais confondre :
+- aschool         = la vraie base de dev (les vraies données)
+- aschool_test    = la base vide des tests automatiques (remise à zéro à chaque run, fausses données)
+- aschool_miroir  = le miroir (une copie des vraies données de aschool)
+
+La vraie base n'est jamais touchée tant que ce n'est pas prouvé sur le miroir.
+
+Quand un travail a besoin d'une base pour être répété sans risque, Claude Code fabrique un miroir : un dump de la vraie base de dev, restauré dans une copie, avec les vraies données. On répète le travail sur le miroir, on vérifie qu'il marche, et seulement une fois prouvé sur le miroir l'admin (DEV) refait le geste (run.ps1) pour de vrai sur la vraie base. Ensuite, on jette le miroir.
+
+Ce miroir n'est PAS `aschool_test` (la base vide des tests automatiques).
+
+### Base vectorielle (PostgreSQL / pgvector) — Règle absolue
+
+Les vecteurs du RAG vivent dans **PostgreSQL** (table `referentiel_chunks`, colonne `embedding` de type `vector` via **pgvector**) — **plus aucun dossier `chroma_db/`**, ChromaDB a été **retiré définitivement le 29/06/2026**. Comme toute base, c'est une **donnée GÉNÉRÉE**, pas du code : « données ≠ code ». Source de vérité = le **PDF du référentiel** (`REFERENTIELS/`) + le **script d'ingestion** (`backend/rag/pgvector_store.py`). Les vecteurs ne vivent **jamais dans git** (ils sont en base), **reconstruits au déploiement** via `python -m backend.rag.pgvector_store` (étape `[2.5/7]` de `deploy/deploy.sh`).
+
+Prérequis d'ingestion : la table `referentiel_chunks` doit être **migrée** (Alembic) et la ligne `referentiels` du couple présente — sinon l'ingestion lève une **erreur claire** (jamais une base trouée en silence).
+
+(Bascule pgvector actée le 29/06/2026 — éradication de ChromaDB : code, dépendance et dossier `chroma_db/` supprimés ; le moteur RAG est désormais PostgreSQL unique, cohérent avec « SQLite banni ».)
+
+### Renvois — la base ailleurs dans ce fichier (elle reste à sa place utile)
+
+- **Cluster PostgreSQL** (où il vit : `C:\Users\harketti\PostgreSQL\16`, port 5433 ; comment le démarrer / arrêter) → voir la **Règle de périmètre** (haut du fichier).
+- **Ligne BDD de la stack** (psycopg, port 5433 ; garde-fou `backend/database.py` ; `aschool_test` via `conftest.py`) → voir le tableau **Stack technique**.
+
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★                 FIN — BASES DE DONNÉES                 ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -520,16 +569,6 @@ Deux fournisseurs, pour pouvoir basculer de l'un à l'autre : **Groq** (`llama-3
 ## Aide — Règle absolue
 
 Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la **même session** — à chaud, pendant que c'est frais. Jamais en retard. Jamais reporté à "plus tard".
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## Base vectorielle (PostgreSQL / pgvector) — Règle absolue
-
-Les vecteurs du RAG vivent dans **PostgreSQL** (table `referentiel_chunks`, colonne `embedding` de type `vector` via **pgvector**) — **plus aucun dossier `chroma_db/`**, ChromaDB a été **retiré définitivement le 29/06/2026**. Comme toute base, c'est une **donnée GÉNÉRÉE**, pas du code : « données ≠ code ». Source de vérité = le **PDF du référentiel** (`REFERENTIELS/`) + le **script d'ingestion** (`backend/rag/pgvector_store.py`). Les vecteurs ne vivent **jamais dans git** (ils sont en base), **reconstruits au déploiement** via `python -m backend.rag.pgvector_store` (étape `[2.5/7]` de `deploy/deploy.sh`).
-
-Prérequis d'ingestion : la table `referentiel_chunks` doit être **migrée** (Alembic) et la ligne `referentiels` du couple présente — sinon l'ingestion lève une **erreur claire** (jamais une base trouée en silence).
-
-(Bascule pgvector actée le 29/06/2026 — éradication de ChromaDB : code, dépendance et dossier `chroma_db/` supprimés ; le moteur RAG est désormais PostgreSQL unique, cohérent avec « SQLite banni ».)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
