@@ -149,7 +149,9 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     if db.query(Referentiel).filter(Referentiel.nom_fixe == nom_fixe).first():
         raise HTTPException(409, f"Identifiant de référentiel déjà utilisé : {nom_fixe}.")
 
-    dossier = REFERENTIELS_DIR / _dossier_cle(niveau_nom)
+    # Rangement CYCLE / NIVEAU : le chemin complet (cycle + niveau) identifie le référentiel
+    # de façon unique (deux niveaux de même nom dans deux cycles ne se télescopent jamais).
+    dossier = REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau_nom)
     dossier.mkdir(parents=True, exist_ok=True)
     pdf_final = dossier / "referentiel.pdf"
     shutil.move(str(staged), str(pdf_final))
@@ -182,7 +184,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         "ok": True,
         "cycle": cycle.nom,
         "niveau": niveau_nom,
-        "dossier": _dossier_cle(niveau_nom),
+        "dossier": f"{_dossier_cle(cycle.nom)}/{_dossier_cle(niveau_nom)}",
         "fichier_disque": "referentiel.pdf",   # nom physique sur le disque (chemin du message)
         "fichier_origine": fichier_origine,     # vrai nom conservé en base
         "nom_fixe": nom_fixe,
