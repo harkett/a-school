@@ -1,5 +1,7 @@
 ﻿import os
+import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
@@ -12,7 +14,7 @@ from backend.audit import log_admin_action
 from backend.database import get_db, get_db_size_mb
 from backend.limiter import limiter
 from backend.llm_prompts import PROMPTS
-from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
+from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -88,6 +90,47 @@ def get_settings_dict(db: Session) -> dict:
     for row in rows:
         result[row.key] = row.value
     return result
+
+
+# Slug stable du mail de bienvenue (modele 'auto', non supprimable) dans email_templates.
+WELCOME_SLUG = "welcome"
+
+
+class _WelcomeFallback:
+    """Repli si la ligne 'welcome' est absente (base non migree / seed manquant) :
+    le mail de bienvenue part TOUJOURS, jamais de regression."""
+    slug = WELCOME_SLUG
+    nom = "Email de bienvenue"
+    objet = SETTING_DEFAULTS["welcome_email_subject"]
+    corps = SETTING_DEFAULTS["welcome_email_body"]
+
+
+def record_email_envoi(db: Session, *, modele_slug: str, modele_nom: str,
+                       destinataire: str, objet: str, statut: str, erreur: str | None = None):
+    """Ecrit une ligne dans le journal des envois (onglet Suivi). Appele apres chaque
+    envoi reel (manuel + bienvenue auto). Ne leve jamais : le suivi ne doit pas casser
+    un envoi qui a reussi."""
+    try:
+        db.add(EmailEnvoi(
+            modele_slug=modele_slug, modele_nom=modele_nom, destinataire=destinataire,
+            objet=objet or "", statut=statut, erreur=erreur,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def get_welcome_template(db: Session):
+    """Modele du mail de bienvenue, lu en base (slug 'welcome'), repli sur le
+    defaut code. Source unique du contenu envoye automatiquement a l'inscription."""
+    tpl = db.query(EmailTemplate).filter(EmailTemplate.slug == WELCOME_SLUG).first()
+    return tpl or _WelcomeFallback()
+
+
+def _slugify_email_template(nom: str) -> str:
+    base = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
+    base = re.sub(r"[^a-z0-9]+", "_", base.lower()).strip("_")
+    return base or "modele"
 
 
 # Liste blanche des modèles LLM texte autorisés (Phase 4.1.b). Une saisie hors de cette
@@ -951,6 +994,174 @@ def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: Non
     content = body.welcome_email_body    or settings["welcome_email_body"]
     try:
         auth_lib.send_custom_email(admin_email, "Admin", subject, content)
+    except Exception as e:
+        raise HTTPException(500, f"Erreur envoi email : {e}")
+    return {"status": "ok"}
+
+
+# ── Modeles d'email (collection maitre-detail) ─────────────────────────────
+# Remplace la config plate du seul mail de bienvenue par une liste de modeles.
+# 'auto'   = parti tout seul sur un evenement (bienvenue). Non supprimable.
+# 'manuel' = envoye a la demande vers une adresse saisie (ex. UNICEF).
+
+def _serialize_email_template(t: EmailTemplate) -> dict:
+    return {
+        "id": t.id, "slug": t.slug, "nom": t.nom,
+        "description": t.description,
+        "objet": t.objet, "corps": t.corps,
+        "mode_envoi": t.mode_envoi, "supprimable": t.supprimable,
+    }
+
+
+class EmailTemplateCreate(BaseModel):
+    nom: str
+
+
+class EmailTemplateUpdate(BaseModel):
+    nom: str | None = None
+    description: str = ""
+    objet: str = ""
+    corps: str = ""
+
+
+class EmailTemplateSend(BaseModel):
+    to: str
+
+
+@router.get("/admin/email-templates")
+def list_email_templates(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    rows = (
+        db.query(EmailTemplate)
+        .order_by(EmailTemplate.supprimable.asc(), EmailTemplate.created_at.asc())
+        .all()
+    )
+    return [_serialize_email_template(t) for t in rows]
+
+
+@router.post("/admin/email-templates")
+def create_email_template(body: EmailTemplateCreate, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    nom = body.nom.strip()
+    if not nom:
+        raise HTTPException(400, "Nom requis.")
+    slug = _slugify_email_template(nom)
+    existing = {s for (s,) in db.query(EmailTemplate.slug).all()}
+    candidate, i = slug, 2
+    while candidate in existing:
+        candidate, i = f"{slug}_{i}", i + 1
+    t = EmailTemplate(slug=candidate, nom=nom, description="", objet="", corps="", mode_envoi="manuel", supprimable=True)
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    log_admin_action(
+        db=db, admin_email=_get_admin_email(request), action="CREATE_EMAIL_TEMPLATE",
+        target_email=None, ip=request.client.host if request.client else None,
+        details=f"Modele email cree : '{t.nom}' ({t.slug})",
+    )
+    return _serialize_email_template(t)
+
+
+@router.put("/admin/email-templates/{template_id}")
+def update_email_template(template_id: int, body: EmailTemplateUpdate, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    t = db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "Modele introuvable.")
+    # mode_envoi / slug / supprimable NON editables : protege la semantique du modele
+    # 'welcome' (reste 'auto' et non supprimable).
+    t.description = body.description
+    t.objet = body.objet
+    t.corps = body.corps
+    if body.nom is not None and body.nom.strip():
+        t.nom = body.nom.strip()
+    db.commit()
+    log_admin_action(
+        db=db, admin_email=_get_admin_email(request), action="UPDATE_EMAIL_TEMPLATE",
+        target_email=None, ip=request.client.host if request.client else None,
+        details=f"Modele email mis a jour : '{t.nom}' ({t.slug})",
+    )
+    return _serialize_email_template(t)
+
+
+@router.delete("/admin/email-templates/{template_id}")
+def delete_email_template(template_id: int, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    t = db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "Modele introuvable.")
+    if not t.supprimable:
+        raise HTTPException(400, "Ce modele ne peut pas etre supprime.")
+    nom, slug = t.nom, t.slug
+    db.delete(t)
+    db.commit()
+    log_admin_action(
+        db=db, admin_email=_get_admin_email(request), action="DELETE_EMAIL_TEMPLATE",
+        target_email=None, ip=request.client.host if request.client else None,
+        details=f"Modele email supprime : '{nom}' ({slug})",
+    )
+    return {"status": "ok"}
+
+
+@router.post("/admin/email-templates/{template_id}/send")
+def send_email_template(template_id: int, body: EmailTemplateSend, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Envoi MANUEL du modele vers une adresse saisie (ex. UNICEF). Passe par la
+    porte SMTP unique via send_custom_email()."""
+    from backend import auth as auth_lib
+    t = db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "Modele introuvable.")
+    to = body.to.strip()
+    if not to or "@" not in to:
+        raise HTTPException(400, "Adresse destinataire invalide.")
+    if not t.objet.strip() or not t.corps.strip():
+        raise HTTPException(400, "Objet et corps requis avant l'envoi.")
+    statut, err = "envoye", None
+    try:
+        auth_lib.send_custom_email(to, None, t.objet, t.corps)
+    except Exception as e:
+        statut, err = "echec", str(e)
+    # Suivi : on trace l'envoi (reussi OU echoue) avant de repondre.
+    record_email_envoi(db, modele_slug=t.slug, modele_nom=t.nom, destinataire=to,
+                       objet=t.objet, statut=statut, erreur=err)
+    log_admin_action(
+        db=db, admin_email=_get_admin_email(request), action="SEND_EMAIL_TEMPLATE",
+        target_email=None, ip=request.client.host if request.client else None,
+        details=f"Modele '{t.slug}' envoye a {to} ({statut})",
+    )
+    if statut == "echec":
+        raise HTTPException(500, f"Erreur envoi email : {err}")
+    return {"status": "ok"}
+
+
+@router.get("/admin/email-envois")
+def list_email_envois(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Journal des envois (onglet Suivi), du plus recent au plus ancien."""
+    rows = (
+        db.query(EmailEnvoi)
+        .order_by(EmailEnvoi.envoye_le.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        {
+            "id": r.id, "modele_slug": r.modele_slug, "modele_nom": r.modele_nom,
+            "destinataire": r.destinataire, "objet": r.objet,
+            "statut": r.statut, "erreur": r.erreur,
+            "envoye_le": r.envoye_le.strftime("%d/%m/%Y %H:%M"),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/admin/email-templates/{template_id}/test")
+def test_email_template(template_id: int, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Envoi de TEST du modele vers l'adresse SMTP de l'admin (verifie la config)."""
+    from backend import auth as auth_lib
+    admin_email = os.getenv("SMTP_USERNAME", "")
+    if not admin_email:
+        raise HTTPException(500, "SMTP_USERNAME non configure.")
+    t = db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
+    if not t:
+        raise HTTPException(404, "Modele introuvable.")
+    try:
+        auth_lib.send_custom_email(admin_email, "Admin", t.objet, t.corps)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}

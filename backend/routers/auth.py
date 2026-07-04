@@ -174,13 +174,21 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     auth_lib.mark_user_verified(db, email)
     user = db.query(User).filter(User.email == email).first()
     try:
-        from backend.routers.admin import get_settings_dict
-        settings = get_settings_dict(db)
-        auth_lib.send_custom_email(
-            email,
-            user.prenom if user else None,
-            settings["welcome_email_subject"],
-            settings["welcome_email_body"],
+        from backend.routers.admin import get_welcome_template, record_email_envoi
+        tpl = get_welcome_template(db)
+        statut, err = "envoye", None
+        try:
+            auth_lib.send_custom_email(
+                email,
+                user.prenom if user else None,
+                tpl.objet,
+                tpl.corps,
+            )
+        except Exception as e:
+            statut, err = "echec", str(e)
+        record_email_envoi(
+            db, modele_slug=tpl.slug, modele_nom=tpl.nom,
+            destinataire=email, objet=tpl.objet, statut=statut, erreur=err,
         )
     except Exception:
         pass

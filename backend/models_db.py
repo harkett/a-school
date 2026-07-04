@@ -82,6 +82,44 @@ class Setting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class EmailTemplate(Base):
+    """Modèle d'email administrable. Remplace les 2 clés plates
+    `welcome_email_subject/body` de `settings` par une collection de modèles
+    (liste maître-détail côté admin). Deux natures d'envoi :
+      - `mode_envoi = 'auto'`   : parti tout seul sur un événement (ex. bienvenue à
+                                  la vérification d'email). Non supprimable.
+      - `mode_envoi = 'manuel'` : envoyé à la demande vers une adresse saisie
+                                  (ex. UNICEF), via send_custom_email().
+    `slug` = clé stable non renommable (ex. 'welcome') ; `nom` = libellé affiché."""
+    __tablename__ = "email_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    nom: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")  # a quoi sert ce mail (hors contenu)
+    objet: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    corps: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    mode_envoi: Mapped[str] = mapped_column(String(16), nullable=False, default="manuel")  # 'auto' | 'manuel'
+    supprimable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class EmailEnvoi(Base):
+    """Journal des envois d'email (onglet « Suivi » de la page Email). Une ligne par
+    envoi reel : mail manuel (ex. UNICEF) ET mail de bienvenue automatique. Structure
+    ce que l'Audit ne porte qu'en texte libre — date, destinataire, statut triables."""
+    __tablename__ = "email_envois"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    modele_slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    modele_nom: Mapped[str] = mapped_column(String(128), nullable=False)
+    destinataire: Mapped[str] = mapped_column(String(255), nullable=False)
+    objet: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    statut: Mapped[str] = mapped_column(String(16), nullable=False)  # 'envoye' | 'echec'
+    erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
+    envoye_le: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
 class SequenceSauvegardee(Base):
     __tablename__ = "sequences_sauvegardees"
 
