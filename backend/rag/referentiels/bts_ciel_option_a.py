@@ -42,6 +42,19 @@ SECTION_RE = re.compile(r"^(ANNEXE\s+[IVX]+|[IVX]+\.\d+(?:\.\d+){0,2})\b")
 TOC_RE = re.compile(r"\.{4,}")  # lignes du sommaire (pointillés de table des matières)
 
 
+def extract_pages(pdf_path) -> list[tuple[int, str]]:
+    """(n° page depuis 1, texte) — extraction directe du PDF (pdfplumber), page par page.
+    Le référentiel CIEL est sur une seule colonne : la lecture naïve suffit. Cette méthode
+    est la même que l'ancienne extraction commune ; elle vit désormais dans la fiche (chaque
+    référentiel porte SA façon d'être lu)."""
+    import pdfplumber  # import paresseux
+    pages: list[tuple[int, str]] = []
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for i, page in enumerate(pdf.pages, start=1):
+            pages.append((i, page.extract_text() or ""))
+    return pages
+
+
 def section_boundary(line: str) -> Optional[str]:
     """Marqueur de frontière : numéro de section si `line` est un en-tête (hors sommaire),
     sinon None. Donné tel quel au découpeur générique, qui le traite comme opaque.

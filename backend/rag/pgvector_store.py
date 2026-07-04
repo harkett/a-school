@@ -1,47 +1,73 @@
-"""Stockage RAG sur PostgreSQL/pgvector — moteur unique du RAG (ChromaDB retire le 29/06/2026).
+"""Stockage RAG sur PostgreSQL/pgvector — moteur unique du RAG (ChromaDB retiré le 29/06/2026).
 
-Etape 2 (refonte RAG) : ingestion d'un referentiel DEPUIS LE PDF vers la table
-referentiel_chunks. Ce module N'IMPORTE NI N'APPELLE ChromaDB : pas de client.py,
-pas de get_client, pas de get_embedding_function. La SOURCE des chunks est le PDF
-(extract_pages + build_chunks generique), jamais ChromaDB.
+Ingestion d'un référentiel DEPUIS SON PDF vers la table referentiel_chunks. Ce module ne
+connaît AUCUN référentiel en propre : la SOURCE (où lire, comment extraire, comment découper)
+vient de la FICHE du référentiel, résolue par sa `collection` via le registre `get_fiche()`.
 
-Lancer (venv, racine, .env charge) :
-    python -m backend.rag.pgvector_store             # (re)construit referentiel_chunks
-    python -m backend.rag.pgvector_store --dry-run   # rapport de decoupage, rien ecrit
+CIEL, crèche… chaque référentiel apporte sa méthode d'extraction (`fiche.extract_pages`) ;
+le moteur ne fait qu'orchestrer extraction -> découpe générique -> embeddings -> insertion.
+
+Lancer (venv, racine, .env chargé) :
+    python -m backend.rag.pgvector_store                              # CIEL (défaut)
+    python -m backend.rag.pgvector_store --collection moyens_1_2_ans  # un autre couple
+    python -m backend.rag.pgvector_store --collection moyens_1_2_ans --dry-run
 """
 from __future__ import annotations
 
 import json
 import logging
+import re
+import unicodedata
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import pdfplumber
 from sqlalchemy import select, delete, func
 
 from backend.database import SessionLocal
-from backend.models_db import Referentiel, ReferentielChunk, Niveau
-from .chunker import build_chunks                     # generique, SANS ChromaDB (chunker.py)
-from .embeddings import embed_texts, EMBEDDING_MODEL  # voie DIRECTE etape 1 (pas ChromaDB)
-from .referentiels import bts_ciel_option_a as fiche
+from backend.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from .chunker import build_chunks                     # découpeur générique, sans référentiel
+from .embeddings import embed_texts, EMBEDDING_MODEL  # voie directe (pas ChromaDB)
+from .referentiels import get_fiche                   # registre collection -> fiche
 
 logger = logging.getLogger(__name__)
 
-# Dossier des sauvegardes horodatees, filets AVANT toute suppression de chunks.
-# Convention projet *.bak-* (jamais commitee, cf. .gitignore).
+_ROOT = Path(__file__).resolve().parents[2]            # racine du projet (d:\A-SCHOOL)
+REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
+
+# Dossier des sauvegardes horodatées, filet AVANT toute suppression de chunks.
+# Convention projet *.bak-* (jamais commitée, cf. .gitignore).
 BACKUP_DIR = Path(__file__).parent / "backups"
 
 
-def _sauvegarder_chunks_avant_purge(db, rid: int) -> dict:
-    """Sauvegarde horodatee des chunks d'un referentiel AVANT toute suppression.
+def _dossier_cle(nom: str) -> str:
+    """Nom de cycle/niveau → nom de dossier-clé : accents enlevés, MAJUSCULES, non-alphanum → « _ ».
+    Ex. « Moyens (1-2 ans) » → « MOYENS_1_2_ANS ». Même règle que referentiels_admin._dossier_cle."""
+    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
+    return s or "REFERENTIEL"
 
-    Regle absolue : suppression = sauvegarde .bak + preuve avant. Lit les chunks
-    existants du referentiel `rid`, ecrit un dump JSONL (1 chunk/ligne) sous
-    BACKUP_DIR (nom *.bak-*, gitignore), relit le fichier et exige
-    lignes_ecrites == chunks_lus -- sinon RAISE, de sorte que le delete appelant
-    n'est jamais atteint. Cas 0 chunk : rien a ecraser, aucun fichier ecrit."""
+
+def _pdf_path_for(db, ref: Referentiel, fiche) -> Path:
+    """Chemin du PDF du référentiel. Si la fiche fixe un PDF_PATH (cas CIEL), on l'utilise ;
+    sinon on le dérive du couple cycle/niveau : REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf
+    (convention de rangement du dépôt admin)."""
+    fixe = getattr(fiche, "PDF_PATH", None)
+    if fixe is not None:
+        return Path(fixe)
+    niveau = db.get(Niveau, ref.niveau_id)
+    cycle = db.get(Cycle, niveau.cycle_id)
+    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.nom) / "referentiel.pdf"
+
+
+def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None) -> dict:
+    """Sauvegarde horodatée des chunks d'un référentiel AVANT toute suppression.
+
+    Règle absolue : suppression = sauvegarde .bak + preuve avant. Lit les chunks existants du
+    référentiel `rid`, écrit un dump JSONL (1 chunk/ligne) sous BACKUP_DIR (*.bak-*, gitignore),
+    relit le fichier et exige lignes_écrites == chunks_lus — sinon RAISE, de sorte que le delete
+    appelant n'est jamais atteint. Cas 0 chunk : rien à écraser, aucun fichier écrit."""
     rows = db.execute(
         select(
             ReferentielChunk.chunk_index,
@@ -60,10 +86,10 @@ def _sauvegarder_chunks_avant_purge(db, rid: int) -> dict:
 
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     horodatage = datetime.now().strftime("%Y%m%d-%H%M%S-%f")  # microsecondes : pas de collision
-    chemin = BACKUP_DIR / f"referentiel_chunks-{fiche.COLLECTION}.bak-{horodatage}.jsonl"
+    chemin = BACKUP_DIR / f"referentiel_chunks-{collection or 'referentiel'}.bak-{horodatage}.jsonl"
 
-    # Mode exclusif "x" : si le nom existe deja, on RAISE plutot que d'ecraser un
-    # backup existant (un filet ne detruit jamais un autre filet).
+    # Mode exclusif "x" : si le nom existe déjà, on RAISE plutôt que d'écraser un backup
+    # existant (un filet ne détruit jamais un autre filet).
     with chemin.open("x", encoding="utf-8") as f:
         for (chunk_index, option_ab, page, texte, embedding, embedding_model) in rows:
             f.write(json.dumps({
@@ -88,21 +114,35 @@ def _sauvegarder_chunks_avant_purge(db, rid: int) -> dict:
     return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
-def extract_pages(pdf_path: Path) -> list[tuple[int, str]]:
-    """(n° page depuis 1, texte) — re-extraction directe du PDF (pdfplumber).
-    Extraction directe du PDF (pdfplumber), sans aucune brique ChromaDB. Meme
-    logique d'extraction que la fiche du referentiel."""
-    pages: list[tuple[int, str]] = []
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        for i, page in enumerate(pdf.pages, start=1):
-            pages.append((i, page.extract_text() or ""))
-    return pages
+def ingest_pgvector(collection: str = "bts_ciel_option_a", dry_run: bool = False) -> dict:
+    """(Re)construit referentiel_chunks pour LE référentiel de `collection`, depuis son PDF.
+    Idempotent : supprime les chunks du même referentiel_id (après sauvegarde) puis réinsère.
+    Ne touche aucun autre référentiel. La méthode d'extraction et les réglages de découpe
+    viennent de la fiche du référentiel (registre `get_fiche`)."""
+    fiche = get_fiche(collection)
 
+    # 1. Résoudre le référentiel (id) et le chemin du PDF (courte ouverture DB).
+    db = SessionLocal()
+    try:
+        ref = db.execute(
+            select(Referentiel).where(Referentiel.collection == collection)
+        ).scalar_one_or_none()
+        if ref is None:
+            raise RuntimeError(
+                f"Aucun référentiel en base pour collection='{collection}'. "
+                f"Le couple (niveau + PDF) doit exister dans la table referentiels."
+            )
+        rid = ref.id
+        pdf_path = _pdf_path_for(db, ref, fiche)
+    finally:
+        db.close()
 
-def build_chunks_from_pdf() -> list[dict]:
-    """Chunks generes DEPUIS LE PDF (source unique). Aucune lecture ChromaDB."""
-    pages = extract_pages(fiche.PDF_PATH)
-    return build_chunks(
+    if not pdf_path.exists():
+        raise RuntimeError(f"PDF introuvable : {pdf_path}")
+
+    # 2. Extraction (méthode de la fiche) -> découpe générique.
+    pages = fiche.extract_pages(pdf_path)
+    chunks = build_chunks(
         pages,
         max_chars=fiche.MAX_CHARS,
         min_chars=fiche.MIN_CHARS,
@@ -111,30 +151,10 @@ def build_chunks_from_pdf() -> list[dict]:
         chunk_metadata=fiche.chunk_metadata,
         dedup_key=fiche.dedup_key,
     )
-
-
-def _resolve_referentiel_id(db) -> int:
-    """id du referentiel pour ce couple (lookup par collection = fiche.COLLECTION)."""
-    rid = db.scalar(select(Referentiel.id).where(Referentiel.collection == fiche.COLLECTION))
-    if rid is None:
-        raise RuntimeError(
-            f"Aucun referentiel en base pour collection='{fiche.COLLECTION}'. "
-            f"Le couple (niveau + PDF) doit exister dans la table referentiels."
-        )
-    return rid
-
-
-def ingest_pgvector(dry_run: bool = False) -> dict:
-    """(Re)construit referentiel_chunks pour CE referentiel, depuis le PDF. Idempotent :
-    supprime les chunks du meme referentiel_id puis reinsere. Ne touche aucun autre
-    referentiel, ni ChromaDB."""
-    if not fiche.PDF_PATH.exists():
-        raise RuntimeError(f"PDF introuvable : {fiche.PDF_PATH}")
-
-    chunks = build_chunks_from_pdf()
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
-        "pdf": fiche.PDF_PATH.name,
+        "collection": collection,
+        "pdf": pdf_path.name,
         "total_chunks_PDF": len(chunks),
         "par_option_PDF": dict(by_opt),
     }
@@ -142,20 +162,20 @@ def ingest_pgvector(dry_run: bool = False) -> dict:
         report["mode"] = "dry-run (aucune ecriture)"
         return report
 
-    vecs = embed_texts([c["text"] for c in chunks])   # voie DIRECTE etape 1, dim 384
+    # 3. Embeddings puis (re)écriture, sous sauvegarde-avant-purge.
+    vecs = embed_texts([c["text"] for c in chunks])   # voie directe, dim 384
     if len(vecs) != len(chunks):
         raise RuntimeError(f"Embeddings {len(vecs)} != chunks {len(chunks)}")
 
     db = SessionLocal()
     try:
-        rid = _resolve_referentiel_id(db)
-        sauvegarde = _sauvegarder_chunks_avant_purge(db, rid)  # RAISE si echec -> delete jamais atteint
+        sauvegarde = _sauvegarder_chunks_avant_purge(db, rid, collection)  # RAISE si échec -> delete jamais atteint
         db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
         for idx, (ch, vec) in enumerate(zip(chunks, vecs)):
             db.add(ReferentielChunk(
                 referentiel_id=rid,
                 chunk_index=idx,
-                option_ab=ch["meta"]["option"],   # "A" / "B" pose par la fiche
+                option_ab=ch["meta"]["option"],   # "A"/"B" (CIEL) ou "" (crèche), posé par la fiche
                 page=ch["page"],
                 texte=ch["text"],
                 embedding=vec,
@@ -193,10 +213,10 @@ def retrieve_pg(
 ) -> list[dict[str, Any]]:
     """Recherche pgvector (cosinus) sur referentiel_chunks — MEME forme de sortie que
     retrieve() ChromaDB (text, page, source, score=1-distance, meta). Voie DIRECTE pour
-    l'embedding de la question (etape 1). Ne touche PAS ChromaDB. Lecture seule (SELECT).
+    l'embedding de la question. Ne touche PAS ChromaDB. Lecture seule (SELECT).
 
     filters : {"option": "A"} (forme simple) ou None. score = 1 - distance cosinus,
-    arrondi 3 decimales — strictement comme retrieve() (retrieve.py:82)."""
+    arrondi 3 décimales."""
     q = (question or "").strip()
     if not q:
         logger.warning("[RAG-pg] retrieve_pg appele avec question vide, renvoie []")
@@ -216,7 +236,7 @@ def retrieve_pg(
             return []
         rid, source, niveau_nom = ref
 
-        qvec = embed_texts([q])[0]                       # voie DIRECTE (etape 1), dim 384
+        qvec = embed_texts([q])[0]                       # voie directe, dim 384
         dist = ReferentielChunk.embedding.cosine_distance(qvec).label("distance")
         stmt = (
             select(ReferentielChunk.texte, ReferentielChunk.page,
@@ -249,7 +269,10 @@ def retrieve_pg(
 
 if __name__ == "__main__":
     import argparse
-    import json
-    ap = argparse.ArgumentParser(description="Ingestion referentiel -> pgvector (PostgreSQL).")
-    ap.add_argument("--dry-run", action="store_true", help="rapport sans ecriture")
-    print(json.dumps(ingest_pgvector(dry_run=ap.parse_args().dry_run), ensure_ascii=False, indent=2))
+    ap = argparse.ArgumentParser(description="Ingestion référentiel -> pgvector (PostgreSQL).")
+    ap.add_argument("--collection", default="bts_ciel_option_a",
+                    help="collection du référentiel à (re)construire (défaut : CIEL)")
+    ap.add_argument("--dry-run", action="store_true", help="rapport sans écriture")
+    args = ap.parse_args()
+    print(json.dumps(ingest_pgvector(collection=args.collection, dry_run=args.dry_run),
+                     ensure_ascii=False, indent=2))
