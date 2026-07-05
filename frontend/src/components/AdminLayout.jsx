@@ -102,6 +102,7 @@ const NAV_ITEMS = [
       { to: '/admin/parametres/generation', label: 'Génération LLM', aide: 'Modèle d\'IA et réglages du moteur de génération des activités.' },
       { to: '/admin/parametres/email',      label: 'Email',          aide: 'Email de bienvenue envoyé automatiquement à chaque nouvel inscrit.' },
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
+      { to: '/admin/base',                  label: 'Base de données', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
     ],
   },
   SEP,

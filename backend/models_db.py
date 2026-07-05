@@ -356,7 +356,8 @@ class ReferentielChunk(Base):
 
     niveau/source NON dupliqués : récupérés par jointure via referentiel_id (cap relationnel).
     embedding_model = garde-fou : interdit de comparer un jour des vecteurs de modèles différents.
-    Aligné strictement sur la migration b7e4c1a90f23."""
+    Dimension 1024 (embeddings BGE-M3). Migration Alembic 384->1024 encore à écrire pour la
+    vraie base / environnements neufs : le modèle est ici en avance sur les migrations commitées."""
     __tablename__ = "referentiel_chunks"
     __table_args__ = (
         Index("ix_referentiel_chunks_referentiel_id", "referentiel_id"),
@@ -372,6 +373,6 @@ class ReferentielChunk(Base):
     option_ab: Mapped[str] = mapped_column(Text, nullable=False)
     page: Mapped[int] = mapped_column(Integer, nullable=False)
     texte: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())

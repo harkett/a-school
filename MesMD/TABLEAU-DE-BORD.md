@@ -96,6 +96,7 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [16](#item-16) | Ambiguité → Créer une séquence | 1h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D33](BOUSSOLE/D33.md) |
 | [27](#item-27) | Validation texte source par LLM (Option B) | 2h | ★★★☆☆ | ★★★★★ | **8/10** | OPTIONNEL | [D38](BOUSSOLE/D38.md) |
 | [31](#item-31) | Appréciations bulletins & communication parents | 1 session | ★★★☆☆ | ★★★★★ | **8/10** | IMPORTANT | [D19](BOUSSOLE/D19.md) |
+| ~~54~~ | ~~Indicateur « base active » (aschool / miroir / test)~~ → **FAIT (V1, 03/07)** : page dédiée **Système › Base de données** (endpoint `/api/admin/base` via `current_database()` + host:port + indicateur réelle/miroir/test). Évolution possible : badge toujours visible sous le logo. | 2h | ★★★☆☆ | ★★★★★ | **fait** | INFRA — sécurité DEV | — |
 | [17](#item-17) | Quiz interactif élèves | 2 semaines | ★★★★★ | ★★☆☆☆ | **7/10** | OPTIONNEL | [D34](BOUSSOLE/D34.md) |
 | [21](#item-21) | Support niveau Supérieur (BTS/prépa/licence) | 2 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D36](BOUSSOLE/D36.md) |
 | [24](#item-24) | Google OAuth | 2-3 semaines | ★★★★☆ | ★★★☆☆ | **7/10** | OPTIONNEL | [D32](BOUSSOLE/D32.md) |
@@ -113,6 +114,11 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) |
 | [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D46](BOUSSOLE/D46.md) |
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D47](BOUSSOLE/D47.md) |
+| 55 | Injecter le reste du socle matières (cycles 7-11) : 7-10 par spécialité via référentiel + supprimer doublon « 0-3 ans » (cycle 11) | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | Socle / dette matières | [D55](BOUSSOLE/D55.md) |
+| 56 | BTS CIEL Option A — artefact pré-réforme à réconcilier avant de traiter le cycle BTS (référentiel+236 chunks mais 0 matière ; fiche Python en dur ; casse niveau ; traite=f) | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | Dette / préventif BTS | [D56](BOUSSOLE/D56.md) |
+| 57 | Registre « couple → méthode d'extraction » (data-driven) : inventorier les référentiels, détecter la mise en page de chaque PDF, ranger « couple = méthode » en base ; l'ingestion lit la méthode au lieu de l'importer en dur (`pgvector_store.py:28`). La base stocke le pointeur, pas la méthode. Dépend d'≥1 méthode écrite (crèche = 1re) | 1-2 sessions | ★★★★☆ | ★★★☆☆ | **7/10** | Data-driven / RAG extraction | [D57](BOUSSOLE/D57.md) |
+| 58 | Dossier de connaissance `MesMD/CONNAISSANCE/` : carte du fonctionnement réel **extraite du code** (1 fiche par thème/écran, chaque fait avec son `fichier:ligne`), relue pour produire l'**aide prof** + la **doc**. **Non figé** : code = vérité, MAJ au fil de l'eau + balayage complet. Rapatrie la note chunking existante. **En attente de : app stabilisée** | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | Transverse / connaissance | [D58](BOUSSOLE/D58.md) |
+| 59 | Crèche en PAUSE — trouver le bon référentiel (pédagogique d'éveil 0-3) avant de rebrancher : le document déposé est un cadre de QUALITÉ d'accueil (institutionnel), pas un programme d'activités → la génération sort de l'institutionnel, pas une activité enfant. Cahier des charges de la source à trouver dans la fiche. On prouve le pipeline sur BTS CIEL en attendant. | en attente (source à trouver) | ★★★☆☆ | ★★☆☆☆ | **5/10** | Périmètre / crèche | [D59](BOUSSOLE/D59.md) |
 | [20](#item-20) | Projet demo-perf FastAPI + PostgreSQL | En fin de projet | ★★☆☆☆ | ★★★☆☆ | **5/10** | HORS-PÉRIMÈTRE | hors-périmètre — projet séparé |
 | [40](#item-40) | Badge « aSchool vous reconnaît » près du nom du prof | 0,5 session | ★★★☆☆ | ★★★★☆ | à scorer | Mon Profil / Header | — |
 | [41](#item-41) | Recherche dans la page Aide (plein-texte) | 0,5 session | à scorer | à scorer | à scorer | LIVRÉ LOCAL — non déployé | — |
@@ -127,6 +133,8 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [50](#item-50) | Dette : tests rouges préexistants — **3/4 fermés le 29/06** (les 3 RAG `test_exemple_referentiel` passent au vert avec le branchement pgvector de l'étape 5) ; reste **1** : le catalogue `test_activites_ciel` (`'comprehension'` vs `'gen_comprehension'`) | à cadrer | — | — | — | DETTE — reste le rouge catalogue (constaté 27/06, MAJ 29/06) | — |
 | [51](#item-51) | Moteur de granularisation des notions — couche de connaissance (12 briques) | à scorer | à scorer | à scorer | à scorer | FUTUR / socle — détail D49 | [D49](BOUSSOLE/D49.md) |
 | [52](#item-52) | Revoir la page admin de récupération du référentiel (Lien / Dépôt + 3e voie « IA propose ») | à scorer | à scorer | à scorer | à scorer | PRODUIT / Admin — à cadrer | — |
+| [53](#item-53) | Remplacer un référentiel existant (geste explicite + cascade PDF→texte→chunks→matières) | à scorer | à scorer | à scorer | à scorer | INFRA / Admin — à cadrer | [D53](BOUSSOLE/D53.md) |
+| [00](#item-00) | Reprendre toute la numérotation depuis le début (item N ↔ fiche DN partout, sans décalage) | à scorer | à scorer | à scorer | à scorer | DETTE / Doc — plus tard | [D00](BOUSSOLE/D00.md) |
 
 ---
 
@@ -623,6 +631,16 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 <a id="item-52"></a>
 - [ ] **52 — Revoir la page admin de récupération du référentiel** | PRODUIT / Admin — à cadrer | à scorer
   *La page de réception d'un référentiel (`backend/routers/referentiels_admin.py`, `frontend/src/pages/AdminReferentiels.jsx`) offre aujourd'hui deux méthodes qui aboutissent au même PDF : **Par lien** (téléchargement httpx d'une URL — `referentiels_admin.py:92`) et **Par dépôt** (upload du fichier — `:102-105`). Constat (Harketti) : le Lien n'apporte quasi rien de plus que le Dépôt — du confort, pas de la valeur. Une **3e voie est actée mais NON codée** : « l'IA propose le PDF officiel, l'admin valide » (`REFERENTIELS/README.md:24`, P1, 26/06 ; `referentiels_admin.py:8` : « pas de recherche web automatique… palier suivant »). **Verdict tranché (Harketti + Claude, 29/06) : tant que cette récupération par IA n'est PAS adossée à une VRAIE recherche web (outil réel, pas une URL devinée de mémoire par le modèle = hallucination), elle est SANS VALEUR** — un LLM seul fabrique des liens plausibles mais faux ou morts. Angle à creuser le jour venu : fournir le **LIEN vers la source officielle** (éduscol / Bulletin Officiel) plutôt que télécharger, MAIS même problème de fiabilité sans vraie recherche, + arbitrage **stabilité** (PDF figé) vs **fraîcheur** (lien vivant mais fragile). Plus largement, cette page a **beaucoup à revoir** — chantier « comment l'améliorer » à ouvrir plus tard. **Distinct de l'item 44** (« Encoder » = ingestion/vectorisation autonome EN AVAL) : ici c'est la RÉCEPTION du PDF EN AMONT. Idée notée 29/06, rien à coder — on pose juste le repère pour ne pas perdre l'idée.*
+
+<a id="item-53"></a>
+- [ ] **53 — Remplacer un référentiel existant (geste explicite + cascade)** | INFRA / Admin — à cadrer | à scorer
+  *Aujourd'hui l'app REFUSE de remplacer un référentiel déjà en base (`backend/routers/referentiels_admin.py:144-146` → 409 « Un référentiel existe déjà » ; volontaire, remis à plus tard). « Remplacer » sera un geste EXPLICITE et séparé (« Remplacer le référentiel »), jamais en silence, toujours gardé — avec toute la cascade à refaire consciemment : nouveau PDF → nouveau texte extrait → ré-ingestion des chunks RAG (anciens effacés en CASCADE `models_db.py:331`, nouveaux régénérés — sinon la génération s'appuie sur du vieux texte) → re-comparaison des matières (delta : nouvelles / disparues) à revalider par l'admin, avec les garde-fous (jamais d'orpheline, retrait = désactivation, prévenir si un prof l'utilise). Cohérent avec la règle « validé = figé ; modification = porte de secours exceptionnelle » (CLAUDE.md). Distinct de l'item 52 (RÉCEPTION du PDF) et de l'item 44 (« Encoder » = ingestion autonome). Détail → D53.*
+  → [D53](BOUSSOLE/D53.md)
+
+<a id="item-00"></a>
+- [ ] **00 — Reprendre toute la numérotation depuis le début** | DETTE / Doc — plus tard | à scorer
+  *Réaligner TOUS les items du réservoir ET toutes les fiches BOUSSOLE pour que **item N ↔ fiche DN partout**, sans aucun décalage. Le décalage vient d'items supprimés au fil du temps (ex. la fiche D50 avait été créée pour l'item 53 avant qu'on grave la règle item↔fiche → corrigé en D53, mais des trous historiques subsistent). Objectif : remise à plat complète, une bonne fois. À faire PLUS TARD, surtout pas maintenant (chantier de fond, risque de casser des liens croisés). Détail → D00.*
+  → [D00](BOUSSOLE/D00.md)
 
 ---
 

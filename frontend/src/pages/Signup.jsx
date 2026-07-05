@@ -2,13 +2,9 @@
 import { Link } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
-import { useMatieres } from '../utils/useMatieres.js'
 
 export default function Signup() {
-  const { matieres, chargement: matieresChargement } = useMatieres()
   const [email, setEmail] = useState('')
-  const [subject, setSubject] = useState('')
-  const [langueLv, setLangueLv] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,8 +28,6 @@ export default function Signup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          subject,
-          langue_lv: subject === 'Langues Vivantes (LV)' ? langueLv : '',
           password,
           password_confirm: passwordConfirm,
         }),
@@ -92,43 +86,11 @@ export default function Signup() {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Vous êtes professeur de :</label>
-                  <select
-                    className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
-                    value={subject}
-                    onChange={e => { setSubject(e.target.value); setLangueLv('') }}
-                    disabled={matieresChargement}
-                    required
-                  >
-                    <option value="" disabled>
-                      {matieresChargement ? '— Chargement des matières… —' : '— Choisissez une matière —'}
-                    </option>
-                    {matieres.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded p-3 text-sm">
+                  Pas besoin de choisir votre matière ni votre niveau ici : vous les
+                  renseignerez juste après, dans votre profil. On commence simplement par
+                  créer votre compte.
                 </div>
-
-                {subject === 'Langues Vivantes (LV)' && (
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Langue enseignée :</label>
-                    <select
-                      className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
-                      value={langueLv}
-                      onChange={e => setLangueLv(e.target.value)}
-                      required
-                    >
-                      <option value="" disabled>— Précisez la langue —</option>
-                      <option value="Anglais">Anglais</option>
-                      <option value="Espagnol">Espagnol</option>
-                      <option value="Allemand">Allemand</option>
-                      <option value="Italien">Italien</option>
-                      <option value="Portugais">Portugais</option>
-                      <option value="Arabe">Arabe</option>
-                      <option value="Chinois">Chinois</option>
-                      <option value="Autre">Autre</option>
-                    </select>
-                  </div>
-                )}
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">
                     Mot de passe <span className="text-gray-400">(8 caractères minimum)</span>

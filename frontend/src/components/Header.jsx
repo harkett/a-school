@@ -1,4 +1,4 @@
-﻿export default function Header({ matiere, niveau, email, prenom, nom, onLogout, onNavigate, onFeedback }) {
+﻿export default function Header({ matiere, niveau, email, prenom, nom, profilNomIncomplet, onLogout, onNavigate, onFeedback }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
   const isMobile = window.innerWidth < 768
@@ -14,6 +14,19 @@
         </span>
       </div>
       <div className="flex items-center gap-4 text-sm">
+        {profilNomIncomplet && (
+          <button
+            onClick={() => onNavigate('mon-profil')}
+            title="Compléter votre profil (prénom et nom)"
+            style={{
+              color: '#ff6b6b', background: 'none', border: 'none', padding: 0,
+              cursor: 'pointer', fontSize: isMobile ? '0.7rem' : 'inherit',
+              fontWeight: 600, textDecoration: 'underline', fontFamily: 'inherit',
+            }}
+          >
+            Merci de compléter votre profil
+          </button>
+        )}
         {!isMobile && <>
           <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
           <span style={{ color: 'white', fontWeight: 600 }}>{matiereNiveau}</span>

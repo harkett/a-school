@@ -21,10 +21,16 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-# --- Découpe (mêmes ordres de grandeur que CIEL, calibrage neutre) ---
-MAX_CHARS = 900       # taille cible d'un chunk
+# --- Découpe : 1 FICHE = 1 CHUNK (frontière de fiche, pas taille fixe) ---
+# On ne coupe plus par taille aveugle (qui collait la queue d'une fiche sur la tête de la
+# suivante → contamination). L'extraction reconstruit chaque fiche en une « page » autonome
+# (cf. _split_into_fiches) ; le chunker générique en fait alors UN chunk par fiche.
+# MAX_CHARS n'est plus une taille cible : c'est un plafond de sécurité, très au-dessus de la
+# plus grande fiche (mesurée ~850 car.). Il n'agit que comme FILET : si une fiche dépassait ce
+# plafond, la coupe de taille jouerait à l'intérieur de CETTE fiche uniquement, jamais entre deux.
+MAX_CHARS = 4000      # plafond de sécurité (une fiche n'atteint jamais cette taille)
 MIN_CHARS = 60        # en dessous, on ne crée pas un chunk isolé (bruit : titres orphelins)
-OVERLAP_CHARS = 150   # recouvrement repris sur une coupe de TAILLE (~17 % de MAX_CHARS)
+OVERLAP_CHARS = 150   # recouvrement — ne s'applique qu'à une coupe de TAILLE (filet fiche géante)
 SCORE_MIN = 0.30      # seuil de pertinence (1 - distance cosinus) — PROVISOIRE, à calibrer sur le
                       # corpus crèche quand on branchera « Tester un exemple » (épisode 4).
 
@@ -158,8 +164,72 @@ def _dehyphenate(lines: list[str]) -> list[str]:
     return out
 
 
+# ----------------------------------------------------------------------------
+# Découpe par FICHE : 1 fiche = 1 chunk (méthode EN VIGUEUR — cf. CLAUDE.md)
+# ----------------------------------------------------------------------------
+# Document (1 activité = 1 matière, sans « développe aussi ») : chaque fiche est
+#     <titre>
+#     Matière : <X>                                            <- ligne qui OUVRE la fiche (18 en tout)
+#     Objectifs / Matériel / Déroulé / À observer / Sécurité   <- corps
+# La ligne « Matière : … » (en début de ligne) est le repère de fiche ; son titre est TOUJOURS
+# la ligne juste avant. On reconstruit chaque fiche en une « page » autonome COMMENÇANT par sa
+# ligne « Matière : … » (titre reporté en 2e ligne). L'intro (avant la 1re fiche) et la queue
+# méta (note « Hygiène… » vide, bloc « Sources & attribution ») ne sont pas des fiches et ne sont
+# pas vectorisées : la zone des fiches s'arrête au 1er marqueur de queue. Si aucune fiche, on LÈVE
+# (jamais de base trouée en silence). Le chunker générique fait alors un chunk par fiche.
+_MATIERE_RE = re.compile(r"^Matière\s*:")          # ligne qui ouvre une fiche (début de ligne)
+_TAIL_MARKERS = ("Hygiène et premiers gestes d'autonomie", "Sources & attribution")
+
+
+def _split_into_fiches(pages: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    """Reconstruit les fiches depuis le texte extrait : UNE entrée (n° page, texte) PAR FICHE,
+    chaque texte COMMENÇANT par sa ligne « Matière : … ».
+    - une fiche s'ouvre par une ligne qui COMMENCE par « Matière : » ;
+    - son titre est la ligne juste avant ; on réordonne : Matière, titre, corps ;
+    - la zone des fiches s'arrête au 1er marqueur de queue (_TAIL_MARKERS) : l'intro d'avant la
+      1re fiche et la méta d'après (Hygiène vide, Sources) ne sont pas vectorisées.
+    Lève si aucune fiche, ou si une fiche n'a pas de titre devant elle."""
+    flat: list[tuple[int, str]] = []
+    for pg, t in pages:
+        for ln in t.splitlines():
+            s = ln.strip()
+            if s:
+                flat.append((pg, s))
+    lines = [s for _, s in flat]
+    pgs = [pg for pg, _ in flat]
+
+    # fin de zone : 1re ligne portant un marqueur de queue méta (Hygiène/Sources)
+    meta = next((i for i, s in enumerate(lines) if any(m in s for m in _TAIL_MARKERS)), len(lines))
+
+    anchors = [i for i in range(meta) if _MATIERE_RE.match(lines[i])]
+    if not anchors:
+        raise RuntimeError(
+            "Découpe crèche : aucune ligne de fiche « Matière : … » avant la zone méta. "
+            "Extraction refusée (structure du référentiel inattendue)."
+        )
+    # chaque fiche doit avoir une ligne de titre juste avant sa ligne « Matière : »
+    for a in anchors:
+        if a == 0 or _MATIERE_RE.match(lines[a - 1]):
+            raise RuntimeError(
+                f"Découpe crèche : fiche « Matière : » sans titre devant elle (ligne {a}). "
+                "Extraction refusée pour ne pas produire un chunk sans son titre."
+            )
+
+    starts = [a - 1 for a in anchors]          # chaque fiche commence à son titre
+    ends = starts[1:] + [meta]                 # ... et finit au début de la suivante / à la méta
+    out: list[tuple[int, str]] = []
+    for st, en in zip(starts, ends):
+        block = lines[st:en]
+        mi = next(j for j, l in enumerate(block) if _MATIERE_RE.match(l))   # ligne « Matière : … »
+        reordered = [block[mi]] + block[:mi] + block[mi + 1:]               # Matière, titre(s), corps
+        out.append((pgs[st], "\n".join(reordered)))
+    return out
+
+
 def extract_pages(pdf_path) -> list[tuple[int, str]]:
-    """(n° page depuis 1, texte propre) — extraction colonne-par-colonne + retrait du mobilier.
+    """(n° page depuis 1, texte propre) — extraction colonne-par-colonne + retrait du mobilier,
+    PUIS reconstruction par fiche (_split_into_fiches, qui écarte aussi l'intro et la queue méta) :
+    renvoie UNE entrée par fiche, chacune commençant par « Matière : … ».
     C'est la méthode crèche ; elle remplace l'extraction naïve pour ce PDF multi-colonnes."""
     import pdfplumber  # import paresseux (ne pas alourdir le démarrage)
     pages: list[tuple[int, str]] = []
@@ -175,15 +245,17 @@ def extract_pages(pdf_path) -> list[tuple[int, str]]:
             else:                                    # page simple (couverture)
                 lines = _printed_page_lines(words, 0, page.width)
             pages.append((i, "\n".join(_dehyphenate(_clean(lines)))))
-    return pages
+    return _split_into_fiches(pages)                          # l'intro et la méta sont écartées dans _split_into_fiches
 
 
 # ----------------------------------------------------------------------------
 # Interface attendue par le chunker générique
 # ----------------------------------------------------------------------------
 def section_boundary(line: str) -> Optional[str]:
-    """Le document crèche n'a pas de sections numérotées ni d'option A/B : on découpe par
-    TAILLE uniquement. Aucune frontière signalée -> le découpeur coupe sur MAX_CHARS + overlap."""
+    """Plus de frontière signalée ligne par ligne : le découpage par fiche est fait EN AMONT,
+    à l'extraction (_split_into_fiches renvoie une « page » par fiche). Le chunker produit donc
+    un chunk par page = un chunk par fiche. On renvoie None (aucune coupe de structure ici) ;
+    seul le filet de TAILLE (MAX_CHARS) jouerait, à l'intérieur d'une fiche géante."""
     return None
 
 

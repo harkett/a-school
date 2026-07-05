@@ -39,7 +39,7 @@ Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un che
 
 > **Seule exception, explicitement désignée par Harketti :** le cluster PostgreSQL d'aSchool vit hors du dossier projet, dans `C:\Users\harketti\PostgreSQL\16` (port 5433). On n'y touche **que** parce que Harketti l'a nommément rattaché à aSchool. **Tout autre PostgreSQL de la machine est hors périmètre** (notamment l'install v17 `Program Files` / port 5432 = autres applications).
 >
-> **Démarrer / arrêter ce cluster (PAS de service Windows — démarrage manuel, ne survit pas à un reboot ; `run.ps1` ne le démarre pas) :**
+> **Démarrer / arrêter ce cluster (PAS de service Windows — ne survit pas à un reboot ; désormais `run.ps1` le démarre s'il est arrêté, idempotent — sinon à la main ci-dessous) :**
 > ```powershell
 > # démarrer (port 5433)
 > & "C:\Users\harketti\PostgreSQL\16\pgsql\bin\pg_ctl.exe" -D "C:\Users\harketti\PostgreSQL\16\data" -l "C:\Users\harketti\PostgreSQL\16\data\startup.log" -w start
@@ -49,7 +49,17 @@ Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un che
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★           VISION — QUI EST aSCHOOL & POUR QUI          ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+
 ## Vision
+
+Plateforme web de génération d'activités pédagogiques pour les enseignants, sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
+
+**Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
+
+**Vision multi-niveaux (cap, non engagé) :** aSchool décliné par niveau — Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur. Détail + statut : `MesMD/TABLEAU-DE-BORD.md` → § « Direction produit ».
 
 ### 🏆 Le cap — en lettres d'or (ambition fondatrice, absolue)
 
@@ -60,6 +70,16 @@ Si quelque chose **hors** du dossier aSchool est nécessaire (un binaire, un che
 > **Source de la donnée : aSchool ne doit rien s'inventer. Son contenu pédagogique doit être EXTRAIT des référentiels officiels, puis affiné et ciblé par un RAG (recherche augmentée) qui filtre et ne retient que ce qui est réellement pertinent pour le couple matière + niveau. Pas de référentiel pour un couple → aSchool ne génère pas plutôt que d'inventer.**
 >
 > **Chaque ligne de code, chaque écran, chaque décision se juge à cette aune : « est-ce digne d'un logiciel professionnel de référence, adossé à la base, ancré sur le référentiel ? » Si la réponse est non, ce n'est pas fini.**
+
+### 🎯 Pour qui — aSchool est POUR l'enseignant (règle absolue)
+
+Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), est **l'enseignant**. Une fonctionnalité qui ne sert pas le prof à enseigner est **hors périmètre**, même si elle est « pédagogique ». Sont **exclus** : tout ce qui s'adresse directement à l'étudiant (emploi, CV, portfolio personnel) ou à un autre public (conseillers d'orientation, recruteurs). Tout ce que l'IA produit pour les étudiants est généré **par le prof**, qui reste l'unique utilisateur de l'outil.
+
+**Concrètement.** aSchool n'est **pas** un logiciel qu'on met entre les mains des enfants pour jouer. L'utilisateur, c'est le **prof** (ou l'animatrice de crèche). Il se connecte avec son couple — son cycle, son niveau, sa matière — et aSchool lui **génère une activité fidèle au référentiel officiel**. L'enfant, lui, **ne touche jamais le logiciel** : il **vit** l'activité que le prof a préparée avec aSchool. **Même en crèche**, l'utilisateur est l'adulte, jamais le tout-petit.
+
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★                     FIN — VISION                       ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -74,20 +94,6 @@ Toutes les données métier **doivent vivre** dans la **BASE** — **aucune donn
 **Cycle de vie, non négociable :** **créer → alimenter la base → supprimer.** Une fois la base remplie, le script **disparaît** (historique git si besoin). Un script qui *reste* dans le projet en portant de la donnée métier est un **défaut** — c'est exactement ce qu'on ne veut plus.
 
 **Distinction clé :** ce n'est pas l'usage d'un script qui est interdit, c'est qu'un script **persiste** en portant la donnée. Remplir puis disparaître = sain. Rester avec des données en dur = à virer.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Plateforme web de génération d'activités pédagogiques pour les enseignants, sans compétences techniques requises. Construit étape par étape, validé avec des profs pilotes réels.
-
-**Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
-
-**Vision multi-niveaux (cap, non engagé) :** aSchool décliné par niveau — Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur. Détail + statut : `MesMD/TABLEAU-DE-BORD.md` → § « Direction produit ».
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## Périmètre produit — aSchool est POUR l'enseignant (règle absolue)
-
-Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), est **l'enseignant**. Une fonctionnalité qui ne sert pas le prof à enseigner est **hors périmètre**, même si elle est « pédagogique ». Sont **exclus** : tout ce qui s'adresse directement à l'étudiant (emploi, CV, portfolio personnel) ou à un autre public (conseillers d'orientation, recruteurs). Tout ce que l'IA produit pour les étudiants est généré **par le prof**, qui reste l'unique utilisateur de l'outil.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -126,7 +132,7 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 ## Scripts clés
 
 ```powershell
-.\Scripts\run.ps1              # Lance backend (:8001) + frontend (:5173) — sync dépendances Python + logos avant de démarrer · param -BackendPort (défaut 8001)
+.\Scripts\run.ps1              # Démarre PostgreSQL (5433, si arrêté) + backend (:8001) + frontend (:5173) — sync dépendances Python + logos avant · param -BackendPort (défaut 8001)
 .\Scripts\push.ps1             # Sauvegarde GitHub UNIQUEMENT (git push seul) — ne déploie PAS la prod, ne bump PAS la version
 .\Scripts\deploy.ps1 "message" # Bump PATCH auto → commit → push GitHub → déploiement VPS (geste sous validation explicite)
 ```
@@ -566,11 +572,54 @@ Deux fournisseurs, pour pouvoir basculer de l'un à l'autre : **Groq** (`llama-3
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+## Modèle d'embedding (RAG) — décision (cap « le meilleur »)
+
+Le modèle d'embedding transforme le texte en vecteurs pour la recherche RAG. Il est défini dans `backend/rag/embeddings.py` (constante `EMBEDDING_MODEL`), et sert **à l'ingestion ET à la recherche** (le même des deux côtés, sinon les scores sont faux).
+
+- **Phase actuelle (local, CPU) : BGE-M3 (`BAAI/bge-m3`)** — 1024 dimensions, open-source, licence MIT, gratuit, tourne sur CPU sans carte graphique. Meilleur modèle atteignable aujourd'hui sans GPU.
+- **Cible du produit commercialisé : Qwen3-Embedding-8B** — n°1 des benchmarks, meilleur en français. À activer quand la machine de production aura un GPU (8 milliards de paramètres, ~5 Go quantifié, trop lourd pour du CPU seul).
+
+On n'abandonne pas Qwen3 : c'est le sommet visé. BGE-M3 est le meilleur sans GPU, pas un renoncement. Le petit modèle historique (paraphrase-multilingual-MiniLM, 384 dim) était sous la barre du cap et est remplacé.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ## Aide — Règle absolue
 
 Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la **même session** — à chaud, pendant que c'est frais. Jamais en retard. Jamais reporté à "plus tard".
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★       MÉTHODE RÉFÉRENTIEL (RAG) — EN VIGUEUR           ★★★
+★★★    (fait foi ; l'ancienne méthode est MORTE)          ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+
+Cette section fait foi sur la façon dont un référentiel est **découpé, indexé et cherché**. Toute autre méthode (l'ancienne) est **morte** : on ne raisonne plus jamais dessus. Si un vieux réglage traîne quelque part (code, doc, commentaire), on le **SIGNALE** — on ne l'applique pas.
+
+1. **Découpage : 1 fiche = 1 chunk.** La frontière de chunk est la frontière de **fiche** (la ligne « Matière : … » qui ouvre chaque fiche). Jamais de coupe à taille fixe. → L'ancien découpage **à 900 caractères aveugle est ABANDONNÉ** (il coupait au milieu d'une fiche et collait la queue d'une fiche sur la tête de la suivante).
+
+2. **Une activité = UNE seule matière.** Pas de « matière secondaire », pas de « développe aussi », **aucun renvoi à une autre matière** dans le texte de la fiche. Ce dispositif servait la trouvabilité multi-matières sous l'ancien découpage par taille (où un chunk pouvait perdre le nom de la matière) → **ABANDONNÉ** avec lui.
+
+3. **Modèle d'embedding : BGE-M3 (1024 dim)**, le même à l'ingestion ET à la recherche. **MiniLM (384 dim) est ABANDONNÉ.** Détail + cible future (Qwen3) → section « Modèle d'embedding (RAG) » ci-dessus.
+
+4. **Le nom EXACT de la matière** (libellé du socle, à l'identique) **figure dans le texte de chaque fiche** — garanti par construction, puisque chaque chunk EST une fiche qui s'ouvre sur sa ligne « Matière : … ».
+
+Repère code : le découpage par fiche est produit à l'extraction (`backend/rag/referentiels/creche_0_3_ans.py`) qui renvoie une « page » par fiche ; le chunker générique (`backend/rag/chunker.py`) en fait un chunk par fiche.
+
+### Ajouter un nouveau référentiel — quels acteurs on touche
+
+| Acteur | On y touche ? | Pourquoi |
+|---|---|---|
+| **Modèle** | Non | Global (BGE-M3), un seul pour tous — on le réutilise, on ne le refait pas. |
+| **PDF (extraction + contenu)** | **Oui** | Par référentiel : son PDF, son extraction/découpage, son contenu de fiches. La *méthode* (1 fiche = 1 chunk) est réutilisée ; l'extraction propre au document et le contenu sont neufs. |
+| **Requête** | Non | Gabarit global (`{matiere}`/`{niveau}`), s'applique à tout couple sans y retoucher. |
+| **Seuil** | **Oui** | Par référentiel (`get_fiche(collection).SCORE_MIN`), à recalibrer : il dépend de la distribution des scores de ce PDF-là. |
+
+Règle de lecture : **Modèle + Requête = leviers globaux** (bâtis une fois) ; **PDF + Seuil = par référentiel**.
+
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
+★★★             FIN — MÉTHODE RÉFÉRENTIEL (RAG)            ★★★
+★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
 
 ## Référentiel = source de vérité unique (règle absolue)
 
@@ -610,6 +659,55 @@ Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REF
 3. Tout ce qui utilise le référentiel dépend du drapeau. Ce qui utilise le référentiel, ce sont ses extraits, les chunks. Si le drapeau est faux, on affiche un message clair qui dit qu'il n'y a pas encore de référentiel pour ce niveau, et rien n'est généré. Le reste, qui n'utilise pas le référentiel, reste ouvert.
 
 **Portée dans le temps — défini maintenant, appliqué au fur et à mesure.** On pose ce garde-fou maintenant, on l'applique à mesure que les outils sont branchés sur le référentiel. Aujourd'hui, un seul élément côté prof utilise le référentiel : « Tester un exemple », et il se protège déjà tout seul (pas de référentiel, il répond indisponible et n'invente rien). « Créer une activité » et les autres outils ne lisent pas encore le référentiel. Ils dépendront du drapeau une fois branchés sur les chunks. C'est un chantier à part.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## Gérer les matières d'un référentiel — écran admin, mode DEV (procédure + règle absolue)
+
+**Où, et nulle part ailleurs.** On ajoute, modifie ou supprime une matière **uniquement** sur
+l'écran admin, en dev, dans le contexte d'un couple Cycle → Niveau déjà choisi. Aucun autre
+endroit de l'app ne touche aux matières.
+
+**Qui lit le référentiel.** Les étapes 1 à 3 (lire le PDF, extraire les fiches/domaines, filtrer
+pour ne garder que ce qui est une matière côté enfant) sont un **travail de prépa fait en DEV par
+Claude**, sur l'abonnement Max — jamais par l'application. L'app déployée n'appelle **aucune IA**
+pour ça : elle ne fait que les étapes 4 à 6 et ne se sert que des données déjà rangées en base.
+
+**Les étapes.**
+1. Lire le PDF du référentiel (dans `REFERENTIELS/<CYCLE>/<NIVEAU>/`).
+2. Extraire la liste des domaines/fiches.
+3. Filtrer : garder ce qui est une matière vécue par l'enfant (langage, jeu, arts, alimentation…),
+   écarter le pro/institutionnel (relation aux parents, management, procédures…).
+4. Comparer la liste filtrée avec la base (matières déjà reliées à ce niveau).
+5. Afficher une **table en ligne** (sous la zone PDF de l'écran Référentiels) avec la liste filtrée
+   + cases à cocher :
+   - matière déjà en base pour ce niveau → **case cochée figée** (rien à faire ; pour l'enlever,
+     passer par « Retirer ») ;
+   - matière absente → **non cochée** → l'admin coche celles à ajouter ;
+   - sur cet écran, l'admin peut aussi **ajouter** une matière à la main (ex. donnée par un prof,
+     non détectée), **renommer** un libellé, **retirer** une matière.
+6. Un **seul bouton** (« Récupérer » = « Valider », même sens) : enregistre en base le
+   **coché-ET-nouveau** (jamais de doublon : on réutilise la matière existante), puis affiche un
+   bilan (ex. « 3 ajoutées, 7 déjà présentes »).
+
+**Source de la table (pas de bricolage).** La liste filtrée produite par Claude en dev est rangée
+dans un vrai fichier du référentiel — `matieres-candidates.json`, à côté de `extraction-texte.txt`
+dans `REFERENTIELS/<CYCLE>/<NIVEAU>/` — que l'écran lit pour remplir la table. Ni collage, ni
+endpoint bricolé : un fichier qui part en prod avec le reste.
+
+**Sécurité (à ne jamais casser).** Les liens (niveaux, profs, chunks) référencent la matière par
+son **ID** : un renommage garde l'id et ne casse rien (mais le libellé change partout où la matière
+est partagée entre niveaux). On ne laisse **jamais** une matière orpheline. Une suppression =
+**désactivation** (historique conservé), jamais un effacement dur ; si elle touche un prof ou un
+chunk qui l'utilise, **prévenir AVANT** (modale), ne rien casser en silence.
+
+**Règle à graver — on fige après validation.** On règle les matières d'un couple Cycle → Niveau
+**en une seule fois, à fond**, au moment où on le traite. Une fois **Validé, c'est FIGÉ** : on n'y
+touche plus. Une modification ultérieure (ajouter/renommer/retirer plus tard) reste **possible** —
+uniquement par l'admin, en dev, sur cet écran, dans ce contexte — mais elle est **exceptionnelle,
+une porte de secours**, pas un usage courant.
+
+(Procédure + règle actées le 03/07/2026.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

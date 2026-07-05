@@ -3,7 +3,7 @@ const SECTIONS = [
     categorie: 'Contenu pédagogique',
     items: [
       {
-        titre: 'Référentiels — ajouter un programme (à venir)',
+        titre: 'Référentiels — ajouter un programme',
         icon: (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
@@ -11,13 +11,20 @@ const SECTIONS = [
         ),
         contenu: [
           'Un référentiel, c\'est le programme officiel d\'un couple matière + niveau (par exemple Français 4e). Tant qu\'un couple n\'a pas son référentiel, il reste « en construction » et ne génère pas.',
-          'Étape 1 — Déclarer le couple : vous saisissez le niveau et la matière (deux champs libres). aSchool en déduit un nom de dossier et vous le propose ; vous confirmez.',
-          'Étape 2 — Le document : aSchool vous propose le document officiel (depuis le site de l\'Éducation nationale). Vous vérifiez que c\'est bien le bon, puis vous le déposez.',
-          'Étape 3 — L\'intégration : aSchool découpe le document et le rattache au couple.',
-          'Étape 4 — Ouverture : le couple est ouvert. Les profs de ce couple génèrent désormais sur le vrai programme.',
-          'Votre rôle se limite à valider : confirmer le bon couple, puis le bon document. Le reste se fait tout seul.',
+          'Voici la procédure de bout en bout. Vos gestes sont en bordeaux ; ce qu\'aSchool fait tout seul est en bleu.',
         ],
-        astuce: 'Cet écran décrit le fonctionnement à venir : il n\'est pas encore disponible. Tant qu\'il n\'est pas livré, l\'ajout d\'un référentiel se fait côté technique.',
+        flow: [
+          { n: '1', t: 'Choisir le couple', d: 'Cycle → niveau → matière (listes fermées).', a: 'admin' },
+          { n: '2', t: 'Valider les matières du niveau', d: 'aSchool propose la liste extraite du référentiel ; vous cochez celles à garder.', a: 'admin' },
+          { n: '3', t: 'Déposer le document source', d: 'Téléverser le PDF officiel du référentiel.', a: 'admin' },
+          { n: '4', t: 'Extraire le texte', d: 'Lecture du document, texte brut.', a: 'auto' },
+          { n: '5', t: 'Préparer les fiches par matière', d: 'Une matière = une fiche, rédigée pour la recherche.', a: 'auto' },
+          { n: '6', t: 'Relire et valider les fiches', d: 'Votre contrôle avant l\'intégration.', a: 'admin' },
+          { n: '7', t: 'Intégrer le programme', d: 'Découpage puis indexation en base (recherche).', a: 'auto' },
+          { n: '8', t: 'Régler la pertinence', d: 'aSchool mesure les scores et propose le seuil qui écarte le hors-sujet.', a: 'auto' },
+          { n: '9', t: 'Valider et ouvrir le couple', d: 'Test d\'un exemple, puis mise en service : les profs génèrent sur le vrai programme.', a: 'admin' },
+        ],
+        astuce: 'Ce schéma montre la procédure cible. Aujourd\'hui, certaines étapes de préparation se font encore côté technique ; votre rôle se limite à choisir, déposer, relire et ouvrir.',
       },
     ],
   },
@@ -319,6 +326,41 @@ export default function AdminAide() {
                         {ligne}
                       </p>
                     ))}
+
+                    {item.flow && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: 8 }}>
+                        <div style={{ display: 'flex', gap: 18, marginBottom: 12, fontSize: 12, color: '#475569' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 11, height: 11, borderRadius: 3, background: '#A63045', display: 'inline-block' }} />Vous (admin)
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 11, height: 11, borderRadius: 3, background: '#1F6EEB', display: 'inline-block' }} />aSchool (automatique)
+                          </span>
+                        </div>
+                        {item.flow.map((s, i) => {
+                          const couleur = s.a === 'admin' ? '#A63045' : '#1F6EEB'
+                          const fond = s.a === 'admin' ? '#faf0f2' : '#eef4fd'
+                          return (
+                            <div key={s.n}>
+                              <div style={{
+                                display: 'flex', gap: 12, alignItems: 'flex-start',
+                                background: fond, border: '1px solid #eef1f5',
+                                borderLeft: `4px solid ${couleur}`, borderRadius: 8, padding: '10px 14px',
+                              }}>
+                                <span style={{ fontSize: 15, fontWeight: 700, color: couleur, minWidth: 18, fontVariantNumeric: 'tabular-nums' }}>{s.n}</span>
+                                <span>
+                                  <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{s.t}</span>
+                                  <span style={{ display: 'block', fontSize: 12.5, color: '#64748b', lineHeight: 1.5, marginTop: 2 }}>{s.d}</span>
+                                </span>
+                              </div>
+                              {i < item.flow.length - 1 && (
+                                <div style={{ width: 2, height: 10, background: '#cbd5e1', margin: '0 0 0 24px' }} />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
 
                     {item.astuce && (
                       <div style={{

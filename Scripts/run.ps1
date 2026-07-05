@@ -46,15 +46,27 @@ Get-ChildItem "$logoSrc\*.png","$logoSrc\*.svg","$logoSrc\*.webp" -ErrorAction S
     Copy-Item -Destination $logoDst -Force
 Write-Host ""
 
-# 5. Démarrer le backend FastAPI et sauvegarder son PID
+# 5. Démarrer le cluster PostgreSQL d'aSchool (port 5433) s'il est arrêté.
+#    Cluster manuel (pas de service Windows, ne survit pas a un reboot) -> run.ps1 l'ouvre.
+$pgCtl  = "C:\Users\harketti\PostgreSQL\16\pgsql\bin\pg_ctl.exe"
+$pgData = "C:\Users\harketti\PostgreSQL\16\data"
+if (Get-NetTCPConnection -LocalPort 5433 -State Listen -ErrorAction SilentlyContinue) {
+    Write-Host "  PostgreSQL (5433) deja demarre." -ForegroundColor DarkGray
+} else {
+    Write-Host "  Demarrage PostgreSQL (5433)..." -ForegroundColor Yellow
+    & $pgCtl -D $pgData -l "$pgData\startup.log" -w start
+}
+Write-Host ""
+
+# 6. Démarrer le backend FastAPI et sauvegarder son PID
 $backend = Start-Process powershell -PassThru -ArgumentList "-Command",
     "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Backend'; cd '$root'; Write-Host '=== BACKEND FastAPI (:$BackendPort) ===' -ForegroundColor Cyan; .\.venv\Scripts\uvicorn backend.main:app --reload --port $BackendPort; pause"
 
-# 6. Démarrer le frontend React + Vite et sauvegarder son PID
+# 7. Démarrer le frontend React + Vite et sauvegarder son PID
 $frontend = Start-Process powershell -PassThru -ArgumentList "-Command",
     "`$host.ui.RawUI.WindowTitle = 'A-SCHOOL Frontend'; cd '$root\frontend'; `$env:VITE_API_PORT=$BackendPort; Write-Host '=== FRONTEND React (API :$BackendPort) ===' -ForegroundColor Green; npm run dev; pause"
 
-# 7. Sauvegarder les PIDs pour le prochain lancement
+# 8. Sauvegarder les PIDs pour le prochain lancement
 @($backend.Id, $frontend.Id) | Set-Content $pidFile
 
 Write-Host ""

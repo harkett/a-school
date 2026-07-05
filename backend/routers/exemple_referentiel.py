@@ -21,7 +21,7 @@ from backend.database import get_db
 from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
-from backend.rag.referentiels import bts_ciel_option_a as ciel_fiche
+from backend.rag.referentiels import get_fiche
 from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
 from src.generator import generate, LLMRateLimitError
 from src.prompts import build_exemple_referentiel_prompt
@@ -36,6 +36,12 @@ AUCUN_EXTRAIT_PERTINENT = (
     "pertinent pour générer un exemple fidèle. Essayez de reformuler votre "
     "demande avec des termes plus proches du programme."
 )
+
+# Gabarit de requête RAG (acteur « requête ») — UNIFORME pour tout couple ({matiere}/{niveau}),
+# jamais de formulation par matière en dur. Choisi = T2, prouvé sur le miroir Bébés : une phrase
+# de tâche cherche mieux que le nom seul de la matière (score rang 1 relevé, bonne fiche nette).
+# NB : formulation calibrée crèche ; à réexaminer quand un couple non-crèche sera branché.
+REQUETE_GABARIT = "Activité d'éveil pour développer {matiere} chez un enfant de {niveau}"
 
 
 def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None] | None:
@@ -94,13 +100,16 @@ def api_exemple_referentiel(
         return ExempleReferentielResponse(available=False)
 
     collection, filters = resolved
-    chunks = retrieve_pg(collection, req.matiere, filters=filters, top_k=get_rag_top_k(db))
     # Filtre STRICT de pertinence : un chunk sous le seuil n'ancre JAMAIS une génération
-    # (pas de « meilleur quand même »). Le seuil vit dans la fiche du référentiel.
-    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= ciel_fiche.SCORE_MIN]
+    # (pas de « meilleur quand même »). Le seuil vit dans la fiche PROPRE au couple (crèche,
+    # CIEL… chacun le sien), résolue par sa collection — plus de seuil CIEL codé en dur.
+    seuil = get_fiche(collection).SCORE_MIN
+    requete = REQUETE_GABARIT.format(matiere=req.matiere, niveau=req.niveau)
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).
-        log.info(f"[exemple-ref] aucun chunk >= seuil {ciel_fiche.SCORE_MIN} ({collection}, matiere='{req.matiere}') → available=false + message")
+        log.info(f"[exemple-ref] aucun chunk >= seuil {seuil} ({collection}, matiere='{req.matiere}') → available=false + message")
         return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
     prompt = build_exemple_referentiel_prompt(chunks, matiere=req.matiere, niveau=req.niveau)
@@ -108,5 +117,5 @@ def api_exemple_referentiel(
         texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
-    log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {ciel_fiche.SCORE_MIN})")
+    log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {seuil})")
     return ExempleReferentielResponse(available=True, texte=texte)

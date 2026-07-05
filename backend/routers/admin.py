@@ -7,11 +7,11 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from jose import jwt, JWTError
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.audit import log_admin_action
-from backend.database import get_db, get_db_size_mb
+from backend.database import get_db, get_db_size_mb, engine
 from backend.limiter import limiter
 from backend.llm_prompts import PROMPTS
 from backend.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
@@ -326,6 +326,25 @@ def admin_logout(response: Response):
 @router.get("/admin/check")
 def admin_check(_: None = Depends(_require_admin)):
     return {"status": "ok"}
+
+
+@router.get("/admin/base")
+def admin_base(_: None = Depends(_require_admin)):
+    """Sur quelle base l'app est-elle RÉELLEMENT connectée ? Vérité terrain via
+    current_database() (la connexion vivante, pas l'.env). Host/port depuis le moteur.
+    Le `type` (réelle / miroir / test) est dérivé du nom — garde-fou « miroir vs réelle »."""
+    with engine.connect() as conn:
+        nom = conn.execute(text("SELECT current_database()")).scalar()
+    n = (nom or "").lower()
+    if n == "aschool":
+        type_ = "reelle"
+    elif "miroir" in n:
+        type_ = "miroir"
+    elif "test" in n:
+        type_ = "test"
+    else:
+        type_ = "autre"
+    return {"base": nom, "host": engine.url.host, "port": engine.url.port, "type": type_}
 
 
 @router.get("/admin/feedbacks")

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { showError } from './errorDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -46,6 +46,7 @@ import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminReferentiels from './pages/AdminReferentiels'
 import AdminMaintenance from './pages/AdminMaintenance'
+import AdminBase from './pages/AdminBase'
 import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
 import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
@@ -87,8 +88,14 @@ function MainApp() {
     ? `LV - ${user.langue_lv}`
     : matiere
 
+  // Garde-fou : pas de matière = pas de couple → profil BLOQUANT (l'app force « Mon profil »
+  // comme tout premier écran, et neutralise la navigation tant que le couple n'est pas enregistré).
+  // Le prénom/nom, eux, ne bloquent PAS : simple rappel discret dans le header (profilNomIncomplet).
+  const profilIncomplet = user && !user.subject
+  const profilNomIncomplet = user && (!user.prenom || !user.nom)
+
   const isMobile = window.innerWidth < 768
-  const [page, setPage] = useState('accueil')
+  const [page, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
   const [prefillTheme, setPrefillTheme] = useState('')
   const [prefillSeq, setPrefillSeq] = useState(null)
   const [prefillAmbiguites, setPrefillAmbiguites] = useState('')
@@ -195,6 +202,13 @@ function MainApp() {
   useEffect(() => {
     setSessionMatiere(matiere)
   }, [matiere])
+
+  // Écran forcé : tant que le profil n'a pas de matière (couple absent), on ramène TOUJOURS
+  // sur « Mon profil ». useLayoutEffect (avant peinture) → aucune autre page ne s'affiche, même
+  // une fraction de seconde. Se relâche seul dès que la matière est enregistrée (profilIncomplet=false).
+  useLayoutEffect(() => {
+    if (profilIncomplet && page !== 'mon-profil') setPage('mon-profil')
+  }, [profilIncomplet, page])
 
   const [params, setParams] = useState({
     activite_key: '',
@@ -392,29 +406,11 @@ function MainApp() {
     transition: 'outline-color 0.25s ease',
   })
 
-  const profilIncomplet = user && (!user.prenom || !user.nom)
-
   return (
     <div className="flex flex-col h-screen overflow-hidden">
 
-      {/* Blocage profil incomplet */}
-      {profilIncomplet && page !== 'mon-profil' && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: '32px 36px', maxWidth: 440, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', marginBottom: 12 }}>Bienvenue sur aSchool !</div>
-            <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, marginBottom: 24 }}>
-              Avant de commencer, veuillez compléter votre profil en renseignant votre <strong>prénom</strong> et votre <strong>nom</strong>.
-            </p>
-            <button
-              onClick={() => setPage('mon-profil')}
-              title="Compléter votre profil maintenant"
-              className="btn-primary"
-            >
-              Compléter mon profil
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Profil sans matière : le blocage se fait en amont — page initiale forcée à « mon-profil »
+          + snap-back useLayoutEffect (voir profilIncomplet plus haut). Pas de modale ici. */}
 
       <Header
         matiere={matiereLabel}
@@ -422,6 +418,7 @@ function MainApp() {
         email={user?.email}
         prenom={user?.prenom}
         nom={user?.nom}
+        profilNomIncomplet={profilNomIncomplet}
         onLogout={logout}
         onNavigate={naviguer}
         onFeedback={() => setShowFeedback(true)}
@@ -1083,6 +1080,7 @@ export default function App() {
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
+            <Route path="base"          element={<AdminBase />} />
             <Route path="analytique">
               <Route index element={<Navigate to="/admin/analytique/general" replace />} />
               <Route path="general"    element={<AdminAnalytiqueGeneral />} />

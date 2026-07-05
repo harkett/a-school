@@ -8,6 +8,7 @@ Périmètre étape 1 UNIQUEMENT : pas d'extraction de matières (étape 2), pas 
 (étape 6), pas de recherche web automatique (palier suivant, branché « devant » plus tard).
 On reçoit un PDF que l'admin fournit, on le lui montre, on le range et on trace sa provenance.
 """
+import json
 import re
 import shutil
 import unicodedata
@@ -21,7 +22,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models_db import Cycle, Niveau, Referentiel
+from backend.models_db import Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, User
 from backend.routers.admin import _require_admin
 
 router = APIRouter()
@@ -42,6 +43,21 @@ def _dossier_cle(nom: str) -> str:
     s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
     s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
     return s or "REFERENTIEL"
+
+
+def _lire_candidates(cycle_nom: str, niveau_nom: str) -> list[str]:
+    """Liste des matières candidates préparée en DEV par Claude, rangée dans le fichier
+    `matieres-candidates.json` du dossier du référentiel (`REFERENTIELS/<CYCLE>/<NIVEAU>/`).
+    L'app ne calcule JAMAIS cette liste : elle la lit. [] si le fichier est absent ou illisible."""
+    dossier = REFERENTIELS_DIR / _dossier_cle(cycle_nom) / _dossier_cle(niveau_nom)
+    fichier = dossier / "matieres-candidates.json"
+    if not fichier.exists():
+        return []
+    try:
+        data = json.loads(fichier.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return [str(m).strip() for m in data.get("matieres", []) if str(m).strip()]
 
 
 def _apercu(pdf_path: Path) -> tuple[int, str]:
@@ -191,3 +207,161 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         "pages": len(pages),
         "caracteres_extraits": len(texte),
     }
+
+
+# ── État d'un couple : le référentiel est-il DÉJÀ enregistré ? nom réel + matières ──
+
+@router.get("/admin/referentiels/etat", dependencies=[Depends(_require_admin)])
+def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """À la sélection d'un couple (cycle + niveau) sur l'écran admin : dire si un
+    référentiel est DÉJÀ enregistré (« déjà traité »), avec son VRAI nom d'origine
+    (colonne `fichier`) + la source, et la liste des matières déjà reliées à ce niveau.
+
+    Lecture seule (aucune écriture). Sert à l'écran à afficher l'état « déjà téléchargé,
+    déjà traité » + les matières existantes, et à griser la zone de dépôt. Le couple est
+    INDÉPENDANT : chaque niveau a sa propre ligne `referentiels` et ses propres paires.
+    """
+    niveau_nom = (niveau or "").strip()
+    cyc = db.get(Cycle, cycle_id)
+    candidates = _lire_candidates(cyc.nom if cyc else "", niveau_nom)
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
+    if not niv:
+        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": candidates}
+
+    # Référentiel du niveau entier (matiere_id NULL) — même clé qu'à la validation.
+    ref = (db.query(Referentiel)
+             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None))
+             .first())
+
+    # Matières déjà reliées à ce niveau (paires actives + matière active).
+    matieres = [
+        {"id": mid, "nom": mnom}
+        for mid, mnom in (
+            db.query(Matiere.id, Matiere.nom)
+              .join(MatiereNiveau, MatiereNiveau.matiere_id == Matiere.id)
+              .filter(MatiereNiveau.niveau_id == niv.id,
+                      MatiereNiveau.actif == True, Matiere.actif == True)
+              .order_by(Matiere.ordre).all()
+        )
+    ]
+
+    return {
+        "existe_referentiel": ref is not None,
+        "referentiel": (
+            {"fichier": ref.fichier, "source": ref.source, "date_doc": ref.date_doc}
+            if ref else None
+        ),
+        "matieres": matieres,
+        "candidates": candidates,
+    }
+
+
+# ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──
+
+class EnregistrerMatieresBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    matieres: list[str]
+
+
+@router.post("/admin/referentiels/matieres", dependencies=[Depends(_require_admin)])
+def enregistrer_matieres(body: EnregistrerMatieresBody, db: Session = Depends(get_db)):
+    """Enregistre en base les matières d'un couple (cycle + niveau) : pour chaque nom, on
+    RÉUTILISE la matière existante (get-or-create par nom, insensible à la casse — jamais de
+    doublon) et on crée/réactive la paire matière×niveau. Idempotent : relancer ne crée rien
+    en double. Renvoie un bilan (ajoutées / déjà présentes). Ne supprime JAMAIS rien."""
+    niveau_nom = (body.niveau or "").strip()
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
+    if not niv:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+
+    # Dédoublonnage des noms reçus (insensible à la casse), 1er libellé vu conservé.
+    noms, vus = [], set()
+    for raw in body.matieres:
+        nom = (raw or "").strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower()); noms.append(nom)
+
+    ajoutees, deja = [], []
+    for nom in noms:
+        mat = db.query(Matiere).filter(func.lower(Matiere.nom) == nom.lower()).first()
+        if not mat:
+            maxo = db.query(func.max(Matiere.ordre)).scalar()
+            mat = Matiere(nom=nom, ordre=(maxo or 0) + 1, actif=True)
+            db.add(mat); db.flush()
+        paire = (db.query(MatiereNiveau)
+                   .filter(MatiereNiveau.matiere_id == mat.id, MatiereNiveau.niveau_id == niv.id)
+                   .first())
+        if paire and paire.actif:
+            deja.append(nom)
+        elif paire:
+            paire.actif = True
+            ajoutees.append(nom)
+        else:
+            db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=niv.id, actif=True))
+            ajoutees.append(nom)
+    db.commit()
+    return {"ajoutees": ajoutees, "deja_presentes": deja,
+            "nb_ajoutees": len(ajoutees), "nb_deja": len(deja)}
+
+
+# ── Renommer une matière PAR SON ID (garde l'id → aucun lien cassé) ──
+
+class RenommerMatiereBody(BaseModel):
+    matiere_id: int
+    nouveau_nom: str
+
+
+@router.patch("/admin/referentiels/matiere", dependencies=[Depends(_require_admin)])
+def renommer_matiere(body: RenommerMatiereBody, db: Session = Depends(get_db)):
+    """Renomme une matière par son id : garde l'identifiant, donc aucun lien (paire, prof,
+    référentiel) n'est cassé. Le libellé change PARTOUT où la matière est partagée entre
+    niveaux. Refuse un nom vide ou déjà porté par une AUTRE matière (anti-doublon)."""
+    nom = (body.nouveau_nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nouveau nom est requis.")
+    mat = db.get(Matiere, body.matiere_id)
+    if not mat:
+        raise HTTPException(404, "Matière inconnue.")
+    autre = (db.query(Matiere)
+               .filter(func.lower(Matiere.nom) == nom.lower(), Matiere.id != mat.id).first())
+    if autre:
+        raise HTTPException(409, f"Une autre matière porte déjà le nom « {nom} ».")
+    ancien = mat.nom
+    mat.nom = nom
+    db.commit()
+    return {"ok": True, "id": mat.id, "ancien_nom": ancien, "nouveau_nom": nom}
+
+
+# ── Retirer une matière d'un niveau = DÉSACTIVER la paire (jamais de suppression dure) ──
+
+class RetirerMatiereBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    matiere_id: int
+
+
+@router.post("/admin/referentiels/retirer-matiere", dependencies=[Depends(_require_admin)])
+def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
+    """Retire une matière d'un niveau = met la paire `actif=False` (historique conservé,
+    JAMAIS de suppression dure). Signale, sans rien casser, si la matière est encore utilisée
+    par un prof (profil) ou par un référentiel de matière."""
+    niveau_nom = (body.niveau or "").strip()
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
+    if not niv:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+    mat = db.get(Matiere, body.matiere_id)
+    if not mat:
+        raise HTTPException(404, "Matière inconnue.")
+    paire = (db.query(MatiereNiveau)
+               .filter(MatiereNiveau.matiere_id == mat.id, MatiereNiveau.niveau_id == niv.id).first())
+    if not paire or not paire.actif:
+        return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0, "referentiels": 0}
+    profs = db.query(User).filter(func.lower(User.subject) == mat.nom.lower()).count()
+    refs = db.query(Referentiel).filter(Referentiel.matiere_id == mat.id).count()
+    paire.actif = False
+    db.commit()
+    return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs, "referentiels": refs}

@@ -71,6 +71,10 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **Réserve 2 — BACKFILL `users.subject`/`niveau` → `user_enseignements`** | détail → **A4** |
 | ☐ | **Réserve 3 — Accès à l'historique en multi-cycles** | détail → **A5** |
 | ☐ | **Extraire les matières des BTS depuis leur référentiel** *(tâche séparée — ne bloque PAS le socle matières)* : les « niveaux » BTS sont des **spécialités** ; leurs matières s'extraient du référentiel de chaque spécialité (prouvé sur **BTS CIEL Option A** = ses 9 matières), jamais saisies à la main. Problème récurrent (d'autres référentiels le reposeront). | détail → **A7** |
+| ☐ | **55 — Injecter le RESTE du socle matières (cycles 7-11)** : 7 Master · 8 BTS · 9 BUT · 10 Doctorat découpés par **année** dans `aSchool_matiere.md` mais gérés par **spécialité** en base → matières propres **extraites du référentiel** de chaque spécialité, pas d'injection brute (élargit la ligne BTS ci-dessus). Cycle **11 « 0-3 ans » = doublon de la Crèche → à SUPPRIMER du .md**. | détail → [D55](BOUSSOLE/D55.md) |
+| ☐ | **56 — BTS CIEL Option A : artefact pré-réforme à réconcilier** (PRÉVENTIF, avant de traiter le cycle BTS) : en base référentiel id=1 + **236 chunks** mais **0 matière** reliée (les « 9 matières » du seed supprimé ne sont plus là) ; fiche Python en dur `bts_ciel_option_a.py` (= code par cas à rendre data-driven) ; casse niveau « option » (code) ≠ « Option » (base) ; `traite=f` malgré les données. Ne rien décider, juste tracé. | détail → [D56](BOUSSOLE/D56.md) |
+| ☐ | **57 — Registre « couple → méthode d'extraction » (data-driven)** : inventorier tous les référentiels (table `referentiels` + dossier `REFERENTIELS/`), détecter la mise en page de chaque PDF, ranger en base « tel couple = telle méthode » (champ pressenti sur `referentiels`), puis l'ingestion **lit** la méthode au lieu de l'importer en dur (`pgvector_store.py:28`). Nouveau référentiel = on classe sa mise en page et on ajoute la ligne. La base stocke le **pointeur**, pas la méthode (le code d'une mise en page neuve reste à écrire une fois). **Dépend d'≥1 méthode écrite** (la crèche = la première). | détail → [D57](BOUSSOLE/D57.md) |
+| ☐ | **60 — Procédure référentiel de bout en bout (admin → prof)** : automatiser toute la chaîne (l'admin ne fait que choisir / déposer / relire / ouvrir ; aSchool fait le reste **sans inventer**). Blueprint = cas crèche Bébés. Cible dure = passer les étapes **3-4** (extraire le texte, rédiger les fiches) de « prép dev » à « app ». 2 points chauds : étape 4 (densif auto = risque d'invention, cap) ; étape 8 (**seuil par DOCUMENT, pas par niveau**). **Aide admin FAITE** (visuel 9 étapes dans `AdminAide.jsx`) ; automatisation à faire. **Chapeaute [D57].** | détail → [D60](BOUSSOLE/D60.md) |
 
 > 📂 **Notes de fond rattachées (détail en annexe) :** Échelle → **A6** · Procédure « référentiel officiel → matières » (CAS-TEST BTS CIEL) → **A7** · Catalogue d'activités CIEL repli (A) → catalogue dédié (B) → **A8**.
 
@@ -113,6 +117,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 
 | # | St | Tâche | Pourquoi ici |
 |---|---|---|---|
+| 00 | ☐ | **[Doc] Reprendre toute la numérotation depuis le début** — réaligner tous les items ET fiches pour item N ↔ DN partout, sans décalage (dû aux items supprimés). PLUS TARD, pas maintenant. → [D00](BOUSSOLE/D00.md) | dette de numérotation : items ↔ fiches désalignés |
 | 7 | ☐ | **[Infra] Filet de test front (Vitest + Testing Library)** | complément front du filet backend D16 — le front n'a aucun test |
 | 8 | ☐ | **[Process] Tests à 3 étages + [Outillage] journal de versions** | grave qui teste quoi / quand + traçabilité feedback prof ↔ version |
 | 9 | ☐ | **[Mémoire] Nettoyer les memory files périmés** (refs BACKLOG / BOUSSOLE / LEVIERS) | cohérence — la dette laissée volontairement lors de la création du TRACKER |
@@ -185,6 +190,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **42** — Recherche globale dans l'application | rien (réf. ergo item 41) | — |
 | ☐ | **15** — Gestion emails sortants (backoffice) | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
 | ☐ | **01** — Pages légales CNIL | en attente — infos admin (externe) | [D39](BOUSSOLE/D39.md) |
+| ☐ | **53** — Remplacer un référentiel existant (geste explicite + cascade : PDF→texte→chunks→matières, gardé) | rien (chantier futur) | [D53](BOUSSOLE/D53.md) |
 
 ### Gros chantiers (semaines)
 
@@ -217,6 +223,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 |---|---|---|
 | ⟳ | **12** — Synchronisation pages afia.fr (School.jsx) | automatique au prochain push **MINOR / MAJOR** |
 | ✅ | **41** — Recherche dans la page Aide (plein-texte) | **fait en local (non déployé)** — part au prochain déploiement |
+| ☐ | **58** — Dossier de connaissance `MesMD/CONNAISSANCE/` : carte du fonctionnement réel **extraite du code** (1 fiche par thème/écran, chaque fait avec son `fichier:ligne`) → matière première pour l'**aide prof** + la **doc** ; **non figé** (le code reste LA vérité). Détail → [D58](BOUSSOLE/D58.md) | **en attente de : app stabilisée** (balayage complet) ; dépôts au fil de l'eau quand une brique est stable |
 
 ---
 
