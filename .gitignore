@@ -22,3 +22,12 @@ MesMD/MATRICE_ACTIVITES_ASCHOOL.md
 MesMD/**/*.wav
 # Sauvegardes locales .bak (filets avant edition/suppression) — jamais commitees
 *.bak-*
+# Scripts ephemeres (regle « script ephemere » : jamais commites)
+_tmp_*.py
+# Documents sources a analyser (PDF lourds — gardes en local, hors depot)
+MesMD/DOCS_A_ANALYSER/*.pdf
+# Sauvegardes navigateur (« enregistrer sous » — derive, hors depot)
+MesMD/*_files/
+MesMD/*.html
+# Procedures imprimees perso (hors depot)
+MesAdmin/
