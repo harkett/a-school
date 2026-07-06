@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
-import backend.alerts as alerts
+import backend.supervision.alerts as alerts
 
 
 def _capture(monkeypatch):

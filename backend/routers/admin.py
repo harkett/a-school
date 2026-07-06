@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from backend.audit import log_admin_action
+from backend.securite.audit import log_admin_action
 from backend.database import get_db, get_db_size_mb, engine
 from backend.limiter import limiter
 from backend.llm_prompts import PROMPTS

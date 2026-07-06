@@ -54,7 +54,7 @@ _scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    from backend.alerts import run_all_checks
+    from backend.supervision.alerts import run_all_checks
     _scheduler.add_job(run_all_checks, "interval", minutes=5, id="alert_checks")
     _scheduler.start()
 
