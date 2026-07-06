@@ -18,7 +18,7 @@ import io
 
 from fastapi.testclient import TestClient
 
-import backend.groq_client as groq_client
+import backend.core.groq_client as groq_client
 from backend.main import app
 
 # Extensions acceptées par l'endpoint Groq Whisper (doc officielle Speech-to-Text).

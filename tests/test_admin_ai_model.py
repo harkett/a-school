@@ -24,10 +24,10 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
-from backend.models_db import Setting
+from backend.core.models_db import Setting
 from backend.systeme.admin import _make_admin_token, SUPPORTED_AI_MODELS, get_ai_model
 from fastapi.testclient import TestClient
 

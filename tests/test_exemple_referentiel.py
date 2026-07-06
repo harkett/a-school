@@ -28,11 +28,11 @@ from unittest.mock import patch
 import pytest
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from backend.auth import create_access_token
-from backend.models_db import Cycle, Niveau, Referentiel
+from backend.core.models_db import Cycle, Niveau, Referentiel
 from backend.pedagogie.exemple_referentiel import AUCUN_EXTRAIT_PERTINENT
 from fastapi.testclient import TestClient
 

@@ -29,8 +29,8 @@ sys.path.insert(0, ROOT)
 from sqlalchemy import select, func
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
-from backend.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+import backend.core.database as dbmod
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
 from backend.rag import retrieve_pg
 from backend.rag.pgvector_store import ingest_pgvector
 

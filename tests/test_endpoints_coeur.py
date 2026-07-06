@@ -24,7 +24,7 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from backend.auth import create_access_token
@@ -212,7 +212,7 @@ def test_generate_sous_type_manquant_400():
 # Un cycle sans paire (ex. Supérieur) ne doit PAS apparaître -> coeur du fix P5.11.
 
 def test_programmes_niveaux_utilisables_groupes_par_cycle():
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     col = Cycle(nom="Collège", ordre=4); db.add(col)
     sup = Cycle(nom="Supérieur", ordre=6); db.add(sup); db.flush()
@@ -232,7 +232,7 @@ def test_programmes_niveaux_utilisables_groupes_par_cycle():
 def test_programmes_matieres_par_cycle():
     # Matières scopées par cycle (menu matière du profil) : paire active + matière active.
     # BDD de test partagée -> identifiants uniques (mpc-*) pour ne rien collisionner.
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     cA = Cycle(nom="MPC-Cycle-A", ordre=40); db.add(cA)
     cB = Cycle(nom="MPC-Cycle-B", ordre=41); db.add(cB); db.flush()
@@ -257,7 +257,7 @@ def test_programmes_matieres_par_cycle():
 def test_programmes_matieres_par_niveau():
     # Matières scopées par NIVEAU (le programme du diplôme) : paire active + matière active,
     # dans l'ORDRE D'INSERTION des paires (= ordre du référentiel), PAS l'ordre global matiere.
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="MPN-Cycle", ordre=50); db.add(cyc); db.flush()
     niv = Niveau(cycle_id=cyc.id, nom="MPN-Diplome", ordre=50); db.add(niv); db.flush()
@@ -283,7 +283,7 @@ def test_programmes_matieres_par_niveau():
 
 def test_programmes_niveau_traite_expose():
     # niveaux_par_cycle expose le drapeau `traite` : traité = sélectionnable / en cours = bloqué.
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
     nT = Niveau(cycle_id=cyc.id, nom="NT-Traite", ordre=60, traite=True); db.add(nT)
@@ -311,7 +311,7 @@ def admin_client():
 
 
 def test_admin_programmes_arbre_complet_inactives_incluses():
-    from backend.models_db import Cycle, Niveau, Matiere
+    from backend.core.models_db import Cycle, Niveau, Matiere
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycleAdminTest", ordre=99); db.add(cyc); db.flush()
     db.add(Niveau(cycle_id=cyc.id, nom="NivA", ordre=1))
@@ -326,7 +326,7 @@ def test_admin_programmes_arbre_complet_inactives_incluses():
 
 
 def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycPaire", ordre=98); db.add(cyc); db.flush()
     niv = Niveau(cycle_id=cyc.id, nom="NivP", ordre=1); db.add(niv); db.flush()
@@ -354,7 +354,7 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
 
 
 def test_admin_create_niveau_et_gardes():
-    from backend.models_db import Cycle
+    from backend.core.models_db import Cycle
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycNivCrea", ordre=97); db.add(cyc); db.commit(); cid = cyc.id; db.close()
 
@@ -385,7 +385,7 @@ def _save_payload(key="comprehension"):
 
 def _client_for(email):
     """Client authentifié pour un prof réel en base (la route save lit user_id depuis users)."""
-    from backend.models_db import User
+    from backend.core.models_db import User
     db = dbmod.SessionLocal()
     if not db.query(User).filter(User.email == email).first():
         db.add(User(email=email, password_hash="x", is_verified=True))
@@ -425,7 +425,7 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
     """Le compte atteint directement 4 sans que la logique jalon n'ait jamais vu 3
     (ex. sauvegardes concurrentes) : le >= garantit qu'on ne rate PAS le franchissement
     -> few_shot_just_reached = True une seule fois, jamais ensuite."""
-    from backend.models_db import User, ActiviteSauvegardee
+    from backend.core.models_db import User, ActiviteSauvegardee
     db = dbmod.SessionLocal()
     db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True))
     db.commit()
@@ -448,7 +448,7 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
 # pour ne rien collisionner.
 
 def test_matieres_derive_de_la_base():
-    from backend.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
     db = dbmod.SessionLocal()
     c = Cycle(nom="P510-Cyc", ordre=510); db.add(c); db.flush()
     n = Niveau(cycle_id=c.id, nom="P510-4e", ordre=510); db.add(n); db.flush()

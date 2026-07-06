@@ -15,8 +15,8 @@ les mêmes 401 que les helpers `_get_email` actuels.
 from fastapi import Cookie, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend.models_db import User
+from backend.core.database import get_db
+from backend.core.models_db import User
 from backend import auth as auth_lib
 
 

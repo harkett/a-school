@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from backend.models_db import AdminAuditLog
+from backend.core.models_db import AdminAuditLog
 
 
 def log_admin_action(

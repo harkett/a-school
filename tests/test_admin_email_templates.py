@@ -25,10 +25,10 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
-import backend.database as dbmod  # engine/SessionLocal rediriges vers aschool_test par conftest
+import backend.core.database as dbmod  # engine/SessionLocal rediriges vers aschool_test par conftest
 import backend.auth as auth_lib
 from backend.main import app
-from backend.models_db import EmailTemplate, User
+from backend.core.models_db import EmailTemplate, User
 from backend.systeme.admin import _make_admin_token, get_welcome_template
 from fastapi.testclient import TestClient
 

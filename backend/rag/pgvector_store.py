@@ -25,8 +25,8 @@ from typing import Any
 
 from sqlalchemy import select, delete, func
 
-from backend.database import SessionLocal
-from backend.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.core.database import SessionLocal
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
 from .chunker import build_chunks                     # découpeur générique, sans référentiel
 from .embeddings import embed_texts, EMBEDDING_MODEL  # voie directe (pas ChromaDB)
 from .referentiels import get_fiche                   # registre collection -> fiche

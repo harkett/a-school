@@ -10,8 +10,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend.models_db import FicheMatiere
+from backend.core.database import get_db
+from backend.core.models_db import FicheMatiere
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model, get_max_tokens, get_temperature
 from src.activities import ACTIVITES_PAR_MATIERE
 from src.generator import generate, LLMRateLimitError

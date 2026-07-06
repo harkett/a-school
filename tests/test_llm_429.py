@@ -26,12 +26,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from backend.auth import create_access_token
 import src.generator as gen
-import backend.groq_client as gc
+import backend.core.groq_client as gc
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 

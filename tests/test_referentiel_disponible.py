@@ -18,9 +18,9 @@ sys.path.insert(0, ROOT)
 import pytest
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 from backend.main import app
-from backend.models_db import Cycle, Niveau, Matiere, Referentiel
+from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
 from fastapi.testclient import TestClient
 
 client = TestClient(app)

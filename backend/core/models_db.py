@@ -3,7 +3,7 @@ from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignK
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
-from backend.database import Base
+from backend.core.database import Base
 
 
 class User(Base):

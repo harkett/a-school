@@ -29,11 +29,11 @@ sys.path.insert(0, ROOT)
 from unittest.mock import MagicMock, patch
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from backend.auth import create_access_token
-from backend.models_db import Setting
+from backend.core.models_db import Setting
 from backend.systeme.admin import (
     get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN, MAX_TOKENS_MAX,
     _make_admin_token,

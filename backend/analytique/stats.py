@@ -4,8 +4,8 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from backend.database import get_db
-from backend.models_db import ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.database import get_db
+from backend.core.models_db import ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
 from backend import auth as auth_lib
 from backend.systeme.admin import _require_admin
 

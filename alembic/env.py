@@ -1,7 +1,7 @@
 """Alembic — environnement de migrations aSchool.
 
 Câblé sur l'app : l'URL vient de DATABASE_URL (.env, même source que l'app), jamais
-en dur dans alembic.ini ; les métadonnées cibles = le modèle ORM (backend.models_db).
+en dur dans alembic.ini ; les métadonnées cibles = le modèle ORM (backend.core.models_db).
 Garde-fou : refuse de tourner si le moteur n'est pas PostgreSQL (SQLite jamais touché)."""
 import os
 import sys
@@ -36,8 +36,8 @@ if not _db_url.startswith("postgresql"):
 config.set_main_option("sqlalchemy.url", _db_url)
 
 # Métadonnées cibles = le modèle ORM. Importer models_db enregistre les 22 tables sur Base.metadata.
-from backend.database import Base
-from backend import models_db  # noqa: F401  (effet de bord : enregistre les tables)
+from backend.core.database import Base
+from backend.core import models_db  # noqa: F401  (effet de bord : enregistre les tables)
 
 target_metadata = Base.metadata
 

@@ -12,7 +12,7 @@ import bcrypt as _bcrypt
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from backend.models_db import EmailToken, RefreshToken, User
+from backend.core.models_db import EmailToken, RefreshToken, User
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM = "HS256"

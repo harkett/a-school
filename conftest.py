@@ -47,13 +47,13 @@ if _u.get_backend_name() != "postgresql":
 if _u.database != "aschool_test":
     raise RuntimeError(f"TEST_DATABASE_URL doit viser 'aschool_test', reçu : {_u.database!r}")
 
-# DATABASE_URL = test AVANT tout import de backend.database (sinon défaut SQLite de prod).
+# DATABASE_URL = test AVANT tout import de backend.core.database (sinon défaut SQLite de prod).
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
 _test_engine = _real_create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 _TestSession = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 
-import backend.database as _dbmod  # noqa: E402
+import backend.core.database as _dbmod  # noqa: E402
 
 _dbmod.engine = _test_engine
 _dbmod.SessionLocal = _TestSession
@@ -71,7 +71,7 @@ def _assert_test_engine():
 _assert_test_engine()
 
 # --- Schéma sur aschool_test (l'extension vector existe déjà ; create_all fait le reste) ---
-from backend import models_db  # noqa: E402
+from backend.core import models_db  # noqa: E402
 
 with _test_engine.begin() as _conn:
     _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))

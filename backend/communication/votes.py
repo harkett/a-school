@@ -4,8 +4,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
-from backend.database import get_db
-from backend.models_db import FeatureVote, User
+from backend.core.database import get_db
+from backend.core.models_db import FeatureVote, User
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()

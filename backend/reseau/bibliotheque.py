@@ -2,8 +2,8 @@ from typing import Optional
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend.models_db import ActiviteSauvegardee, User
+from backend.core.database import get_db
+from backend.core.models_db import ActiviteSauvegardee, User
 from backend import auth as auth_lib
 
 router = APIRouter()

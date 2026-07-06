@@ -5,8 +5,8 @@ from email.mime.text import MIMEText
 
 import psutil
 
-from backend.database import SessionLocal
-from backend.models_db import AdminAlert, FailedLoginAttempt
+from backend.core.database import SessionLocal
+from backend.core.models_db import AdminAlert, FailedLoginAttempt
 
 _COOLDOWN_HOURS = 2
 

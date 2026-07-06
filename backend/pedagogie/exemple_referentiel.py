@@ -17,9 +17,9 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
-from backend.database import get_db
-from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
-from backend.models_db import Niveau, Referentiel
+from backend.core.database import get_db
+from backend.core.models import ExempleReferentielRequest, ExempleReferentielResponse
+from backend.core.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
 from backend.rag.referentiels import get_fiche
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k

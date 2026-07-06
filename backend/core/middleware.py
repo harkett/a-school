@@ -6,8 +6,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from backend.database import SessionLocal
-from backend.models_db import User, UserSession
+from backend.core.database import SessionLocal
+from backend.core.models_db import User, UserSession
 
 _REFRESH_COOKIE = "aschool_refresh"
 _ALGO = "HS256"

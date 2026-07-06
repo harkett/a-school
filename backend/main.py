@@ -29,8 +29,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from backend.limiter import limiter
-from backend.middleware import UserSessionMiddleware
+from backend.core.limiter import limiter
+from backend.core.middleware import UserSessionMiddleware
 from backend.routers import auth
 from backend.systeme import admin
 from backend.activite import generate

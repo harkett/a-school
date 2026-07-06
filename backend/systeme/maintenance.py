@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.securite.audit import log_admin_action
-from backend.database import get_db, get_db_size_mb
-from backend.models_db import (
+from backend.core.database import get_db, get_db_size_mb
+from backend.core.models_db import (
     ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog,
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
     User, UserSession,

@@ -17,7 +17,7 @@ nom à extension valide AVANT de transmettre à Groq, et le paramètre `model` (
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
-from backend.groq_client import transcribe_audio
+from backend.core.groq_client import transcribe_audio
 
 router = APIRouter()
 

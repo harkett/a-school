@@ -17,7 +17,7 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from src.prompts import build_prompt

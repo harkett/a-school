@@ -27,13 +27,13 @@ sys.path.insert(0, ROOT)
 from unittest.mock import MagicMock, patch
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
-import backend.database as dbmod
+import backend.core.database as dbmod
 
 from backend.main import app
 from backend.auth import create_access_token
-from backend.models_db import Setting
+from backend.core.models_db import Setting
 from backend.systeme.admin import get_prompt, valider_prompt, _make_admin_token
-from backend.llm_prompts import PROMPTS
+from backend.core.llm_prompts import PROMPTS
 import src.generator as gen
 from fastapi.testclient import TestClient
 
