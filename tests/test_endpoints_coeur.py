@@ -62,7 +62,7 @@ def test_generate_happy():
 
 
 def test_generate_sequence_happy():
-    with patch("backend.routers.sequence.generate", return_value=SEQ_MD):
+    with patch("backend.sequence.sequence.generate", return_value=SEQ_MD):
         r = authed().post("/api/generate-sequence", json={
             "theme": "Photosynthèse", "matiere": "SVT", "niveau": "3e",
             "duree": 55, "mode": "standard", "description_classe": ""})
@@ -71,7 +71,7 @@ def test_generate_sequence_happy():
 
 
 def test_optimize_happy():
-    with patch("backend.routers.optimiseur.generate", return_value=OPT_JSON):
+    with patch("backend.sequence.optimiseur.generate", return_value=OPT_JSON):
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -80,7 +80,7 @@ def test_optimize_happy():
 
 
 def test_ambiguites_happy():
-    with patch("backend.routers.ambiguites.generate", return_value=AMB_JSON):
+    with patch("backend.analyse.ambiguites.generate", return_value=AMB_JSON):
         r = authed().post("/api/detect-ambiguites", json={
             "texte": "Analysez le document.", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -89,7 +89,7 @@ def test_ambiguites_happy():
 
 
 def test_consigne_happy():
-    with patch("backend.routers.consigne.generate", return_value=CON_JSON):
+    with patch("backend.analyse.consigne.generate", return_value=CON_JSON):
         r = authed().post("/api/analyser-consigne", json={
             "consigne": "Expliquez la photosynthèse.", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 200, r.text
@@ -148,7 +148,7 @@ def test_422_champ_requis_manquant():
 
 def test_endpoint_outil_llm_down_500():
     """Si le LLM est down (generate lève RuntimeError), l'optimiseur renvoie 500."""
-    with patch("backend.routers.optimiseur.generate", side_effect=RuntimeError("LLM down")):
+    with patch("backend.sequence.optimiseur.generate", side_effect=RuntimeError("LLM down")):
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 500, r.text

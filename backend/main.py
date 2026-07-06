@@ -31,7 +31,17 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.limiter import limiter
 from backend.middleware import UserSessionMiddleware
-from backend.routers import generate, activites, auth, mes_activites, admin, feedback, profil, ocr, bibliotheque, maintenance, stats, fiches, optimiseur, votes, sequence, ambiguites, consigne, transcribe, programmes, exemple_referentiel, referentiels_admin
+from backend.routers import generate, auth, admin
+from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
+from backend.contenu import activites, mes_activites, fiches
+from backend.prof import profil
+from backend.communication import feedback, votes
+from backend.analytique import stats
+from backend.analyse import ambiguites, consigne
+from backend.dictee import ocr, transcribe
+from backend.reseau import bibliotheque
+from backend.sequence import sequence, optimiseur
+from backend.systeme import maintenance
 
 # Schéma géré par Alembic (`alembic upgrade head`) — plus de create_all au démarrage (Pas 9).
 

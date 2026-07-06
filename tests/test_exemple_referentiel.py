@@ -33,7 +33,7 @@ import backend.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
 from backend.models_db import Cycle, Niveau, Referentiel
-from backend.routers.exemple_referentiel import AUCUN_EXTRAIT_PERTINENT
+from backend.pedagogie.exemple_referentiel import AUCUN_EXTRAIT_PERTINENT
 from fastapi.testclient import TestClient
 
 NIVEAU_CIEL = "BTS CIEL option A"
@@ -81,8 +81,8 @@ def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple(couple_ciel):
         captured["prompt"] = prompt
         return "TEXTE SOURCE EXEMPLE (généré)"
 
-    with patch("backend.routers.exemple_referentiel.retrieve_pg", return_value=chunks_ok), \
-         patch("backend.routers.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
+    with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=chunks_ok), \
+         patch("backend.pedagogie.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
         r = _authed().post("/api/exemple-referentiel",
                            json={"matiere": "Réseaux", "niveau": NIVEAU_CIEL})
 
@@ -101,7 +101,7 @@ def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple(couple_ciel):
 
 def test_couple_sans_referentiel_ne_fabrique_rien():
     # Pas de fixture couple_ciel → aucun référentiel en base → available=false, sans LLM.
-    with patch("backend.routers.exemple_referentiel.generate") as mock_gen:
+    with patch("backend.pedagogie.exemple_referentiel.generate") as mock_gen:
         r = _authed().post("/api/exemple-referentiel",
                            json={"matiere": "Français", "niveau": "4e"})
 
@@ -126,8 +126,8 @@ def _chunk(text, score):
 def test_seuil_tout_sous_seuil_message_honnete_et_pas_de_generation(couple_ciel):
     # Tous les chunks sous 0.33 → available=false, message C, generate JAMAIS appelé.
     faibles = [_chunk("bruit hors-sujet A", 0.28), _chunk("bruit hors-sujet B", 0.30)]
-    with patch("backend.routers.exemple_referentiel.retrieve_pg", return_value=faibles), \
-         patch("backend.routers.exemple_referentiel.generate") as mock_gen:
+    with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=faibles), \
+         patch("backend.pedagogie.exemple_referentiel.generate") as mock_gen:
         r = _authed().post("/api/exemple-referentiel",
                            json={"matiere": "Réseaux", "niveau": NIVEAU_CIEL})
     assert r.status_code == 200, r.text
@@ -146,8 +146,8 @@ def test_seuil_filtre_les_chunks_faibles_avant_le_prompt(couple_ciel):
     def fake_generate(prompt, **kwargs):
         captured["p"] = prompt
         return "EXEMPLE"
-    with patch("backend.routers.exemple_referentiel.retrieve_pg", return_value=mixtes), \
-         patch("backend.routers.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
+    with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=mixtes), \
+         patch("backend.pedagogie.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
         r = _authed().post("/api/exemple-referentiel",
                            json={"matiere": "Réseaux", "niveau": NIVEAU_CIEL})
     assert r.status_code == 200, r.text
