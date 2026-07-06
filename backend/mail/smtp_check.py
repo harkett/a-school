@@ -1,4 +1,4 @@
-"""Test SMTP Infomaniak — lance avec : python test_smtp.py"""
+"""Test SMTP Infomaniak — lance avec : python backend/mail/smtp_check.py"""
 import smtplib
 from dotenv import load_dotenv
 from email.mime.text import MIMEText

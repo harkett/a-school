@@ -142,6 +142,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **05** — Page /contact | 2h | [D29](BOUSSOLE/D29.md) |
 | ☐ | **02** — Email admin → prof (3 templates) | 2h | [D42](BOUSSOLE/D42.md) |
 | ☐ | **19** — Admin : menu Activités en groupe | 2h | [D44](BOUSSOLE/D44.md) |
+| ☐ | **61** — Admin — gestion du menu (parapluie : toutes les retouches du menu admin ; idées listées au TABLEAU) | variable | [D61](BOUSSOLE/D61.md) |
 | ☐ | **10** — Timeouts sessions | 2h | [D31](BOUSSOLE/D31.md) |
 | ☐ | **27** — Validation texte source par LLM (Option B) | 2h | [D38](BOUSSOLE/D38.md) |
 | ☐ | **28** — Stratégie de remédiation (absorbé L2) | 0,5 session | [D17](BOUSSOLE/D17.md) |

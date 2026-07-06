@@ -637,6 +637,13 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   *Aujourd'hui l'app REFUSE de remplacer un référentiel déjà en base (`backend/routers/referentiels_admin.py:144-146` → 409 « Un référentiel existe déjà » ; volontaire, remis à plus tard). « Remplacer » sera un geste EXPLICITE et séparé (« Remplacer le référentiel »), jamais en silence, toujours gardé — avec toute la cascade à refaire consciemment : nouveau PDF → nouveau texte extrait → ré-ingestion des chunks RAG (anciens effacés en CASCADE `models_db.py:331`, nouveaux régénérés — sinon la génération s'appuie sur du vieux texte) → re-comparaison des matières (delta : nouvelles / disparues) à revalider par l'admin, avec les garde-fous (jamais d'orpheline, retrait = désactivation, prévenir si un prof l'utilise). Cohérent avec la règle « validé = figé ; modification = porte de secours exceptionnelle » (CLAUDE.md). Distinct de l'item 52 (RÉCEPTION du PDF) et de l'item 44 (« Encoder » = ingestion autonome). Détail → D53.*
   → [D53](BOUSSOLE/D53.md)
 
+<a id="item-61"></a>
+- [ ] **61 — Admin — gestion du menu (parapluie)** | UI / Admin | variable
+  *Une seule ligne de pilotage pour TOUTES les retouches du menu admin (`AdminLayout.jsx`), pour ne pas proliférer en tracker. Liste des idées :*
+  *1. **Scinder « Pédagogie / contenu » en deux familles** (Pédagogie = Référentiels · Programmes ; Contenu = Activités · Fiches matières) — plus tard.*
+  *À venir (même traitement) : Profs & communication, Supervision & sécurité. « Activités en groupe » (item 19) déjà absorbé (23/06). Détail → D61.*
+  → [D61](BOUSSOLE/D61.md)
+
 <a id="item-00"></a>
 - [ ] **00 — Reprendre toute la numérotation depuis le début** | DETTE / Doc — plus tard | à scorer
   *Réaligner TOUS les items du réservoir ET toutes les fiches BOUSSOLE pour que **item N ↔ fiche DN partout**, sans aucun décalage. Le décalage vient d'items supprimés au fil du temps (ex. la fiche D50 avait été créée pour l'item 53 avant qu'on grave la règle item↔fiche → corrigé en D53, mais des trous historiques subsistent). Objectif : remise à plat complète, une bonne fois. À faire PLUS TARD, surtout pas maintenant (chantier de fond, risque de casser des liens croisés). Détail → D00.*
