@@ -34,7 +34,7 @@ import backend.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
 from backend.models_db import Setting
-from backend.routers.admin import (
+from backend.systeme.admin import (
     get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN, MAX_TOKENS_MAX,
     _make_admin_token,
 )
@@ -154,7 +154,7 @@ def test_endpoint_generate_utilise_le_defaut_en_base():
     cap = {}
     c = TestClient(app)
     c.cookies.set("aschool_access", TOKEN)
-    with patch("backend.routers.generate.build_prompt", return_value="PROMPT"), \
+    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         r = c.post("/api/generate", json={

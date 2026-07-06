@@ -174,7 +174,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     auth_lib.mark_user_verified(db, email)
     user = db.query(User).filter(User.email == email).first()
     try:
-        from backend.routers.admin import get_welcome_template, record_email_envoi
+        from backend.systeme.admin import get_welcome_template, record_email_envoi
         tpl = get_welcome_template(db)
         statut, err = "envoye", None
         try:

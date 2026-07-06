@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models_db import Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, User
-from backend.routers.admin import _require_admin
+from backend.systeme.admin import _require_admin
 
 router = APIRouter()
 

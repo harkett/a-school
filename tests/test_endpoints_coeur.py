@@ -53,7 +53,7 @@ CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée"
 # ===================== HAPPY PATH (200 + sortie cohérente) =====================
 
 def test_generate_happy():
-    with patch("backend.routers.generate.generate", return_value="1. Question ? 2. Autre ?"):
+    with patch("backend.activite.generate.generate", return_value="1. Question ? 2. Autre ?"):
         r = authed().post("/api/generate", json={
             "texte": "La photosynthèse.", "activite_key": "comprehension",
             "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
@@ -169,7 +169,7 @@ def test_generate_activite_inconnue_400():
 
 def test_generate_groq_down_502():
     """Groq répond non-ok (generate lève RuntimeError) -> 502 (panne amont), pas 500."""
-    with patch("backend.routers.generate.generate", side_effect=RuntimeError("Erreur 503: service unavailable")):
+    with patch("backend.activite.generate.generate", side_effect=RuntimeError("Erreur 503: service unavailable")):
         r = authed().post("/api/generate", json={
             "texte": "La photosynthèse.", "activite_key": "comprehension",
             "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
@@ -178,7 +178,7 @@ def test_generate_groq_down_502():
 
 def test_generate_reseau_down_502():
     """Réseau Groq injoignable (requests.ConnectionError) -> 502, pas 500."""
-    with patch("backend.routers.generate.generate",
+    with patch("backend.activite.generate.generate",
                side_effect=requests.exceptions.ConnectionError("connexion refusée")):
         r = authed().post("/api/generate", json={
             "texte": "La photosynthèse.", "activite_key": "comprehension",
@@ -304,7 +304,7 @@ def test_programmes_niveau_traite_expose():
 # JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).
 
 def admin_client():
-    from backend.routers.admin import _make_admin_token
+    from backend.systeme.admin import _make_admin_token
     c = TestClient(app)
     c.cookies.set("aschool_admin", _make_admin_token())
     return c

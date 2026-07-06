@@ -10,7 +10,7 @@ from backend.models_db import (
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
     User, UserSession,
 )
-from backend.routers.admin import _require_admin, _get_admin_email
+from backend.systeme.admin import _require_admin, _get_admin_email
 
 router = APIRouter()
 

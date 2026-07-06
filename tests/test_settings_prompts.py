@@ -32,7 +32,7 @@ import backend.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
 from backend.models_db import Setting
-from backend.routers.admin import get_prompt, valider_prompt, _make_admin_token
+from backend.systeme.admin import get_prompt, valider_prompt, _make_admin_token
 from backend.llm_prompts import PROMPTS
 import src.generator as gen
 from fastapi.testclient import TestClient

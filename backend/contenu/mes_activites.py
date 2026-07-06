@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.database import get_db
 from backend.models_db import ActiviteSauvegardee, FewShotMilestone, User
 from backend import auth as auth_lib
-from backend.routers.generate import _FEW_SHOT_MIN  # source unique du seuil few-shot
+from backend.activite.generate import _FEW_SHOT_MIN  # source unique du seuil few-shot
 
 
 

@@ -34,7 +34,7 @@ import backend.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
 from backend.models_db import Setting
-from backend.routers.admin import get_ai_model, SETTING_DEFAULTS
+from backend.systeme.admin import get_ai_model, SETTING_DEFAULTS
 from src.config import AI_MODEL
 import src.generator as gen
 from fastapi.testclient import TestClient
@@ -117,7 +117,7 @@ def test_endpoint_generate_utilise_le_modele_en_base():
     c = TestClient(app)
     c.cookies.set("aschool_access", TOKEN)
     # build_prompt mocke : ce test porte sur le modele, pas sur l'assemblage du prompt.
-    with patch("backend.routers.generate.build_prompt", return_value="PROMPT"), \
+    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         r = c.post("/api/generate", json={

@@ -73,7 +73,7 @@ def test_ambiguites_429_amont():
 
 def test_generate_429_amont():
     _reset_sem()
-    with patch("backend.routers.generate.build_prompt", return_value="PROMPT"), \
+    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_post_429):
         r = _client_prof().post("/api/generate", json={

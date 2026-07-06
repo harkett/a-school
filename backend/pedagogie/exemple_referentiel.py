@@ -22,7 +22,7 @@ from backend.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
 from backend.rag.referentiels import get_fiche
-from backend.routers.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
+from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
 from src.generator import generate, LLMRateLimitError
 from src.prompts import build_exemple_referentiel_prompt
 

@@ -29,7 +29,7 @@ import backend.database as dbmod  # engine/SessionLocal rediriges vers aschool_t
 import backend.auth as auth_lib
 from backend.main import app
 from backend.models_db import EmailTemplate, User
-from backend.routers.admin import _make_admin_token, get_welcome_template
+from backend.systeme.admin import _make_admin_token, get_welcome_template
 from fastapi.testclient import TestClient
 
 

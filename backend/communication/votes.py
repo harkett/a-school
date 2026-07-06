@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.database import get_db
 from backend.models_db import FeatureVote, User
-from backend.routers.admin import _require_admin
+from backend.systeme.admin import _require_admin
 
 router = APIRouter()
 

@@ -29,7 +29,7 @@ import backend.database as dbmod
 
 from backend.main import app
 from backend.models_db import Setting
-from backend.routers.admin import (
+from backend.systeme.admin import (
     _make_admin_token, SUPPORTED_AI_PROVIDERS, SUPPORTED_AI_MODELS, get_ai_provider,
 )
 from fastapi.testclient import TestClient

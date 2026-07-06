@@ -32,7 +32,7 @@ import backend.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
 from backend.models_db import Setting
-from backend.routers.admin import (
+from backend.systeme.admin import (
     get_temperature, TEMPERATURE_MIN, TEMPERATURE_MAX, _make_admin_token,
 )
 import src.generator as gen
@@ -128,7 +128,7 @@ def test_a_chaud_sans_redemarrage():
 def _call_generate(cap):
     c = TestClient(app)
     c.cookies.set("aschool_access", TOKEN)
-    with patch("backend.routers.generate.build_prompt", return_value="PROMPT"), \
+    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         return c.post("/api/generate", json={
