@@ -145,13 +145,14 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
 
-    # get-or-create du niveau. Créé « en construction » (traite=False) : la mise à
-    # disposition au prof reste l'affaire du garde-fou, APRÈS validation complète (étape 4).
+    # get-or-create du niveau. Créé sans référentiel : il n'est donc pas « disponible »
+    # (refDisponible est dérivé = le niveau a un référentiel ingéré). La mise à disposition
+    # au prof reste l'affaire du garde-fou, APRÈS validation complète (étape 4).
     niveau = (db.query(Niveau)
                 .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle.id).first())
     if not niveau:
         maxo = db.query(func.max(Niveau.ordre)).filter(Niveau.cycle_id == cycle.id).scalar()
-        niveau = Niveau(cycle_id=cycle.id, nom=niveau_nom, ordre=(maxo or 0) + 1, traite=False)
+        niveau = Niveau(cycle_id=cycle.id, nom=niveau_nom, ordre=(maxo or 0) + 1)
         db.add(niveau)
         db.flush()
 

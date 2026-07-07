@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react'
-import { niveauxTraites } from '../utils/profil.js'
+import { niveauxRefDisponibles } from '../utils/profil.js'
 import { useMatieres } from '../utils/useMatieres.js'
 
 const IconGenerer = () => (
@@ -214,7 +214,7 @@ export default function Parametres({ activites, params, accentType, onChange, on
                   value={ajustTemp.niveau}
                   onChange={e => setAjustTemp(t => ({ ...t, niveau: e.target.value }))}
                 >
-                  {niveauxTraites(niveauxParCycle).map(grp => (
+                  {niveauxRefDisponibles(niveauxParCycle).map(grp => (
                     <optgroup key={grp.cycle} label={grp.cycle}>
                       {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
                     </optgroup>

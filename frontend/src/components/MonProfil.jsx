@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
-import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxTraites, niveauDisponible } from '../utils/profil.js'
+import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
 
 const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
@@ -16,7 +16,7 @@ function messageIncoherence(cas, niveau, matiere) {
   return `${probleme}\n\nChoisissez la matière que vous enseignez à ce niveau, puis enregistrez.`
 }
 
-// Modale quand le niveau du profil hérité n'est plus disponible (non traité, donc caché).
+// Modale quand le niveau du profil hérité n'est plus disponible (pas de référentiel, donc caché).
 function messageNiveauIndisponible(niveau) {
   return `Votre niveau « ${niveau} » n'est pas (ou plus) disponible.\n\n`
     + `Choisissez un niveau disponible, indiquez votre matière, puis enregistrez.`
@@ -48,7 +48,7 @@ export default function MonProfil({ onNavigate }) {
         setNiveauxParCycle(niveaux)
         setMatieresParCycle(data.matieres_par_cycle || [])
         setMatieresParNiveau(parNiveau)
-        // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non traité,
+        // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non disponible,
         // donc caché — ex. Master) → on vide niveau + matière, le prof doit tout re-choisir.
         if (form.niveau && !niveauDisponible(niveaux, form.niveau)) {
           showError(messageNiveauIndisponible(form.niveau))
@@ -74,7 +74,7 @@ export default function MonProfil({ onNavigate }) {
 
   // Changer de niveau peut rendre la matière incohérente (matière hors du programme du
   // nouveau niveau) → modale bloquante + matière vidée (le prof DOIT en rechoisir une).
-  // (Les niveaux non traités ne sont pas dans la liste → impossible d'en choisir un ici.)
+  // (Les niveaux non disponibles ne sont pas dans la liste → impossible d'en choisir un ici.)
   function changerNiveau(value) {
     const incoherent = matiereIncoherente(matieresParNiveau, value, form.subject)
     if (incoherent) showError(messageIncoherence('changement', value, form.subject))
@@ -166,7 +166,7 @@ export default function MonProfil({ onNavigate }) {
             onChange={e => changerNiveau(e.target.value)}
           >
             <option value="">— Choisissez —</option>
-            {niveauxTraites(niveauxParCycle).map(grp => (
+            {niveauxRefDisponibles(niveauxParCycle).map(grp => (
               <optgroup key={grp.cycle} label={grp.cycle}>
                 {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
               </optgroup>

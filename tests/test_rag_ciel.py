@@ -46,7 +46,7 @@ def _seed_couple_ciel():
     try:
         cyc = Cycle(nom="Supérieur", ordre=6)
         db.add(cyc); db.flush()
-        niv = Niveau(cycle_id=cyc.id, nom=NIVEAU, ordre=1, traite=True)
+        niv = Niveau(cycle_id=cyc.id, nom=NIVEAU, ordre=1)
         db.add(niv); db.flush()
         db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=NIVEAU,
                            collection=COLLECTION, filtres=None, source=SOURCE_CIEL))

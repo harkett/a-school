@@ -2,25 +2,25 @@
 //
 // Règle : la matière dépend du NIVEAU choisi — le programme du diplôme/niveau, via les
 // paires matière×niveau du référentiel (source = /api/programmes → matieres_par_niveau).
-// Côté PROF, on ne montre QUE les niveaux traités (ayant reçu leur vrai référentiel) ;
-// les niveaux « non traités » sont filtrés/cachés (l'admin, lui, continue de tout voir).
+// Côté PROF, on ne montre QUE les niveaux disponibles (ayant reçu leur vrai référentiel) ;
+// les niveaux « non disponibles » sont filtrés/cachés (l'admin, lui, continue de tout voir).
 
-// Filtre la liste des niveaux affichée au PROF : seulement les niveaux traités
-// (traite !== false), et on retire un cycle qui n'a plus aucun niveau visible.
-export function niveauxTraites(niveauxParCycle) {
+// Filtre la liste des niveaux affichée au PROF : seulement les niveaux disponibles
+// (refDisponible !== false), et on retire un cycle qui n'a plus aucun niveau visible.
+export function niveauxRefDisponibles(niveauxParCycle) {
   return (niveauxParCycle || [])
-    .map(g => ({ ...g, niveaux: g.niveaux.filter(n => n.traite !== false) }))
+    .map(g => ({ ...g, niveaux: g.niveaux.filter(n => n.refDisponible !== false) }))
     .filter(g => g.niveaux.length > 0)
 }
 
-// Le niveau (courant) fait-il partie des niveaux DISPONIBLES (traités) ?
-// Introuvable ou traite=false → false (indisponible) → déclenche la modale « niveau caché ».
+// Le niveau (courant) fait-il partie des niveaux DISPONIBLES ?
+// Introuvable ou refDisponible=false → false (indisponible) → déclenche la modale « niveau caché ».
 // Pas de niveau → true (cas vide géré par le blocage de « Valider »).
 export function niveauDisponible(niveauxParCycle, niveau) {
   if (!niveau) return true
   for (const g of (niveauxParCycle || [])) {
     const n = g.niveaux.find(x => x.nom === niveau)
-    if (n) return n.traite !== false
+    if (n) return n.refDisponible !== false
   }
   return false
 }

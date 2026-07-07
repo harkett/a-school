@@ -281,22 +281,40 @@ def test_programmes_matieres_par_niveau():
     assert parn.get("MPN-Diplome") == ["MPN-A", "MPN-B", "MPN-C"]  # ordre d'insertion, exclusions OK
 
 
-def test_programmes_niveau_traite_expose():
-    # niveaux_par_cycle expose le drapeau `traite` : traité = sélectionnable / en cours = bloqué.
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+def test_programmes_niveau_ref_disponible_expose():
+    # niveaux_par_cycle expose `refDisponible`, DÉRIVÉ (jamais stocké) : vrai ssi le niveau a
+    # un référentiel réellement ingéré (>= 1 chunk). Référentiel sans chunk => faux ;
+    # pas de référentiel du tout => faux.
+    from backend.core.models_db import (
+        Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk,
+    )
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
-    nT = Niveau(cycle_id=cyc.id, nom="NT-Traite", ordre=60, traite=True); db.add(nT)
-    nEC = Niveau(cycle_id=cyc.id, nom="NT-EnCours", ordre=61, traite=False); db.add(nEC); db.flush()
+    nDispo     = Niveau(cycle_id=cyc.id, nom="NT-Dispo", ordre=60);     db.add(nDispo)
+    nSansChunk = Niveau(cycle_id=cyc.id, nom="NT-SansChunk", ordre=61); db.add(nSansChunk)
+    nSansRef   = Niveau(cycle_id=cyc.id, nom="NT-SansRef", ordre=62);   db.add(nSansRef)
     m = Matiere(nom="NT-Mat", ordre=60); db.add(m); db.flush()
-    db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nT.id))   # paire => les niveaux apparaissent
-    db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nEC.id))
+    # une paire par niveau => les trois apparaissent dans l'endpoint
+    db.add_all([
+        MatiereNiveau(matiere_id=m.id, niveau_id=nDispo.id),
+        MatiereNiveau(matiere_id=m.id, niveau_id=nSansChunk.id),
+        MatiereNiveau(matiere_id=m.id, niveau_id=nSansRef.id),
+    ])
+    # référentiel + 1 chunk => nDispo disponible (matiere_id=None = couvre tout le niveau)
+    refDispo = Referentiel(niveau_id=nDispo.id, matiere_id=None,
+                           nom_fixe="NT-ref-dispo", collection="nt_dispo")
+    db.add(refDispo); db.flush()
+    db.add(ReferentielChunk(referentiel_id=refDispo.id, chunk_index=0, option_ab="A",
+                            page=1, texte="x", embedding=[0.0] * 1024, embedding_model="test"))
+    # référentiel SANS chunk => nSansChunk reste indisponible (prouve la règle >= 1 chunk)
+    db.add(Referentiel(niveau_id=nSansChunk.id, matiere_id=None,
+                       nom_fixe="NT-ref-sanschunk", collection="nt_sanschunk"))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
     grp = next(g for g in data["niveaux_par_cycle"] if g["cycle"] == "NT-Cycle")
-    flags = {n["nom"]: n["traite"] for n in grp["niveaux"]}
-    assert flags == {"NT-Traite": True, "NT-EnCours": False}
+    flags = {n["nom"]: n["refDisponible"] for n in grp["niveaux"]}
+    assert flags == {"NT-Dispo": True, "NT-SansChunk": False, "NT-SansRef": False}
 
 
 # ===================== Programmes ADMIN — CRUD (T1) =====================

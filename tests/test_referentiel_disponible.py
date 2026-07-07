@@ -36,7 +36,7 @@ def _seed(avec_referentiel=None):
     try:
         cyc = Cycle(nom="Crèche", ordre=7)
         db.add(cyc); db.flush()
-        niv = Niveau(cycle_id=cyc.id, nom="Bébés (0-1 an)", ordre=1, traite=False)
+        niv = Niveau(cycle_id=cyc.id, nom="Bébés (0-1 an)", ordre=1)
         db.add(niv); db.flush()
         m1 = Matiere(nom="Développement affectif", ordre=1, actif=True)
         m2 = Matiere(nom="Motricité fine", ordre=2, actif=True)

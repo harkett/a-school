@@ -25,7 +25,6 @@
       "PowerShell(& 'C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\psql.exe' -U postgres -h 127.0.0.1 -p 5433 -d aschool -c \"SELECT nom_fixe, collection, n.nom AS niveau FROM referentiels r JOIN niveaux n ON n.id=r.niveau_id;\")",
       "PowerShell(& 'D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\pip.exe' install alembic --disable-pip-version-check)",
       "PowerShell(& 'D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe' -c \"import alembic; print\\('alembic', alembic.__version__\\)\")",
-      "PowerShell(& 'C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\psql.exe' -U postgres -h 127.0.0.1 -p 5433 -d aschool -c \"SELECT n.nom AS niveau, c.nom AS cycle, n.traite FROM niveaux n JOIN cycles c ON c.id=n.cycle_id WHERE n.nom IN \\('4e','BTS CIEL option A'\\);\")",
       "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\harketti\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--A-SCHOOL\\\\4d82ce56-7b8c-4f87-8ee2-a124ad40ddfd\\\\scratchpad\\\\proof_zero_perte.py\")",
       "Read(//d/A-SCHOOL/backend/**)",
       "PowerShell(git -C \"D:\\\\A-SCHOOL\" status --short -- backend/seed_programmes.py backend/seed_bts_ciel.py)",

@@ -7,7 +7,7 @@
 // le blocage de « Valider » ; (4) un profil EXISTANT cohérent n'est pas dérangé.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { matieresDuNiveau, matiereConnue, matiereIncoherente, profilPretAValider, niveauxTraites, niveauDisponible } from './profil.js'
+import { matieresDuNiveau, matiereConnue, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from './profil.js'
 
 // Réplique fidèle d'un /api/programmes → matieres_par_niveau (ordre = ordre du référentiel).
 const PAR_NIVEAU = [
@@ -76,26 +76,26 @@ test('PROFIL EXISTANT cohérent : niveau + matière valides → rien à signaler
   assert.equal(matiereConnue(liste, 'Langues Vivantes (LV)'), true)
 })
 
-// Côté PROF : les niveaux non traités sont CACHÉS (filtrés), pas grisés.
+// Côté PROF : les niveaux non disponibles sont CACHÉS (filtrés), pas grisés.
 const NIVEAUX_PC = [
-  { cycle: 'Lycée',     niveaux: [{ id: 13, nom: '2nde', traite: true }] },
+  { cycle: 'Lycée',     niveaux: [{ id: 13, nom: '2nde', refDisponible: true }] },
   { cycle: 'Supérieur', niveaux: [
-    { id: 26, nom: 'BTS CIEL option A', traite: true },
-    { id: 20, nom: 'Master',            traite: false },   // non traité → caché
+    { id: 26, nom: 'BTS CIEL option A', refDisponible: true },
+    { id: 20, nom: 'Master',            refDisponible: false },   // non disponible → caché
   ] },
-  { cycle: 'Crèche',    niveaux: [{ id: 1, nom: 'Groupe A', traite: false }] },  // cycle 100% non traité
+  { cycle: 'Crèche',    niveaux: [{ id: 1, nom: 'Groupe A', refDisponible: false }] },  // cycle 100% non disponible
 ]
 
-test('niveauxTraites : ne garde que les niveaux traités, retire les cycles vides', () => {
-  const res = niveauxTraites(NIVEAUX_PC)
+test('niveauxRefDisponibles : ne garde que les niveaux disponibles, retire les cycles vides', () => {
+  const res = niveauxRefDisponibles(NIVEAUX_PC)
   const parCycle = Object.fromEntries(res.map(g => [g.cycle, g.niveaux.map(n => n.nom)]))
   assert.deepEqual(parCycle, {
     'Lycée': ['2nde'],
-    'Supérieur': ['BTS CIEL option A'],   // Master (non traité) retiré
-  })  // Crèche (100% non traité) a disparu
+    'Supérieur': ['BTS CIEL option A'],   // Master (non disponible) retiré
+  })  // Crèche (100% non disponible) a disparu
 })
 
-test('niveauDisponible : true pour un niveau traité, false pour caché/inconnu', () => {
+test('niveauDisponible : true pour un niveau disponible, false pour caché/inconnu', () => {
   assert.equal(niveauDisponible(NIVEAUX_PC, 'BTS CIEL option A'), true)
   assert.equal(niveauDisponible(NIVEAUX_PC, 'Master'), false)       // hérité sur un niveau caché → modale
   assert.equal(niveauDisponible(NIVEAUX_PC, 'Inexistant'), false)   // niveau disparu → modale

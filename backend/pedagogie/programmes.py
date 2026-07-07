@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel
+from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()
@@ -40,11 +40,20 @@ def get_programmes(db: Session = Depends(get_db)):
         if matiere_id in matiere_ids_actifs:
             cycle_matiere_ids.setdefault(cycle_id, set()).add(matiere_id)
 
+    # refDisponible = DÉRIVÉ, jamais stocké : un niveau a un référentiel réellement ingéré
+    # (au moins 1 chunk). Source unique de vérité = les référentiels eux-mêmes.
+    niveaux_ref_disponible = {
+        row[0]
+        for row in db.query(Referentiel.niveau_id)
+                     .join(ReferentielChunk, ReferentielChunk.referentiel_id == Referentiel.id)
+                     .distinct().all()
+    }
+
     niveaux_par_cycle = []
     matieres_par_cycle = []
     for c in db.query(Cycle).order_by(Cycle.ordre).all():
         nivs = [
-            {"id": n.id, "nom": n.nom, "traite": n.traite}
+            {"id": n.id, "nom": n.nom, "refDisponible": n.id in niveaux_ref_disponible}
             for n in db.query(Niveau).filter(Niveau.cycle_id == c.id)
                        .order_by(Niveau.ordre).all()
             if n.id in niveau_ids_utiles

@@ -54,7 +54,7 @@ def couple_ciel():
     try:
         cyc = Cycle(nom="Supérieur", ordre=6)
         db.add(cyc); db.flush()
-        niv = Niveau(cycle_id=cyc.id, nom=NIVEAU_CIEL, ordre=1, traite=True)
+        niv = Niveau(cycle_id=cyc.id, nom=NIVEAU_CIEL, ordre=1)
         db.add(niv); db.flush()
         db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe="BTS CIEL option A",
                            collection="bts_ciel_option_a", filtres=None, source="dépôt manuel"))

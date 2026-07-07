@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { niveauxTraites } from '../utils/profil.js'
+import { niveauxRefDisponibles } from '../utils/profil.js'
 import { useMatieres } from '../utils/useMatieres.js'
 
 export default function MonReseau({ onCharger, sessionMatiere, sessionNiveau }) {
@@ -69,7 +69,7 @@ export default function MonReseau({ onCharger, sessionMatiere, sessionNiveau }) 
               className="border border-gray-200 rounded px-2 py-1 text-xs bg-white text-gray-600"
             >
               <option value="">Tous les niveaux</option>
-              {niveauxTraites(niveauxParCycle).map(grp => (
+              {niveauxRefDisponibles(niveauxParCycle).map(grp => (
                 <optgroup key={grp.cycle} label={grp.cycle}>
                   {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
                 </optgroup>
