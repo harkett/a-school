@@ -5,8 +5,7 @@ export default function AdminProgrammes() {
   const [data, setData]     = useState(null)   // { cycles, matieres, paires }
   const [msg, setMsg]       = useState(null)
   const [erreur, setErreur] = useState(null)
-  const [addCycle, setAddCycle] = useState(null)  // cycle.id en cours d'ajout
-  const [addNom, setAddNom]     = useState('')
+  const [selectedCycleId, setSelectedCycleId] = useState(null)  // id du cycle ouvert à droite
 
   function flash(text, isErr = false) {
     if (isErr) setErreur(text); else setMsg(text)
@@ -16,7 +15,10 @@ export default function AdminProgrammes() {
   useEffect(() => {
     fetch('/api/admin/programmes', { credentials: 'include' })
       .then(r => r.json())
-      .then(setData)
+      .then(d => {
+        setData(d)
+        if (d.cycles && d.cycles.length) setSelectedCycleId(d.cycles[0].id)
+      })
       .catch(() => flash('Impossible de charger les programmes.', true))
   }, [])
 
@@ -49,121 +51,118 @@ export default function AdminProgrammes() {
     }
   }
 
-  async function ajouterNiveau(cycle_id) {
-    const nom = addNom.trim()
-    if (!nom) return
-    try {
-      const r = await fetchWithTimeout('/api/admin/programmes/niveau', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id, nom }),
-      }, TIMEOUT_STD)
-      if (!r.ok) throw new Error(r.status === 409 ? 'Ce niveau existe déjà dans ce cycle.' : 'Création impossible.')
-      const niv = await r.json()
-      setData(d => ({
-        ...d,
-        cycles: d.cycles.map(c => c.id === cycle_id
-          ? { ...c, niveaux: [...c.niveaux, { id: niv.id, nom: niv.nom, ordre: niv.ordre }] }
-          : c),
-      }))
-      setAddCycle(null); setAddNom('')
-      flash('Niveau ajouté.')
-    } catch (e) {
-      flash(e.message || 'Erreur.', true)
-    }
-  }
-
   if (!data) return <p className="text-gray-400 text-sm">Chargement…</p>
 
+  const selected = data.cycles.find(c => c.id === selectedCycleId) || null
+
+  function ouvrirCycle(id) {
+    setSelectedCycleId(id)
+  }
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-base font-semibold text-gray-800">Programmes</h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          Le programme officiel : cochez les paires matière × niveau. Décocher <strong>désactive</strong> (l’historique reste intact — rien n’est supprimé).
+          Choisissez un cycle à gauche : son détail s’ouvre à droite. Cochez les paires matière × niveau — décocher <strong>désactive</strong> (l’historique reste intact).
         </p>
       </div>
 
       {msg && <div style={{ padding: '8px 12px', background: '#dcfce7', color: '#166534', borderRadius: 6, fontSize: 12 }}>{msg}</div>}
       {erreur && <div style={{ padding: '8px 12px', background: '#fee2e2', color: '#991b1b', borderRadius: 6, fontSize: 12 }}>{erreur}</div>}
 
-      {data.cycles.map(cycle => (
-        <div key={cycle.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
 
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#1a3a6e' }}>{cycle.nom}</span>
-            {addCycle === cycle.id ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  autoFocus value={addNom}
-                  onChange={e => setAddNom(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') ajouterNiveau(cycle.id)
-                    if (e.key === 'Escape') { setAddCycle(null); setAddNom('') }
+        {/* ── Colonne gauche : liste verticale des cycles ── */}
+        <div style={{ width: 220, flexShrink: 0 }}>
+          <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
+            {data.cycles.map(cycle => {
+              const active = cycle.id === selectedCycleId
+              return (
+                <button
+                  key={cycle.id}
+                  onClick={() => ouvrirCycle(cycle.id)}
+                  title={`Ouvrir « ${cycle.nom} »`}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', fontSize: 13, cursor: 'pointer',
+                    border: 'none', borderBottom: '1px solid #f1f5f9',
+                    borderLeft: active ? '3px solid #A63045' : '3px solid transparent',
+                    background: active ? '#fdf2f4' : 'white',
+                    color: active ? '#A63045' : '#374151',
+                    fontWeight: active ? 600 : 400,
                   }}
-                  placeholder="ex. BTS"
-                  style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #e2e8f0', borderRadius: 6, width: 110 }}
-                />
-                <button onClick={() => ajouterNiveau(cycle.id)} title="Créer ce niveau"
-                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', background: '#1a3a6e', color: '#fff', cursor: 'pointer' }}>Ajouter</button>
-                <button onClick={() => { setAddCycle(null); setAddNom('') }} title="Annuler"
-                  style={{ fontSize: 14, padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer', lineHeight: 1 }}>×</button>
-              </div>
-            ) : (
-              <button onClick={() => { setAddCycle(cycle.id); setAddNom('') }}
-                title="Ajouter un niveau à ce cycle (débloque Supérieur / Crèche, sans programme officiel)"
-                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontWeight: 600, cursor: 'pointer' }}>
-                + Niveau
-              </button>
-            )}
+                >
+                  {cycle.nom}
+                  <span style={{ display: 'block', fontSize: 10, marginTop: 2, color: active ? '#A63045' : '#9ca3af' }}>
+                    {cycle.niveaux.length} niveau{cycle.niveaux.length > 1 ? 'x' : ''}
+                  </span>
+                </button>
+              )
+            })}
           </div>
+        </div>
 
-          {cycle.niveaux.length === 0 ? (
-            <div style={{ padding: '16px', fontSize: 12, color: '#94a3b8' }}>
-              Aucun niveau dans ce cycle — ajoutez-en un avec « + Niveau ».
-            </div>
+        {/* ── Colonne droite : détail du cycle sélectionné ── */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {!selected ? (
+            <p className="text-sm text-gray-400">Sélectionnez un cycle à gauche.</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', position: 'sticky', left: 0, background: '#fff' }}>Matière</th>
-                    {cycle.niveaux.map(n => (
-                      <th key={n.id} style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', textAlign: 'center', whiteSpace: 'nowrap' }}>{n.nom}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.matieres.map(m => (
-                    <tr key={m.id} style={{ opacity: m.actif ? 1 : 0.45 }}>
-                      <td style={{ padding: '7px 12px', color: '#374151', borderBottom: '1px solid #f8fafc', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: '#fff' }}>
-                        {m.nom}{!m.actif && <span style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }}>(inactive)</span>}
-                      </td>
-                      {cycle.niveaux.map(n => {
-                        const actif = isActif(m.id, n.id)
-                        return (
-                          <td key={n.id} style={{ textAlign: 'center', padding: '6px', borderBottom: '1px solid #f8fafc' }}>
-                            <input
-                              type="checkbox"
-                              checked={actif}
-                              disabled={!m.actif}
-                              onChange={() => togglePaire(m.id, n.id, actif)}
-                              title={m.actif
-                                ? `${m.nom} en ${n.nom} : ${actif ? 'enseigné (décocher pour retirer)' : 'non enseigné (cocher pour ajouter)'}`
-                                : `${m.nom} est inactive (édition en T3)`}
-                              style={{ cursor: m.actif ? 'pointer' : 'not-allowed', width: 15, height: 15 }}
-                            />
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+
+              {/* En-tête : nom du cycle */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#1a3a6e' }}>{selected.nom}</span>
+              </div>
+
+              {selected.niveaux.length === 0 ? (
+                <div style={{ padding: '16px', fontSize: 12, color: '#94a3b8' }}>
+                  Aucun niveau dans ce cycle.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', position: 'sticky', left: 0, background: '#fff' }}>Matière</th>
+                        {selected.niveaux.map(n => (
+                          <th key={n.id} style={{ padding: '8px 10px', color: '#1e293b', fontWeight: 600, borderBottom: '1px solid #f1f5f9', textAlign: 'center', whiteSpace: 'nowrap' }}>{n.nom}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.matieres.map(m => (
+                        <tr key={m.id} style={{ opacity: m.actif ? 1 : 0.45 }}>
+                          <td style={{ padding: '7px 12px', color: '#374151', borderBottom: '1px solid #f8fafc', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: '#fff' }}>
+                            {m.nom}{!m.actif && <span style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }}>(inactive)</span>}
                           </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          {selected.niveaux.map(n => {
+                            const actif = isActif(m.id, n.id)
+                            return (
+                              <td key={n.id} style={{ textAlign: 'center', padding: '6px', borderBottom: '1px solid #f8fafc' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={actif}
+                                  disabled={!m.actif}
+                                  onChange={() => togglePaire(m.id, n.id, actif)}
+                                  title={m.actif
+                                    ? `${m.nom} en ${n.nom} : ${actif ? 'enseigné (décocher pour retirer)' : 'non enseigné (cocher pour ajouter)'}`
+                                    : `${m.nom} est inactive (édition en T3)`}
+                                  style={{ cursor: m.actif ? 'pointer' : 'not-allowed', width: 15, height: 15 }}
+                                />
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
-      ))}
+      </div>
     </div>
   )
 }

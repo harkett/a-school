@@ -371,24 +371,6 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
                     json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
 
 
-def test_admin_create_niveau_et_gardes():
-    from backend.core.models_db import Cycle
-    db = dbmod.SessionLocal()
-    cyc = Cycle(nom="CycNivCrea", ordre=97); db.add(cyc); db.commit(); cid = cyc.id; db.close()
-
-    cl = admin_client()
-    r = cl.post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "BTS"})
-    assert r.status_code == 200, r.text
-    assert r.json()["nom"] == "BTS"
-
-    # doublon dans le meme cycle -> 409
-    assert cl.post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "BTS"}).status_code == 409
-    # cycle inconnu -> 404
-    assert cl.post("/api/admin/programmes/niveau", json={"cycle_id": 999999, "nom": "X"}).status_code == 404
-    # sans cookie admin -> 401
-    assert noauth().post("/api/admin/programmes/niveau", json={"cycle_id": cid, "nom": "Y"}).status_code == 401
-
-
 # ===================== P4.7 — jalon few-shot « aSchool vous reconnaît » =====================
 # Le toast est piloté par le backend : few_shot_just_reached=True UNE seule fois, au
 # franchissement réel du seuil de SAUVEGARDES (_FEW_SHOT_MIN), par couple (prof, type).

@@ -54,10 +54,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
   | Lycée | 3 | | BUT | 15 |
   | Licence | 3 | | Doctorat | 15 |
   | Lycée professionnel | 5 | | **Total** | **88** |
-- ✅ **Prérequis 3 — RÉPONDU le 07/07** (« ajouter un cycle/niveau via un écran admin, comment faire »). Vérifié sur le code et l'UI réels :
-  - **Ajouter un NIVEAU à un cycle existant : déjà fait ET joignable.** Endpoint `POST /api/admin/programmes/niveau` (`backend/pedagogie/programmes.py:197`, gardes : cycle existe, pas de doublon, ordre auto) + bouton « + Niveau » par cycle dans l'écran admin (`frontend/src/pages/AdminProgrammes.jsx:113`). Le tooltip mentionne déjà « débloque Supérieur / Crèche ». Saisie humaine, rien d'automatisé — conforme à la piste voulue.
-  - **Ajouter un CYCLE : n'existe pas encore.** Aucun endpoint en écriture pour `Cycle`, aucun bouton « + Cycle » (l'écran itère seulement sur les cycles existants). Le jour où il faudra ouvrir un cycle absent de la liste : écrire `POST .../cycle` (même patron que le niveau : nom + ordre auto, garde anti-doublon) + un bouton UI. **Tâche future** — à remonter dans le TRACKER le jour venu, pas un chantier de cette session.
-  - **Pour la crèche : rien à construire.** Le cycle Crèche (id 7) et ses 3 niveaux (Bébés/Moyens/Grands, ids 24-26) existent déjà en base → l'étape 1 est directement franchissable.
+- ✅ **Étape 1 franchissable pour la crèche** : le cycle Crèche (id 7) et ses 3 niveaux (Bébés/Moyens/Grands, ids 24-26) existent déjà en base → rien à créer. *(L'ajout/suppression de cycle via un écran admin a été exploré puis abandonné le 07/07 — trop compliqué pour le résultat ; trace en git.)*
 
 *********** FIN - Etape 1 - Sélectionner le cycle et le niveau********
 
