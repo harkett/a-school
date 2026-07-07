@@ -44,21 +44,20 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
   - **Vérifié aussi** : `MesMD/aSchool_matiere.md` n'est **PAS** la source de la base (il porte 35 niveaux, un cycle « 0-3 ans » parasite, pas de « Lycée professionnel ») → inexploitable comme source de reproductibilité. La seule chose qui détenait les vrais 88 niveaux, c'était la **base elle-même**.
   - **Solution livrée** : dossier `outils_bdd/` (nouveau, outils Python de maintenance BDD, hors `backend/` et hors `Scripts/`) contenant `cycles_niveaux.json` (snapshot fidèle, ids figés — source de vérité committée), `rebuild_cycles_niveaux.py` (capture `--export` / rejeu idempotent, insert-si-absent + recalage des séquences) et `README.md`. **Reconstruction d'une base neuve, PAS correction d'une base existante.**
   - **Testé de bout en bout** : `--export` (11/88 écrits) · rejeu sur base pleine (0 inséré, tout sauté) · rejeu sur schéma vide jetable (11+88 insérés, séquences recalées, prochain id sans collision), `public` du miroir intact.
-- Existant (dans le .MD et dans la base réeel)
-École élémentaire : 5 / 5 ✓
-Collège : 4 / 4 ✓
-École maternelle : 3 / 3 ✓
-Lycée : 3 / 3 ✓
-Licence : 3 / 3 ✓
-Lycée professionnel : 5 / 5 ✓
-Crèche : 3 / 3 ✓
-BTS : 17 / 17 ✓
-Master : 15 / 15 ✓
-BUT : 15 / 15 ✓
-Doctorat : 15 / 15 ✓
-- Ajout d'un Cycle et de ces niveaux Comment Faire ?
- * Le besoin : la liste des cycles et niveaux est fermée au démarrage. Le jour où un référentiel arrive pour un cycle ou un niveau absent de la liste, l'admin doit pouvoir l'ajouter.
- * Piste proposée : un écran d'admin où l'admin saisit un nouveau cycle et ses niveaux. Saisie humaine — un cycle et ses niveaux sont une décision humaine, rien à automatiser.
+- ✅ **Prérequis 2 — FAIT le 07/07** : inventaire des 11 cycles / 88 niveaux, **vérifié sur la vraie base** (miroir `aschool_creche_miroir`, interrogation directe). L'inventaire **détaillé** (les 88 noms de niveaux + rattachement + ids) est désormais capturé dans **`outils_bdd/cycles_niveaux.json`** (source de vérité committée). Répartition confirmée :
+
+  | Cycle | Niveaux | | Cycle | Niveaux |
+  |---|---|---|---|---|
+  | École élémentaire | 5 | | Crèche | 3 |
+  | Collège | 4 | | BTS | 17 |
+  | École maternelle | 3 | | Master | 15 |
+  | Lycée | 3 | | BUT | 15 |
+  | Licence | 3 | | Doctorat | 15 |
+  | Lycée professionnel | 5 | | **Total** | **88** |
+- ✅ **Prérequis 3 — RÉPONDU le 07/07** (« ajouter un cycle/niveau via un écran admin, comment faire »). Vérifié sur le code et l'UI réels :
+  - **Ajouter un NIVEAU à un cycle existant : déjà fait ET joignable.** Endpoint `POST /api/admin/programmes/niveau` (`backend/pedagogie/programmes.py:197`, gardes : cycle existe, pas de doublon, ordre auto) + bouton « + Niveau » par cycle dans l'écran admin (`frontend/src/pages/AdminProgrammes.jsx:113`). Le tooltip mentionne déjà « débloque Supérieur / Crèche ». Saisie humaine, rien d'automatisé — conforme à la piste voulue.
+  - **Ajouter un CYCLE : n'existe pas encore.** Aucun endpoint en écriture pour `Cycle`, aucun bouton « + Cycle » (l'écran itère seulement sur les cycles existants). Le jour où il faudra ouvrir un cycle absent de la liste : écrire `POST .../cycle` (même patron que le niveau : nom + ordre auto, garde anti-doublon) + un bouton UI. **Tâche future** — à remonter dans le TRACKER le jour venu, pas un chantier de cette session.
+  - **Pour la crèche : rien à construire.** Le cycle Crèche (id 7) et ses 3 niveaux (Bébés/Moyens/Grands, ids 24-26) existent déjà en base → l'étape 1 est directement franchissable.
 
 *********** FIN - Etape 1 - Sélectionner le cycle et le niveau********
 
