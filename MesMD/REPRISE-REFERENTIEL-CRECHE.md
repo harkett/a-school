@@ -37,7 +37,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 
 | ✓ | # | Étape | Acteur |
 |---|---|---|---|
-| ☐ | 1 | Sélectionner le cycle et le niveau | 🧍 |
+| ✅ | 1 | Sélectionner le cycle et le niveau | 🧍 |
 ## Prérequis - 3 Tâches
 - ✅ **Prérequis 1 — FAIT le 07/07** : filet de reproductibilité cycles/niveaux reconstruit et committé (`353c89b`).
   - **Vérifié** : le script de remplissage d'origine **n'existe nulle part dans git** — recherche `-S` sur les noms de cycles actuels (« Doctorat », « Lycée professionnel ») = 0 résultat dans les `.py`. C'était un script **éphémère** (créé → utilisé → supprimé, jamais committé, conforme à la doctrine). La crainte « il est probablement dans l'historique git » est donc **fausse**.
@@ -59,9 +59,9 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 *********** FIN - Etape 1 - Sélectionner le cycle et le niveau********
 
 
-| ☐ | 2 | Déposer le PDF | 🧍 |
-| ☐ | 3 | Enregistrer le PDF (nommé `referentiel.pdf`, vrai nom conservé) | ⚙ |
-| ☐ | 4 | Lire le texte du PDF | ⚙ |
+| ✅ | 2 | Déposer le PDF (+ relecture « Voir le référentiel », commit `1923e64`) | 🧍 |
+| ✅ | 3 | Enregistrer le PDF (nommé `referentiel.pdf`, vrai nom conservé) | ⚙ |
+| ✅ | 4 | Lire le texte du PDF *(⚠ voir bloc Reprise : `extraction-texte.txt` = trace morte)* | ⚙ |
 | ☐ | 5 | Découper en unités (1 unité = 1 chunk) | ⚙ (le *comment* vient de la fiche) |
 | ☐ | 6 | Rattacher chaque unité à son niveau | ⚙ (le *critère* vient de la fiche) |
 | ☐ | 7 | Arbitrer les cas ambigus | 🧍 (la machine signale, l'admin tranche) |
@@ -74,6 +74,24 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 | ☐ | 14 | Basculer miroir → base réelle | ⚙, sur GO 🧍 *(vision cible, pas encore construit)* |
 | ☐ | 15 | Nettoyer la base miroir | ⚙ *(vision cible, pas encore construit)* |
 | ☐ | 16 | Activer le référentiel (visible côté prof) | ⚙ |
+
+---
+
+### Reprise — où on en est (07/07, fin de session)
+
+**Étapes 1 à 4 : validées des deux côtés — rien à coder, machinerie déjà en place.**
+
+- **1 (sélection)** : combos Cycle → Niveau déjà là (`frontend/src/pages/AdminReferentiels.jsx`), alimentés par la vraie base.
+- **2 (dépôt)** : chaîne dépôt/lien → aperçu → `valider` déjà en place, et **déjà faite** pour la crèche (3 `referentiel.pdf` + 3 lignes `referentiels`). **Ajout de cette session** : lien « Voir le référentiel » sur la ligne « déjà traité » → fenêtre PDF repliable, via l'endpoint **générique** `GET /admin/referentiels/pdf` (`cycle_id` + `niveau`). Committé + poussé (`1923e64`).
+- **3-4 (enregistrer + extraire)** : faites par `valider` (range `referentiel.pdf`, extrait le texte). Testées par l'utilisateur.
+
+**Découverte sur `extraction-texte.txt` (étape 4) — TRACE MORTE.** Écrit par `valider` (`backend/pedagogie/referentiels_admin.py:183`), mais **lu par personne** : la fiche crèche lit le **PDF** (`creche_0_3_ans.extract_pages`), et la constante `EXTRACTION_TXT` du BTS (`backend/rag/referentiels/bts_ciel_option_a.py:25`) est **définie mais jamais utilisée**. Les 3 extractions crèche ont été **régénérées cohérentes** (~20 Ko, identiques) et **gardées** — aucun impact fonctionnel.
+
+**3 nettoyages différés (pas maintenant) :** (1) arrêter d'écrire le fichier mort `extraction-texte.txt` ; (2) retirer la constante inutilisée `EXTRACTION_TXT` (`bts_ciel_option_a.py:25`) ; (3) corriger le commentaire trompeur `referentiels_admin.py:177` (« même brique que l'ingestion » — faux, l'ingestion lit le PDF).
+
+**Working-tree crèche non committé** (swap PDF en cours) : les 3 `referentiel.pdf` sont désormais **identiques** (md5 `b12497…`, un seul document 0-3 copié dans les 3 dossiers, conforme à D60 §Dépôt) + les 3 `extraction-texte.txt` identiques (md5 `5a47cd…`). À committer avec le swap quand décidé.
+
+**PROCHAINE ÉTAPE = 5 (découpage).** Essai à blanc déjà fait sur le PDF crèche : **27 activités** découpées ; tags d'âge = `0-1+1-3` ×18 et `1-3` ×9 (donc Bébés = 18 activités, Moyens/Grands = 27). Le découpage lit le **PDF** via `creche_0_3_ans.extract_pages`. On repart de là, sur le réel, après GO.
 
 ---
 
