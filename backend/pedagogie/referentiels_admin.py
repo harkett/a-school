@@ -17,6 +17,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -256,6 +257,22 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
         "matieres": matieres,
         "candidates": candidates,
     }
+
+
+# ── Relecture : servir le PDF d'origine d'un couple déjà enregistré (lecture seule) ──
+
+@router.get("/admin/referentiels/pdf", dependencies=[Depends(_require_admin)])
+def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Sert le PDF d'origine (referentiel.pdf) d'un couple déjà enregistré, pour relecture.
+    Lecture seule : ne range rien, ne modifie rien. Affiché inline (visionneuse du navigateur)."""
+    cycle = db.get(Cycle, cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    pdf = REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.strip()) / "referentiel.pdf"
+    if not pdf.exists():
+        raise HTTPException(404, "Aucun référentiel enregistré pour ce couple.")
+    return FileResponse(str(pdf), media_type="application/pdf",
+                        headers={"Content-Disposition": "inline; filename=referentiel.pdf"})
 
 
 # ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──

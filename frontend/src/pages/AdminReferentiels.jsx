@@ -40,6 +40,7 @@ export default function AdminReferentiels() {
   const [bilanApercu, setBilanApercu] = useState('')
   // État du couple sélectionné : { existe_referentiel, referentiel:{fichier,source,date_doc}, matieres:[{id,nom}] }
   const [etat, setEtat] = useState(null)
+  const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -53,7 +54,7 @@ export default function AdminReferentiels() {
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
     if (!cycleId || !niveau) { setEtat(null); setMatieres([]); return }
-    setApercu(null); setResultat(null); setBilanApercu('')
+    setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -261,7 +262,15 @@ export default function AdminReferentiels() {
                 Choisir le fichier
               </button>
             </div>
-            <p style={{ fontSize: 12, color: '#166534', marginTop: 6 }}>Déjà téléchargé, déjà traité.</p>
+            <p style={{ fontSize: 12, color: '#166534', marginTop: 6 }}>
+              Déjà téléchargé, déjà traité.{' '}
+              <button type="button" onClick={() => setShowPdf(true)}
+                title="Ouvrir le PDF du référentiel pour le relire"
+                style={{ background: 'none', border: 'none', padding: 0, color: '#1d4ed8',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                Voir le référentiel
+              </button>
+            </p>
           </div>
         ) : (
           <>
@@ -395,6 +404,30 @@ export default function AdminReferentiels() {
             <button type="button" className="btn-primary" title="Enregistrer en base les matières cochées et nouvelles"
               onClick={recuperer} disabled={busy}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
             {bilanApercu && <span style={{ fontSize: 12, color: '#475569' }}>{bilanApercu}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Fenêtre de relecture : le PDF d'origine, repliable (clic dehors ou ×). */}
+      {showPdf && dejaTraite && (
+        <div onClick={() => setShowPdf(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                {etat.referentiel?.fichier || 'Référentiel'}
+              </span>
+              <button type="button" onClick={() => setShowPdf(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <iframe
+              title="Référentiel PDF"
+              src={`/api/admin/referentiels/pdf?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`}
+              style={{ flex: 1, width: '100%', border: 'none' }} />
           </div>
         </div>
       )}
