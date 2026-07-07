@@ -1,0 +1,590 @@
+{
+  "_note": "Decision humaine (11 cycles / 88 niveaux). Non reconstructible par re-ingestion. Source de verite pour reconstruire une base neuve. Edition manuelle reservee a l'ajout humain d'un cycle/niveau, suivi d'un --export. RECONSTRUCTION, PAS CORRECTION.",
+  "cycles": [
+    {
+      "id": 1,
+      "nom": "École élémentaire",
+      "ordre": 1
+    },
+    {
+      "id": 2,
+      "nom": "Collège",
+      "ordre": 2
+    },
+    {
+      "id": 3,
+      "nom": "École maternelle",
+      "ordre": 3
+    },
+    {
+      "id": 4,
+      "nom": "Lycée",
+      "ordre": 4
+    },
+    {
+      "id": 5,
+      "nom": "Licence",
+      "ordre": 5
+    },
+    {
+      "id": 6,
+      "nom": "Lycée professionnel",
+      "ordre": 6
+    },
+    {
+      "id": 7,
+      "nom": "Crèche",
+      "ordre": 7
+    },
+    {
+      "id": 8,
+      "nom": "BTS",
+      "ordre": 8
+    },
+    {
+      "id": 9,
+      "nom": "Master",
+      "ordre": 9
+    },
+    {
+      "id": 10,
+      "nom": "BUT",
+      "ordre": 10
+    },
+    {
+      "id": 11,
+      "nom": "Doctorat",
+      "ordre": 11
+    }
+  ],
+  "niveaux": [
+    {
+      "id": 1,
+      "cycle_id": 1,
+      "nom": "CP",
+      "ordre": 1
+    },
+    {
+      "id": 2,
+      "cycle_id": 1,
+      "nom": "CE1",
+      "ordre": 2
+    },
+    {
+      "id": 3,
+      "cycle_id": 1,
+      "nom": "CE2",
+      "ordre": 3
+    },
+    {
+      "id": 4,
+      "cycle_id": 1,
+      "nom": "CM1",
+      "ordre": 4
+    },
+    {
+      "id": 5,
+      "cycle_id": 1,
+      "nom": "CM2",
+      "ordre": 5
+    },
+    {
+      "id": 6,
+      "cycle_id": 2,
+      "nom": "6e",
+      "ordre": 1
+    },
+    {
+      "id": 7,
+      "cycle_id": 2,
+      "nom": "5e",
+      "ordre": 2
+    },
+    {
+      "id": 8,
+      "cycle_id": 2,
+      "nom": "4e",
+      "ordre": 3
+    },
+    {
+      "id": 9,
+      "cycle_id": 2,
+      "nom": "3e",
+      "ordre": 4
+    },
+    {
+      "id": 10,
+      "cycle_id": 3,
+      "nom": "Petite section (PS)",
+      "ordre": 1
+    },
+    {
+      "id": 11,
+      "cycle_id": 3,
+      "nom": "Moyenne section (MS)",
+      "ordre": 2
+    },
+    {
+      "id": 12,
+      "cycle_id": 3,
+      "nom": "Grande section (GS)",
+      "ordre": 3
+    },
+    {
+      "id": 13,
+      "cycle_id": 4,
+      "nom": "Seconde",
+      "ordre": 1
+    },
+    {
+      "id": 14,
+      "cycle_id": 4,
+      "nom": "Première",
+      "ordre": 2
+    },
+    {
+      "id": 15,
+      "cycle_id": 4,
+      "nom": "Terminale",
+      "ordre": 3
+    },
+    {
+      "id": 16,
+      "cycle_id": 5,
+      "nom": "L1",
+      "ordre": 1
+    },
+    {
+      "id": 17,
+      "cycle_id": 5,
+      "nom": "L2",
+      "ordre": 2
+    },
+    {
+      "id": 18,
+      "cycle_id": 5,
+      "nom": "L3",
+      "ordre": 3
+    },
+    {
+      "id": 19,
+      "cycle_id": 6,
+      "nom": "Seconde Pro",
+      "ordre": 1
+    },
+    {
+      "id": 20,
+      "cycle_id": 6,
+      "nom": "Première Pro",
+      "ordre": 2
+    },
+    {
+      "id": 21,
+      "cycle_id": 6,
+      "nom": "Terminale Pro",
+      "ordre": 3
+    },
+    {
+      "id": 22,
+      "cycle_id": 6,
+      "nom": "CAP 1re année",
+      "ordre": 4
+    },
+    {
+      "id": 23,
+      "cycle_id": 6,
+      "nom": "CAP 2e année",
+      "ordre": 5
+    },
+    {
+      "id": 24,
+      "cycle_id": 7,
+      "nom": "Grands (2-3 ans)",
+      "ordre": 1
+    },
+    {
+      "id": 25,
+      "cycle_id": 7,
+      "nom": "Moyens (1-2 ans)",
+      "ordre": 2
+    },
+    {
+      "id": 26,
+      "cycle_id": 7,
+      "nom": "Bébés (0-1 an)",
+      "ordre": 3
+    },
+    {
+      "id": 27,
+      "cycle_id": 8,
+      "nom": "BTS SIO",
+      "ordre": 1
+    },
+    {
+      "id": 28,
+      "cycle_id": 8,
+      "nom": "BTS Commerce International",
+      "ordre": 2
+    },
+    {
+      "id": 29,
+      "cycle_id": 8,
+      "nom": "BTS NDRC",
+      "ordre": 3
+    },
+    {
+      "id": 30,
+      "cycle_id": 8,
+      "nom": "BTS MCO",
+      "ordre": 4
+    },
+    {
+      "id": 31,
+      "cycle_id": 8,
+      "nom": "BTS Comptabilité & Gestion (CG)",
+      "ordre": 5
+    },
+    {
+      "id": 32,
+      "cycle_id": 8,
+      "nom": "BTS SAM",
+      "ordre": 6
+    },
+    {
+      "id": 33,
+      "cycle_id": 8,
+      "nom": "BTS Électrotechnique",
+      "ordre": 7
+    },
+    {
+      "id": 34,
+      "cycle_id": 8,
+      "nom": "BTS Génie Civil",
+      "ordre": 8
+    },
+    {
+      "id": 35,
+      "cycle_id": 8,
+      "nom": "BTS Bâtiment",
+      "ordre": 9
+    },
+    {
+      "id": 36,
+      "cycle_id": 8,
+      "nom": "BTS Professions Immobilières",
+      "ordre": 10
+    },
+    {
+      "id": 37,
+      "cycle_id": 8,
+      "nom": "BTS Banque",
+      "ordre": 11
+    },
+    {
+      "id": 38,
+      "cycle_id": 8,
+      "nom": "BTS Assurance",
+      "ordre": 12
+    },
+    {
+      "id": 39,
+      "cycle_id": 8,
+      "nom": "BTS Tourisme",
+      "ordre": 13
+    },
+    {
+      "id": 40,
+      "cycle_id": 8,
+      "nom": "BTS Audiovisuel",
+      "ordre": 14
+    },
+    {
+      "id": 41,
+      "cycle_id": 8,
+      "nom": "BTS Design / Arts appliqués",
+      "ordre": 15
+    },
+    {
+      "id": 42,
+      "cycle_id": 8,
+      "nom": "BTS CIEL Option A",
+      "ordre": 16
+    },
+    {
+      "id": 43,
+      "cycle_id": 8,
+      "nom": "BTS CIEL Option B",
+      "ordre": 17
+    },
+    {
+      "id": 44,
+      "cycle_id": 9,
+      "nom": "Master Droit",
+      "ordre": 1
+    },
+    {
+      "id": 45,
+      "cycle_id": 9,
+      "nom": "Master Psychologie",
+      "ordre": 2
+    },
+    {
+      "id": 46,
+      "cycle_id": 9,
+      "nom": "Master STAPS",
+      "ordre": 3
+    },
+    {
+      "id": 47,
+      "cycle_id": 9,
+      "nom": "Master Informatique",
+      "ordre": 4
+    },
+    {
+      "id": 48,
+      "cycle_id": 9,
+      "nom": "Master Management / Gestion (IAE)",
+      "ordre": 5
+    },
+    {
+      "id": 49,
+      "cycle_id": 9,
+      "nom": "Master Finance",
+      "ordre": 6
+    },
+    {
+      "id": 50,
+      "cycle_id": 9,
+      "nom": "Master Marketing",
+      "ordre": 7
+    },
+    {
+      "id": 51,
+      "cycle_id": 9,
+      "nom": "Master Ressources Humaines",
+      "ordre": 8
+    },
+    {
+      "id": 52,
+      "cycle_id": 9,
+      "nom": "Master Économie",
+      "ordre": 9
+    },
+    {
+      "id": 53,
+      "cycle_id": 9,
+      "nom": "Master Sciences de l'Éducation",
+      "ordre": 10
+    },
+    {
+      "id": 54,
+      "cycle_id": 9,
+      "nom": "Master AES / Administration publique",
+      "ordre": 11
+    },
+    {
+      "id": 55,
+      "cycle_id": 9,
+      "nom": "Master Biologie",
+      "ordre": 12
+    },
+    {
+      "id": 56,
+      "cycle_id": 9,
+      "nom": "Master Chimie",
+      "ordre": 13
+    },
+    {
+      "id": 57,
+      "cycle_id": 9,
+      "nom": "Master Physique",
+      "ordre": 14
+    },
+    {
+      "id": 58,
+      "cycle_id": 9,
+      "nom": "Master Mathématiques",
+      "ordre": 15
+    },
+    {
+      "id": 59,
+      "cycle_id": 10,
+      "nom": "BUT Informatique",
+      "ordre": 1
+    },
+    {
+      "id": 60,
+      "cycle_id": 10,
+      "nom": "BUT GEA",
+      "ordre": 2
+    },
+    {
+      "id": 61,
+      "cycle_id": 10,
+      "nom": "BUT TC",
+      "ordre": 3
+    },
+    {
+      "id": 62,
+      "cycle_id": 10,
+      "nom": "BUT GMP",
+      "ordre": 4
+    },
+    {
+      "id": 63,
+      "cycle_id": 10,
+      "nom": "BUT GEII",
+      "ordre": 5
+    },
+    {
+      "id": 64,
+      "cycle_id": 10,
+      "nom": "BUT MMI",
+      "ordre": 6
+    },
+    {
+      "id": 65,
+      "cycle_id": 10,
+      "nom": "BUT R&T",
+      "ordre": 7
+    },
+    {
+      "id": 66,
+      "cycle_id": 10,
+      "nom": "BUT GCCD",
+      "ordre": 8
+    },
+    {
+      "id": 67,
+      "cycle_id": 10,
+      "nom": "BUT QLIO",
+      "ordre": 9
+    },
+    {
+      "id": 68,
+      "cycle_id": 10,
+      "nom": "BUT Chimie",
+      "ordre": 10
+    },
+    {
+      "id": 69,
+      "cycle_id": 10,
+      "nom": "BUT Biologie (ex-GB)",
+      "ordre": 11
+    },
+    {
+      "id": 70,
+      "cycle_id": 10,
+      "nom": "BUT Carrières Juridiques",
+      "ordre": 12
+    },
+    {
+      "id": 71,
+      "cycle_id": 10,
+      "nom": "BUT Carrières Sociales",
+      "ordre": 13
+    },
+    {
+      "id": 72,
+      "cycle_id": 10,
+      "nom": "BUT STID",
+      "ordre": 14
+    },
+    {
+      "id": 73,
+      "cycle_id": 10,
+      "nom": "BUT IIA",
+      "ordre": 15
+    },
+    {
+      "id": 74,
+      "cycle_id": 11,
+      "nom": "Doctorat Sciences de l'ingénieur",
+      "ordre": 1
+    },
+    {
+      "id": 75,
+      "cycle_id": 11,
+      "nom": "Doctorat Sciences de la vie / Biologie",
+      "ordre": 2
+    },
+    {
+      "id": 76,
+      "cycle_id": 11,
+      "nom": "Doctorat Physique",
+      "ordre": 3
+    },
+    {
+      "id": 77,
+      "cycle_id": 11,
+      "nom": "Doctorat Chimie",
+      "ordre": 4
+    },
+    {
+      "id": 78,
+      "cycle_id": 11,
+      "nom": "Doctorat Mathématiques",
+      "ordre": 5
+    },
+    {
+      "id": 79,
+      "cycle_id": 11,
+      "nom": "Doctorat Informatique",
+      "ordre": 6
+    },
+    {
+      "id": 80,
+      "cycle_id": 11,
+      "nom": "Doctorat Environnement / Géosciences",
+      "ordre": 7
+    },
+    {
+      "id": 81,
+      "cycle_id": 11,
+      "nom": "Doctorat Droit",
+      "ordre": 8
+    },
+    {
+      "id": 82,
+      "cycle_id": 11,
+      "nom": "Doctorat Économie",
+      "ordre": 9
+    },
+    {
+      "id": 83,
+      "cycle_id": 11,
+      "nom": "Doctorat Sciences de gestion",
+      "ordre": 10
+    },
+    {
+      "id": 84,
+      "cycle_id": 11,
+      "nom": "Doctorat Lettres / Langues",
+      "ordre": 11
+    },
+    {
+      "id": 85,
+      "cycle_id": 11,
+      "nom": "Doctorat Histoire",
+      "ordre": 12
+    },
+    {
+      "id": 86,
+      "cycle_id": 11,
+      "nom": "Doctorat Sociologie",
+      "ordre": 13
+    },
+    {
+      "id": 87,
+      "cycle_id": 11,
+      "nom": "Doctorat Psychologie",
+      "ordre": 14
+    },
+    {
+      "id": 88,
+      "cycle_id": 11,
+      "nom": "Doctorat Philosophie",
+      "ordre": 15
+    }
+  ]
+}
