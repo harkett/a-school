@@ -39,7 +39,11 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 |---|---|---|---|
 | ☐ | 1 | Sélectionner le cycle et le niveau | 🧍 |
 ## Prérequis - 3 Tâches
-- Tâche en attente — retrouver et conserver le script de remplissage cycles/niveaux. Les données (11 cycles, 88 niveaux) sont bien en base, mais le script qui les a insérées a été supprimé après usage. Il existe probablement encore dans l'historique git (ou dans une sauvegarde de l'époque). Objectif : demander à Claude Code de le retrouver là-dedans, et le garder sous le coude — pour pouvoir re-remplir ces tables si un jour on reconstruit une base neuve à zéro. Pas urgent, mais à ne pas perdre, parce que sans lui ces données ne sont reproductibles nulle part
+- ✅ **Prérequis 1 — FAIT le 07/07** : filet de reproductibilité cycles/niveaux reconstruit et committé (`353c89b`).
+  - **Vérifié** : le script de remplissage d'origine **n'existe nulle part dans git** — recherche `-S` sur les noms de cycles actuels (« Doctorat », « Lycée professionnel ») = 0 résultat dans les `.py`. C'était un script **éphémère** (créé → utilisé → supprimé, jamais committé, conforme à la doctrine). La crainte « il est probablement dans l'historique git » est donc **fausse**.
+  - **Vérifié aussi** : `MesMD/aSchool_matiere.md` n'est **PAS** la source de la base (il porte 35 niveaux, un cycle « 0-3 ans » parasite, pas de « Lycée professionnel ») → inexploitable comme source de reproductibilité. La seule chose qui détenait les vrais 88 niveaux, c'était la **base elle-même**.
+  - **Solution livrée** : dossier `outils_bdd/` (nouveau, outils Python de maintenance BDD, hors `backend/` et hors `Scripts/`) contenant `cycles_niveaux.json` (snapshot fidèle, ids figés — source de vérité committée), `rebuild_cycles_niveaux.py` (capture `--export` / rejeu idempotent, insert-si-absent + recalage des séquences) et `README.md`. **Reconstruction d'une base neuve, PAS correction d'une base existante.**
+  - **Testé de bout en bout** : `--export` (11/88 écrits) · rejeu sur base pleine (0 inséré, tout sauté) · rejeu sur schéma vide jetable (11+88 insérés, séquences recalées, prochain id sans collision), `public` du miroir intact.
 - Existant (dans le .MD et dans la base réeel)
 École élémentaire : 5 / 5 ✓
 Collège : 4 / 4 ✓
