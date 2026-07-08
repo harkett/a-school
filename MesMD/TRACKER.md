@@ -121,6 +121,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | 7 | ☐ | **[Infra] Filet de test front (Vitest + Testing Library)** | complément front du filet backend D16 — le front n'a aucun test |
 | 8 | ☐ | **[Process] Tests à 3 étages + [Outillage] journal de versions** | grave qui teste quoi / quand + traçabilité feedback prof ↔ version |
 | 9 | ☐ | **[Mémoire] Nettoyer les memory files périmés** (refs BACKLOG / BOUSSOLE / LEVIERS) | cohérence — la dette laissée volontairement lors de la création du TRACKER |
+| 62 | ☐ | **[Mémoire] Audit des règles de comportement `feedback_*`** (session dédiée) : passer les ~90 règles de conduite au crible — clarifier, fusionner les doublons, supprimer les périmées, résoudre les contradictions latentes. Complète #9 (qui ne visait que les refs mortes). Ne pas ouvrir pendant la reprise crèche. → [D62](BOUSSOLE/D62.md) | des règles mal interprétées font dériver le comportement |
 | 10 | ☐ | **[UX/Aide] Rubrique « Exemple » dans tous les « Comment ça marche »** | transverse, tous les outils |
 | 11 | ☐ | **[Refactor] Migration React Query (TanStack)** | session dédiée, ne pas mélanger |
 | 12 | ☐ | **[Maintenance] Dette technique transverse** (2 sessions) | deps obsolètes, gestion d'erreurs API, sécurité des routes |
@@ -192,6 +193,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **15** — Gestion emails sortants (backoffice) | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
 | ☐ | **01** — Pages légales CNIL | en attente — infos admin (externe) | [D39](BOUSSOLE/D39.md) |
 | ☐ | **53** — Remplacer un référentiel existant (geste explicite + cascade : PDF→texte→chunks→matières, gardé) | rien (chantier futur) | [D53](BOUSSOLE/D53.md) |
+| ☐ | **64** — Bouton « Par IA » : l'app cherche sur le web la source OFFICIELLE du référentiel (admin valide, jamais l'IA seule). Bouton + bulle + modale explicative **posés le 08/07** (rien branché) ; le branchement **dépend du** dégel du chantier fournisseurs IA (Groq ne navigue pas → besoin d'une IA navigante). 3e voie de l'item 52. | dépend du dégel [fournisseurs IA](TRACKER_FOURNISSEURS_IA.md) | [D64](BOUSSOLE/D64.md) |
 
 ### Gros chantiers (semaines)
 

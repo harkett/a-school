@@ -41,6 +41,7 @@ export default function AdminReferentiels() {
   // État du couple sélectionné : { existe_referentiel, referentiel:{fichier,source,date_doc}, matieres:[{id,nom}] }
   const [etat, setEtat] = useState(null)
   const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
+  const [showParIa, setShowParIa] = useState(false)  // modale explicative « Par IA » (idée, pas encore branchée)
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -277,6 +278,13 @@ export default function AdminReferentiels() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" title="Déposer le fichier PDF du référentiel" style={onglet(mode === 'depot')} onClick={() => setMode('depot')}>Par dépôt</button>
               <button type="button" title="Fournir le référentiel par un lien vers le PDF" style={onglet(mode === 'lien')} onClick={() => setMode('lien')}>Par lien</button>
+              <button type="button"
+                title="Laisser aSchool chercher le référentiel officiel sur le web — bientôt disponible (cliquez pour l’explication)"
+                onClick={() => setShowParIa(true)}
+                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+                  border: '1px dashed #cbd5e1', background: '#f8fafc', color: '#94a3b8', fontWeight: 600 }}>
+                Par IA
+              </button>
             </div>
 
             {mode === 'lien' ? (
@@ -428,6 +436,43 @@ export default function AdminReferentiels() {
               title="Référentiel PDF"
               src={`/api/admin/referentiels/pdf?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`}
               style={{ flex: 1, width: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Modale explicative « Par IA » — l'idée est posée, la fonction n'est pas encore branchée. */}
+      {showParIa && (
+        <div onClick={() => setShowParIa(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 460, padding: '24px 24px 20px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>
+              « Par IA » — bientôt disponible
+            </div>
+            <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.6 }}>
+              <p style={{ marginBottom: 10 }}>
+                Ce bouton laissera aSchool <strong>chercher lui-même, sur le web, le référentiel officiel</strong> de
+                ce couple (cycle + niveau + matière). Il vous proposera le document trouvé, et
+                <strong> c’est vous qui validez</strong>.
+              </p>
+              <p style={{ marginBottom: 10 }}>
+                Un seul document officiel, jamais une liste. aSchool <strong>n’invente jamais un lien</strong> :
+                s’il ne trouve pas la source officielle, il ne propose rien.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                <strong>Pas encore actif :</strong> cette recherche demande une intelligence capable de naviguer
+                sur le web, en préparation. En attendant, utilisez <strong>« Par dépôt »</strong> ou
+                <strong> « Par lien »</strong>.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+              <button type="button" className="btn-primary" title="Fermer cette explication"
+                onClick={() => setShowParIa(false)}>
+                J’ai compris
+              </button>
+            </div>
           </div>
         </div>
       )}
