@@ -76,6 +76,10 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 
 > **Pré-requis transverse :** INFRA-RAG (pile RAG mutualisée) — codé en mode DEV, pas branché. Voir section *DÉCISION D'ARCHITECTURE — RAG* ci-dessous et fiche [INFRA-RAG](RAG/INFRA-RAG.md).
 
+> **Reste à faire — chantier « règle de découpe » (notes rattachées à [D60](BOUSSOLE/D60.md), non scorées) :**
+> - **Sens 2 — l'admin propose lui-même sa règle de découpe, le dev vérifie et valide.** Pas encore branché (aujourd'hui : le dev propose la règle, l'admin ne fait que Valider/Rejeter). Le champ `depose_par` du fichier `regle-decoupe.json` anticipe déjà les deux sens.
+> - **Arbitrage du flou par l'admin.** La carte « Résultat du découpage » **signale** aujourd'hui les âges flous (« âge à confirmer »), mais l'admin ne peut pas encore **trancher** lui-même la tranche d'âge d'un cas flou. L'arbitrage réel n'est pas fait : le mapping « libellé flou → bande » est en dur dans `_age_bands` (`creche_0_3_ans.py`, marqué PROVISOIRE).
+
 | N° | Titre | Effort | Valeur | Faisabilité | Score | Section | Détail (→Dxx) |
 |---|---|---|---|---|---|---|---|
 | [35](#item-35) | Versioning & transposition de séquences | 3 sessions | ★★★★★ | ★★★★★ | **10/10** | IMPORTANT | [D26](BOUSSOLE/D26.md) |
@@ -115,7 +119,7 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D46](BOUSSOLE/D46.md) |
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D47](BOUSSOLE/D47.md) |
 | 55 | Injecter le reste du socle matières (cycles 7-11) : 7-10 par spécialité via référentiel + supprimer doublon « 0-3 ans » (cycle 11) | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | Socle / dette matières | [D55](BOUSSOLE/D55.md) |
-| 56 | BTS CIEL Option A — artefact pré-réforme à réconcilier avant de traiter le cycle BTS (référentiel+236 chunks mais 0 matière ; fiche Python en dur ; casse niveau ; traite=f) | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | Dette / préventif BTS | [D56](BOUSSOLE/D56.md) |
+| 56 | BTS CIEL Option A — artefact pré-réforme **RETIRÉ le 08/07/2026** (référentiel + 236 chunks + fiche + dossier supprimés ; structure cycle/niveau conservée ; à régénérer via la procédure standard) | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | Dette / préventif BTS | [D56](BOUSSOLE/D56.md) |
 | 57 | Registre « couple → méthode d'extraction » (data-driven) : inventorier les référentiels, détecter la mise en page de chaque PDF, ranger « couple = méthode » en base ; l'ingestion lit la méthode au lieu de l'importer en dur (`pgvector_store.py:28`). La base stocke le pointeur, pas la méthode. Dépend d'≥1 méthode écrite (crèche = 1re) | 1-2 sessions | ★★★★☆ | ★★★☆☆ | **7/10** | Data-driven / RAG extraction | [D57](BOUSSOLE/D57.md) |
 | 58 | Dossier de connaissance `MesMD/CONNAISSANCE/` : carte du fonctionnement réel **extraite du code** (1 fiche par thème/écran, chaque fait avec son `fichier:ligne`), relue pour produire l'**aide prof** + la **doc**. **Non figé** : code = vérité, MAJ au fil de l'eau + balayage complet. Rapatrie la note chunking existante. **En attente de : app stabilisée** | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | Transverse / connaissance | [D58](BOUSSOLE/D58.md) |
 | ~~59~~ | ~~Crèche en PAUSE — trouver le bon référentiel~~ → **RÉSOLU (08/07)** : le bon document d'éveil 0-3 (avec activités) a été trouvé et déposé ; la crèche est **active** (chantier référentiel en cours, découpage = 27 activités). L'ancien blocage (document institutionnel) n'a plus lieu. | ✅ résolu | ★★★☆☆ | ★★☆☆☆ | **fait** | Périmètre / crèche | [D59](BOUSSOLE/D59.md) |

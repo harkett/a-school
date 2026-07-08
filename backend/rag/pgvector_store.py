@@ -8,7 +8,7 @@ CIEL, crèche… chaque référentiel apporte sa méthode d'extraction (`fiche.e
 le moteur ne fait qu'orchestrer extraction -> découpe générique -> embeddings -> insertion.
 
 Lancer (venv, racine, .env chargé) :
-    python -m backend.rag.pgvector_store                              # CIEL (défaut)
+    python -m backend.rag.pgvector_store --collection bebes_0_1_an     # un couple crèche
     python -m backend.rag.pgvector_store --collection moyens_1_2_ans  # un autre couple
     python -m backend.rag.pgvector_store --collection moyens_1_2_ans --dry-run
 """
@@ -114,7 +114,7 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
-def ingest_pgvector(collection: str = "bts_ciel_option_a", dry_run: bool = False) -> dict:
+def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
     """(Re)construit referentiel_chunks pour LE référentiel de `collection`, depuis son PDF.
     Idempotent : supprime les chunks du même referentiel_id (après sauvegarde) puis réinsère.
     Ne touche aucun autre référentiel. La méthode d'extraction et les réglages de découpe
@@ -151,6 +151,12 @@ def ingest_pgvector(collection: str = "bts_ciel_option_a", dry_run: bool = False
         chunk_metadata=fiche.chunk_metadata,
         dedup_key=fiche.dedup_key,
     )
+    # Filtrage par niveau À L'INGESTION (structurel) : si la fiche le prévoit, chaque collection
+    # ne garde que les chunks de son niveau (ex. crèche : Bébés -> 0-1, Moyens/Grands -> 1-3).
+    # Sinon (CIEL), aucun filtre. Aucune colonne en base — cf. immuabilité de la structure.
+    filtrer = getattr(fiche, "filtrer_chunks", None)
+    if filtrer is not None:
+        chunks = filtrer(chunks, collection)
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
         "collection": collection,
@@ -203,6 +209,43 @@ def ingest_pgvector(collection: str = "bts_ciel_option_a", dry_run: bool = False
         return report
     finally:
         db.close()
+
+
+def apercu_decoupage(collection: str) -> dict:
+    """Aperçu LECTURE SEULE du découpage d'un référentiel : découpe le PDF avec EXACTEMENT les
+    réglages de la fiche (comme l'ingestion) mais N'ÉCRIT RIEN et NE VECTORISE RIEN. Renvoie
+    l'aperçu produit par la fiche (unités, titres, bandes d'âge, cas flous, totaux par niveau),
+    pour que l'admin VOIE le résultat de la règle validée. Lève si la règle n'est pas validée
+    (même garde-fou que l'ingestion, via fiche.extract_pages)."""
+    fiche = get_fiche(collection)
+    apercu = getattr(fiche, "apercu_unites", None)
+    if apercu is None:
+        raise RuntimeError(f"Aperçu de découpage non disponible pour collection='{collection}'.")
+
+    db = SessionLocal()
+    try:
+        ref = db.execute(
+            select(Referentiel).where(Referentiel.collection == collection)
+        ).scalar_one_or_none()
+        if ref is None:
+            raise RuntimeError(f"Aucun référentiel en base pour collection='{collection}'.")
+        pdf_path = _pdf_path_for(db, ref, fiche)
+    finally:
+        db.close()
+    if not pdf_path.exists():
+        raise RuntimeError(f"PDF introuvable : {pdf_path}")
+
+    pages = fiche.extract_pages(pdf_path)   # garde-fou : lève si la règle n'est pas validée
+    chunks = build_chunks(
+        pages,
+        max_chars=fiche.MAX_CHARS,
+        min_chars=fiche.MIN_CHARS,
+        overlap_chars=fiche.OVERLAP_CHARS,
+        is_boundary=fiche.section_boundary,
+        chunk_metadata=fiche.chunk_metadata,
+        dedup_key=fiche.dedup_key,
+    )
+    return apercu(chunks, collection)
 
 
 def retrieve_pg(
@@ -270,8 +313,8 @@ def retrieve_pg(
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Ingestion référentiel -> pgvector (PostgreSQL).")
-    ap.add_argument("--collection", default="bts_ciel_option_a",
-                    help="collection du référentiel à (re)construire (défaut : CIEL)")
+    ap.add_argument("--collection", default="bebes_0_1_an",
+                    help="collection du référentiel à (re)construire (défaut : Bébés 0-1)")
     ap.add_argument("--dry-run", action="store_true", help="rapport sans écriture")
     args = ap.parse_args()
     print(json.dumps(ingest_pgvector(collection=args.collection, dry_run=args.dry_run),

@@ -22,7 +22,7 @@
     - **Procédure (miroir d'abord, puis vraie base)** : **A1** miroir monté au head Alembic (rattrapage de 3 migrations email en retard) · **A2** code + migration `DROP COLUMN niveaux.traite` + renommage de la clé (Bloc 1) · **A3** drop appliqué sur le miroir, `aschool` intacte · **A4** endpoint `/programmes` prouvé sain (ne crashe plus sans la colonne, dérivation correcte, `refDisponible=true` atteignable) · **A5** application à la vraie base `aschool` (**fait le 07/07** : vraie base au head Alembic, colonne `traite` supprimée, tables email créées, cycles=11/niveaux=88 intacts ; `.env` remis sur `aschool_creche_miroir`). **→ Parenthèse fermée. On revient à l'étape 1 du §2.**
     - **Bloc 2 — FAIT le 07/07** : fonction `niveauxTraites` → `niveauxRefDisponibles` (6 fichiers front) + commentaires « traité » → « disponible ». Test front `profil.test.js` : 10/10 verts.
     - **Honnêteté (l'écart avec « cosmétique »)** : ce n'était PAS que cosmétique. Le drop de la colonne avait laissé **4 tests backend cassés** — réparés : `test_referentiel_disponible`, `test_rag_ciel`, `test_exemple_referentiel`, `test_endpoints_coeur` (dont un test réécrit pour la valeur dérivée) — et révélé que **`aschool_test` était périmée** (colonne `variante` manquante) → schéma reconstruit. Preuve finale : suite backend **153 passés**.
-    - **2 tests rouges PRÉEXISTANTS, HORS `traite`, à traiter à part** (déjà rouges avant le 07/07) : (a) `test_activites_ciel.py` attend la clé `comprehension`, le code renvoie `gen_comprehension` (clés préfixées `gen_`) ; (b) `test_rag_ingest_robuste.py` (×3) patche `pgvector_store.build_chunks_from_pdf`, fonction qui n'existe plus.
+    - **2 tests rouges PRÉEXISTANTS, HORS `traite` — RÉPARÉS le 08/07/2026** : (a) `test_activites_ciel.py` → l'invariant « une matière du catalogue garde ses clés » est désormais testé sur une matière fictive injectée (le catalogue réel est vide) ; (b) `test_rag_ingest_robuste.py` (×3) réécrit sur l'API actuelle (`get_fiche` + `build_chunks`), agnostique au référentiel. Les deux verts.
     - **Règle qui en ressort** : l'état « ce niveau a-t-il un référentiel » se **calcule** (existence d'une ligne `referentiels` + chunks ingérés), il ne se **stocke jamais** dans une colonne. **Aucune colonne-de-règle en base.**
 
 ---
@@ -62,8 +62,8 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 | ✅ | 2 | Déposer le PDF (+ relecture « Voir le référentiel », commit `1923e64`) | 🧍 |
 | ✅ | 3 | Enregistrer le PDF (nommé `referentiel.pdf`, vrai nom conservé) | ⚙ |
 | ✅ | 4 | Lire le texte du PDF *(⚠ voir bloc Reprise : `extraction-texte.txt` = trace morte)* | ⚙ |
-| ☐ | 5 | Découper en unités (1 unité = 1 chunk) | ⚙ (le *comment* vient de la fiche) |
-| ☐ | 6 | Rattacher chaque unité à son niveau | ⚙ (le *critère* vient de la fiche) |
+| ✅ | 5 | Découper en unités (1 unité = 1 chunk) | ⚙ (le *comment* vient de la fiche) |
+| ✅ | 6 | Rattacher chaque unité à son niveau | ⚙ (le *critère* vient de la fiche) |
 | ☐ | 7 | Arbitrer les cas ambigus | 🧍 (la machine signale, l'admin tranche) |
 | ☐ | 8 | Filtrer par niveau | ⚙ |
 | ☐ | 9 | Vectoriser | ⚙ |
@@ -85,13 +85,13 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 - **2 (dépôt)** : chaîne dépôt/lien → aperçu → `valider` déjà en place, et **déjà faite** pour la crèche (3 `referentiel.pdf` + 3 lignes `referentiels`). **Ajout de cette session** : lien « Voir le référentiel » sur la ligne « déjà traité » → fenêtre PDF repliable, via l'endpoint **générique** `GET /admin/referentiels/pdf` (`cycle_id` + `niveau`). Committé + poussé (`1923e64`).
 - **3-4 (enregistrer + extraire)** : faites par `valider` (range `referentiel.pdf`, extrait le texte). Testées par l'utilisateur.
 
-**Découverte sur `extraction-texte.txt` (étape 4) — TRACE MORTE.** Écrit par `valider` (`backend/pedagogie/referentiels_admin.py:183`), mais **lu par personne** : la fiche crèche lit le **PDF** (`creche_0_3_ans.extract_pages`), et la constante `EXTRACTION_TXT` du BTS (`backend/rag/referentiels/bts_ciel_option_a.py:25`) est **définie mais jamais utilisée**. Les 3 extractions crèche ont été **régénérées cohérentes** (~20 Ko, identiques) et **gardées** — aucun impact fonctionnel.
+**Découverte sur `extraction-texte.txt` (étape 4) — TRACE MORTE.** Écrit par `valider` (`backend/pedagogie/referentiels_admin.py:183`), mais **lu par personne** : la fiche crèche lit le **PDF** (`creche_0_3_ans.extract_pages`). Les 3 extractions crèche ont été **régénérées cohérentes** (~20 Ko, identiques) et **gardées** — aucun impact fonctionnel.
 
-**3 nettoyages différés (pas maintenant) :** (1) arrêter d'écrire le fichier mort `extraction-texte.txt` ; (2) retirer la constante inutilisée `EXTRACTION_TXT` (`bts_ciel_option_a.py:25`) ; (3) corriger le commentaire trompeur `referentiels_admin.py:177` (« même brique que l'ingestion » — faux, l'ingestion lit le PDF).
+**2 nettoyages différés (pas maintenant) :** (1) arrêter d'écrire le fichier mort `extraction-texte.txt` ; (2) corriger le commentaire trompeur `referentiels_admin.py:177` (« même brique que l'ingestion » — faux, l'ingestion lit le PDF). *(Le 3e nettoyage — retirer la constante `EXTRACTION_TXT` — est sans objet : la fiche BTS a été supprimée le 08/07/2026.)*
 
 **Working-tree crèche non committé** (swap PDF en cours) : les 3 `referentiel.pdf` sont désormais **identiques** (md5 `b12497…`, un seul document 0-3 copié dans les 3 dossiers, conforme à D60 §Dépôt) + les 3 `extraction-texte.txt` identiques (md5 `5a47cd…`). À committer avec le swap quand décidé.
 
-**PROCHAINE ÉTAPE = 5 (découpage).** Essai à blanc déjà fait sur le PDF crèche : **27 activités** découpées ; tags d'âge = `0-1+1-3` ×18 et `1-3` ×9 (donc Bébés = 18 activités, Moyens/Grands = 27). Le découpage lit le **PDF** via `creche_0_3_ans.extract_pages`. On repart de là, sur le réel, après GO.
+**Étapes 5-6 FAITES (08/07/2026).** Le moteur découpe via la **règle de découpe validée** (motif lu du fichier `regle-decoupe.json` **du couple**, plus de regex en dur ; garde-fou : pas de découpage sans validation) et le **tag d'âge** rattache chaque unité à son niveau — prouvé **18 / 27 / 27** (Bébés / Moyens / Grands). **Prochaine étape = 7 (arbitrer les cas flous) puis ingestion (8-10) sur le miroir.** L'arbitrage réel du flou reste à construire : aujourd'hui la carte « Résultat du découpage » **signale** « âge à confirmer », mais l'admin ne **tranche** pas encore la tranche d'âge (cf. [D60](BOUSSOLE/D60.md) § Reste à faire).
 
 ---
 

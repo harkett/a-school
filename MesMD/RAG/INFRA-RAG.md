@@ -1,9 +1,9 @@
 # INFRA-RAG — Pile RAG mutualisée
 
-> **Statut :** ✅ pile RAG codée et utilisée par l'exemple de référentiel (CIEL, BTS CIEL option A) · ❌ pas en prod
+> **Statut :** ✅ pile RAG codée · le référentiel BTS CIEL (premier producteur) a été **retiré le 08/07/2026** (à régénérer via la procédure standard) · ❌ pas en prod
 > **Effort restant :** moteur pgvector (PostgreSQL) en place + préchauffe modèle au boot faite ; reste le branchement des autres consommateurs
 > **Nature :** prérequis transverse · hors numérotation L · alimente tous les producteurs et consommateurs RAG
-> **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteur réalisé : référentiel CIEL (BTS CIEL option A, un référentiel par couple matière+niveau) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
+> **Liens :** [TABLEAU DE BORD#infra-rag](../TABLEAU-DE-BORD.md#infra-rag) · producteur : un référentiel par couple matière+niveau (BTS CIEL retiré le 08/07, à régénérer) · futurs producteurs : [D23](../BOUSSOLE/D23.md) (DYS/FLE), [D17](../BOUSSOLE/D17.md) (équité), [D19](../BOUSSOLE/D19.md) (communication), [D22](../BOUSSOLE/D22.md) (créativité)
 
 ---
 
@@ -27,9 +27,9 @@ Usage côté router consommateur :
 from backend.rag import retrieve_pg
 
 chunks = retrieve_pg(
-    collection_name="bts_ciel_option_a",
-    question="Installer et sécuriser un réseau informatique",
-    filters={"option": "A"},
+    collection_name="bebes_0_1_an",
+    question="Activité d'éveil pour développer le langage chez un bébé",
+    filters=None,
     top_k=4,
 )
 for c in chunks:
@@ -54,7 +54,7 @@ for c in chunks:
 
 | Producteur | Collection | Docs indexés | Disque |
 |---|---|---|---|
-| Référentiel CIEL | `bts_ciel_optionA` | 236 chunks | ~3 MB |
+| Référentiel BTS CIEL | *(retiré le 08/07/2026)* | 0 — à régénérer | — |
 | D23 | `corpus_inclusion_dys_fle` | 0 | — |
 | D17 | `corpus_equite_laicite` | 0 | — |
 | D19 | `corpus_communication_familles` | 0 | — |
@@ -67,10 +67,10 @@ for c in chunks:
 
 | Composant | Statut |
 |---|---|
-| Code `pgvector_store.py` / `embeddings.py` | ✅ écrit + couvert par `test_rag_ciel.py` |
-| Table `referentiel_chunks` peuplée | ✅ collection `bts_ciel_option_a`, 236 chunks |
-| Test de raccordement | ✅ `test_rag_ciel.py` (niveau posé, `retrieve_pg` remonte du CIEL) |
-| Branchement à un router | ✅ `backend/routers/exemple_referentiel.py` (exemple de référentiel CIEL) |
+| Code `pgvector_store.py` / `embeddings.py` | ✅ écrit + couvert par `test_rag_ingest_robuste.py` et `test_decoupage_creche.py` |
+| Table `referentiel_chunks` peuplée | ⏳ collection BTS CIEL retirée le 08/07 (à régénérer via la procédure standard) |
+| Test de raccordement | ✅ `test_exemple_referentiel.py` (reciblé crèche : couple → chunks ancrés) + `test_decoupage_creche.py` |
+| Branchement à un router | ✅ `backend/pedagogie/exemple_referentiel.py` (endpoint « Tester un exemple », ancré sur le référentiel du couple) |
 | Feature flag | ❌ retiré — la réforme a supprimé tout gating RAG de `generate.py` |
 | Affichage chunks dans la réponse API | ✅ `GenerateResponse.chunks` (populé uniquement quand RAG actif) |
 | Test canary diagnostic | ✅ outil `backend/rag/_canary_inject.py` (mode injection + `--remove`) — 15/05 |
@@ -84,7 +84,7 @@ for c in chunks:
 ## Reste à faire
 
 - [x] ~~Hébergement prod du `chroma_db/`~~ — sans objet : moteur **PostgreSQL/pgvector** (vecteurs en base, table `referentiel_chunks`), aucun dossier à héberger
-- [x] ~~Premier branchement router~~ — fait : `exemple_referentiel.py` (référentiel CIEL)
+- [x] ~~Premier branchement router~~ — fait : `exemple_referentiel.py` (endpoint « Tester un exemple »)
 - [x] ~~Pré-charger sentence-transformers au boot FastAPI (lifespan)~~ — fait : préchauffe `get_st_model` dans le lifespan de `backend/main.py`
 - [ ] Brancher les autres consommateurs : Cohérence curriculaire (D25), D23 (DYS/FLE), D17 (équité), D19 (communication), D22 (créativité) — collections différentes
 

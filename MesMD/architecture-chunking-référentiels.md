@@ -13,7 +13,7 @@ Un PDF mal extrait donne des chunks mélangés : colonnes entremêlées, en-têt
 Le système repose sur deux briques.
 
 - **Un moteur générique** qui ne connaît aucun référentiel en particulier : `backend/rag/chunker.py`. On n'y touche jamais quand on ajoute un référentiel.
-- **Une procédure propre à chaque référentiel**, appelée une « fiche ». Exemple : `backend/rag/referentiels/bts_ciel_option_a.py`. La fiche porte tout ce qui est spécifique à ce référentiel : où lire le PDF, comment l'extraire proprement, comment le découper, comment étiqueter les chunks.
+- **Une procédure propre à chaque référentiel**, appelée une « fiche ». Exemple : `backend/rag/referentiels/creche_0_3_ans.py`. La fiche porte tout ce qui est spécifique à ce référentiel : où lire le PDF, comment l'extraire proprement, comment le découper, comment étiqueter les chunks.
 
 Ajouter un nouveau référentiel revient à écrire une nouvelle fiche, sans modifier le moteur.
 

@@ -191,7 +191,7 @@ Un second jeu de prompts (les **outils** : ambiguïtés, consigne, séquence, op
 | Cycles / niveaux / matières / couples | `cycles`, `niveaux`, `matieres`, `matiere_niveaux` | `models_db.py:243-293` ; API `programmes.py` ; front `useMatieres.js:21` |
 | Ce que le prof enseigne *(structure seulement)* | `user_enseignements` — **table créée mais DORMANTE** (0 ligne, jamais lue ni écrite) | `models_db.py:288-293` ; mécanisme réel aujourd'hui = le texte `users.subject/niveau` (cf. Annexe Niveau 2) |
 | Routage couple → collection RAG | `referentiels` | `models_db.py:296-316`, `012_create_referentiels.sql`, `exemple_referentiel.py:41-70` |
-| Ligne BTS CIEL option A | `referentiels` (seed migration) | `012:25-28` |
+| ~~Ligne BTS CIEL option A~~ *(référentiel retiré le 08/07/2026)* | `referentiels` | — (contenu supprimé ; structure cycle/niveau BTS conservée) |
 | Réglages LLM texte (provider, modèle, max_tokens, température) | `settings` | `admin.py:104-161`, `generate.py:70` |
 | Prompts des 5 OUTILS (override) | `settings` (`prompt_<clé>`) | `admin.py:164-172` |
 | Activités / séquences / feedbacks / votes / fiches (données utilisateur) | tables dédiées | `models_db.py` |
@@ -208,7 +208,7 @@ Un second jeu de prompts (les **outils** : ambiguïtés, consigne, séquence, op
 |---|---|---|---|
 | 1 | Types d'activité (`ACTIVITES_PAR_MATIERE` **vide** + 3 génériques) | `activities.py:8,13` | ❌ |
 | 2 | ~140 prompts d'activité (`PROMPTS`, `PROMPTS_HISTGEO`, `PROMPTS_AUTRES`, `PROMPTS_GENERIQUES`) | `prompts.py:1,321,594,2663` | ❌ aucun override |
-| 3 | Réglages découpe RAG d'un référentiel (`SCORE_MIN=0.33`, `MAX_CHARS`, sections option B, regex) | `bts_ciel_option_a.py:31-42` | ❌ fiche Python |
+| 3 | Réglages découpe RAG d'un référentiel (`SCORE_MIN`, `MAX_CHARS`, regex de frontière) | `creche_0_3_ans.py` | ❌ fiche Python |
 | 4 | Liste des langues LV (8) — **en double** | `MonProfil.jsx:7` + `Signup.jsx:121-128` | ❌ |
 | 5 | Chaîne magique `'Langues Vivantes (LV)'` (branchement) — **5 endroits** | `App.jsx:86,291` ; `MonProfil.jsx:196` ; `Signup.jsx:36,111` | ❌ |
 | 6 | Catalogue roadmap votable — **2 sources désynchronisées** | `votes.py:13-24` + `BientotDisponible.jsx:4` | ❌ |
@@ -298,9 +298,9 @@ Back  SANS front (jamais affiché) = ['app-mobile']
 | Brique | En base | En dur | Fichier en dur |
 |---|---|---|---|
 | Cycles / niveaux / matières / couples | ✅ runtime | graine seed | `seed_programmes.py` |
-| Matières BTS CIEL + paires | ✅ | graine seed | `seed_programmes.py` (DIPLOMES) |
+| Matières BTS CIEL + paires | ❌ (0 en base) | — | *(seed retiré ; à régénérer via le référentiel)* |
 | Routage couple → collection | ✅ table | — | (012 + table) |
-| Règles découpe + seuil référentiel | — | ✅ | `bts_ciel_option_a.py` |
+| Règles découpe + seuil référentiel | — | ✅ | `creche_0_3_ans.py` |
 | Types d'activité | ❌ | ✅ (3 génériques, reste supprimé) | `src/activities.py` |
 | Prompts d'activité (~140) | ❌ | ✅ | `src/prompts.py` |
 | Prompts outils (5) | 🟡 override | défaut | `backend/llm_prompts.py` |

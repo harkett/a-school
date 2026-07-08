@@ -42,6 +42,16 @@ export default function AdminReferentiels() {
   const [etat, setEtat] = useState(null)
   const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
   const [showParIa, setShowParIa] = useState(false)  // modale explicative « Par IA » (idée, pas encore branchée)
+  // Règle de découpe du couple : { existe, explication_clair, critere_technique, depose_par, valide }
+  // ou null si aucune règle n'est déposée pour ce référentiel.
+  const [regle, setRegle] = useState(null)
+  const [matieresOuvert, setMatieresOuvert] = useState(true)   // bloc Matières repliable (vue d'ensemble)
+  const [regleOuvert, setRegleOuvert] = useState(true)         // bloc Règle de découpe repliable
+  // Aperçu du découpage : { disponible, total, total_niveau, bande_niveau, unites:[{titre,bandes,flou,dans_niveau}] }
+  // ou { disponible:false, raison } ; null si non applicable (pas de règle pour ce cycle).
+  // (Nom distinct de `apercu`, qui est l'aperçu du PDF au dépôt.)
+  const [apercuDecoupe, setApercuDecoupe] = useState(null)
+  const [apercuOuvert, setApercuOuvert] = useState(true)       // bloc Résultat du découpage repliable
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -54,7 +64,7 @@ export default function AdminReferentiels() {
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); return }
+    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); return }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
@@ -66,6 +76,18 @@ export default function AdminReferentiels() {
         setMatieres(construireLignesMatieres(d))
       })
       .catch(() => { if (!annule) setEtat(null) })
+    // Règle de découpe du couple (fichier regle-decoupe.json, résolu par cycle + niveau).
+    fetchWithTimeout(`/api/admin/referentiels/regle-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) setRegle(d && d.existe ? d : null) })
+      .catch(() => { if (!annule) setRegle(null) })
+    // Aperçu du découpage (lecture seule). Masqué si non applicable (pas de règle pour ce cycle).
+    fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_GROQ)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) setApercuDecoupe(d && d.raison !== 'non_applicable' ? d : null) })
+      .catch(() => { if (!annule) setApercuDecoupe(null) })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -119,6 +141,23 @@ export default function AdminReferentiels() {
       // La table matières reste alimentée par construireLignesMatieres (candidates du
       // référentiel + matières déjà en base), chargée à la sélection du couple.
     } catch (e) { showError(`Validation impossible.\n\n${e.message}`) }
+    finally { setBusy(false) }
+  }
+
+  // Règle de découpe : l'admin valide (valide→true) ou rejette (valide→false) le STATUT.
+  // Il ne modifie pas le texte de la règle (pas d'édition des deux faces à ce stade).
+  async function majStatutRegle(action) {   // action = 'valider' | 'rejeter'
+    setBusy(true)
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/regle-decoupe/${action}`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_STD)
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
+      setRegle(rg => (rg ? { ...rg, valide: d.valide } : rg))
+    } catch (e) { showError(`Action sur la règle impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
 
@@ -225,6 +264,8 @@ export default function AdminReferentiels() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
+        <h2 className="text-base font-semibold text-gray-800">Cycle et niveau</h2>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Cycle</label>
@@ -246,6 +287,12 @@ export default function AdminReferentiels() {
             </select>
           </div>
         </div>
+
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+
+        <h2 className="text-base font-semibold text-gray-800">Référentiel au format PDF</h2>
 
         {dejaTraite ? (
           <div>
@@ -354,15 +401,29 @@ export default function AdminReferentiels() {
 
       {(dejaTraite || resultat) && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-gray-800">Matières de ce référentiel</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {dejaTraite
-                ? 'Couple déjà traité : voici les matières déjà en base pour ce niveau. Tu peux les renommer, en retirer, ou en ajouter à la main (geste exceptionnel).'
-                : 'Cochée = déjà en base (rien à faire). Décochée = nouvelle : cochez celles à ajouter. « Récupérer » enregistre en base les matières cochées et nouvelles.'}
-            </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">
+                Matières de ce référentiel
+                <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
+                  ({matieres.length})
+                </span>
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {dejaTraite
+                  ? 'Couple déjà traité : voici les matières déjà en base pour ce niveau. Tu peux les renommer, en retirer, ou en ajouter à la main (geste exceptionnel).'
+                  : 'Cochée = déjà en base (rien à faire). Décochée = nouvelle : cochez celles à ajouter. « Récupérer » enregistre en base les matières cochées et nouvelles.'}
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={matieresOuvert ? 'Réduire la liste des matières' : 'Développer la liste des matières'}
+              onClick={() => setMatieresOuvert(o => !o)}>
+              {matieresOuvert ? 'Réduire' : 'Développer'}
+            </button>
           </div>
 
+          {matieresOuvert && (
+          <>
           <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             {matieres.map((m, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
@@ -413,6 +474,136 @@ export default function AdminReferentiels() {
               onClick={recuperer} disabled={busy}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
             {bilanApercu && <span style={{ fontSize: 12, color: '#475569' }}>{bilanApercu}</span>}
           </div>
+          </>
+          )}
+        </div>
+      )}
+
+      {/* Règle de découpe — objet à deux faces (clair + technique). L'admin valide sur la face
+          en clair ; le dev vérifie la face technique. Ne s'affiche que si une règle existe. */}
+      {regle && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Règle de découpe</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Comment ce référentiel est découpé en unités. Validez si la description est juste ; rejetez pour la remettre en proposition.
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={regleOuvert ? 'Réduire la règle de découpe' : 'Développer la règle de découpe'}
+              onClick={() => setRegleOuvert(o => !o)}>
+              {regleOuvert ? 'Réduire' : 'Développer'}
+            </button>
+          </div>
+
+          {regleOuvert && (
+          <>
+          {/* Face en clair — ce que l'admin lit et valide */}
+          <div style={{ fontSize: 14, color: '#1e293b', lineHeight: 1.5,
+            background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
+            {regle.explication_clair}
+          </div>
+
+          {/* Face technique — pour le dev, discrète */}
+          <div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
+              Critère technique (vérifié par le développeur)
+            </div>
+            <code style={{ fontSize: 12, color: '#475569', background: '#f1f5f9',
+              border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 10px', display: 'block',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {regle.critere_technique}
+            </code>
+          </div>
+
+          {/* Qui a proposé + statut */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ color: '#64748b' }}>Proposé par : <strong>{regle.depose_par || '—'}</strong></span>
+            <span style={{ fontWeight: 600, color: regle.valide ? '#16a34a' : '#b45309' }}>
+              Statut : {regle.valide ? 'validée' : 'à valider'}
+            </span>
+          </div>
+
+          {/* Valider / Rejeter = bascule du statut (on désactive celui qui correspond à l'état courant) */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn-primary"
+              title="Valider cette règle de découpe : elle devient la règle retenue"
+              onClick={() => majStatutRegle('valider')} disabled={busy || regle.valide}>
+              Valider
+            </button>
+            <button type="button" className="btn-secondary"
+              title="Rejeter cette règle : elle repart en proposition"
+              onClick={() => majStatutRegle('rejeter')} disabled={busy || !regle.valide}>
+              Rejeter
+            </button>
+          </div>
+          </>
+          )}
+        </div>
+      )}
+
+      {/* Résultat du découpage — miroir de « Règle de découpe » : ce que la règle validée produit.
+          Lecture seule. Masquée si non applicable (pas de règle pour ce cycle). */}
+      {apercuDecoupe && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Résultat du découpage</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Ce que la règle validée produit : vérifiez qu'aucune unité n'est coupée ni sans titre, et voyez son rattachement au niveau.
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={apercuOuvert ? 'Réduire le résultat' : 'Développer le résultat'}
+              onClick={() => setApercuOuvert(o => !o)}>
+              {apercuOuvert ? 'Réduire' : 'Développer'}
+            </button>
+          </div>
+
+          {apercuOuvert && (
+          <>
+          {apercuDecoupe.disponible ? (
+            <>
+              <div style={{ fontSize: 13, color: '#1e293b' }}>
+                <strong>{apercuDecoupe.total}</strong> unité(s) découpée(s) ·{' '}
+                <strong>{apercuDecoupe.total_niveau}</strong> pour ce niveau
+                {apercuDecoupe.bande_niveau ? ` (bande ${apercuDecoupe.bande_niveau})` : ''}
+              </div>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                {(apercuDecoupe.unites || []).map((u, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    borderTop: i ? '1px solid #f1f5f9' : 'none',
+                    background: u.dans_niveau ? '#fff' : '#f8fafc', opacity: u.dans_niveau ? 1 : 0.55 }}>
+                    <span style={{ flex: 1, fontSize: 13, color: '#1e293b' }}>{u.titre}</span>
+                    {u.flou && (
+                      <span title="Âge ambigu — à confirmer par l'admin"
+                        style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: '#fef3c7',
+                          border: '1px solid #fde68a', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                        âge à confirmer
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
+                      {(u.bandes || []).join(' · ') || '—'}
+                    </span>
+                  </div>
+                ))}
+                {(apercuDecoupe.unites || []).length === 0 && (
+                  <div style={{ padding: '10px', fontSize: 12, color: '#94a3b8' }}>Aucune unité découpée.</div>
+                )}
+              </div>
+            </>
+          ) : apercuDecoupe.raison === 'regle_non_validee' ? (
+            <div style={{ fontSize: 13, color: '#b45309' }}>
+              Validez d'abord la règle de découpe (ci-dessus) pour voir le résultat.
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#64748b' }}>
+              Résultat indisponible{apercuDecoupe.message ? ` : ${apercuDecoupe.message}` : ''}.
+            </div>
+          )}
+          </>
+          )}
         </div>
       )}
 

@@ -258,7 +258,7 @@ associée**. Découper **encore plus fin** une connaissance qui en bundle plusie
      on ne les fait pas inventer. Fiabilité native, pas un LLM hasardeux.
      *Deux réserves honnêtes :* (a) l'extraction du PDF est **bruitée** (niveau taxo en
      bout de ligne, items sur deux lignes) → solvable, mais **pas gratuit** ; (b) les
-     236 chunks RAG actuels sont taillés à ~900 car. **pour la génération** et coupés en
+     les chunks RAG sont taillés à ~900 car. **pour la génération** et coupés en
      pleine phrase → ils **ne portent pas** la structure discrète : brique 1 est une
      **autre passe d'extraction**, pas la réutilisation de ces chunks.
   2. **Le prof adapte.** Le moteur **restitue** le découpage officiel, le prof

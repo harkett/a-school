@@ -39,8 +39,8 @@ APERCU_LIGNES = 25                 # lignes de texte montrées à l'admin pour l
 
 def _dossier_cle(nom: str) -> str:
     """Nom de niveau → nom de dossier-clé lisible : accents enlevés, MAJUSCULES, tout
-    caractère non alphanumérique remplacé par « _ ». Ex. « BTS CIEL Option A » →
-    « BTS_CIEL_OPTION_A ». L'identifiant interne (nom_fixe) en est la version minuscule."""
+    caractère non alphanumérique remplacé par « _ ». Ex. « Bébés (0-1 an) » →
+    « BEBES_0_1_AN ». L'identifiant interne (nom_fixe) en est la version minuscule."""
     s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
     s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
     return s or "REFERENTIEL"
@@ -273,6 +273,119 @@ def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "Aucun référentiel enregistré pour ce couple.")
     return FileResponse(str(pdf), media_type="application/pdf",
                         headers={"Content-Disposition": "inline; filename=referentiel.pdf"})
+
+
+# ── Règle de découpe d'un référentiel : lire + valider/rejeter le statut ──
+#    Objet à deux faces (explication_clair + critere_technique), rangé dans le dossier du
+#    COUPLE (REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json), à côté du PDF — une règle
+#    PAR référentiel, jamais partagée au niveau du cycle. Un niveau = un référentiel = un
+#    document = sa règle (aucune exception crèche : le code voit 3 référentiels distincts,
+#    donc 3 règles). L'admin ne fait que valider/rejeter le STATUT ; il ne modifie pas le
+#    texte (pas d'écriture des deux faces). Fichier, jamais base : aucune histoire de miroir.
+
+def _regle_decoupe_path(db: Session, cycle_id: int, niveau: str) -> Path:
+    """Chemin du regle-decoupe.json du COUPLE (cycle + niveau), à côté du PDF :
+    REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json — résolu exactement comme le PDF.
+    Lève 404 si le cycle est inconnu, 422 si le niveau manque."""
+    cycle = db.get(Cycle, cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    niveau_nom = (niveau or "").strip()
+    if not niveau_nom:
+        raise HTTPException(422, "Niveau manquant pour résoudre la règle de découpe.")
+    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau_nom) / "regle-decoupe.json"
+
+
+def _ecrire_statut_regle(db: Session, cycle_id: int, niveau: str, valide: bool) -> dict:
+    """Passe le champ `valide` de la règle à la valeur voulue, en préservant les autres
+    champs (les deux faces, depose_par). Lève 404 si le fichier n'existe pas."""
+    fichier = _regle_decoupe_path(db, cycle_id, niveau)
+    if not fichier.exists():
+        raise HTTPException(404, "Aucune règle de découpe pour ce couple.")
+    try:
+        data = json.loads(fichier.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(400, f"Règle de découpe illisible : {e}")
+    data["valide"] = valide
+    fichier.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"ok": True, "valide": valide}
+
+
+@router.get("/admin/referentiels/regle-decoupe", dependencies=[Depends(_require_admin)])
+def lire_regle_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit la règle de découpe du référentiel (lecture seule), résolue par COUPLE
+    (cycle + niveau). `existe: false` si le fichier est absent → l'écran n'affiche
+    simplement pas la carte."""
+    fichier = _regle_decoupe_path(db, cycle_id, niveau)
+    if not fichier.exists():
+        return {"existe": False}
+    try:
+        data = json.loads(fichier.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(400, f"Règle de découpe illisible : {e}")
+    return {
+        "existe": True,
+        "explication_clair": data.get("explication_clair", ""),
+        "critere_technique": data.get("critere_technique", ""),
+        "depose_par": data.get("depose_par", ""),
+        "valide": bool(data.get("valide", False)),
+    }
+
+
+class RegleStatutBody(BaseModel):
+    cycle_id: int
+    niveau: str                 # couple = cycle + niveau ; entre dans le chemin de la règle
+
+
+@router.post("/admin/referentiels/regle-decoupe/valider", dependencies=[Depends(_require_admin)])
+def valider_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """L'admin valide la règle : `valide` → true. Elle devient la règle retenue pour le
+    découpage (le branchement effectif du moteur est une étape suivante)."""
+    return _ecrire_statut_regle(db, body.cycle_id, body.niveau, True)
+
+
+@router.post("/admin/referentiels/regle-decoupe/rejeter", dependencies=[Depends(_require_admin)])
+def rejeter_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """L'admin rejette la règle : `valide` → false. Elle repart en proposition."""
+    return _ecrire_statut_regle(db, body.cycle_id, body.niveau, False)
+
+
+# ── Aperçu du découpage : ce que la règle validée produit (lecture seule, aucune ingestion) ──
+
+@router.get("/admin/referentiels/apercu-decoupage", dependencies=[Depends(_require_admin)])
+def apercu_decoupage_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Aperçu du découpage pour un couple : nombre d'unités, leurs titres, bandes d'âge, cas flous,
+    et combien reviennent à ce niveau. LECTURE SEULE (aucune écriture, aucune ingestion, pas de
+    vectorisation). L'admin VOIT le résultat de la règle qu'il a validée.
+      - pas de règle pour ce cycle  -> {disponible:false, raison:"non_applicable"} (carte masquée) ;
+      - règle non validée           -> {disponible:false, raison:"regle_non_validee"} (invite à valider) ;
+      - sinon                       -> l'aperçu complet."""
+    niveau_nom = (niveau or "").strip()
+    regle_fichier = _regle_decoupe_path(db, cycle_id, niveau_nom)   # lève 404 cycle / 422 niveau
+    if not regle_fichier.exists():
+        return {"disponible": False, "raison": "non_applicable"}
+    try:
+        regle = json.loads(regle_fichier.read_text(encoding="utf-8"))
+    except Exception:
+        return {"disponible": False, "raison": "non_applicable"}
+    if not regle.get("valide"):
+        return {"disponible": False, "raison": "regle_non_validee"}
+
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
+    if not niv:
+        return {"disponible": False, "raison": "niveau"}
+    ref = (db.query(Referentiel)
+             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
+    if not ref:
+        return {"disponible": False, "raison": "referentiel"}
+
+    from backend.rag.pgvector_store import apercu_decoupage   # import paresseux (aucun coût au boot)
+    try:
+        apercu = apercu_decoupage(ref.collection)
+    except Exception as e:
+        return {"disponible": False, "raison": "erreur", "message": str(e)}
+    return {"disponible": True, **apercu}
 
 
 # ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──

@@ -129,7 +129,7 @@
 | 57 | 🟢 VIVANT | MesMD/BOUSSOLE/D49.md | Moteur de granularisation des notions (12 briques) ; ligne rouge RGPD. |
 | 58 | 🟢 VIVANT | MesMD/BOUSSOLE/D53.md | « Remplacer un référentiel existant » (geste explicite + cascade). |
 | 59 | 🟢 VIVANT | MesMD/BOUSSOLE/D55.md | Chantier (item 55) : injecter les cycles 7-11 du socle matières + supprimer doublon 0-3. Non démarré. |
-| 60 | 🟢 VIVANT | MesMD/BOUSSOLE/D56.md | Chantier (item 56) : réconcilier l'artefact pré-réforme BTS CIEL Option A. Constat, rien décidé. |
+| 60 | 🟢 VIVANT | MesMD/BOUSSOLE/D56.md | Item 56 : BTS CIEL Option A — artefact pré-réforme RETIRÉ le 08/07/2026 (contenu supprimé, structure conservée, à régénérer). |
 | 61 | 🟢 VIVANT | MesMD/BOUSSOLE/D57.md | Chantier (item 57) : registre « couple → méthode d'extraction » data-driven en base. Dépend de la crèche. |
 | 62 | 🟢 VIVANT | MesMD/BOUSSOLE/D58.md | Chantier (item 58) : dossier `MesMD/CONNAISSANCE/` (fonctionnement réel extrait du code). |
 | 63 | 🟢 VIVANT | MesMD/BOUSSOLE/D59.md | Chantier (item 59) : crèche en pause — source déposée = référentiel « qualité d'accueil » et non d'éveil ; attend la bonne source officielle. |

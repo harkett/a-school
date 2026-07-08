@@ -125,7 +125,7 @@ Toutes les données métier **doivent vivre** dans la **BASE** — **aucune donn
 | OS | Ubuntu 24.04.4 LTS |
 | SSL expiry | 2026-08-05 |
 
-**Statut : opérationnel en production — des profs réels l'utilisent. Ne jamais remettre en doute.**
+**Statut : production ARRÊTÉE — aSchool ne tourne plus en ligne et aucun prof ne l'utilise actuellement (prod stoppée par Harketti). Le VPS reste la cible de redéploiement le jour venu ; ne jamais présumer que la prod est active.**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -615,11 +615,11 @@ Cette section fait foi sur la façon dont un référentiel est **découpé, inde
 
 4. **La matière ne figure pas comme étiquette dans le chunk.** Sous l'ancien modèle, chaque chunk s'ouvrait sur sa ligne « Matière : … » → **ABANDONNÉ**. Désormais la matière est portée par le **contenu** de l'unité (ses objectifs nomment les compétences) et retrouvée par le sens ; seul le **critère de tri propre au document** (option A/B, âge…) est tagué sur le chunk.
 
-Repère code : l'extraction propre au document renvoie une « page » autonome par unité (BTS : `bts_ciel_option_a.py` ; crèche 0-3 : `backend/rag/referentiels/creche_0_3_ans.py`, une page par **activité**, la ligne « Âge » remontée en tête comme marqueur) ; le chunker générique (`backend/rag/chunker.py`) en fait un chunk par unité.
+Repère code : l'extraction propre au document renvoie une « page » autonome par unité (crèche 0-3 : `backend/rag/referentiels/creche_0_3_ans.py`, une page par **activité**, la ligne « Âge » remontée en tête comme marqueur) ; le chunker générique (`backend/rag/chunker.py`) en fait un chunk par unité.
 
 ### Architecture : socle commun + routine par document (+ analyse amont)
 
-**Un socle commun, une routine par document.** Le moteur RAG (client, embedding, découpage générique, recherche) **ne connaît aucun référentiel** : c'est le socle, commun à tous (`backend/rag/referentiels/__init__.py`). Au-dessus, **chaque document a sa routine** (une « fiche » : `bts_ciel_option_a.py`, `creche_0_3_ans.py`) qui sait lire CE document et poser SON critère de tri. **La maille est le document, pas le cycle** : un même document peut servir plusieurs niveaux — le 0-3 crèche sert Bébés, Moyens et Grands, d'où 3 collections pour 1 seule fiche. Ajouter un cycle plus tard, c'est écrire une nouvelle routine, sans toucher aux autres.
+**Un socle commun, une routine par document.** Le moteur RAG (client, embedding, découpage générique, recherche) **ne connaît aucun référentiel** : c'est le socle, commun à tous (`backend/rag/referentiels/__init__.py`). Au-dessus, **chaque document a sa routine** (une « fiche » : `creche_0_3_ans.py`) qui sait lire CE document et poser SON critère de tri. **La maille est le document, pas le cycle** : un même document peut servir plusieurs niveaux — le 0-3 crèche sert Bébés, Moyens et Grands, d'où 3 collections pour 1 seule fiche. Ajouter un cycle plus tard, c'est écrire une nouvelle routine, sans toucher aux autres.
 
 **Le squelette de la procédure est universel — une seule chose change d'un document à l'autre.** Ajouter n'importe quel référentiel suit la même suite d'étapes (choisir le couple, déposer le PDF, le lire, découper, rattacher au niveau, arbitrer le flou, filtrer, vectoriser, ingérer, calibrer le seuil, tester, valider, basculer, nettoyer, activer). Ce qui change selon le document, c'est **uniquement** le **découpage** (où sont les frontières d'une unité) et le **rattachement au niveau** (quel critère trie le document) — ces deux étapes vivent dans la **fiche** (`backend/rag/referentiels/<doc>.py`), jamais dans le socle. Tout le reste est du **socle commun**, réutilisé tel quel. Ajouter un référentiel = écrire **UNE** fiche, sans toucher au squelette ni au moteur. *(Le guide de reprise éphémère détaille cette suite en 16 étapes, dont seules les étapes 5 « découper » et 6 « rattacher » sont propres au document.)*
 
@@ -628,6 +628,17 @@ Repère code : l'extraction propre au document renvoie une « page » autonome p
 **L'analyse amont — une étape AVANT le découpage.** Avant de découper, on analyse le document, dans deux buts : repérer le **critère** qui le structure (l'axe de filtre : option A/B, âge…), et détecter les **cas flous** qui casseraient le découpage. L'outil fait environ 90 % seul (lire, trier les cas nets, isoler les flous) ; l'humain tranche les 10 % flous. **Règle absolue : sur un cas flou, l'outil ne décide jamais seul en silence — il signale et attend l'arbitrage** (cap « aSchool n'invente rien »). L'analyse produit le critère rangé en base et un document assaini, prêt au découpage. Menée aujourd'hui par le **dev** (prototype) ; cible = **fonction de l'app**, l'admin arbitrant le flou à la place du dev. On la bâtit donc **portable** — fonction pure et testable — jamais jetable.
 
 > Procédure d'exécution complète (dépôt jusqu'à la recherche) et application à la crèche : fiche `MesMD/BOUSSOLE/D60.md`.
+
+### La règle de découpe — validée par l'admin, deux faces, PAR COUPLE (règle absolue)
+
+Comment un document est **découpé** (où sont les frontières d'une unité) est piloté par une **règle de découpe** — un petit objet à **deux faces**, rangé **par couple**, à côté du PDF : `REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json`.
+
+- **Deux faces.** `explication_clair` = ce que **l'admin lit** pour valider, en français, sans code (« une unité = une activité, elle commence à chaque ligne d'âge »). `critere_technique` = le **motif** (regex) que la **fiche** exécute pour trouver les frontières. Les deux disent la même chose : l'une pour l'humain, l'autre pour la machine. L'admin valide **toujours** sur la face claire, jamais sur le code.
+- **Par couple, jamais par cycle.** Un niveau = un référentiel = un document = **sa** règle. La règle vit dans le dossier du couple (comme le PDF, comme `matieres-candidates.json`), résolue par **cycle + niveau**. Jamais une règle unique posée au niveau du cycle : deux documents d'un même cycle (ex. deux spécialités BTS) se découpent différemment. *(Même pour la crèche, dont les 3 niveaux partagent le même document, le code voit 3 référentiels distincts → 3 fichiers de règle.)*
+- **Garde-fou — pas de découpage sans règle validée.** Le champ `valide` doit être `true` : la fiche **refuse d'ingérer** (lève) si la règle est absente ou non validée (cap « aSchool n'invente rien »). La fiche lit le motif **du fichier validé**, plus aucun regex en dur.
+- **Deux sens (le champ `depose_par`).** Sens 1 (branché) : le **dev propose** la règle, l'**admin Valide/Rejette**. Sens 2 (pas encore branché) : l'**admin propose** lui-même sa règle, le **dev vérifie**. Le champ `depose_par` (`"dev"`/`"admin"`) anticipe déjà les deux sens.
+
+Repère code : la fiche crèche dérive le chemin de la règle du dossier du PDF (`_regle_path_for(pdf_path)`), lit + compile le motif validé (`_charger_motif_valide`), et lève si non validé (`backend/rag/referentiels/creche_0_3_ans.py`). Endpoints admin (lire / valider / rejeter / aperçu) résolus par cycle + niveau (`backend/pedagogie/referentiels_admin.py`).
 
 ### Ajouter un nouveau référentiel — quels acteurs on touche
 
@@ -656,7 +667,7 @@ C'est pour cela qu'on **ne touche jamais à la base** pour ce filtrage : **aucun
 
 Le **référentiel officiel** du couple matière+niveau est **LA source de vérité**. **Un couple sans référentiel ne génère pas** : il reste « en construction ». La génération (`/api/generate`) **doit s'ancrer sur le référentiel du couple** — décision tranchée le **26/06/2026**, **pas encore branchée** : aujourd'hui seul le bouton « Tester un exemple » (`/api/exemple-referentiel`) lit le référentiel ; `/api/generate` n'en lit **aucun** (le niveau n'est qu'une étiquette dans le prompt).
 
-Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BTS_CIEL_OPTION_A/`, unique et non renommable) → **l'admin fournit lui-même le PDF** (par lien ou dépôt) → l'admin **valide** → découper / **relier** / tester. *(3e mode « Par IA » — **chantier acté le 08/07/2026** : l'app fait une **vraie recherche web** pour trouver la source **officielle** du couple ; l'IA trie et vérifie de **vrais liens**, jamais un lien inventé de mémoire ; officiel non trouvé → ne propose rien ; l'admin valide toujours. Requiert une **capacité de recherche web** — décidée, **pas encore branchée**.)* Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
+Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BEBES_0_1_AN/`, unique et non renommable) → **l'admin fournit lui-même le PDF** (par lien ou dépôt) → l'admin **valide** → découper / **relier** / tester. *(3e mode « Par IA » — **chantier acté le 08/07/2026** : l'app fait une **vraie recherche web** pour trouver la source **officielle** du couple ; l'IA trie et vérifie de **vrais liens**, jamais un lien inventé de mémoire ; officiel non trouvé → ne propose rien ; l'admin valide toujours. Requiert une **capacité de recherche web** — décidée, **pas encore branchée**.)* Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 **Reste à faire (chantier à part) :** « automatiser le Temps 3 » — routage couple→référentiel **data-driven** (aujourd'hui en dur dans `exemple_referentiel.py`) **+ branchement du cœur** `/api/generate`.
 

@@ -10,7 +10,7 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 
 | Référentiel | Sous-dossier | État | Contenu réel |
 |---|---|---|---|
-| **BTS CIEL option A** (Informatique et réseaux) — éduscol STI, rénovation 2023 | `BTS_CIEL_OPTION_A/` | ✅ complet | PDF officiel `referentiel.pdf` (88 p.) + `extraction-texte.txt` |
+| **BTS CIEL option A** (Informatique et réseaux) — éduscol STI, rénovation 2023 | *(dossier retiré le 08/07/2026)* | ⏳ à régénérer | Contenu (PDF + 236 chunks) retiré ; **structure cycle/niveau BTS conservée**. À recréer via la procédure standard. |
 
 ---
 
@@ -27,14 +27,14 @@ Pour chaque référentiel, idéalement : le **document officiel d'origine** (PDF
 
 ### Procédure complète validée (cible — 26/06/2026)
 > Vue d'ensemble côté produit. Le détail technique reste « A — Premier ajout » ci-dessous.
-- **Temps 1 — Déclarer le niveau.** L'admin choisit le **cycle** puis le **niveau** dans des combos (liste fermée, jamais de saisie libre — cf. `MesMD/aSchool-cycles-niveaux.md`). aSchool en déduit le **nom de dossier-clé** = le nom du niveau normalisé en **MAJUSCULES_UNDERSCORE** (accents enlevés), ex. `BTS_CIEL_OPTION_A/`. Le référentiel couvre **tout le niveau** ; les matières en sont **extraites** ensuite (Temps 3), pas déclarées à la main. Clé **unique et non renommable** ; l'identifiant interne `nom_fixe` en est la version minuscule (`bts_ciel_option_a`).
+- **Temps 1 — Déclarer le niveau.** L'admin choisit le **cycle** puis le **niveau** dans des combos (liste fermée, jamais de saisie libre — cf. `MesMD/aSchool-cycles-niveaux.md`). aSchool en déduit le **nom de dossier-clé** = le nom du niveau normalisé en **MAJUSCULES_UNDERSCORE** (accents enlevés), ex. `BEBES_0_1_AN/`. Le référentiel couvre **tout le niveau** ; les matières en sont **extraites** ensuite (Temps 3), pas déclarées à la main. Clé **unique et non renommable** ; l'identifiant interne `nom_fixe` en est la version minuscule (`bebes_0_1_an`).
 - **Temps 2 — Trouver / valider le document.** L'IA propose le document officiel (cf. P1) ; l'admin certifie et le dépose dans `REFERENTIELS/<dossier>/` + renseigne (vrai nom, date, source).
 - **Temps 3 — Intégrer.** aSchool découpe → relie → teste. *(Aujourd'hui manuel/dev. L'étape « relier » porte deux manques connus : routage en dur + cœur `/api/generate` non branché → chantier « automatiser le Temps 3 : routage data-driven + branchement du cœur ».)*
 - **Temps 4 — Ouvert.** Couple relié = génère sur le vrai programme ; sans référentiel = « en construction ».
 - **Deux preuves distinctes :** « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 ### A — Premier ajout
-1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<DOSSIER_CLE>/` (nom du niveau normalisé, ex. `BTS_CIEL_OPTION_A/`).
+1. **(Admin)** télécharge le PDF officiel et le dépose dans `REFERENTIELS/<DOSSIER_CLE>/` (nom du niveau normalisé, ex. `BEBES_0_1_AN/`).
 2. **(Admin)** renseigne en base (table `referentiels`) : nom interne fixe, vrai nom du fichier, date, source.
 3. **(Dev)** écrit la **fiche** (`backend/rag/referentiels/<nomfixe>.py`) : règles de découpe + étiquetage (niveau, option).
 4. **(Dev)** lance la construction : `python -m backend.rag.pgvector_store` → chunks insérés dans `referentiel_chunks`, tagués (niveau via jointure, option).
