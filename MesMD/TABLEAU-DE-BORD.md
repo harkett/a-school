@@ -135,6 +135,8 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [52](#item-52) | Revoir la page admin de récupération du référentiel (Lien / Dépôt + 3e voie « IA propose ») | à scorer | à scorer | à scorer | à scorer | PRODUIT / Admin — à cadrer | — |
 | [53](#item-53) | Remplacer un référentiel existant (geste explicite + cascade PDF→texte→chunks→matières) | à scorer | à scorer | à scorer | à scorer | INFRA / Admin — à cadrer | [D53](BOUSSOLE/D53.md) |
 | [00](#item-00) | Reprendre toute la numérotation depuis le début (item N ↔ fiche DN partout, sans décalage) | à scorer | à scorer | à scorer | à scorer | DETTE / Doc — plus tard | [D00](BOUSSOLE/D00.md) |
+| 62 | Audit des règles de comportement `feedback_*` (~90 mémoires) — clarifier / fusionner / supprimer périmées / résoudre contradictions (session dédiée) | à scorer | à scorer | à scorer | à scorer | DETTE / Mémoire — complète #9 ; ne pas ouvrir pendant la reprise crèche | [D62](BOUSSOLE/D62.md) |
+| 63 | Boucle « l'IA propose l'unité de découpe puis l'admin valide ou rejette » (au dépôt du PDF) — rend sa voix à l'admin sur la structure du document ; concrétise la cible D60 (analyse amont : dev vers app). **En attente d'analyse** — 2 points à trancher : (1) où tourne l'IA (règle « app déployée = zéro IA ») ; (2) figer en donnée le résultat validé (structure immuable, ré-ingestion déterministe) | à cadrer | à scorer | à scorer | à scorer | RAG / Référentiel — analyse amont (cible D60) | [D60](BOUSSOLE/D60.md) |
 
 ---
 
