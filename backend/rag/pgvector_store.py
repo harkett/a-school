@@ -163,7 +163,7 @@ def ingest_pgvector(collection: str = "bts_ciel_option_a", dry_run: bool = False
         return report
 
     # 3. Embeddings puis (re)écriture, sous sauvegarde-avant-purge.
-    vecs = embed_texts([c["text"] for c in chunks])   # voie directe, dim 384
+    vecs = embed_texts([c["text"] for c in chunks])   # voie directe, dim 1024 (BGE-M3)
     if len(vecs) != len(chunks):
         raise RuntimeError(f"Embeddings {len(vecs)} != chunks {len(chunks)}")
 
@@ -236,7 +236,7 @@ def retrieve_pg(
             return []
         rid, source, niveau_nom = ref
 
-        qvec = embed_texts([q])[0]                       # voie directe, dim 384
+        qvec = embed_texts([q])[0]                       # voie directe, dim 1024 (BGE-M3)
         dist = ReferentielChunk.embedding.cosine_distance(qvec).label("distance")
         stmt = (
             select(ReferentielChunk.texte, ReferentielChunk.page,

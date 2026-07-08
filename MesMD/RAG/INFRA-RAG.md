@@ -17,8 +17,8 @@ La couche infrastructure est mutualisée ; seul change le corpus indexé, le pro
 
 ## Stack
 
-- **PostgreSQL / pgvector** — table `referentiel_chunks` (colonne `embedding` `vector(384)`) : ingestion + recherche cosinus dans [pgvector_store.py](../../backend/rag/pgvector_store.py)
-- **sentence-transformers** `paraphrase-multilingual-MiniLM-L12-v2` — singleton (voie directe `get_st_model`) dans [embeddings.py](../../backend/rag/embeddings.py)
+- **PostgreSQL / pgvector** — table `referentiel_chunks` (colonne `embedding` `vector(1024)`) : ingestion + recherche cosinus dans [pgvector_store.py](../../backend/rag/pgvector_store.py)
+- **sentence-transformers** `BAAI/bge-m3` (dim 1024) — singleton (voie directe `get_st_model`) dans [embeddings.py](../../backend/rag/embeddings.py)
 - **Fonction générique** `retrieve_pg(collection_name, question, filters, top_k)` — [pgvector_store.py](../../backend/rag/pgvector_store.py)
 
 Usage côté router consommateur :

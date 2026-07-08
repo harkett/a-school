@@ -42,9 +42,9 @@ def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     monkeypatch.setattr(pgvector_store, "BACKUP_DIR", tmp_path)
     rows = [
         # (chunk_index, option_ab, page, texte, embedding, embedding_model)
-        (0, "A", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "mini-lm"),
-        (1, "A", 13, "Texte du chunk un", [0.4, 0.5, 0.6], "mini-lm"),
-        (2, "B", 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "mini-lm"),
+        (0, "A", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "bge-m3"),
+        (1, "A", 13, "Texte du chunk un", [0.4, 0.5, 0.6], "bge-m3"),
+        (2, "B", 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "bge-m3"),
     ]
     res = pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=42)
 
@@ -61,7 +61,7 @@ def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     assert premier["page"] == 12
     assert premier["texte"] == "Texte du chunk zero"
     assert premier["embedding"] == [0.1, 0.2, 0.3]
-    assert premier["embedding_model"] == "mini-lm"
+    assert premier["embedding_model"] == "bge-m3"
 
 
 def test_sauvegarde_zero_chunk_n_ecrit_rien(tmp_path, monkeypatch):
@@ -85,7 +85,7 @@ def test_sauvegarde_refuse_d_ecraser_un_bak_existant(tmp_path, monkeypatch):
             return fixe
 
     monkeypatch.setattr(pgvector_store, "datetime", _FixedDatetime)
-    rows = [(0, "A", 1, "texte", [0.1, 0.2], "mini-lm")]
+    rows = [(0, "A", 1, "texte", [0.1, 0.2], "bge-m3")]
 
     # 1er backup : ecrit normalement.
     pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=1)
