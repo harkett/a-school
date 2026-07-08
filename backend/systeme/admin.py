@@ -146,6 +146,15 @@ SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]
 # spécial : Anthropic/Gemini/… sont des fournisseurs comme les autres).
 SUPPORTED_AI_PROVIDERS = ["groq"]
 
+# Tous les fournisseurs que le moteur SAIT appeler (adaptateurs présents dans src/generator.py).
+# La combo admin les affiche TOUS ; seuls ceux de SUPPORTED_AI_PROVIDERS (clé provisionnée) sont
+# sélectionnables. Les autres apparaissent « pas encore disponible » — jamais un choix qui échoue.
+ALL_AI_PROVIDERS = [
+    {"name": "groq", "label": "Groq"},
+    {"name": "anthropic", "label": "Anthropic (Claude)"},
+    {"name": "gemini", "label": "Gemini"},
+]
+
 
 def get_ai_model(db: Session) -> str:
     """Modèle LLM texte courant, lu en base au moment de l'appel (repli sur le défaut
@@ -679,8 +688,16 @@ class AiProviderBody(BaseModel):
 def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     """Fournisseurs LLM offerts (liste blanche) + fournisseur courant — alimente la combo
     admin et sa validation. Miroir de GET /admin/ai-models. On n'expose QUE les fournisseurs
-    opérationnels (joignabilité) ; les autres apparaîtront ici une fois leur clé configurée."""
-    return {"supported": SUPPORTED_AI_PROVIDERS, "current": get_ai_provider(db)}
+    opérationnels (joignabilité) ; les autres apparaissent « pas encore disponible » (grisés).
+    `all` = tous les fournisseurs connus + drapeau `available` (True s'ils sont opérationnels)."""
+    return {
+        "supported": SUPPORTED_AI_PROVIDERS,
+        "current": get_ai_provider(db),
+        "all": [
+            {**p, "available": p["name"] in SUPPORTED_AI_PROVIDERS}
+            for p in ALL_AI_PROVIDERS
+        ],
+    }
 
 
 @router.put("/admin/ai-provider")

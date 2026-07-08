@@ -359,6 +359,12 @@ Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/
 
 Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou si on note dans le TABLEAU DE BORD sous "En attente de cascade". Ne jamais clore la session sans que chaque impact soit traité ou noté.
 
+### Remplacement / suppression — jamais de lien mort (règle absolue)
+
+**Avant de remplacer A par B (ou de supprimer A), chercher dans TOUT le projet ce qui référence A. Si des liens vers A existent, on ne remplace pas tant qu'on ne les a pas traités (corrigés ou supprimés). Jamais de remplacement qui laisse des liens morts derrière.**
+
+Corollaire (le BA-ba) : du nouveau qui remplace de l'ancien = on va d'abord chercher **tout** l'ancien et on le vire/corrige, dans le même geste — jamais du neuf posé par-dessus du périmé laissé traîner (c'est ce périmé qu'on relit ensuite par erreur).
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ## Workflow obligatoire
@@ -397,6 +403,8 @@ Vocabulaire de remplacement, selon le sens :
 7. Une chose à la fois — traiter un point, le finir, passer au suivant.
 8. 🔒 Tout point critique codé s'accompagne de son test automatisé, écrit dans la même session, sinon la fonction est inachevée.
 9. 🔒 **Joignabilité AVANT la chaîne.** Pour toute affirmation « live / vert / fonctionnel », le **premier** contrôle est : *l'entrée est-elle exposée à l'utilisateur ?* (point d'entrée non gaté dans l'UI — pas `disabled`, pas « bientôt »). Seulement **après**, vérifier la chaîne de code. Un chemin de code qui marche mais que le prof ne peut pas atteindre n'est **PAS** fonctionnel — le dire « live » est faux. (Règle née le 14/06/2026 : « Consigne fonctionnel » affirmé sur la foi du backend, alors que la sidebar la masquait « bientôt ».)
+
+10. 🔒 **La mémoire guide, elle ne prouve rien — tout ce qui vient de la mémoire se vérifie dans le réel AVANT d'être dit.** Je lis ma mémoire (et mes souvenirs de la conversation) uniquement pour m'orienter, jamais comme une vérité. Avant d'écrire quoi que ce soit — un fait, un « problème », un choix à trancher — je le confirme sur le réel (le fichier, une commande), la preuve sous les yeux. Sans preuve vérifiée, je n'en parle pas : ni supposition, ni « problème » soulevé de tête. Je pars du principe que je ne crois pas ma propre mémoire tant que le réel ne l'a pas confirmée. (Règle née le 06/07/2026 : j'ai théorisé de mémoire un faux problème de balisage PDF contre `.md`, au lieu d'extraire le texte une seule fois pour voir qu'il était propre — une heure perdue à débattre d'un souci qui n'existait pas.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -531,6 +539,7 @@ pas de tout boucler en une fois — intenable sur un chantier de semaines.
 - Pas d'emojis dans l'interface.
 - Navigateur de référence : **Edge** (jamais Chrome dans les instructions).
 - **Menu / navigation = du général au détaillé.** Tout menu se range en **familles (catégories) → options**, jamais une liste à plat où l'on ajoute une entrée de plus à chaque page. Toute nouvelle page se loge **sous une famille existante**. Standard pro appliqué au back-office le 23/06 (5 catégories + accordéon repliable, chevron visible, hiérarchie de tailles titre>option, liseré **bleu = section active** / **bordeaux #A63045 = page active**, shell figé sidebar+header+footer, header = fil d'Ariane « catégorie › page »). Même esprit que la taxonomie outils prof (« ne pas confondre les niveaux »).
+- **Dans une page admin : maître-détail, jamais une rangée d'onglets en haut.** Les sections d'une page se rangent en **liste verticale à gauche** (l'item actif porte le liseré bordeaux `#A63045`), et le **détail s'affiche à droite**. Une rangée d'onglets en haut ne tient pas quand le nombre de sections grandit : elle déborde et devient inutilisable. Référence du motif : la liste des modèles de l'écran des mails (`AdminParametresEmail.jsx`) et l'écran Programmes (passé en maître-détail). Appliqué à l'écran Génération LLM le 08/07/2026.
 
 ### Layout général
 
@@ -570,6 +579,8 @@ Toute adaptation mobile utilise `const isMobile = window.innerWidth < 768` défi
 
 Deux fournisseurs, pour pouvoir basculer de l'un à l'autre : **Groq** (`llama-3.3-70b-versatile`) par défaut + **Anthropic** (Claude) comme cible de bascule. Gemini n'est **pas** banni — l'adaptateur `_gemini` existe et reste fonctionnel, mais **dormant** : ni défaut, ni cible.
 
+**L'app appelle l'IA dès qu'elle en a besoin — un seul point d'entrée `generate()`.** Y compris pour préparer un référentiel (analyser le PDF, proposer la règle de découpe). Règle : l'IA **propose**, l'admin ou le prof **valide** ; jamais l'IA seule (cap « aSchool n'invente rien »). Le fournisseur est **administrable à chaud** (écran Génération LLM → onglet Fournisseur) ; la combo affiche **tous** les fournisseurs connus, les non-opérationnels **grisés « pas encore disponible »** (jamais un choix qui échoue). Vision : basculer entre plusieurs IA selon l'usage (réservoir item #45). Aujourd'hui **Groq seul** est opérationnel ; ouvrir une 2e IA (clé par fournisseur + modèle Claude) est un chantier **en attente de la décision « quelle IA + quel accès (clé API ou abonnement) »**.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ## Modèle d'embedding (RAG) — décision (cap « le meilleur »)
@@ -596,15 +607,27 @@ Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la *
 
 Cette section fait foi sur la façon dont un référentiel est **découpé, indexé et cherché**. Toute autre méthode (l'ancienne) est **morte** : on ne raisonne plus jamais dessus. Si un vieux réglage traîne quelque part (code, doc, commentaire), on le **SIGNALE** — on ne l'applique pas.
 
-1. **Découpage : 1 fiche = 1 chunk.** La frontière de chunk est la frontière de **fiche** (la ligne « Matière : … » qui ouvre chaque fiche). Jamais de coupe à taille fixe. → L'ancien découpage **à 900 caractères aveugle est ABANDONNÉ** (il coupait au milieu d'une fiche et collait la queue d'une fiche sur la tête de la suivante).
+1. **Découpage : 1 unité de contenu = 1 chunk.** La frontière de chunk est la frontière d'une **unité du document**, définie par la routine du document : une **fiche** (BTS) ou une **activité** (crèche 0-3 : le titre d'activité, la ligne juste au-dessus de la ligne « Âge »). Jamais de coupe à taille fixe. → L'ancien découpage **à 900 caractères aveugle est ABANDONNÉ** (il coupait au milieu d'une unité et collait la queue de l'une sur la tête de la suivante).
 
-2. **Une activité = UNE seule matière.** Pas de « matière secondaire », pas de « développe aussi », **aucun renvoi à une autre matière** dans le texte de la fiche. Ce dispositif servait la trouvabilité multi-matières sous l'ancien découpage par taille (où un chunk pouvait perdre le nom de la matière) → **ABANDONNÉ** avec lui.
+2. **La matière n'est PAS taguée dans le document — elle est trouvée par le SENS.** Un document peut ranger son contenu par un autre axe que la matière (le 0-3 crèche est rangé par activité et par âge, et une activité « *développe aussi* » plusieurs compétences). La matière du prof est rapprochée du texte de l'unité par l'embedding (requête `{matiere}`/`{niveau}`), jamais par une étiquette « Matière : ». → L'ancienne règle « 1 activité = 1 matière, sans développe aussi » est **ABANDONNÉE** (elle servait l'ancien découpage par taille).
 
 3. **Modèle d'embedding : BGE-M3 (1024 dim)**, le même à l'ingestion ET à la recherche. **MiniLM (384 dim) est ABANDONNÉ.** Détail + cible future (Qwen3) → section « Modèle d'embedding (RAG) » ci-dessus.
 
-4. **Le nom EXACT de la matière** (libellé du socle, à l'identique) **figure dans le texte de chaque fiche** — garanti par construction, puisque chaque chunk EST une fiche qui s'ouvre sur sa ligne « Matière : … ».
+4. **La matière ne figure pas comme étiquette dans le chunk.** Sous l'ancien modèle, chaque chunk s'ouvrait sur sa ligne « Matière : … » → **ABANDONNÉ**. Désormais la matière est portée par le **contenu** de l'unité (ses objectifs nomment les compétences) et retrouvée par le sens ; seul le **critère de tri propre au document** (option A/B, âge…) est tagué sur le chunk.
 
-Repère code : le découpage par fiche est produit à l'extraction (`backend/rag/referentiels/creche_0_3_ans.py`) qui renvoie une « page » par fiche ; le chunker générique (`backend/rag/chunker.py`) en fait un chunk par fiche.
+Repère code : l'extraction propre au document renvoie une « page » autonome par unité (BTS : `bts_ciel_option_a.py` ; crèche 0-3 : `backend/rag/referentiels/creche_0_3_ans.py`, une page par **activité**, la ligne « Âge » remontée en tête comme marqueur) ; le chunker générique (`backend/rag/chunker.py`) en fait un chunk par unité.
+
+### Architecture : socle commun + routine par document (+ analyse amont)
+
+**Un socle commun, une routine par document.** Le moteur RAG (client, embedding, découpage générique, recherche) **ne connaît aucun référentiel** : c'est le socle, commun à tous (`backend/rag/referentiels/__init__.py`). Au-dessus, **chaque document a sa routine** (une « fiche » : `bts_ciel_option_a.py`, `creche_0_3_ans.py`) qui sait lire CE document et poser SON critère de tri. **La maille est le document, pas le cycle** : un même document peut servir plusieurs niveaux — le 0-3 crèche sert Bébés, Moyens et Grands, d'où 3 collections pour 1 seule fiche. Ajouter un cycle plus tard, c'est écrire une nouvelle routine, sans toucher aux autres.
+
+**Le squelette de la procédure est universel — une seule chose change d'un document à l'autre.** Ajouter n'importe quel référentiel suit la même suite d'étapes (choisir le couple, déposer le PDF, le lire, découper, rattacher au niveau, arbitrer le flou, filtrer, vectoriser, ingérer, calibrer le seuil, tester, valider, basculer, nettoyer, activer). Ce qui change selon le document, c'est **uniquement** le **découpage** (où sont les frontières d'une unité) et le **rattachement au niveau** (quel critère trie le document) — ces deux étapes vivent dans la **fiche** (`backend/rag/referentiels/<doc>.py`), jamais dans le socle. Tout le reste est du **socle commun**, réutilisé tel quel. Ajouter un référentiel = écrire **UNE** fiche, sans toucher au squelette ni au moteur. *(Le guide de reprise éphémère détaille cette suite en 16 étapes, dont seules les étapes 5 « découper » et 6 « rattacher » sont propres au document.)*
+
+**Code d'un côté, donnée de l'autre.** Le parsing du PDF (colonnes, frontières d'activité) est du **code** propre au document, légitimement en dur. Mais les **valeurs métier** — tranches d'âge, option A/B, seuil — sont de la **donnée** : elles vivent en base (`referentiels.filtres`, `SCORE_MIN`), jamais écrites en dur dans le code.
+
+**L'analyse amont — une étape AVANT le découpage.** Avant de découper, on analyse le document, dans deux buts : repérer le **critère** qui le structure (l'axe de filtre : option A/B, âge…), et détecter les **cas flous** qui casseraient le découpage. L'outil fait environ 90 % seul (lire, trier les cas nets, isoler les flous) ; l'humain tranche les 10 % flous. **Règle absolue : sur un cas flou, l'outil ne décide jamais seul en silence — il signale et attend l'arbitrage** (cap « aSchool n'invente rien »). L'analyse produit le critère rangé en base et un document assaini, prêt au découpage. Menée aujourd'hui par le **dev** (prototype) ; cible = **fonction de l'app**, l'admin arbitrant le flou à la place du dev. On la bâtit donc **portable** — fonction pure et testable — jamais jetable.
+
+> Procédure d'exécution complète (dépôt jusqu'à la recherche) et application à la crèche : fiche `MesMD/BOUSSOLE/D60.md`.
 
 ### Ajouter un nouveau référentiel — quels acteurs on touche
 
@@ -617,6 +640,14 @@ Repère code : le découpage par fiche est produit à l'extraction (`backend/rag
 
 Règle de lecture : **Modèle + Requête = leviers globaux** (bâtis une fois) ; **PDF + Seuil = par référentiel**.
 
+### Immuabilité de la structure d'un référentiel — casser et régénérer, jamais migrer (règle absolue)
+
+La structure d'un référentiel — les cycles, les niveaux, et le **tri par niveau fait à l'ingestion** (chaque collection ne reçoit que le contenu de son niveau) — est **immuable** et n'est pilotée par **aucun champ configurable**. Le **seul intrant qui bouge est le PDF** : on le remplace, on ré-ingère, c'est tout.
+
+Si un jour la **structure elle-même** doit changer (par exemple la crèche passe à 0-4 ans, donc un niveau de plus), on **ne migre pas** et on **ne rustine pas** : on **casse la génération existante et on la reconstruit entièrement** par ré-ingestion — geste **automatique**.
+
+C'est pour cela qu'on **ne touche jamais à la base** pour ce filtrage : **aucune colonne ajoutée, aucun champ de règle**. La règle « quel contenu appartient à quel niveau » vit dans le **code de la fiche** (elle reçoit le niveau en paramètre et ne renvoie que le bon contenu), **jamais dans la donnée**. Le niveau est déjà tenu de bout en bout du flux admin (l'admin choisit cycle + niveau au départ) : on le passe, on ne le stocke pas en plus. Corollaire : l'isolement par niveau est **structurel** (le mauvais contenu n'est même pas dans la collection), pas un filtre conditionnel qu'on pourrait oublier à la recherche.
+
 ★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
 ★★★             FIN — MÉTHODE RÉFÉRENTIEL (RAG)            ★★★
 ★★★━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━★★★
@@ -625,7 +656,7 @@ Règle de lecture : **Modèle + Requête = leviers globaux** (bâtis une fois) ;
 
 Le **référentiel officiel** du couple matière+niveau est **LA source de vérité**. **Un couple sans référentiel ne génère pas** : il reste « en construction ». La génération (`/api/generate`) **doit s'ancrer sur le référentiel du couple** — décision tranchée le **26/06/2026**, **pas encore branchée** : aujourd'hui seul le bouton « Tester un exemple » (`/api/exemple-referentiel`) lit le référentiel ; `/api/generate` n'en lit **aucun** (le niveau n'est qu'une étiquette dans le prompt).
 
-Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BTS_CIEL_OPTION_A/`, unique et non renommable) → l'IA **propose** le PDF officiel → l'admin **valide** → découper / **relier** / tester. Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
+Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REFERENTIELS/README.md) : l'admin choisit cycle+niveau dans des **combos** (liste fermée) → aSchool génère le **dossier-clé** = nom du niveau normalisé en `MAJUSCULES_UNDERSCORE` (ex. `BTS_CIEL_OPTION_A/`, unique et non renommable) → **l'admin fournit lui-même le PDF** (par lien ou dépôt) → l'admin **valide** → découper / **relier** / tester. *(Cible, pas encore construite, à détailler : l'IA aiderait l'admin à proposer le bon PDF officiel, l'admin gardant le dernier mot.)* Deux preuves distinctes : « le bon référentiel remonte » (indexation) ≠ « la génération s'appuie dessus » (cœur).
 
 **Reste à faire (chantier à part) :** « automatiser le Temps 3 » — routage couple→référentiel **data-driven** (aujourd'hui en dur dans `exemple_referentiel.py`) **+ branchement du cœur** `/api/generate`.
 
@@ -668,10 +699,13 @@ Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REF
 l'écran admin, en dev, dans le contexte d'un couple Cycle → Niveau déjà choisi. Aucun autre
 endroit de l'app ne touche aux matières.
 
-**Qui lit le référentiel.** Les étapes 1 à 3 (lire le PDF, extraire les fiches/domaines, filtrer
-pour ne garder que ce qui est une matière côté enfant) sont un **travail de prépa fait en DEV par
-Claude**, sur l'abonnement Max — jamais par l'application. L'app déployée n'appelle **aucune IA**
-pour ça : elle ne fait que les étapes 4 à 6 et ne se sert que des données déjà rangées en base.
+**Qui lit le référentiel.** aSchool a le droit d'appeler l'IA (Groq) pour préparer un référentiel :
+c'est le même appel unique `generate()` qui sert déjà à générer les activités. Principe (cap) :
+l'IA **repère / propose**, l'admin **valide**, jamais l'IA seule. **État au 08/07/2026** : cette
+analyse (extraire/filtrer les matières) est **encore faite en DEV par Claude** (sur Max) et rangée
+dans un fichier que l'app lit (`matieres-candidates.json`) ; la faire faire **par l'app via Groq**
+est la **cible, pas encore branchée**. Les étapes 4 à 6 (comparer, afficher, enregistrer) restent
+de l'app pure, sur les données déjà en base.
 
 **Les étapes.**
 1. Lire le PDF du référentiel (dans `REFERENTIELS/<CYCLE>/<NIVEAU>/`).

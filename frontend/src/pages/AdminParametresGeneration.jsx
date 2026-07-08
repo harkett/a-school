@@ -9,9 +9,11 @@ export default function AdminParametresGeneration() {
   const [saving, setSaving]   = useState(false)
   const [message, setMessage] = useState(null) // { type: 'ok', text }
 
-  // Fournisseur (Phase 4.1.e) — combo fermée des fournisseurs opérationnels (Groq seul aujourd'hui).
+  // Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur ; les non-opérationnels
+  // sont grisés « pas encore disponible » (jamais un choix qui échoue). Dispo = champ `all` du backend.
   const [aiProvider, setAiProvider] = useState('')
   const [supportedProviders, setSupportedProviders] = useState([])
+  const [allProviders, setAllProviders] = useState([]) // [{ name, label, available }]
   const [savingProvider, setSavingProvider] = useState(false)
   const [messageProvider, setMessageProvider] = useState(null)
 
@@ -61,6 +63,7 @@ export default function AdminParametresGeneration() {
       .then(data => {
         setAiProvider(data.current || '')
         setSupportedProviders(data.supported || [])
+        setAllProviders(data.all || [])
       })
       .catch(() => {})
 
@@ -288,14 +291,6 @@ export default function AdminParametresGeneration() {
     }
   }
 
-  const tabStyle = active => ({
-    padding: '7px 18px', borderRadius: 6, fontSize: 13, fontWeight: active ? 600 : 400,
-    cursor: 'pointer', border: 'none',
-    background: active ? 'var(--bleu)' : 'white',
-    color: active ? 'white' : '#6b7280',
-    boxShadow: active ? 'none' : 'inset 0 0 0 1px #e5e7eb',
-  })
-
   const champTokens = (cle, label, aide) => (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
@@ -313,7 +308,7 @@ export default function AdminParametresGeneration() {
   )
 
   return (
-    <div style={{ maxWidth: 640 }} className="flex flex-col gap-6">
+    <div style={{ maxWidth: 900 }} className="flex flex-col gap-6">
 
       <div>
         <h2 className="text-sm font-semibold text-gray-700 mb-1">Génération LLM</h2>
@@ -322,24 +317,45 @@ export default function AdminParametresGeneration() {
         </p>
       </div>
 
-      {/* Onglets */}
-      <div className="flex gap-2">
-        <button style={tabStyle(onglet === 'modele')} onClick={() => setOnglet('modele')}>
-          Modèle
-        </button>
-        <button style={tabStyle(onglet === 'tokens')} onClick={() => setOnglet('tokens')}>
-          Longueur (tokens)
-        </button>
-        <button style={tabStyle(onglet === 'fournisseur')} onClick={() => setOnglet('fournisseur')}>
-          Fournisseur
-        </button>
-        <button style={tabStyle(onglet === 'temperature')} onClick={() => setOnglet('temperature')}>
-          Température
-        </button>
-        <button style={tabStyle(onglet === 'prompts')} onClick={() => setOnglet('prompts')}>
-          Prompts
-        </button>
-      </div>
+      {/* Maître-détail : liste verticale des sections à gauche, détail à droite (motif admin qui
+          scale — jamais une rangée d'onglets en haut, ingérable quand le nombre de sections grandit). */}
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+
+        {/* ── Colonne gauche : liste verticale des sections ── */}
+        <div style={{ width: 210, flexShrink: 0 }}>
+          <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
+            {[
+              ['modele', 'Modèle'],
+              ['tokens', 'Longueur (tokens)'],
+              ['fournisseur', 'Fournisseur'],
+              ['temperature', 'Température'],
+              ['prompts', 'Prompts'],
+            ].map(([key, label]) => {
+              const active = onglet === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => setOnglet(key)}
+                  title={label}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '10px 14px', fontSize: 13, cursor: 'pointer',
+                    border: 'none', borderBottom: '1px solid #f1f5f9',
+                    borderLeft: active ? '3px solid #A63045' : '3px solid transparent',
+                    background: active ? '#fdf2f4' : 'white',
+                    color: active ? '#A63045' : '#374151',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Colonne droite : détail de la section sélectionnée ── */}
+        <div style={{ flex: 1, minWidth: 0 }} className="flex flex-col gap-6">
 
       {/* Onglet Modèle — liste déroulante fermée (Option 3) : l'admin choisit le modèle
           dans la liste blanche fournie par le backend. Invalidité impossible à la source ;
@@ -438,10 +454,9 @@ export default function AdminParametresGeneration() {
         </div>
       )}
 
-      {/* Onglet Fournisseur (Phase 4.1.e) — combo fermée des fournisseurs OPÉRATIONNELS
-          (joignabilité : Groq seul aujourd'hui). Aucun cas spécial par fournisseur : la combo
-          se remplit depuis la liste blanche backend. Note générique : les autres apparaîtront
-          ici une fois leur clé configurée. */}
+      {/* Onglet Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur ; seuls les
+          opérationnels (clé provisionnée) sont sélectionnables, les autres sont grisés « pas encore
+          disponible » (jamais un choix qui échoue). La disponibilité vient du backend (champ `all`). */}
       {onglet === 'fournisseur' && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
           <div>
@@ -453,16 +468,21 @@ export default function AdminParametresGeneration() {
               onChange={e => setAiProvider(e.target.value)}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             >
-              {supportedProviders.length === 0 && <option value="">Chargement…</option>}
-              {supportedProviders.map(p => (
-                <option key={p} value={p}>{p}</option>
+              {allProviders.length === 0 && supportedProviders.length === 0 && <option value="">Chargement…</option>}
+              {(allProviders.length
+                ? allProviders
+                : supportedProviders.map(p => ({ name: p, label: p, available: true }))
+              ).map(p => (
+                <option key={p.name} value={p.name} disabled={!p.available}>
+                  {p.label}{p.available ? '' : ' — pas encore disponible'}
+                </option>
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-1">
               Service d'IA qui exécute la génération des activités. Pris en compte immédiatement, sans redémarrage.
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              D'autres fournisseurs apparaîtront ici une fois leur clé configurée.
+              Les fournisseurs grisés ne sont pas encore disponibles : ils le deviendront une fois leur clé configurée.
             </p>
           </div>
 
@@ -670,6 +690,8 @@ export default function AdminParametresGeneration() {
         </div>
       )}
 
+      </div>{/* fin colonne droite (détail) */}
+      </div>{/* fin maître-détail */}
     </div>
   )
 }
