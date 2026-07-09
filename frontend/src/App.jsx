@@ -197,6 +197,7 @@ function MainApp() {
     Object.keys(localStorage)
       .filter(k => k.startsWith('aschool_style_count_'))
       .forEach(k => localStorage.removeItem(k))
+    localStorage.removeItem('aschool_niveau')  // niveau vit en base désormais — on purge le vieux cache
   }, [])
 
   useEffect(() => {
@@ -212,16 +213,14 @@ function MainApp() {
 
   const [params, setParams] = useState({
     activite_key: '',
-    niveau: user?.niveau || localStorage.getItem('aschool_niveau'),
+    niveau: user?.niveau || '',   // source unique = base (users.niveau via /me) — plus de cache localStorage
     sous_type: null,
     nb: 5,
     avec_correction: false,
   })
 
+  // Le niveau vit EN BASE (users.niveau, sauvegardé par le profil) — jamais dupliqué en localStorage.
   function setParamsWithSave(newParams) {
-    if (newParams.niveau !== params.niveau) {
-      localStorage.setItem('aschool_niveau', newParams.niveau)
-    }
     setParams(newParams)
   }
 
@@ -237,7 +236,6 @@ function MainApp() {
   useEffect(() => {
     if (user?.niveau && user.niveau !== params.niveau) {
       setParams(p => ({ ...p, niveau: user.niveau }))
-      localStorage.setItem('aschool_niveau', user.niveau)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.niveau])
