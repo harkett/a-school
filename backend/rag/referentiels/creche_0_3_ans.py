@@ -35,8 +35,8 @@ from typing import Any, Optional
 MAX_CHARS = 4000      # plafond de sécurité (une activité n'atteint jamais cette taille, ~800 max mesuré)
 MIN_CHARS = 60        # en dessous, pas de chunk isolé (bruit : titres orphelins)
 OVERLAP_CHARS = 150   # recouvrement — ne joue que sur une coupe de TAILLE (jamais atteinte ici)
-SCORE_MIN = 0.30      # seuil de pertinence (1 - distance cosinus) — PROVISOIRE, à calibrer sur le
-                      # corpus crèche une fois les 3 niveaux ingérés (étape « seuil »).
+# Le seuil de pertinence n'est PLUS ici : c'est de la donnée métier, il vit EN BASE
+# (`referentiels.score_min`), lu par exemple_referentiel. Règle « toute donnée métier en base ».
 
 # --- Repères de structure (sur le TEXTE extrait du PDF) ---
 # La frontière d'unité (la ligne « Âge ») N'EST PLUS un regex en dur : elle vient de la RÈGLE

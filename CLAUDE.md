@@ -251,13 +251,17 @@ Prérequis d'ingestion : la table `referentiel_chunks` doit être **migrée** (A
 
 (Bascule pgvector actée le 29/06/2026 — éradication de ChromaDB : code, dépendance et dossier `chroma_db/` supprimés ; le moteur RAG est désormais PostgreSQL unique, cohérent avec « SQLite banni ».)
 
-### Donnée métier écrite en fichier — prévenir AVANT (règle absolue)
+### Toute donnée métier vit en BASE (règle absolue — prime sur tout)
 
-Avant d'écrire une **donnée métier dans un fichier** (JSON, txt… sur le disque) **plutôt qu'en base** — quand c'est le genre de donnée que le cap veut en base (une **décision, un contenu ou un réglage saisi ou validé via l'app** : arbitrage, règle de découpe, matières, seuils…) — Claude ne le fait **jamais en silence** : il **s'arrête, le signale, et pose la question** (fichier maintenant vs base), **Harketti tranche au cas par cas**. But : ne pas **accumuler en douce** de la donnée-fichier, pour que la bascule en base, le jour venu, coûte **encore moins**.
+Toute donnée métier d'aSchool vit en **base de données**. **JAMAIS** dans un fichier JSON/txt sur le disque. Toute **décision, tout contenu, tout réglage saisi ou validé via l'app** va en base — jamais éparpillé entre fichier et base, jamais « moitié-moitié » : une fonctionnalité = ses données à **un seul endroit**, et cet endroit est **la base**.
 
-**Ne déclenche PAS la règle** (sinon on noie l'alerte) : le **PDF source** (binaire source, pas de la donnée structurée), les fichiers **temporaires/scratch**, les **logs**, les artefacts de **build**, la **config versionnée en git**, les **scripts éphémères**.
+**Seules exceptions légitimes en fichier** : le **PDF source** (binaire), le **code**, les **migrations Alembic**, la **config versionnée dans git**, les fichiers **temporaires/scratch**, les **logs**, les **artefacts de build**. **Tout le reste va en base.**
 
-> Cas fondateur (09/07/2026) : `regle-decoupe.json` / `arbitrage-flou.json` écrits en fichiers à côté du PDF frottent avec le cap « tout en base » (données saisies par l'admin à l'exécution, hors sauvegarde base). Question d'archi ouverte au réservoir (TABLEAU-DE-BORD, item 66) — non urgent, réversible (accès isolé). Le PDF, lui, reste un fichier.
+Cette règle **prime sur tout ancien cap contraire** (ex. « recette/config à côté du PDF »). On ne pose plus jamais la question « fichier ou base ? » : c'est **base**.
+
+**Garde-fou (absolu) :** avant d'écrire une donnée où que ce soit, vérifier où elle doit aller selon cette règle, l'annoncer, et ne pas coder sans ça. Jamais de fichier-donnée créé en douce. Et jamais une règle écrite dans ce fichier sans qu'elle soit **vraie sur le code réel** (une règle fausse est pire que pas de règle).
+
+(Née le 09/07/2026 : l'arbitrage d'un cas flou s'était retrouvé coupé en deux — décision en fichier, statut en base. Bricolage refusé. L'ancienne « question ouverte » fichier-vs-base est **tranchée : tout en base**.)
 
 ### Renvois — la base ailleurs dans ce fichier (elle reste à sa place utile)
 
@@ -647,7 +651,7 @@ Repère code : l'extraction propre au document renvoie une « page » autonome p
 
 **Le squelette de la procédure est universel — une seule chose change d'un document à l'autre.** Ajouter n'importe quel référentiel suit la même suite d'étapes (choisir le couple, déposer le PDF, le lire, découper, rattacher au niveau, arbitrer le flou, filtrer, vectoriser, ingérer, calibrer le seuil, tester, valider, basculer, nettoyer, activer). Ce qui change selon le document, c'est **uniquement** le **découpage** (où sont les frontières d'une unité) et le **rattachement au niveau** (quel critère trie le document) — ces deux étapes vivent dans la **fiche** (`backend/rag/referentiels/<doc>.py`), jamais dans le socle. Tout le reste est du **socle commun**, réutilisé tel quel. Ajouter un référentiel = écrire **UNE** fiche, sans toucher au squelette ni au moteur. *(Le guide de reprise éphémère détaille cette suite en 16 étapes, dont seules les étapes 5 « découper » et 6 « rattacher » sont propres au document.)*
 
-**Code d'un côté, donnée de l'autre.** Le parsing du PDF (colonnes, frontières d'activité) est du **code** propre au document, légitimement en dur. Mais les **valeurs métier** — tranches d'âge, option A/B, seuil — sont de la **donnée** : elles vivent en base (`referentiels.filtres`, `SCORE_MIN`), jamais écrites en dur dans le code.
+**Code d'un côté, donnée de l'autre.** Le parsing du PDF (colonnes, frontières d'activité) est du **code** propre au document, légitimement en dur. Les **valeurs métier** — option A/B, seuil — sont de la **donnée** et **vivent en base**. État réel : `referentiels.filtres` **en base** (colonne) ET le seuil de pertinence RAG **en base** (`referentiels.score_min`, défaut 0.30 — plus aucune constante `SCORE_MIN` en dur). *(Les tranches d'âge / bandes, elles, restent en dur dans la fiche par choix acté : voir « Immuabilité de la structure d'un référentiel » — c'est de la **structure** (code), pas un réglage.)*
 
 **L'analyse amont — une étape AVANT le découpage.** Avant de découper, on analyse le document, dans deux buts : repérer le **critère** qui le structure (l'axe de filtre : option A/B, âge…), et détecter les **cas flous** qui casseraient le découpage. L'outil fait environ 90 % seul (lire, trier les cas nets, isoler les flous) ; l'humain tranche les 10 % flous. **Règle absolue : sur un cas flou, l'outil ne décide jamais seul en silence — il signale et attend l'arbitrage** (cap « aSchool n'invente rien »). L'analyse produit le critère rangé en base et un document assaini, prêt au découpage. Menée aujourd'hui par le **dev** (prototype) ; cible = **fonction de l'app**, l'admin arbitrant le flou à la place du dev. On la bâtit donc **portable** — fonction pure et testable — jamais jetable.
 
@@ -655,10 +659,10 @@ Repère code : l'extraction propre au document renvoie une « page » autonome p
 
 ### La règle de découpe — validée par l'admin, deux faces, PAR COUPLE (règle absolue)
 
-Comment un document est **découpé** (où sont les frontières d'une unité) est piloté par une **règle de découpe** — un petit objet à **deux faces**, rangé **par couple**, à côté du PDF : `REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json`.
+Comment un document est **découpé** (où sont les frontières d'une unité) est piloté par une **règle de découpe** — un petit objet à **deux faces**, rangé **par couple**. C'est une **donnée métier** (l'admin la valide via l'app) → sa place est la **BASE** (règle « tout en base »). *(État transitoire : aujourd'hui encore en fichier `REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json` — **à migrer en base**, chantier tout-en-base #3.)*
 
 - **Deux faces.** `explication_clair` = ce que **l'admin lit** pour valider, en français, sans code (« une unité = une activité, elle commence à chaque ligne d'âge »). `critere_technique` = le **motif** (regex) que la **fiche** exécute pour trouver les frontières. Les deux disent la même chose : l'une pour l'humain, l'autre pour la machine. L'admin valide **toujours** sur la face claire, jamais sur le code.
-- **Par couple, jamais par cycle.** Un niveau = un référentiel = un document = **sa** règle. La règle vit dans le dossier du couple (comme le PDF, comme `matieres-candidates.json`), résolue par **cycle + niveau**. Jamais une règle unique posée au niveau du cycle : deux documents d'un même cycle (ex. deux spécialités BTS) se découpent différemment. *(Même pour la crèche, dont les 3 niveaux partagent le même document, le code voit 3 référentiels distincts → 3 fichiers de règle.)*
+- **Par couple, jamais par cycle.** Un niveau = un référentiel = un document = **sa** règle, résolue par **cycle + niveau**. Jamais une règle unique posée au niveau du cycle : deux documents d'un même cycle (ex. deux spécialités BTS) se découpent différemment. *(Même pour la crèche, dont les 3 niveaux partagent le même document, le code voit 3 référentiels distincts → 3 règles distinctes.)*
 - **Garde-fou — pas de découpage sans règle validée.** Le champ `valide` doit être `true` : la fiche **refuse d'ingérer** (lève) si la règle est absente ou non validée (cap « aSchool n'invente rien »). La fiche lit le motif **du fichier validé**, plus aucun regex en dur.
 - **Deux sens (le champ `depose_par`).** Sens 1 (branché) : le **dev propose** la règle, l'**admin Valide/Rejette**. Sens 2 (pas encore branché) : l'**admin propose** lui-même sa règle, le **dev vérifie**. Le champ `depose_par` (`"dev"`/`"admin"`) anticipe déjà les deux sens.
 
@@ -671,7 +675,7 @@ Repère code : la fiche crèche dérive le chemin de la règle du dossier du PDF
 | **Modèle** | Non | Global (BGE-M3), un seul pour tous — on le réutilise, on ne le refait pas. |
 | **PDF (extraction + contenu)** | **Oui** | Par référentiel : son PDF, son extraction/découpage, son contenu de fiches. La *méthode* (1 fiche = 1 chunk) est réutilisée ; l'extraction propre au document et le contenu sont neufs. |
 | **Requête** | Non | Gabarit global (`{matiere}`/`{niveau}`), s'applique à tout couple sans y retoucher. |
-| **Seuil** | **Oui** | Par référentiel (`get_fiche(collection).SCORE_MIN`), à recalibrer : il dépend de la distribution des scores de ce PDF-là. |
+| **Seuil** | **Oui** | Par référentiel, **en base** (`referentiels.score_min`), à recalibrer : il dépend de la distribution des scores de ce PDF-là. |
 
 Règle de lecture : **Modèle + Requête = leviers globaux** (bâtis une fois) ; **PDF + Seuil = par référentiel**.
 
@@ -737,10 +741,12 @@ endroit de l'app ne touche aux matières.
 **Qui lit le référentiel.** aSchool a le droit d'appeler l'IA (Groq) pour préparer un référentiel :
 c'est le même appel unique `generate()` qui sert déjà à générer les activités. Principe (cap) :
 l'IA **repère / propose**, l'admin **valide**, jamais l'IA seule. **État au 08/07/2026** : cette
-analyse (extraire/filtrer les matières) est **encore faite en DEV par Claude** (sur Max) et rangée
-dans un fichier que l'app lit (`matieres-candidates.json`) ; la faire faire **par l'app via Groq**
+analyse (extraire/filtrer les matières) est **encore faite en DEV par Claude** (sur Max), sa sortie
+étant une **donnée métier** dont la place est la **BASE** ; la faire faire **par l'app via Groq**
 est la **cible, pas encore branchée**. Les étapes 4 à 6 (comparer, afficher, enregistrer) restent
-de l'app pure, sur les données déjà en base.
+de l'app pure, sur les données déjà en base. *(État transitoire : la liste des matières candidates
+transite aujourd'hui par un fichier `matieres-candidates.json` — **à migrer en base**, chantier
+tout-en-base #5.)*
 
 **Les étapes.**
 1. Lire le PDF du référentiel (dans `REFERENTIELS/<CYCLE>/<NIVEAU>/`).
@@ -759,10 +765,10 @@ de l'app pure, sur les données déjà en base.
    **coché-ET-nouveau** (jamais de doublon : on réutilise la matière existante), puis affiche un
    bilan (ex. « 3 ajoutées, 7 déjà présentes »).
 
-**Source de la table (pas de bricolage).** La liste filtrée produite par Claude en dev est rangée
-dans un vrai fichier du référentiel — `matieres-candidates.json`, à côté de `extraction-texte.txt`
-dans `REFERENTIELS/<CYCLE>/<NIVEAU>/` — que l'écran lit pour remplir la table. Ni collage, ni
-endpoint bricolé : un fichier qui part en prod avec le reste.
+**Source de la table (pas de bricolage).** La liste filtrée produite par Claude en dev **doit vivre
+en base** (règle « tout en base »), et l'écran la lit depuis la base pour remplir la table. Ni
+collage, ni endpoint bricolé. *(État transitoire : elle transite encore par un fichier
+`matieres-candidates.json` — **à migrer en base**, chantier tout-en-base #5.)*
 
 **Sécurité (à ne jamais casser).** Les liens (niveaux, profs, chunks) référencent la matière par
 son **ID** : un renommage garde l'id et ne casse rien (mais le libellé change partout où la matière

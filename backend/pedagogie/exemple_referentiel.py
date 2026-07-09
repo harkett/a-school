@@ -21,7 +21,6 @@ from backend.core.database import get_db
 from backend.core.models import ExempleReferentielRequest, ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
-from backend.rag.referentiels import get_fiche
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
 from src.generator import generate, LLMRateLimitError
 from src.prompts import build_exemple_referentiel_prompt
@@ -44,16 +43,16 @@ AUCUN_EXTRAIT_PERTINENT = (
 REQUETE_GABARIT = "Activité d'éveil pour développer {matiere} chez un enfant de {niveau}"
 
 
-def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None] | None:
-    """Niveau → (collection, filtres ChromaDB). None = pas de référentiel pour ce couple.
+def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, float] | None:
+    """Niveau → (collection, filtres ChromaDB, seuil). None = pas de référentiel pour ce couple.
 
-    Data-driven : lit la table `referentiels` (plus de couple en dur). Jointure DIRECTE
-    referentiels → niveaux en UN seul SELECT (n.nom = :niveau AND matiere_id IS NULL),
-    pas « résoudre l'id puis requêter » (forme fragile si un nom de niveau n'est pas unique).
+    Data-driven : lit la table `referentiels` (plus de couple en dur, plus de seuil en dur).
+    Jointure DIRECTE referentiels → niveaux en UN seul SELECT (n.nom = :niveau AND matiere_id
+    IS NULL), pas « résoudre l'id puis requêter » (forme fragile si un nom de niveau n'est pas unique).
 
     Trois branches assumées :
       - 0 ligne → None (couple « en construction » : on n'invente RIEN).
-      - 1 ligne → (collection, filtres parsés depuis la colonne JSON).
+      - 1 ligne → (collection, filtres parsés depuis la colonne JSON, seuil `score_min`).
       - >1 ligne → on LÈVE bruyamment. Deux niveaux de même nom dans deux cycles
         différents sont légitimes par design (clé réelle = (nom, cycle_id)) et /api/...
         n'envoie pas le cycle → on ne peut pas trancher ici. C'est une AMBIGUÏTÉ de nom,
@@ -61,7 +60,7 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None] | N
     if not niveau:
         return None
     rows = (
-        db.query(Referentiel.collection, Referentiel.filtres)
+        db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
         .join(Niveau, Niveau.id == Referentiel.niveau_id)
         .filter(Niveau.nom == niveau, Referentiel.matiere_id.is_(None))
         .all()
@@ -71,9 +70,9 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None] | N
     if len(rows) > 1:
         log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r} (matiere_id NULL)")
         raise HTTPException(500, f"Ambiguïté niveau : {len(rows)} référentiels trouvés pour ce nom de niveau. Configuration à corriger.")
-    collection, filtres_json = rows[0]
+    collection, filtres_json, score_min = rows[0]
     filters = json.loads(filtres_json) if filtres_json else None
-    return collection, filters
+    return collection, filters, score_min
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -99,11 +98,10 @@ def api_exemple_referentiel(
         log.info(f"[exemple-ref] aucun référentiel pour niveau='{req.niveau}' → available=false")
         return ExempleReferentielResponse(available=False)
 
-    collection, filters = resolved
+    collection, filters, seuil = resolved
     # Filtre STRICT de pertinence : un chunk sous le seuil n'ancre JAMAIS une génération
-    # (pas de « meilleur quand même »). Le seuil vit dans la fiche PROPRE au couple (crèche,
-    # CIEL… chacun le sien), résolue par sa collection — plus de seuil CIEL codé en dur.
-    seuil = get_fiche(collection).SCORE_MIN
+    # (pas de « meilleur quand même »). Le seuil vit EN BASE, par référentiel
+    # (`referentiels.score_min`, résolu ci-dessus) — plus aucune constante en dur.
     requete = REQUETE_GABARIT.format(matiere=req.matiere, niveau=req.niveau)
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]

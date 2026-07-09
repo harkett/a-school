@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func
+from sqlalchemy import String, Boolean, Integer, Float, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
@@ -342,6 +342,9 @@ class Referentiel(Base):
     nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     collection: Mapped[str] = mapped_column(Text, nullable=False)
     filtres: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seuil de pertinence RAG (1 - distance cosinus) par référentiel — un chunk sous ce seuil
+    # n'ancre jamais une génération. Donnée métier EN BASE (plus de constante SCORE_MIN en dur).
+    score_min: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.30")
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
