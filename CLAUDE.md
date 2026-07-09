@@ -251,6 +251,14 @@ Prérequis d'ingestion : la table `referentiel_chunks` doit être **migrée** (A
 
 (Bascule pgvector actée le 29/06/2026 — éradication de ChromaDB : code, dépendance et dossier `chroma_db/` supprimés ; le moteur RAG est désormais PostgreSQL unique, cohérent avec « SQLite banni ».)
 
+### Donnée métier écrite en fichier — prévenir AVANT (règle absolue)
+
+Avant d'écrire une **donnée métier dans un fichier** (JSON, txt… sur le disque) **plutôt qu'en base** — quand c'est le genre de donnée que le cap veut en base (une **décision, un contenu ou un réglage saisi ou validé via l'app** : arbitrage, règle de découpe, matières, seuils…) — Claude ne le fait **jamais en silence** : il **s'arrête, le signale, et pose la question** (fichier maintenant vs base), **Harketti tranche au cas par cas**. But : ne pas **accumuler en douce** de la donnée-fichier, pour que la bascule en base, le jour venu, coûte **encore moins**.
+
+**Ne déclenche PAS la règle** (sinon on noie l'alerte) : le **PDF source** (binaire source, pas de la donnée structurée), les fichiers **temporaires/scratch**, les **logs**, les artefacts de **build**, la **config versionnée en git**, les **scripts éphémères**.
+
+> Cas fondateur (09/07/2026) : `regle-decoupe.json` / `arbitrage-flou.json` écrits en fichiers à côté du PDF frottent avec le cap « tout en base » (données saisies par l'admin à l'exécution, hors sauvegarde base). Question d'archi ouverte au réservoir (TABLEAU-DE-BORD, item 66) — non urgent, réversible (accès isolé). Le PDF, lui, reste un fichier.
+
 ### Renvois — la base ailleurs dans ce fichier (elle reste à sa place utile)
 
 - **Cluster PostgreSQL** (où il vit : `C:\Users\harketti\PostgreSQL\16`, port 5433 ; comment le démarrer / arrêter) → voir la **Règle de périmètre** (haut du fichier).
