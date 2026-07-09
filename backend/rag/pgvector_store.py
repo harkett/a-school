@@ -134,6 +134,10 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
             )
         rid = ref.id
         pdf_path = _pdf_path_for(db, ref, fiche)
+        # Règle de découpe + arbitrage du couple : DEPUIS LA BASE (colonnes de la ligne referentiels).
+        # La fiche mémorise le motif validé + l'arbitrage AVANT extract_pages (lève si non validé).
+        if hasattr(fiche, "charger_regle"):
+            fiche.charger_regle(ref)
     finally:
         db.close()
 
@@ -230,12 +234,15 @@ def apercu_decoupage(collection: str) -> dict:
         if ref is None:
             raise RuntimeError(f"Aucun référentiel en base pour collection='{collection}'.")
         pdf_path = _pdf_path_for(db, ref, fiche)
+        # Règle + arbitrage du couple depuis la BASE (idem ingestion) : lève si règle non validée.
+        if hasattr(fiche, "charger_regle"):
+            fiche.charger_regle(ref)
     finally:
         db.close()
     if not pdf_path.exists():
         raise RuntimeError(f"PDF introuvable : {pdf_path}")
 
-    pages = fiche.extract_pages(pdf_path)   # garde-fou : lève si la règle n'est pas validée
+    pages = fiche.extract_pages(pdf_path)   # motif déjà chargé (charger_regle) ; garde-fou si absent
     chunks = build_chunks(
         pages,
         max_chars=fiche.MAX_CHARS,

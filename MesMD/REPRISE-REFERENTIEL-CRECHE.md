@@ -91,7 +91,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 
 **Working-tree crèche non committé** (swap PDF en cours) : les 3 `referentiel.pdf` sont désormais **identiques** (md5 `b12497…`, un seul document 0-3 copié dans les 3 dossiers, conforme à D60 §Dépôt) + les 3 `extraction-texte.txt` identiques (md5 `5a47cd…`). À committer avec le swap quand décidé.
 
-**Étapes 5-6 FAITES (08/07/2026).** Le moteur découpe via la **règle de découpe validée** (motif lu du fichier `regle-decoupe.json` **du couple**, plus de regex en dur ; garde-fou : pas de découpage sans validation) et le **tag d'âge** rattache chaque unité à son niveau — prouvé **18 / 27 / 27** (Bébés / Moyens / Grands). **Prochaine étape = 7 (arbitrer les cas flous) puis ingestion (8-10) sur le miroir.** L'arbitrage réel du flou reste à construire : aujourd'hui la carte « Résultat du découpage » **signale** « âge à confirmer », mais l'admin ne **tranche** pas encore la tranche d'âge (cf. [D60](BOUSSOLE/D60.md) § Reste à faire).
+**Étapes 5-6 FAITES (08/07/2026).** Le moteur découpe via la **règle de découpe validée** (motif lu **EN BASE** — `referentiels.regle_motif`, via `charger_regle(ref)` appelé par le socle avant `extract_pages` ; plus de regex en dur ni de fichier ; garde-fou : pas de découpage sans validation) et le **tag d'âge** rattache chaque unité à son niveau — prouvé **18 / 27 / 27** (Bébés / Moyens / Grands). *(MAJ 09/07/2026 — migration « tout en base » #3+#4 : règle de découpe et arbitrage des cas flous versés en colonnes de `referentiels` ; les `regle-decoupe.json` supprimés.)* **Prochaine étape = 7 (arbitrer les cas flous) puis ingestion (8-10) sur le miroir.** L'arbitrage réel du flou reste à construire : aujourd'hui la carte « Résultat du découpage » **signale** « âge à confirmer », mais l'admin ne **tranche** pas encore la tranche d'âge (cf. [D60](BOUSSOLE/D60.md) § Reste à faire).
 
 ---
 
@@ -110,7 +110,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 - On travaille avec le **niveau, identifié par son identifiant unique (`niveau_id`)** — c'est lui qu'on passe partout. Le nom en clair se retrouve en base via l'id ; on ne manipule **jamais** le libellé pour décider.
 - Le **filtrage par niveau se fait à l'ingestion** : chaque collection ne reçoit que le contenu de son niveau (étape 8).
 - La **recherche (`retrieve_pg`) n'est pas touchée** (elle isole déjà par `referentiel_id`).
-- On **ne touche pas à la base** : aucune colonne ajoutée, aucun champ de règle. La logique métier vit dans le **code de la fiche** (`backend/rag/referentiels/creche_0_3_ans.py`).
+- Pour le **tri par niveau** UNIQUEMENT (quel contenu → quel niveau) : **aucune colonne** en base — cette logique **structurelle** vit dans le **code de la fiche** (`backend/rag/referentiels/creche_0_3_ans.py`). *(MAJ 09/07/2026 : à ne pas confondre avec « tout en base » — la **règle de découpe**, l'**arbitrage**, le **seuil** et les **matières candidates** sont des **données** et vivent bien **en base**, cf. migrations #1/#3/#4/#5.)*
 - **Vocabulaire : on dit « tranche d'âge », jamais « bande ».**
 - **Ne pas compliquer.** Solution simple d'abord. Pas de concept intermédiaire inventé.
 

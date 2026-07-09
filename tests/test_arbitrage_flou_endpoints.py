@@ -1,18 +1,16 @@
-r"""Preuve — BRIQUE 1b : l'admin tranche un cas flou via 2 endpoints. La décision vit dans le
-dossier du COUPLE (REFERENTIELS/<CYCLE>/<NIVEAU>/arbitrage-flou.json), à côté du PDF — comme
-regle-decoupe.json. Les bandes saisies sont validées contre celles de la FICHE (jamais une bande
-inconnue = trou muet).
+r"""Preuve — l'admin tranche un cas flou via 2 endpoints. La décision vit EN BASE (colonne
+`referentiels.arbitrage`, JSON {label: [bandes]}) — comme la règle de découpe. Les bandes saisies
+sont validées contre celles de la FICHE (jamais une bande inconnue = trou muet).
 
 Ce que ce test PROUVE (chaîne réelle, TestClient + base aschool_test) :
-  1. POST /admin/referentiels/arbitrage-flou écrit { label: [bandes] } ; GET le relit.
+  1. POST /admin/referentiels/arbitrage-flou écrit { label: [bandes] } EN BASE ; GET le relit.
   2. Deux décisions cohabitent (les autres entrées sont préservées).
   3. POST bande invalide (« 9-9 ») -> 400 (garde-fou anti-trou-muet).
   4. POST bandes:[] -> retire la décision (dé-trancher).
-  5. GET sans fichier -> { arbitrages: {} }.
+  5. GET sans décision -> { arbitrages: {} }.
   6. Couple sans référentiel -> 404 ; niveau inconnu -> 404 ; cycle inconnu -> 404 ; sans cookie -> 401.
 
-Isolation : REFERENTIELS_DIR est monkeypatché vers un dossier temporaire — les vrais
-arbitrage-flou.json committés ne sont JAMAIS touchés. La base est TRUNCATée entre tests (conftest).
+Isolation : la base est TRUNCATée entre tests (conftest) ; chaque test sème son couple.
 
 Lancer : .\.venv\Scripts\python.exe -m pytest tests/test_arbitrage_flou_endpoints.py -q
 """
@@ -30,7 +28,6 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
-import backend.pedagogie.referentiels_admin as radmin
 from backend.core.models_db import Cycle, Niveau, Referentiel
 from backend.main import app
 from backend.systeme.admin import _make_admin_token
@@ -47,10 +44,9 @@ def _admin():
     return c
 
 
-def _couple(tmp_path, monkeypatch, avec_referentiel=True, niveau=NIVEAU):
-    """Monkeypatch REFERENTIELS_DIR -> tmp_path, crée le cycle + le niveau (+ le référentiel du
-    couple, sauf si avec_referentiel=False). Renvoie le cycle_id."""
-    monkeypatch.setattr(radmin, "REFERENTIELS_DIR", tmp_path)
+def _couple(avec_referentiel=True, niveau=NIVEAU):
+    """Crée le cycle + le niveau (+ le référentiel du couple, sauf si avec_referentiel=False).
+    Renvoie le cycle_id. La décision d'arbitrage vit EN BASE (referentiels.arbitrage)."""
     db = dbmod.SessionLocal()
     cy = Cycle(nom="Crèche", ordre=1); db.add(cy); db.flush()
     niv = Niveau(cycle_id=cy.id, nom=niveau, ordre=1); db.add(niv); db.flush()
@@ -63,28 +59,34 @@ def _couple(tmp_path, monkeypatch, avec_referentiel=True, niveau=NIVEAU):
     return cid
 
 
-def _fichier(tmp_path, niveau=NIVEAU):
-    return tmp_path / "CRECHE" / radmin._dossier_cle(niveau) / "arbitrage-flou.json"
+def _arbitrage_en_base():
+    """Relit la colonne referentiels.arbitrage du couple (dict {label: [bandes]}), {} si NULL."""
+    db = dbmod.SessionLocal()
+    try:
+        r = db.query(Referentiel).filter(Referentiel.collection == COLLECTION).first()
+        return {} if (r is None or not r.arbitrage) else json.loads(r.arbitrage)
+    finally:
+        db.close()
 
 
 # ── POST écrit / GET relit ────────────────────────────────────────────────────
 
-def test_post_ecrit_et_get_relit(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_ecrit_et_get_relit():
+    cid = _couple()
     r = _admin().post("/api/admin/referentiels/arbitrage-flou",
                       json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": ["1-3"]})
     assert r.status_code == 200, r.text
     assert r.json() == {"ok": True, "arbitrages": {FLOU: ["1-3"]}}
-    # disque
-    assert json.loads(_fichier(tmp_path).read_text(encoding="utf-8"))["arbitrages"][FLOU] == ["1-3"]
+    # base
+    assert _arbitrage_en_base()[FLOU] == ["1-3"]
     # GET relit
     g = _admin().get(f"/api/admin/referentiels/arbitrage-flou?cycle_id={cid}&niveau={quote(NIVEAU)}")
     assert g.status_code == 200, g.text
     assert g.json() == {"arbitrages": {FLOU: ["1-3"]}}
 
 
-def test_post_deux_decisions_cohabitent(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_deux_decisions_cohabitent():
+    cid = _couple()
     cli = _admin()
     cli.post("/api/admin/referentiels/arbitrage-flou",
              json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": ["1-3"]})
@@ -95,17 +97,17 @@ def test_post_deux_decisions_cohabitent(tmp_path, monkeypatch):
     assert arb == {FLOU: ["1-3"], "tout-petits": ["0-1", "1-3"]}   # la 1re décision préservée
 
 
-def test_post_bande_invalide_400(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_bande_invalide_400():
+    cid = _couple()
     r = _admin().post("/api/admin/referentiels/arbitrage-flou",
                       json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": ["9-9"]})
     assert r.status_code == 400, r.text
     assert "inconnue" in r.json()["detail"].lower()
-    assert not _fichier(tmp_path).exists()          # rien écrit
+    assert _arbitrage_en_base() == {}               # rien écrit
 
 
-def test_post_bandes_vides_retire(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_bandes_vides_retire():
+    cid = _couple()
     cli = _admin()
     cli.post("/api/admin/referentiels/arbitrage-flou",
              json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": ["1-3"]})
@@ -113,11 +115,11 @@ def test_post_bandes_vides_retire(tmp_path, monkeypatch):
                  json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": []})
     assert r.status_code == 200, r.text
     assert r.json()["arbitrages"] == {}             # décision retirée
-    assert json.loads(_fichier(tmp_path).read_text(encoding="utf-8"))["arbitrages"] == {}
+    assert _arbitrage_en_base() == {}
 
 
-def test_post_label_vide_400(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_label_vide_400():
+    cid = _couple()
     r = _admin().post("/api/admin/referentiels/arbitrage-flou",
                       json={"cycle_id": cid, "niveau": NIVEAU, "label": "   ", "bandes": ["1-3"]})
     assert r.status_code == 400, r.text
@@ -125,36 +127,34 @@ def test_post_label_vide_400(tmp_path, monkeypatch):
 
 # ── GET absent / erreurs ──────────────────────────────────────────────────────
 
-def test_get_absent_arbitrages_vides(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_get_absent_arbitrages_vides():
+    cid = _couple()
     g = _admin().get(f"/api/admin/referentiels/arbitrage-flou?cycle_id={cid}&niveau={quote(NIVEAU)}")
     assert g.status_code == 200, g.text
     assert g.json() == {"arbitrages": {}}
 
 
-def test_post_sans_referentiel_404(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch, avec_referentiel=False)   # niveau existe, pas de référentiel
+def test_post_sans_referentiel_404():
+    cid = _couple(avec_referentiel=False)   # niveau existe, pas de référentiel
     r = _admin().post("/api/admin/referentiels/arbitrage-flou",
                       json={"cycle_id": cid, "niveau": NIVEAU, "label": FLOU, "bandes": ["1-3"]})
     assert r.status_code == 404, r.text
     assert "référentiel" in r.json()["detail"].lower()
 
 
-def test_post_niveau_inconnu_404(tmp_path, monkeypatch):
-    cid = _couple(tmp_path, monkeypatch)
+def test_post_niveau_inconnu_404():
+    cid = _couple()
     r = _admin().post("/api/admin/referentiels/arbitrage-flou",
                       json={"cycle_id": cid, "niveau": "Niveau qui n'existe pas", "label": FLOU, "bandes": ["1-3"]})
     assert r.status_code == 404, r.text
 
 
-def test_get_cycle_inconnu_404(tmp_path, monkeypatch):
-    monkeypatch.setattr(radmin, "REFERENTIELS_DIR", tmp_path)
+def test_get_cycle_inconnu_404():
     r = _admin().get(f"/api/admin/referentiels/arbitrage-flou?cycle_id=999999&niveau={quote(NIVEAU)}")
     assert r.status_code == 404, r.text
 
 
-def test_sans_cookie_admin_401(tmp_path, monkeypatch):
-    monkeypatch.setattr(radmin, "REFERENTIELS_DIR", tmp_path)
+def test_sans_cookie_admin_401():
     anon = TestClient(app)
     assert anon.get(
         f"/api/admin/referentiels/arbitrage-flou?cycle_id=1&niveau={quote(NIVEAU)}").status_code == 401

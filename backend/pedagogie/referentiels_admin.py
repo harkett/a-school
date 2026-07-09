@@ -276,59 +276,57 @@ def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
 
 
 # ── Règle de découpe d'un référentiel : lire + valider/rejeter le statut ──
-#    Objet à deux faces (explication_clair + critere_technique), rangé dans le dossier du
-#    COUPLE (REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json), à côté du PDF — une règle
-#    PAR référentiel, jamais partagée au niveau du cycle. Un niveau = un référentiel = un
-#    document = sa règle (aucune exception crèche : le code voit 3 référentiels distincts,
-#    donc 3 règles). L'admin ne fait que valider/rejeter le STATUT ; il ne modifie pas le
-#    texte (pas d'écriture des deux faces). Fichier, jamais base : aucune histoire de miroir.
+#    Objet à deux faces (explication_clair + critere_technique) porté EN BASE par la ligne
+#    `referentiels` du COUPLE (colonnes regle_explication / regle_motif / regle_depose_par /
+#    regle_valide) — une règle PAR référentiel, jamais partagée au niveau du cycle. Un niveau =
+#    un référentiel = un document = sa règle (aucune exception crèche : le code voit 3 référentiels
+#    distincts, donc 3 règles). L'admin ne fait que valider/rejeter le STATUT (regle_valide) ; il
+#    ne modifie pas les deux faces.
 
-def _regle_decoupe_path(db: Session, cycle_id: int, niveau: str) -> Path:
-    """Chemin du regle-decoupe.json du COUPLE (cycle + niveau), à côté du PDF :
-    REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json — résolu exactement comme le PDF.
-    Lève 404 si le cycle est inconnu, 422 si le niveau manque."""
+def _ref_du_couple(db: Session, cycle_id: int, niveau: str) -> Referentiel | None:
+    """Résout la ligne `referentiels` (matiere_id NULL) du COUPLE cycle+niveau — le porteur EN BASE
+    de la règle de découpe et de l'arbitrage. Lève 404 si le cycle est inconnu, 422 si le niveau
+    manque. Renvoie None si le niveau ou le référentiel du couple n'existe pas encore."""
     cycle = db.get(Cycle, cycle_id)
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
     niveau_nom = (niveau or "").strip()
     if not niveau_nom:
-        raise HTTPException(422, "Niveau manquant pour résoudre la règle de découpe.")
-    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau_nom) / "regle-decoupe.json"
+        raise HTTPException(422, "Niveau manquant pour résoudre le couple.")
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
+    if not niv:
+        return None
+    return (db.query(Referentiel)
+              .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
 
 
 def _ecrire_statut_regle(db: Session, cycle_id: int, niveau: str, valide: bool) -> dict:
-    """Passe le champ `valide` de la règle à la valeur voulue, en préservant les autres
-    champs (les deux faces, depose_par). Lève 404 si le fichier n'existe pas."""
-    fichier = _regle_decoupe_path(db, cycle_id, niveau)
-    if not fichier.exists():
+    """Passe `regle_valide` du couple à la valeur voulue, EN BASE (les deux faces intactes). Lève
+    404 si aucun référentiel ou aucune règle posée (motif vide) pour ce couple — jamais de statut
+    fantôme."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None or not (ref.regle_motif or "").strip():
         raise HTTPException(404, "Aucune règle de découpe pour ce couple.")
-    try:
-        data = json.loads(fichier.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise HTTPException(400, f"Règle de découpe illisible : {e}")
-    data["valide"] = valide
-    fichier.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    ref.regle_valide = valide
+    db.commit()
     return {"ok": True, "valide": valide}
 
 
 @router.get("/admin/referentiels/regle-decoupe", dependencies=[Depends(_require_admin)])
 def lire_regle_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit la règle de découpe du référentiel (lecture seule), résolue par COUPLE
-    (cycle + niveau). `existe: false` si le fichier est absent → l'écran n'affiche
-    simplement pas la carte."""
-    fichier = _regle_decoupe_path(db, cycle_id, niveau)
-    if not fichier.exists():
+    """Lit la règle de découpe du référentiel (lecture seule), EN BASE, résolue par COUPLE
+    (cycle + niveau). `existe: false` si aucun référentiel pour ce couple ou aucune règle posée
+    (motif vide) → l'écran n'affiche simplement pas la carte."""
+    ref = _ref_du_couple(db, cycle_id, niveau)          # 404 cycle inconnu / 422 niveau manquant
+    if ref is None or not (ref.regle_motif or "").strip():
         return {"existe": False}
-    try:
-        data = json.loads(fichier.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise HTTPException(400, f"Règle de découpe illisible : {e}")
     return {
         "existe": True,
-        "explication_clair": data.get("explication_clair", ""),
-        "critere_technique": data.get("critere_technique", ""),
-        "depose_par": data.get("depose_par", ""),
-        "valide": bool(data.get("valide", False)),
+        "explication_clair": ref.regle_explication or "",
+        "critere_technique": ref.regle_motif or "",
+        "depose_par": ref.regle_depose_par or "",
+        "valide": bool(ref.regle_valide),
     }
 
 
@@ -360,25 +358,11 @@ def apercu_decoupage_couple(cycle_id: int, niveau: str, db: Session = Depends(ge
       - pas de règle pour ce cycle  -> {disponible:false, raison:"non_applicable"} (carte masquée) ;
       - règle non validée           -> {disponible:false, raison:"regle_non_validee"} (invite à valider) ;
       - sinon                       -> l'aperçu complet."""
-    niveau_nom = (niveau or "").strip()
-    regle_fichier = _regle_decoupe_path(db, cycle_id, niveau_nom)   # lève 404 cycle / 422 niveau
-    if not regle_fichier.exists():
+    ref = _ref_du_couple(db, cycle_id, niveau)   # lève 404 cycle / 422 niveau
+    if ref is None or not (ref.regle_motif or "").strip():
         return {"disponible": False, "raison": "non_applicable"}
-    try:
-        regle = json.loads(regle_fichier.read_text(encoding="utf-8"))
-    except Exception:
-        return {"disponible": False, "raison": "non_applicable"}
-    if not regle.get("valide"):
+    if not ref.regle_valide:
         return {"disponible": False, "raison": "regle_non_validee"}
-
-    niv = (db.query(Niveau)
-             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
-    if not niv:
-        return {"disponible": False, "raison": "niveau"}
-    ref = (db.query(Referentiel)
-             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
-    if not ref:
-        return {"disponible": False, "raison": "referentiel"}
 
     from backend.rag.pgvector_store import apercu_decoupage   # import paresseux (aucun coût au boot)
     try:
@@ -389,35 +373,24 @@ def apercu_decoupage_couple(cycle_id: int, niveau: str, db: Session = Depends(ge
 
 
 # ── Arbitrage des cas flous : l'admin tranche la tranche d'âge d'un libellé flou ──
-#    Donnée par couple, à côté du PDF (arbitrage-flou.json), comme regle-decoupe.json. La fiche
-#    lit ce fichier à l'ingestion (le flou n'est plus deviné). Écrire = trancher ; bandes vides =
-#    dé-trancher. On valide les bandes contre celles de la FICHE -> jamais une bande inconnue
-#    (qui rangerait l'unité dans aucune collection = trou muet).
-
-def _arbitrage_path(db: Session, cycle_id: int, niveau: str) -> Path:
-    """Chemin de l'arbitrage du couple : arbitrage-flou.json dans REFERENTIELS/<CYCLE>/<NIVEAU>/,
-    à côté du PDF et de regle-decoupe.json. Lève 404 cycle inconnu, 422 niveau manquant."""
-    cycle = db.get(Cycle, cycle_id)
-    if not cycle:
-        raise HTTPException(404, "Cycle inconnu.")
-    niveau_nom = (niveau or "").strip()
-    if not niveau_nom:
-        raise HTTPException(422, "Niveau manquant pour résoudre l'arbitrage.")
-    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau_nom) / "arbitrage-flou.json"
-
+#    Donnée du couple, EN BASE (colonne referentiels.arbitrage, JSON {label: [bandes]}), comme la
+#    règle de découpe. La fiche lit cette colonne à l'ingestion (le flou n'est plus deviné).
+#    Écrire = trancher ; bandes vides = dé-trancher. On valide les bandes contre celles de la FICHE
+#    -> jamais une bande inconnue (qui rangerait l'unité dans aucune collection = trou muet).
 
 @router.get("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
 def lire_arbitrage_flou(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit l'arbitrage des cas flous du couple (lecture seule). Fichier absent -> arbitrages vides.
-    La LISTE des flous à trancher se lit dans l'aperçu (champ `arbitre`) — ici on sert les décisions."""
-    fichier = _arbitrage_path(db, cycle_id, niveau)
-    if not fichier.exists():
+    """Lit l'arbitrage des cas flous du couple (lecture seule), EN BASE (referentiels.arbitrage).
+    Aucun référentiel / aucun arbitrage -> {arbitrages: {}}. La LISTE des flous à trancher se lit
+    dans l'aperçu (champ `arbitre`) — ici on sert les décisions."""
+    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle inconnu / 422 niveau manquant
+    if ref is None or not ref.arbitrage:
         return {"arbitrages": {}}
     try:
-        data = json.loads(fichier.read_text(encoding="utf-8"))
+        data = json.loads(ref.arbitrage)
     except Exception as e:
-        raise HTTPException(400, f"arbitrage-flou.json illisible : {e}")
-    arb = data.get("arbitrages") or {}
+        raise HTTPException(400, f"Arbitrage (referentiels.arbitrage) illisible : {e}")
+    arb = data if isinstance(data, dict) else {}
     return {"arbitrages": {str(k): [str(b) for b in (v or [])] for k, v in arb.items()}}
 
 
@@ -430,7 +403,7 @@ class ArbitrageFlouBody(BaseModel):
 
 @router.post("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
 def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(get_db)):
-    """L'admin tranche un cas flou : écrit { label: [bandes] } dans arbitrage-flou.json du couple.
+    """L'admin tranche un cas flou : écrit { label: [bandes] } dans referentiels.arbitrage (JSON).
     Valide les bandes contre celles de la FICHE (jamais une bande inconnue -> pas de trou muet).
     bandes vides = retire la décision. Préserve les autres entrées."""
     label = (body.label or "").strip()
@@ -438,14 +411,8 @@ def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(ge
         raise HTTPException(400, "Le libellé du cas flou est requis.")
 
     # Résoudre le couple -> référentiel -> collection -> fiche (pour ses bandes valides).
-    niveau_nom = (body.niveau or "").strip()
-    niv = (db.query(Niveau)
-             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
-    ref = (db.query(Referentiel)
-             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
-    if not ref:
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple — rien à arbitrer.")
     from backend.rag.referentiels import get_fiche
     valides = getattr(get_fiche(ref.collection), "BANDES_VALIDES", None)
@@ -457,22 +424,20 @@ def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(ge
     if hors:
         raise HTTPException(400, f"Tranche(s) d'âge inconnue(s) : {hors}. Attendu : {sorted(valides)}.")
 
-    # Lire l'existant (préserver les autres décisions), appliquer, réécrire.
-    fichier = _arbitrage_path(db, body.cycle_id, body.niveau)
-    data = {"arbitrages": {}}
-    if fichier.exists():
+    # Lire l'existant (préserver les autres décisions), appliquer, réécrire EN BASE.
+    arb = {}
+    if ref.arbitrage:
         try:
-            data = json.loads(fichier.read_text(encoding="utf-8"))
+            data = json.loads(ref.arbitrage)
+            arb = data if isinstance(data, dict) else {}
         except Exception as e:
-            raise HTTPException(400, f"arbitrage-flou.json illisible : {e}")
-    arb = data.get("arbitrages") or {}
+            raise HTTPException(400, f"Arbitrage (referentiels.arbitrage) illisible : {e}")
     if bandes:
         arb[label] = bandes
     else:
         arb.pop(label, None)               # bandes vides = dé-trancher
-    data["arbitrages"] = arb
-    fichier.parent.mkdir(parents=True, exist_ok=True)
-    fichier.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    ref.arbitrage = json.dumps(arb, ensure_ascii=False) if arb else None
+    db.commit()
     return {"ok": True, "arbitrages": arb}
 
 

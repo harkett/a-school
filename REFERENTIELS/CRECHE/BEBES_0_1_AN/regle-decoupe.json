@@ -1,6 +1,0 @@
-{
-  "explication_clair": "Une unité = une activité. Elle commence à chaque ligne qui indique un âge (exemple : « - Âge : 1-3 ans »).",
-  "critere_technique": "^\\s*-?\\s*Âge\\s*:\\s*(.+)$",
-  "depose_par": "dev",
-  "valide": true
-}

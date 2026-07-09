@@ -362,6 +362,16 @@ class Referentiel(Base):
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Règle de découpe du couple (objet à deux faces) — DONNÉE MÉTIER EN BASE (plus de fichier
+    # regle-decoupe.json). L'admin valide sur `regle_explication` (face claire, sans code) ; la fiche
+    # exécute `regle_motif` (regex) à l'ingestion. `regle_valide` : découpage REFUSÉ tant que False.
+    regle_explication: Mapped[str | None] = mapped_column(Text, nullable=True)
+    regle_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
+    regle_depose_par: Mapped[str | None] = mapped_column(Text, nullable=True)   # 'dev' | 'admin'
+    regle_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # Arbitrage des cas flous du couple : JSON {libellé d'âge flou: [bandes]} — DONNÉE MÉTIER EN BASE
+    # (plus de fichier arbitrage-flou.json). NULL/absent = aucun cas flou tranché.
+    arbitrage: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 

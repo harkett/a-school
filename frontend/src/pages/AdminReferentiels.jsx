@@ -83,7 +83,7 @@ export default function AdminReferentiels() {
         setMatieres(construireLignesMatieres(d))
       })
       .catch(() => { if (!annule) setEtat(null) })
-    // Règle de découpe du couple (fichier regle-decoupe.json, résolu par cycle + niveau).
+    // Règle de découpe du couple (EN BASE : colonnes regle_* de referentiels, résolu par cycle + niveau).
     fetchWithTimeout(`/api/admin/referentiels/regle-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
@@ -95,8 +95,8 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) setApercuDecoupe(d && d.raison !== 'non_applicable' ? d : null) })
       .catch(() => { if (!annule) setApercuDecoupe(null) })
-    // Décisions d'arbitrage des cas flous (fichier arbitrage-flou.json du couple). On pré-remplit
-    // la sélection de l'admin avec ce qui est déjà tranché.
+    // Décisions d'arbitrage des cas flous (EN BASE : colonne referentiels.arbitrage du couple).
+    // On pré-remplit la sélection de l'admin avec ce qui est déjà tranché.
     fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))

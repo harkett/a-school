@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any, Optional
 
 # --- Découpe : 1 ACTIVITÉ = 1 CHUNK (frontière = titre d'activité, pas taille fixe) ---
@@ -40,88 +39,59 @@ OVERLAP_CHARS = 150   # recouvrement — ne joue que sur une coupe de TAILLE (ja
 
 # --- Repères de structure (sur le TEXTE extrait du PDF) ---
 # La frontière d'unité (la ligne « Âge ») N'EST PLUS un regex en dur : elle vient de la RÈGLE
-# VALIDÉE par l'admin, rangée À CÔTÉ DU PDF du couple traité
-# (REFERENTIELS/<CYCLE>/<NIVEAU>/regle-decoupe.json, champ critere_technique). Une règle PAR
-# référentiel : le code voit 3 référentiels crèche distincts (Bébés, Moyens, Grands) → 3 règles,
-# chacune dans son dossier, à côté de son PDF. Pas de règle validée -> pas de découpage
-# (cap « aSchool n'invente rien »).
+# VALIDÉE par l'admin, rangée EN BASE (colonne `referentiels.regle_motif`, validée via
+# `regle_valide`). Une règle PAR référentiel : le code voit 3 référentiels crèche distincts
+# (Bébés, Moyens, Grands) → 3 lignes referentiels, chacune sa règle. Pas de règle validée ->
+# pas de découpage (cap « aSchool n'invente rien »). Le socle charge la règle du couple
+# (charger_regle) AVANT extract_pages, à partir de la ligne referentiels qu'il a déjà résolue.
 _DOMAINE_RE = re.compile(r"^\s*DOMAINE\s+\d")           # en-tête « DOMAINE n — … » (borne, pas activité)
 _TAIL_RE    = re.compile(r"^\s*(À VALIDER|Sources\s*&\s*attribution|Sources\s+et\s+attribution)")
 _RENVOI_RE  = re.compile(r"\(renvoi\)\s*$")             # ligne « … (renvoi) » (pointeur, pas activité)
 
-# Motif de frontière courant : (re)chargé par extract_pages à CHAQUE ingestion (depuis la règle
-# du couple, à côté du PDF traité), réutilisé par section_boundary sans relire le fichier.
+# Motif de frontière courant : posé par charger_regle (règle validée du couple, EN BASE) AVANT
+# extract_pages, réutilisé par section_boundary / apercu_unites sans relire la base.
 _MOTIF: Optional[re.Pattern] = None
 
-
-def _regle_path_for(pdf_path) -> Path:
-    """Chemin de la règle de découpe du couple : le regle-decoupe.json rangé DANS LE MÊME
-    DOSSIER que le PDF traité (REFERENTIELS/<CYCLE>/<NIVEAU>/). Seul point qui localise la
-    règle — dérivé du PDF, donc automatiquement le bon couple, sans passer le niveau en
-    paramètre. (Point de couture pour les tests : monkeypatchable.)"""
-    return Path(pdf_path).parent / "regle-decoupe.json"
+# Arbitrage des cas flous : DONNÉE du couple, EN BASE (colonne `referentiels.arbitrage`, JSON
+#   { "<libellé d'âge flou exact>": ["<bande>", ...] }). Rempli par l'admin (endpoint arbitrage-flou).
+# Présence d'une clé = ce cas flou est TRANCHÉ ; absence = NON tranché (jamais deviné). Posé par
+# charger_regle en même temps que le motif.
+_ARBITRAGE: dict[str, list[str]] = {}
 
 
-def _charger_motif_valide(regle_path: Path) -> re.Pattern:
-    """Lit la règle de découpe validée (à côté du PDF) et compile son critère technique en motif
-    de frontière. Refuse (lève) si la règle est absente, NON validée, ou sans critère : pas de
-    découpage tant que l'admin n'a pas validé (cap « aSchool n'invente rien »)."""
-    if not regle_path.exists():
-        raise RuntimeError(
-            f"Règle de découpe absente ({regle_path}). "
-            "Découpage refusé : l'admin doit d'abord déposer et valider la règle du couple."
-        )
+def _parse_arbitrage(raw) -> dict[str, list[str]]:
+    """Colonne `referentiels.arbitrage` (JSON {libellé flou: [bandes]}) -> dict propre. NULL/vide ->
+    {} (ce n'est PAS une erreur : inutile tant qu'aucun cas flou n'est tranché). Illisible -> lève."""
+    if not raw:
+        return {}
     try:
-        data = json.loads(regle_path.read_text(encoding="utf-8"))
+        data = json.loads(raw) if isinstance(raw, str) else raw
     except Exception as e:
-        raise RuntimeError(f"Règle de découpe illisible ({regle_path}) : {e}")
-    if not data.get("valide"):
+        raise RuntimeError(f"Arbitrage (referentiels.arbitrage) illisible : {e}")
+    if not isinstance(data, dict):
+        return {}
+    return {str(k).strip(): [str(b).strip() for b in (v or [])] for k, v in data.items()}
+
+
+def charger_regle(ref) -> re.Pattern:
+    """Charge la règle de découpe + l'arbitrage du couple DEPUIS LA BASE (colonnes de la ligne
+    `referentiels` : `regle_valide`, `regle_motif`, `arbitrage`). Le socle l'appelle AVANT
+    extract_pages (il a déjà résolu la ligne du couple). Mémorise le motif validé dans _MOTIF
+    (réutilisé par section_boundary / apercu_unites) et l'arbitrage dans _ARBITRAGE. Refuse (lève)
+    si la règle n'est PAS validée ou si le critère technique est vide : pas de découpage tant que
+    l'admin n'a pas validé (cap « aSchool n'invente rien »)."""
+    global _MOTIF, _ARBITRAGE
+    if not getattr(ref, "regle_valide", False):
         raise RuntimeError(
             "Règle de découpe NON validée par l'admin. Découpage refusé "
             "(aSchool n'invente rien : la règle doit être validée avant d'ingérer)."
         )
-    motif = (data.get("critere_technique") or "").strip()
+    motif = (getattr(ref, "regle_motif", None) or "").strip()
     if not motif:
         raise RuntimeError("Règle de découpe : critère technique vide. Découpage refusé.")
-    return re.compile(motif)
-
-
-def _motif_courant(pdf_path) -> re.Pattern:
-    """Recharge le motif validé (règle du couple, à côté du PDF) et le mémorise pour la passe de
-    découpage en cours (extract_pages tourne toujours avant section_boundary, qui réutilise ce motif).
-    Recharge AUSSI l'arbitrage des cas flous du couple (arbitrage-flou.json, à côté du PDF)."""
-    global _MOTIF, _ARBITRAGE
-    _MOTIF = _charger_motif_valide(_regle_path_for(pdf_path))
-    _ARBITRAGE = _charger_arbitrage(pdf_path)
+    _MOTIF = re.compile(motif)
+    _ARBITRAGE = _parse_arbitrage(getattr(ref, "arbitrage", None))
     return _MOTIF
-
-
-# --- Arbitrage des cas flous : DONNÉE par couple, à côté du PDF (jamais en dur) ---
-# Fichier REFERENTIELS/<CYCLE>/<NIVEAU>/arbitrage-flou.json, champ "arbitrages" :
-#   { "<libellé d'âge flou exact>": ["<bande>", ...] }
-# Rempli par l'admin (endpoint à venir, brique 1b). Présence d'une clé = ce cas flou est TRANCHÉ ;
-# absence = NON tranché (jamais deviné). (Re)chargé par _motif_courant à chaque passe de découpage.
-_ARBITRAGE: dict[str, list[str]] = {}
-
-
-def _arbitrage_path_for(pdf_path) -> Path:
-    """Chemin de l'arbitrage du couple : arbitrage-flou.json DANS LE MÊME DOSSIER que le PDF
-    (REFERENTIELS/<CYCLE>/<NIVEAU>/), comme regle-decoupe.json. (Monkeypatchable pour les tests.)"""
-    return Path(pdf_path).parent / "arbitrage-flou.json"
-
-
-def _charger_arbitrage(pdf_path) -> dict[str, list[str]]:
-    """Lit arbitrage-flou.json (à côté du PDF) -> { libellé flou : [bandes] }. Absent -> {}
-    (ce n'est PAS une erreur : inutile tant qu'aucun cas flou n'est à trancher). Illisible -> lève."""
-    p = _arbitrage_path_for(pdf_path)
-    if not p.exists():
-        return {}
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise RuntimeError(f"arbitrage-flou.json illisible ({p}) : {e}")
-    arb = data.get("arbitrages") or {}
-    return {str(k).strip(): [str(b).strip() for b in (v or [])] for k, v in arb.items()}
 
 # --- Bandes d'âge (le tag) : « 0-1 » (Bébés) et « 1-3 » (Moyens + Grands) ---
 _BANDE_BEBES = "0-1"
@@ -134,8 +104,8 @@ BANDES_VALIDES = frozenset({_BANDE_BEBES, _BANDE_1_3})
 # CODE d'un côté, DONNÉE de l'autre :
 #  - les libellés NETS (« 0-1 & 1-3 », « bébés-3 », « 1-3 ») sont parsés en dur — lire la notation
 #    propre du document est du code légitime ;
-#  - les libellés FLOUS ne sont PLUS devinés : leur tranche est lue dans l'ARBITRAGE (donnée par
-#    couple, arbitrage-flou.json). Flou non tranché -> frozenset vide (cap « aSchool n'invente rien »).
+#  - les libellés FLOUS ne sont PLUS devinés : leur tranche est lue dans l'ARBITRAGE (donnée du
+#    couple, EN BASE : referentiels.arbitrage). Flou non tranché -> frozenset vide (cap « aSchool n'invente rien »).
 def _age_bands(valeur_age: str) -> frozenset[str]:
     """Valeur d'une ligne « Âge : … » -> bandes d'âge. Le « · » du document ressort en « - » à
     l'extraction ; on teste des sous-chaînes robustes."""
@@ -157,8 +127,14 @@ def extract_pages(pdf_path) -> list[tuple[int, str]]:
       - borne chaque activité au prochain repère (titre suivant, DOMAINE, queue, renvoi) ;
       - remonte la ligne « Âge » en tête du bloc (marqueur de frontière pour le chunker).
     Lève si aucune activité, ou si une activité n'a pas de titre propre (jamais de chunk sans titre,
-    jamais de base trouée en silence). Lève AUSSI si la règle de découpe n'est pas validée."""
-    rx = _motif_courant(pdf_path)   # frontière = règle VALIDÉE du couple (lève AVANT lecture si non validée)
+    jamais de base trouée en silence). Exige que la règle du couple ait été chargée AVANT
+    (charger_regle, appelé par le socle) : sinon elle lève — jamais un découpage sans règle validée."""
+    if _MOTIF is None:
+        raise RuntimeError(
+            "extract_pages appelé sans règle chargée : le socle doit appeler charger_regle(ref) "
+            "d'abord (il charge la règle validée du couple, EN BASE, avant le découpage)."
+        )
+    rx = _MOTIF   # frontière = motif de la règle VALIDÉE du couple (chargé par charger_regle)
     import pdfplumber  # import paresseux
 
     raw: list[tuple[int, str]] = []
@@ -265,22 +241,22 @@ def filtrer_chunks(chunks: list[dict], collection: str) -> list[dict]:
             f"Attendu l'une de {sorted(_COLLECTION_BANDE)}."
         )
     # Garde-fou : un chunk sans bande = cas flou NON tranché -> on refuse (cap « n'invente rien »,
-    # jamais une base trouée en silence). L'admin doit d'abord trancher (arbitrage-flou.json).
+    # jamais une base trouée en silence). L'admin doit d'abord trancher (arbitrage, EN BASE).
     non_tranches = [c for c in chunks if not c["meta"].get("age")]
     if non_tranches:
         raise RuntimeError(
             f"{len(non_tranches)} cas flou(s) NON tranché(s) — ingestion refusée. "
-            f"L'admin doit trancher leur tranche d'âge (arbitrage-flou.json)."
+            f"L'admin doit trancher leur tranche d'âge (arbitrage du couple, EN BASE)."
         )
-    # Backstop anti-trou-muet : une bande inconnue (arbitrage-flou.json édité à la main, hors
-    # garde-fou de l'endpoint) rangerait l'unité dans AUCUNE collection -> disparition silencieuse.
+    # Backstop anti-trou-muet : une bande inconnue (arbitrage édité à la main, hors garde-fou de
+    # l'endpoint) rangerait l'unité dans AUCUNE collection -> disparition silencieuse.
     # On refuse plutôt que de laisser un trou.
     invalides = [c for c in chunks
                  if any(b not in BANDES_VALIDES for b in c["meta"].get("age", []))]
     if invalides:
         raise RuntimeError(
             f"{len(invalides)} chunk(s) avec une tranche d'âge inconnue (hors {sorted(BANDES_VALIDES)}) "
-            f"— ingestion refusée (arbitrage-flou.json à corriger)."
+            f"— ingestion refusée (arbitrage du couple à corriger)."
         )
     return [c for c in chunks if bande in c["meta"].get("age", [])]
 
