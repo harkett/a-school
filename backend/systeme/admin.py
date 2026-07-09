@@ -39,7 +39,7 @@ def _verify_admin_token(token: str) -> bool:
 
 def _require_admin(aschool_admin: str = Cookie(default=None)):
     if not aschool_admin or not _verify_admin_token(aschool_admin):
-        raise HTTPException(401, "Accès réservé à l'administrateur.")
+        raise HTTPException(401, "Votre session administrateur a expiré. Reconnectez-vous pour continuer.")
 
 
 SETTING_DEFAULTS = {
