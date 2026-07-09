@@ -319,6 +319,20 @@ class MatiereNiveau(Base):
     variante: Mapped[str] = mapped_column(String(32), nullable=False, server_default='', default='')
 
 
+class MatiereCandidate(Base):
+    """Matières candidates d'un couple (cycle+niveau) — proposition à valider par l'admin.
+
+    Liste de noms de matières proposée (aujourd'hui préparée en DEV, cible = app via Groq) et
+    affichée dans la table de l'écran Référentiels : l'admin coche celles à ajouter → crée les
+    paires MatiereNiveau. DONNÉE MÉTIER → elle vit EN BASE (plus de fichier matieres-candidates.json).
+    Une ligne par niveau (le niveau implique son cycle) ; `matieres` = tableau JSON de noms."""
+    __tablename__ = "matieres_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, unique=True, index=True)
+    matieres: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array de noms
+
+
 class UserEnseignement(Base):
     """Ce que CE prof enseigne : un sous-ensemble du programme (paire valide)."""
     __tablename__ = "user_enseignements"

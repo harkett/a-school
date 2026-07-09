@@ -23,7 +23,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, User
+from backend.core.models_db import Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, MatiereCandidate, User
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()
@@ -46,19 +46,19 @@ def _dossier_cle(nom: str) -> str:
     return s or "REFERENTIEL"
 
 
-def _lire_candidates(cycle_nom: str, niveau_nom: str) -> list[str]:
-    """Liste des matières candidates préparée en DEV par Claude, rangée dans le fichier
-    `matieres-candidates.json` du dossier du référentiel (`REFERENTIELS/<CYCLE>/<NIVEAU>/`).
-    L'app ne calcule JAMAIS cette liste : elle la lit. [] si le fichier est absent ou illisible."""
-    dossier = REFERENTIELS_DIR / _dossier_cle(cycle_nom) / _dossier_cle(niveau_nom)
-    fichier = dossier / "matieres-candidates.json"
-    if not fichier.exists():
+def _lire_candidates(db: Session, niveau_id: int) -> list[str]:
+    """Liste des matières candidates du couple, lue EN BASE (table `matieres_candidates`,
+    une ligne par niveau). L'app ne calcule JAMAIS cette liste : elle la lit. [] si aucune
+    ligne pour ce niveau (ou contenu illisible). Plus de fichier matieres-candidates.json."""
+    row = (db.query(MatiereCandidate)
+             .filter(MatiereCandidate.niveau_id == niveau_id).first())
+    if not row:
         return []
     try:
-        data = json.loads(fichier.read_text(encoding="utf-8"))
+        data = json.loads(row.matieres)
     except Exception:
         return []
-    return [str(m).strip() for m in data.get("matieres", []) if str(m).strip()]
+    return [str(m).strip() for m in (data or []) if str(m).strip()]
 
 
 def _apercu(pdf_path: Path) -> tuple[int, str]:
@@ -224,12 +224,12 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     INDÉPENDANT : chaque niveau a sa propre ligne `referentiels` et ses propres paires.
     """
     niveau_nom = (niveau or "").strip()
-    cyc = db.get(Cycle, cycle_id)
-    candidates = _lire_candidates(cyc.nom if cyc else "", niveau_nom)
     niv = (db.query(Niveau)
              .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
     if not niv:
-        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": candidates}
+        # Pas de niveau en base → pas de candidates (elles sont clés par niveau_id).
+        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": []}
+    candidates = _lire_candidates(db, niv.id)
 
     # Référentiel du niveau entier (matiere_id NULL) — même clé qu'à la validation.
     ref = (db.query(Referentiel)

@@ -9,8 +9,8 @@ import { showError } from '../errorDialog.js'
 
 // Construit les lignes de la table matières à partir de l'état du couple (endpoint /etat) :
 // d'abord les matières DÉJÀ en base (cochée figée), puis les CANDIDATES proposées non encore
-// en base (nouvelles, à cocher par l'admin). Les candidates viennent de matieres-candidates.json
-// (préparé en DEV, rangé dans REFERENTIELS/<CYCLE>/<NIVEAU>/) — l'app ne les calcule jamais.
+// en base (nouvelles, à cocher par l'admin). Les candidates viennent de la BASE
+// (table matieres_candidates, une ligne par niveau) — l'app ne les calcule jamais.
 function construireLignesMatieres(etatObj) {
   const enBase = (etatObj?.matieres || []).map(m => ({ id: m.id, nom: m.nom, en_base: true, cochee: true }))
   const nomsEnBase = new Set(enBase.map(m => m.nom.toLowerCase()))

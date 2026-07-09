@@ -742,11 +742,9 @@ endroit de l'app ne touche aux matières.
 c'est le même appel unique `generate()` qui sert déjà à générer les activités. Principe (cap) :
 l'IA **repère / propose**, l'admin **valide**, jamais l'IA seule. **État au 08/07/2026** : cette
 analyse (extraire/filtrer les matières) est **encore faite en DEV par Claude** (sur Max), sa sortie
-étant une **donnée métier** dont la place est la **BASE** ; la faire faire **par l'app via Groq**
-est la **cible, pas encore branchée**. Les étapes 4 à 6 (comparer, afficher, enregistrer) restent
-de l'app pure, sur les données déjà en base. *(État transitoire : la liste des matières candidates
-transite aujourd'hui par un fichier `matieres-candidates.json` — **à migrer en base**, chantier
-tout-en-base #5.)*
+étant une **donnée métier** rangée **EN BASE** (table `matieres_candidates`, une ligne par niveau) ;
+la faire faire **par l'app via Groq** est la **cible, pas encore branchée**. Les étapes 4 à 6
+(comparer, afficher, enregistrer) restent de l'app pure, sur les données déjà en base.
 
 **Les étapes.**
 1. Lire le PDF du référentiel (dans `REFERENTIELS/<CYCLE>/<NIVEAU>/`).
@@ -765,10 +763,9 @@ tout-en-base #5.)*
    **coché-ET-nouveau** (jamais de doublon : on réutilise la matière existante), puis affiche un
    bilan (ex. « 3 ajoutées, 7 déjà présentes »).
 
-**Source de la table (pas de bricolage).** La liste filtrée produite par Claude en dev **doit vivre
-en base** (règle « tout en base »), et l'écran la lit depuis la base pour remplir la table. Ni
-collage, ni endpoint bricolé. *(État transitoire : elle transite encore par un fichier
-`matieres-candidates.json` — **à migrer en base**, chantier tout-en-base #5.)*
+**Source de la table (pas de bricolage).** La liste filtrée produite par Claude en dev **vit en base**
+(table `matieres_candidates`, clé `niveau_id`), et l'écran la lit depuis la base (endpoint `/etat`,
+champ `candidates`) pour remplir la table. Ni collage, ni fichier, ni endpoint bricolé.
 
 **Sécurité (à ne jamais casser).** Les liens (niveaux, profs, chunks) référencent la matière par
 son **ID** : un renommage garde l'id et ne casse rien (mais le libellé change partout où la matière
