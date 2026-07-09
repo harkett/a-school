@@ -11,6 +11,10 @@ const SECTIONS = [
         ),
         contenu: [
           'Un référentiel, c\'est le programme officiel d\'un couple matière + niveau (par exemple Français 4e). Tant qu\'un couple n\'a pas son référentiel, il reste « en construction » et ne génère pas.',
+          'Le découpage, en détail — deux cartes sur l\'écran Référentiels vous laissent contrôler comment le document est débité en unités :',
+          '— Carte « Règle de découpe » : la règle qui dit où commence et finit chaque unité du document (par exemple, chaque activité en crèche). Elle est écrite en clair ; vous la relisez et vous la validez. Tant qu\'elle n\'est pas validée, rien n\'est découpé.',
+          '— Carte « Résultat du découpage avec arbitrage des cas ambigus » : la liste des unités que la règle produit. Vous vérifiez qu\'aucune n\'est coupée au mauvais endroit ni laissée sans titre.',
+          '— Arbitrage des cas ambigus : certaines unités portent un âge imprécis, signalé « âge à confirmer ». aSchool ne devine jamais — il vous les montre et vous laisse trancher. Vous choisissez la ou les tranches proposées, puis « Valider l\'âge » : l\'unité rejoint le bon niveau. Sans votre arbitrage, elle n\'est pas intégrée (aSchool n\'invente rien).',
           'Voici la procédure de bout en bout. Vos gestes sont en bordeaux ; ce qu\'aSchool fait tout seul est en bleu.',
         ],
         flow: [
@@ -20,7 +24,7 @@ const SECTIONS = [
           { n: '4', t: 'Extraire le texte', d: 'Lecture du document, texte brut.', a: 'auto' },
           { n: '5', t: 'Préparer les fiches par matière', d: 'Une matière = une fiche, rédigée pour la recherche.', a: 'auto' },
           { n: '6', t: 'Relire et valider les fiches', d: 'Votre contrôle avant l\'intégration.', a: 'admin' },
-          { n: '7', t: 'Intégrer le programme', d: 'Découpage puis indexation en base (recherche).', a: 'auto' },
+          { n: '7', t: 'Valider le découpage et les âges ambigus', d: 'Contrôler la règle de découpe, vérifier le résultat et trancher les cas d\'âge ambigus ; l\'indexation en base suit.', a: 'admin' },
           { n: '8', t: 'Régler la pertinence', d: 'aSchool mesure les scores et propose le seuil qui écarte le hors-sujet.', a: 'auto' },
           { n: '9', t: 'Valider et ouvrir le couple', d: 'Test d\'un exemple, puis mise en service : les profs génèrent sur le vrai programme.', a: 'admin' },
         ],

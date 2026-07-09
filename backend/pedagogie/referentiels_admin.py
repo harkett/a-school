@@ -388,6 +388,94 @@ def apercu_decoupage_couple(cycle_id: int, niveau: str, db: Session = Depends(ge
     return {"disponible": True, **apercu}
 
 
+# ── Arbitrage des cas flous : l'admin tranche la tranche d'âge d'un libellé flou ──
+#    Donnée par couple, à côté du PDF (arbitrage-flou.json), comme regle-decoupe.json. La fiche
+#    lit ce fichier à l'ingestion (le flou n'est plus deviné). Écrire = trancher ; bandes vides =
+#    dé-trancher. On valide les bandes contre celles de la FICHE -> jamais une bande inconnue
+#    (qui rangerait l'unité dans aucune collection = trou muet).
+
+def _arbitrage_path(db: Session, cycle_id: int, niveau: str) -> Path:
+    """Chemin de l'arbitrage du couple : arbitrage-flou.json dans REFERENTIELS/<CYCLE>/<NIVEAU>/,
+    à côté du PDF et de regle-decoupe.json. Lève 404 cycle inconnu, 422 niveau manquant."""
+    cycle = db.get(Cycle, cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    niveau_nom = (niveau or "").strip()
+    if not niveau_nom:
+        raise HTTPException(422, "Niveau manquant pour résoudre l'arbitrage.")
+    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau_nom) / "arbitrage-flou.json"
+
+
+@router.get("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
+def lire_arbitrage_flou(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit l'arbitrage des cas flous du couple (lecture seule). Fichier absent -> arbitrages vides.
+    La LISTE des flous à trancher se lit dans l'aperçu (champ `arbitre`) — ici on sert les décisions."""
+    fichier = _arbitrage_path(db, cycle_id, niveau)
+    if not fichier.exists():
+        return {"arbitrages": {}}
+    try:
+        data = json.loads(fichier.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(400, f"arbitrage-flou.json illisible : {e}")
+    arb = data.get("arbitrages") or {}
+    return {"arbitrages": {str(k): [str(b) for b in (v or [])] for k, v in arb.items()}}
+
+
+class ArbitrageFlouBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    label: str                 # libellé d'âge flou exact (= age_label de l'aperçu)
+    bandes: list[str]          # tranche(s) choisie(s) ; [] = retirer la décision (dé-trancher)
+
+
+@router.post("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
+def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(get_db)):
+    """L'admin tranche un cas flou : écrit { label: [bandes] } dans arbitrage-flou.json du couple.
+    Valide les bandes contre celles de la FICHE (jamais une bande inconnue -> pas de trou muet).
+    bandes vides = retire la décision. Préserve les autres entrées."""
+    label = (body.label or "").strip()
+    if not label:
+        raise HTTPException(400, "Le libellé du cas flou est requis.")
+
+    # Résoudre le couple -> référentiel -> collection -> fiche (pour ses bandes valides).
+    niveau_nom = (body.niveau or "").strip()
+    niv = (db.query(Niveau)
+             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
+    if not niv:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+    ref = (db.query(Referentiel)
+             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
+    if not ref:
+        raise HTTPException(404, "Aucun référentiel pour ce couple — rien à arbitrer.")
+    from backend.rag.referentiels import get_fiche
+    valides = getattr(get_fiche(ref.collection), "BANDES_VALIDES", None)
+    if valides is None:
+        raise HTTPException(400, "Ce référentiel n'a pas de tranches d'âge à arbitrer.")
+
+    bandes = [str(b).strip() for b in (body.bandes or []) if str(b).strip()]
+    hors = [b for b in bandes if b not in valides]
+    if hors:
+        raise HTTPException(400, f"Tranche(s) d'âge inconnue(s) : {hors}. Attendu : {sorted(valides)}.")
+
+    # Lire l'existant (préserver les autres décisions), appliquer, réécrire.
+    fichier = _arbitrage_path(db, body.cycle_id, body.niveau)
+    data = {"arbitrages": {}}
+    if fichier.exists():
+        try:
+            data = json.loads(fichier.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise HTTPException(400, f"arbitrage-flou.json illisible : {e}")
+    arb = data.get("arbitrages") or {}
+    if bandes:
+        arb[label] = bandes
+    else:
+        arb.pop(label, None)               # bandes vides = dé-trancher
+    data["arbitrages"] = arb
+    fichier.parent.mkdir(parents=True, exist_ok=True)
+    fichier.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"ok": True, "arbitrages": arb}
+
+
 # ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──
 
 class EnregistrerMatieresBody(BaseModel):

@@ -88,23 +88,57 @@ def _charger_motif_valide(regle_path: Path) -> re.Pattern:
 
 def _motif_courant(pdf_path) -> re.Pattern:
     """Recharge le motif validé (règle du couple, à côté du PDF) et le mémorise pour la passe de
-    découpage en cours (extract_pages tourne toujours avant section_boundary, qui réutilise ce motif)."""
-    global _MOTIF
+    découpage en cours (extract_pages tourne toujours avant section_boundary, qui réutilise ce motif).
+    Recharge AUSSI l'arbitrage des cas flous du couple (arbitrage-flou.json, à côté du PDF)."""
+    global _MOTIF, _ARBITRAGE
     _MOTIF = _charger_motif_valide(_regle_path_for(pdf_path))
+    _ARBITRAGE = _charger_arbitrage(pdf_path)
     return _MOTIF
+
+
+# --- Arbitrage des cas flous : DONNÉE par couple, à côté du PDF (jamais en dur) ---
+# Fichier REFERENTIELS/<CYCLE>/<NIVEAU>/arbitrage-flou.json, champ "arbitrages" :
+#   { "<libellé d'âge flou exact>": ["<bande>", ...] }
+# Rempli par l'admin (endpoint à venir, brique 1b). Présence d'une clé = ce cas flou est TRANCHÉ ;
+# absence = NON tranché (jamais deviné). (Re)chargé par _motif_courant à chaque passe de découpage.
+_ARBITRAGE: dict[str, list[str]] = {}
+
+
+def _arbitrage_path_for(pdf_path) -> Path:
+    """Chemin de l'arbitrage du couple : arbitrage-flou.json DANS LE MÊME DOSSIER que le PDF
+    (REFERENTIELS/<CYCLE>/<NIVEAU>/), comme regle-decoupe.json. (Monkeypatchable pour les tests.)"""
+    return Path(pdf_path).parent / "arbitrage-flou.json"
+
+
+def _charger_arbitrage(pdf_path) -> dict[str, list[str]]:
+    """Lit arbitrage-flou.json (à côté du PDF) -> { libellé flou : [bandes] }. Absent -> {}
+    (ce n'est PAS une erreur : inutile tant qu'aucun cas flou n'est à trancher). Illisible -> lève."""
+    p = _arbitrage_path_for(pdf_path)
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise RuntimeError(f"arbitrage-flou.json illisible ({p}) : {e}")
+    arb = data.get("arbitrages") or {}
+    return {str(k).strip(): [str(b).strip() for b in (v or [])] for k, v in arb.items()}
 
 # --- Bandes d'âge (le tag) : « 0-1 » (Bébés) et « 1-3 » (Moyens + Grands) ---
 _BANDE_BEBES = "0-1"
 _BANDE_1_3   = "1-3"   # 1-3 ans = Moyens (1-2) + Grands (2-3)
+# Les SEULES tranches d'âge valides de ce document. Exposé (public) pour que l'endpoint
+# d'arbitrage valide les bandes saisies par l'admin -> jamais une bande inconnue en base.
+BANDES_VALIDES = frozenset({_BANDE_BEBES, _BANDE_1_3})
 
 
-# PROVISOIRE — donnée métier à sortir en base (chantier analyse amont, cf. D60).
-# La correspondance « libellé d'âge -> niveaux » est de la DONNÉE, pas du code (cap : rien de métier
-# en dur). Figée ici le temps du prototype, comme SCORE_MIN. À déplacer en base/config au moment où
-# l'analyse amont devient data-driven ; l'arbitration des libellés flous doit y vivre, pas dans ce .py.
+# CODE d'un côté, DONNÉE de l'autre :
+#  - les libellés NETS (« 0-1 & 1-3 », « bébés-3 », « 1-3 ») sont parsés en dur — lire la notation
+#    propre du document est du code légitime ;
+#  - les libellés FLOUS ne sont PLUS devinés : leur tranche est lue dans l'ARBITRAGE (donnée par
+#    couple, arbitrage-flou.json). Flou non tranché -> frozenset vide (cap « aSchool n'invente rien »).
 def _age_bands(valeur_age: str) -> frozenset[str]:
-    """Valeur d'une ligne « Âge : … » -> bandes d'âge (décisions figées 06/07/2026). Le « · » du
-    document ressort en « - » à l'extraction ; on teste des sous-chaînes robustes."""
+    """Valeur d'une ligne « Âge : … » -> bandes d'âge. Le « · » du document ressort en « - » à
+    l'extraction ; on teste des sous-chaînes robustes."""
     s = valeur_age.lower()
     if "0-1" in s and "1-3" in s:          # « Bébés (0-1) - 1-3 ans »
         return frozenset({_BANDE_BEBES, _BANDE_1_3})
@@ -112,7 +146,8 @@ def _age_bands(valeur_age: str) -> frozenset[str]:
         return frozenset({_BANDE_BEBES, _BANDE_1_3})
     if "1-3" in s:                         # « 1-3 ans » (et « dès ~2 ans (dans notre bande 1-3) »)
         return frozenset({_BANDE_1_3})
-    return frozenset({_BANDE_1_3})         # flous restants (« dès ~2 ans », « tout-petits »…) -> Moyens + Grands
+    tranche = _ARBITRAGE.get(valeur_age.strip())   # FLOU -> décision de l'admin (donnée), jamais devinée
+    return frozenset(tranche) if tranche else frozenset()
 
 
 def extract_pages(pdf_path) -> list[tuple[int, str]]:
@@ -229,6 +264,24 @@ def filtrer_chunks(chunks: list[dict], collection: str) -> list[dict]:
             f"Collection crèche inconnue pour le filtre d'âge : {collection!r}. "
             f"Attendu l'une de {sorted(_COLLECTION_BANDE)}."
         )
+    # Garde-fou : un chunk sans bande = cas flou NON tranché -> on refuse (cap « n'invente rien »,
+    # jamais une base trouée en silence). L'admin doit d'abord trancher (arbitrage-flou.json).
+    non_tranches = [c for c in chunks if not c["meta"].get("age")]
+    if non_tranches:
+        raise RuntimeError(
+            f"{len(non_tranches)} cas flou(s) NON tranché(s) — ingestion refusée. "
+            f"L'admin doit trancher leur tranche d'âge (arbitrage-flou.json)."
+        )
+    # Backstop anti-trou-muet : une bande inconnue (arbitrage-flou.json édité à la main, hors
+    # garde-fou de l'endpoint) rangerait l'unité dans AUCUNE collection -> disparition silencieuse.
+    # On refuse plutôt que de laisser un trou.
+    invalides = [c for c in chunks
+                 if any(b not in BANDES_VALIDES for b in c["meta"].get("age", []))]
+    if invalides:
+        raise RuntimeError(
+            f"{len(invalides)} chunk(s) avec une tranche d'âge inconnue (hors {sorted(BANDES_VALIDES)}) "
+            f"— ingestion refusée (arbitrage-flou.json à corriger)."
+        )
     return [c for c in chunks if bande in c["meta"].get("age", [])]
 
 
@@ -271,11 +324,16 @@ def apercu_unites(chunks: list[dict], collection: str) -> dict:
             "age_label": valeur,
             "bandes": bandes,
             "flou": _age_est_flou(valeur),
+            "arbitre": (not _age_est_flou(valeur)) or (valeur.strip() in _ARBITRAGE),
             "dans_niveau": bool(bande_niveau) and bande_niveau in bandes,
         })
     return {
         "total": len(unites),
         "bande_niveau": bande_niveau,
         "total_niveau": sum(1 for u in unites if u["dans_niveau"]),
+        # Options que l'admin peut choisir pour trancher un cas flou. La FICHE les possède
+        # (BANDES_VALIDES) ; le socle et le front les passent sans savoir ce qu'elles valent —
+        # un autre référentiel en proposera d'autres sous la même clé, sans changer l'écran.
+        "options_arbitrage": sorted(BANDES_VALIDES),
         "unites": unites,
     }

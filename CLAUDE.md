@@ -596,7 +596,23 @@ On n'abandonne pas Qwen3 : c'est le sommet visé. BGE-M3 est le meilleur sans GP
 
 ## Aide — Règle absolue
 
-Dès qu'une fonctionnalité est livrée, sa section Aide est rédigée dans la **même session** — à chaud, pendant que c'est frais. Jamais en retard. Jamais reporté à "plus tard".
+**Le signal, c'est le COMMIT.** Un bloc est bouclé quand il est committé et qu'on n'y touche
+plus. L'aide se rédige à la maille du **bloc committé** — jamais à la brique interne (1a/1b,
+un endpoint, un bout de front que l'utilisateur ne voit pas encore). Documenter un rouage
+invisible n'a pas de sens ; c'est ce qui faisait rater la règle.
+
+**Règle : Aide + commit, dans le même geste.** Aucun commit qui clôt un bloc sans que son aide
+soit écrite et incluse dans ce même commit. Au moment de committer, je vérifie « son aide
+existe-t-elle et est-elle à jour ? » — si non, je l'écris avant de committer. Contrôle
+accroché au commit, pas un pari sur la mémoire.
+
+**Portée** : aide **admin** dans `AdminAide.jsx`, aide **prof** dans `Aide.jsx`, selon qui
+utilise la fonction. Si le bloc **modifie un comportement déjà documenté**, on **corrige
+l'aide périmée** dans le même commit — jamais laisser une aide qui décrit l'ancien
+fonctionnement.
+
+On ne diffère **jamais** l'aide « à la fin de l'application » : ce serait laisser l'aide fausse
+pendant des mois et tout concentrer en une passe où l'on oublie le plus.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

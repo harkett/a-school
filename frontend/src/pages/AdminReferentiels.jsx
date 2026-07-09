@@ -47,11 +47,18 @@ export default function AdminReferentiels() {
   const [regle, setRegle] = useState(null)
   const [matieresOuvert, setMatieresOuvert] = useState(true)   // bloc Matières repliable (vue d'ensemble)
   const [regleOuvert, setRegleOuvert] = useState(true)         // bloc Règle de découpe repliable
-  // Aperçu du découpage : { disponible, total, total_niveau, bande_niveau, unites:[{titre,bandes,flou,dans_niveau}] }
+  // Aperçu du découpage : { disponible, total, total_niveau, bande_niveau, options_arbitrage:[…],
+  //   unites:[{titre, age_label, bandes, flou, arbitre, dans_niveau}] }
   // ou { disponible:false, raison } ; null si non applicable (pas de règle pour ce cycle).
   // (Nom distinct de `apercu`, qui est l'aperçu du PDF au dépôt.)
   const [apercuDecoupe, setApercuDecoupe] = useState(null)
   const [apercuOuvert, setApercuOuvert] = useState(true)       // bloc Résultat du découpage repliable
+  // Arbitrage des cas flous : décisions enregistrées { libellé_flou: [options] }, servies par
+  // GET arbitrage-flou. `selection` = choix en cours de l'admin, pré-rempli depuis les décisions.
+  // Les OPTIONS proposées viennent de l'aperçu (apercuDecoupe.options_arbitrage, tenu par la
+  // fiche) — jamais écrites en dur ici. `savingArbitrage` = libellé en cours d'enregistrement.
+  const [selection, setSelection] = useState({})              // { age_label: [options] }
+  const [savingArbitrage, setSavingArbitrage] = useState('')
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -64,7 +71,7 @@ export default function AdminReferentiels() {
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); return }
+    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); return }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
@@ -88,8 +95,52 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) setApercuDecoupe(d && d.raison !== 'non_applicable' ? d : null) })
       .catch(() => { if (!annule) setApercuDecoupe(null) })
+    // Décisions d'arbitrage des cas flous (fichier arbitrage-flou.json du couple). On pré-remplit
+    // la sélection de l'admin avec ce qui est déjà tranché.
+    fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) setSelection(d && d.arbitrages ? d.arbitrages : {}) })
+      .catch(() => { if (!annule) setSelection({}) })
     return () => { annule = true }
   }, [cycleId, niveau])
+
+  // Bascule une option pour un libellé flou dans la sélection en cours (avant enregistrement).
+  function basculerOption(label, opt) {
+    setSelection(prev => {
+      const actuelles = prev[label] || []
+      const majs = actuelles.includes(opt) ? actuelles.filter(o => o !== opt) : [...actuelles, opt]
+      return { ...prev, [label]: majs }
+    })
+  }
+
+  // Enregistre l'arbitrage d'un libellé flou (POST), puis RECHARGE l'aperçu + les décisions :
+  // la ligne bascule (arbitre -> vrai, compteur du niveau réévalué). Sélection vide = dé-trancher.
+  async function validerAge(label) {
+    setSavingArbitrage(label)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/arbitrage-flou', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, label, bandes: selection[label] || [] }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "L'âge n'a pas pu être enregistré."); return }
+      // Recharger l'aperçu (la ligne bascule) et les décisions (source de vérité disque).
+      const [ap, arb] = await Promise.all([
+        fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+          { credentials: 'include' }, TIMEOUT_GROQ).then(x => (x.ok ? x.json() : null)).catch(() => null),
+        fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+          { credentials: 'include' }, TIMEOUT_STD).then(x => (x.ok ? x.json() : null)).catch(() => null),
+      ])
+      if (ap && ap.raison !== 'non_applicable') setApercuDecoupe(ap)
+      if (arb && arb.arbitrages) setSelection(arb.arbitrages)
+    } catch {
+      showError("L'âge n'a pas pu être enregistré (réseau).")
+    } finally {
+      setSavingArbitrage('')
+    }
+  }
 
   async function recupererLien() {
     if (!url.trim()) { showError('Collez d’abord le lien du PDF.'); return }
@@ -549,7 +600,7 @@ export default function AdminReferentiels() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
-              <h2 className="text-base font-semibold text-gray-800">Résultat du découpage</h2>
+              <h2 className="text-base font-semibold text-gray-800">Résultat du découpage avec arbitrage des cas ambigus</h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 Ce que la règle validée produit : vérifiez qu'aucune unité n'est coupée ni sans titre, et voyez son rattachement au niveau.
               </p>
@@ -573,15 +624,44 @@ export default function AdminReferentiels() {
               <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
                 {(apercuDecoupe.unites || []).map((u, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    flexWrap: 'wrap',
                     borderTop: i ? '1px solid #f1f5f9' : 'none',
                     background: u.dans_niveau ? '#fff' : '#f8fafc', opacity: u.dans_niveau ? 1 : 0.55 }}>
-                    <span style={{ flex: 1, fontSize: 13, color: '#1e293b' }}>{u.titre}</span>
+                    <span style={{ flex: 1, minWidth: 140, fontSize: 13, color: '#1e293b' }}>{u.titre}</span>
+                    {/* Cas flou : contrôle actif. Les OPTIONS bouclent sur apercuDecoupe.options_arbitrage
+                        (tenu par la fiche via le backend) — aucune valeur d'âge en dur ici. */}
                     {u.flou && (
-                      <span title="Âge ambigu — à confirmer par l'admin"
-                        style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: '#fef3c7',
-                          border: '1px solid #fde68a', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
-                        âge à confirmer
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span title={u.arbitre ? 'Âge tranché par l\'admin' : 'Âge ambigu — à confirmer par l\'admin'}
+                          style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap',
+                            color: u.arbitre ? '#166534' : '#92400e',
+                            background: u.arbitre ? '#dcfce7' : '#fef3c7',
+                            border: u.arbitre ? '1px solid #bbf7d0' : '1px solid #fde68a' }}>
+                          {u.arbitre ? 'âge tranché' : 'âge à confirmer'}
+                        </span>
+                        {(apercuDecoupe.options_arbitrage || []).map(opt => {
+                          const on = (selection[u.age_label] || []).includes(opt)
+                          return (
+                            <button key={opt} type="button"
+                              title={`Ranger cette unité dans « ${opt} »`}
+                              aria-pressed={on}
+                              onClick={() => basculerOption(u.age_label, opt)}
+                              style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
+                                cursor: 'pointer', whiteSpace: 'nowrap',
+                                border: on ? '1px solid #1F6EEB' : '1px solid #cbd5e1',
+                                background: on ? '#1F6EEB' : '#fff', color: on ? '#fff' : '#475569' }}>
+                              {opt}
+                            </button>
+                          )
+                        })}
+                        <button type="button" className="btn-secondary"
+                          title="Enregistrer la tranche d'âge choisie pour cette unité"
+                          disabled={savingArbitrage === u.age_label}
+                          onClick={() => validerAge(u.age_label)}
+                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                          {savingArbitrage === u.age_label ? '…' : "Valider l'âge"}
+                        </button>
+                      </div>
                     )}
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
                       {(u.bandes || []).join(' · ') || '—'}

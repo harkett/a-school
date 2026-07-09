@@ -116,7 +116,7 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | [12](#item-12) | Synchronisation pages afia.fr ↔ projets | Au prochain push MINOR/MAJOR | ★★☆☆☆ | ★★★★★ | **7/10** | TRANSVERSE | règle permanente — CLAUDE.md |
 | [19](#item-19) | Admin — Menu Activités en groupe | 2h | ★★☆☆☆ | ★★★★★ | **7/10** | OPTIONNEL | [D44](BOUSSOLE/D44.md) |
 | [25](#item-25) | Cohérence curriculaire inter-disciplines | 2-3 sessions | ★★★★☆ | ★★☆☆☆ | **6/10** | OPTIONNEL | [D25](BOUSSOLE/D25.md) |
-| [15](#item-15) | Gestion emails sortants — backoffice admin | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D46](BOUSSOLE/D46.md) |
+| [15](#item-15) | Gestion emails sortants — backoffice admin **→ à absorber dans l'item 65** | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL — absorbé par 65 | [D46](BOUSSOLE/D46.md) |
 | [22](#item-22) | Théâtre — 13e matière | 1-2 semaines | ★★★☆☆ | ★★★☆☆ | **6/10** | OPTIONNEL | [D47](BOUSSOLE/D47.md) |
 | 55 | Injecter le reste du socle matières (cycles 7-11) : 7-10 par spécialité via référentiel + supprimer doublon « 0-3 ans » (cycle 11) | 1-2 sessions | ★★★☆☆ | ★★★☆☆ | **6/10** | Socle / dette matières | [D55](BOUSSOLE/D55.md) |
 | 56 | BTS CIEL Option A — artefact pré-réforme **RETIRÉ le 08/07/2026** (référentiel + 236 chunks + fiche + dossier supprimés ; structure cycle/niveau conservée ; à régénérer via la procédure standard) | 1 session | ★★★☆☆ | ★★★★☆ | **7/10** | Dette / préventif BTS | [D56](BOUSSOLE/D56.md) |
@@ -142,6 +142,7 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | 62 | Audit des règles de comportement `feedback_*` (~90 mémoires) — clarifier / fusionner / supprimer périmées / résoudre contradictions (session dédiée) | à scorer | à scorer | à scorer | à scorer | DETTE / Mémoire — complète #9 ; ne pas ouvrir pendant la reprise crèche | [D62](BOUSSOLE/D62.md) |
 | 63 | Boucle « l'IA (Groq) propose la règle de découpe, l'admin valide ou rejette » (au dépôt du PDF). **Point 1 RÉGLÉ (08/07)** : l'app a le droit d'appeler l'IA — même appel `generate()` que la génération ; l'IA propose, l'admin valide, jamais l'IA seule (contradiction CLAUDE.md 701-702 corrigée). **Reste à faire** : figer en donnée le résultat validé (structure immuable → ré-ingestion déterministe) + brancher réellement (chantier). Cible D60 (analyse amont : dev vers app). | à cadrer | à scorer | à scorer | à scorer | RAG / Référentiel — analyse amont (cible D60) | [D60](BOUSSOLE/D60.md) |
 | 64 | **CHANTIER ACTÉ (08/07) : bouton « Par IA » — l'app cherche sur le web la source OFFICIELLE du référentiel du couple** ; l'admin garde le dernier mot (jamais l'IA seule, cap). Un seul bloc = bouton + prompt (Génération LLM → onglet Admin) + **vraie recherche web** (brique manquante à brancher). L'IA trie/vérifie de vrais liens, jamais inventer ; officiel non trouvé → rien. **08/07 : bouton + bulle + modale explicative POSÉS** (style atténué, rien branché) ; **en attente du dégel du chantier fournisseurs IA** (Groq ne navigue pas ; besoin d'une IA navigante — clé API vs Max `claude -p`, à trancher). 3e voie de l'item 52. | chantier | à scorer | à scorer | à scorer | RAG / Référentiel — recherche web source officielle | [D64](BOUSSOLE/D64.md) |
+| 65 | Gestion UNIFIÉE des mails — un seul point d'entrée admin pour TOUT le mail (envoi + réception + modèles + suivi + retours). Aujourd'hui éparse (parametres/email, communication, fiche prof) et sans réception : les réponses atterrissent dans la boîte de l'admin, ressaisies à la main. Cible = tout regrouper + ajouter la réception ; l'existant (item 15 / D46) est absorbé, pas maintenu à côté. Gros chantier séparé, non commencé. | à cadrer | à scorer | à scorer | à scorer | INFRA / Mail — unification (à cadrer) | [D65](BOUSSOLE/D65.md) |
 
 ---
 
@@ -172,7 +173,7 @@ Puis le tracker éphémère, une fois vidé de cette idée, **finit à la poubel
 | 01 — Pages légales CNIL | Routes dédiées, aucun sens en option |
 | 05 — Page /contact | Route statique dédiée |
 | 07 — Onboarding email J+2/J+7/J+14 | Infrastructure APScheduler backend, invisible UI |
-| 15 — Gestion emails sortants admin | Journal + stats + bounces, périmètre propre |
+| 15 — Gestion emails sortants admin | Journal + stats + bounces — **périmètre à absorber dans l'item 65** (gestion unifiée des mails), plus « standalone » |
 | 17 — Quiz interactif élèves | Architecture entièrement différente (liens publics, live) |
 | 20 — Projet demo-perf | Projet technique séparé hors aSchool |
 | 21 — Support niveau Supérieur | Segment nouveau, scope trop large pour être une option |
@@ -476,8 +477,8 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
   → [D41](BOUSSOLE/D41.md)
 
 <a id="item-15"></a>
-- [ ] **15 — Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions
-  *Journal envois + stats + bounces → liste noire + lien désinscription. Prérequis : SMTP transactionnel (Brevo/Resend).*
+- [ ] **15 — Gestion emails sortants — backoffice admin** | Moyen | 1-2 sessions | **→ à absorber dans l'item 65**
+  *Journal envois + stats + bounces → liste noire + lien désinscription. Prérequis : SMTP transactionnel (Brevo/Resend). **Note : ce périmètre a vocation à être ABSORBÉ dans l'item 65 (gestion unifiée des mails, un seul point d'entrée admin) — ne pas le mener comme chantier indépendant.***
   → [D46](BOUSSOLE/D46.md)
 
 <a id="item-16"></a>
@@ -655,6 +656,11 @@ Analyseurs / transformateurs purs (hors-portée de la typologie ci-dessus) :
 - [ ] **00 — Reprendre toute la numérotation depuis le début** | DETTE / Doc — plus tard | à scorer
   *Réaligner TOUS les items du réservoir ET toutes les fiches BOUSSOLE pour que **item N ↔ fiche DN partout**, sans aucun décalage. Le décalage vient d'items supprimés au fil du temps (ex. la fiche D50 avait été créée pour l'item 53 avant qu'on grave la règle item↔fiche → corrigé en D53, mais des trous historiques subsistent). Objectif : remise à plat complète, une bonne fois. À faire PLUS TARD, surtout pas maintenant (chantier de fond, risque de casser des liens croisés). Détail → D00.*
   → [D00](BOUSSOLE/D00.md)
+
+<a id="item-65"></a>
+- [ ] **65 — Gestion unifiée des mails (un seul point d'entrée admin : envoi + réception + retours)** | INFRA / Mail — unification, à cadrer | à scorer
+  *Objectif de fond : UNE SEULE gestion des mails pour toute l'app, regroupée à UN endroit admin — pas 3-4 gestions éparpillées. Aujourd'hui c'est épars : les modèles + le suivi des envois vivent sur `/admin/parametres/email` (`AdminParametresEmail.jsx`), le mail groupé aux profs sur `/admin/communication` (`AdminCommunication.jsx`), et le mail libre depuis la fiche prof (`send_email_to_user`, `backend/systeme/admin.py:1009`). La porte SMTP d'envoi est déjà unique (`_smtp_send`, `backend/auth.py:239`), mais l'app n'a AUCUNE réception : quand une réponse arrive (ex. l'avis métier d'une crèche sur un arbitrage de cas flou), elle atterrit dans la boîte mail de l'admin, relue et ressaisie à la main. Cible = un point d'entrée admin unique qui gère TOUT le mail (envoi ET réception, modèles, suivi, retours), avec l'existant ABSORBÉ/amélioré — pas maintenu en parallèle. Cela inclut d'absorber l'item 15 / D46 (emails sortants / backoffice). Gros chantier séparé, NON commencé — inscrit pour ne pas le perdre. Détail → D65.*
+  → [D65](BOUSSOLE/D65.md)
 
 ---
 

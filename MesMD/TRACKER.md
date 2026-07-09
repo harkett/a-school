@@ -190,7 +190,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **29** — Mode expérience prof (T1 / confirmé / expert) | rien | [D18](BOUSSOLE/D18.md) |
 | ☐ | **18** — Aide spécifique par matière | rien | [D35](BOUSSOLE/D35.md) |
 | ☐ | **42** — Recherche globale dans l'application | rien (réf. ergo item 41) | — |
-| ☐ | **15** — Gestion emails sortants (backoffice) | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
+| ☐ | **15** — Gestion emails sortants (backoffice) **→ à absorber dans l'item 65** | prérequis SMTP transactionnel | [D46](BOUSSOLE/D46.md) |
 | ☐ | **01** — Pages légales CNIL | en attente — infos admin (externe) | [D39](BOUSSOLE/D39.md) |
 | ☐ | **53** — Remplacer un référentiel existant (geste explicite + cascade : PDF→texte→chunks→matières, gardé) | rien (chantier futur) | [D53](BOUSSOLE/D53.md) |
 | ☐ | **64** — Bouton « Par IA » : l'app cherche sur le web la source OFFICIELLE du référentiel (admin valide, jamais l'IA seule). Bouton + bulle + modale explicative **posés le 08/07** (rien branché) ; le branchement **dépend du** dégel du chantier fournisseurs IA (Groq ne navigue pas → besoin d'une IA navigante). 3e voie de l'item 52. | dépend du dégel [fournisseurs IA](TRACKER_FOURNISSEURS_IA.md) | [D64](BOUSSOLE/D64.md) |
@@ -204,6 +204,7 @@ Entre chaînes de features : pas d'ordre technique → tu piques selon l'envie. 
 | ☐ | **24** — Google OAuth | rien | [D32](BOUSSOLE/D32.md) |
 | ☐ | **22** — Théâtre — 13e matière | attend un prof pilote théâtre | [D47](BOUSSOLE/D47.md) |
 | ☐ | **D12** — PROD Activité 100% fonctionnel (umbrella « tous angles ») | — (à éclater le jour venu) | [D12](BOUSSOLE/D12.md) |
+| ☐ | **65** — Gestion UNIFIÉE des mails de l'app : un seul point d'entrée admin qui gère TOUT le mail — envoi ET réception, modèles, suivi, retours. Aujourd'hui la gestion est ÉPARSE (modèles + suivi sur `/admin/parametres/email`, mail groupé sur `/admin/communication`, mail libre depuis la fiche prof) et l'app ne REÇOIT rien : les réponses (ex. avis d'une crèche sur un arbitrage) arrivent dans la boîte mail de l'admin, ressaisies à la main. Cible = tout regrouper à UN endroit ET ajouter la réception ; l'existant (item 15 / D46 « emails sortants » compris) est ABSORBÉ, pas maintenu en parallèle. Gros chantier séparé, non commencé. | rien (chantier futur) — absorbe l'item 15 | [D65](BOUSSOLE/D65.md) |
 
 ---
 
