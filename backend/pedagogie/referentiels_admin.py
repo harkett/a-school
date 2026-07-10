@@ -23,8 +23,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, MatiereCandidate, User
+from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, MatiereCandidate, User
 from backend.systeme.admin import _require_admin
+from backend.auth import send_custom_email
 
 router = APIRouter()
 
@@ -438,8 +439,81 @@ def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(ge
     else:
         arb.pop(label, None)               # bandes vides = dé-trancher
     ref.arbitrage = json.dumps(arb, ensure_ascii=False) if arb else None
+    # TEMPS 2 : trancher un cas ferme la demande d'avis en attente (le cas sort de « en attente »).
+    if bandes:
+        db.query(ArbitrageDemande).filter(
+            ArbitrageDemande.referentiel_id == ref.id, ArbitrageDemande.label == label
+        ).delete()
     db.commit()
     return {"ok": True, "arbitrages": arb}
+
+
+# ── TEMPS 2 : demander l'avis d'un professionnel quand l'admin ne sait pas trancher ──
+#    L'admin envoie un mail (porte SMTP existante `send_custom_email`) et le cas passe « en attente »
+#    (table `arbitrage_demandes`, EN BASE — cap « tout en base »). La réponse arrive dans la boîte de
+#    l'admin (l'app ne reçoit pas encore : item 65) ; l'admin revient et tranche via arbitrage-flou,
+#    ce qui ferme la demande. « en attente » = présence d'une ligne. PROVISOIRE : absorbé par l'item 65.
+
+class DemandeAvisBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    label: str        # libellé flou exact (= age_label de l'aperçu)
+    email: str        # adresse du professionnel sollicité
+    message: str      # corps du mail, pré-rempli côté écran et éditable par l'admin
+
+
+@router.post("/admin/referentiels/arbitrage-flou/demander", dependencies=[Depends(_require_admin)])
+def demander_avis(body: DemandeAvisBody, db: Session = Depends(get_db)):
+    """L'admin demande l'avis d'un professionnel par mail sur un cas flou → envoi via
+    `send_custom_email` (aucune archi mail neuve) + le cas passe « en attente » (upsert EN BASE).
+    Une demande par cas flou (référentiel + libellé) : redemander met à jour l'adresse, jamais un doublon."""
+    label = (body.label or "").strip()
+    email = (body.email or "").strip()
+    message = (body.message or "").strip()
+    if not label:
+        raise HTTPException(400, "Le libellé du cas flou est requis.")
+    if not email:
+        raise HTTPException(400, "L'adresse du professionnel est requise.")
+    if not message:
+        raise HTTPException(400, "Le message à envoyer est requis.")
+
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple — rien à arbitrer.")
+
+    # Objet du mail = étiquette factuelle du COUPLE (cycle · niveau), composée EN BASE → toujours
+    # exacte, jamais un couple faux ou oublié. Le corps, lui, reste éditable par l'admin. (Le nom du
+    # produit « aSchool » reste en dur ici comme partout — chantier « nom en réglage admin » à part.)
+    cycle = db.get(Cycle, body.cycle_id)
+    couple = f"{cycle.nom} · {body.niveau.strip()}" if cycle else body.niveau.strip()
+    objet = f"aSchool — {couple} : votre avis sur une activité"
+
+    # Envoi via la porte SMTP unique (objet = couple ; corps éditable de l'admin).
+    try:
+        send_custom_email(email, None, objet, message)
+    except Exception as e:
+        raise HTTPException(502, f"L'email n'a pas pu être envoyé : {e}")
+
+    # Upsert du statut « en attente » (une demande par cas flou : référentiel + libellé).
+    row = (db.query(ArbitrageDemande)
+             .filter(ArbitrageDemande.referentiel_id == ref.id, ArbitrageDemande.label == label).first())
+    if row:
+        row.destinataire = email
+    else:
+        db.add(ArbitrageDemande(referentiel_id=ref.id, label=label, destinataire=email))
+    db.commit()
+    return {"ok": True, "en_attente": True, "destinataire": email}
+
+
+@router.get("/admin/referentiels/arbitrage-flou/en-attente", dependencies=[Depends(_require_admin)])
+def lire_arbitrages_en_attente(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Libellés flous EN ATTENTE d'un avis pour ce couple (pour baliser les lignes de l'aperçu).
+    Référentiel du couple absent → liste vide (jamais d'erreur bloquante en lecture)."""
+    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle inconnu / 422 niveau manquant
+    if ref is None:
+        return {"en_attente": []}
+    rows = db.query(ArbitrageDemande).filter(ArbitrageDemande.referentiel_id == ref.id).all()
+    return {"en_attente": [{"label": r.label, "destinataire": r.destinataire} for r in rows]}
 
 
 # ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──

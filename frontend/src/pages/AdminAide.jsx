@@ -15,6 +15,7 @@ const SECTIONS = [
           '— Carte « Règle de découpe » : la règle qui dit où commence et finit chaque unité du document (par exemple, chaque activité en crèche). Elle est écrite en clair ; vous la relisez et vous la validez. Tant qu\'elle n\'est pas validée, rien n\'est découpé.',
           '— Carte « Résultat du découpage avec arbitrage des cas ambigus » : la liste des unités que la règle produit. Vous vérifiez qu\'aucune n\'est coupée au mauvais endroit ni laissée sans titre.',
           '— Arbitrage des cas ambigus : certaines unités portent un âge imprécis, signalé « âge à confirmer ». aSchool ne devine jamais — il vous les montre et vous laisse trancher. Vous choisissez la ou les tranches proposées, puis « Valider l\'âge » : l\'unité rejoint le bon niveau. Sans votre arbitrage, elle n\'est pas intégrée (aSchool n\'invente rien).',
+          '— Vous hésitez sur un cas ? Deux boutons vous aident : « Afficher l\'ambiguïté » montre l\'indication du document et l\'activité complète ; « Demander un avis » ouvre un mail déjà rédigé, adressé à un professionnel de votre choix, que vous relisez, modifiez et envoyez. Le cas passe alors « en attente » (badge bleu) jusqu\'à ce que vous le tranchiez — trancher ferme la demande. L\'objet du mail rappelle le couple concerné (cycle · niveau).',
           'Voici la procédure de bout en bout. Vos gestes sont en bordeaux ; ce qu\'aSchool fait tout seul est en bleu.',
         ],
         flow: [

@@ -59,6 +59,13 @@ export default function AdminReferentiels() {
   // fiche) — jamais écrites en dur ici. `savingArbitrage` = libellé en cours d'enregistrement.
   const [selection, setSelection] = useState({})              // { age_label: [options] }
   const [savingArbitrage, setSavingArbitrage] = useState('')
+  // TEMPS 2 — demander l'avis d'un professionnel sur un cas flou (statut « en attente » EN BASE).
+  const [enAttente, setEnAttente] = useState([])              // [{ label, destinataire }] servis par GET en-attente
+  const [demandeOuverte, setDemandeOuverte] = useState('')    // age_label dont le formulaire de demande est ouvert
+  const [demandeEmail, setDemandeEmail] = useState('')
+  const [demandeMessage, setDemandeMessage] = useState('')
+  const [envoiDemande, setEnvoiDemande] = useState('')        // age_label en cours d'envoi
+  const [ambiguiteOuverte, setAmbiguiteOuverte] = useState('') // age_label dont le panneau « ambiguïté » est ouvert
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -71,7 +78,7 @@ export default function AdminReferentiels() {
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); return }
+    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); setEnAttente([]); setDemandeOuverte(''); return }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
@@ -102,6 +109,12 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) setSelection(d && d.arbitrages ? d.arbitrages : {}) })
       .catch(() => { if (!annule) setSelection({}) })
+    // Cas flous EN ATTENTE d'un avis (TEMPS 2) — pour afficher le badge « en attente ».
+    fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou/en-attente?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) setEnAttente(d && d.en_attente ? d.en_attente : []) })
+      .catch(() => { if (!annule) setEnAttente([]) })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -139,6 +152,72 @@ export default function AdminReferentiels() {
       showError("L'âge n'a pas pu être enregistré (réseau).")
     } finally {
       setSavingArbitrage('')
+    }
+  }
+
+  // Corps du mail d'avis pré-rempli (générique + éditable). Le SEUL spécifique vient du texte extrait
+  // de l'ambiguïté (l'activité, telle quelle) — aucun mot en dur propre à un référentiel (ni « âge »,
+  // ni « crèche ») : l'admin ajuste avant d'envoyer, et un autre référentiel réutilise le même squelette.
+  // On pose une question ouverte ; c'est l'admin qui range ensuite la réponse.
+  function construireMessageMail(extrait) {
+    return [
+      'Bonjour,',
+      '',
+      "Nous préparons des activités pédagogiques à partir des référentiels officiels. Pour l'une d'elles, nous aimerions votre avis de terrain.",
+      '',
+      "L'activité :",
+      '« ' + (extrait || '').trim() + ' »',
+      '',
+      'Quel est votre avis sur cette activité ? Un simple mot en réponse nous suffit.',
+      '',
+      'Merci beaucoup pour votre aide.',
+      '',
+      'Bien cordialement,',
+      "L'équipe aSchool",
+    ].join('\n')
+  }
+
+  function enAttentePour(label) {
+    return enAttente.find(e => e.label === label) || null
+  }
+
+  // Ouvre (ou referme) le formulaire de demande d'avis pour un cas flou : pré-remplit le message.
+  function ouvrirDemande(u) {
+    if (demandeOuverte === u.age_label) { setDemandeOuverte(''); return }
+    setDemandeOuverte(u.age_label)
+    const deja = enAttentePour(u.age_label)
+    setDemandeEmail(deja ? deja.destinataire : '')
+    setDemandeMessage(construireMessageMail(u.extrait))
+  }
+
+  // Déplie / replie le panneau « ambiguïté » d'un cas flou : l'admin y VOIT ce qu'il doit trancher
+  // (l'indication du document + l'activité complète) avant de décider ou de demander un avis.
+  function basculerAmbiguite(label) {
+    setAmbiguiteOuverte(prev => (prev === label ? '' : label))
+  }
+
+  // Envoie la demande d'avis (POST /demander) : mail parti + cas « en attente », puis on recharge.
+  async function envoyerDemande(label) {
+    if (!demandeEmail.trim()) { showError("Indiquez l'adresse du professionnel à qui envoyer la demande."); return }
+    if (!demandeMessage.trim()) { showError('Le message à envoyer est vide.'); return }
+    setEnvoiDemande(label)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/arbitrage-flou/demander', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, label, email: demandeEmail.trim(), message: demandeMessage }),
+      }, TIMEOUT_GROQ)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La demande n'a pas pu être envoyée."); return }
+      // Recharger les cas en attente (le badge apparaît) et fermer le formulaire.
+      const att = await fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou/en-attente?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+        { credentials: 'include' }, TIMEOUT_STD).then(x => (x.ok ? x.json() : null)).catch(() => null)
+      if (att && att.en_attente) setEnAttente(att.en_attente)
+      setDemandeOuverte('')
+    } catch {
+      showError("La demande n'a pas pu être envoyée (réseau).")
+    } finally {
+      setEnvoiDemande('')
     }
   }
 
@@ -661,11 +740,69 @@ export default function AdminReferentiels() {
                           style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
                           {savingArbitrage === u.age_label ? '…' : "Valider l'âge"}
                         </button>
+                        {/* TEMPS 2 : badge « en attente » + voir l'ambiguïté + demander l'avis d'un pro par mail. */}
+                        {enAttentePour(u.age_label) && (
+                          <span title={`Avis demandé à ${enAttentePour(u.age_label).destinataire}`}
+                            style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap',
+                              color: '#1e3a8a', background: '#dbeafe', border: '1px solid #bfdbfe' }}>
+                            en attente
+                          </span>
+                        )}
+                        <button type="button" className="btn-secondary"
+                          title="Voir ce qui rend le cas ambigu : l'indication du document et l'activité complète"
+                          onClick={() => basculerAmbiguite(u.age_label)}
+                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                          {ambiguiteOuverte === u.age_label ? "Masquer l'ambiguïté" : "Afficher l'ambiguïté"}
+                        </button>
+                        <button type="button" className="btn-secondary"
+                          title="Demander par mail l'avis d'un professionnel sur ce cas"
+                          onClick={() => ouvrirDemande(u)}
+                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                          {demandeOuverte === u.age_label ? 'Fermer' : 'Demander un avis'}
+                        </button>
                       </div>
                     )}
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
                       {(u.bandes || []).join(' · ') || '—'}
                     </span>
+                    {/* Panneau « ambiguïté » : ce que l'admin doit voir pour trancher — l'indication
+                        d'âge écrite dans le document + l'activité complète (titre + matériel + déroulé). */}
+                    {u.flou && ambiguiteOuverte === u.age_label && (
+                      <div style={{ flexBasis: '100%', marginTop: 8, padding: 10, background: '#fffbeb',
+                        border: '1px solid #fde68a', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontSize: 12, color: '#92400e' }}>
+                          <strong>Indication du document :</strong> « {u.age_label} » — imprécise, à trancher.
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Activité complète</div>
+                        <pre style={{ margin: 0, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap',
+                          fontFamily: 'inherit' }}>{u.extrait || '—'}</pre>
+                      </div>
+                    )}
+                    {/* Formulaire de demande d'avis (inline, pleine largeur sous la ligne). Mail générique
+                        pré-rempli, éditable : l'admin lit, ajuste, envoie. */}
+                    {u.flou && demandeOuverte === u.age_label && (
+                      <div style={{ flexBasis: '100%', marginTop: 8, padding: 10, background: '#f8fafc',
+                        border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Adresse du professionnel</label>
+                        <input type="email" value={demandeEmail} onChange={e => setDemandeEmail(e.target.value)}
+                          placeholder="ex. contact@exemple.fr"
+                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+                        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Message (pré-rempli, modifiable)</label>
+                        <textarea value={demandeMessage} onChange={e => setDemandeMessage(e.target.value)} rows={12}
+                          style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontFamily: 'inherit', resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                          <button type="button" className="btn-secondary" title="Annuler la demande"
+                            onClick={() => setDemandeOuverte('')} style={{ fontSize: 12, padding: '4px 10px' }}>
+                            Annuler
+                          </button>
+                          <button type="button" className="btn-primary" title="Envoyer la demande d'avis par mail au professionnel"
+                            disabled={envoiDemande === u.age_label}
+                            onClick={() => envoyerDemande(u.age_label)} style={{ fontSize: 12, padding: '4px 10px' }}>
+                            {envoiDemande === u.age_label ? 'Envoi…' : 'Envoyer la demande'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {(apercuDecoupe.unites || []).length === 0 && (

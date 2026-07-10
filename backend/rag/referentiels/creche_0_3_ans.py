@@ -383,6 +383,7 @@ def apercu_unites(chunks: list[dict], collection: str, doutes: Optional[list[boo
             "flou": flou,
             "arbitre": (not flou) or (valeur.strip() in _ARBITRAGE),
             "dans_niveau": bool(bande_niveau) and bande_niveau in bandes,
+            "extrait": c["text"],   # texte complet de l'activité (sert au pré-remplissage du mail d'avis)
         })
     return {
         "total": len(unites),

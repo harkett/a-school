@@ -404,3 +404,22 @@ class ReferentielChunk(Base):
     embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class ArbitrageDemande(Base):
+    """TEMPS 2 de l'arbitrage : cas flou où l'admin a demandé l'avis d'un pro par mail et ATTEND la
+    réponse. La DÉCISION d'arbitrage vit en base (`referentiels.arbitrage`) ; ici on ne stocke QUE le
+    statut « en attente » — donnée saisie via l'app, cap « tout en base ». Une ligne = un cas flou
+    (référentiel + libellé) en attente ; « en attente » = présence de la ligne. La ligne est supprimée
+    quand l'admin tranche le cas (endpoint arbitrage-flou). Ancrée au MÊME référentiel que la décision
+    (referentiel_id), jamais au niveau — un seul point d'ancrage. PROVISOIRE : absorbé plus tard par la
+    gestion unifiée des mails (item 65)."""
+    __tablename__ = "arbitrage_demandes"
+    __table_args__ = (UniqueConstraint("referentiel_id", "label", name="uq_arbitrage_demandes_ref_label"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(Text, nullable=False)                 # libellé d'âge flou (= age_label de l'aperçu)
+    destinataire: Mapped[str] = mapped_column(String(255), nullable=False)   # adresse du pro sollicité
+    demande_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
