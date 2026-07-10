@@ -290,7 +290,16 @@ def apercu_decoupage(collection: str) -> dict:
         if hasattr(fiche, "doutes_depuis_labels"):
             labels = _labels_douteux(db, ref, fiche, chunks)
             doutes = fiche.doutes_depuis_labels(chunks, labels)
-        return apercu(chunks, collection, doutes=doutes)
+        resultat = apercu(chunks, collection, doutes=doutes)
+        # Résumé du filtre par niveau — on exécute le VRAI filtre (filtrer_chunks, lecture seule) et on
+        # joint son verdict à l'aperçu, pour la cartouche « Résultat du filtre » de l'écran admin. ok=True
+        # -> couple prêt (X/Y retenues) ; ok=False -> refus (message clair, un cas non tranché reste).
+        try:
+            gardes = fiche.filtrer_chunks(chunks, collection, doutes)
+            resultat["filtre"] = {"ok": True, "gardes": len(gardes), "total": len(chunks), "message": None}
+        except Exception as e:
+            resultat["filtre"] = {"ok": False, "gardes": 0, "total": len(chunks), "message": str(e)}
+        return resultat
     finally:
         db.close()
 

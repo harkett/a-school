@@ -100,7 +100,18 @@ export default function AdminReferentiels() {
     fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_GROQ)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) setApercuDecoupe(d && d.raison !== 'non_applicable' ? d : null) })
+      .then(d => {
+        if (annule) return
+        const ap = d && d.raison !== 'non_applicable' ? d : null
+        setApercuDecoupe(ap)
+        // Garde-fou (règle « incohérence = modale ») : couple ouvert mais filtre EN ÉCHEC -> modale
+        // bloquante qui OBLIGE l'admin à revenir trancher. À l'OUVERTURE du couple seulement (pas
+        // après chaque arbitrage), pour ne pas le harceler pendant qu'il tranche.
+        if (ap && ap.filtre && !ap.filtre.ok) {
+          const n = (ap.unites || []).filter(u => u.flou && !u.arbitre).length
+          showError(`Ce couple n'est pas prêt : il reste ${n} cas « âge à confirmer » à trancher.\n\nRevenez les régler dans la carte « Résultat du découpage » ci-dessus. Tant qu'ils ne sont pas tranchés, ce niveau ne peut pas être ingéré.`)
+        }
+      })
       .catch(() => { if (!annule) setApercuDecoupe(null) })
     // Décisions d'arbitrage des cas flous (EN BASE : colonne referentiels.arbitrage du couple).
     // On pré-remplit la sélection de l'admin avec ce qui est déjà tranché.
@@ -820,6 +831,31 @@ export default function AdminReferentiels() {
             </div>
           )}
           </>
+          )}
+        </div>
+      )}
+
+      {/* Cartouche « Résultat du filtre par niveau » — verdict du VRAI filtre (backend), sous le
+          découpage. Vert = couple prêt ; rouge = il reste des cas à trancher. La modale bloquante se
+          déclenche à l'ouverture du couple (effet de chargement ci-dessus, règle « incohérence = modale »). */}
+      {apercuDecoupe && apercuDecoupe.disponible && apercuDecoupe.filtre && (
+        <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 12, padding: 16,
+          background: apercuDecoupe.filtre.ok ? '#f0fdf4' : '#fef2f2' }}>
+          <h2 className="text-base font-semibold"
+            style={{ color: apercuDecoupe.filtre.ok ? '#166534' : '#991b1b' }}>
+            Résultat du filtre par niveau
+          </h2>
+          {apercuDecoupe.filtre.ok ? (
+            <div style={{ fontSize: 13, color: '#166534', marginTop: 6 }}>
+              Filtre réussi — <strong>{apercuDecoupe.filtre.gardes}</strong> unités retenues pour ce niveau
+              {apercuDecoupe.bande_niveau ? ` (bande ${apercuDecoupe.bande_niveau})` : ''}. Ce niveau est prêt.
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#991b1b', marginTop: 6 }}>
+              Filtre en échec — il reste{' '}
+              <strong>{(apercuDecoupe.unites || []).filter(u => u.flou && !u.arbitre).length}</strong> cas
+              « âge à confirmer » à trancher pour ce couple. Réglez-les dans la carte « Résultat du découpage » ci-dessus.
+            </div>
           )}
         </div>
       )}

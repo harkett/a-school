@@ -11,11 +11,12 @@ const SECTIONS = [
         ),
         contenu: [
           'Un référentiel, c\'est le programme officiel d\'un couple matière + niveau (par exemple Français 4e). Tant qu\'un couple n\'a pas son référentiel, il reste « en construction » et ne génère pas.',
-          'Le découpage, en détail — deux cartes sur l\'écran Référentiels vous laissent contrôler comment le document est débité en unités :',
+          'Le découpage, en détail — trois cartes sur l\'écran Référentiels vous laissent contrôler comment le document est débité en unités :',
           '— Carte « Règle de découpe » : la règle qui dit où commence et finit chaque unité du document (par exemple, chaque activité en crèche). Elle est écrite en clair ; vous la relisez et vous la validez. Tant qu\'elle n\'est pas validée, rien n\'est découpé.',
           '— Carte « Résultat du découpage avec arbitrage des cas ambigus » : la liste des unités que la règle produit. Vous vérifiez qu\'aucune n\'est coupée au mauvais endroit ni laissée sans titre.',
           '— Arbitrage des cas ambigus : certaines unités portent un âge imprécis, signalé « âge à confirmer ». aSchool ne devine jamais — il vous les montre et vous laisse trancher. Vous choisissez la ou les tranches proposées, puis « Valider l\'âge » : l\'unité rejoint le bon niveau. Sans votre arbitrage, elle n\'est pas intégrée (aSchool n\'invente rien).',
           '— Vous hésitez sur un cas ? Deux boutons vous aident : « Afficher l\'ambiguïté » montre l\'indication du document et l\'activité complète ; « Demander un avis » ouvre un mail déjà rédigé, adressé à un professionnel de votre choix, que vous relisez, modifiez et envoyez. Le cas passe alors « en attente » (badge bleu) jusqu\'à ce que vous le tranchiez — trancher ferme la demande. L\'objet du mail rappelle le couple concerné (cycle · niveau).',
+          '— Carte « Résultat du filtre par niveau » : juste sous le découpage, elle vous dit d\'un coup d\'œil si ce couple est prêt — vert « Filtre réussi » (le niveau ne garde que son contenu) ou rouge « Filtre en échec, il reste N cas à trancher ». Si un cas n\'est pas tranché, une fenêtre s\'ouvre à l\'ouverture du couple et vous oblige à revenir le régler avant d\'aller plus loin ; elle disparaît dès que tout est vert.',
           'Voici la procédure de bout en bout. Vos gestes sont en bordeaux ; ce qu\'aSchool fait tout seul est en bleu.',
         ],
         flow: [

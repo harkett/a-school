@@ -64,7 +64,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 | ✅ | 4 | Lire le texte du PDF *(⚠ voir bloc Reprise : `extraction-texte.txt` = trace morte)* | ⚙ |
 | ✅ | 5 | Découper en unités (1 unité = 1 chunk) | ⚙ (le *comment* vient de la fiche) |
 | ✅ | 6 | Rattacher chaque unité à son niveau | ⚙ (le *critère* vient de la fiche) |
-| ☐ | 7 | Arbitrer les cas ambigus | 🧍 (la machine signale, l'admin tranche) |
+| ✅ | 7 | Arbitrer les cas ambigus | 🧍 (la machine signale, l'admin tranche sinon il mail au à un PROF) — **FAIT 10/07** : mécanisme (item 67 + mail TEMPS 2) + les 4 cas flous de Moyens tranchés en base |
 | ☐ | 8 | Filtrer par niveau | ⚙ |
 | ☐ | 9 | Vectoriser | ⚙ |
 | ☐ | 10 | Ingérer sur la base miroir | ⚙ |
@@ -74,6 +74,8 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 | ☐ | 14 | Basculer miroir → base réelle | ⚙, sur GO 🧍 *(vision cible, pas encore construit)* |
 | ☐ | 15 | Nettoyer la base miroir | ⚙ *(vision cible, pas encore construit)* |
 | ☐ | 16 | Activer le référentiel (visible côté prof) | ⚙ |
+
+> **Note migrations (tâche 14 — bascule miroir → vraie base).** La vraie base `aschool` est au head `c1d2e3f4a5b6` (les 4 migrations « tout en base » #1/#3/#4/#5 + `doutes_ia` appliquées le 10/07). **Reste à appliquer à la bascule, sous GO** : `d1e2f3a4b5c6` (`arbitrage_demandes` — statut « en attente » du mail TEMPS 2), **prête et prouvée sur le miroir**.
 
 ---
 
@@ -91,7 +93,7 @@ Le squelette des 16 étapes est **universel**. Seul le contenu des **étapes 5 e
 
 **Working-tree crèche non committé** (swap PDF en cours) : les 3 `referentiel.pdf` sont désormais **identiques** (md5 `b12497…`, un seul document 0-3 copié dans les 3 dossiers, conforme à D60 §Dépôt) + les 3 `extraction-texte.txt` identiques (md5 `5a47cd…`). À committer avec le swap quand décidé.
 
-**Étapes 5-6 FAITES (08/07/2026).** Le moteur découpe via la **règle de découpe validée** (motif lu **EN BASE** — `referentiels.regle_motif`, via `charger_regle(ref)` appelé par le socle avant `extract_pages` ; plus de regex en dur ni de fichier ; garde-fou : pas de découpage sans validation) et le **tag d'âge** rattache chaque unité à son niveau — prouvé **18 / 27 / 27** (Bébés / Moyens / Grands). *(MAJ 09/07/2026 — migration « tout en base » #3+#4 : règle de découpe et arbitrage des cas flous versés en colonnes de `referentiels` ; les `regle-decoupe.json` supprimés.)* **Prochaine étape = 7 (arbitrer les cas flous) puis ingestion (8-10) sur le miroir.** L'arbitrage réel du flou reste à construire : aujourd'hui la carte « Résultat du découpage » **signale** « âge à confirmer », mais l'admin ne **tranche** pas encore la tranche d'âge (cf. [D60](BOUSSOLE/D60.md) § Reste à faire).
+**Étapes 5-6 FAITES (08/07/2026).** Le moteur découpe via la **règle de découpe validée** (motif lu **EN BASE** — `referentiels.regle_motif`, via `charger_regle(ref)` appelé par le socle avant `extract_pages` ; plus de regex en dur ni de fichier ; garde-fou : pas de découpage sans validation) et le **tag d'âge** rattache chaque unité à son niveau — prouvé **18 / 27 / 27** (Bébés / Moyens / Grands). *(MAJ 09/07/2026 — migration « tout en base » #3+#4 : règle de découpe et arbitrage des cas flous versés en colonnes de `referentiels` ; les `regle-decoupe.json` supprimés.)* **MAJ 10/07/2026 — l'arbitrage (étape 7) est MAINTENANT CONSTRUIT.** La détection des cas douteux se fait **par l'IA** (analyse amont, item 67 — verdict figé en base `referentiels.doutes_ia`, relu par l'aperçu ET l'ingestion, jamais deux appels divergents). L'admin **tranche** réellement chaque cas (« Valider l'âge » → `referentiels.arbitrage`), **ou**, s'il ne sait pas, **demande l'avis d'un professionnel par mail** (TEMPS 2 — mail générique éditable, objet = couple `cycle · niveau` ; statut « en attente » en base `arbitrage_demandes` ; trancher ferme la demande ; commit `952925b`). **Reste pour l'étape 7 :** l'admin arbitre les **vrais** cas flous crèche (les 4 remontés sur Moyens), **puis** ingestion (8-10) sur le miroir.
 
 ---
 

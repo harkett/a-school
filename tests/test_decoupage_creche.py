@@ -256,3 +256,31 @@ def test_doutes_depuis_labels_reconstitue_le_verdict_sans_ia():
     assert doutes[idx] is True
     for i, c in enumerate(chunks):                       # clé = libellé : toutes les unités du même libellé
         assert doutes[i] == (creche._label_age(c) == label)
+
+
+# ── Cohérence cartouche « Résultat du filtre » ↔ vrai filtre (étape 8, garde-fou modale) ──
+#    La cartouche affiche filtre.ok ; la modale s'appuie sur le compte « âge à confirmer » de l'aperçu.
+#    On PROUVE que les deux s'accordent : des cas « à confirmer » ⟺ filtrer_chunks REFUSE (jamais l'un
+#    sans l'autre — sinon la cartouche mentirait sur l'état réel).
+
+def test_apercu_signale_ssi_filtre_refuse_sans_arbitrage():
+    """Aucun flou tranché : l'aperçu signale des cas « âge à confirmer » ET le filtre REFUSE
+    (cartouche ROUGE + modale) — les deux d'accord."""
+    chunks = _decouper({})                                    # aucun arbitrage
+    ap = creche.apercu_unites(chunks, "bebes_0_1_an", doutes=None)
+    a_confirmer = [u for u in ap["unites"] if u["flou"] and not u["arbitre"]]
+    assert len(a_confirmer) > 0                               # l'aperçu signale
+    with pytest.raises(RuntimeError):                         # et le filtre refuse
+        creche.filtrer_chunks(chunks, "bebes_0_1_an", doutes=None)
+
+
+def test_apercu_muet_ssi_filtre_passe_avec_arbitrage():
+    """Les 3 flous tranchés : l'aperçu ne signale plus rien ET le filtre PASSE
+    (cartouche VERTE, pas de modale) — les deux d'accord."""
+    arb = {f: ["0-1"] for f in FLOUS}                         # les 3 vrais flous tranchés
+    chunks = _decouper(arb)
+    ap = creche.apercu_unites(chunks, "bebes_0_1_an", doutes=None)
+    a_confirmer = [u for u in ap["unites"] if u["flou"] and not u["arbitre"]]
+    assert len(a_confirmer) == 0                              # plus rien à confirmer
+    kept = creche.filtrer_chunks(chunks, "bebes_0_1_an", doutes=None)   # filtre passe
+    assert len(kept) >= 1
