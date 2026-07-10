@@ -309,7 +309,8 @@ def _ecrire_statut_regle(db: Session, cycle_id: int, niveau: str, valide: bool) 
     if ref is None or not (ref.regle_motif or "").strip():
         raise HTTPException(404, "Aucune règle de découpe pour ce couple.")
     ref.regle_valide = valide
-    db.commit()
+    ref.doutes_ia = None   # la règle change -> le verdict d'analyse amont est périmé : on le vide
+    db.commit()            #   (il sera recalculé une fois, au prochain aperçu/ingestion)
     return {"ok": True, "valide": valide}
 
 

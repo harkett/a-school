@@ -372,6 +372,10 @@ class Referentiel(Base):
     # Arbitrage des cas flous du couple : JSON {libellé d'âge flou: [bandes]} — DONNÉE MÉTIER EN BASE
     # (plus de fichier arbitrage-flou.json). NULL/absent = aucun cas flou tranché.
     arbitrage: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Verdict d'analyse amont de l'IA, calculé UNE fois puis relu (aperçu ET ingestion lisent le
+    # MÊME verdict → jamais deux appels IA divergents) : JSON = liste des libellés jugés douteux.
+    # NULL = pas encore analysé (calculé au 1er besoin) ; vidé quand la règle du couple change.
+    doutes_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 

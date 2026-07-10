@@ -155,12 +155,25 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
         chunk_metadata=fiche.chunk_metadata,
         dedup_key=fiche.dedup_key,
     )
+    # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu -> MÊME verdict que
+    # l'aperçu (jamais deux appels IA divergents). Doute par unité reconstitué des libellés (pur).
+    doutes = None
+    if hasattr(fiche, "doutes_depuis_labels"):
+        db_ia = SessionLocal()
+        try:
+            ref_ia = db_ia.execute(
+                select(Referentiel).where(Referentiel.collection == collection)
+            ).scalar_one_or_none()
+            labels = _labels_douteux(db_ia, ref_ia, fiche, chunks) if ref_ia is not None else []
+        finally:
+            db_ia.close()
+        doutes = fiche.doutes_depuis_labels(chunks, labels)
     # Filtrage par niveau À L'INGESTION (structurel) : si la fiche le prévoit, chaque collection
     # ne garde que les chunks de son niveau (ex. crèche : Bébés -> 0-1, Moyens/Grands -> 1-3).
     # Sinon (CIEL), aucun filtre. Aucune colonne en base — cf. immuabilité de la structure.
     filtrer = getattr(fiche, "filtrer_chunks", None)
     if filtrer is not None:
-        chunks = filtrer(chunks, collection)
+        chunks = filtrer(chunks, collection, doutes)
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
         "collection": collection,
@@ -215,12 +228,33 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
         db.close()
 
 
+def _labels_douteux(db, ref, fiche, chunks: list) -> list:
+    """Verdict d'analyse amont de l'IA, PERSISTÉ (referentiels.doutes_ia) : calculé UNE fois via la
+    fiche (si la colonne est vide) puis relu. L'aperçu ET l'ingestion passent par ici → ils tranchent
+    le MÊME verdict, jamais deux appels IA divergents (l'IA n'est pas parfaitement répétable). Renvoie
+    la liste des libellés jugés douteux (vide si la fiche n'expose pas d'analyse amont)."""
+    import json
+    if not hasattr(fiche, "libelles_douteux"):
+        return []
+    if ref.doutes_ia is not None:
+        try:
+            data = json.loads(ref.doutes_ia)
+            if isinstance(data, list):
+                return [str(x) for x in data]
+        except Exception:
+            pass   # colonne illisible -> on recalcule proprement ci-dessous
+    labels = fiche.libelles_douteux(chunks, db=db)   # UN appel IA, puis on le fige
+    ref.doutes_ia = json.dumps(labels, ensure_ascii=False)
+    db.commit()
+    return labels
+
+
 def apercu_decoupage(collection: str) -> dict:
-    """Aperçu LECTURE SEULE du découpage d'un référentiel : découpe le PDF avec EXACTEMENT les
-    réglages de la fiche (comme l'ingestion) mais N'ÉCRIT RIEN et NE VECTORISE RIEN. Renvoie
-    l'aperçu produit par la fiche (unités, titres, bandes d'âge, cas flous, totaux par niveau),
-    pour que l'admin VOIE le résultat de la règle validée. Lève si la règle n'est pas validée
-    (même garde-fou que l'ingestion, via fiche.extract_pages)."""
+    """Aperçu du découpage d'un référentiel : découpe le PDF avec EXACTEMENT les réglages de la fiche
+    (comme l'ingestion), NE VECTORISE RIEN et n'écrit AUCUN chunk. Seule écriture possible : au tout
+    premier appel, le verdict d'analyse amont de l'IA est calculé UNE fois et figé (colonne doutes_ia)
+    — ensuite il est relu. Renvoie l'aperçu produit par la fiche (unités, titres, bandes, cas flous,
+    totaux par niveau). Lève si la règle n'est pas validée (même garde-fou que l'ingestion)."""
     fiche = get_fiche(collection)
     apercu = getattr(fiche, "apercu_unites", None)
     if apercu is None:
@@ -237,22 +271,28 @@ def apercu_decoupage(collection: str) -> dict:
         # Règle + arbitrage du couple depuis la BASE (idem ingestion) : lève si règle non validée.
         if hasattr(fiche, "charger_regle"):
             fiche.charger_regle(ref)
+        if not pdf_path.exists():
+            raise RuntimeError(f"PDF introuvable : {pdf_path}")
+
+        pages = fiche.extract_pages(pdf_path)   # motif déjà chargé (charger_regle) ; garde-fou si absent
+        chunks = build_chunks(
+            pages,
+            max_chars=fiche.MAX_CHARS,
+            min_chars=fiche.MIN_CHARS,
+            overlap_chars=fiche.OVERLAP_CHARS,
+            is_boundary=fiche.section_boundary,
+            chunk_metadata=fiche.chunk_metadata,
+            dedup_key=fiche.dedup_key,
+        )
+        # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu ici -> MÊME verdict que
+        # l'ingestion. On reconstitue le doute par unité depuis les libellés persistés (pur, sans IA).
+        doutes = None
+        if hasattr(fiche, "doutes_depuis_labels"):
+            labels = _labels_douteux(db, ref, fiche, chunks)
+            doutes = fiche.doutes_depuis_labels(chunks, labels)
+        return apercu(chunks, collection, doutes=doutes)
     finally:
         db.close()
-    if not pdf_path.exists():
-        raise RuntimeError(f"PDF introuvable : {pdf_path}")
-
-    pages = fiche.extract_pages(pdf_path)   # motif déjà chargé (charger_regle) ; garde-fou si absent
-    chunks = build_chunks(
-        pages,
-        max_chars=fiche.MAX_CHARS,
-        min_chars=fiche.MIN_CHARS,
-        overlap_chars=fiche.OVERLAP_CHARS,
-        is_boundary=fiche.section_boundary,
-        chunk_metadata=fiche.chunk_metadata,
-        dedup_key=fiche.dedup_key,
-    )
-    return apercu(chunks, collection)
 
 
 def retrieve_pg(

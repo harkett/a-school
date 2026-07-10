@@ -108,16 +108,23 @@ BANDES_VALIDES = frozenset({_BANDE_BEBES, _BANDE_1_3})
 #    couple, EN BASE : referentiels.arbitrage). Flou non tranché -> frozenset vide (cap « aSchool n'invente rien »).
 def _age_bands(valeur_age: str) -> frozenset[str]:
     """Valeur d'une ligne « Âge : … » -> bandes d'âge. Le « · » du document ressort en « - » à
-    l'extraction ; on teste des sous-chaînes robustes."""
+    l'extraction ; on teste des sous-chaînes robustes.
+
+    L'ARBITRAGE de l'admin PRIME sur le parsing en dur : sa décision gagne même sur un libellé qui
+    matcherait un motif net (ex. « dès ~2 ans (dans notre bande 1-3) », que l'IA fait trancher). Sinon
+    la décision de l'admin serait ré-écrasée par le parsing — et l'aperçu (IA) contredirait l'ingestion.
+    À défaut d'arbitrage : parsing net du libellé ; sinon vide (flou non tranché)."""
+    tranche = _ARBITRAGE.get(valeur_age.strip())   # décision admin (donnée) -> prime sur tout
+    if tranche:
+        return frozenset(tranche)
     s = valeur_age.lower()
     if "0-1" in s and "1-3" in s:          # « Bébés (0-1) - 1-3 ans »
         return frozenset({_BANDE_BEBES, _BANDE_1_3})
     if "bébés-3" in s or "bebes-3" in s:   # « Bébés-3 ans »
         return frozenset({_BANDE_BEBES, _BANDE_1_3})
-    if "1-3" in s:                         # « 1-3 ans » (et « dès ~2 ans (dans notre bande 1-3) »)
+    if "1-3" in s:                         # « 1-3 ans »
         return frozenset({_BANDE_1_3})
-    tranche = _ARBITRAGE.get(valeur_age.strip())   # FLOU -> décision de l'admin (donnée), jamais devinée
-    return frozenset(tranche) if tranche else frozenset()
+    return frozenset()                     # aucun motif net + aucun arbitrage = flou non tranché
 
 
 def extract_pages(pdf_path) -> list[tuple[int, str]]:
@@ -230,16 +237,41 @@ _COLLECTION_BANDE = {
 }
 
 
-def filtrer_chunks(chunks: list[dict], collection: str) -> list[dict]:
+def filtrer_chunks(chunks: list[dict], collection: str, doutes: Optional[list[bool]] = None) -> list[dict]:
     """Ne garde que les chunks dont la tranche d'âge inclut celle de la collection (Bébés -> 0-1 ;
     Moyens et Grands -> 1-3). Lève si la collection est inconnue — jamais un filtre muet qui
-    laisserait passer tout le corpus dans le mauvais niveau."""
+    laisserait passer tout le corpus dans le mauvais niveau.
+
+    `doutes` = verdict PAR unité de l'IA (via `doutes_ia`), aligné sur `chunks` ; None = pas d'IA.
+    Une unité jugée douteuse par l'IA et NON tranchée (libellé absent de l'arbitrage) fait REFUSER
+    l'ingestion — exactement comme le fait l'aperçu (arbitre=False). Aperçu et ingestion tranchent
+    donc le même verdict : ils ne se contredisent jamais."""
     bande = _COLLECTION_BANDE.get(collection)
     if bande is None:
         raise RuntimeError(
             f"Collection crèche inconnue pour le filtre d'âge : {collection!r}. "
             f"Attendu l'une de {sorted(_COLLECTION_BANDE)}."
         )
+    # Garde-fou IA : une unité que l'IA juge douteuse et que l'admin n'a pas tranchée -> on refuse
+    # (même verdict que l'aperçu). Le libellé d'âge est relu de la 1re ligne du chunk via le motif.
+    if doutes is not None:
+        if _MOTIF is None:
+            raise RuntimeError(
+                "filtrer_chunks : doutes fournis sans motif chargé (charger_regle doit tourner d'abord)."
+            )
+        douteux_non_tranches = []
+        for i, c in enumerate(chunks):
+            if i < len(doutes) and doutes[i]:
+                lignes = c["text"].split("\n")
+                m = _MOTIF.match(lignes[0]) if lignes else None
+                label = (m.group(1) if (m and m.groups()) else (m.group(0) if m else "")).strip()
+                if label not in _ARBITRAGE:
+                    douteux_non_tranches.append(label)
+        if douteux_non_tranches:
+            raise RuntimeError(
+                f"{len(douteux_non_tranches)} cas jugé(s) douteux par l'IA et NON tranché(s) — "
+                f"ingestion refusée. L'admin doit trancher (arbitrage du couple, EN BASE)."
+            )
     # Garde-fou : un chunk sans bande = cas flou NON tranché -> on refuse (cap « n'invente rien »,
     # jamais une base trouée en silence). L'admin doit d'abord trancher (arbitrage, EN BASE).
     non_tranches = [c for c in chunks if not c["meta"].get("age")]
@@ -261,20 +293,6 @@ def filtrer_chunks(chunks: list[dict], collection: str) -> list[dict]:
     return [c for c in chunks if bande in c["meta"].get("age", [])]
 
 
-def _age_est_flou(valeur_age: str) -> bool:
-    """Vrai si l'étiquette d'âge n'a matché AUCUN motif net et est tombée dans le repli de
-    _age_bands (« dès ~2 ans », « tout-petits »…) → cas à faire confirmer par l'admin.
-    Miroir exact des branches de _age_bands (mêmes tests, mêmes sous-chaînes)."""
-    s = valeur_age.lower()
-    if "0-1" in s and "1-3" in s:
-        return False
-    if "bébés-3" in s or "bebes-3" in s:
-        return False
-    if "1-3" in s:
-        return False
-    return True
-
-
 def doutes_ia(chunks: list[dict], *, db) -> list[bool]:
     """Détecte PAR L'IA, unité par unité, s'il y a un VRAI doute de classement — le remplaçant
     générique de `_age_est_flou` (matching en dur). Chaque chunk est une unité déjà découpée : on en
@@ -286,8 +304,9 @@ def doutes_ia(chunks: list[dict], *, db) -> list[bool]:
     fait remonter à l'admin plutôt que de la laisser passer en silence (cap « jamais de trou muet »).
     Laisse remonter les pannes IA (l'appelant les traduit).
 
-    État : pas 2 du chantier 67 — brique de raccord CONSTRUITE et testée ; `apercu_unites` utilise
-    encore `_age_est_flou` (le branchement + la suppression du code en dur = pas 3)."""
+    Cet appel IA est fait UNE fois (via `libelles_douteux`, dont le résultat est persisté en base) :
+    l'aperçu et l'ingestion relisent ensuite le verdict, ils ne rappellent jamais l'IA chacun de leur
+    côté (sinon deux appels divergents se contrediraient)."""
     from backend.rag.analyse_amont import analyser_unites   # import paresseux (évite tout cycle au boot)
     unites: list[dict] = []
     for c in chunks:
@@ -299,12 +318,48 @@ def doutes_ia(chunks: list[dict], *, db) -> list[bool]:
     return [verdicts.get(i, True) for i in range(len(chunks))]
 
 
-def apercu_unites(chunks: list[dict], collection: str) -> dict:
+def _label_age(chunk: dict) -> str:
+    """Libellé d'âge d'une unité = 1re ligne du chunk, lue par le motif validé du couple. Clé STABLE
+    (le libellé ne bouge pas si on recoupe) : sert de clé au verdict IA persisté et à l'arbitrage."""
+    lignes = chunk["text"].split("\n")
+    m = _MOTIF.match(lignes[0]) if (lignes and _MOTIF is not None) else None
+    return (m.group(1) if (m and m.groups()) else (m.group(0) if m else "")).strip()
+
+
+def libelles_douteux(chunks: list[dict], *, db) -> list[str]:
+    """Analyse amont PAR L'IA (un seul appel) → liste dédupliquée des LIBELLÉS d'âge jugés douteux.
+    C'est CE résultat qu'on persiste (clé = libellé, stable) puis qu'on relit des deux côtés, pour que
+    l'aperçu et l'ingestion tranchent le MÊME verdict. Laisse remonter les pannes IA."""
+    doutes = doutes_ia(chunks, db=db)
+    vus: set[str] = set()
+    out: list[str] = []
+    for c, d in zip(chunks, doutes):
+        if d:
+            lab = _label_age(c)
+            if lab not in vus:
+                vus.add(lab)
+                out.append(lab)
+    return out
+
+
+def doutes_depuis_labels(chunks: list[dict], labels) -> list[bool]:
+    """Reconstitue le verdict PAR unité depuis la liste de libellés douteux (persistée) — PUR, sans
+    IA. Une unité est douteuse si son libellé d'âge figure dans `labels`. Aligné sur l'ordre des chunks."""
+    labset = set(labels or [])
+    return [_label_age(c) in labset for c in chunks]
+
+
+def apercu_unites(chunks: list[dict], collection: str, doutes: Optional[list[bool]] = None) -> dict:
     """Aperçu LISIBLE du découpage pour l'écran admin (aucun calcul métier neuf : on relit ce que
     le moteur a déjà produit). Par unité : titre (2e ligne du chunk), étiquette d'âge brute (1re
-    ligne), bandes (tag meta["age"]), flou (âge à confirmer), et appartenance au niveau demandé.
+    ligne), bandes (tag meta["age"]), flou (à confirmer par l'admin), et appartenance au niveau.
     Plus les totaux : nombre d'unités, et combien reviennent à ce niveau (même règle que
-    filtrer_chunks). `collection` inconnue -> bande None -> total_niveau = 0 (aucune fausse info)."""
+    filtrer_chunks). `collection` inconnue -> bande None -> total_niveau = 0 (aucune fausse info).
+
+    `doutes` = verdict PAR unité de l'IA (via `doutes_ia`), aligné sur `chunks` ; None = pas d'IA.
+    Une unité est FLOUE si l'IA la juge douteuse OU si elle n'a aucune bande (non plaçable → que
+    l'ingestion refuserait). L'aperçu ne dit donc jamais « clair » sur une unité que l'ingestion
+    rejetterait (cohérence aperçu ↔ ingestion). Sans `doutes`, le flou se réduit à ce repli sûr."""
     bande_niveau = _COLLECTION_BANDE.get(collection)
     if _MOTIF is None:
         raise RuntimeError(
@@ -313,18 +368,20 @@ def apercu_unites(chunks: list[dict], collection: str) -> dict:
         )
     rx = _MOTIF
     unites: list[dict] = []
-    for c in chunks:
+    for i, c in enumerate(chunks):
         lignes = c["text"].split("\n")
         m = rx.match(lignes[0]) if lignes else None
         valeur = (m.group(1) if (m and m.groups()) else (m.group(0) if m else "")).strip()
         titre = lignes[1].strip() if len(lignes) > 1 and lignes[1].strip() else "(sans titre)"
         bandes = c["meta"].get("age", [])
+        doute = bool(doutes[i]) if (doutes is not None and i < len(doutes)) else False
+        flou = doute or (not bandes)   # doute IA OU unité non plaçable (aligné sur l'ingestion)
         unites.append({
             "titre": titre,
             "age_label": valeur,
             "bandes": bandes,
-            "flou": _age_est_flou(valeur),
-            "arbitre": (not _age_est_flou(valeur)) or (valeur.strip() in _ARBITRAGE),
+            "flou": flou,
+            "arbitre": (not flou) or (valeur.strip() in _ARBITRAGE),
             "dans_niveau": bool(bande_niveau) and bande_niveau in bandes,
         })
     return {

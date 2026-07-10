@@ -167,3 +167,92 @@ def test_apercu_expose_les_options_darbitrage():
     que le validateur du POST -> le front ne peut proposer que des options que le POST accepte."""
     ap = creche.apercu_unites(_decouper({}), "moyens_1_2_ans")
     assert ap["options_arbitrage"] == sorted(creche.BANDES_VALIDES) == ["0-1", "1-3"]
+
+
+def test_apercu_doute_ia_rend_une_unite_nette_floue():
+    """Branchement de l'IA (pas 2) : même une unité NETTE (bandes présentes) devient flou=True si le
+    verdict de l'IA (`doutes[i]`) la juge douteuse — c'est bien l'IA qui décide, plus le code en dur.
+    Sans `doutes`, la même unité reste nette (repli sûr = bandes vides seules)."""
+    chunks = _decouper({})                              # 27 unités : 3 flous (bandes vides), le reste net
+    idx = next(i for i, c in enumerate(chunks) if c["meta"].get("age"))   # 1re unité NETTE (a des bandes)
+    doutes = [False] * len(chunks)
+    doutes[idx] = True                                  # l'IA doute de cette unité pourtant nette
+
+    ap = creche.apercu_unites(chunks, "moyens_1_2_ans", doutes=doutes)
+    assert ap["unites"][idx]["bandes"]                  # elle a bien des bandes (nette au parsing)
+    assert ap["unites"][idx]["flou"] is True            # ... mais l'IA la rend floue
+    assert ap["unites"][idx]["arbitre"] is False        # donc à trancher par l'admin
+
+    ap0 = creche.apercu_unites(chunks, "moyens_1_2_ans")   # sans verdict IA
+    assert ap0["unites"][idx]["flou"] is False          # la même unité redevient nette
+
+
+# ── Cohérence aperçu ↔ ingestion : le doute de l'IA vaut des deux côtés (pas 2, bout 2b) ──
+
+def test_age_bands_arbitrage_prime_sur_le_parsing():
+    """L'arbitrage de l'admin PRIME sur le parsing en dur : un libellé qui matcherait « 1-3 » suit
+    quand même la décision arbitrée (0-1). Sans arbitrage, il retomberait sur le parsing net."""
+    creche._ARBITRAGE = {"dès ~2 ans (dans notre bande 1-3)": ["0-1"]}
+    try:
+        assert creche._age_bands("dès ~2 ans (dans notre bande 1-3)") == frozenset({"0-1"})  # arbitrage
+        creche._ARBITRAGE = {}
+        assert creche._age_bands("dès ~2 ans (dans notre bande 1-3)") == frozenset({"1-3"})  # parsing net
+    finally:
+        creche._ARBITRAGE = {}
+
+
+def test_ingestion_refuse_un_doute_ia_non_tranche():
+    """Miroir de l'aperçu : une unité jugée douteuse par l'IA et NON tranchée fait REFUSER
+    filtrer_chunks — même verdict que l'aperçu (arbitre=False). Même une unité NETTE au parsing."""
+    chunks = _decouper({})                                      # aucun arbitrage
+    idx = next(i for i, c in enumerate(chunks) if c["meta"].get("age"))   # unité NETTE (a des bandes)
+    doutes = [False] * len(chunks)
+    doutes[idx] = True                                          # l'IA doute de cette unité
+    with pytest.raises(RuntimeError, match="douteux"):
+        creche.filtrer_chunks(chunks, "moyens_1_2_ans", doutes)
+
+
+def test_ingestion_accepte_un_doute_ia_une_fois_tranche():
+    """Le même doute, une fois TRANCHÉ par l'admin, ne fait plus refuser l'ingestion."""
+    base = _decouper({})
+    idx = next(i for i, c in enumerate(base) if c["meta"].get("age"))
+    m = creche._MOTIF.match(base[idx]["text"].split("\n")[0])
+    label = (m.group(1) if m.groups() else m.group(0)).strip()   # libellé d'âge de cette unité
+    arb = {lbl: ["1-3"] for lbl in FLOUS}    # tranche les 3 vrais flous (sinon bandes vides = refus)
+    arb[label] = ["1-3"]                     # + le libellé de l'unité que l'IA juge douteuse
+    chunks = _decouper(arb)
+    doutes = [False] * len(chunks)
+    doutes[idx] = True
+    kept = creche.filtrer_chunks(chunks, "moyens_1_2_ans", doutes)   # ne doit PAS lever
+    assert len(kept) >= 1
+
+
+# ── Verdict IA calculé UNE fois (libellés) puis reconstitué (bout 2b : persistance) ──
+
+def test_libelles_douteux_renvoie_les_libelles_juges_douteux(monkeypatch):
+    """libelles_douteux : l'IA (moquée) juge une unité douteuse -> son LIBELLÉ d'âge remonte
+    (c'est cette liste de libellés, clé stable, qu'on persiste puis relit des deux côtés)."""
+    import backend.rag.analyse_amont as aamod
+    chunks = _decouper({})
+    idx = next(i for i, c in enumerate(chunks) if c["meta"].get("age"))   # une unité nette
+
+    def fake(unites, *, db):
+        return {"regle": "x", "unites": [
+            {"index": i, "classe": [], "doute": (i == idx)} for i in range(len(unites))
+        ]}
+    monkeypatch.setattr(aamod, "analyser_unites", fake)
+
+    labels = creche.libelles_douteux(chunks, db=None)
+    assert labels == [creche._label_age(chunks[idx])]
+
+
+def test_doutes_depuis_labels_reconstitue_le_verdict_sans_ia():
+    """doutes_depuis_labels : PUR (aucune IA). Une unité est douteuse ssi son libellé figure dans la
+    liste persistée — même verdict que celui qui a servi à écrire la liste."""
+    chunks = _decouper({})
+    idx = next(i for i, c in enumerate(chunks) if c["meta"].get("age"))
+    label = creche._label_age(chunks[idx])
+    doutes = creche.doutes_depuis_labels(chunks, [label])
+    assert doutes[idx] is True
+    for i, c in enumerate(chunks):                       # clé = libellé : toutes les unités du même libellé
+        assert doutes[i] == (creche._label_age(c) == label)
