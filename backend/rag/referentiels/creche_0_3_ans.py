@@ -275,6 +275,30 @@ def _age_est_flou(valeur_age: str) -> bool:
     return True
 
 
+def doutes_ia(chunks: list[dict], *, db) -> list[bool]:
+    """Détecte PAR L'IA, unité par unité, s'il y a un VRAI doute de classement — le remplaçant
+    générique de `_age_est_flou` (matching en dur). Chaque chunk est une unité déjà découpée : on en
+    refait une unité `{titre, texte}` (titre = 2e ligne, texte = le chunk entier), on passe le tout à
+    la brique d'analyse amont (`analyser_unites`), et on renvoie le verdict `doute` de chaque unité,
+    ALIGNÉ sur l'ordre des chunks.
+
+    Garde-fou : une unité pour laquelle l'IA ne rend AUCUN verdict est comptée douteuse (True) — on la
+    fait remonter à l'admin plutôt que de la laisser passer en silence (cap « jamais de trou muet »).
+    Laisse remonter les pannes IA (l'appelant les traduit).
+
+    État : pas 2 du chantier 67 — brique de raccord CONSTRUITE et testée ; `apercu_unites` utilise
+    encore `_age_est_flou` (le branchement + la suppression du code en dur = pas 3)."""
+    from backend.rag.analyse_amont import analyser_unites   # import paresseux (évite tout cycle au boot)
+    unites: list[dict] = []
+    for c in chunks:
+        lignes = c["text"].split("\n")
+        titre = lignes[1].strip() if len(lignes) > 1 and lignes[1].strip() else ""
+        unites.append({"titre": titre, "texte": c["text"]})
+    data = analyser_unites(unites, db=db)
+    verdicts = {u.get("index"): bool(u.get("doute")) for u in data.get("unites", [])}
+    return [verdicts.get(i, True) for i in range(len(chunks))]
+
+
 def apercu_unites(chunks: list[dict], collection: str) -> dict:
     """Aperçu LISIBLE du découpage pour l'écran admin (aucun calcul métier neuf : on relit ce que
     le moteur a déjà produit). Par unité : titre (2e ligne du chunk), étiquette d'âge brute (1re
