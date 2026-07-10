@@ -653,7 +653,19 @@ Repère code : l'extraction propre au document renvoie une « page » autonome p
 
 **Code d'un côté, donnée de l'autre.** Le parsing du PDF (colonnes, frontières d'activité) est du **code** propre au document, légitimement en dur. Les **valeurs métier** — option A/B, seuil — sont de la **donnée** et **vivent en base**. État réel : `referentiels.filtres` **en base** (colonne) ET le seuil de pertinence RAG **en base** (`referentiels.score_min`, défaut 0.30 — plus aucune constante `SCORE_MIN` en dur). *(Les tranches d'âge / bandes, elles, restent en dur dans la fiche par choix acté : voir « Immuabilité de la structure d'un référentiel » — c'est de la **structure** (code), pas un réglage.)*
 
-**L'analyse amont — une étape AVANT le découpage.** Avant de découper, on analyse le document, dans deux buts : repérer le **critère** qui le structure (l'axe de filtre : option A/B, âge…), et détecter les **cas flous** qui casseraient le découpage. L'outil fait environ 90 % seul (lire, trier les cas nets, isoler les flous) ; l'humain tranche les 10 % flous. **Règle absolue : sur un cas flou, l'outil ne décide jamais seul en silence — il signale et attend l'arbitrage** (cap « aSchool n'invente rien »). L'analyse produit le critère rangé en base et un document assaini, prêt au découpage. Menée aujourd'hui par le **dev** (prototype) ; cible = **fonction de l'app**, l'admin arbitrant le flou à la place du dev. On la bâtit donc **portable** — fonction pure et testable — jamais jetable.
+**L'analyse amont — une étape AVANT le découpage.** Avant de découper, on analyse le document, dans deux buts : trouver le **critère** qui le structure, et détecter les **cas flous** qui casseraient le découpage. Ce travail se fait **par l'IA** (voir la règle ci-dessous) : elle lit le document, en tire elle-même la règle de classement, range les cas nets et ne remonte que les **vrais doutes**. **Règle absolue : sur un cas flou, on ne décide jamais seul en silence — on signale et on attend l'arbitrage de l'admin** (cap « aSchool n'invente rien »). On la bâtit **portable** — fonction pure et testable — jamais jetable.
+
+**L'ambiguïté d'un référentiel se détecte par l'IA (règle absolue).**
+
+Quand aSchool découpe un référentiel, il doit repérer les cas ambigus — les unités dont le classement n'est pas clair. Ce repérage se fait **uniquement par l'IA**.
+
+- On ne code **aucune** règle de classement. On ne **devine pas** l'axe qui structure le document.
+- On donne à l'IA **le document, rien d'autre**.
+- L'IA **lit le document** et en **tire elle-même** la règle qui le structure.
+- À partir de cette règle qu'**elle** a trouvée, l'IA **range seule ce qui est clair** et ne remonte à l'admin que les **vrais doutes**.
+- L'IA **propose** (la règle *et* les ambiguïtés), l'**admin valide**. Jamais l'IA seule (cap « aSchool n'invente rien »).
+
+L'IA employée est la porte unique `generate()` de l'app, déjà utilisée par les autres outils.
 
 > Procédure d'exécution complète (dépôt jusqu'à la recherche) et application à la crèche : fiche `MesMD/BOUSSOLE/D60.md`.
 
