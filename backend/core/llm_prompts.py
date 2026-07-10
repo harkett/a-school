@@ -219,6 +219,36 @@ Règles :
 
 
 # Registre : clé -> libellé (UI) + repères obligatoires + texte par défaut.
+PROMPT_ANALYSE_AMONT = """Tu analyses un référentiel officiel déjà découpé en unités de contenu. Tu ne connais rien de ce document à l'avance : tu dois le comprendre en le lisant.
+
+Unités à analyser :
+{unites}
+
+Ta mission, en deux temps :
+1. Déduis, en LISANT ces unités, la RÈGLE DE CLASSEMENT du document — le critère selon lequel son contenu se range (par exemple un âge, un niveau scolaire, une compétence, un thème…). Tu ne devines pas et on ne te souffle rien : tu tires cette règle de ce que tu lis.
+2. Pour CHAQUE unité, applique cette règle : donne la ou les classes où elle se range quand c'est CLAIR ; si tu as un DOUTE RÉEL (le classement n'est pas tranché à la lecture), marque-le et explique pourquoi.
+
+Ne signale un doute que s'il est réel. Une unité dont le classement est évident n'est PAS un doute.
+
+Format de réponse — JSON strict, rien d'autre autour :
+{{
+  "regle": "La règle de classement que tu as déduite, en une phrase.",
+  "unites": [
+    {{
+      "index": 0,
+      "classe": ["classe(s) où ranger cette unité ; liste vide si tu ne peux pas trancher"],
+      "doute": false,
+      "raison": "Si doute vaut true : pourquoi le classement n'est pas tranché. Sinon : vide."
+    }}
+  ]
+}}
+
+Règles :
+- Une entrée par unité, dans le MÊME ordre, avec son "index" (0, 1, 2…).
+- N'invente pas de classes hors de ce que le document laisse voir.
+- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -244,5 +274,10 @@ PROMPTS = {
         "label": "Optimiseur de séquences",
         "placeholders": ["matiere", "niveau", "sequence"],
         "default": PROMPT_OPTIMISEUR,
+    },
+    "analyse_amont": {
+        "label": "Analyse amont d'un référentiel (détection des cas ambigus)",
+        "placeholders": ["unites"],
+        "default": PROMPT_ANALYSE_AMONT,
     },
 }
