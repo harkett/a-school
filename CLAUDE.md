@@ -520,24 +520,30 @@ Le tracker éphémère, une fois vidé de cette idée, **finit à la poubelle**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Cadence de travail — une ligne du TRACKER par session (règle par défaut)
+## Cadence de travail — du général, découpé en morceaux, un morceau à la fois (règle absolue)
 
-**Par défaut : une session = une ligne du `TRACKER.md`.** On finit et on
-committe une ligne avant d'attaquer la suivante — jamais plusieurs en
-parallèle. C'est ce qui garde le statut du TRACKER honnête (rien à moitié fait).
+**Ma façon de travailler : partir du général, le découper en morceaux, avancer
+morceau par morceau.** On regarde d'abord l'ensemble (le but, la vue générale),
+on le **découpe** en petits pas ordonnés, et on **traite un seul pas à la fois** —
+chaque pas fini et committé avant d'attaquer le suivant. Jamais plusieurs en
+parallèle, jamais tout d'un bloc.
 
-Deux exceptions, **jugées par Claude au moment d'« attaquer XX »,
-signalées AVANT de coder, tranchées par l'utilisateur** :
-- **Ligne minuscule** (cosmétique, ~30 min) → Claude propose de la regrouper
-  avec la ligne voisine.
-- **Gros chantier** (plusieurs semaines) → Claude propose de le découper en
-  plusieurs sessions.
+**Chaque morceau se clôt sur un état stable et committable** — « stable » n'est
+pas « fini » : le code tourne, rien n'est cassé, c'est committé, même si la
+feature entière n'est pas encore livrée. On ne laisse jamais de code cassé entre
+deux pas, mais on ne s'impose pas de tout boucler d'un coup (intenable sur un
+chantier de semaines).
 
-**Découpage d'un gros chantier — « stable » n'est pas « fini » :** chaque
-sous-session se clôt sur un état **stable et committable** (le code tourne,
-rien de cassé, c'est committé), pas forcément sur la feature entière livrée.
-On ne laisse jamais de code cassé entre deux sessions, mais on ne s'impose
-pas de tout boucler en une fois — intenable sur un chantier de semaines.
+**En pratique : une session = une ligne du `TRACKER.md`.** On finit et on committe
+une ligne avant la suivante — c'est ce qui garde le statut du TRACKER honnête
+(rien à moitié fait).
+
+**Deux exceptions, jugées par Claude au moment d'« attaquer XX », signalées AVANT
+de coder, tranchées par l'utilisateur :**
+- **Ligne minuscule** (cosmétique, ~30 min) → proposer de la regrouper avec la
+  ligne voisine.
+- **Gros chantier** (plusieurs semaines) → proposer de le **découper en
+  sous-sessions committables**, et montrer le découpage avant d'attaquer.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
