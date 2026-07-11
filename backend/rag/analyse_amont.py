@@ -30,6 +30,10 @@ _CLE_DECOUPE = "decoupe_amont"
 # Clé EN BASE du méta-prompt (l'instruction générique qui demande à l'IA de GÉNÉRER le prompt de
 # découpe d'un document). Aucun texte de prompt en dur : le code le LIT en base (Setting).
 _CLE_META = "prompt_meta_decoupe"
+# Clé EN BASE du méta-prompt de CRITIQUE : l'IA relit le prompt de découpe qu'elle vient de
+# générer et le corrige s'il viole le contrat (titres verbatim, JSON exact, pas de contenu,
+# exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
+_CLE_VERIF = "prompt_verif_decoupe"
 
 
 def formater_unites(unites: list[dict]) -> str:
@@ -128,8 +132,34 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
     # Le document s'injecte au marqueur {document} du méta-prompt (distinct de {texte}, que le
     # méta-prompt demande au prompt GÉNÉRÉ de contenir). Ajouté en fin si le marqueur est absent.
     prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
-    return generate(
+    prompt_genere = generate(
         prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, "meta_decoupe"),
+        temperature=0,
+    ).strip()
+    # Passe d'auto-critique AVANT de renvoyer : l'IA relit son propre prompt et corrige les défauts
+    # grossiers (titre paraphrasé, contenu demandé, JSON non conforme, exclusion oubliée).
+    return verifier_prompt_decoupe(prompt_genere, db=db)
+
+
+def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
+    """L'IA RELIT le prompt de découpe qu'elle vient de générer et le CORRIGE s'il viole le contrat,
+    AVANT affichage à l'admin (lui épargne un aller-retour sur les défauts grossiers). Méta-prompt de
+    critique lu EN BASE (`Setting[prompt_verif_decoupe]`), jamais en dur ; on n'injecte QUE le prompt
+    (`{prompt}`) — pas le document : on juge la FORMULATION du prompt, pas sa sortie. Renvoie le
+    prompt corrigé (ou inchangé si rien à redire). Lève si le méta-prompt de critique est absent.
+    N'est PAS appelée par `regenerer_prompt_decoupe` : après une remarque admin, la remarque fait foi."""
+    meta = (get_settings_dict(db).get(_CLE_VERIF) or "").strip()
+    if not meta:
+        raise RuntimeError(
+            f"Méta-prompt de critique absent en base (Setting '{_CLE_VERIF}'). L'admin doit le "
+            f"renseigner avant la génération d'un prompt de découpe (cap « tout en base »)."
+        )
+    p = meta.replace("{prompt}", prompt_genere) if "{prompt}" in meta else f"{meta}\n\nPROMPT À VÉRIFIER :\n{prompt_genere}"
+    return generate(
+        p,
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),

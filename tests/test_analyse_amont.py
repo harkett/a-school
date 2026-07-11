@@ -24,6 +24,7 @@ import pytest
 import backend.core.database as dbmod
 import backend.rag.analyse_amont as aamod
 from backend.core.llm_prompts import PROMPTS
+from backend.core.models_db import Setting
 from src.generator import LLMRateLimitError
 
 UNITES = [
@@ -124,6 +125,71 @@ def test_analyser_unites_rate_limit_remonte(monkeypatch):
         with pytest.raises(LLMRateLimitError):
             aamod.analyser_unites(UNITES, db=db)
     finally:
+        db.close()
+
+
+# ── verifier_prompt_decoupe : auto-critique du prompt généré (generate() MOQUÉ) ──
+
+def _poser_setting(db, cle, val):
+    row = db.query(Setting).filter(Setting.key == cle).first()
+    if row:
+        row.value = val
+    else:
+        db.add(Setting(key=cle, value=val))
+    db.commit()
+
+
+def _effacer_setting(db, cle):
+    db.query(Setting).filter(Setting.key == cle).delete()
+    db.commit()
+
+
+def test_verifier_prompt_decoupe_injecte_le_prompt_et_renvoie(monkeypatch):
+    capture = _mock_generate(monkeypatch, "PROMPT_CORRIGE")
+    db = dbmod.SessionLocal()
+    try:
+        _poser_setting(db, "prompt_verif_decoupe", "Relis ce prompt. {prompt}")
+        out = aamod.verifier_prompt_decoupe("PROMPT_A_VERIFIER", db=db)
+        assert out == "PROMPT_CORRIGE"                    # renvoie le prompt corrigé par l'IA
+        assert "PROMPT_A_VERIFIER" in capture["prompt"]   # le prompt généré est bien injecté ({prompt})
+        assert capture["kwargs"]["temperature"] == 0
+        assert capture["kwargs"]["provider"] and capture["kwargs"]["model"]
+    finally:
+        _effacer_setting(db, "prompt_verif_decoupe")
+        db.close()
+
+
+def test_verifier_prompt_decoupe_sans_meta_leve(monkeypatch):
+    _mock_generate(monkeypatch, "peu importe")
+    db = dbmod.SessionLocal()
+    try:
+        _effacer_setting(db, "prompt_verif_decoupe")   # garde-fou : méta-prompt de critique absent
+        with pytest.raises(RuntimeError):
+            aamod.verifier_prompt_decoupe("p", db=db)
+    finally:
+        db.close()
+
+
+def test_generer_prompt_decoupe_passe_par_la_verif(monkeypatch):
+    """Le prompt généré traverse la passe de vérification : le retour vient du 2e appel (critique)."""
+    appels = []
+
+    def fake(prompt, **kwargs):
+        appels.append(prompt)
+        return "PROMPT_VERIFIE" if len(appels) == 2 else "PROMPT_GENERE"
+
+    monkeypatch.setattr(aamod, "generate", fake)
+    db = dbmod.SessionLocal()
+    try:
+        _poser_setting(db, "prompt_meta_decoupe", "Génère un prompt de découpe. {document}")
+        _poser_setting(db, "prompt_verif_decoupe", "Relis ce prompt. {prompt}")
+        out = aamod.generer_prompt_decoupe("DOCUMENT BRUT", db=db)
+        assert out == "PROMPT_VERIFIE"          # retour = 2e passe (vérif), pas le 1er jet
+        assert len(appels) == 2                 # génération + vérification
+        assert "PROMPT_GENERE" in appels[1]     # le 1er jet est bien passé à la vérif ({prompt})
+    finally:
+        _effacer_setting(db, "prompt_meta_decoupe")
+        _effacer_setting(db, "prompt_verif_decoupe")
         db.close()
 
 
