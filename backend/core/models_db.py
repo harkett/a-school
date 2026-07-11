@@ -333,6 +333,26 @@ class MatiereCandidate(Base):
     matieres: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array de noms
 
 
+class AiModele(Base):
+    """Modèles LLM texte offerts à l'admin, rattachés à leur fournisseur. DONNÉE MÉTIER → EN BASE
+    (plus de liste `SUPPORTED_AI_MODELS` en dur). Une ligne = un modèle d'un fournisseur ; l'écran
+    admin propose, pour le fournisseur choisi, ses modèles `actif`, le `recommande` en premier.
+    `modele` = l'id exact de l'API (ex. « claude-sonnet-5 »)."""
+    __tablename__ = "ai_modeles"
+    __table_args__ = (
+        UniqueConstraint("fournisseur", "modele", name="uq_ai_modeles_fournisseur_modele"),
+        Index("ix_ai_modeles_fournisseur", "fournisseur"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fournisseur: Mapped[str] = mapped_column(String(50), nullable=False)   # "groq" / "anthropic"
+    modele: Mapped[str] = mapped_column(String(100), nullable=False)        # id API exact
+    label: Mapped[str] = mapped_column(String(150), nullable=False)         # affichage admin
+    recommande: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+
+
 class UserEnseignement(Base):
     """Ce que CE prof enseigne : un sous-ensemble du programme (paire valide)."""
     __tablename__ = "user_enseignements"
