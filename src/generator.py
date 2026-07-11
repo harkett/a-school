@@ -1,7 +1,7 @@
 import threading
 from contextlib import contextmanager
 
-from src.config import AI_PROVIDER, AI_API_KEY, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+from src.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
 
 
 class LLMRateLimitError(RuntimeError):
@@ -52,12 +52,10 @@ def generate(
     reste pur : il ne lit aucune base, il reçoit les chaînes déjà résolues.
     """
     fournisseur = provider or AI_PROVIDER
-    if fournisseur not in ("gemini", "groq", "anthropic"):
+    if fournisseur not in ("groq", "anthropic"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     with _llm_slot():
-        if fournisseur == "gemini":
-            return _gemini(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
-        elif fournisseur == "groq":
+        if fournisseur == "groq":
             return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
         else:  # anthropic
             return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
@@ -74,7 +72,7 @@ def _groq(
     import requests
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {AI_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
     body = {
@@ -94,35 +92,6 @@ def _groq(
     return response.json()["choices"][0]["message"]["content"]
 
 
-def _gemini(
-    prompt: str,
-    *,
-    model: str | None = None,
-    max_tokens: int = 2048,
-    temperature: float | None = None,
-    json_mode: bool = False,
-) -> str:
-    import requests
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model or AI_MODEL}:generateContent"
-    headers = {"Content-Type": "application/json"}
-    params = {"key": AI_API_KEY}
-    generation_config: dict = {"maxOutputTokens": max_tokens}
-    if temperature is not None:
-        generation_config["temperature"] = temperature
-    if json_mode:
-        generation_config["responseMimeType"] = "application/json"
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": generation_config,
-    }
-    response = requests.post(url, headers=headers, params=params, json=body, timeout=60)
-    if response.status_code == 429:
-        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
-    if not response.ok:
-        raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
-    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
 # Note : la dictée (Whisper) passe par backend/groq_client.transcribe_audio, pas ici.
 # (L'ancien transcribe_audio de ce module était du code mort — supprimé.)
 
@@ -132,7 +101,7 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     import requests
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {AI_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -185,7 +154,9 @@ def _anthropic(
         kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
     # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
     # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
-    client = anthropic.Anthropic(api_key=AI_API_KEY, timeout=60)
+    if not CLAUDE_API_KEY:
+        raise RuntimeError("CLAUDE_API_KEY manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY, timeout=60)
     try:
         message = client.messages.create(**kwargs)
     except anthropic.RateLimitError:

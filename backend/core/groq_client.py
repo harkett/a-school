@@ -1,6 +1,6 @@
 import requests
 from fastapi import HTTPException
-from src.config import AI_API_KEY
+from src.config import GROQ_API_KEY
 from src.generator import _llm_slot, LLMRateLimitError
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
@@ -20,7 +20,7 @@ def transcribe_audio(data: bytes, filename: str, content_type: str | None = None
     Note multipart : on ne force aucun Content-Type ici — requests pose lui-même
     le Content-Type multipart avec la boundary.
     """
-    headers = {"Authorization": f"Bearer {AI_API_KEY}"}
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     files = {"file": (filename, data, content_type or "application/octet-stream")}
     payload = {"model": TRANSCRIBE_MODEL, "language": "fr"}
     # Même créneau partagé que la génération/OCR (même quota Groq) ; saturation -> 429 « réessayez ».

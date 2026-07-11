@@ -143,7 +143,7 @@ SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]
 # SUPPORTED_AI_MODELS : une saisie hors liste est REFUSÉE avant la base. On n'y met QUE les
 # fournisseurs réellement opérationnels (joignabilité) — aujourd'hui Groq seul. Ajouter un
 # fournisseur = une ligne ici, le jour où sa clé est provisionnée (générique, aucun cas
-# spécial : Anthropic/Gemini/… sont des fournisseurs comme les autres).
+# spécial : Anthropic/… sont des fournisseurs comme les autres).
 SUPPORTED_AI_PROVIDERS = ["groq"]
 
 # Tous les fournisseurs que le moteur SAIT appeler (adaptateurs présents dans src/generator.py).
@@ -152,7 +152,6 @@ SUPPORTED_AI_PROVIDERS = ["groq"]
 ALL_AI_PROVIDERS = [
     {"name": "groq", "label": "Groq"},
     {"name": "anthropic", "label": "Anthropic (Claude)"},
-    {"name": "gemini", "label": "Gemini"},
 ]
 
 
