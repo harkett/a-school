@@ -249,6 +249,38 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
+PROMPT_DECOUPE_AMONT = """Tu reçois le TEXTE BRUT d'un référentiel officiel, extrait d'un PDF. Tu ne connais rien de ce document à l'avance : tu le comprends en le lisant.
+
+Texte brut :
+{texte}
+
+Ta mission : DÉCOUPER ce document et ne garder QUE ses vraies UNITÉS DE CONTENU. Une unité de contenu = un élément concret, décrit pour lui-même avec sa propre description, que l'utilisateur exploitera directement (par exemple une activité, une fiche, une compétence…) — tu déduis leur nature en lisant, on ne te souffle aucun critère.
+
+Ne retiens QUE ces unités. Le texte qui ENTOURE les unités n'est PAS une unité, tu l'écartes entièrement :
+- la page de titre, les avertissements et mentions (ex. « DOCUMENT DE TRAVAIL ») ;
+- l'introduction, le mode d'emploi, les explications générales de cadrage ;
+- les en-têtes de partie ou de domaine qui ne font qu'annoncer une section (ex. « DOMAINE 1 - Parler et réfléchir ») ;
+- les listes de Sources, d'attribution ou de références ;
+- tout RENVOI ou pointeur vers une unité décrite ailleurs (une ligne « voir … » ou marquée « (renvoi) ») : ne garde jamais un pointeur qui répète une unité déjà présente ;
+- tout élément SEULEMENT MENTIONNÉ dans une liste (par exemple une section « à valider », une énumération à puces) : une simple puce d'une ou deux lignes, sans description propre, n'est PAS une unité même si elle nomme une activité.
+
+Repère qui tranche : une vraie unité a SA PROPRE description complète (de quoi la réaliser en la lisant : son matériel, ses objectifs, son déroulé…). Un titre de section, un texte de cadrage, un renvoi ou une simple puce de liste n'ont pas cette description — ils présentent, encadrent ou évoquent les unités, mais n'en sont pas : on les écarte.
+
+Pour chaque unité RETENUE, rends UNIQUEMENT la LIGNE DE TITRE qui la commence, RECOPIÉE EXACTEMENT telle qu'elle apparaît dans le texte (mêmes mots, même casse, rien ajouté, rien enlevé). Tu ne réécris pas le contenu : la ligne de titre sert à retrouver la frontière dans le texte réel.
+
+Format — JSON strict, rien autour :
+{{
+  "unites": [
+    {{ "titre": "la ligne de titre exacte qui commence l'unité" }}
+  ]
+}}
+
+Règles :
+- Une entrée par unité, dans l'ORDRE du document.
+- Recopie chaque titre À L'IDENTIQUE depuis le texte. N'invente aucun titre, n'en fusionne pas deux.
+- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -279,5 +311,10 @@ PROMPTS = {
         "label": "Analyse amont d'un référentiel (détection des cas ambigus)",
         "placeholders": ["unites"],
         "default": PROMPT_ANALYSE_AMONT,
+    },
+    "decoupe_amont": {
+        "label": "Découpe d'un référentiel en unités (par l'IA, au dépôt du PDF)",
+        "placeholders": ["texte"],
+        "default": PROMPT_DECOUPE_AMONT,
     },
 }

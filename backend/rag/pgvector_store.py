@@ -114,6 +114,23 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
+def _decouper_ia(pdf_path, prompt: str) -> list[dict]:
+    """Découpe d'un référentiel PAR L'IA (SOCLE, générique) : lit le TEXTE BRUT du PDF et délègue à
+    `analyse_amont.decouper_texte`, piloté par le PROMPT VALIDÉ DU COUPLE (`prompt`, lu en base par
+    l'appelant). Remplace l'ancienne extraction regex + motif de la fiche. Renvoie des chunks
+    `{text, page, meta}` directement consommables par la suite du pipeline."""
+    import pdfplumber
+    from backend.rag.analyse_amont import decouper_texte
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        texte = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    db = SessionLocal()
+    try:
+        unites = decouper_texte(texte, db=db, prompt=prompt)
+    finally:
+        db.close()
+    return [{"text": u["texte"], "page": 1, "meta": {"option": ""}} for u in unites]
+
+
 def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
     """(Re)construit referentiel_chunks pour LE référentiel de `collection`, depuis son PDF.
     Idempotent : supprime les chunks du même referentiel_id (après sauvegarde) puis réinsère.
@@ -134,27 +151,21 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
             )
         rid = ref.id
         pdf_path = _pdf_path_for(db, ref, fiche)
-        # Règle de découpe + arbitrage du couple : DEPUIS LA BASE (colonnes de la ligne referentiels).
-        # La fiche mémorise le motif validé + l'arbitrage AVANT extract_pages (lève si non validé).
-        if hasattr(fiche, "charger_regle"):
-            fiche.charger_regle(ref)
+        prompt_ok = ref.prompt_decoupe_valide
+        prompt_txt = ref.prompt_decoupe or ""
     finally:
         db.close()
 
     if not pdf_path.exists():
         raise RuntimeError(f"PDF introuvable : {pdf_path}")
+    if not prompt_ok:
+        raise RuntimeError(
+            "Découpe refusée : le prompt de découpe du couple n'est pas validé. "
+            "L'admin doit le générer puis le valider (cap « aSchool n'invente rien »)."
+        )
 
-    # 2. Extraction (méthode de la fiche) -> découpe générique.
-    pages = fiche.extract_pages(pdf_path)
-    chunks = build_chunks(
-        pages,
-        max_chars=fiche.MAX_CHARS,
-        min_chars=fiche.MIN_CHARS,
-        overlap_chars=fiche.OVERLAP_CHARS,
-        is_boundary=fiche.section_boundary,
-        chunk_metadata=fiche.chunk_metadata,
-        dedup_key=fiche.dedup_key,
-    )
+    # 2. Découpe PAR L'IA (SOCLE, générique), pilotée par le PROMPT VALIDÉ du couple (base).
+    chunks = _decouper_ia(pdf_path, prompt_txt)
     # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu -> MÊME verdict que
     # l'aperçu (jamais deux appels IA divergents). Doute par unité reconstitué des libellés (pur).
     doutes = None
@@ -268,22 +279,15 @@ def apercu_decoupage(collection: str) -> dict:
         if ref is None:
             raise RuntimeError(f"Aucun référentiel en base pour collection='{collection}'.")
         pdf_path = _pdf_path_for(db, ref, fiche)
-        # Règle + arbitrage du couple depuis la BASE (idem ingestion) : lève si règle non validée.
-        if hasattr(fiche, "charger_regle"):
-            fiche.charger_regle(ref)
         if not pdf_path.exists():
             raise RuntimeError(f"PDF introuvable : {pdf_path}")
+        if not ref.prompt_decoupe_valide:
+            raise RuntimeError(
+                "Découpe refusée : le prompt de découpe du couple n'est pas validé "
+                "(l'admin doit le générer puis le valider)."
+            )
 
-        pages = fiche.extract_pages(pdf_path)   # motif déjà chargé (charger_regle) ; garde-fou si absent
-        chunks = build_chunks(
-            pages,
-            max_chars=fiche.MAX_CHARS,
-            min_chars=fiche.MIN_CHARS,
-            overlap_chars=fiche.OVERLAP_CHARS,
-            is_boundary=fiche.section_boundary,
-            chunk_metadata=fiche.chunk_metadata,
-            dedup_key=fiche.dedup_key,
-        )
+        chunks = _decouper_ia(pdf_path, ref.prompt_decoupe or "")   # découpe PAR L'IA, prompt validé du couple
         # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu ici -> MÊME verdict que
         # l'ingestion. On reconstitue le doute par unité depuis les libellés persistés (pur, sans IA).
         doutes = None

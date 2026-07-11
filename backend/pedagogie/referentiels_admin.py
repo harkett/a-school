@@ -23,7 +23,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, Matiere, MatiereNiveau, MatiereCandidate, User
+from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User
 from backend.systeme.admin import _require_admin
 from backend.auth import send_custom_email
 
@@ -158,14 +158,13 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         db.add(niveau)
         db.flush()
 
-    # Un seul référentiel par niveau (matiere_id NULL = tout le niveau) à ce stade.
-    # La mise à jour d'un référentiel existant est un autre geste (palier ultérieur).
-    if db.query(Referentiel).filter(Referentiel.niveau_id == niveau.id,
-                                    Referentiel.matiere_id.is_(None)).first():
-        raise HTTPException(409, f"Un référentiel existe déjà pour « {niveau_nom} ».")
-
+    # Un référentiel par niveau (matiere_id NULL = tout le niveau). S'il existe déjà pour ce couple
+    # → MISE À JOUR (le nouveau PDF remplace l'ancien, on refait texte/prompt/découpe). Sinon → création.
+    existing = db.query(Referentiel).filter(Referentiel.niveau_id == niveau.id,
+                                            Referentiel.matiere_id.is_(None)).first()
     nom_fixe = _dossier_cle(niveau_nom).lower()
-    if db.query(Referentiel).filter(Referentiel.nom_fixe == nom_fixe).first():
+    # Contrôle d'unicité du nom_fixe seulement pour une CRÉATION (en MAJ, c'est le même couple).
+    if existing is None and db.query(Referentiel).filter(Referentiel.nom_fixe == nom_fixe).first():
         raise HTTPException(409, f"Identifiant de référentiel déjà utilisé : {nom_fixe}.")
 
     # Rangement CYCLE / NIVEAU : le chemin complet (cycle + niveau) identifie le référentiel
@@ -189,15 +188,28 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     # Base = `fichier` garde le VRAI nom d'origine (trace, affiché à l'admin), sans contrainte
     # de système de fichiers (c'est du texte). Repli sur le nom de disque si non fourni.
     fichier_origine = (body.fichier_origine.strip() if body.fichier_origine else "") or "referentiel.pdf"
-    ref = Referentiel(
-        niveau_id=niveau.id, matiere_id=None,
-        nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
-        fichier=fichier_origine,
-        source=(body.source.strip() if body.source else None),
-        date_doc=(body.date_doc.strip() if body.date_doc else None),
-    )
-    db.add(ref)
-    db.commit()
+    if existing is not None:
+        # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
+        # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, verdict IA, chunks.
+        existing.fichier = fichier_origine
+        existing.source = (body.source.strip() if body.source else None)
+        existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
+        existing.prompt_decoupe = None
+        existing.prompt_decoupe_valide = False
+        existing.doutes_ia = None
+        db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
+        db.commit()
+        ref = existing
+    else:
+        ref = Referentiel(
+            niveau_id=niveau.id, matiere_id=None,
+            nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
+            fichier=fichier_origine,
+            source=(body.source.strip() if body.source else None),
+            date_doc=(body.date_doc.strip() if body.date_doc else None),
+        )
+        db.add(ref)
+        db.commit()
 
     return {
         "ok": True,
@@ -348,6 +360,154 @@ def valider_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
 def rejeter_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
     """L'admin rejette la règle : `valide` → false. Elle repart en proposition."""
     return _ecrire_statut_regle(db, body.cycle_id, body.niveau, False)
+
+
+# ── Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché/corrigé/validé ──
+#    par l'admin. Aucun prompt écrit en dur : le méta-prompt vit en base (Setting), le prompt du
+#    couple aussi (colonnes referentiels.prompt_decoupe / prompt_decoupe_valide). La découpe refuse
+#    de tourner tant que le prompt du couple n'est pas validé (garde-fou, cap « aSchool n'invente rien »).
+
+def _pdf_du_couple(db: Session, cycle_id: int, niveau: str) -> Path:
+    """Chemin du PDF déposé pour le couple (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf)."""
+    cycle = db.get(Cycle, cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle((niveau or "").strip()) / "referentiel.pdf"
+
+
+def _texte_du_pdf(pdf: Path) -> str:
+    """Texte brut du PDF (même extraction que la découpe). 404 si le PDF n'existe pas."""
+    if not pdf.exists():
+        raise HTTPException(404, "Aucun PDF déposé pour ce couple.")
+    import pdfplumber
+    with pdfplumber.open(str(pdf)) as p:
+        return "\n".join((pg.extract_text() or "") for pg in p.pages)
+
+
+class PromptDecoupeBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+@router.get("/admin/referentiels/prompt-decoupe", dependencies=[Depends(_require_admin)])
+def lire_prompt_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit le prompt de découpe du couple (EN BASE) + son statut de validation. `existe:false` si
+    aucun référentiel pour ce couple."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"existe": False}
+    return {"existe": True, "prompt": ref.prompt_decoupe or "", "valide": bool(ref.prompt_decoupe_valide)}
+
+
+@router.post("/admin/referentiels/prompt-decoupe/generer", dependencies=[Depends(_require_admin)])
+def generer_prompt_decoupe_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """L'IA GÉNÈRE le prompt de découpe adapté à CE document (méta-prompt lu EN BASE + texte du PDF).
+    Stocké sur le couple, `valide=false` (l'admin doit le relire puis valider). Renvoie le prompt."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))
+    from backend.rag.analyse_amont import generer_prompt_decoupe
+    try:
+        prompt = generer_prompt_decoupe(texte, db=db)
+    except Exception as e:
+        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}")
+    ref.prompt_decoupe = prompt
+    ref.prompt_decoupe_valide = False
+    db.commit()
+    return {"ok": True, "prompt": prompt, "valide": False}
+
+
+class RegenererPromptBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt_actuel: str
+    remarques: str
+
+
+@router.post("/admin/referentiels/prompt-decoupe/regenerer", dependencies=[Depends(_require_admin)])
+def regenerer_prompt_decoupe_couple(body: RegenererPromptBody, db: Session = Depends(get_db)):
+    """L'IA CORRIGE le prompt de découpe à partir des REMARQUES de l'admin (français clair). Reprend
+    le prompt actuel + les remarques, produit un NOUVEAU prompt qui en tient compte, le stocke sur le
+    couple avec `valide=false` (l'admin relit puis valide). Répétable à volonté. N'efface rien."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))
+    from backend.rag.analyse_amont import regenerer_prompt_decoupe
+    try:
+        prompt = regenerer_prompt_decoupe(
+            texte, prompt_actuel=body.prompt_actuel, remarques=body.remarques, db=db)
+    except Exception as e:
+        raise HTTPException(400, f"Régénération du prompt par l'IA impossible : {e}")
+    ref.prompt_decoupe = prompt
+    ref.prompt_decoupe_valide = False
+    db.commit()
+    return {"ok": True, "prompt": prompt, "valide": False}
+
+
+@router.post("/admin/referentiels/prompt-decoupe/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_decoupe_couple(body: PromptDecoupeBody, db: Session = Depends(get_db)):
+    """L'admin enregistre le prompt (éventuellement corrigé à la main) et le VALIDE (`valide=true`)
+    → la découpe pourra tourner. Prompt vide refusé."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    if not (body.prompt or "").strip():
+        raise HTTPException(422, "Le prompt de découpe est vide.")
+    ref.prompt_decoupe = body.prompt
+    ref.prompt_decoupe_valide = True
+    db.commit()
+    return {"ok": True, "valide": True}
+
+
+@router.post("/admin/referentiels/prompt-decoupe/decouper", dependencies=[Depends(_require_admin)])
+def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """Déclenche la découpe (LECTURE SEULE, aucune ingestion) avec le prompt VALIDÉ du couple, et
+    renvoie les unités produites par l'IA (titre + taille). Refuse si le prompt n'est pas validé."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    if not ref.prompt_decoupe_valide:
+        raise HTTPException(400, "Prompt de découpe non validé : validez-le avant de découper.")
+    pdf = _pdf_du_couple(db, body.cycle_id, body.niveau)
+    if not pdf.exists():
+        raise HTTPException(404, "Aucun PDF déposé pour ce couple.")
+    from backend.rag.pgvector_store import _decouper_ia
+    try:
+        chunks = _decouper_ia(pdf, ref.prompt_decoupe or "")
+    except Exception as e:
+        raise HTTPException(400, f"Découpe par l'IA impossible : {e}")
+    unites = [{"titre": c["text"].split("\n")[0].strip(), "taille": len(c["text"])} for c in chunks]
+    return {"ok": True, "total": len(unites), "unites": unites}
+
+
+# ── Méta-prompt (générique) : EN BASE (Setting 'prompt_meta_decoupe'), lu par le code, éditable ──
+
+class MetaPromptBody(BaseModel):
+    texte: str
+
+
+@router.get("/admin/referentiels/meta-prompt", dependencies=[Depends(_require_admin)])
+def lire_meta_prompt(db: Session = Depends(get_db)):
+    """Lit le méta-prompt (EN BASE). Vide si pas encore renseigné."""
+    from backend.systeme.admin import get_settings_dict
+    return {"texte": get_settings_dict(db).get("prompt_meta_decoupe", "")}
+
+
+@router.put("/admin/referentiels/meta-prompt", dependencies=[Depends(_require_admin)])
+def ecrire_meta_prompt(body: MetaPromptBody, db: Session = Depends(get_db)):
+    """Enregistre le méta-prompt EN BASE. Vide refusé."""
+    if not (body.texte or "").strip():
+        raise HTTPException(422, "Le méta-prompt est vide.")
+    row = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first()
+    if row:
+        row.value = body.texte
+    else:
+        db.add(Setting(key="prompt_meta_decoupe", value=body.texte))
+    db.commit()
+    return {"ok": True}
 
 
 # ── Aperçu du découpage : ce que la règle validée produit (lecture seule, aucune ingestion) ──

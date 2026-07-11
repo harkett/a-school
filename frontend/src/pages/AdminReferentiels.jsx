@@ -65,6 +65,13 @@ export default function AdminReferentiels() {
   const [demandeEmail, setDemandeEmail] = useState('')
   const [demandeMessage, setDemandeMessage] = useState('')
   const [envoiDemande, setEnvoiDemande] = useState('')        // age_label en cours d'envoi
+  // Prompt de découpe du couple — GÉNÉRÉ PAR L'IA, stocké en base, corrigé/validé par l'admin.
+  const [promptDecoupe, setPromptDecoupe] = useState('')       // texte éditable du prompt
+  const [promptValide, setPromptValide] = useState(false)      // garde-fou : découpe refusée tant que false
+  const [promptBusy, setPromptBusy] = useState('')             // 'generer' | 'regenerer' | 'valider' | 'decouper' | ''
+  const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
+  const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
+  const [promptOuvert, setPromptOuvert] = useState(true)
   const [ambiguiteOuverte, setAmbiguiteOuverte] = useState('') // age_label dont le panneau « ambiguïté » est ouvert
 
   useEffect(() => {
@@ -126,6 +133,12 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) setEnAttente(d && d.en_attente ? d.en_attente : []) })
       .catch(() => { if (!annule) setEnAttente([]) })
+    // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
+    fetchWithTimeout(`/api/admin/referentiels/prompt-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeUnites(null) } })
+      .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false) } })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -230,6 +243,77 @@ export default function AdminReferentiels() {
     } finally {
       setEnvoiDemande('')
     }
+  }
+
+  // L'IA génère le prompt de découpe du document → rempli dans la zone éditable (non validé).
+  async function genererPromptDecoupe() {
+    setPromptBusy('generer')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/generer', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_GROQ)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La génération du prompt par l'IA a échoué."); return }
+      setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
+    } catch { showError("La génération du prompt a échoué (réseau).") }
+    finally { setPromptBusy('') }
+  }
+
+  // L'IA régénère le prompt en tenant compte des remarques (français clair) → remplace la zone.
+  // Répétable à volonté : l'admin relit, remet une remarque, régénère, jusqu'à ce que ça lui convienne.
+  async function regenererPromptDecoupe() {
+    if (!promptDecoupe.trim()) { showError('Générez d’abord un prompt, puis écrivez vos remarques.'); return }
+    if (!remarques.trim()) { showError('Écrivez ce qui ne va pas dans le prompt (zone « Remarques »).'); return }
+    setPromptBusy('regenerer')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/regenerer', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, prompt_actuel: promptDecoupe, remarques }),
+      }, TIMEOUT_GROQ)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La régénération du prompt par l'IA a échoué."); return }
+      setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
+    } catch { showError("La régénération du prompt a échoué (réseau).") }
+    finally { setPromptBusy('') }
+  }
+
+  // Enregistre le prompt (corrigé ou non) et le VALIDE → puis LANCE la découpe dans la foulée.
+  // Un seul point d'arrêt : ma validation. Valider = enregistré + validé + découpe lancée.
+  async function validerPromptDecoupe() {
+    if (!promptDecoupe.trim()) { showError('Le prompt de découpe est vide.'); return }
+    setPromptBusy('valider')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/valider', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, prompt: promptDecoupe }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La validation a échoué."); return }
+      setPromptValide(true)
+    } catch { showError("La validation a échoué (réseau)."); return }
+    finally { setPromptBusy('') }
+    // Validé → la découpe se lance automatiquement (pas de second clic).
+    await declencherDecoupe()
+  }
+
+  // Déclenche la découpe (lecture seule) avec le prompt validé → affiche les unités produites.
+  async function declencherDecoupe() {
+    setPromptBusy('decouper')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/decouper', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_GROQ)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La découpe a échoué."); return }
+      setDecoupeUnites(d.unites || [])
+    } catch { showError("La découpe a échoué (réseau).") }
+    finally { setPromptBusy('') }
   }
 
   async function recupererLien() {
@@ -443,13 +527,13 @@ export default function AdminReferentiels() {
                 <input style={champ} value={etat.referentiel?.fichier || ''} readOnly
                   title="Nom du référentiel déjà enregistré pour ce couple" />
               </div>
-              <button type="button" disabled
-                title="Déjà traité — le remplacer sera un geste séparé (« Remplacer le référentiel »), à venir"
-                style={{ background: '#e5e7eb', color: '#9ca3af', border: '1px solid #d1d5db', borderRadius: 6,
-                  padding: '8px 14px', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-                  cursor: 'not-allowed', pointerEvents: 'none' }}>
-                Choisir le fichier
-              </button>
+              <input id="pdf-maj" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+                disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
+              <label htmlFor="pdf-maj" className="btn-primary"
+                title="Choisir un nouveau PDF : il remplace le référentiel de ce couple et relance le traitement (texte, prompt, découpe). Les matières ne bougent pas."
+                style={{ whiteSpace: 'nowrap', cursor: busy ? 'wait' : 'pointer' }}>
+                {busy ? 'Lecture…' : 'Mettre à jour le référentiel'}
+              </label>
             </div>
             <p style={{ fontSize: 12, color: '#166534', marginTop: 6 }}>
               Déjà téléchargé, déjà traité.{' '}
@@ -620,9 +704,93 @@ export default function AdminReferentiels() {
         </div>
       )}
 
-      {/* Règle de découpe — objet à deux faces (clair + technique). L'admin valide sur la face
-          en clair ; le dev vérifie la face technique. Ne s'affiche que si une règle existe. */}
-      {regle && (
+      {/* Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché, corrigé et validé par
+          l'admin. La découpe refuse de tourner tant que le prompt n'est pas validé.
+          Affichage séquentiel : n'apparaît qu'APRÈS l'étape Matières (« Récupérer » → bilanApercu). */}
+      {bilanApercu && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Prompt de découpe (généré par l'IA)</h2>
+              <p className="text-sm text-gray-500">
+                L'IA lit le PDF et propose le prompt qui découpe CE document. Lisez-le, corrigez-le si besoin, validez-le,
+                puis déclenchez la découpe. Rien n'est écrit en dur : le prompt vit en base.
+              </p>
+            </div>
+            <button type="button" onClick={() => setPromptOuvert(v => !v)} className="btn-secondary"
+              title={promptOuvert ? 'Réduire' : 'Développer'} style={{ whiteSpace: 'nowrap' }}>
+              {promptOuvert ? 'Réduire' : 'Développer'}
+            </button>
+          </div>
+          {promptOuvert && (
+            <>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" className="btn-action" onClick={genererPromptDecoupe}
+                  disabled={!!promptBusy} title="L'IA génère le prompt de découpe adapté à ce document">
+                  {promptBusy === 'generer' ? 'Génération…' : "Générer le prompt (IA)"}
+                </button>
+                <span style={{ fontSize: 13, fontWeight: 600, color: promptValide ? '#166534' : '#A63045' }}>
+                  {promptValide ? 'Statut : validé' : 'Statut : à valider'}
+                </span>
+              </div>
+              <textarea
+                value={promptDecoupe}
+                onChange={e => { setPromptDecoupe(e.target.value); setPromptValide(false) }}
+                placeholder="Cliquez sur « Générer le prompt (IA) » — le prompt proposé apparaîtra ici, éditable."
+                rows={12}
+                style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, padding: 10,
+                         border: '1px solid #E5E7EB', borderRadius: 8, resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6,
+                            borderTop: '1px dashed #E5E7EB', paddingTop: 10 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                  Remarques — dites en français clair ce qui ne va pas dans le prompt ci-dessus
+                </label>
+                <textarea
+                  value={remarques}
+                  onChange={e => setRemarques(e.target.value)}
+                  placeholder="Ex. : « le prompt garde encore les renvois » ou « il ne sort que le titre, il doit sortir aussi le contenu de l'activité »."
+                  rows={4}
+                  style={{ width: '100%', fontSize: 13, padding: 10,
+                           border: '1px solid #E5E7EB', borderRadius: 8, resize: 'vertical' }}
+                />
+                <div>
+                  <button type="button" className="btn-action" onClick={regenererPromptDecoupe}
+                    disabled={!!promptBusy || !promptDecoupe.trim() || !remarques.trim()}
+                    title="L'IA reprend le prompt actuel + vos remarques et produit un nouveau prompt qui en tient compte">
+                    {promptBusy === 'regenerer' ? 'Régénération…' : 'Régénérer le prompt'}
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="button" className="btn-primary" onClick={validerPromptDecoupe}
+                  disabled={!!promptBusy || !promptDecoupe.trim()}
+                  title="Valide ce prompt en base et lance la découpe dans la foulée">
+                  {promptBusy === 'valider' ? 'Validation…'
+                    : promptBusy === 'decouper' ? 'Découpe…'
+                    : 'Valider le prompt et découper'}
+                </button>
+              </div>
+              {decoupeUnites && (
+                <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    Résultat : {decoupeUnites.length} unité(s) produite(s) par l'IA
+                  </div>
+                  <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: '#374151' }}>
+                    {decoupeUnites.map((u, i) => (
+                      <li key={i} style={{ marginBottom: 2 }}>{u.titre} <span style={{ color: '#9CA3AF' }}>({u.taille} car.)</span></li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Règle de découpe — RESTE de l'ANCIEN système regex, remplacé par la découpe IA (carte D).
+          CACHÉE DÉFINITIVEMENT : ne réapparaît jamais. Bloc conservé en place, à supprimer au nettoyage. */}
+      {false && regle && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
@@ -684,9 +852,9 @@ export default function AdminReferentiels() {
         </div>
       )}
 
-      {/* Résultat du découpage — miroir de « Règle de découpe » : ce que la règle validée produit.
-          Lecture seule. Masquée si non applicable (pas de règle pour ce cycle). */}
-      {apercuDecoupe && (
+      {/* Résultat du découpage — RESTE de l'ANCIEN système regex, remplacé par la découpe IA (carte D).
+          CACHÉE DÉFINITIVEMENT : ne réapparaît jamais. Bloc conservé en place, à supprimer au nettoyage. */}
+      {false && apercuDecoupe && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>

@@ -376,6 +376,11 @@ class Referentiel(Base):
     # MÊME verdict → jamais deux appels IA divergents) : JSON = liste des libellés jugés douteux.
     # NULL = pas encore analysé (calculé au 1er besoin) ; vidé quand la règle du couple change.
     doutes_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), puis affiché, corrigé et
+    # validé par l'admin. DONNÉE MÉTIER EN BASE (aucun prompt écrit en dur dans le code).
+    # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
+    prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
