@@ -17,6 +17,10 @@ echo "=== [2/7] Python venv + dépendances ==="
 .venv/bin/pip install --quiet -r requirements.txt
 
 echo ""
+echo "=== [2.2/7] Migrations base (Alembic) ==="
+.venv/bin/alembic upgrade head
+
+echo ""
 echo "=== [2.5/7] Reconstruction de la base RAG (PostgreSQL/pgvector, donnees generees) ==="
 .venv/bin/python -m backend.rag.pgvector_store
 
