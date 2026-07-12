@@ -39,6 +39,7 @@ def generate(
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
+    schema: dict | None = None,
 ) -> str:
     """Point d'entrée UNIQUE pour tout appel LLM texte.
 
@@ -46,6 +47,12 @@ def generate(
     « du JSON », « déterministe »), jamais des formats fournisseur. Chaque
     adaptateur les traduit dans la langue de son fournisseur — ou les ignore
     quand le fournisseur ne les accepte pas (ex. temperature chez Anthropic).
+
+    `schema` (Structured Outputs) : un schéma JSON qui CONTRAINT la sortie token par token
+    (grammaire compilée côté API). Ce n'est PAS « demander du JSON » (ça, c'est `json_mode`) :
+    un champ hors schéma devient PHYSIQUEMENT impossible à produire. Quand `schema` est fourni,
+    il PRIME sur `json_mode`. Chaque adaptateur le traduit (`output_config` chez Anthropic,
+    `response_format`/`json_schema` chez Groq) — norme des deux côtés.
 
     `provider` / `model` : résolvés par l'appelant (côté backend, lus en base à chaud).
     `None` ⇒ repli sur AI_PROVIDER / AI_MODEL (config/.env) — rétro-compatible. generate()
@@ -56,9 +63,9 @@ def generate(
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     with _llm_slot():
         if fournisseur == "groq":
-            return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+            return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
         else:  # anthropic
-            return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+            return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
 
 
 def _groq(
@@ -68,6 +75,7 @@ def _groq(
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
+    schema: dict | None = None,
 ) -> str:
     import requests
     if not GROQ_API_KEY:
@@ -87,7 +95,14 @@ def _groq(
     }
     if temperature is not None:
         body["temperature"] = temperature
-    if json_mode:
+    if schema is not None:
+        # Structured Outputs Groq : décodage contraint au schéma (équivalent de output_config
+        # Anthropic). Prime sur json_mode : un champ hors schéma est impossible à produire.
+        body["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": "reponse", "strict": True, "schema": schema},
+        }
+    elif json_mode:
         body["response_format"] = {"type": "json_object"}
     response = requests.post(url, headers=headers, json=body, timeout=60)
     if response.status_code == 429:
@@ -101,13 +116,15 @@ def _groq(
 # (L'ancien transcribe_audio de ce module était du code mort — supprimé.)
 
 
-def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_key: str) -> str:
-    # api_key : clé OCR résolue par le backend (nom de variable lu EN BASE, cle_env_ocr).
-    # src reste pur : il reçoit la clé, il ne la cherche jamais.
+def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_key: str, model: str, max_tokens: int = 2048) -> str:
+    # api_key / model : résolus par le backend EN BASE (cle_env_ocr / ocr_model) et passés ici.
+    # src reste pur : il reçoit la clé ET le modèle, il ne les cherche jamais (aucun modèle en dur).
     import base64
     import requests
     if not api_key:
         raise RuntimeError("Clé OCR absente : la génération OCR ne peut pas s'exécuter.")
+    if not model:
+        raise RuntimeError("Modèle OCR absent : la génération OCR ne peut pas s'exécuter.")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -115,7 +132,7 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_k
     }
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
     body = {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "model": model,
         "messages": [{
             "role": "user",
             "content": [
@@ -129,7 +146,7 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_k
                 },
             ],
         }],
-        "max_tokens": 2048,
+        "max_tokens": max_tokens,
     }
     with _llm_slot():
         response = requests.post(url, headers=headers, json=body, timeout=60)
@@ -147,6 +164,7 @@ def _anthropic(
     max_tokens: int = 2048,
     temperature: float | None = None,
     json_mode: bool = False,
+    schema: dict | None = None,
 ) -> str:
     import anthropic
     # temperature : volontairement IGNORÉE — les modèles Claude Opus 4.x la
@@ -159,7 +177,16 @@ def _anthropic(
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }
-    if json_mode:
+    if schema is not None:
+        # Structured Outputs (GA) : la génération est CONTRAINTE token par token au schéma
+        # (grammaire compilée par l'API), pas une simple consigne « réponds en JSON ». Un champ
+        # hors schéma est PHYSIQUEMENT impossible — avec additionalProperties:false, le modèle ne
+        # peut plus ajouter de « contenu » superflu, donc la réponse reste petite (ni troncature,
+        # ni dépassement de délai). La contrainte porte sur la sortie finale, PAS sur le
+        # raisonnement (thinking) : le modèle réfléchit librement, la réponse reste conforme.
+        # Prime sur json_mode (contrainte forte vs simple instruction).
+        kwargs["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
+    elif json_mode:
         kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
     # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
     # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
@@ -170,4 +197,18 @@ def _anthropic(
         message = client.messages.create(**kwargs)
     except anthropic.RateLimitError:
         raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
-    return message.content[0].text
+    # Troncature : si le modèle atteint sa limite de sortie, la réponse est COUPÉE. On le signale
+    # honnêtement — le drapeau vient de l'API (`stop_reason`), rien n'est deviné — au lieu de rendre
+    # un texte tronqué que l'appelant prendrait pour complet (et qui planterait plus loin sur un
+    # faux motif « non parsable »). Mesuré le 12/07 : Sonnet 5 consomme une partie de max_tokens en
+    # raisonnement, donc la sortie visible peut être coupée là où Groq aurait tout rendu.
+    if getattr(message, "stop_reason", None) == "max_tokens":
+        raise RuntimeError("Réponse coupée : le modèle a atteint sa limite de sortie.")
+    # La réponse est une LISTE de blocs. Avec le raisonnement (thinking), le 1er bloc peut être un
+    # ThinkingBlock (pas de .text) → on ne lit JAMAIS content[0] à l'aveugle : on garde les blocs de
+    # type "text" et on les concatène. Aucun bloc de texte = on LÈVE (jamais une chaîne vide en douce).
+    textes = [b.text for b in message.content if getattr(b, "type", None) == "text"]
+    if not textes:
+        types = [getattr(b, "type", "?") for b in message.content]
+        raise RuntimeError(f"Réponse Anthropic sans bloc de texte (blocs reçus : {types}).")
+    return "".join(textes)

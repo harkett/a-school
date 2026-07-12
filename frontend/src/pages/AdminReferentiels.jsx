@@ -4,8 +4,19 @@
 // range, en extrait le texte et enregistre sa provenance.
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
 import { useEffect, useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_GROQ } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_GROQ, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+
+// Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
+// que Consigne/Ambiguites : SVG animé via l'@keyframes `spin` global (index.css).
+function Spinner() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+      <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
+    </svg>
+  )
+}
 
 // Construit les lignes de la table matières à partir de l'état du couple (endpoint /etat) :
 // d'abord les matières DÉJÀ en base (cochée figée), puis les CANDIDATES proposées non encore
@@ -312,7 +323,11 @@ export default function AdminReferentiels() {
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La découpe a échoué."); return }
       setDecoupeUnites(d.unites || [])
-    } catch { showError("La découpe a échoué (réseau).") }
+    } catch (e) {
+      showError(e?.message === MSG_TIMEOUT
+        ? "La découpe a dépassé le délai de 45 secondes et a été interrompue (délai dépassé) — ce n'est pas une panne réseau."
+        : "La découpe a échoué (réseau).")
+    }
     finally { setPromptBusy('') }
   }
 
@@ -727,7 +742,7 @@ export default function AdminReferentiels() {
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" className="btn-action" onClick={genererPromptDecoupe}
                   disabled={!!promptBusy} title="L'IA génère le prompt de découpe adapté à ce document">
-                  {promptBusy === 'generer' ? 'Génération…' : "Générer le prompt (IA)"}
+                  {promptBusy === 'generer' ? <><Spinner /> Génération…</> : "Générer le prompt (IA)"}
                 </button>
                 <span style={{ fontSize: 13, fontWeight: 600, color: promptValide ? '#166534' : '#A63045' }}>
                   {promptValide ? 'Statut : validé' : 'Statut : à valider'}
@@ -758,7 +773,7 @@ export default function AdminReferentiels() {
                   <button type="button" className="btn-action" onClick={regenererPromptDecoupe}
                     disabled={!!promptBusy || !promptDecoupe.trim() || !remarques.trim()}
                     title="L'IA reprend le prompt actuel + vos remarques et produit un nouveau prompt qui en tient compte">
-                    {promptBusy === 'regenerer' ? 'Régénération…' : 'Régénérer le prompt'}
+                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : 'Régénérer le prompt'}
                   </button>
                 </div>
               </div>
@@ -766,8 +781,8 @@ export default function AdminReferentiels() {
                 <button type="button" className="btn-primary" onClick={validerPromptDecoupe}
                   disabled={!!promptBusy || !promptDecoupe.trim()}
                   title="Valide ce prompt en base et lance la découpe dans la foulée">
-                  {promptBusy === 'valider' ? 'Validation…'
-                    : promptBusy === 'decouper' ? 'Découpe…'
+                  {promptBusy === 'valider' ? <><Spinner /> Validation…</>
+                    : promptBusy === 'decouper' ? <><Spinner /> Découpe…</>
                     : 'Valider le prompt et découper'}
                 </button>
               </div>

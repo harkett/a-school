@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.systeme.admin import get_cle_api
+from backend.systeme.admin import get_cle_api, get_ocr_model, get_max_tokens
 from src.generator import transcribe_image, LLMRateLimitError
 
 router = APIRouter()
@@ -19,7 +19,12 @@ async def ocr(file: UploadFile, db: Session = Depends(get_db)):
         mime = "image/png" if ext == "png" else "image/jpeg"
         api_key = get_cle_api(db, "cle_env_ocr")  # nom en base, clé au .env ; erreur claire si absent
         try:
-            texte = transcribe_image(data, mime, api_key=api_key)
+            texte = transcribe_image(
+                data, mime,
+                api_key=api_key,
+                model=get_ocr_model(db),          # modèle OCR résolu EN BASE (plus rien en dur dans src)
+                max_tokens=get_max_tokens(db, "ocr"),
+            )
         except LLMRateLimitError as e:
             raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
         except Exception as e:

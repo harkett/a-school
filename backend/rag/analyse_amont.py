@@ -35,6 +35,28 @@ _CLE_META = "prompt_meta_decoupe"
 # exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
 _CLE_VERIF = "prompt_verif_decoupe"
 
+# Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
+# `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
+# contrainte token par token, la réponse reste petite : ni troncature, ni dépassement de délai. On
+# ne lit de toute façon que le titre (`_trancher_par_titres` tranche le texte réel) : le contenu que
+# le modèle produisait était du poids mort. GÉNÉRIQUE : aucun axe métier ici, juste la forme.
+_SCHEMA_DECOUPE = {
+    "type": "object",
+    "properties": {
+        "unites": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"titre": {"type": "string"}},
+                "required": ["titre"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["unites"],
+    "additionalProperties": False,
+}
+
 
 def formater_unites(unites: list[dict]) -> str:
     """Rend les unités en texte numéroté pour le prompt : `[i] titre` puis le texte de l'unité.
@@ -58,7 +80,7 @@ def parser_reponse(raw: str) -> dict:
             continue
         if isinstance(data, dict):
             return data
-    raise ValueError("Réponse non parseable en JSON")
+    raise ValueError(f"Réponse non parseable en JSON (longueur : {len(raw)}).")
 
 
 def _candidats_json(raw: str):
@@ -211,6 +233,7 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         max_tokens=get_max_tokens(db, _CLE_DECOUPE),
         temperature=0,
         json_mode=True,
+        schema=_SCHEMA_DECOUPE,
     )
     data = parser_reponse(raw)
     titres: list[str] = []

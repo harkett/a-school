@@ -81,6 +81,11 @@ SETTING_DEFAULTS = {
     # Nb de chunks que le RAG ramène (top_k) pour ancrer une génération. Réglage admin en
     # base, sûr à changer à chaud (aucun ré-index). Défaut 4. Lu via get_rag_top_k(db).
     "rag_top_k": "4",
+    # Modèle OCR (Groq vision) — administrable en base, même patron que ai_model. Défaut = valeur
+    # historique. Lu via get_ocr_model(db), passé à transcribe_image (src reste pur, aucun modèle
+    # en dur). Le fournisseur OCR reste Groq (seul moteur vision, pas d'alternative) : seul le
+    # modèle est administrable.
+    "ocr_model": "meta-llama/llama-4-scout-17b-16e-instruct",
 }
 
 
@@ -147,6 +152,14 @@ def get_ai_provider(db: Session) -> str:
     get_ai_model (branche sur get_settings_dict). La valeur (chaîne) descend ensuite dans
     generate() via le paramètre `provider`, qui reste pur (aucune connaissance de la base)."""
     return get_settings_dict(db)["ai_provider"]
+
+
+def get_ocr_model(db: Session) -> str:
+    """Modèle OCR (Groq vision) courant, lu en base au moment de l'appel (repli sur le défaut
+    code). Même moule que get_ai_model. La valeur (chaîne) descend ensuite dans transcribe_image,
+    qui reste pur (aucune connaissance de la base). Le fournisseur OCR reste Groq (seul moteur
+    vision, pas d'alternative) : seul le modèle est administrable."""
+    return get_settings_dict(db)["ocr_model"]
 
 
 def get_cle_api(db: Session, cle_setting: str) -> str:
