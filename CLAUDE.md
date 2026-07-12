@@ -59,7 +59,7 @@ Plateforme web de génération d'activités pédagogiques pour les enseignants, 
 
 **Tagline few-shot :** "À partir de quelques utilisations, aSchool s'adapte à votre façon de formuler les exercices."
 
-**Vision multi-niveaux (cap, non engagé) :** aSchool décliné par niveau — Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur. Détail + statut : `MesMD/TABLEAU-DE-BORD.md` → § « Direction produit ».
+**Vision multi-niveaux (cap, non engagé) :** aSchool décliné par niveau — Crèche · Maternelle · Primaire · Collège · Lycée · Supérieur.
 
 ### 🏆 Le cap — en lettres d'or (ambition fondatrice, absolue)
 
@@ -83,17 +83,58 @@ Le **public unique d'aSchool, à tous les niveaux** (Crèche → Supérieur), es
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## 📜 Script éphémère — le SEUL moyen de remplir la base (règle absolue)
+## 📜 Remplir la base — règle absolue
 
-**Le mot « seed » est banni. On dit « script éphémère ».**
+**Le principe, qui ne bouge pas :** toutes les données métier vivent dans la **BASE**. **Aucune donnée métier n'est codée en dur** dans le projet (cap fondateur). Un fichier permanent qui porte des données en dur (comme l'était `seed_programmes.py`, supprimé) est un **défaut**.
 
-Toutes les données métier **doivent vivre** dans la **BASE** — **aucune donnée métier ne doit être codée en dur** (cap fondateur ci-dessus). Quand il faut **remplir la base**, on n'écrit **jamais** un fichier permanent qui porte des données en dur (comme l'était `seed_programmes.py`, supprimé). On écrit un **script éphémère**.
+**Le mot « seed » est banni.**
 
-**Définition.** Un script éphémère est un script **jetable**, créé dans un **seul but** : lire une **source officielle**, **alimenter la base une fois**, puis **être supprimé**. Il ne fait **jamais** partie de l'application, il ne **reste jamais** dans le projet.
+### Un script qui touche à la base : la procédure
 
-**Cycle de vie, non négociable :** **créer → alimenter la base → supprimer.** Une fois la base remplie, le script **disparaît** (historique git si besoin). Un script qui *reste* dans le projet en portant de la donnée métier est un **défaut** — c'est exactement ce qu'on ne veut plus.
+Quand Claude Code a besoin d'un script pour remplir ou modifier la base :
 
-**Distinction clé :** ce n'est pas l'usage d'un script qui est interdit, c'est qu'un script **persiste** en portant la donnée. Remplir puis disparaître = sain. Rester avec des données en dur = à virer.
+1. **Il prévient et il AFFICHE le script**, avant de le lancer. Jamais en douce.
+2. **Il dit ce qu'il fait, et où** : quelle base (miroir ou réelle), quelles données, combien de lignes.
+3. **Il dit si ces données devront exister EN PRODUCTION** — c'est la question qui commande tout (voir ci-dessous).
+4. **C'est Harketti qui décide** ce que le script devient : supprimé après usage, ou conservé. **« Éphémère » n'est pas un automatisme — c'est une décision, script par script.**
+
+### La question qui commande tout : « cette donnée doit-elle exister en production ? »
+
+**NON — donnée de travail** (un test, une correction ponctuelle, un jeu d'essai) :
+→ script jetable. On l'affiche, on le lance, on le supprime. C'est sain.
+
+**OUI — donnée structurelle**, sans laquelle l'application ne peut pas fonctionner (les modèles IA disponibles, les prompts en base, les référentiels de démarrage…) :
+→ **elle NE passe PAS par un script jetable.** Elle va dans une **migration Alembic**, pour qu'elle **voyage jusqu'à la vraie base**.
+
+**Pourquoi :** un script supprimé emporte avec lui la seule trace de ce qu'il a fait. La donnée n'existe alors que sur le miroir, et **rien ne sait comment la recréer en production**. C'est un trou qui n'apparaît qu'au déploiement — au pire moment.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 🚀 Penser au déploiement — DÈS MAINTENANT (règle absolue)
+
+**Tout ce qui est construit sur le miroir doit pouvoir atterrir sur la VRAIE BASE.** Ce n'est pas un problème « pour plus tard » : c'est une contrainte de chaque geste, dès la première ligne.
+
+**La règle, en une phrase :** si une chose n'existe que sur le miroir et que rien ne sait comment la recréer ailleurs, **c'est un défaut** — même si tout marche en local.
+
+### Ce que ça impose, concrètement
+
+**1. La STRUCTURE (tables, colonnes) → migration Alembic, toujours.**
+Une seule commande, `alembic upgrade head`, doit suffire à mettre la vraie base à niveau. La chaîne des migrations reste **linéaire** (un seul head, pas de fourche).
+
+**2. Les DONNÉES structurelles → dans la migration aussi.**
+Une table créée vide qui devrait contenir des lignes indispensables = trou. Si l'application ne démarre pas sans ces données (modèles IA disponibles, prompts en base…), elles **voyagent dans la migration**. Voir la règle « Remplir la base ».
+
+**3. `alembic upgrade head` DOIT être lancé au déploiement.**
+S'il n'est pas dans `deploy/deploy.sh`, il faut l'y mettre. Une migration écrite mais jamais appliquée ne sert à rien.
+
+**4. À chaque changement de base, Claude Code répond à la question :**
+> *« Le jour du déploiement, qu'est-ce qui manquera sur la vraie base ? »*
+
+S'il ne peut pas répondre « rien », il le signale **avant** de continuer.
+
+### Rappel — les deux bases
+- **Miroir** = là où on travaille, où on prouve. On ne touche jamais la vraie base sans autorisation écrite.
+- **Vraie base** = la cible. Tout ce qu'on fait sur le miroir doit être **reproductible** dessus, par une commande, sans travail manuel.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -301,9 +342,7 @@ Streamlit a été abandonné définitivement le 24/04/2026. Le projet tourne sur
 
 ## Gestion des emails
 
-Tout ce qui concerne les emails est regroupé ici. Le détail complet (chaque
-adresse, chaque fonction d'envoi) vit dans `MesMD/EMAILS.md`, à lire avant toute
-modification email.
+Tout ce qui concerne les emails est regroupé ici.
 
 ### Fournisseur
 aSchool envoie ses emails via Infomaniak (`mail.infomaniak.com`, port `587`).
@@ -369,7 +408,7 @@ Ne jamais suggérer `/home/ubuntu/` pour un nouveau déploiement — toujours `/
 
 ## Renommage — Règle de cascade obligatoire
 
-Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou si on note dans le TABLEAU DE BORD sous "En attente de cascade". Ne jamais clore la session sans que chaque impact soit traité ou noté.
+Dès qu'un nom UI change (page, section, composant, route), produire dans la même réponse la liste complète des impacts : fichiers frontend, page IDs dans App.jsx, composants, routes backend, noms de fichiers. Demander si on traite maintenant ou plus tard. Ne jamais clore la session sans que chaque impact soit traité ou noté.
 
 ### Remplacement / suppression — jamais de lien mort (règle absolue)
 
@@ -395,10 +434,10 @@ Deviner au lieu de tester = faute. (Règle durcie le 24/06/2026 : script de diag
 
 ## Vocabulaire — le mot « blocage / bloqué par » est banni (règle absolue)
 
-Le mot **« blocage »** et la formule **« bloqué par »** ne doivent apparaître **nulle part** dans le projet (TRACKER, docs, code, commits, UI). Logique : un obstacle qu'on peut lever, on le lève tout de suite (règle du caillou) → ce n'est plus un blocage ; un obstacle qu'on ne peut pas lever maintenant est une **tâche en attente** qui part au backlog → pas un blocage non plus. Le mot n'a donc jamais lieu d'être.
+Le mot **« blocage »** et la formule **« bloqué par »** ne doivent apparaître **nulle part** dans le projet (docs, code, commits, UI). Logique : un obstacle qu'on peut lever, on le lève tout de suite (règle du caillou) → ce n'est plus un blocage ; un obstacle qu'on ne peut pas lever maintenant est une **tâche en attente** qui part au backlog → pas un blocage non plus. Le mot n'a donc jamais lieu d'être.
 
 Vocabulaire de remplacement, selon le sens :
-- **« dépend de »** — dépendance technique entre deux tâches réelles du tracker (B a besoin que A soit fait d'abord).
+- **« dépend de »** — dépendance technique entre deux tâches réelles (B a besoin que A soit fait d'abord).
 - **« en attente de »** — la tâche attend un élément extérieur ou non encore planifiable (info admin, arbitrage non tranché).
 - **« prérequis / impératif »** — condition dure avant une action (ex. avant `deploy.ps1`).
 - **« désactiver » / « refuser » / « neutraliser »** — pour une action de code qui empêche quelque chose (un bouton, un insert). Jamais « bloquer ».
@@ -476,51 +515,6 @@ Donc, à chaque fois qu'un état devient incohérent ou invalide :
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-## Pilotage — deux docs, deux rôles, un seul pilote par couche (règle absolue)
-
-**Deux documents vivants, jamais deux pilotes qui se contredisent :**
-
-| Document | Fait foi sur | Pour qui |
-|---|---|---|
-| `MesMD/TRACKER.md` | **Pilotage** — ordre + statut (☐ 🔄 ⏸️ ✅) + dépendance en clair | l'utilisateur (vue lisible d'un coup d'œil) |
-| `MesMD/TABLEAU-DE-BORD.md` | **Détail** — score, description, synergies, audits, RAG + **journal FAIT** | Claude (référence de fond) |
-
-> **Règle de tenue (absolue) :** Le TRACKER fait foi sur le pilotage (ordre + statut + dépendance). Le TABLEAU fait foi sur le détail (score, description, journal FAIT). Le statut est mis à jour dans le TRACKER, dans la même réponse où l'on démarre ou finit une tâche. Le tableau est synchronisé en fin de session, pour le journal FAIT seulement.
-
-> Les fiches `MesMD/BOUSSOLE/Dxx.md` restent la **couche détail** d'un chantier.
-
-- **Le statut vit à UN SEUL endroit : le TRACKER.** Le tableau de bord ne porte plus de colonne « État ». Garder un statut des deux côtés recrée le double pilote — interdit.
-- **L'ordre appartient à l'utilisateur** (priorité P1/P2/P3 dans le TRACKER) ; **les dépendances techniques à Claude**, écrites noir sur blanc dans le TRACKER et **prouvées en citant la fiche** — jamais gardées de tête.
-- **Aucun autre document ne ré-ordonne les priorités.** Tout plan, diagnostic ou audit ponctuel est **absorbé** en chantier `Dxx` (détail dans le TABLEAU) — jamais un pilote concurrent.
-- **Toute idée mentionnée en session → notée immédiatement dans le réservoir du `TABLEAU-DE-BORD.md`**, dans la même réponse. Quand l'utilisateur décide de l'attaquer, elle remonte en une ligne dans le TRACKER.
-- **Les checklists de chantier ☐/☑** vivent dans les fiches `Dxx`.
-- **Pas de doc-archive dans l'arbre de travail.** Les anciens états (vieux CR, plans clôturés) vivent dans l'**historique git**, pas dans un fichier vivant. Ne jamais recréer de document d'archive dans l'arbre. Claude ne consulte l'historique git **que sur demande explicite** — un état daté lu spontanément induit en erreur (c'est ce piège qui a motivé la règle).
-- **Périmètre de lecture = `main` uniquement.** Le contenu des autres branches (ex. `wip/deepgram-streaming` = chantier Deepgram gelé) n'est jamais lu spontanément — c'est du git, donc lecture **sur demande explicite** seulement. Mes outils par défaut ne voient que le checkout courant ; je ne lance pas de commande git large (`git grep --all`, `git log --all`, checkout d'une autre branche) de moi-même.
-- **Durable → `CLAUDE.md` ; les trackers ne portent que l'éphémère.** Toute information qui doit rester **pérenne** (décision d'architecture, règle, choix techno durable) vit dans **`CLAUDE.md`** (et/ou la mémoire Claude) — **jamais seulement dans un tracker**. Les trackers de **chantier** (`TRACKER_REFORME.md`, `TRACKER_FOURNISSEURS_IA.md`…) sont **jetables** : une fois le chantier fini, archivés/supprimés. **Nuance : `TRACKER.md` et `TABLEAU-DE-BORD.md` sont des docs de pilotage *vivants/continus*** — ils ne sont pas jetés, **mais n'hébergent pas non plus une décision pérenne** : leur rôle est le pilotage/détail **courant**, pas la mémoire durable. Un tracker peut **pointer** vers la décision dans `CLAUDE.md`, jamais en être l'unique dépositaire.
-
-### Le cycle de vie d'une idée (du berceau au rangement)
-
-Une idée **naît dans la discussion** et se travaille dans un **tracker éphémère**
-(son berceau) : on l'ancre, on la pèse, on la mûrit tranquillement. **Tant qu'elle
-est une idée, elle reste dans l'éphémère — elle ne touche rien d'autre** (ni TRACKER,
-ni tableau de bord, ni fiche).
-
-Quand elle est **mûre et validée par l'utilisateur**, elle n'est plus une idée :
-c'est un **travail**. Là seulement elle s'éclate dans les documents permanents :
-- **TRACKER** → une ligne simple et humaine, le jour où on décide de la faire
-  (ce que l'utilisateur suit).
-- **Fiche Dxx (BOUSSOLE)** → tout son détail technique.
-- **Tableau de bord** → elle apparaît dans l'inventaire des travaux, avec un lien
-  vers sa fiche.
-
-Si ce qu'on a tranché est une **règle durable** (pas une tâche) → elle va dans
-**`CLAUDE.md`**, jamais dans un tracker.
-
-Le tracker éphémère, une fois vidé de cette idée, **finit à la poubelle**
-(historique git).
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 ## Cadence de travail — du général, découpé en morceaux, un morceau à la fois (règle absolue)
 
 **Ma façon de travailler : partir du général, le découper en morceaux, avancer
@@ -535,9 +529,8 @@ feature entière n'est pas encore livrée. On ne laisse jamais de code cassé en
 deux pas, mais on ne s'impose pas de tout boucler d'un coup (intenable sur un
 chantier de semaines).
 
-**En pratique : une session = une ligne du `TRACKER.md`.** On finit et on committe
-une ligne avant la suivante — c'est ce qui garde le statut du TRACKER honnête
-(rien à moitié fait).
+**En pratique : une session = un morceau committable.** On finit et on committe
+un morceau avant le suivant — rien à moitié fait.
 
 **Deux exceptions, jugées par Claude au moment d'« attaquer XX », signalées AVANT
 de coder, tranchées par l'utilisateur :**
@@ -596,9 +589,17 @@ Toute adaptation mobile utilise `const isMobile = window.innerWidth < 768` défi
 
 ## Fournisseur IA — Règle absolue
 
-Deux fournisseurs, pour pouvoir basculer de l'un à l'autre : **Groq** (`llama-3.3-70b-versatile`) par défaut + **Anthropic** (Claude) comme cible de bascule. Gemini n'est **pas** banni — l'adaptateur `_gemini` existe et reste fonctionnel, mais **dormant** : ni défaut, ni cible.
+**Deux fournisseurs, chacun son rôle :**
+- **Groq** → **dictée vocale (Whisper) et OCR** uniquement. Anthropic n'a pas d'équivalent : ce n'est pas un choix, il n'y a pas d'alternative.
+- **Claude (Anthropic, via clé API)** → **tout le texte** : analyse, découpe des référentiels, génération d'activités, fiches, séquences.
 
-**L'app appelle l'IA dès qu'elle en a besoin — un seul point d'entrée `generate()`.** Y compris pour préparer un référentiel (analyser le PDF, proposer la règle de découpe). Règle : l'IA **propose**, l'admin ou le prof **valide** ; jamais l'IA seule (cap « aSchool n'invente rien »). Le fournisseur est **administrable à chaud** (écran Génération LLM → onglet Fournisseur) ; la combo affiche **tous** les fournisseurs connus, les non-opérationnels **grisés « pas encore disponible »** (jamais un choix qui échoue). Vision : basculer entre plusieurs IA selon l'usage (réservoir item #45). Aujourd'hui **Groq seul** est opérationnel ; ouvrir une 2e IA (clé par fournisseur + modèle Claude) est un chantier **en attente de la décision « quelle IA + quel accès (clé API ou abonnement) »**.
+**Une clé par fournisseur** : `GROQ_API_KEY` (voix + OCR) et `CLAUDE_API_KEY` (texte). Jamais une clé unique partagée.
+
+**Gemini est supprimé** du projet : ni fournisseur, ni adaptateur, ni mention. Le mot ne doit plus apparaître nulle part (code, doc, interface).
+
+**L'app appelle l'IA dès qu'elle en a besoin — un seul point d'entrée `generate()`.** Y compris pour préparer un référentiel (analyser le PDF, proposer la règle de découpe). Règle : l'IA **propose**, l'admin ou le prof **valide** ; jamais l'IA seule (cap « aSchool n'invente rien »). Le fournisseur et le modèle sont **administrables à chaud, depuis la base** (écran Génération LLM). Aucun fournisseur, aucun modèle, aucun prompt n'est écrit **en dur** dans le code.
+
+**Principe : aSchool ne dépend d'aucun fournisseur.** Il doit toujours être possible d'en ajouter un ou d'en changer, sans toucher au code.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -674,8 +675,6 @@ Quand aSchool découpe un référentiel, il doit repérer les cas ambigus — le
 
 L'IA employée est la porte unique `generate()` de l'app, déjà utilisée par les autres outils.
 
-> Procédure d'exécution complète (dépôt jusqu'à la recherche) et application à la crèche : fiche `MesMD/BOUSSOLE/D60.md`.
-
 ### La règle de découpe — validée par l'admin, deux faces, PAR COUPLE (règle absolue)
 
 Comment un document est **découpé** (où sont les frontières d'une unité) est piloté par une **règle de découpe** — un petit objet à **deux faces**, rangé **par couple**. C'est une **donnée métier** (l'admin la valide via l'app) → elle vit **EN BASE** (règle « tout en base ») : colonnes `regle_explication` / `regle_motif` / `regle_depose_par` / `regle_valide` de la ligne `referentiels` du couple. Plus aucun fichier `regle-decoupe.json`.
@@ -730,7 +729,7 @@ Intégrer un nouveau couple suit la procédure de [`REFERENTIELS/README.md`](REF
 
 **Côté admin — préparer le couple.**
 1. Les 11 cycles et les 88 niveaux existent déjà en base. On n'en crée pas.
-2. Les matières du niveau doivent être présentes en base et reliées au niveau. On les remplit depuis le fichier des matières avec un script éphémère (créer, remplir, supprimer).
+2. Les matières du niveau doivent être présentes en base et reliées au niveau. On les remplit depuis le fichier des matières par script — en appliquant la règle « Remplir la base » (afficher le script, dire où va la donnée, et **si elle doit exister en production, elle passe par une migration Alembic**, pas par un script jetable).
 3. L'admin ouvre aSchool, va dans Paramètres puis Référentiels. Il choisit le cycle, puis le niveau.
 4. Il dépose le PDF du référentiel officiel et valide. C'est ce dépôt qui rend le couple utilisable.
 
@@ -808,10 +807,12 @@ une porte de secours**, pas un usage courant.
 
 Ne jamais afficher mots de passe, clés API ou tokens en clair dans la discussion, même si l'utilisateur le demande.
 
-**Où vivent les secrets.** Les secrets (clés API, mots de passe, `JWT_SECRET`, tokens) vivent dans le `.env` — hors git, hors base — un par environnement (local + VPS prod). **Jamais en base, jamais administrables depuis l'UI admin.** À l'échelle actuelle (prod avec profs pilotes), le `.env` bien tenu est le bon niveau : **être en prod ne change rien**. **Seul déclencheur d'une marche suivante = une explosion d'aSchool** (croissance massive, gros volume d'utilisateurs réels) → gestionnaire de secrets cloud (Secret Manager Infomaniak ou autre), **pas un HSM**. YAGNI jusque-là.
+**Où vivent les secrets.** Les secrets (clés API, mots de passe, `JWT_SECRET`, tokens) vivent dans le `.env` — hors git, hors base — un par environnement (local + VPS prod). **Jamais en base, jamais administrables depuis l'UI admin.**
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Changer une clé = éditer le `.env`, en dev comme en prod** (via SSH sur le VPS, puis redémarrage du service). C'est un geste rare, délibéré, sensible — sa place est le coffre du serveur, jamais un bouton web. Mettre la **valeur** d'un secret dans un écran admin serait un **recul de sécurité** (un secret modifiable depuis un navigateur = exfiltrable avec un simple cookie admin), pas un progrès. Seul le **nom** d'une variable d'environnement peut vivre en base (pour que le code n'en contienne aucun en dur) et être **affiché en lecture seule** ; le nom ne s'édite pas via l'UI (on ne renomme quasiment jamais une variable — l'éditer ne changerait pas la clé).
 
-## Sync docs — Règle de fin de session
+**Pourquoi le `.env` et pas un gestionnaire de secrets, aujourd'hui.** Un gestionnaire de secrets (HashiCorp Vault — le plus déployé, utilisé par Adobe, GitLab, le Fortune 500 — ou AWS/Google/Azure) est un **vrai outil de pro**, mais les retours (Gartner, G2) le disent **lourd pour une petite équipe** : forte complexité opérationnelle, courbe d'apprentissage raide, cluster à faire tourner et maintenir. Surtout, il **crée une dépendance** : auto-hébergé = un cluster de plus à opérer ; managé = on dépend d'un fournisseur et de son écosystème. Le `.env`, lui, ne dépend que du système de fichiers du serveur, et **seul le dev y touche**.
 
-En fin de chaque session de dev importante : mettre à jour ce fichier (version, règles nouvelles) + synchroniser TABLEAU-DE-BORD.md.
+**Le vrai déclencheur pour basculer** n'est pas « être en prod » — c'est le **volume** : beaucoup de clés × plusieurs environnements, besoin de **rotation automatique**, de **journal d'audit** et de **contrôle d'accès fin**. C'est là seulement que le `.env` manuel devient un risque. Jusque-là : `.env`. **Ce n'est pas « le `.env` pour toujours », c'est « le `.env` tant qu'aSchool reste à cette taille ».** (Cible nommée le jour venu : gestionnaire de secrets cloud, **pas un HSM**.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

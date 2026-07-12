@@ -147,6 +147,7 @@ def _call_ambiguites(cap):
     c.cookies.set("aschool_access", TOKEN)
     contenu_llm = '{"ambiguites": [], "verdict": "ok"}'
     with patch.object(gen, "AI_PROVIDER", "groq"), \
+         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
          patch("requests.post", side_effect=_fake_groq_post(cap, contenu_llm)):
         return c.post("/api/detect-ambiguites", json={
             "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",

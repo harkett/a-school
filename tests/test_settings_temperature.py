@@ -130,6 +130,7 @@ def _call_generate(cap):
     c.cookies.set("aschool_access", TOKEN)
     with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
+         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         return c.post("/api/generate", json={
             "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",

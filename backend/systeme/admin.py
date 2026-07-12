@@ -4,7 +4,7 @@ import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy import func, text
@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
+from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -133,28 +133,6 @@ def _slugify_email_template(nom: str) -> str:
     return base or "modele"
 
 
-# Liste blanche des modèles LLM texte autorisés (Phase 4.1.b). Une saisie hors de cette
-# liste est REFUSÉE avant d'atteindre la base (la génération ne tombera jamais sur un
-# modèle inconnu). Démarrage volontaire à une entrée — extensible : ajouter un ID Groq ici.
-SUPPORTED_AI_MODELS = ["llama-3.3-70b-versatile"]
-
-
-# Liste blanche des fournisseurs LLM offerts à l'admin (Phase 4.1.e). MÊME logique que
-# SUPPORTED_AI_MODELS : une saisie hors liste est REFUSÉE avant la base. On n'y met QUE les
-# fournisseurs réellement opérationnels (joignabilité) — aujourd'hui Groq seul. Ajouter un
-# fournisseur = une ligne ici, le jour où sa clé est provisionnée (générique, aucun cas
-# spécial : Anthropic/… sont des fournisseurs comme les autres).
-SUPPORTED_AI_PROVIDERS = ["groq"]
-
-# Tous les fournisseurs que le moteur SAIT appeler (adaptateurs présents dans src/generator.py).
-# La combo admin les affiche TOUS ; seuls ceux de SUPPORTED_AI_PROVIDERS (clé provisionnée) sont
-# sélectionnables. Les autres apparaissent « pas encore disponible » — jamais un choix qui échoue.
-ALL_AI_PROVIDERS = [
-    {"name": "groq", "label": "Groq"},
-    {"name": "anthropic", "label": "Anthropic (Claude)"},
-]
-
-
 def get_ai_model(db: Session) -> str:
     """Modèle LLM texte courant, lu en base au moment de l'appel (repli sur le défaut
     code). Source unique de résolution du modèle pour tous les routers — branche sur
@@ -169,6 +147,21 @@ def get_ai_provider(db: Session) -> str:
     get_ai_model (branche sur get_settings_dict). La valeur (chaîne) descend ensuite dans
     generate() via le paramètre `provider`, qui reste pur (aucune connaissance de la base)."""
     return get_settings_dict(db)["ai_provider"]
+
+
+def get_cle_api(db: Session, cle_setting: str) -> str:
+    """Résout la clé API d'un usage (OCR, dictée) : le NOM de la variable d'environnement
+    vit EN BASE (settings.<cle_setting>), sa VALEUR (le secret) reste dans le .env — jamais
+    en base. On lit le nom en base, puis os.getenv(nom). Erreurs CLAIRES (jamais un vide
+    silencieux) : nom absent de la base (migration non appliquée) ou clé absente du .env.
+    Côté backend uniquement : la clé descend ensuite en paramètre dans src (qui reste pur)."""
+    nom = get_settings_dict(db).get(cle_setting)
+    if not nom:
+        raise HTTPException(500, f"Configuration manquante : « {cle_setting} » absent en base (migration non appliquée ?).")
+    cle = os.getenv(nom, "")
+    if not cle:
+        raise HTTPException(500, f"Clé API absente du .env : la variable « {nom} » n'est pas définie.")
+    return cle
 
 
 # Bornes de top_k (nb de chunks ramenés par le RAG). MIN 1 (au moins un extrait) ;
@@ -638,16 +631,82 @@ def save_settings(body: SettingsBody, request: Request, db: Session = Depends(ge
     return {"status": "ok"}
 
 
+# ── Écran « Paramètres » : la table settings en LECTURE SEULE (clé / valeur) ──
+# Écran de consultation : il lit la base et l'affiche, il ne modifie rien. Changer une valeur
+# passe par un autre moyen (ex. un secret se change dans le .env, jamais dans l'UI — cf. règle
+# « Secrets » de CLAUDE.md). Certaines clés ont un ÉCRAN DÉDIÉ (validé) où elles se règlent
+# vraiment ; on les marque pour indiquer où (repère, pas un blocage).
+_PARAM_ECRAN_DEDIE_EXACTS = {"ai_model", "ai_provider", "ai_temperature", "rag_top_k"}
+_PARAM_ECRAN_DEDIE_PREFIXES = ("max_tokens_", "prompt_", "welcome_email_")
+
+
+def _param_a_ecran_dedie(key: str) -> bool:
+    return key in _PARAM_ECRAN_DEDIE_EXACTS or key.startswith(_PARAM_ECRAN_DEDIE_PREFIXES)
+
+
+def _resoudre_pointeur(db: Session, key: str, value: str):
+    """Une clé « pointeur » désigne une ligne d'une table catalogue (relation STRUCTURELLE, en
+    code — pas une donnée métier). On renvoie (label lisible, ligne pointée complète) pour que
+    l'écran montre le LIBELLÉ (jamais le code) et le contenu réel derrière le pointeur.
+    Clé non pointeur, ou cible absente : (None, None)."""
+    if key == "ai_provider":
+        f = db.query(AiFournisseur).filter(AiFournisseur.code == value).first()
+        if f:
+            return f.label, {"table": "ai_fournisseurs", "code": f.code, "label": f.label,
+                             "cle_env": f.cle_env, "actif": f.actif, "ordre": f.ordre}
+    elif key == "ai_model":
+        m = db.query(AiModele).filter(AiModele.modele == value).first()
+        if m:
+            return m.label, {"table": "ai_modeles", "fournisseur": m.fournisseur, "modele": m.modele,
+                             "label": m.label, "recommande": m.recommande, "actif": m.actif, "ordre": m.ordre}
+    return None, None
+
+
+@router.get("/admin/parametres")
+def get_parametres(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Liste les LIGNES RÉELLES de la table settings (clé / valeur), triées par clé. Jamais le
+    merge avec les défauts code : cet écran lit la base, pas les défauts.
+    `label` = libellé lisible quand la clé pointe vers un catalogue (affiché à la place du code) ;
+    `pointe_vers` = la ligne catalogue complète derrière le pointeur (ou None) ;
+    `ecran_dedie` = True si la clé est pilotée par un écran dédié (repère côté UI)."""
+    rows = db.query(Setting).order_by(Setting.key.asc()).all()
+    out = []
+    for r in rows:
+        label, pointe_vers = _resoudre_pointeur(db, r.key, r.value)
+        out.append({
+            "key": r.key, "value": r.value, "label": label,
+            "ecran_dedie": _param_a_ecran_dedie(r.key),
+            "pointe_vers": pointe_vers,
+        })
+    return out
+
+
 class AiModelBody(BaseModel):
     model_config = {"protected_namespaces": ()}  # autorise un champ nommé `model` (pydantic v2)
     model: str
 
 
 @router.get("/admin/ai-models")
-def get_ai_models(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Modèles LLM texte pris en charge + modèle courant — alimente la validation
-    et le hint du formulaire admin."""
-    return {"supported": SUPPORTED_AI_MODELS, "current": get_ai_model(db)}
+def get_ai_models(fournisseur: str | None = Query(None), db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Modèles LLM texte d'un fournisseur, lus EN BASE (table `ai_modeles`), + modèle courant
+    + modèle recommandé — alimente la combo et la validation admin. Plus AUCUNE liste en dur :
+    ajouter un modèle = une ligne en base. Tri : le `recommande` d'abord, puis `ordre`.
+    `fournisseur` (optionnel) = fournisseur SÉLECTIONNÉ dans la combo (pas encore enregistré) ;
+    absent → fournisseur COURANT en base. `recommande` = nom du modèle marqué (affiché
+    « (recommandé) »), ou None."""
+    fournisseur = (fournisseur or "").strip() or get_ai_provider(db)
+    modeles = (
+        db.query(AiModele)
+        .filter(AiModele.fournisseur == fournisseur, AiModele.actif.is_(True))
+        .order_by(AiModele.recommande.desc(), AiModele.ordre.asc())
+        .all()
+    )
+    recommande = next((m.modele for m in modeles if m.recommande), None)
+    return {
+        "supported": [{"modele": m.modele, "label": m.label} for m in modeles],
+        "current": get_ai_model(db),
+        "recommande": recommande,
+    }
 
 
 @router.put("/admin/ai-model")
@@ -656,11 +715,27 @@ def save_ai_model(body: AiModelBody, request: Request, db: Session = Depends(get
     intact). Validation stricte : vide ou hors liste blanche → 400 (message humain pour
     la modale admin), rien n'est écrit. Sinon upsert de la clé `ai_model` + audit."""
     valeur = (body.model or "").strip()
-    if valeur not in SUPPORTED_AI_MODELS:
+    fournisseur = get_ai_provider(db)
+    connu = (
+        db.query(AiModele)
+        .filter(
+            AiModele.fournisseur == fournisseur,
+            AiModele.modele == valeur,
+            AiModele.actif.is_(True),
+        )
+        .first()
+    )
+    if not connu:
+        dispo = (
+            db.query(AiModele)
+            .filter(AiModele.fournisseur == fournisseur, AiModele.actif.is_(True))
+            .order_by(AiModele.recommande.desc(), AiModele.ordre.asc())
+            .all()
+        )
         raise HTTPException(
             400,
-            f"Modèle inconnu ou vide. Saisissez un modèle pris en charge : "
-            f"{', '.join(SUPPORTED_AI_MODELS)}.",
+            f"Modèle inconnu ou vide pour le fournisseur « {fournisseur} ». "
+            f"Modèles disponibles : {', '.join(m.modele for m in dispo) or '(aucun)'}.",
         )
     row = db.query(Setting).filter(Setting.key == "ai_model").first()
     if row:
@@ -685,16 +760,18 @@ class AiProviderBody(BaseModel):
 
 @router.get("/admin/ai-providers")
 def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Fournisseurs LLM offerts (liste blanche) + fournisseur courant — alimente la combo
-    admin et sa validation. Miroir de GET /admin/ai-models. On n'expose QUE les fournisseurs
-    opérationnels (joignabilité) ; les autres apparaissent « pas encore disponible » (grisés).
-    `all` = tous les fournisseurs connus + drapeau `available` (True s'ils sont opérationnels)."""
+    """Fournisseurs LLM offerts + fournisseur courant — alimente la combo admin et sa
+    validation. Lus EN BASE (table `ai_fournisseurs`), plus AUCUNE liste en dur. Miroir de
+    GET /admin/ai-models. On n'expose comme sélectionnables QUE les fournisseurs `actif`
+    (opérationnels) ; les autres apparaissent « pas encore disponible » (grisés).
+    `all` = tous les fournisseurs connus (lignes de la table) + drapeau `available` = actif."""
+    fournisseurs = db.query(AiFournisseur).order_by(AiFournisseur.ordre.asc()).all()
     return {
-        "supported": SUPPORTED_AI_PROVIDERS,
+        "supported": [f.code for f in fournisseurs if f.actif],
         "current": get_ai_provider(db),
         "all": [
-            {**p, "available": p["name"] in SUPPORTED_AI_PROVIDERS}
-            for p in ALL_AI_PROVIDERS
+            {"name": f.code, "label": f.label, "available": f.actif}
+            for f in fournisseurs
         ],
     }
 
@@ -702,14 +779,16 @@ def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_a
 @router.put("/admin/ai-provider")
 def save_ai_provider(body: AiProviderBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     """Écrit le fournisseur LLM texte. Endpoint DÉDIÉ (PUT email + PUT ai-model + PUT max-tokens
-    restent intacts). Validation stricte : vide ou hors liste blanche → 400 (message humain pour
-    la modale admin), rien n'est écrit. Sinon upsert de la clé `ai_provider` + audit."""
+    restent intacts). Validation stricte contre la BASE (table `ai_fournisseurs`, fournisseurs
+    `actif`) : vide ou hors liste → 400 (message humain pour la modale admin), rien n'est écrit.
+    Sinon upsert de la clé `ai_provider` + audit."""
     valeur = (body.provider or "").strip()
-    if valeur not in SUPPORTED_AI_PROVIDERS:
+    actifs = [f.code for f in db.query(AiFournisseur).filter(AiFournisseur.actif.is_(True)).order_by(AiFournisseur.ordre.asc()).all()]
+    if valeur not in actifs:
         raise HTTPException(
             400,
             f"Fournisseur inconnu ou vide. Choisissez un fournisseur pris en charge : "
-            f"{', '.join(SUPPORTED_AI_PROVIDERS)}.",
+            f"{', '.join(actifs) or '(aucun)'}.",
         )
     row = db.query(Setting).filter(Setting.key == "ai_provider").first()
     if row:

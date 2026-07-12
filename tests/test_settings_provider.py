@@ -94,7 +94,7 @@ def test_get_ai_provider_a_chaud_sans_redemarrage():
 def test_generate_route_selon_le_provider_passe():
     # provider="groq" explicite -> adaptateur Groq (tape l'URL Groq), meme si AI_PROVIDER differe.
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "anthropic"), patch("requests.post", side_effect=_fake_groq_post(cap)):
+    with patch.object(gen, "AI_PROVIDER", "anthropic"), patch.object(gen, "GROQ_API_KEY", "cle-test"), patch("requests.post", side_effect=_fake_groq_post(cap)):
         gen.generate("bonjour", provider="groq")
     assert "api.groq.com" in cap["url"]
 
@@ -102,7 +102,7 @@ def test_generate_route_selon_le_provider_passe():
 def test_generate_repli_sur_AI_PROVIDER_si_provider_none():
     # provider=None -> retombe sur AI_PROVIDER (ici force a "groq") -> adaptateur Groq.
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch("requests.post", side_effect=_fake_groq_post(cap)):
+    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), patch("requests.post", side_effect=_fake_groq_post(cap)):
         gen.generate("bonjour")
     assert "api.groq.com" in cap["url"]
 
@@ -129,6 +129,7 @@ def test_endpoint_generate_utilise_le_provider_en_base():
     # build_prompt mocke : ce test porte sur le provider, pas sur l'assemblage du prompt.
     with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "anthropic"), \
+         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         r = c.post("/api/generate", json={
             "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",

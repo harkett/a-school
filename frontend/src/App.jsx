@@ -36,6 +36,7 @@ import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
 import AdminParametresEmail from './pages/AdminParametresEmail'
+import AdminParametres from './pages/AdminParametres'
 import AdminSessions from './pages/AdminSessions'
 import AdminServeur from './pages/AdminServeur'
 import AdminAudit from './pages/AdminAudit'
@@ -1074,6 +1075,7 @@ export default function App() {
               <Route index element={<Navigate to="/admin/parametres/generation" replace />} />
               <Route path="generation" element={<AdminParametresGeneration />} />
               <Route path="email"      element={<AdminParametresEmail />} />
+              <Route path="general"    element={<AdminParametres />} />
             </Route>
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />

@@ -63,7 +63,8 @@ def _client_prof():
 
 def test_ambiguites_429_amont():
     _reset_sem()
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch("requests.post", side_effect=_post_429):
+    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), \
+         patch("requests.post", side_effect=_post_429):
         r = _client_prof().post("/api/detect-ambiguites", json={
             "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
         })
@@ -75,6 +76,7 @@ def test_generate_429_amont():
     _reset_sem()
     with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
          patch.object(gen, "AI_PROVIDER", "groq"), \
+         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
          patch("requests.post", side_effect=_post_429):
         r = _client_prof().post("/api/generate", json={
             "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
@@ -107,5 +109,5 @@ def test_dictee_429_amont():
     _reset_sem()
     with patch("requests.post", side_effect=_post_429):
         with pytest.raises(HTTPException) as exc:
-            gc.transcribe_audio(b"xxxx", filename="audio.webm", content_type="audio/webm")
+            gc.transcribe_audio(b"xxxx", filename="audio.webm", content_type="audio/webm", api_key="cle-test")
     assert exc.value.status_code == 429                 # avant : 502

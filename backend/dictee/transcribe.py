@@ -15,9 +15,12 @@ Groq détermine le format audio par l'EXTENSION du nom de fichier. On force donc
 nom à extension valide AVANT de transmettre à Groq, et le paramètre `model` (requis).
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
+from backend.core.database import get_db
 from backend.core.groq_client import transcribe_audio
+from backend.systeme.admin import get_cle_api
 
 router = APIRouter()
 
@@ -45,14 +48,15 @@ def _safe_ext(filename: str | None, content_type: str | None) -> str:
 
 
 @router.post("/transcribe")
-async def transcribe(file: UploadFile):
+async def transcribe(file: UploadFile, db: Session = Depends(get_db)):
     data = await file.read()
     if not data:
         raise HTTPException(400, "Fichier audio vide.")
     if len(data) > _MAX_BYTES:
         raise HTTPException(413, "Fichier audio trop volumineux (max 25 Mo).")
 
+    api_key = get_cle_api(db, "cle_env_dictee")  # nom en base, clé au .env ; erreur claire si absent
     ext = _safe_ext(file.filename, file.content_type)
     # Fix 400 : nom de fichier À EXTENSION VALIDE transmis à Groq.
-    texte = transcribe_audio(data, filename=f"audio.{ext}", content_type=file.content_type)
+    texte = transcribe_audio(data, filename=f"audio.{ext}", content_type=file.content_type, api_key=api_key)
     return {"text": texte}

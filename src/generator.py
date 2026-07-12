@@ -1,7 +1,7 @@
 import threading
 from contextlib import contextmanager
 
-from src.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+from src.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY_TEXTE, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
 
 
 class LLMRateLimitError(RuntimeError):
@@ -70,6 +70,11 @@ def _groq(
     json_mode: bool = False,
 ) -> str:
     import requests
+    if not GROQ_API_KEY:
+        raise RuntimeError(
+            "Texte Groq non configuré (aucune clé Groq-texte dans le .env). "
+            "Le texte passe par Anthropic — réglez le fournisseur sur « anthropic »."
+        )
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -96,12 +101,16 @@ def _groq(
 # (L'ancien transcribe_audio de ce module était du code mort — supprimé.)
 
 
-def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_key: str) -> str:
+    # api_key : clé OCR résolue par le backend (nom de variable lu EN BASE, cle_env_ocr).
+    # src reste pur : il reçoit la clé, il ne la cherche jamais.
     import base64
     import requests
+    if not api_key:
+        raise RuntimeError("Clé OCR absente : la génération OCR ne peut pas s'exécuter.")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
@@ -154,9 +163,9 @@ def _anthropic(
         kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
     # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
     # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
-    if not CLAUDE_API_KEY:
-        raise RuntimeError("CLAUDE_API_KEY manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY, timeout=60)
+    if not CLAUDE_API_KEY_TEXTE:
+        raise RuntimeError("CLAUDE_API_KEY_TEXTE manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY_TEXTE, timeout=60)
     try:
         message = client.messages.create(**kwargs)
     except anthropic.RateLimitError:

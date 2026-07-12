@@ -1,13 +1,12 @@
 import requests
 from fastapi import HTTPException
-from src.config import GROQ_API_KEY
 from src.generator import _llm_slot, LLMRateLimitError
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 TRANSCRIBE_MODEL = "whisper-large-v3"
 
 
-def transcribe_audio(data: bytes, filename: str, content_type: str | None = None) -> str:
+def transcribe_audio(data: bytes, filename: str, content_type: str | None = None, *, api_key: str) -> str:
     """Transcrit un fichier audio via Groq Whisper (batch) et renvoie le texte.
 
     Fix 400 (cause confirmée par repro le 31/05/2026) : Groq détermine le format
@@ -20,7 +19,10 @@ def transcribe_audio(data: bytes, filename: str, content_type: str | None = None
     Note multipart : on ne force aucun Content-Type ici — requests pose lui-même
     le Content-Type multipart avec la boundary.
     """
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+    # api_key : clé dictée résolue par le backend (nom de variable lu EN BASE, cle_env_dictee).
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Clé dictée absente : la transcription ne peut pas s'exécuter.")
+    headers = {"Authorization": f"Bearer {api_key}"}
     files = {"file": (filename, data, content_type or "application/octet-stream")}
     payload = {"model": TRANSCRIBE_MODEL, "language": "fr"}
     # Même créneau partagé que la génération/OCR (même quota Groq) ; saturation -> 429 « réessayez ».

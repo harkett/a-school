@@ -18,11 +18,24 @@ import io
 
 from fastapi.testclient import TestClient
 
+import backend.core.database as dbmod
 import backend.core.groq_client as groq_client
+from backend.core.models_db import Setting
 from backend.main import app
 
 # Extensions acceptées par l'endpoint Groq Whisper (doc officielle Speech-to-Text).
 _ALLOWED_EXT = {"flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "opus", "wav", "webm"}
+
+
+def _seed_cle_dictee():
+    """L'endpoint résout la clé dictée via son NOM en base (settings.cle_env_dictee) puis
+    os.getenv. aschool_test est vidée entre chaque test → on sème la ligne ici. La VALEUR
+    (le secret) reste dans le .env de test (GROQ_API_KEY_DICTEE), jamais en base."""
+    db = dbmod.SessionLocal()
+    db.query(Setting).filter(Setting.key == "cle_env_dictee").delete()
+    db.add(Setting(key="cle_env_dictee", value="GROQ_API_KEY_DICTEE"))
+    db.commit()
+    db.close()
 
 
 class _FakeResponse:
@@ -78,6 +91,7 @@ def _assert_groq_call_valid(captured, contexte):
 
 def test_transcribe_nom_avec_extension():
     """Cas nominal : le navigateur envoie « dictee.webm » → 200 + texte inséré."""
+    _seed_cle_dictee()
     client = TestClient(app)
     captured, restore = _install_groq_spy()
     try:
@@ -92,6 +106,7 @@ def test_transcribe_nom_avec_extension():
 def test_transcribe_nom_sans_extension_force_une_extension():
     """RÉGRESSION CŒUR : même si le client envoie « blob » (sans extension), le
     backend doit FORCER une extension valide avant de transmettre à Groq."""
+    _seed_cle_dictee()
     client = TestClient(app)
     captured, restore = _install_groq_spy()
     try:

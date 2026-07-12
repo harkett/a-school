@@ -6,19 +6,19 @@ load_dotenv()
 AI_PROVIDER = os.getenv("AI_PROVIDER", "groq")
 AI_MODEL = os.getenv("AI_MODEL", "llama-3.3-70b-versatile")
 
-# Une clé par fournisseur (étape 3 « séparer les clés ») — chaque adaptateur lit SA clé.
-# GROQ_API_KEY   : texte Groq + OCR + dictée Whisper (Groq est le seul chemin voix/OCR).
-# CLAUDE_API_KEY : texte Anthropic (optionnel à l'import ; _anthropic lève si appelé sans clé).
+# Une clé par USAGE facturé (stats par usage sur le tableau de bord du fournisseur).
+# Voix + OCR ne lisent PLUS de clé ici : leur NOM de variable vit EN BASE (settings
+# cle_env_ocr / cle_env_dictee) et le backend résout la clé par appel — src reste pur.
+#   GROQ_API_KEY       : texte Groq UNIQUEMENT (optionnel ; vide aujourd'hui car le texte
+#                        passe par Anthropic — _groq lève une erreur claire si appelé sans clé).
+#   CLAUDE_API_KEY_TEXTE : texte Anthropic (optionnel à l'import ; _anthropic lève si appelé sans).
 # Jamais le nom réservé ANTHROPIC_API_KEY : Claude Code le lirait → facturation croisée.
+# (Mettre AUSSI ces deux noms en base = branche « fournisseurs » ai_fournisseurs.cle_env.)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
+CLAUDE_API_KEY_TEXTE = os.getenv("CLAUDE_API_KEY_TEXTE", "")
 
 # Régulation de concurrence des appels LLM (infra, pas un réglage prof) : nombre d'appels
 # sortants simultanés autorisés, et délai max d'attente d'un créneau avant erreur honnête.
 # Reste dans src/ (pur) : env, jamais en base — src/ n'importe jamais backend/.
 AI_MAX_CONCURRENCY = int(os.getenv("AI_MAX_CONCURRENCY", "8"))
 AI_SLOT_TIMEOUT = float(os.getenv("AI_SLOT_TIMEOUT", "30"))
-
-# Garde-fou : la dictée (Whisper) et l'OCR passent TOUJOURS par Groq → GROQ_API_KEY est obligatoire.
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY manquant dans le fichier .env (obligatoire : voix + OCR passent par Groq)")

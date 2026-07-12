@@ -76,6 +76,8 @@ class Feedback(Base):
 
 
 class Setting(Base):
+    """Table de configuration du projet (paramètres clé / valeur), équivalent-en-base d'un
+    fichier de config. Consultée depuis l'écran admin « Paramètres »."""
     __tablename__ = "settings"
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -345,12 +347,33 @@ class AiModele(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    fournisseur: Mapped[str] = mapped_column(String(50), nullable=False)   # "groq" / "anthropic"
+    # Lien base : un modèle appartient à un fournisseur connu (FK -> ai_fournisseurs.code).
+    fournisseur: Mapped[str] = mapped_column(String(50), ForeignKey("ai_fournisseurs.code"), nullable=False)  # "groq" / "anthropic"
     modele: Mapped[str] = mapped_column(String(100), nullable=False)        # id API exact
     label: Mapped[str] = mapped_column(String(150), nullable=False)         # affichage admin
     recommande: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+
+
+class AiFournisseur(Base):
+    """Fournisseurs LLM offerts à l'admin. DONNÉE MÉTIER → EN BASE (plus de listes
+    `SUPPORTED_AI_PROVIDERS` / `ALL_AI_PROVIDERS` en dur). Une ligne = un fournisseur ;
+    l'écran admin propose ceux qui sont `actif` (opérationnels), les autres apparaissent
+    grisés « pas encore disponible ». `code` = l'identifiant technique du moteur
+    (« groq »/« anthropic ») ; `cle_env` = le NOM de la variable d'env de sa clé TEXTE
+    (la valeur — le secret — reste dans le .env, jamais en base)."""
+    __tablename__ = "ai_fournisseurs"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_ai_fournisseurs_code"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)          # "groq" / "anthropic"
+    label: Mapped[str] = mapped_column(String(150), nullable=False)        # affichage admin
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
 
 
 class UserEnseignement(Base):

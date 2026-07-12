@@ -6,16 +6,16 @@ export default function AdminParametresGeneration() {
   const [onglet, setOnglet] = useState('modele')
   const [aiModel, setAiModel] = useState('')
   const [supportedModels, setSupportedModels] = useState([])
+  const [recommandeModel, setRecommandeModel] = useState('') // modèle marqué « recommandé » (affiché entre parenthèses)
   const [saving, setSaving]   = useState(false)
   const [message, setMessage] = useState(null) // { type: 'ok', text }
 
-  // Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur ; les non-opérationnels
-  // sont grisés « pas encore disponible » (jamais un choix qui échoue). Dispo = champ `all` du backend.
+  // Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur (champ `all` du backend,
+  // LU EN BASE) ; les non-opérationnels sont grisés « pas encore disponible ». Source UNIQUE : la
+  // base. Aucun repli en dur : `all` vide → message d'erreur clair, jamais de faux libellés.
   const [aiProvider, setAiProvider] = useState('')
-  const [supportedProviders, setSupportedProviders] = useState([])
   const [allProviders, setAllProviders] = useState([]) // [{ name, label, available }]
-  const [savingProvider, setSavingProvider] = useState(false)
-  const [messageProvider, setMessageProvider] = useState(null)
+  const [providersLoaded, setProvidersLoaded] = useState(false) // distingue « en cours » de « vide »
 
   // max_tokens (Phase 4.1.c) — défaut global + 3 surcharges + bornes.
   const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '', optimiseur: '' })
@@ -42,6 +42,7 @@ export default function AdminParametresGeneration() {
       .then(data => {
         setAiModel(data.current || '')
         setSupportedModels(data.supported || [])
+        setRecommandeModel(data.recommande || '')
       })
       .catch(() => {})
 
@@ -62,10 +63,10 @@ export default function AdminParametresGeneration() {
       .then(r => r.json())
       .then(data => {
         setAiProvider(data.current || '')
-        setSupportedProviders(data.supported || [])
         setAllProviders(data.all || [])
       })
       .catch(() => {})
+      .finally(() => setProvidersLoaded(true))
 
     fetch('/api/admin/temperature', { credentials: 'include' })
       .then(r => r.json())
@@ -93,43 +94,49 @@ export default function AdminParametresGeneration() {
     } catch {}
   }
 
-  async function saveModel() {
+  // Fournisseur & modèle groupés : le modèle DÉPEND du fournisseur (l'endpoint filtre les
+  // modèles par fournisseur). Changer de fournisseur recharge SES modèles (?fournisseur=)
+  // et présélectionne le recommandé.
+  async function onChangeFournisseur(code) {
+    setAiProvider(code)
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/admin/ai-models?fournisseur=${encodeURIComponent(code)}`, { credentials: 'include' })
+      const data = await res.json()
+      const liste = data.supported || []
+      setSupportedModels(liste)
+      setRecommandeModel(data.recommande || '')
+      setAiModel(data.recommande || liste[0]?.modele || '')  // présélectionne le recommandé (meilleur défaut)
+    } catch {
+      setSupportedModels([]); setRecommandeModel(''); setAiModel('')
+    }
+  }
+
+  // Un seul enregistrement pour les deux : le fournisseur D'ABORD (le backend valide le
+  // modèle contre le fournisseur ENREGISTRÉ), puis le modèle.
+  async function saveFournisseurModele() {
     setSaving(true)
     setMessage(null)
     try {
-      const res = await fetchWithTimeout('/api/admin/ai-model', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+      let res = await fetchWithTimeout('/api/admin/ai-provider', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ provider: aiProvider }),
+      }, TIMEOUT_STD)
+      let data = await res.json().catch(() => ({}))
+      if (!res.ok) { showError(data.detail || 'Erreur lors de l\'enregistrement du fournisseur.'); return }
+
+      res = await fetchWithTimeout('/api/admin/ai-model', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ model: aiModel }),
       }, TIMEOUT_STD)
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) setMessage({ type: 'ok', text: 'Modèle enregistré.' })
-      else showError(data.detail || 'Erreur lors de l\'enregistrement du modèle.')
+      data = await res.json().catch(() => ({}))
+      if (!res.ok) { showError(data.detail || 'Erreur lors de l\'enregistrement du modèle.'); return }
+
+      setMessage({ type: 'ok', text: 'Fournisseur et modèle enregistrés.' })
     } catch {
       showError('Erreur réseau — vérifiez que le backend tourne.')
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function saveProvider() {
-    setSavingProvider(true)
-    setMessageProvider(null)
-    try {
-      const res = await fetchWithTimeout('/api/admin/ai-provider', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ provider: aiProvider }),
-      }, TIMEOUT_STD)
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) setMessageProvider({ type: 'ok', text: 'Fournisseur enregistré.' })
-      else showError(data.detail || 'Erreur lors de l\'enregistrement du fournisseur.')
-    } catch {
-      showError('Erreur réseau — vérifiez que le backend tourne.')
-    } finally {
-      setSavingProvider(false)
     }
   }
 
@@ -313,7 +320,7 @@ export default function AdminParametresGeneration() {
       <div>
         <h2 className="text-sm font-semibold text-gray-700 mb-1">Génération LLM</h2>
         <p className="text-xs text-gray-400">
-          Réglages du moteur de génération des activités.
+          Réglages du moteur de génération des textes.
         </p>
       </div>
 
@@ -325,9 +332,8 @@ export default function AdminParametresGeneration() {
         <div style={{ width: 210, flexShrink: 0 }}>
           <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
             {[
-              ['modele', 'Modèle'],
+              ['modele', 'Fournisseur & modèle'],
               ['tokens', 'Longueur (tokens)'],
-              ['fournisseur', 'Fournisseur'],
               ['temperature', 'Température'],
               ['prompts', 'Prompts'],
             ].map(([key, label]) => {
@@ -357,11 +363,38 @@ export default function AdminParametresGeneration() {
         {/* ── Colonne droite : détail de la section sélectionnée ── */}
         <div style={{ flex: 1, minWidth: 0 }} className="flex flex-col gap-6">
 
-      {/* Onglet Modèle — liste déroulante fermée (Option 3) : l'admin choisit le modèle
-          dans la liste blanche fournie par le backend. Invalidité impossible à la source ;
-          le 400 backend reste un filet. */}
+      {/* Section « Fournisseur & modèle » — REGROUPÉES car le modèle DÉPEND du fournisseur
+          (l'endpoint /ai-models filtre par fournisseur). On choisit le fournisseur, ses modèles
+          se rechargent dessous (?fournisseur=), un seul bouton enregistre les deux (fournisseur
+          d'abord : le backend valide le modèle contre le fournisseur enregistré). */}
       {onglet === 'modele' && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
+          {/* Fournisseur */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Fournisseur d'IA
+            </label>
+            <select
+              value={aiProvider}
+              onChange={e => onChangeFournisseur(e.target.value)}
+              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+            >
+              {!providersLoaded && <option value="">Chargement…</option>}
+              {providersLoaded && allProviders.length === 0 &&
+                <option value="">Aucun fournisseur en base — vérifiez la table ai_fournisseurs</option>}
+              {allProviders.map(p => (
+                <option key={p.name} value={p.name} disabled={!p.available}>
+                  {p.label}{p.available ? '' : ' — pas encore disponible'}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Service d'IA qui exécute la génération. Les fournisseurs grisés ne sont pas encore
+              disponibles (leur clé n'est pas configurée).
+            </p>
+          </div>
+
+          {/* Modèle du fournisseur sélectionné */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Modèle de génération
@@ -371,30 +404,30 @@ export default function AdminParametresGeneration() {
               onChange={e => setAiModel(e.target.value)}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             >
-              {supportedModels.length === 0 && <option value="">Chargement…</option>}
+              {supportedModels.length === 0 && <option value="">Aucun modèle pour ce fournisseur</option>}
               {supportedModels.map(m => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m.modele} value={m.modele}>{m.label}{m.modele === recommandeModel ? ' (recommandé)' : ''}</option>
               ))}
             </select>
             <p className="text-xs text-gray-400 mt-1">
-              Modèle d'IA utilisé pour générer les activités. Pris en compte immédiatement, sans redémarrage.
+              Modèle utilisé pour générer les activités. Pris en compte immédiatement, sans redémarrage.
             </p>
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
             <button
-              onClick={saveModel}
-              disabled={saving || !aiModel}
-              title="Enregistrer le modèle de génération"
+              onClick={saveFournisseurModele}
+              disabled={saving || !aiProvider || !aiModel}
+              title="Enregistrer le fournisseur et le modèle"
               style={{
                 background: '#1F6EEB', color: 'white', border: 'none',
                 borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
                 alignSelf: 'flex-start',
-                cursor: (saving || !aiModel) ? 'not-allowed' : 'pointer',
-                opacity: (saving || !aiModel) ? 0.6 : 1,
+                cursor: (saving || !aiProvider || !aiModel) ? 'not-allowed' : 'pointer',
+                opacity: (saving || !aiProvider || !aiModel) ? 0.6 : 1,
               }}
             >
-              {saving ? 'Enregistrement…' : 'Enregistrer le modèle'}
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
             {message && (
               <div style={{
@@ -448,65 +481,6 @@ export default function AdminParametresGeneration() {
                 borderRadius: 8, padding: '10px 14px', fontSize: 13,
               }}>
                 {messageTokens.text}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Onglet Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur ; seuls les
-          opérationnels (clé provisionnée) sont sélectionnables, les autres sont grisés « pas encore
-          disponible » (jamais un choix qui échoue). La disponibilité vient du backend (champ `all`). */}
-      {onglet === 'fournisseur' && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Fournisseur d'IA
-            </label>
-            <select
-              value={aiProvider}
-              onChange={e => setAiProvider(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              {allProviders.length === 0 && supportedProviders.length === 0 && <option value="">Chargement…</option>}
-              {(allProviders.length
-                ? allProviders
-                : supportedProviders.map(p => ({ name: p, label: p, available: true }))
-              ).map(p => (
-                <option key={p.name} value={p.name} disabled={!p.available}>
-                  {p.label}{p.available ? '' : ' — pas encore disponible'}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Service d'IA qui exécute la génération des activités. Pris en compte immédiatement, sans redémarrage.
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Les fournisseurs grisés ne sont pas encore disponibles : ils le deviendront une fois leur clé configurée.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveProvider}
-              disabled={savingProvider || !aiProvider}
-              title="Enregistrer le fournisseur d'IA"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (savingProvider || !aiProvider) ? 'not-allowed' : 'pointer',
-                opacity: (savingProvider || !aiProvider) ? 0.6 : 1,
-              }}
-            >
-              {savingProvider ? 'Enregistrement…' : 'Enregistrer le fournisseur'}
-            </button>
-            {messageProvider && (
-              <div style={{
-                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
-                borderRadius: 8, padding: '10px 14px', fontSize: 13,
-              }}>
-                {messageProvider.text}
               </div>
             )}
           </div>
