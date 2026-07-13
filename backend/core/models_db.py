@@ -396,6 +396,8 @@ class Referentiel(Base):
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
     matiere_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)
+    # Famille de structure du PDF (une des 5) : NULL tant que non renseignée.
+    famille_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("familles.id"), nullable=True)
     nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     collection: Mapped[str] = mapped_column(Text, nullable=False)
     filtres: Mapped[str | None] = mapped_column(Text, nullable=True)
