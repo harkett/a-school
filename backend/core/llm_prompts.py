@@ -281,6 +281,18 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
+PROMPT_DETECTER_FAMILLE = """Tu classes un document dans UNE famille de structure.
+
+Familles possibles (identifiant, nom, description) :
+{familles}
+
+Texte du document à classer :
+{texte}
+
+Choisis la famille dont la description correspond le mieux à la STRUCTURE du document.
+Réponds UNIQUEMENT en JSON : {{"famille_id": <identifiant de la famille choisie>}}."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -316,5 +328,10 @@ PROMPTS = {
         "label": "Découpe d'un référentiel en unités (par l'IA, au dépôt du PDF)",
         "placeholders": ["texte"],
         "default": PROMPT_DECOUPE_AMONT,
+    },
+    "detecter_famille": {
+        "label": "Détection de la famille d'un référentiel (au dépôt du PDF)",
+        "placeholders": ["familles", "texte"],
+        "default": PROMPT_DETECTER_FAMILLE,
     },
 }

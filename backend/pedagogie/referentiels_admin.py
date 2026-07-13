@@ -23,7 +23,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User
+from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille
 from backend.systeme.admin import _require_admin
 from backend.auth import send_custom_email
 
@@ -125,10 +125,49 @@ async def preparer_depot(file: UploadFile = File(...)):
 
 # ── Validation : range + extrait le texte + enregistre la provenance ──────────
 
+@router.get("/admin/familles", dependencies=[Depends(_require_admin)])
+def lister_familles(db: Session = Depends(get_db)):
+    """Les 5 familles de structure, lues EN BASE (aucune liste en dur)."""
+    fam = db.query(Famille).order_by(Famille.id).all()
+    return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description} for f in fam]}
+
+
+def _texte_staged(token: str, max_pages: int = 6) -> str:
+    """Texte des premières pages du PDF en attente (staging) — la structure se lit sur le début ;
+    on n'envoie pas tout le PDF à l'IA. Lève si le document a expiré."""
+    staged = STAGING_DIR / f"{token}.pdf"
+    if not staged.exists():
+        raise HTTPException(400, "Document introuvable (aperçu expiré ?). Recommencez.")
+    import pdfplumber  # import paresseux
+    with pdfplumber.open(str(staged)) as pdf:
+        pages = [(p.extract_text() or "") for p in pdf.pages[:max_pages]]
+    return "\n".join(pages).strip()
+
+
+class DetecterFamilleBody(BaseModel):
+    token: str
+
+
+@router.post("/admin/referentiels/detecter-famille", dependencies=[Depends(_require_admin)])
+def detecter_famille_endpoint(body: DetecterFamilleBody, db: Session = Depends(get_db)):
+    """L'IA propose la famille du PDF en attente parmi les 5 familles EN BASE. Renvoie {famille_id}.
+    Générique : le code passe seulement le texte + les familles de la base à l'IA (aucun cas particulier)."""
+    from backend.rag.analyse_amont import detecter_famille
+    familles = [{"id": f.id, "nom": f.nom, "description": f.description}
+                for f in db.query(Famille).order_by(Famille.id).all()]
+    if not familles:
+        raise HTTPException(400, "Aucune famille en base.")
+    texte = _texte_staged(body.token)
+    if not texte:
+        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
+    return {"famille_id": detecter_famille(texte, familles, db=db)}
+
+
 class ValiderBody(BaseModel):
     token: str
     cycle_id: int
     niveau: str
+    famille_id: int | None = None        # famille de structure choisie par l'admin (une des 5)
     fichier_origine: str | None = None   # vrai nom du PDF déposé/téléchargé — gardé en base comme trace
     source: str | None = None
     date_doc: str | None = None
@@ -192,6 +231,8 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
         # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, verdict IA, chunks.
         existing.fichier = fichier_origine
+        if body.famille_id is not None:
+            existing.famille_id = body.famille_id
         existing.source = (body.source.strip() if body.source else None)
         existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
         existing.prompt_decoupe = None
@@ -203,6 +244,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     else:
         ref = Referentiel(
             niveau_id=niveau.id, matiere_id=None,
+            famille_id=body.famille_id,
             nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
             fichier=fichier_origine,
             source=(body.source.strip() if body.source else None),

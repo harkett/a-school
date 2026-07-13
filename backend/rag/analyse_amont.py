@@ -34,6 +34,8 @@ _CLE_META = "prompt_meta_decoupe"
 # générer et le corrige s'il viole le contrat (titres verbatim, JSON exact, pas de contenu,
 # exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
 _CLE_VERIF = "prompt_verif_decoupe"
+# Clé EN BASE du prompt de classification d'un PDF dans UNE des familles (data-driven).
+_CLE_FAMILLE = "detecter_famille"
 
 # Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
 # `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
@@ -243,3 +245,41 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         if t:
             titres.append(t)
     return _trancher_par_titres(texte, titres)
+
+
+def _schema_famille(ids: list[int]) -> dict:
+    """Sortie structurée : un `famille_id` contraint aux ids RÉELS (venus de la base) via `enum`.
+    Le modèle ne peut donc pas rendre une famille inexistante. GÉNÉRIQUE : aucun id en dur."""
+    return {
+        "type": "object",
+        "properties": {"famille_id": {"type": "integer", "enum": ids}},
+        "required": ["famille_id"],
+        "additionalProperties": False,
+    }
+
+
+def formater_familles(familles: list[dict]) -> str:
+    """Rend les familles en texte pour le prompt : `[id] nom — description`. Pur (ni IA ni base)."""
+    return "\n".join(f"[{f['id']}] {f['nom']} — {f['description']}" for f in familles)
+
+
+def detecter_famille(texte: str, familles: list[dict], *, db: Session) -> int:
+    """L'IA classe le document (`texte`) dans UNE des `familles` fournies (venues de la base).
+    Sortie structurée contrainte aux ids réels. Prompt / provider / modèle lus EN BASE ; température 0.
+    GÉNÉRIQUE : aucune famille ni aucun axe métier codé — tout vient des données. Lève `ValueError`
+    si l'id rendu n'est pas l'un des ids fournis. Laisse remonter les pannes IA (l'appelant traduit)."""
+    ids = [f["id"] for f in familles]
+    prompt = get_prompt(db, _CLE_FAMILLE).format(familles=formater_familles(familles), texte=texte)
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_FAMILLE),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_famille(ids),
+    )
+    fid = parser_reponse(raw).get("famille_id")
+    if fid not in ids:
+        raise ValueError(f"famille_id hors des familles fournies : {fid!r}.")
+    return int(fid)

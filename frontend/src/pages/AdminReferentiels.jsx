@@ -42,6 +42,9 @@ export default function AdminReferentiels() {
   const [busy, setBusy] = useState(false)
   const [apercu, setApercu] = useState(null)      // { token, filename, pages, taille_ko, apercu }
   const [resultat, setResultat] = useState(null)  // { cycle, niveau, dossier, pages, caracteres_extraits, nom_fixe }
+  const [familles, setFamilles] = useState([])    // 5 familles de structure, lues en base
+  const [familleId, setFamilleId] = useState('')  // famille retenue pour le PDF en cours de dépôt
+  const [detectFamille, setDetectFamille] = useState(false)  // détection IA de la famille en cours
   // Table des matières du référentiel — INTERFACE seule ; le code (lecture des
   // candidats + enregistrement en base) sera branché à l'étape suivante.
   const [matieres, setMatieres] = useState([])
@@ -89,6 +92,13 @@ export default function AdminReferentiels() {
     fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d) setCycles(d.cycles || []) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchWithTimeout('/api/admin/familles', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setFamilles(d.familles || []) })
       .catch(() => {})
   }, [])
 
@@ -342,9 +352,25 @@ export default function AdminReferentiels() {
       }, TIMEOUT_GROQ)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource(url.trim()); setBilanApercu('')
+      setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerDetectionFamille(d.token)
     } catch (e) { showError(`Récupération impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
+  }
+
+  // Dès qu'un PDF est récupéré : l'IA propose sa famille (best-effort). En cas de panne IA, on
+  // ne bloque pas le dépôt — l'admin choisit une carte à la main.
+  async function lancerDetectionFamille(token) {
+    setFamilleId(''); setDetectFamille(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/detecter-famille', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      }, TIMEOUT_GROQ)
+      const d = await r.json()
+      if (r.ok && d.famille_id) setFamilleId(String(d.famille_id))
+    } catch { /* détection best-effort : l'admin tranche à la main si l'IA échoue */ }
+    finally { setDetectFamille(false) }
   }
 
   async function recupererDepot(file) {
@@ -359,7 +385,7 @@ export default function AdminReferentiels() {
       }, TIMEOUT_GROQ)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource('dépôt manuel'); setBilanApercu('')
+      setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerDetectionFamille(d.token)
     } catch (e) { showError(`Lecture du fichier impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
@@ -373,7 +399,7 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/valider', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), source, fichier_origine: apercu.filename }),
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename }),
       }, TIMEOUT_GROQ)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
@@ -601,6 +627,27 @@ export default function AdminReferentiels() {
               </div>
             )}
           </>
+        )}
+
+        {/* Famille de structure du PDF : dès qu'un PDF est récupéré, l'IA détecte SA famille.
+            On affiche uniquement la famille détectée (une seule carte). */}
+        {apercu && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <label className="block text-xs text-gray-500">Famille du référentiel</label>
+              {detectFamille && <span style={{ fontSize: 12, color: '#64748b' }}>Analyse par l’IA…</span>}
+            </div>
+            {familles.filter(f => String(f.id) === String(familleId)).map(f => (
+              <div key={f.id} style={{ padding: '10px 12px', borderRadius: 8,
+                border: '2px solid #1d4ed8', background: '#eff6ff' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>{f.nom}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{f.description}</div>
+              </div>
+            ))}
+            {!detectFamille && !familleId && (
+              <div style={{ fontSize: 12, color: '#64748b' }}>Aucune famille détectée.</div>
+            )}
+          </div>
         )}
 
         {/* POINT DE CONTRÔLE : l'admin VOIT le document récupéré et valide ou recommence. */}
