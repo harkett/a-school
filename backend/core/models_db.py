@@ -483,3 +483,11 @@ class Famille(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    # Fiche de la famille (ce qui permettra à l'IA de détecter puis, plus tard, de découper).
+    motif: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
+    conteneurs_ignorer: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
+    decoupe: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
+    consignes_ia: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
+    # État interne (jamais renvoyé par l'IA) : une famille de rejet, à exclure de la classification.
+    # Le code ne connaît QUE ce drapeau, jamais le nom/id de la ligne (cap « aucun cas particulier »).
+    rejet: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false', default=False)

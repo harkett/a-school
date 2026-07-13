@@ -129,7 +129,7 @@ async def preparer_depot(file: UploadFile = File(...)):
 def lister_familles(db: Session = Depends(get_db)):
     """Les 5 familles de structure, lues EN BASE (aucune liste en dur)."""
     fam = db.query(Famille).order_by(Famille.id).all()
-    return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description} for f in fam]}
+    return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description, "rejet": f.rejet} for f in fam]}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
