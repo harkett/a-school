@@ -471,3 +471,13 @@ class ArbitrageDemande(Base):
     label: Mapped[str] = mapped_column(Text, nullable=False)                 # libellé d'âge flou (= age_label de l'aperçu)
     destinataire: Mapped[str] = mapped_column(String(255), nullable=False)   # adresse du pro sollicité
     demande_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class Famille(Base):
+    """Famille de structure d'un référentiel (5 valeurs) : dit COMMENT un PDF de
+    référentiel est organisé. DONNÉE MÉTIER → EN BASE."""
+    __tablename__ = "familles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
