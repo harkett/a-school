@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -18,16 +19,23 @@ from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 MATIERES = list(ACTIVITES_PAR_MATIERE.keys())
 
-_LOGO_PATH = Path(__file__).resolve().parents[2] / "frontend" / "public" / "Logo_aSchool" / "Logo_aSchool.png"
+# Asset possédé par le backend (pas de dépendance à l'arbre frontend) : le logo vit sous
+# backend/assets/. Le frontend garde sa propre copie dans public/ pour l'UI web.
+_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "Logo_aSchool.png"
 
 
 def _logo_b64() -> str:
     try:
         data = _LOGO_PATH.read_bytes()
         return f"data:image/png;base64,{base64.b64encode(data).decode()}"
-    except Exception:
+    except Exception as e:
+        # Filet doux : la fiche se génère quand même (sans logo), mais on trace — un logo
+        # manquant ne doit plus disparaître en silence comme avant.
+        logger.warning("Logo fiche introuvable (%s) : généré sans logo — %s", _LOGO_PATH, e)
         return ""
 
 
