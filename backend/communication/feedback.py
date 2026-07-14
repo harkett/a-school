@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Cookie, HTTPException, Depends, UploadFile, File
 from fastapi.responses import FileResponse
@@ -202,7 +202,7 @@ def update_feedback(
     fb.message         = body.message
     fb.category        = body.category
     fb.attachment_path = body.attachment_path
-    fb.updated_at      = datetime.now(timezone.utc)
+    fb.updated_at      = datetime.utcnow()
     db.commit()
 
     user = db.query(User).filter(User.email == email).first()
