@@ -9,7 +9,7 @@ clair (dans quelle(s) classe(s)) ou s'il y a un VRAI doute. L'IA propose, l'admi
 GÉNÉRIQUE : aucun axe (âge, matière, compétence…) n'est fourni ni codé ici — l'IA le découvre
 en lisant. C'est du SOCLE, pas une fiche : rien de propre à un document.
 
-Porte IA unique : `generate()` (src.generator) ; provider / modèle / prompt résolus EN BASE,
+Porte IA unique : `generate()` (backend.llm.generator) ; provider / modèle / prompt résolus EN BASE,
 comme les autres outils (cf. `backend/analyse/ambiguites.py`). JSON déterministe (température 0).
 
 État : brique ISOLÉE et testable — PAS encore branchée sur le découpage / l'ingestion
@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_max_tokens, get_prompt, get_settings_dict,
 )
-from src.generator import generate
+from backend.llm.generator import generate
 
 _CLE_PROMPT = "analyse_amont"
 _CLE_DECOUPE = "decoupe_amont"

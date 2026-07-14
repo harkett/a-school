@@ -34,8 +34,8 @@ from backend.main import app
 from backend.auth import create_access_token
 from backend.core.models_db import Setting
 from backend.systeme.admin import get_ai_provider, SETTING_DEFAULTS
-from src.config import AI_PROVIDER
-import src.generator as gen
+from backend.config import AI_PROVIDER
+import backend.llm.generator as gen
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("prof.test@aschool.fr")
