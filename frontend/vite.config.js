@@ -56,7 +56,6 @@ export default defineConfig({
         target: `http://localhost:${process.env.VITE_API_PORT || 8000}`,
         changeOrigin: false,
         cookieDomainRewrite: 'localhost',
-        ws: true,  // Proxy WebSocket upgrade pour /api/* — requis depuis Phase 3.1 (/api/transcribe/stream)
       },
     },
   },
