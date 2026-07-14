@@ -96,7 +96,7 @@ app.add_middleware(
     allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
 app.include_router(generate.router, prefix="/api")
