@@ -3,8 +3,9 @@ import smtplib
 from dotenv import load_dotenv
 from email.mime.text import MIMEText
 import os
+from pathlib import Path
 
-load_dotenv(override=True)
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=True)
 
 host = os.getenv("SMTP_HOST")
 port = int(os.getenv("SMTP_PORT", "587"))

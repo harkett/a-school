@@ -36,7 +36,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 # .env AVANT d'importer backend.core.database : son garde-fou (refus sans
 # DATABASE_URL PostgreSQL) se declenche des l'import, donc l'env doit etre pret.
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=True)
 
 from sqlalchemy import text  # noqa: E402
 

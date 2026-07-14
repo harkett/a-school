@@ -11,6 +11,7 @@ jamais sur SQLite, jamais sur la base dev `aschool`. Trois verrous :
   3. ISOLATION — `TRUNCATE` entre chaque test, exclusivement sur `aschool_test`.
 """
 import os
+from pathlib import Path
 
 import pytest
 import sqlalchemy
@@ -37,7 +38,7 @@ sqlalchemy.create_engine = _no_sqlite_create_engine
 # --- URL de la base de test : obligatoire, PostgreSQL, base 'aschool_test' ---
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[0] / ".env", override=True)
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 if not TEST_DATABASE_URL:
     raise RuntimeError("TEST_DATABASE_URL absente du .env (postgresql .../aschool_test attendu).")

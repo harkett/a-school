@@ -19,7 +19,7 @@ sys.path.insert(0, str(_ROOT))
 
 # .env pour DATABASE_URL. SANS override : un DATABASE_URL fourni dans le shell l'emporte
 # (utile pour viser une base scratch vide lors de la génération de la baseline).
-load_dotenv(_ROOT / ".env")
+load_dotenv(dotenv_path=_ROOT / ".env")
 
 config = context.config
 
