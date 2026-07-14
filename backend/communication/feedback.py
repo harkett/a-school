@@ -101,7 +101,7 @@ def get_attachment(
             db.query(Feedback)
             .filter(
                 Feedback.user_id == db.query(User.id).filter(User.email == email).scalar(),
-                Feedback.attachment_path.like(f"%{filename}%"),
+                Feedback.attachment_path == filename,
             )
             .first()
         )
