@@ -10,7 +10,7 @@ le 31/05/2026 (décision : besoin de base fiable, aligné « Groq par défaut »
 le streaming temps réel Deepgram = amélioration future, isolée sur la branche
 `wip/deepgram-streaming`).
 
-Fix 400 (cause confirmée par repro le 31/05/2026, cf. backend/groq_client.transcribe_audio) :
+Fix 400 (cause confirmée par repro le 31/05/2026, cf. backend/core/groq_client.transcribe_audio) :
 Groq détermine le format audio par l'EXTENSION du nom de fichier. On force donc un
 nom à extension valide AVANT de transmettre à Groq, et le paramètre `model` (requis).
 """
