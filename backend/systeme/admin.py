@@ -23,15 +23,23 @@ _MAX_AGE = 4 * 3600
 _ALGO    = "HS256"
 
 
+def _admin_secret() -> str:
+    # Secret DÉDIÉ aux tokens admin, distinct du JWT_SECRET des tokens prof (isolation :
+    # un token prof ne peut pas servir de token admin même si le role n'était pas vérifié).
+    # Transition sans casse : tant qu'ADMIN_JWT_SECRET n'est pas défini, on retombe sur
+    # JWT_SECRET (comportement d'avant). Poser ADMIN_JWT_SECRET invalide les sessions admin
+    # en cours (signées avec l'ancien secret) → l'admin se reconnecte, désormais isolé.
+    return os.getenv("ADMIN_JWT_SECRET") or os.getenv("JWT_SECRET", "")
+
+
 def _make_admin_token() -> str:
-    secret = os.getenv("JWT_SECRET", "")
     exp = datetime.utcnow() + timedelta(hours=4)
-    return jwt.encode({"sub": "admin", "role": "admin", "exp": exp}, secret, algorithm=_ALGO)
+    return jwt.encode({"sub": "admin", "role": "admin", "exp": exp}, _admin_secret(), algorithm=_ALGO)
 
 
 def _verify_admin_token(token: str) -> bool:
     try:
-        payload = jwt.decode(token, os.getenv("JWT_SECRET", ""), algorithms=[_ALGO])
+        payload = jwt.decode(token, _admin_secret(), algorithms=[_ALGO])
         return payload.get("role") == "admin"
     except JWTError:
         return False
@@ -280,7 +288,7 @@ def _get_admin_email(request: Request) -> str:
     if not token:
         return "admin"
     try:
-        payload = jwt.decode(token, os.getenv("JWT_SECRET", ""), algorithms=[_ALGO])
+        payload = jwt.decode(token, _admin_secret(), algorithms=[_ALGO])
         return payload.get("sub", "admin")
     except JWTError:
         return "admin"
