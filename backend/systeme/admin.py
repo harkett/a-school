@@ -324,7 +324,7 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
             ).update({"blocked": True})
             db.commit()
         raise HTTPException(401, "Identifiants incorrects.")
-    response.set_cookie(_COOKIE, _make_admin_token(), max_age=_MAX_AGE, httponly=True, samesite="lax")
+    response.set_cookie(_COOKIE, _make_admin_token(), max_age=_MAX_AGE, httponly=True, samesite="lax", secure=os.getenv("ENV") == "production")
     admin_email = os.getenv("ADMIN_EMAIL", expected_user)
     db.add(ConnexionLog(email=admin_email, action="admin_login", ip=ip))
     db.commit()
