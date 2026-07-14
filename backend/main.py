@@ -79,7 +79,7 @@ async def _lifespan(app: FastAPI):
     yield
     _scheduler.shutdown(wait=False)
 
-app = FastAPI(title="aSchool API", version="2.0.0", lifespan=_lifespan)
+app = FastAPI(title="aSchool API", version=APP_VERSION, lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
