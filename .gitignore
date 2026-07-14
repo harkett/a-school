@@ -33,3 +33,5 @@ MesMD/*_files/
 MesMD/*.html
 # Procedures imprimees perso (hors depot)
 MesAdmin/
+# Carte de la base : sortie regeneree a la demande (on la reconstruit, jamais versionnee)
+outils_bdd/carte_base/carte_base.html
