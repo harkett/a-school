@@ -216,7 +216,7 @@ def _render_html(fiche: FicheMatiere, activites: dict) -> str:
 
 # ── Routes admin ─────────────────────────────────────────────────────────────
 
-@router.get("/api/admin/fiches", dependencies=[Depends(_require_admin)])
+@router.get("/admin/fiches", dependencies=[Depends(_require_admin)])
 def list_fiches(db: Session = Depends(get_db)):
     result = []
     for matiere in MATIERES:
@@ -232,7 +232,7 @@ def list_fiches(db: Session = Depends(get_db)):
     return result
 
 
-@router.get("/api/admin/fiches/{matiere}", dependencies=[Depends(_require_admin)])
+@router.get("/admin/fiches/{matiere}", dependencies=[Depends(_require_admin)])
 def get_fiche(matiere: str, db: Session = Depends(get_db)):
     matiere = unquote(matiere)
     if matiere not in MATIERES:
@@ -256,7 +256,7 @@ class FicheUpdate(BaseModel):
     ameliorations: str | None = None
 
 
-@router.put("/api/admin/fiches/{matiere}", dependencies=[Depends(_require_admin)])
+@router.put("/admin/fiches/{matiere}", dependencies=[Depends(_require_admin)])
 def update_fiche(matiere: str, body: FicheUpdate, db: Session = Depends(get_db)):
     matiere = unquote(matiere)
     if matiere not in MATIERES:
@@ -275,7 +275,7 @@ def update_fiche(matiere: str, body: FicheUpdate, db: Session = Depends(get_db))
     return {"ok": True}
 
 
-@router.post("/api/admin/fiches/{matiere}/generer", dependencies=[Depends(_require_admin)])
+@router.post("/admin/fiches/{matiere}/generer", dependencies=[Depends(_require_admin)])
 def generer_fiche(matiere: str, db: Session = Depends(get_db)):
     matiere = unquote(matiere)
     if matiere not in MATIERES:
@@ -330,7 +330,7 @@ Règles :
 
 # ── Route publique ─────────────────────────────────────────────────────────────
 
-@router.get("/api/fiches/{matiere}", response_class=HTMLResponse)
+@router.get("/fiches/{matiere}", response_class=HTMLResponse)
 def get_fiche_html(matiere: str, db: Session = Depends(get_db)):
     matiere = unquote(matiere)
     if matiere not in MATIERES:
