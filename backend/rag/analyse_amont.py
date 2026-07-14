@@ -34,8 +34,6 @@ _CLE_META = "prompt_meta_decoupe"
 # générer et le corrige s'il viole le contrat (titres verbatim, JSON exact, pas de contenu,
 # exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
 _CLE_VERIF = "prompt_verif_decoupe"
-# Clé EN BASE du prompt de classification d'un PDF dans UNE des familles (data-driven).
-_CLE_FAMILLE = "detecter_famille"
 
 # Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
 # `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
@@ -247,39 +245,108 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
     return _trancher_par_titres(texte, titres)
 
 
-def _schema_famille(ids: list[int]) -> dict:
-    """Sortie structurée : un `famille_id` contraint aux ids RÉELS (venus de la base) via `enum`.
-    Le modèle ne peut donc pas rendre une famille inexistante. GÉNÉRIQUE : aucun id en dur."""
-    return {
-        "type": "object",
-        "properties": {"famille_id": {"type": "integer", "enum": ids}},
-        "required": ["famille_id"],
-        "additionalProperties": False,
-    }
-
-
 def formater_familles(familles: list[dict]) -> str:
     """Rend les familles en texte pour le prompt : `[id] nom — description`. Pur (ni IA ni base)."""
     return "\n".join(f"[{f['id']}] {f['nom']} — {f['description']}" for f in familles)
 
 
-def detecter_famille(texte: str, familles: list[dict], *, db: Session) -> int:
-    """L'IA classe le document (`texte`) dans UNE des `familles` fournies (venues de la base).
-    Sortie structurée contrainte aux ids réels. Prompt / provider / modèle lus EN BASE ; température 0.
-    GÉNÉRIQUE : aucune famille ni aucun axe métier codé — tout vient des données. Lève `ValueError`
-    si l'id rendu n'est pas l'un des ids fournis. Laisse remonter les pannes IA (l'appelant traduit)."""
+# Clé EN BASE du prompt du classifieur "deux modes" (famille existante OU candidate).
+_CLE_CLASSER = "classer_famille"
+_CANDIDATE_CHAMPS = ("nom", "description")
+
+
+def _schema_classer(ids: list[int]) -> dict:
+    """Sortie structurée du classifieur deux modes. `match_id` contraint à {0} ∪ ids réels :
+    0 = aucune famille ne convient (→ proposition), sinon un id existant. `nom`/`description`
+    toujours présents (vides si match). GÉNÉRIQUE : aucun id/nom en dur."""
+    return {
+        "type": "object",
+        "properties": {
+            "match_id": {"type": "integer", "enum": [0] + ids},
+            "nom": {"type": "string"},
+            "description": {"type": "string"},
+        },
+        "required": ["match_id", *(_CANDIDATE_CHAMPS)],
+        "additionalProperties": False,
+    }
+
+
+def classer_famille(texte: str, familles: list[dict], *, db: Session) -> dict:
+    """Classe un PDF : soit une famille EXISTANTE, soit une famille CANDIDATE complète.
+
+    `familles` = familles classables (l'appelant exclut les `rejet=true`). Retour :
+      - `{"scenario": "match", "famille_id": <id>}`  si une famille existante convient ;
+      - `{"scenario": "candidate", "candidate": {nom, description}}`  si aucune (match_id=0).
+    L'IA ne prononce jamais le rejet — au pire elle propose une candidate. Prompt/provider/modèle
+    lus EN BASE ; température 0. Lève `ValueError` si l'IA sort du contrat (id inconnu, candidate
+    incomplète). Laisse remonter les pannes IA (l'appelant traduit)."""
     ids = [f["id"] for f in familles]
-    prompt = get_prompt(db, _CLE_FAMILLE).format(familles=formater_familles(familles), texte=texte)
+    prompt = get_prompt(db, _CLE_CLASSER).format(familles=formater_familles(familles), texte=texte)
     raw = generate(
         prompt,
         provider=get_ai_provider(db),
         model=get_ai_model(db),
-        max_tokens=get_max_tokens(db, _CLE_FAMILLE),
+        max_tokens=get_max_tokens(db, _CLE_CLASSER),
         temperature=0,
         json_mode=True,
-        schema=_schema_famille(ids),
+        schema=_schema_classer(ids),
     )
-    fid = parser_reponse(raw).get("famille_id")
-    if fid not in ids:
-        raise ValueError(f"famille_id hors des familles fournies : {fid!r}.")
-    return int(fid)
+    data = parser_reponse(raw)
+    mid = data.get("match_id")
+    if mid in ids:
+        return {"scenario": "match", "famille_id": int(mid)}
+    if mid == 0:
+        candidate = {c: (data.get(c) or "").strip() for c in _CANDIDATE_CHAMPS}
+        vides = [c for c, v in candidate.items() if not v]
+        if vides:
+            raise ValueError(f"Famille candidate incomplète (champs vides : {', '.join(vides)}).")
+        return {"scenario": "candidate", "candidate": candidate}
+    raise ValueError(f"match_id hors contrat : {mid!r}.")
+
+
+# Clé EN BASE du prompt de vérification du couple (cycle + niveau) — vérif n°1 au dépôt.
+_CLE_COUPLE = "verifier_couple"
+
+
+def _schema_couple() -> dict:
+    """Sortie structurée de la vérif n°1. `correspond` = le document vise-t-il bien le couple
+    déclaré ; `niveau_lu` = ce que l'IA lit dans le document ; `raison` = une phrase."""
+    return {
+        "type": "object",
+        "properties": {
+            "correspond": {"type": "boolean"},
+            "niveau_lu": {"type": "string"},
+            "raison": {"type": "string"},
+        },
+        "required": ["correspond", "niveau_lu", "raison"],
+        "additionalProperties": False,
+    }
+
+
+def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict:
+    """Vérif n°1 au dépôt : l'IA lit le couple (cycle + niveau) visé par le DOCUMENT et le compare
+    au couple DÉCLARÉ par l'admin. L'IA fait la comparaison sémantique (pas de string-matching) —
+    on lui donne le couple déclaré + le texte, elle renvoie son verdict.
+
+    Retour : `{"correspond": bool, "niveau_lu": str, "raison": str}`.
+    Prompt / provider / modèle lus EN BASE ; température 0. Laisse remonter les pannes IA
+    (l'appelant traduit). Lève `ValueError` si l'IA ne rend pas un JSON exploitable."""
+    prompt = (get_prompt(db, _CLE_COUPLE)
+              .replace("{cycle}", cycle)
+              .replace("{niveau}", niveau)
+              .replace("{texte}", texte))
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_COUPLE),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_couple(),
+    )
+    data = parser_reponse(raw)
+    return {
+        "correspond": bool(data.get("correspond")),
+        "niveau_lu": (data.get("niveau_lu") or "").strip(),
+        "raison": (data.get("raison") or "").strip(),
+    }

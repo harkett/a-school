@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 
 const LABELS = {
   tokens_email_expires:    { label: 'Tokens email expirés',              detail: 'Liens de vérification et reset MDP périmés.',                  color: '#d97706' },
@@ -42,7 +42,7 @@ export default function AdminMaintenance() {
     if (!window.confirm(`Purger "${LABELS[category]?.label}" ?\n\nCette action est irréversible.`)) return
     setPurging(category)
     try {
-      const res = await fetchWithTimeout(`/api/admin/maintenance/purge/${category}`, { method: 'POST', credentials: 'include' }, TIMEOUT_GROQ)
+      const res = await fetchWithTimeout(`/api/admin/maintenance/purge/${category}`, { method: 'POST', credentials: 'include' }, TIMEOUT_LONG)
       const json = await res.json()
       setResults(r => ({ ...r, [category]: json.purged }))
       load()

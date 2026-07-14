@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const SCORE_STYLE = {
@@ -100,7 +100,7 @@ export default function Optimiseur({ defaultMatiere, defaultNiveau, onNavigate }
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ sequence: sequence.trim(), matiere, niveau }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)

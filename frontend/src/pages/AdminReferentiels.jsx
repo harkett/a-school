@@ -4,7 +4,7 @@
 // range, en extrait le texte et enregistre sa provenance.
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
 import { useEffect, useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_GROQ, MSG_TIMEOUT } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
@@ -42,9 +42,16 @@ export default function AdminReferentiels() {
   const [busy, setBusy] = useState(false)
   const [apercu, setApercu] = useState(null)      // { token, filename, pages, taille_ko, apercu }
   const [resultat, setResultat] = useState(null)  // { cycle, niveau, dossier, pages, caracteres_extraits, nom_fixe }
-  const [familles, setFamilles] = useState([])    // 5 familles de structure, lues en base
   const [familleId, setFamilleId] = useState('')  // famille retenue pour le PDF en cours de dépôt
-  const [detectFamille, setDetectFamille] = useState(false)  // détection IA de la famille en cours
+  const [detectFamille, setDetectFamille] = useState(false)  // classement IA en cours
+  const [detection, setDetection] = useState(null)      // { scenario:'match', famille } | { scenario:'candidate', candidate }
+  const [familleValidee, setFamilleValidee] = useState(false)  // l'admin a validé la famille → le bloc document apparaît
+  const [cand, setCand] = useState(null)          // fiche candidate éditable (6 champs)
+  const [familleBusy, setFamilleBusy] = useState(false)
+  // Vérifications au dépôt (backend verifier-depot) : { couple:{correspond,niveau_lu,raison}, famille:{existe} }
+  // 'loading' pendant l'appel, null au repos. Le document à valider ne s'affiche que si les deux passent.
+  const [verif, setVerif] = useState(null)
+  const [forcageMotif, setForcageMotif] = useState('')   // motif obligatoire si l'admin force malgré une alerte
   // Table des matières du référentiel — INTERFACE seule ; le code (lecture des
   // candidats + enregistrement en base) sera branché à l'étape suivante.
   const [matieres, setMatieres] = useState([])
@@ -95,12 +102,6 @@ export default function AdminReferentiels() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    fetchWithTimeout('/api/admin/familles', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setFamilles(d.familles || []) })
-      .catch(() => {})
-  }, [])
 
   // À la sélection d'un couple (cycle + niveau) : lire son état en base. Si un référentiel
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
@@ -126,7 +127,7 @@ export default function AdminReferentiels() {
       .catch(() => { if (!annule) setRegle(null) })
     // Aperçu du découpage (lecture seule). Masqué si non applicable (pas de règle pour ce cycle).
     fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-      { credentials: 'include' }, TIMEOUT_GROQ)
+      { credentials: 'include' }, TIMEOUT_LONG)
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (annule) return
@@ -187,7 +188,7 @@ export default function AdminReferentiels() {
       // Recharger l'aperçu (la ligne bascule) et les décisions (source de vérité disque).
       const [ap, arb] = await Promise.all([
         fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-          { credentials: 'include' }, TIMEOUT_GROQ).then(x => (x.ok ? x.json() : null)).catch(() => null),
+          { credentials: 'include' }, TIMEOUT_LONG).then(x => (x.ok ? x.json() : null)).catch(() => null),
         fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
           { credentials: 'include' }, TIMEOUT_STD).then(x => (x.ok ? x.json() : null)).catch(() => null),
       ])
@@ -251,7 +252,7 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau, label, email: demandeEmail.trim(), message: demandeMessage }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La demande n'a pas pu être envoyée."); return }
       // Recharger les cas en attente (le badge apparaît) et fermer le formulaire.
@@ -274,7 +275,7 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La génération du prompt par l'IA a échoué."); return }
       setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
@@ -293,7 +294,7 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau, prompt_actuel: promptDecoupe, remarques }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La régénération du prompt par l'IA a échoué."); return }
       setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
@@ -329,7 +330,7 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La découpe a échoué."); return }
       setDecoupeUnites(d.unites || [])
@@ -349,7 +350,7 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerDetectionFamille(d.token)
@@ -357,20 +358,79 @@ export default function AdminReferentiels() {
     finally { setBusy(false) }
   }
 
-  // Dès qu'un PDF est récupéré : l'IA propose sa famille (best-effort). En cas de panne IA, on
-  // ne bloque pas le dépôt — l'admin choisit une carte à la main.
+  // Dès qu'un PDF est récupéré : l'IA le classe. Deux issues : une famille existante (scénario
+  // match) ou une famille candidate complète (scénario candidate). Tant que l'admin n'a pas tranché,
+  // rien d'autre ne s'affiche.
   async function lancerDetectionFamille(token) {
-    setFamilleId(''); setDetectFamille(true)
+    setFamilleId(''); setDetection(null); setFamilleValidee(false); setCand(null); setVerif(null); setForcageMotif(''); setDetectFamille(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/detecter-famille', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json()
-      if (r.ok && d.famille_id) setFamilleId(String(d.famille_id))
-    } catch { /* détection best-effort : l'admin tranche à la main si l'IA échoue */ }
+      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
+      setDetection(d)
+      if (d.scenario === 'candidate') setCand(d.candidate)
+      // Match = famille connue → on enchaîne AUTOMATIQUEMENT les vérifications (aucun clic).
+      if (d.scenario === 'match' && d.famille) { setFamilleId(String(d.famille.id)); setFamilleValidee(true) }
+    } catch (e) { showError(`Analyse de la famille impossible.\n\n${e.message}`) }
     finally { setDetectFamille(false) }
+  }
+
+  // Scénario candidate : l'admin valide la fiche (éventuellement éditée) → création en base, puis on
+  // repasse en scénario match avec la nouvelle famille (le PDF repart).
+  async function validerFamilleCandidate() {
+    if (!cand) return
+    setFamilleBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/familles', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cand),
+      }, TIMEOUT_STD)
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
+      setFamilleId(String(d.id)); setDetection({ scenario: 'match', famille: d }); setFamilleValidee(true)
+    } catch (e) { showError(`Création de la famille impossible.\n\n${e.message}`) }
+    finally { setFamilleBusy(false) }
+  }
+
+  // Dès que la famille est validée : vérifications au dépôt (couple par l'IA + famille↔couple).
+  async function lancerVerifDepot() {
+    const niveauObj = (cycles.find(c => String(c.id) === String(cycleId))?.niveaux || []).find(n => n.nom === niveau)
+    if (!apercu?.token || !cycleId || !niveauObj || !familleId) return
+    setVerif('loading')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/verifier-depot', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: niveauObj.id, famille_id: Number(familleId) }),
+      }, TIMEOUT_LONG)
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
+      setVerif(d)
+    } catch (e) { setVerif(null); showError(`Vérification du dépôt impossible.\n\n${e.message}`) }
+  }
+
+  useEffect(() => {
+    if (familleValidee && familleId) lancerVerifDepot()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familleValidee, familleId])
+
+  // Jeter : l'admin refuse le document (scénario candidate). On efface le PDF en attente, fin.
+  async function jeterDocument() {
+    if (apercu?.token) {
+      try {
+        await fetchWithTimeout('/api/admin/referentiels/abandonner', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: apercu.token }),
+        }, TIMEOUT_STD)
+      } catch { /* best-effort */ }
+    }
+    setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif(''); setNomFichier('')
   }
 
   async function recupererDepot(file) {
@@ -382,7 +442,7 @@ export default function AdminReferentiels() {
       form.append('file', file)
       const r = await fetchWithTimeout('/api/admin/referentiels/preparer-depot', {
         method: 'POST', credentials: 'include', body: form,
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerDetectionFamille(d.token)
@@ -390,7 +450,7 @@ export default function AdminReferentiels() {
     finally { setBusy(false) }
   }
 
-  async function valider() {
+  async function valider(forcageArg = null) {
     if (!cycleId) { showError('Choisissez d’abord le cycle.'); return }
     if (!niveau.trim()) { showError('Indiquez le niveau.'); return }
     if (!apercu) return
@@ -399,11 +459,11 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/valider', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename }),
-      }, TIMEOUT_GROQ)
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename, forcage_motif: forcageArg }),
+      }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setResultat(d); setApercu(null); setBilanApercu('')
+      setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
       // La table matières reste alimentée par construireLignesMatieres (candidates du
       // référentiel + matières déjà en base), chargée à la sélection du couple.
     } catch (e) { showError(`Validation impossible.\n\n${e.message}`) }
@@ -621,37 +681,103 @@ export default function AdminReferentiels() {
                 <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
                   disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
                 <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
-                  style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-                  {busy ? 'Lecture…' : 'Choisir le fichier'}
+                  style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {busy ? <><Spinner /> Lecture…</> : 'Choisir le fichier'}
                 </label>
               </div>
             )}
           </>
         )}
 
-        {/* Famille de structure du PDF : dès qu'un PDF est récupéré, l'IA détecte SA famille.
-            On affiche uniquement la famille détectée (une seule carte). */}
+        {/* Famille : dès qu'un PDF est récupéré, l'IA classe. Scénario match (famille trouvée + Valider)
+            ou scénario candidate (structure non reconnue → fiche candidate éditable + Valider/Jeter).
+            Tant que l'admin n'a pas validé la famille, le bloc document ci-dessous ne s'affiche pas. */}
         {apercu && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <label className="block text-xs text-gray-500">Famille du référentiel</label>
-              {detectFamille && <span style={{ fontSize: 12, color: '#64748b' }}>Analyse par l’IA…</span>}
+              {detectFamille && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
+                  <Spinner /> Analyse par l’IA…
+                </span>
+              )}
             </div>
-            {familles.filter(f => String(f.id) === String(familleId)).map(f => (
-              <div key={f.id} style={{ padding: '10px 12px', borderRadius: 8,
-                border: '2px solid #1d4ed8', background: '#eff6ff' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>{f.nom}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{f.description}</div>
+
+            {/* Famille validée : rappel (le bloc document apparaît en dessous) */}
+            {familleValidee && detection?.famille && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#166534' }}>✓ Famille : {detection.famille.nom}</div>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{detection.famille.description}</div>
               </div>
-            ))}
-            {!detectFamille && !familleId && (
-              <div style={{ fontSize: 12, color: '#64748b' }}>Aucune famille détectée.</div>
+            )}
+
+            {/* Scénario candidate, pas encore validé : Bloc A (refus) + Bloc B (fiche éditable) + Valider/Jeter */}
+            {!familleValidee && detection?.scenario === 'candidate' && cand && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, padding: 12, fontSize: 12, color: '#991b1b' }}>
+                  Structure non reconnue — ce référentiel n’est pas ingéré. L’IA propose une nouvelle famille ci-dessous.
+                </div>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Famille proposée par l’IA (éditable)</div>
+                  {[['nom', 'Nom'], ['description', 'Description']].map(([k, lab]) => (
+                    <div key={k}>
+                      <label className="block text-xs text-gray-500 mb-1">{lab}</label>
+                      {k === 'nom'
+                        ? <input style={champ} value={cand[k] || ''} onChange={e => setCand({ ...cand, [k]: e.target.value })} />
+                        : <textarea style={{ ...champ, minHeight: 48, resize: 'vertical' }} value={cand[k] || ''}
+                            onChange={e => setCand({ ...cand, [k]: e.target.value })} />}
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button type="button" className="btn-primary" onClick={validerFamilleCandidate} disabled={familleBusy}
+                      title="Créer cette famille en base et continuer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {familleBusy ? <><Spinner /> Création…</> : 'Valider'}
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={jeterDocument} disabled={familleBusy}
+                      title="Refuser ce document">Jeter</button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {/* POINT DE CONTRÔLE : l'admin VOIT le document récupéré et valide ou recommence. */}
-        {apercu && (
+        {/* Vérifications au dépôt : couple (lu par l'IA) + famille↔couple. Le document à valider
+            n'apparaît que si les DEUX passent (garde-fou). */}
+        {apercu && familleValidee && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {verif === 'loading' && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
+                <Spinner /> Vérification du couple et de la famille…
+              </span>
+            )}
+            {verif && verif !== 'loading' && (
+              <>
+                <div style={{ padding: '10px 12px', borderRadius: 8,
+                  border: `2px solid ${verif.couple.correspond ? '#16a34a' : '#dc2626'}`,
+                  background: verif.couple.correspond ? '#f0fdf4' : '#fef2f2' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: verif.couple.correspond ? '#166534' : '#991b1b' }}>
+                    {verif.couple.correspond
+                      ? `✓ Couple : ${cycles.find(c => String(c.id) === String(cycleId))?.nom || ''} / ${niveau} — confirmé par le document`
+                      : `✗ Couple : ${cycles.find(c => String(c.id) === String(cycleId))?.nom || ''} / ${niveau} — le document ne correspond pas`}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{verif.couple.raison}</div>
+                </div>
+                <div style={{ padding: '10px 12px', borderRadius: 8,
+                  border: `2px solid ${verif.famille.existe ? '#16a34a' : '#dc2626'}`,
+                  background: verif.famille.existe ? '#f0fdf4' : '#fef2f2' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: verif.famille.existe ? '#166534' : '#991b1b' }}>
+                    {verif.famille.existe ? '✓ Cette famille a sa place à ce niveau' : '✗ Cette famille n’est pas prévue pour ce niveau'}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* POINT DE CONTRÔLE : dès que les DEUX tests ont répondu. Vert → valider ; rouge → forçage motivé. */}
+        {apercu && familleValidee && verif && verif !== 'loading' && (
           <div style={{ border: '1px solid #bfdbfe', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
               Document récupéré — vérifiez que c’est le bon
@@ -663,16 +789,36 @@ export default function AdminReferentiels() {
               borderRadius: 6, padding: 10, maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
               {apercu.apercu || '(aucun texte lisible sur la première page — PDF scanné ?)'}
             </pre>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button type="button" className="btn-primary" title="Confirmer que c’est le bon document : ranger, extraire le texte, enregistrer la provenance"
-                onClick={valider} disabled={busy}>
-                {busy ? 'Validation…' : 'Valider : c’est le bon document'}
-              </button>
-              <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
-                onClick={() => setApercu(null)} disabled={busy}>
-                Recommencer
-              </button>
-            </div>
+            {verif.couple.correspond && verif.famille.existe ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <button type="button" className="btn-primary" title="Confirmer que c’est le bon document : ranger, extraire le texte, enregistrer la provenance"
+                  onClick={() => valider(null)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {busy ? <><Spinner /> Validation…</> : 'Valider : c’est le bon document'}
+                </button>
+                <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
+                  onClick={() => { setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif('') }} disabled={busy}>
+                  Recommencer
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                <label className="block text-xs text-gray-500">Motif du forçage (obligatoire — tracé en base)</label>
+                <textarea style={{ ...champ, minHeight: 60, resize: 'vertical' }} value={forcageMotif}
+                  onChange={e => setForcageMotif(e.target.value)}
+                  placeholder="Expliquez pourquoi vous validez malgré l’alerte." />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn-primary" title="Valider malgré l’alerte : le motif est tracé"
+                    onClick={() => valider(forcageMotif)} disabled={busy || !forcageMotif.trim()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {busy ? <><Spinner /> Validation…</> : 'Forcer la validation malgré l’alerte'}
+                  </button>
+                  <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
+                    onClick={() => { setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif('') }} disabled={busy}>
+                    Recommencer
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -680,7 +826,7 @@ export default function AdminReferentiels() {
           <div style={{ border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: 8, padding: 14, fontSize: 12, color: '#166534' }}>
             Référentiel enregistré pour <strong>{resultat.niveau}</strong> ({resultat.cycle}).<br />
             Document d’origine : <strong>{resultat.fichier_origine}</strong> (conservé en base).<br />
-            Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s) · {resultat.caracteres_extraits} caractères extraits.
+            Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s).
           </div>
         )}
 

@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, RefreshToken, Setting, User, UserSession
+from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, RefreshToken, Setting, User, UserSession
 
 router = APIRouter()
 
@@ -94,6 +94,11 @@ SETTING_DEFAULTS = {
     # en dur). Le fournisseur OCR reste Groq (seul moteur vision, pas d'alternative) : seul le
     # modèle est administrable.
     "ocr_model": "meta-llama/llama-4-scout-17b-16e-instruct",
+    # Plafond de pages accepté au DÉPÔT d'un référentiel. Un document trop long (ex. le Bulletin
+    # officiel entier, ~967 p.) n'est pas un référentiel de couple : refusé à la porte, AVANT tout
+    # traitement lourd (pas d'extraction longue, pas de timeout, pas d'incohérence écran/serveur).
+    # Défaut 150 : admet largement un vrai référentiel (BTS CIEL = 88 p.). Lu au dépôt, coercé int.
+    "depot_max_pages": "150",
 }
 
 
@@ -396,7 +401,27 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
 class StatutBody(BaseModel):
     statut: str
 
-_STATUTS_VALIDES = {"nouveau", "en_cours", "traite", "archive"}
+
+def codes_statuts_assignables(db: Session) -> set[str]:
+    """Codes de statut qu'un admin peut ASSIGNER à un feedback (toutes les lignes du
+    catalogue `feedback_statuts`), lus EN BASE. Aucune liste en dur. Table vide = migration
+    non appliquée -> on lève (erreur claire) plutôt que de retomber sur du dur caché."""
+    codes = {c for (c,) in db.query(FeedbackStatut.code).all()}
+    if not codes:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return codes
+
+
+def codes_statuts_modifiables(db: Session) -> set[str]:
+    """Codes de statut dans lesquels un feedback reste modifiable par son auteur
+    (`modifiable=true`), lus EN BASE. Notion SOURCE (statut actuel du feedback), distincte des
+    statuts assignables. Un ensemble vide de modifiables est légitime ; mais table vide =
+    migration non appliquée -> on lève (même contrôle que codes_statuts_assignables)."""
+    rows = db.query(FeedbackStatut.code, FeedbackStatut.modifiable).all()
+    if not rows:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return {code for code, modifiable in rows if modifiable}
+
 
 @router.patch("/admin/feedbacks/{feedback_id}/statut")
 def update_feedback_statut(
@@ -405,7 +430,7 @@ def update_feedback_statut(
     db: Session = Depends(get_db),
     _: None = Depends(_require_admin),
 ):
-    if body.statut not in _STATUTS_VALIDES:
+    if body.statut not in codes_statuts_assignables(db):
         raise HTTPException(400, "Statut invalide.")
     fb = db.get(Feedback, feedback_id)
     if not fb:

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const DUREES = [30, 45, 50, 55, 60, 90, 120]
@@ -88,7 +88,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ theme: theme.trim(), matiere, niveau, duree, mode, description_classe: descClasse.trim() }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)
@@ -120,7 +120,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ sequence: resultat, matiere, niveau }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)

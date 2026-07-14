@@ -9,6 +9,7 @@ Périmètre étape 1 UNIQUEMENT : pas d'extraction de matières (étape 2), pas 
 On reçoit un PDF que l'admin fournit, on le lui montre, on le range et on trace sa provenance.
 """
 import json
+import logging
 import re
 import shutil
 import unicodedata
@@ -23,11 +24,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille
-from backend.systeme.admin import _require_admin
+from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple
+from backend.systeme.admin import _require_admin, get_settings_dict
 from backend.auth import send_custom_email
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2]                 # racine du projet (d:\A-SCHOOL)
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
@@ -72,7 +74,7 @@ def _apercu(pdf_path: Path) -> tuple[int, str]:
     return n_pages, "\n".join(lignes)
 
 
-def _stage(content: bytes, filename: str) -> dict:
+def _stage(content: bytes, filename: str, db: Session) -> dict:
     """Valide que c'est un PDF, le range en zone d'attente, renvoie l'aperçu pour le contrôle."""
     if len(content) > MAX_PDF_BYTES:
         raise HTTPException(400, "PDF trop volumineux (maximum 30 Mo).")
@@ -86,6 +88,20 @@ def _stage(content: bytes, filename: str) -> dict:
     except Exception as e:
         staged.unlink(missing_ok=True)
         raise HTTPException(400, f"Lecture du PDF impossible : {e}")
+    # Plafond de pages (réglage EN BASE `depot_max_pages`, défaut 150), lu ici, au dépôt. Un document
+    # trop long (ex. le Bulletin officiel entier, ~967 p.) n'est pas un référentiel de couple : on le
+    # refuse AVANT tout traitement lourd — donc plus d'extraction longue, plus de timeout, plus
+    # d'incohérence écran/serveur. Le comptage `n_pages` est déjà fait par _apercu (rapide).
+    try:
+        max_pages = int(get_settings_dict(db).get("depot_max_pages", 150))
+    except (TypeError, ValueError):
+        max_pages = 150
+    if n_pages > max_pages:
+        staged.unlink(missing_ok=True)
+        raise HTTPException(
+            400,
+            f"Document trop long : {n_pages} pages. Veuillez déposer un document de {max_pages} pages maximum.",
+        )
     return {
         "token": token,
         "filename": filename,
@@ -102,7 +118,7 @@ class PreparerLienBody(BaseModel):
 
 
 @router.post("/admin/referentiels/preparer-lien", dependencies=[Depends(_require_admin)])
-def preparer_lien(body: PreparerLienBody):
+def preparer_lien(body: PreparerLienBody, db: Session = Depends(get_db)):
     url = body.url.strip()
     if not url:
         raise HTTPException(400, "Lien vide.")
@@ -114,20 +130,20 @@ def preparer_lien(body: PreparerLienBody):
     filename = (url.rsplit("/", 1)[-1].split("?")[0]) or "referentiel.pdf"
     if not filename.lower().endswith(".pdf"):
         filename += ".pdf"
-    return _stage(r.content, filename)
+    return _stage(r.content, filename, db)
 
 
 @router.post("/admin/referentiels/preparer-depot", dependencies=[Depends(_require_admin)])
-async def preparer_depot(file: UploadFile = File(...)):
+async def preparer_depot(file: UploadFile = File(...), db: Session = Depends(get_db)):
     content = await file.read()
-    return _stage(content, file.filename or "referentiel.pdf")
+    return _stage(content, file.filename or "referentiel.pdf", db)
 
 
 # ── Validation : range + extrait le texte + enregistre la provenance ──────────
 
 @router.get("/admin/familles", dependencies=[Depends(_require_admin)])
 def lister_familles(db: Session = Depends(get_db)):
-    """Les 5 familles de structure, lues EN BASE (aucune liste en dur)."""
+    """Les familles de structure, lues EN BASE (aucune liste en dur)."""
     fam = db.query(Famille).order_by(Famille.id).all()
     return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description, "rejet": f.rejet} for f in fam]}
 
@@ -144,23 +160,112 @@ def _texte_staged(token: str, max_pages: int = 6) -> str:
     return "\n".join(pages).strip()
 
 
+def _famille_dict(f: Famille) -> dict:
+    """Fiche d'une famille pour le front : classification pure (id, nom, description)."""
+    return {"id": f.id, "nom": f.nom, "description": f.description}
+
+
+def famille_couple_existe(db: Session, famille_id: int, niveau_id: int) -> bool:
+    """Vérif n°2 au dépôt : cette famille a-t-elle sa place à ce niveau ? Lit `famille_couples`
+    (le couple famille_id + niveau_id, décidé par l'humain, jamais par l'IA). True si la ligne
+    existe, False sinon. Requête base pure (aucune IA), testable seule."""
+    return db.query(FamilleCouple).filter(
+        FamilleCouple.famille_id == famille_id,
+        FamilleCouple.niveau_id == niveau_id,
+    ).first() is not None
+
+
 class DetecterFamilleBody(BaseModel):
     token: str
 
 
 @router.post("/admin/referentiels/detecter-famille", dependencies=[Depends(_require_admin)])
 def detecter_famille_endpoint(body: DetecterFamilleBody, db: Session = Depends(get_db)):
-    """L'IA propose la famille du PDF en attente parmi les 5 familles EN BASE. Renvoie {famille_id}.
-    Générique : le code passe seulement le texte + les familles de la base à l'IA (aucun cas particulier)."""
-    from backend.rag.analyse_amont import detecter_famille
+    """L'IA classe le PDF en attente parmi les familles classables (rejet=false) EN BASE.
+    Deux réponses possibles :
+      - {"scenario": "match", "famille": {id, nom, description}} — une famille existante convient ;
+      - {"scenario": "candidate", "candidate": {nom, description}} — aucune ne convient, l'IA propose une famille.
+    L'IA ne prononce jamais le rejet. Générique : texte + familles de la base, aucun cas particulier."""
+    from backend.rag.analyse_amont import classer_famille
     familles = [{"id": f.id, "nom": f.nom, "description": f.description}
-                for f in db.query(Famille).order_by(Famille.id).all()]
+                for f in db.query(Famille).filter(Famille.rejet == False).order_by(Famille.id).all()]
     if not familles:
-        raise HTTPException(400, "Aucune famille en base.")
+        raise HTTPException(400, "Aucune famille classable en base.")
     texte = _texte_staged(body.token)
     if not texte:
-        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
-    return {"famille_id": detecter_famille(texte, familles, db=db)}
+        raise HTTPException(400, "PDF sans texte lisible : classement impossible.")
+    res = classer_famille(texte, familles, db=db)
+    if res["scenario"] == "match":
+        return {"scenario": "match", "famille": _famille_dict(db.get(Famille, res["famille_id"]))}
+    return {"scenario": "candidate", "candidate": res["candidate"]}
+
+
+class CreerFamilleBody(BaseModel):
+    nom: str
+    description: str
+
+
+@router.post("/admin/referentiels/familles", dependencies=[Depends(_require_admin)])
+def creer_famille(body: CreerFamilleBody, db: Session = Depends(get_db)):
+    """Crée une famille validée par l'admin (proposée par l'IA, éventuellement éditée). `rejet=false`.
+    `nom` et `description` non vides ; `nom` unique. Donnée runtime — la migration ne sème que les
+    familles initiales (familles est une table métier vivante)."""
+    nom = (body.nom or "").strip()
+    description = (body.description or "").strip()
+    if not nom or not description:
+        raise HTTPException(400, "Champs obligatoires vides : nom et description.")
+    if db.query(Famille).filter(Famille.nom == nom).first():
+        raise HTTPException(409, f"Une famille porte déjà le nom « {nom} ». Renomme-la.")
+    fam = Famille(nom=nom, description=description, rejet=False)
+    db.add(fam); db.commit(); db.refresh(fam)
+    return _famille_dict(fam)
+
+
+class VerifierDepotBody(BaseModel):
+    token: str
+    cycle_id: int
+    niveau_id: int
+    famille_id: int
+
+
+@router.post("/admin/referentiels/verifier-depot", dependencies=[Depends(_require_admin)])
+def verifier_depot(body: VerifierDepotBody, db: Session = Depends(get_db)):
+    """Vérification au dépôt (LECTURE SEULE), avant de proposer la validation. Lance les deux
+    contrôles et renvoie les deux verdicts :
+      - n°1 (couple) : l'IA lit le couple visé par le PDF et le compare au couple déclaré ;
+      - n°2 (famille) : le couple (famille, niveau) est-il présent dans famille_couples ?
+    L'écran n'affiche le document à valider que si les deux passent."""
+    cycle = db.get(Cycle, body.cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    niv = db.get(Niveau, body.niveau_id)
+    if not niv or niv.cycle_id != cycle.id:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+
+    texte = _texte_staged(body.token)
+    if not texte:
+        raise HTTPException(400, "PDF sans texte lisible : vérification impossible.")
+
+    from backend.rag.analyse_amont import verifier_couple
+    try:
+        couple = verifier_couple(texte[:4000], cycle.nom, niv.nom, db=db)
+    except Exception:
+        logger.exception("verifier_depot : échec de la vérification du couple par l'IA")
+        raise HTTPException(400, "Vérification du couple impossible.")
+
+    famille = {"existe": famille_couple_existe(db, body.famille_id, niv.id)}
+    return {"couple": couple, "famille": famille}
+
+
+class AbandonnerBody(BaseModel):
+    token: str
+
+
+@router.post("/admin/referentiels/abandonner", dependencies=[Depends(_require_admin)])
+def abandonner(body: AbandonnerBody):
+    """L'admin jette le PDF en attente (Scénario candidate). Efface le staging. Aucun écrit en base."""
+    (STAGING_DIR / f"{body.token}.pdf").unlink(missing_ok=True)
+    return {"ok": True}
 
 
 class ValiderBody(BaseModel):
@@ -171,6 +276,7 @@ class ValiderBody(BaseModel):
     fichier_origine: str | None = None   # vrai nom du PDF déposé/téléchargé — gardé en base comme trace
     source: str | None = None
     date_doc: str | None = None
+    forcage_motif: str | None = None     # motif si l'admin FORCE malgré une alerte (couple/famille) ; NULL sinon
 
 
 @router.post("/admin/referentiels/valider", dependencies=[Depends(_require_admin)])
@@ -213,20 +319,28 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     pdf_final = dossier / "referentiel.pdf"
     shutil.move(str(staged), str(pdf_final))
 
-    # Extraction du texte complet → extraction-texte.txt (UTF-8), même brique que l'ingestion.
+    # On NE fait PAS l'extraction du texte ici : c'est le travail lourd (≈0,18 s/page → ~3 min pour
+    # un gros PDF, ce qui figeait l'écran et déclenchait un faux « échec réseau ») et il est INUTILE
+    # à ce stade — le fichier produit n'était relu par personne, et le découpage/ingestion ré-extrait
+    # déjà du PDF (pgvector_store._decouper_ia). On se contente de COMPTER les pages (rapide) pour le
+    # retour. Le plafond au dépôt (depot_max_pages) garantit en amont un PDF de taille raisonnable.
     try:
         import pdfplumber  # import paresseux
         with pdfplumber.open(str(pdf_final)) as pdf:
-            pages = [(p.extract_text() or "") for p in pdf.pages]
-        texte = "\n".join(pages)
-        (dossier / "extraction-texte.txt").write_text(texte, encoding="utf-8")
+            n_pages = len(pdf.pages)
     except Exception as e:
-        raise HTTPException(400, f"Extraction du texte impossible : {e}")
+        raise HTTPException(400, f"Lecture du PDF impossible : {e}")
 
     # Disque = nom fixe `referentiel.pdf` (le code ne dépend jamais du nom mouvant de l'EN).
     # Base = `fichier` garde le VRAI nom d'origine (trace, affiché à l'admin), sans contrainte
     # de système de fichiers (c'est du texte). Repli sur le nom de disque si non fourni.
     fichier_origine = (body.fichier_origine.strip() if body.fichier_origine else "") or "referentiel.pdf"
+    # Motif de forçage (l'admin valide malgré une alerte des vérifications au dépôt). None = pas de
+    # forçage. Tracé EN BASE (colonne forcage_motif) + log si présent.
+    forcage_motif = (body.forcage_motif.strip() if body.forcage_motif else "") or None
+    if forcage_motif:
+        logger.warning("valider : FORÇAGE de la validation (%s / %s) — motif : %s",
+                       cycle.nom, niveau_nom, forcage_motif)
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
         # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, verdict IA, chunks.
@@ -238,6 +352,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         existing.prompt_decoupe = None
         existing.prompt_decoupe_valide = False
         existing.doutes_ia = None
+        existing.forcage_motif = forcage_motif
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
         db.commit()
         ref = existing
@@ -249,6 +364,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
             fichier=fichier_origine,
             source=(body.source.strip() if body.source else None),
             date_doc=(body.date_doc.strip() if body.date_doc else None),
+            forcage_motif=forcage_motif,
         )
         db.add(ref)
         db.commit()
@@ -261,8 +377,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         "fichier_disque": "referentiel.pdf",   # nom physique sur le disque (chemin du message)
         "fichier_origine": fichier_origine,     # vrai nom conservé en base
         "nom_fixe": nom_fixe,
-        "pages": len(pages),
-        "caracteres_extraits": len(texte),
+        "pages": n_pages,
     }
 
 

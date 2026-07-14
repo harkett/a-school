@@ -281,16 +281,44 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
-PROMPT_DETECTER_FAMILLE = """Tu classes un document dans UNE famille de structure.
+PROMPT_CLASSER_FAMILLE = """Tu classes un document dans UNE famille de structure existante, OU tu proposes une nouvelle famille.
 
-Familles possibles (identifiant, nom, description) :
+Une famille dit ce que le document EST (sa nature), pas ce qu'il contient.
+
+Familles existantes (identifiant, nom, description) :
 {familles}
 
-Texte du document à classer :
+Texte du document :
 {texte}
 
-Choisis la famille dont la description correspond le mieux à la STRUCTURE du document.
-Réponds UNIQUEMENT en JSON : {{"famille_id": <identifiant de la famille choisie>}}."""
+Règle :
+- Si une famille existante correspond à la nature du document → "match_id" = son identifiant, et laisse "nom" et "description" vides ("").
+- Si AUCUNE famille existante ne correspond → "match_id" = 0, et propose la famille manquante :
+  - "nom" : un identifiant court en MAJUSCULES avec des underscores (ex. PROGRAMME_ENSEIGNEMENT) ;
+  - "description" : ce qu'est ce type de document, en une phrase.
+
+Réponds UNIQUEMENT en JSON, avec exactement ces clés : match_id, nom, description."""
+
+
+PROMPT_VERIFIER_COUPLE = """Tu vérifies qu'un document officiel correspond bien au couple (cycle + niveau) déclaré.
+
+Couple déclaré par l'administrateur :
+- Cycle : {cycle}
+- Niveau : {niveau}
+
+Texte du document :
+{texte}
+
+Ta tâche :
+- Lis à quel cycle et à quel niveau ce document s'adresse réellement.
+- Dis s'il correspond au couple déclaré ci-dessus.
+
+Règle :
+- "correspond" = true si le document vise bien ce cycle et ce niveau (même si la formulation diffère), false sinon.
+- "niveau_lu" : le cycle et le niveau que le document vise réellement, tels que tu les lis (une courte phrase).
+- "raison" : pourquoi cela correspond ou non, en une phrase.
+
+Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, raison."""
 
 
 PROMPTS = {
@@ -329,9 +357,14 @@ PROMPTS = {
         "placeholders": ["texte"],
         "default": PROMPT_DECOUPE_AMONT,
     },
-    "detecter_famille": {
-        "label": "Détection de la famille d'un référentiel (au dépôt du PDF)",
+    "classer_famille": {
+        "label": "Classement d'un référentiel : famille existante OU famille candidate",
         "placeholders": ["familles", "texte"],
-        "default": PROMPT_DETECTER_FAMILLE,
+        "default": PROMPT_CLASSER_FAMILLE,
+    },
+    "verifier_couple": {
+        "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
+        "placeholders": ["cycle", "niveau", "texte"],
+        "default": PROMPT_VERIFIER_COUPLE,
     },
 }

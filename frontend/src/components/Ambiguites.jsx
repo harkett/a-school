@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 const TYPE_COLOR = {
@@ -90,7 +90,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ texte: texte.trim(), matiere: mat, niveau: niv }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.detail || `Erreur ${res.status}`)

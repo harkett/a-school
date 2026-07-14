@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_GROQ, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 import { useMatieres } from '../utils/useMatieres.js'
 
 export default function AdminCommunication() {

@@ -69,10 +69,24 @@ class Feedback(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    statut: Mapped[str] = mapped_column(String(16), nullable=False, default="nouveau")
+    statut: Mapped[str] = mapped_column(String(16), ForeignKey("feedback_statuts.code"), nullable=False, default="nouveau")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class FeedbackStatut(Base):
+    """Catalogue des statuts de feedback (donnée de référence, EN BASE). Source unique :
+    les codes ASSIGNABLES = toutes les lignes ; la colonne `modifiable` porte la notion
+    SOURCE (statut dans lequel l'auteur peut encore éditer son feedback), distincte des
+    statuts assignables. `feedbacks.statut` a une FK vers `code` : la base est l'autorité."""
+    __tablename__ = "feedback_statuts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(16), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    modifiable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class Setting(Base):
@@ -426,6 +440,10 @@ class Referentiel(Base):
     # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
     prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # Motif de FORÇAGE d'une validation malgré une alerte des vérifications au dépôt (couple lu par
+    # l'IA ≠ couple déclaré, ou famille absente de famille_couples). NULL = validation normale (aucun
+    # forçage). Renseigné = l'admin a passé outre, motif tracé EN BASE (+ log). DONNÉE MÉTIER EN BASE.
+    forcage_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
@@ -476,18 +494,25 @@ class ArbitrageDemande(Base):
 
 
 class Famille(Base):
-    """Famille de structure d'un référentiel (5 valeurs) : dit COMMENT un PDF de
-    référentiel est organisé. DONNÉE MÉTIER → EN BASE."""
+    """Famille de structure d'un référentiel (6 types) : ce que le document EST.
+    Classification pure — ne pilote pas la découpe. DONNÉE MÉTIER → EN BASE."""
     __tablename__ = "familles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    # Fiche de la famille (ce qui permettra à l'IA de détecter puis, plus tard, de découper).
-    motif: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
-    conteneurs_ignorer: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
-    decoupe: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
-    consignes_ia: Mapped[str] = mapped_column(Text, nullable=False, server_default='', default='')
-    # État interne (jamais renvoyé par l'IA) : une famille de rejet, à exclure de la classification.
+    # État interne (jamais renvoyé par l'IA) : la famille de rejet, à exclure de la classification.
     # Le code ne connaît QUE ce drapeau, jamais le nom/id de la ligne (cap « aucun cas particulier »).
     rejet: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false', default=False)
+
+
+class FamilleCouple(Base):
+    """Couple (niveau) rattaché à une famille de structure — décidé par l'humain (admin/dev),
+    jamais écrit par l'IA. Le cycle se déduit du niveau (niveaux.cycle_id), donc pas stocké ici
+    (zéro redondance). UNIQUE (famille_id, niveau_id) : un niveau ne s'inscrit qu'une fois par famille."""
+    __tablename__ = "famille_couples"
+    __table_args__ = (UniqueConstraint("famille_id", "niveau_id", name="uq_famille_couples_famille_niveau"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    famille_id: Mapped[int] = mapped_column(Integer, ForeignKey("familles.id"), nullable=False, index=True)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)

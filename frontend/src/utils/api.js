@@ -1,6 +1,6 @@
 export const TIMEOUT_AUTH = 8_000   // auth, heartbeat, logout
 export const TIMEOUT_STD  = 10_000  // appels standard (profil, activités, admin)
-export const TIMEOUT_GROQ = 45_000  // génération Groq, OCR, mail-groupe, purge BDD
+export const TIMEOUT_LONG = 45_000  // opérations longues : génération IA, OCR, mail groupé, purge BDD
 
 export const MSG_TIMEOUT = 'Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.'
 

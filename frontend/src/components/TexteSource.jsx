@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { apiFetch, TIMEOUT_GROQ } from '../utils/api.js'
+import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { formatTime, computeBarLevels } from '../utils/audioViz.js'
 
@@ -139,7 +139,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         method: 'POST',
         credentials: 'include',
         body: form,
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
       const transcrit = (data.text || '').trim()
@@ -233,7 +233,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matiere, niveau }),
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
       if (data.available && data.texte) {
@@ -275,7 +275,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         method: 'POST',
         credentials: 'include',
         body: form,
-      }, TIMEOUT_GROQ)
+      }, TIMEOUT_LONG)
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
       onChange(data.texte)

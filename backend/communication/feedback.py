@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, User
+from backend.systeme.admin import codes_statuts_modifiables
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
 router = APIRouter()
@@ -25,8 +26,6 @@ ALLOWED_TYPES = {
     "text/plain":       ".txt",
 }
 MAX_SIZE = 5 * 1024 * 1024  # 5 Mo
-
-STATUTS_MODIFIABLES = {"nouveau", "en_cours"}
 
 
 class FeedbackBody(BaseModel):
@@ -165,6 +164,7 @@ def mes_feedbacks(
         .order_by(Feedback.created_at.desc())
         .all()
     )
+    modifiables = codes_statuts_modifiables(db)  # lu une fois en base, pas par ligne
     return [
         {
             "id":              f.id,
@@ -174,7 +174,7 @@ def mes_feedbacks(
             "created_at":      f.created_at.strftime("%d/%m/%Y") if f.created_at else "—",
             "updated_at":      f.updated_at.strftime("%d/%m/%Y") if f.updated_at else None,
             "attachment_path": f.attachment_path,
-            "modifiable":      (f.statut or "nouveau") in STATUTS_MODIFIABLES,
+            "modifiable":      (f.statut or "nouveau") in modifiables,
         }
         for f in rows
     ]
@@ -196,7 +196,7 @@ def update_feedback(
         raise HTTPException(404, "Feedback introuvable.")
     if fb.user_id != db.query(User.id).filter(User.email == email).scalar():
         raise HTTPException(403, "Ce feedback ne vous appartient pas.")
-    if (fb.statut or "nouveau") not in STATUTS_MODIFIABLES:
+    if (fb.statut or "nouveau") not in codes_statuts_modifiables(db):
         raise HTTPException(400, "Ce feedback ne peut plus être modifié.")
 
     fb.message         = body.message

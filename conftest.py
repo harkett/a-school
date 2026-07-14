@@ -79,10 +79,37 @@ with _test_engine.begin() as _conn:
 models_db.Base.metadata.create_all(bind=_test_engine)
 
 
+# --- Catalogues de référence : semés par MIGRATION en prod, mais le schéma de test est monté
+# par create_all (sans migrations). Le TRUNCATE (verrou 3) les vide entre chaque test → on les
+# re-sème avant chaque test, sinon les FK (ex. feedbacks.statut) et le no-fallback plantent.
+# Une entrée par table-catalogue : les tâches suivantes (features, durées) l'étendront ici.
+_CATALOGUES_SEED = {
+    "feedback_statuts": [
+        {"code": "nouveau", "label": "Nouveau", "modifiable": True, "ordre": 0},
+        {"code": "en_cours", "label": "En cours", "modifiable": True, "ordre": 1},
+        {"code": "traite", "label": "Traité", "modifiable": False, "ordre": 2},
+        {"code": "archive", "label": "Archivé", "modifiable": False, "ordre": 3},
+    ],
+}
+
+
+def _seed_catalogues():
+    with _test_engine.begin() as conn:
+        for row in _CATALOGUES_SEED["feedback_statuts"]:
+            conn.execute(
+                text(
+                    "INSERT INTO feedback_statuts (code, label, modifiable, ordre) "
+                    "VALUES (:code, :label, :modifiable, :ordre) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+
+
 # --- Verrou 3 : isolation par test = TRUNCATE, UNIQUEMENT sur aschool_test ---
 @pytest.fixture(autouse=True)
 def _clean_db():
     _assert_test_engine()      # garde-fou AVANT le test
+    _seed_catalogues()         # catalogues de référence re-semés (create_all ne les seed pas)
     yield
     _assert_test_engine()      # garde-fou AVANT le TRUNCATE (re-vérifié à chaque fois)
     tables = [t.name for t in reversed(models_db.Base.metadata.sorted_tables)]
