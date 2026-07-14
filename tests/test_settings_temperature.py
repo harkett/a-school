@@ -35,7 +35,7 @@ from backend.core.models_db import Setting
 from backend.systeme.admin import (
     get_temperature, TEMPERATURE_MIN, TEMPERATURE_MAX, _make_admin_token,
 )
-import src.generator as gen
+import backend.llm.generator as gen
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("prof.test@aschool.fr")

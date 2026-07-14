@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_GENERIQUES
+from backend.llm.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_GENERIQUES
 
 router = APIRouter()
 

@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(ROOT))   # racine projet -> `src` importable
 import pytest
 from unittest.mock import MagicMock, patch
 
-import src.generator as gen
+import backend.llm.generator as gen
 
 
 class _Bloc:

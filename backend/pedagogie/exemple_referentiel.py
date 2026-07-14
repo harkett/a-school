@@ -22,8 +22,8 @@ from backend.core.models import ExempleReferentielRequest, ExempleReferentielRes
 from backend.core.models_db import Niveau, Referentiel
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
-from src.generator import generate, LLMRateLimitError
-from src.prompts import build_exemple_referentiel_prompt
+from backend.llm.generator import generate, LLMRateLimitError
+from backend.llm.prompts import build_exemple_referentiel_prompt
 
 router = APIRouter()
 log = logging.getLogger(__name__)

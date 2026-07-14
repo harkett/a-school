@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import src.generator as gen
+import backend.llm.generator as gen
 
 
 def _fake_groq_lent(concurrence, lock):

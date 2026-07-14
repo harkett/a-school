@@ -1,6 +1,6 @@
 import requests
 from fastapi import HTTPException
-from src.generator import _llm_slot, LLMRateLimitError
+from backend.llm.generator import _llm_slot, LLMRateLimitError
 
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 TRANSCRIBE_MODEL = "whisper-large-v3"

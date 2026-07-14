@@ -9,7 +9,7 @@ from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
-from src.generator import generate, LLMRateLimitError
+from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 

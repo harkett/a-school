@@ -1,7 +1,7 @@
 import threading
 from contextlib import contextmanager
 
-from src.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY_TEXTE, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+from backend.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY_TEXTE, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
 
 
 class LLMRateLimitError(RuntimeError):

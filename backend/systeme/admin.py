@@ -433,7 +433,7 @@ def delete_feedback(
 
 @router.get("/admin/activites")
 def get_activites_admin(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from src.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_PAR_ACTIVITE
+    from backend.llm.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_PAR_ACTIVITE
 
     matieres = list(ACTIVITES_PAR_MATIERE.keys())
     total_entrees = sum(len(a) for a in ACTIVITES_PAR_MATIERE.values())

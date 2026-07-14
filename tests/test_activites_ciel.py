@@ -25,7 +25,7 @@ from unittest.mock import patch
 
 import backend.contenu.activites as activites_mod
 from backend.main import app
-from src.prompts import build_prompt
+from backend.llm.prompts import build_prompt
 from fastapi.testclient import TestClient
 
 client = TestClient(app)

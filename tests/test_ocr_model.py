@@ -22,7 +22,7 @@ import pytest
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(ROOT))   # racine projet -> `src` importable
 
-import src.generator as gen
+import backend.llm.generator as gen
 import backend.dictee.ocr as ocr_mod
 
 

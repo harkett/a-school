@@ -9,8 +9,8 @@ from backend.core.models import GenerateRequest, GenerateResponse
 from backend.core.models_db import ActiviteSauvegardee, User
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature
 from backend import auth as auth_lib
-from src.prompts import build_prompt
-from src.generator import generate, LLMRateLimitError
+from backend.llm.prompts import build_prompt
+from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
 log = logging.getLogger(__name__)

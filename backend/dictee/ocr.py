@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.systeme.admin import get_cle_api, get_ocr_model, get_max_tokens
-from src.generator import transcribe_image, LLMRateLimitError
+from backend.llm.generator import transcribe_image, LLMRateLimitError
 
 router = APIRouter()
 

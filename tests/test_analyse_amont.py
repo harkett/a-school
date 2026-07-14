@@ -25,7 +25,7 @@ import backend.core.database as dbmod
 import backend.rag.analyse_amont as aamod
 from backend.core.llm_prompts import PROMPTS
 from backend.core.models_db import Setting
-from src.generator import LLMRateLimitError
+from backend.llm.generator import LLMRateLimitError
 
 UNITES = [
     {"titre": "Créer ses propres livres", "texte": "Âge : dès ~2 ans\nMatériel : papier, crayons."},

@@ -155,7 +155,7 @@ def test_endpoint_outil_llm_down_500():
 
 
 # ===================== P3.4 — /api/generate : durcissement des erreurs =====================
-# /api/generate passe par generate() (src.generator). Son except distingue :
+# /api/generate passe par generate() (backend.llm.generator). Son except distingue :
 # clé inconnue -> 400, LLM down -> 502 (RuntimeError / RequestException).
 
 def test_generate_activite_inconnue_400():

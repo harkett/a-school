@@ -38,7 +38,7 @@ from backend.systeme.admin import (
     get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN, MAX_TOKENS_MAX,
     _make_admin_token,
 )
-import src.generator as gen
+import backend.llm.generator as gen
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("prof.test@aschool.fr")
