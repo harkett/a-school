@@ -5,16 +5,29 @@ import { registerErrorHandler } from '../errorDialog'
 
 const SEP = { separator: true }
 
-// Menu rangé du général au détaillé : 5 catégories (groupes) + 2 entrées simples.
+// Menu rangé du général au détaillé : 6 catégories (groupes) + 2 entrées simples.
 // Règle (CLAUDE.md) : toute nouvelle page se range sous une famille existante,
-// jamais une entrée à plat de plus. « Référentiels » rejoindra « Pédagogie / contenu »
-// le jour où sa page existera (pas avant — sinon lien orphelin).
+// jamais une entrée à plat de plus. « Pédagogie » = le métier construit ; « Contenu »
+// = les données brutes de référence (référentiels sources + tables).
 const NAV_ITEMS = [
-  // — Pédagogie / contenu (cœur métier) —
+  // — Référentiel (écran unique CRUD) —
+  {
+    to:    '/admin/referentiels',
+    label: 'Référentiel',
+    aide:  'L’écran unique du référentiel : choisir un couple, puis créer / consulter / modifier / supprimer — tout en base (get pour afficher, put pour enregistrer).',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <path d="M14 2v6h6"/>
+        <path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>
+      </svg>
+    ),
+  },
+  // — Pédagogie (le métier construit sur le contenu) —
   {
     group:  true,
-    label:  'Pédagogie / contenu',
-    aide:   'Le cœur métier : programmes officiels, activités et fiches matières.',
+    label:  'Pédagogie',
+    aide:   'Le métier construit sur le contenu : programme officiel, activités et fiches matières.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
@@ -22,10 +35,28 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/referentiels', label: 'Référentiels',  aide: 'Les référentiels officiels (PDF) qui ancrent la génération — téléverser, mettre à jour, indexer.' },
       { to: '/admin/programmes',   label: 'Programmes',     aide: 'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.' },
       { to: '/admin/activites',    label: 'Activités',      aide: 'Catalogue des activités pédagogiques disponibles, par matière et par sous-type.' },
       { to: '/admin/fiches',       label: 'Fiches matières', aide: 'Documents de présentation aSchool par matière — consulter, modifier et générer automatiquement via Groq.' },
+    ],
+  },
+  // — Contenu (les données brutes de référence) —
+  {
+    group:  true,
+    label:  'Contenu',
+    aide:   'Les données brutes de référence : référentiels sources et tables (cycles, matières, familles, famille-couples).',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+        <path d="M3 12a9 3 0 0 0 18 0"/>
+      </svg>
+    ),
+    items: [
+      { to: '/admin/familles', label: 'Familles', aide: 'Contenu de la table familles (id, nom, description, rejet), lu directement en base. Fenêtre de contrôle en lecture seule.' },
+      { to: '/admin/fc-autorisees', label: 'Famille-Couples', aide: 'Contenu de la table famille_couples : les couples (famille + niveau, cycle dérivé du niveau), lu directement en base. Fenêtre de contrôle en lecture seule.' },
+      { to: '/admin/cycles',   label: 'Cycles',   aide: 'Contenu de la table cycles (id, nom, ordre), lu directement en base. Fenêtre de contrôle en lecture seule.' },
+      { to: '/admin/matieres', label: 'Matières', aide: 'Contenu de la table matieres (id, nom, ordre, actif), lu directement en base. Fenêtre de contrôle en lecture seule.' },
     ],
   },
   // — Profs & communication —
@@ -475,6 +506,23 @@ export default function AdminLayout() {
           <span style={{ fontSize: 11, color: '#94a3b8' }}>
             <span style={{ color: '#A63045', fontWeight: 700 }}>A</span>-SCHOOL — Administration
           </span>
+
+          {/* Légende des pastilles d'étape — seulement sur l'écran Référentiel, où elles servent.
+              Placée dans le footer global pour qu'un lecteur extérieur comprenne les couleurs. */}
+          {location.pathname === '/admin/referentiels' && (
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 14, fontSize: 11, color: '#94a3b8', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#16a34a' }} />fait / validé
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#dc2626' }} />à faire
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#facc15', border: '1px solid rgba(0,0,0,0.12)' }} />non vérifié
+              </span>
+            </span>
+          )}
+
           <span style={{ fontSize: 11, color: '#94a3b8' }}>
             © {new Date().getFullYear()} AFIA — aschool.fr
           </span>

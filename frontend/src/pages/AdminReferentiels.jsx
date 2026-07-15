@@ -18,6 +18,20 @@ function Spinner() {
   )
 }
 
+// Pastille d'étape — voyant vert/rouge/gris posé DANS le titre de la cartouche concernée.
+// C'est un REFLET lu en base (get), jamais un statut recopié : la couleur est calculée à
+// l'affichage à partir de l'état déjà chargé. vert = validé en base, rouge = pas encore,
+// gris = non déterminé ici (ex. cas flous = appel IA à la demande).
+function Pastille({ etat, titre }) {
+  // vert = fait/validé · rouge = à faire · jaune canari = non vérifié (cas flous, ingéré).
+  const couleur = { vert: '#16a34a', rouge: '#dc2626', jaune: '#facc15' }[etat] || '#facc15'
+  return (
+    <span title={titre} style={{ display: 'inline-block', width: 11, height: 11, borderRadius: '50%',
+      background: couleur, border: '1px solid rgba(0,0,0,0.12)', flexShrink: 0,
+      verticalAlign: 'middle', marginRight: 8 }} />
+  )
+}
+
 // Construit les lignes de la table matières à partir de l'état du couple (endpoint /etat) :
 // d'abord les matières DÉJÀ en base (cochée figée), puis les CANDIDATES proposées non encore
 // en base (nouvelles, à cocher par l'admin). Les candidates viennent de la BASE
@@ -32,9 +46,11 @@ function construireLignesMatieres(etatObj) {
 }
 
 export default function AdminReferentiels() {
-  const [cycles, setCycles] = useState([])
-  const [cycleId, setCycleId] = useState('')
-  const [niveau, setNiveau] = useState('')
+  const [couples, setCouples] = useState([])    // les 137 famille-couples (GET /admin/fc-autorisees)
+  const [coupleId, setCoupleId] = useState('')  // id du couple choisi dans le menu unique
+  const [refsListe, setRefsListe] = useState([])  // colonne 2 : référentiels déposés (GET /admin/referentiels/liste)
+  const [cycleId, setCycleId] = useState('')    // dérivé du couple choisi (cycle_id de la ligne)
+  const [niveau, setNiveau] = useState('')      // dérivé du couple choisi (nom du niveau)
   const [mode, setMode] = useState('depot')       // 'depot' | 'lien'
   const [url, setUrl] = useState('')
   const [nomFichier, setNomFichier] = useState('')  // nom du PDF choisi (zone « Par dépôt »)
@@ -63,6 +79,13 @@ export default function AdminReferentiels() {
   const [etat, setEtat] = useState(null)
   const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
   const [showParIa, setShowParIa] = useState(false)  // modale explicative « Par IA » (idée, pas encore branchée)
+  const [showSuppr, setShowSuppr] = useState(false)  // modale de confirmation de suppression du référentiel
+  const [supprBusy, setSupprBusy] = useState(false)  // suppression en cours (bouton grisé)
+  // Cas exceptionnel Matières → Prompt : interrupteur d'AFFICHAGE (navigation front, pas de la donnée
+  // métier). Le bouton « Générer le prompt » de la carte Matières le passe à true → la cartouche Prompt
+  // s'affiche. Remis à false à chaque changement de couple / « Nouveau ». La carte Prompt s'affiche aussi
+  // toute seule si un prompt existe déjà en base (promptDecoupe non vide) — travail déjà fait.
+  const [afficherPrompt, setAfficherPrompt] = useState(false)
   // Règle de découpe du couple : { existe, explication_clair, critere_technique, depose_par, valide }
   // ou null si aucune règle n'est déposée pour ce référentiel.
   const [regle, setRegle] = useState(null)
@@ -89,6 +112,7 @@ export default function AdminReferentiels() {
   // Prompt de découpe du couple — GÉNÉRÉ PAR L'IA, stocké en base, corrigé/validé par l'admin.
   const [promptDecoupe, setPromptDecoupe] = useState('')       // texte éditable du prompt
   const [promptValide, setPromptValide] = useState(false)      // garde-fou : découpe refusée tant que false
+  const [decoupeValide, setDecoupeValide] = useState(false)    // étape FINALE : découpe validée → puce verte (lu via /prompt-decoupe)
   const [promptBusy, setPromptBusy] = useState('')             // 'generer' | 'regenerer' | 'valider' | 'decouper' | ''
   const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
   const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
@@ -96,19 +120,87 @@ export default function AdminReferentiels() {
   const [ambiguiteOuverte, setAmbiguiteOuverte] = useState('') // age_label dont le panneau « ambiguïté » est ouvert
 
   useEffect(() => {
-    fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
+    fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setCycles(d.cycles || []) })
+      .then(d => { if (d) setCouples(d.couples || []) })
       .catch(() => {})
+    chargerListe()
   }, [])
+
+  // Colonne 2 : la liste des référentiels déposés, lue EN BASE (GET /liste). Rechargée après chaque
+  // validation (un nouveau référentiel apparaît). Aucune donnée recopiée : on relit la base.
+  function chargerListe() {
+    fetchWithTimeout('/api/admin/referentiels/liste', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setRefsListe(d.referentiels || []) })
+      .catch(() => {})
+  }
+
+  // Clic sur une ligne de la colonne 2 : sélectionne le couple (comme le menu déroulant) → l'écran
+  // de droite charge ce référentiel via l'effet [cycleId, niveau]. On résout le couple dans `couples`
+  // (par cycle_id + niveau) pour aussi refléter le choix dans le menu déroulant.
+  function ouvrirRef(r) {
+    const c = couples.find(x => String(x.cycle_id) === String(r.cycle_id) && x.niveau === r.niveau)
+    if (c) { setCoupleId(String(c.id)); setCycleId(String(c.cycle_id)); setNiveau(c.niveau); setFamilleId(String(c.famille_id)) }
+    else { setCoupleId(''); setCycleId(String(r.cycle_id)); setNiveau(r.niveau) }
+  }
+
+  // « + Nouveau » (colonne 2) : remet l'écran en création — aucun couple choisi, tout vide.
+  function nouveau() {
+    // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
+    setCoupleId(''); setCycleId(''); setNiveau(''); setFamilleId('')  // → familleCouple.done = false
+    setEtat(null)                                                     // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
+  }
+
+  // Bouton FINAL « Valider le découpage » : l'admin accepte la découpe → put decoupe_valide=true en base.
+  // C'est la dernière étape : on recharge la liste pour que la puce du menu passe au vert (get, zéro copie).
+  async function validerDecoupe() {
+    setPromptBusy('valider-decoupe')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/decoupe/valider', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La validation du découpage a échoué."); return }
+      setDecoupeValide(true)
+      chargerListe()   // decoupe_valide=true en base → la puce du menu passe au vert (relecture)
+    } catch { showError("La validation du découpage a échoué (réseau).") }
+    finally { setPromptBusy('') }
+  }
+
+  // Bouton « Supprimer le référentiel » (DELETE encadré). Le backend REFUSE (409) si le référentiel a
+  // déjà servi (unités ingérées) : on relaie alors SON vrai message d'erreur. Sinon il efface la ligne
+  // + le PDF (matières et couple intacts). Après coup on RELIT l'état en base + la liste (zéro copie) :
+  // le référentiel disparaît, l'écran repasse en mode dépôt.
+  async function supprimerReferentiel() {
+    setSupprBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/supprimer', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La suppression du référentiel a échoué."); return }
+      setShowSuppr(false)
+      const re = await fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      const dd = await re.json().catch(() => null)
+      setEtat(dd); setMatieres(construireLignesMatieres(dd)); setResultat(null); setApercu(null)
+      chargerListe()   // colonne 2 : le référentiel supprimé disparaît (relecture)
+    } catch { showError("La suppression du référentiel a échoué (réseau).") }
+    finally { setSupprBusy(false) }
+  }
 
 
   // À la sélection d'un couple (cycle + niveau) : lire son état en base. Si un référentiel
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); setEnAttente([]); setDemandeOuverte(''); return }
-    setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false)
+    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); setEnAttente([]); setDemandeOuverte(''); setAfficherPrompt(false); return }
+    setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -159,8 +251,8 @@ export default function AdminReferentiels() {
     fetchWithTimeout(`/api/admin/referentiels/prompt-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeUnites(null) } })
-      .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false) } })
+      .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeValide(!!(d && d.decoupe_valide)); setDecoupeUnites(null) } })
+      .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false); setDecoupeValide(false) } })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -315,11 +407,9 @@ export default function AdminReferentiels() {
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La validation a échoué."); return }
-      setPromptValide(true)
+      setPromptValide(true)   // la découpe est une ÉTAPE À PART (cartouche « Découpe » en dessous) — pas lancée ici
     } catch { showError("La validation a échoué (réseau)."); return }
     finally { setPromptBusy('') }
-    // Validé → la découpe se lance automatiquement (pas de second clic).
-    await declencherDecoupe()
   }
 
   // Déclenche la découpe (lecture seule) avec le prompt validé → affiche les unités produites.
@@ -399,14 +489,14 @@ export default function AdminReferentiels() {
 
   // Dès que la famille est validée : vérifications au dépôt (couple par l'IA + famille↔couple).
   async function lancerVerifDepot() {
-    const niveauObj = (cycles.find(c => String(c.id) === String(cycleId))?.niveaux || []).find(n => n.nom === niveau)
-    if (!apercu?.token || !cycleId || !niveauObj || !familleId) return
+    const c = couples.find(x => String(x.id) === String(coupleId))
+    if (!apercu?.token || !c || !familleId) return
     setVerif('loading')
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/verifier-depot', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: niveauObj.id, famille_id: Number(familleId) }),
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: c.niveau_id, famille_id: Number(familleId) }),
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
@@ -459,11 +549,14 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/valider', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename, forcage_motif: forcageArg }),
+        // verif_couple : on transmet le verdict IA déjà en main à l'écran ({correspond, niveau_lu,
+        // raison}) pour qu'il soit FIGÉ en base (avant, il était calculé puis jeté). null s'il manque.
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename, forcage_motif: forcageArg, verif_couple: (verif && verif.couple) ? verif.couple : null }),
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
+      chargerListe()   // un nouveau référentiel vient d'apparaître → recharger la colonne 2
       // La table matières reste alimentée par construireLignesMatieres (candidates du
       // référentiel + matières déjà en base), chargée à la sélection du couple.
     } catch (e) { showError(`Validation impossible.\n\n${e.message}`) }
@@ -578,9 +671,75 @@ export default function AdminReferentiels() {
   }
 
   const dejaTraite = !!(etat && etat.existe_referentiel)
+  // Libellé « Cycle · Niveau » du couple courant, lu dans la liste des couples (get, zéro copie).
+  const coupleCourant = couples.find(c => String(c.id) === String(coupleId))
+  const coupleLabel = coupleCourant ? `${coupleCourant.cycle} · ${coupleCourant.niveau}` : niveau
+
+  // Les 5 cartouches = 5 étapes, ordre FIXE. `done` = REFLET lu en base (get, zéro copie), jamais un
+  // booléen stocké en double : familleCouple = couple choisi ; pdf = référentiel enregistré ;
+  // matieres = matières reliées ; prompt = prompt validé ; decoupe = découpage validé. Règle unique
+  // d'affichage : une carte n'est visible que si TOUT ce qui la précède est fait (estVisible). Le
+  // tableau ne change jamais ; « Nouveau » ne fait que revider l'état lu → les `done` repassent à false.
+  const steps = [
+    { id: 'familleCouple', done: !!(cycleId && niveau) },
+    { id: 'pdf',           done: dejaTraite },   // = etat.existe_referentiel (une seule source : etat)
+    { id: 'matieres',      done: !!(etat?.matieres?.length > 0) },
+    { id: 'prompt',        done: !!etat?.prompt_decoupe_valide },   // lu depuis etat (get), comme matieres
+    { id: 'decoupe',       done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
+  ]
+  function estVisible(id) {
+    const i = steps.findIndex(s => s.id === id)
+    return steps.slice(0, i).every(s => s.done)   // visible si tout ce qui précède est validé
+  }
 
   return (
-    <div className="flex flex-col gap-6" style={{ maxWidth: 720 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+
+      {/* Colonne 2 — liste des référentiels déposés (get /liste). Clic = ouvre le couple à droite. */}
+      <aside style={{ width: 240, flexShrink: 0, background: '#fff', border: '1px solid #e2e8f0',
+        borderRadius: 12, overflow: 'hidden',
+        position: 'sticky', top: 0, alignSelf: 'flex-start' }}>
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', fontSize: 12,
+          fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Catalogues ({refsListe.length})
+        </div>
+        {/* « + Nouveau » en premier, couleur distincte, sélectionné par défaut (aucun référentiel ouvert). */}
+        {(() => {
+          const nouveauActif = !refsListe.some(r => String(r.cycle_id) === String(cycleId) && r.niveau === niveau)
+          return (
+            <button type="button" onClick={nouveau}
+              title="Créer un nouveau référentiel (choisir un couple, déposer le PDF)"
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px',
+                border: 'none', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: nouveauActif ? '#16a34a' : '#f0fdf4', color: nouveauActif ? '#fff' : '#166534' }}>
+              + Nouveau
+            </button>
+          )
+        })()}
+        {refsListe.length === 0 ? (
+          <div style={{ padding: 12, fontSize: 12, color: '#94a3b8' }}>Aucun référentiel déposé.</div>
+        ) : refsListe.map(r => {
+          const actif = String(cycleId) === String(r.cycle_id) && niveau === r.niveau
+          return (
+            <button key={r.id} type="button" onClick={() => ouvrirRef(r)}
+              title={`${r.famille || '—'} · ${r.cycle} · ${r.niveau}`}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
+                background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
+                fontWeight: actif ? 600 : 400 }}>
+              {/* Puce de synthèse : verte = procédure complète (lue en base via /liste : matières +
+                  prompt de découpe validé), rouge = à terminer. Reflet, jamais recopié. */}
+              <Pastille etat={r.complet ? 'vert' : 'rouge'}
+                titre={r.complet ? 'Procédure complète' : 'Procédure à terminer'} />
+              {r.cycle} · {r.niveau}
+              {r.forcage_motif && <span title="Validé en forçage" style={{ marginLeft: 6, color: '#b45309' }}>⚠</span>}
+            </button>
+          )
+        })}
+      </aside>
+
+      {/* Colonne 3 — l'écran de travail du référentiel. */}
+      <div className="flex flex-col gap-6" style={{ maxWidth: 720, flex: 1 }}>
       <div>
         <h2 className="text-base font-semibold text-gray-800">Référentiels</h2>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -590,35 +749,75 @@ export default function AdminReferentiels() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
-        <h2 className="text-base font-semibold text-gray-800">Cycle et niveau</h2>
+        <h2 className="text-base font-semibold text-gray-800">
+          <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
+          Famille-Couple
+        </h2>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Cycle</label>
-            <select style={{ ...champ, background: '#fff' }} value={cycleId}
-              onChange={e => { setCycleId(e.target.value); setNiveau('') }}>
-              <option value="">— Choisissez —</option>
-              {cycles.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Niveau</label>
-            <select style={{ ...champ, background: cycleId ? '#fff' : '#f3f4f6' }}
-              value={niveau} disabled={!cycleId}
-              onChange={e => setNiveau(e.target.value)}
-              title={cycleId ? 'Choisissez le niveau de ce cycle' : 'Choisissez d’abord un cycle'}>
-              <option value="">{cycleId ? '— Choisissez —' : '— Choisissez d’abord un cycle —'}</option>
-              {(cycles.find(c => String(c.id) === String(cycleId))?.niveaux || [])
-                .map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
-            </select>
-          </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Couple (famille · cycle · niveau)</label>
+          <select style={{ ...champ, background: '#fff' }} value={coupleId}
+            onChange={e => {
+              const id = e.target.value
+              setCoupleId(id)
+              const c = couples.find(x => String(x.id) === String(id))
+              if (c) { setCycleId(String(c.cycle_id)); setNiveau(c.niveau); setFamilleId(String(c.famille_id)) }
+              else { setCycleId(''); setNiveau(''); setFamilleId('') }
+            }}
+            title="Choisissez le couple à traiter — la famille, le cycle et le niveau en découlent">
+            <option value="">— Choisissez un couple —</option>
+            {Object.entries(couples.reduce((groupes, c) => {
+              (groupes[c.cycle] = groupes[c.cycle] || []).push(c)
+              return groupes
+            }, {})).map(([cycleNom, liste]) => (
+              <optgroup key={cycleNom} label={cycleNom}>
+                {liste.map(c => (
+                  <option key={c.id} value={c.id}>{c.famille} · {c.niveau}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
+
+        {/* Récap lecture seule du couple choisi : le menu fermé masque le cycle (porté par
+            l'optgroup), on le réaffiche ici en clair. Lu depuis le couple sélectionné (get, zéro copie). */}
+        {coupleId && (() => {
+          const c = couples.find(x => String(x.id) === String(coupleId))
+          if (!c) return null
+          return (
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', padding: '10px 12px',
+              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+              <span><span style={{ color: '#94a3b8' }}>Famille : </span><strong style={{ color: '#1e293b' }}>{c.famille}</strong></span>
+              <span><span style={{ color: '#94a3b8' }}>Cycle : </span><strong style={{ color: '#1e293b' }}>{c.cycle}</strong></span>
+              <span><span style={{ color: '#94a3b8' }}>Niveau : </span><strong style={{ color: '#1e293b' }}>{c.niveau}</strong></span>
+            </div>
+          )
+        })()}
 
       </div>
 
+      {/* Carte 2 — visible seulement si l'étape 1 (Famille-Couple) est faite (estVisible, règle N-1). */}
+      {estVisible('pdf') && (
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
-        <h2 className="text-base font-semibold text-gray-800">Référentiel au format PDF</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+            <Pastille etat={(dejaTraite || resultat) ? 'vert' : 'rouge'} titre="Vert = une ligne référentiel existe en base pour ce couple." />
+            Référentiel au format PDF
+          </h2>
+          {/* DELETE encadré : visible seulement si un référentiel existe (sinon rien à supprimer).
+              Rouge + sens interdit ; ouvre une modale de confirmation (jamais de suppression au clic). */}
+          {dejaTraite && (
+            <button type="button" onClick={() => setShowSuppr(true)} disabled={supprBusy}
+              title="Supprimer définitivement ce référentiel (efface la fiche + le PDF). Refusé s'il a déjà servi."
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
+                cursor: supprBusy ? 'wait' : 'pointer',
+                background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
+              ⛔ Supprimer le référentiel
+            </button>
+          )}
+        </div>
 
         {dejaTraite ? (
           <div>
@@ -645,6 +844,39 @@ export default function AdminReferentiels() {
                 Voir le référentiel
               </button>
             </p>
+            {/* Trace du forçage : motif lu EN BASE (referentiels.forcage_motif via /etat), affiché
+                si l'admin a validé ce référentiel malgré une alerte. Lecture seule (zéro copie). */}
+            {etat.referentiel?.forcage_motif && (
+              <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8,
+                background: '#fffbeb', border: '1px solid #fde68a', fontSize: 12, color: '#92400e' }}>
+                <strong>⚠ Validé en forçage</strong> — motif : {etat.referentiel.forcage_motif}
+              </div>
+            )}
+            {/* Verdict IA du couple, FIGÉ à la validation (referentiels.verif_couple via /etat).
+                Lecture seule, JSON parsé à l'affichage — zéro copie. Absent = rien affiché. */}
+            {etat.referentiel?.verif_couple && (() => {
+              let v = null
+              try { v = JSON.parse(etat.referentiel.verif_couple) } catch { v = null }
+              if (!v) return null
+              // Libellé du couple + famille : lus dans la liste des couples déjà en main (fc-autorisees),
+              // jamais recopiés. Affichage identique à celui du dépôt (zéro copie).
+              const fc = couples.find(c => String(c.id) === String(coupleId))
+              const cycleLbl = fc?.cycle || ''
+              const familleLbl = fc?.famille || ''
+              return (
+                <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 12,
+                  background: v.correspond ? '#f0fdf4' : '#fef2f2',
+                  border: `1px solid ${v.correspond ? '#bbf7d0' : '#fecaca'}`,
+                  color: v.correspond ? '#166534' : '#991b1b' }}>
+                  <strong>{v.correspond
+                    ? `✓ Couple : ${cycleLbl} / ${niveau} — confirmé par le document`
+                    : `✗ Couple : ${cycleLbl} / ${niveau} — non confirmé par le document`}</strong>
+                  {v.niveau_lu ? <div style={{ color: '#475569', marginTop: 2 }}>niveau lu : {v.niveau_lu}</div> : null}
+                  {v.raison && <div style={{ color: '#475569', marginTop: 2 }}>{v.raison}</div>}
+                  {familleLbl && <div style={{ color: '#166534', marginTop: 4 }}>✓ Cette famille ({familleLbl}) a sa place à ce niveau</div>}
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <>
@@ -759,8 +991,8 @@ export default function AdminReferentiels() {
                   background: verif.couple.correspond ? '#f0fdf4' : '#fef2f2' }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: verif.couple.correspond ? '#166534' : '#991b1b' }}>
                     {verif.couple.correspond
-                      ? `✓ Couple : ${cycles.find(c => String(c.id) === String(cycleId))?.nom || ''} / ${niveau} — confirmé par le document`
-                      : `✗ Couple : ${cycles.find(c => String(c.id) === String(cycleId))?.nom || ''} / ${niveau} — le document ne correspond pas`}
+                      ? `✓ Couple : ${couples.find(c => String(c.id) === String(coupleId))?.cycle || ''} / ${niveau} — confirmé par le document`
+                      : `✗ Couple : ${couples.find(c => String(c.id) === String(coupleId))?.cycle || ''} / ${niveau} — le document ne correspond pas`}
                   </div>
                   <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{verif.couple.raison}</div>
                 </div>
@@ -831,12 +1063,14 @@ export default function AdminReferentiels() {
         )}
 
       </div>
+      )}
 
-      {(dejaTraite || resultat) && (
+      {estVisible('matieres') && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
               <h2 className="text-base font-semibold text-gray-800">
+                <Pastille etat={(etat?.matieres?.length > 0) ? 'vert' : 'rouge'} titre="Vert = des matières sont reliées à ce niveau en base." />
                 Matières de ce référentiel
                 <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
                   ({matieres.length})
@@ -903,8 +1137,20 @@ export default function AdminReferentiels() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {/* Grisé quand il n'y a rien à récupérer : aucune matière cochée qui ne soit PAS déjà en
+                base (m.cochee && !m.en_base). État lu (get), zéro copie. Se réactive dès qu'on coche une nouvelle. */}
             <button type="button" className="btn-primary" title="Enregistrer en base les matières cochées et nouvelles"
-              onClick={recuperer} disabled={busy}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
+              onClick={recuperer} disabled={busy || !matieres.some(m => m.cochee && !m.en_base)}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
+            {/* Passage Matières → Prompt (cas exceptionnel). Rôle UNIQUE : afficher la cartouche Prompt.
+                N'apparaît que lorsque « Récupérer » est grisé (plus rien à récupérer) ; se grise dès que
+                la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence. */}
+            {estVisible('prompt') && !matieres.some(m => m.cochee && !m.en_base) && (
+              <button type="button" className="btn-primary"
+                onClick={() => setAfficherPrompt(true)} disabled={afficherPrompt || !!promptDecoupe}
+                title="Passer à l'étape suivante : afficher la cartouche « Prompt de découpe »">
+                Générer le prompt
+              </button>
+            )}
             {bilanApercu && <span style={{ fontSize: 12, color: '#475569' }}>{bilanApercu}</span>}
           </div>
           </>
@@ -914,12 +1160,20 @@ export default function AdminReferentiels() {
 
       {/* Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché, corrigé et validé par
           l'admin. La découpe refuse de tourner tant que le prompt n'est pas validé.
-          Affichage séquentiel : n'apparaît qu'APRÈS l'étape Matières (« Récupérer » → bilanApercu). */}
-      {bilanApercu && (
+          Affichage SÉQUENTIEL (règle : tant que N-1 n'est pas fini, on n'affiche pas N) : cette carte
+          (N) n'apparaît que si le référentiel EXISTE en base (dejaTraite) ET que l'étape Matières (N-1)
+          est faite (matières reliées au niveau, lu via /etat). Sans référentiel enregistré — ex. dépôt
+          en cours, IA encore en analyse — elle reste CACHÉE, même si des matières traînent en base. */}
+      {/* Carte 4 — Prompt. Visible si tout ce qui précède est fait (estVisible) ET que l'admin a
+          cliqué « Générer le prompt » OU qu'un prompt existe déjà en base (travail déjà fait). */}
+      {estVisible('prompt') && (afficherPrompt || !!promptDecoupe) && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
-              <h2 className="text-base font-semibold text-gray-800">Prompt de découpe (généré par l'IA)</h2>
+              <h2 className="text-base font-semibold text-gray-800">
+                <Pastille etat={promptValide ? 'vert' : 'rouge'} titre="Vert = prompt de découpe validé (referentiels.prompt_decoupe_valide)." />
+                Prompt de découpe (généré par l'IA)
+              </h2>
               <p className="text-sm text-gray-500">
                 L'IA lit le PDF et propose le prompt qui découpe CE document. Lisez-le, corrigez-le si besoin, validez-le,
                 puis déclenchez la découpe. Rien n'est écrit en dur : le prompt vit en base.
@@ -966,32 +1220,67 @@ export default function AdminReferentiels() {
                   <button type="button" className="btn-action" onClick={regenererPromptDecoupe}
                     disabled={!!promptBusy || !promptDecoupe.trim() || !remarques.trim()}
                     title="L'IA reprend le prompt actuel + vos remarques et produit un nouveau prompt qui en tient compte">
-                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : 'Régénérer le prompt'}
+                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : 'Régénérer le prompt en tenant compte de ma remarque ci-dessus'}
                   </button>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {/* Grisé une fois le prompt validé en base (promptValide, lu via /prompt-decoupe).
+                    Éditer le prompt remet promptValide à false (onChange) → le bouton se réactive.
+                    Ce bouton NE fait QUE valider le prompt — la découpe est la cartouche d'après. */}
                 <button type="button" className="btn-primary" onClick={validerPromptDecoupe}
-                  disabled={!!promptBusy || !promptDecoupe.trim()}
-                  title="Valide ce prompt en base et lance la découpe dans la foulée">
-                  {promptBusy === 'valider' ? <><Spinner /> Validation…</>
-                    : promptBusy === 'decouper' ? <><Spinner /> Découpe…</>
-                    : 'Valider le prompt et découper'}
+                  disabled={!!promptBusy || !promptDecoupe.trim() || promptValide}
+                  title="Valide ce prompt en base (la découpe se fait ensuite, dans la cartouche « Découpe »).">
+                  {promptBusy === 'valider' ? <><Spinner /> Validation…</> : 'Valider le prompt'}
                 </button>
               </div>
-              {decoupeUnites && (
-                <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    Résultat : {decoupeUnites.length} unité(s) produite(s) par l'IA
-                  </div>
-                  <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: '#374151' }}>
-                    {decoupeUnites.map((u, i) => (
-                      <li key={i} style={{ marginBottom: 2 }}>{u.titre} <span style={{ color: '#9CA3AF' }}>({u.taille} car.)</span></li>
-                    ))}
-                  </ol>
-                </div>
-              )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* Découpe — ÉTAPE À PART (le prompt et la découpe ne sont pas le même travail). Apparaît une fois
+          le prompt validé. On découpe (aperçu, lecture seule), on contrôle les unités, puis on valide le
+          découpage : dernière étape → la puce du menu passe au vert (decoupe_valide en base). */}
+      {estVisible('decoupe') && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-800">
+              <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide) — dernière étape." />
+              Découpe
+            </h2>
+            <p className="text-sm text-gray-500">
+              Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — dernière étape.
+            </p>
+          </div>
+          <div>
+            <button type="button" className="btn-action" onClick={declencherDecoupe}
+              disabled={!!promptBusy}
+              title="Découper le référentiel avec le prompt validé (aperçu, aucune écriture).">
+              {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : 'Découper'}
+            </button>
+          </div>
+          {decoupeUnites && (
+            <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                Résultat : {decoupeUnites.length} unité(s) produite(s) par l'IA
+              </div>
+              <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: '#374151' }}>
+                {decoupeUnites.map((u, i) => (
+                  <li key={i} style={{ marginBottom: 2 }}>{u.titre} <span style={{ color: '#9CA3AF' }}>({u.taille} car.)</span></li>
+                ))}
+              </ol>
+              {/* Bouton FINAL — l'admin a contrôlé la découpe et l'accepte : dernière étape, la puce
+                  du menu passe au vert (decoupe_valide en base). Grisé une fois validé. */}
+              <div style={{ marginTop: 12 }}>
+                <button type="button" className="btn-primary" onClick={validerDecoupe}
+                  disabled={!!promptBusy || decoupeValide}
+                  title="Accepter ce découpage — dernière étape : le référentiel devient complet (puce verte).">
+                  {promptBusy === 'valider-decoupe' ? <><Spinner /> Validation…</>
+                    : decoupeValide ? '✓ Découpage validé' : 'Valider le découpage'}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -1002,7 +1291,10 @@ export default function AdminReferentiels() {
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
-              <h2 className="text-base font-semibold text-gray-800">Règle de découpe</h2>
+              <h2 className="text-base font-semibold text-gray-800">
+                <Pastille etat={(regle && regle.valide) ? 'vert' : 'rouge'} titre="Vert = règle de découpe validée (referentiels.regle_valide)." />
+                Règle de découpe
+              </h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 Comment ce référentiel est découpé en unités. Validez si la description est juste ; rejetez pour la remettre en proposition.
               </p>
@@ -1296,6 +1588,51 @@ export default function AdminReferentiels() {
           </div>
         </div>
       )}
+
+      {/* Modale de confirmation de suppression (DELETE encadré, action destructive → garde-fou explicite,
+          bouton rouge + sens interdit). Le refus (référentiel déjà utilisé) est renvoyé par le backend et
+          relayé tel quel via showError. Fond cliquable pour annuler (sauf pendant la suppression). */}
+      {showSuppr && dejaTraite && (
+        <div onClick={() => !supprBusy && setShowSuppr(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 460, padding: '24px 24px 20px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 22, lineHeight: 1 }}>⛔</span>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#991b1b' }}>
+                Supprimer le référentiel « {coupleLabel} » ?
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.6 }}>
+              <p style={{ marginBottom: 10 }}>
+                <strong>Action irréversible.</strong> La fiche du référentiel et son <strong>fichier PDF</strong> seront
+                définitivement supprimés.
+              </p>
+              <p style={{ marginBottom: 0 }}>
+                Les <strong>matières</strong> et le <strong>couple</strong> ne sont pas touchés. La suppression est
+                <strong> refusée</strong> si ce référentiel a déjà servi (unités déjà ingérées).
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <button type="button" onClick={() => setShowSuppr(false)} disabled={supprBusy}
+                style={{ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
+                  background: '#fff', color: '#475569', border: '1px solid #cbd5e1' }}>
+                Annuler
+              </button>
+              <button type="button" onClick={supprimerReferentiel} disabled={supprBusy}
+                title="Confirmer la suppression définitive de ce référentiel"
+                style={{ fontSize: 13, fontWeight: 700, padding: '8px 14px', borderRadius: 6,
+                  cursor: supprBusy ? 'wait' : 'pointer',
+                  background: '#dc2626', color: '#fff', border: '1px solid #dc2626' }}>
+                {supprBusy ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
   )
 }
