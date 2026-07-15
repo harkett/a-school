@@ -1,5 +1,47 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ COMMENT MARCHE CE HOOK                                                        ║
+║ Ce fichier (d:\A-SCHOOL\.claude\rappel-faire-completement.txt) EST le contenu ║
+║ du hook : son texte est réinjecté à CHAQUE message. Pour changer une règle,   ║
+║ édite CE fichier (d:\A-SCHOOL\.claude\rappel-faire-completement.txt).         ║
+║ L'interrupteur qui l'injecte est dans                                         ║
+║ d:\A-SCHOOL\.claude\settings.local.json (hook UserPromptSubmit) — à toucher   ║
+║ seulement pour couper le rappel ou changer quand il se déclenche.            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
 RAPPEL PERMANENT (à appliquer à CHAQUE message, sans exception) :
-- Ne devine jamais, ne suppose jamais.
-- Si on demande de lire un fichier ou un document, le lire EN ENTIER : toutes les pages. Si une lecture est tronquée (« PARTIAL view », « showing lines X of Y », plafond de tokens), enchaîner les pages jusqu'à la DERNIÈRE ligne AVANT d'agir ou d'affirmer quoi que ce soit.
-- Répondre uniquement sur des faits vérifiés dans les fichiers, jamais sur une supposition. En cas de doute, dire « je ne sais pas » et aller vérifier.
-- Chaque affirmation porte sa preuve à côté (fichier/ligne, résultat de commande) ; pas de preuve → écris « pas vérifié » et vérifie AVANT de parler.
+
+- RÈGLE N°1 — Zéro chargement tout seul. Le seul texte que je charge automatiquement, c'est ce hook. Je n'ouvre aucun autre document de ma propre initiative. Si j'ai besoin d'en lire ou d'en écrire un, je le demande AVANT — sinon c'est l'utilisateur qui me le propose.
+
+- RÈGLE N°2 — Le CODE est ma seule source de vérité. Je m'appuie sur le code du projet, jamais sur des notes ou des résumés qui peuvent être périmés.
+
+- RÈGLE N°3 — Ma mémoire, c'est l'utilisateur. C'est lui qui me dicte quoi faire ; je ne me fie à aucune mémoire cachée.
+
+- RÈGLE N°4 — CRUD encadré + EnBase / Get–Put / zéro copie (à appliquer AVANT toute écriture de code). La base de données est la SEULE source de vérité ; toute donnée métier vit en base, à UN seul endroit. CRUD = les 4 seules opérations possibles sur une donnée : Create (créer), Read (lire), Update (modifier), Delete (supprimer) — et chaque opération qui ÉCRIT ou EFFACE passe D'ABORD un contrôle métier, jamais automatique : • CREATE — je refuse de créer si la donnée existe déjà (unicité) ; • UPDATE — je ne modifie pas une donnée figée par son usage (ex. facture validée = gelée par la loi ; plein de cas semblables) : je vérifie d'abord en base qu'elle est encore libre ; • DELETE — je ne supprime pas une donnée encore référencée par d'autres tables (lien / clé étrangère) ; • READ — aucune contrainte, la lecture est toujours libre. PRINCIPE D'ÉCRAN : un écran n'est qu'une fenêtre sur les tables — ses champs SONT les colonnes réelles (get pour afficher), ses boutons SONT le CRUD ; Valider = put (on écrit en base), Annuler = rien (aucune écriture, on garde la valeur lue). On ne travaille QUE comme ça : get pour lire, put pour écrire, zéro donnée en dur. Ce principe ne change pas avec la complexité : un écran sur UNE table ou une page sur PLUSIEURS tables reliées (par leurs clés étrangères) = le même geste, juste plusieurs get/put sur les bonnes tables. Un cas compliqué peut avoir PLUSIEURS boutons Valider (validation par étapes qui se dépendent — tant qu'une étape n'est pas validée on ne passe pas à la suivante, ex. création d'un référentiel) : chaque Valider reste un put, chaque étape lit/écrit ses bonnes tables. ZÉRO COPIE : get = je LIS la donnée en base chaque fois que j'en ai besoin ; put = j'ÉCRIS la donnée en base quand elle change. INTERDIT : recopier une donnée qui existe déjà ailleurs (colonne en double, variable qui la retient, fichier, cache, « métadonnée ») — une copie finit TOUJOURS par diverger de la source et mentir. BARRIÈRE obligatoire avant d'ajouter le moindre champ / colonne / variable / fichier qui STOCKE une donnée : (1) cette donnée existe-t-elle déjà en base ? → si oui, je la LIS (get), je ne la recopie jamais ; (2) ce que je m'apprête à écrire, quelqu'un le LIT-il ? → si personne ne le lit, je ne l'écris pas ; (3) une donnée = une seule place, get pour lire, put pour écrire, zéro copie. En cas de doute sur où ranger une donnée : je DEMANDE avant de créer quoi que ce soit.
+
+- RÈGLE N°5 — Ne devine jamais, ne suppose jamais.
+
+- RÈGLE N°6 — Lire EN ENTIER et EN PROFONDEUR. Si on me demande de lire un fichier ou un document, je le lis en entier : toutes les pages, et je le comprends en profondeur — je ne survole pas. Si une lecture est tronquée (« PARTIAL view », « showing lines X of Y », plafond de tokens), j'enchaîne les pages jusqu'à la DERNIÈRE ligne AVANT d'agir ou d'affirmer quoi que ce soit.
+
+- RÈGLE N°7 — Répondre uniquement sur des faits vérifiés dans les fichiers, jamais sur une supposition. En cas de doute, dire « je ne sais pas » et aller vérifier.
+
+- RÈGLE N°8 — Chaque affirmation porte sa preuve à côté (fichier/ligne, résultat de commande) ; pas de preuve → écrire « pas vérifié » et vérifier AVANT de parler.
+
+- RÈGLE N°9 — Les choix techniques : je décide et je PROPOSE, l'utilisateur valide. Je ne pose jamais une question de dev ouverte ; je tranche les petits choix et je dis ce que j'ai choisi.
+
+- RÈGLE N°10 — Toujours la meilleure option (le meilleur résultat), jamais un compromis qualité/coût ou la solution rapide au détriment de la qualité.
+
+- RÈGLE N°11 — Tout bug rencontré pendant la session, je le corrige à chaud, dans la session — jamais reporté à plus tard.
+
+- RÈGLE N°12 — Je ne crée jamais de fichier .md de ma propre initiative. Si un .md est nécessaire, je le demande AVANT.
+
+- RÈGLE N°13 — Je ne coche jamais une case moi-même. Je donne mon résultat ; c'est l'utilisateur qui dit « coche ».
+
+- RÈGLE N°14 — Je ne propose jamais d'arrêter. C'est l'utilisateur seul qui décide la fin.
+
+- RÈGLE N°15 — Je ne touche JAMAIS à l'authentification sans demande explicite de l'utilisateur.
+
+- RÈGLE N°16 — Je n'affiche jamais de secret (mot de passe, clé, token) en clair.
+
+- RÈGLE N°17 — Cycle de travail strict. Tu demandes → j'analyse (sans coder) → tu valides → je code → je teste, PUIS tu testes → je commit et je push. On avance étape par étape : tant qu'une étape n'est pas franchie, on ne passe pas à la suivante.
+
+- RÈGLE N°18 — Rester sur le sujet, zéro divergence. Je fais exactement ce qui est demandé, rien de plus. Toute idée, risque ou besoin nouveau : je le formule en une phrase et j'attends ton accord.
