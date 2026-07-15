@@ -165,26 +165,9 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
         )
 
     # 2. Découpe PAR L'IA (SOCLE, générique), pilotée par le PROMPT VALIDÉ du couple (base).
+    #    Le prompt validé du couple cadre déjà le contenu au bon niveau : la découpe produite
+    #    EST le résultat à écrire en base, sans filtre supplémentaire.
     chunks = _decouper_ia(pdf_path, prompt_txt)
-    # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu -> MÊME verdict que
-    # l'aperçu (jamais deux appels IA divergents). Doute par unité reconstitué des libellés (pur).
-    doutes = None
-    if hasattr(fiche, "doutes_depuis_labels"):
-        db_ia = SessionLocal()
-        try:
-            ref_ia = db_ia.execute(
-                select(Referentiel).where(Referentiel.collection == collection)
-            ).scalar_one_or_none()
-            labels = _labels_douteux(db_ia, ref_ia, fiche, chunks) if ref_ia is not None else []
-        finally:
-            db_ia.close()
-        doutes = fiche.doutes_depuis_labels(chunks, labels)
-    # Filtrage par niveau À L'INGESTION (structurel) : si la fiche le prévoit, chaque collection
-    # ne garde que les chunks de son niveau (ex. crèche : Bébés -> 0-1, Moyens/Grands -> 1-3).
-    # Sinon (CIEL), aucun filtre. Aucune colonne en base — cf. immuabilité de la structure.
-    filtrer = getattr(fiche, "filtrer_chunks", None)
-    if filtrer is not None:
-        chunks = filtrer(chunks, collection, doutes)
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
         "collection": collection,

@@ -321,6 +321,22 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, raison."""
 
 
+PROMPT_DETECTER_MATIERES = """Tu lis un référentiel officiel et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
+
+Texte du référentiel :
+{texte}
+
+Ta tâche :
+- Repère les matières, disciplines ou domaines d'apprentissage que ce référentiel organise (ses grands champs).
+- Donne leur nom tel qu'il apparaît dans le document, court et lisible (le nom de la matière, pas une phrase).
+
+Règle :
+- "matieres" : la liste des noms de matières que tu lis dans le document, sans doublon.
+- N'invente aucune matière absente du document. Si aucune n'apparaît clairement, renvoie une liste vide.
+
+Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau de chaînes)."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -366,5 +382,10 @@ PROMPTS = {
         "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
         "placeholders": ["cycle", "niveau", "texte"],
         "default": PROMPT_VERIFIER_COUPLE,
+    },
+    "detecter_matieres": {
+        "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",
+        "placeholders": ["texte"],
+        "default": PROMPT_DETECTER_MATIERES,
     },
 }

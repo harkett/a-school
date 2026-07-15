@@ -64,6 +64,20 @@ def _lire_candidates(db: Session, niveau_id: int) -> list[str]:
     return [str(m).strip() for m in (data or []) if str(m).strip()]
 
 
+def _ecrire_candidates(db: Session, niveau_id: int, noms: list[str]) -> None:
+    """PENDANT écriture de `_lire_candidates` : ÉCRIT les matières candidates d'un niveau EN BASE
+    (table `matieres_candidates`, une ligne par niveau — `niveau_id` unique). get-or-create sur le
+    niveau, `matieres` = tableau JSON de noms. Le nouveau PDF ÉCRASE la proposition précédente. La
+    donnée vit à un seul endroit : get pour lire, put pour écrire, zéro copie."""
+    charge = json.dumps(noms, ensure_ascii=False)
+    row = db.query(MatiereCandidate).filter(MatiereCandidate.niveau_id == niveau_id).first()
+    if row:
+        row.matieres = charge
+    else:
+        db.add(MatiereCandidate(niveau_id=niveau_id, matieres=charge))
+    db.commit()
+
+
 def _apercu(pdf_path: Path) -> tuple[int, str]:
     """(nombre de pages, premières lignes de texte) — la matière du point de contrôle admin."""
     import pdfplumber  # import paresseux : ne pas alourdir le démarrage du serveur
@@ -146,6 +160,65 @@ def lister_familles(db: Session = Depends(get_db)):
     """Les familles de structure, lues EN BASE (aucune liste en dur)."""
     fam = db.query(Famille).order_by(Famille.id).all()
     return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description, "rejet": f.rejet} for f in fam]}
+
+
+@router.get("/admin/fc-autorisees", dependencies=[Depends(_require_admin)])
+def lister_fc_autorisees(db: Session = Depends(get_db)):
+    """Catalogue des couples (famille + niveau) lu EN BASE dans `famille_couples` (get direct, lecture
+    seule) — la liste qui alimente le choix « Couple » de la procédure. Les noms famille + cycle/niveau
+    ET le cycle_id sont résolus par jointure AU MOMENT DE LA LECTURE (aucune donnée recopiée). Jointures
+    INTERNES : les clés étrangères de `famille_couples` garantissent que famille et niveau existent, donc
+    aucune ligne orpheline à gérer. Le `cycle_id` n'est pas stocké (dérivé du niveau) : on le LIT ici."""
+    rows = (db.query(FamilleCouple, Famille.nom, Cycle.id, Cycle.nom, Niveau.nom)
+              .join(Famille, Famille.id == FamilleCouple.famille_id)
+              .join(Niveau, Niveau.id == FamilleCouple.niveau_id)
+              .join(Cycle, Cycle.id == Niveau.cycle_id)
+              .order_by(Cycle.ordre, Niveau.ordre).all())
+    couples = [
+        {"id": fc.id, "famille_id": fc.famille_id, "niveau_id": fc.niveau_id,
+         "cycle_id": cyc_id, "famille": fam_nom, "cycle": cyc_nom, "niveau": niv_nom}
+        for fc, fam_nom, cyc_id, cyc_nom, niv_nom in rows
+    ]
+    return {"total": len(couples), "couples": couples}
+
+
+@router.get("/admin/referentiels/liste", dependencies=[Depends(_require_admin)])
+def lister_referentiels(db: Session = Depends(get_db)):
+    """Liste des référentiels déposés (get direct, lecture seule) — pour la page « Consulter ».
+    La famille se lit par jointure sur `famille_couples` via le niveau (aucune colonne famille
+    sur le référentiel). Vide tant qu'aucun dépôt."""
+    rows = (db.query(Referentiel, Cycle.nom, Niveau.nom, Famille.nom, Cycle.id)
+              .join(Niveau, Niveau.id == Referentiel.niveau_id)
+              .join(Cycle, Cycle.id == Niveau.cycle_id)
+              .outerjoin(FamilleCouple, FamilleCouple.niveau_id == Referentiel.niveau_id)
+              .outerjoin(Famille, Famille.id == FamilleCouple.famille_id)
+              .order_by(Cycle.ordre, Niveau.ordre).all())
+
+    # `complet` = puce de synthèse du menu Catalogues. REFLET lu en base (get), jamais recopié. Vert =
+    # la procédure est ARRIVÉE AU BOUT = `decoupe_valide` (le bouton final « Valider le découpage »).
+    # C'est ce booléen, et lui seul, qui pilote le vert — les étapes intermédiaires (matières, prompt)
+    # se valident au fur et à mesure mais ne suffisent PAS à déclarer le référentiel complet.
+    refs = [
+        {"id": r.id, "cycle": cyc, "cycle_id": cyc_id, "niveau": niv, "famille": fam,
+         "fichier": r.fichier, "source": r.source, "forcage_motif": r.forcage_motif,
+         "complet": bool(r.decoupe_valide)}
+        for r, cyc, niv, fam, cyc_id in rows
+    ]
+    return {"total": len(refs), "referentiels": refs}
+
+
+@router.get("/admin/cycles", dependencies=[Depends(_require_admin)])
+def lister_cycles_table(db: Session = Depends(get_db)):
+    """Contenu de la table `cycles` (get direct, lecture seule) — fenêtre de contrôle admin."""
+    cy = db.query(Cycle).order_by(Cycle.ordre).all()
+    return {"total": len(cy), "cycles": [{"id": c.id, "nom": c.nom, "ordre": c.ordre} for c in cy]}
+
+
+@router.get("/admin/matieres", dependencies=[Depends(_require_admin)])
+def lister_matieres_table(db: Session = Depends(get_db)):
+    """Contenu de la table `matieres` (get direct, lecture seule) — fenêtre de contrôle admin."""
+    ma = db.query(Matiere).order_by(Matiere.ordre).all()
+    return {"total": len(ma), "matieres": [{"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif} for m in ma]}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
@@ -277,6 +350,7 @@ class ValiderBody(BaseModel):
     source: str | None = None
     date_doc: str | None = None
     forcage_motif: str | None = None     # motif si l'admin FORCE malgré une alerte (couple/famille) ; NULL sinon
+    verif_couple: dict | None = None     # verdict IA du couple {correspond, niveau_lu, raison} — figé à la validation
 
 
 @router.post("/admin/referentiels/valider", dependencies=[Depends(_require_admin)])
@@ -341,33 +415,61 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     if forcage_motif:
         logger.warning("valider : FORÇAGE de la validation (%s / %s) — motif : %s",
                        cycle.nom, niveau_nom, forcage_motif)
+    # Verdict IA du couple (le {correspond, niveau_lu, raison} calculé au dépôt et affiché à l'écran).
+    # C'est une donnée NEUVE (n'existe nulle part ailleurs) : on la FIGE ici en JSON. Réécrit sur les
+    # deux branches → une mise à jour de PDF ne laisse jamais traîner l'ancien verdict. None = non fourni.
+    verif_couple_json = json.dumps(body.verif_couple, ensure_ascii=False) if body.verif_couple else None
+    # PUT du couple (famille + niveau) dans `famille_couples` : cette table relationnelle est la
+    # SEULE source de vérité du lien famille↔niveau. Valider un référentiel FAIT exister le couple.
+    # Idempotent : on LIT d'abord (famille_couple_existe), on n'écrit que s'il manque — la contrainte
+    # UNIQUE(famille_id, niveau_id) garantit qu'on n'aura jamais de doublon.
+    if body.famille_id is not None and not famille_couple_existe(db, body.famille_id, niveau.id):
+        db.add(FamilleCouple(famille_id=body.famille_id, niveau_id=niveau.id))
+        db.flush()
+
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
         # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, verdict IA, chunks.
         existing.fichier = fichier_origine
-        if body.famille_id is not None:
-            existing.famille_id = body.famille_id
         existing.source = (body.source.strip() if body.source else None)
         existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
         existing.prompt_decoupe = None
         existing.prompt_decoupe_valide = False
         existing.doutes_ia = None
         existing.forcage_motif = forcage_motif
+        existing.verif_couple = verif_couple_json
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
+        # Candidates issues de l'ANCIEN PDF : effacées ici (elles seront refaites par le nouveau juste
+        # après). Ainsi, si la détection échoue, on reste sur une proposition VIDE, jamais périmée.
+        # Les matières VALIDÉES (paires matière×niveau) ne sont PAS touchées : c'est le travail de l'admin.
+        db.query(MatiereCandidate).filter(MatiereCandidate.niveau_id == niveau.id).delete()
         db.commit()
         ref = existing
     else:
         ref = Referentiel(
             niveau_id=niveau.id, matiere_id=None,
-            famille_id=body.famille_id,
             nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
             fichier=fichier_origine,
             source=(body.source.strip() if body.source else None),
             date_doc=(body.date_doc.strip() if body.date_doc else None),
             forcage_motif=forcage_motif,
+            verif_couple=verif_couple_json,
         )
         db.add(ref)
         db.commit()
+
+    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne crée jamais une matière
+    # validée (paire matière×niveau, travail de l'admin) : elle remplit seulement `matieres_candidates`
+    # — les propositions que l'admin cochera. Le nouveau PDF ÉCRASE les anciennes candidates (déjà
+    # effacées ci-dessus en mise à jour). Best-effort : une panne IA ne casse pas la validation du
+    # référentiel (les candidates ne sont qu'une aide au remplissage, jamais une donnée figée).
+    try:
+        from backend.rag.analyse_amont import detecter_matieres
+        texte_pdf = _texte_du_pdf(pdf_final)        # TOUT le PDF (toutes les pages), pas les 6 premières
+        if texte_pdf.strip():
+            _ecrire_candidates(db, niveau.id, detecter_matieres(texte_pdf, db=db))
+    except Exception:
+        logger.exception("valider : détection des matières échouée (%s / %s)", cycle.nom, niveau_nom)
 
     return {
         "ok": True,
@@ -398,7 +500,8 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
              .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
     if not niv:
         # Pas de niveau en base → pas de candidates (elles sont clés par niveau_id).
-        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": []}
+        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": [],
+                "prompt_decoupe_valide": False, "decoupe_valide": False}
     candidates = _lire_candidates(db, niv.id)
 
     # Référentiel du niveau entier (matiere_id NULL) — même clé qu'à la validation.
@@ -421,11 +524,15 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     return {
         "existe_referentiel": ref is not None,
         "referentiel": (
-            {"fichier": ref.fichier, "source": ref.source, "date_doc": ref.date_doc}
+            {"fichier": ref.fichier, "source": ref.source, "date_doc": ref.date_doc,
+             "forcage_motif": ref.forcage_motif, "verif_couple": ref.verif_couple}
             if ref else None
         ),
         "matieres": matieres,
         "candidates": candidates,
+        # Drapeaux de validation lus sur la MÊME ligne `ref` (get) — la table front les lit via etat.
+        "prompt_decoupe_valide": bool(ref.prompt_decoupe_valide) if ref else False,
+        "decoupe_valide": bool(ref.decoupe_valide) if ref else False,
     }
 
 
@@ -554,7 +661,8 @@ def lire_prompt_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db
     ref = _ref_du_couple(db, cycle_id, niveau)
     if ref is None:
         return {"existe": False}
-    return {"existe": True, "prompt": ref.prompt_decoupe or "", "valide": bool(ref.prompt_decoupe_valide)}
+    return {"existe": True, "prompt": ref.prompt_decoupe or "", "valide": bool(ref.prompt_decoupe_valide),
+            "decoupe_valide": bool(ref.decoupe_valide)}
 
 
 @router.post("/admin/referentiels/prompt-decoupe/generer", dependencies=[Depends(_require_admin)])
@@ -638,6 +746,29 @@ def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
         raise HTTPException(400, f"Découpe par l'IA impossible : {e}")
     unites = [{"titre": c["text"].split("\n")[0].strip(), "taille": len(c["text"])} for c in chunks]
     return {"ok": True, "total": len(unites), "unites": unites}
+
+
+@router.post("/admin/referentiels/decoupe/valider", dependencies=[Depends(_require_admin)])
+def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """Bouton FINAL : l'admin a contrôlé le résultat de la découpe et l'accepte → `decoupe_valide = true`.
+    C'est LA dernière étape : elle seule fait passer la puce du menu au vert. Garde métier : on ne valide
+    pas la découpe tant que le PROMPT n'est pas validé (la découpe en dépend)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    if not ref.prompt_decoupe_valide:
+        raise HTTPException(400, "Validez d'abord le prompt de découpe.")
+    # LE VRAI PUT : découper + vectoriser + écrire les chunks en base (referentiel_chunks), pour que
+    # l'IA des profs les trouve. On ingère AVANT de poser le drapeau : si l'ingestion échoue, le
+    # référentiel ne passe PAS « complet » (la puce ne ment jamais).
+    from backend.rag.pgvector_store import ingest_pgvector
+    try:
+        rapport = ingest_pgvector(ref.collection)
+    except Exception as e:
+        raise HTTPException(400, f"Ingestion de la découpe impossible : {e}")
+    ref.decoupe_valide = True
+    db.commit()
+    return {"ok": True, "decoupe_valide": True, "chunks": rapport.get("total_chunks_PDF")}
 
 
 # ── Méta-prompt (générique) : EN BASE (Setting 'prompt_meta_decoupe'), lu par le code, éditable ──
@@ -941,3 +1072,49 @@ def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
     paire.actif = False
     db.commit()
     return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs, "referentiels": refs}
+
+
+# ── CRUD référentiel : écrire UN champ (put au coup par coup) + supprimer (gardé) ──
+
+class ModifierChampBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    champ: str                 # colonne libre autorisée : 'source' | 'date_doc'
+    valeur: str | None = None
+
+
+@router.patch("/admin/referentiels/champ", dependencies=[Depends(_require_admin)])
+def modifier_champ(body: ModifierChampBody, db: Session = Depends(get_db)):
+    """Écrit UN champ scalaire du référentiel du couple (put direct, zéro copie). Réservé aux
+    colonnes de saisie libre (source, date_doc). Valeur vide → NULL. 404 si aucun référentiel."""
+    CHAMPS = {"source", "date_doc"}
+    if body.champ not in CHAMPS:
+        raise HTTPException(400, f"Champ non modifiable : {body.champ}.")
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    setattr(ref, body.champ, (body.valeur or "").strip() or None)
+    db.commit()
+    return {"ok": True, "champ": body.champ, "valeur": getattr(ref, body.champ)}
+
+
+class SupprimerRefBody(BaseModel):
+    cycle_id: int
+    niveau: str
+
+
+@router.post("/admin/referentiels/supprimer", dependencies=[Depends(_require_admin)])
+def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db)):
+    """Supprime le référentiel d'un couple — UNIQUEMENT s'il n'a JAMAIS servi (aucun chunk ingéré) ;
+    sinon refus (409). Efface la ligne `referentiels` + le PDF sur disque. Ne touche NI `famille_couples`
+    (le couple garde le droit d'exister) NI les matières (données du couple, pas du document)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
+    if n > 0:
+        raise HTTPException(409, f"Référentiel utilisé (déjà ingéré : {n} unité(s)) — suppression impossible.")
+    _pdf_du_couple(db, body.cycle_id, body.niveau).unlink(missing_ok=True)
+    db.delete(ref)
+    db.commit()
+    return {"ok": True}

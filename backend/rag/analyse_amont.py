@@ -350,3 +350,49 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
         "niveau_lu": (data.get("niveau_lu") or "").strip(),
         "raison": (data.get("raison") or "").strip(),
     }
+
+
+# Clé EN BASE du prompt de détection des matières — proposées au dépôt du PDF (proposition, pas
+# une matière validée : l'admin coche ce qu'il garde).
+_CLE_MATIERES = "detecter_matieres"
+
+
+def _schema_matieres() -> dict:
+    """Sortie structurée de la détection : `matieres` = tableau de noms. `additionalProperties:
+    false` interdit tout champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
+    return {
+        "type": "object",
+        "properties": {
+            "matieres": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["matieres"],
+        "additionalProperties": False,
+    }
+
+
+def detecter_matieres(texte: str, *, db: Session) -> list[str]:
+    """L'IA LIT le texte d'un référentiel et PROPOSE la liste des matières (disciplines / domaines)
+    qu'il structure. Proposition seulement : l'admin coche ce qu'il ajoute (jamais une matière écrite
+    d'office). Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie
+    les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
+    lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
+    IA (l'appelant traduit / absorbe)."""
+    prompt = get_prompt(db, _CLE_MATIERES).replace("{texte}", texte)
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_MATIERES),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_matieres(),
+    )
+    data = parser_reponse(raw)
+    noms: list[str] = []
+    vus: set[str] = set()
+    for m in data.get("matieres", []):
+        nom = (m if isinstance(m, str) else str(m)).strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower())
+            noms.append(nom)
+    return noms

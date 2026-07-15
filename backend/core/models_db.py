@@ -410,8 +410,6 @@ class Referentiel(Base):
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
     matiere_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)
-    # Famille de structure du PDF (une des 5) : NULL tant que non renseignée.
-    famille_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("familles.id"), nullable=True)
     nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     collection: Mapped[str] = mapped_column(Text, nullable=False)
     filtres: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -440,10 +438,20 @@ class Referentiel(Base):
     # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
     prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # « Découpe validée » : l'admin a CONTRÔLÉ le résultat de la découpe et l'a accepté = le référentiel
+    # est ARRIVÉ AU BOUT de la procédure. C'est ce booléen (et lui seul) qui fait passer la puce du menu
+    # au VERT. Écrit par le bouton final « Valider le découpage ». Donnée NEUVE (n'existe nulle part
+    # ailleurs) → EN BASE, sur la ligne du document. false = pas encore validée (puce rouge).
+    decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
     # Motif de FORÇAGE d'une validation malgré une alerte des vérifications au dépôt (couple lu par
     # l'IA ≠ couple déclaré, ou famille absente de famille_couples). NULL = validation normale (aucun
     # forçage). Renseigné = l'admin a passé outre, motif tracé EN BASE (+ log). DONNÉE MÉTIER EN BASE.
     forcage_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Verdict de l'IA sur le couple, rendu AU DÉPÔT (verifier_couple) et FIGÉ à la validation : JSON
+    # {correspond: bool, niveau_lu: str, raison: str}. Sans lui, l'analyse de l'IA (« le document est
+    # intitulé Cycle 4 · 5e… ») serait perdue. Donnée NEUVE (n'existe nulle part ailleurs) → EN BASE,
+    # sur la ligne du document, comme forcage_motif. NULL = non renseigné (ancien dépôt / non transmis).
+    verif_couple: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
