@@ -181,6 +181,43 @@ def construire_html(data: dict) -> str:
         er.append(f'  {fk["dst_table"]} {left}--o{{ {fk["src_table"]} : "{fk["src_col"]}"')
     complet = "\n".join(er)
 
+    # ---- Vue detaillee : description claire de chaque table (tableaux HTML) ----
+    #      Lisible et cherchable (Ctrl+F), la ou le diagramme ER reste dense.
+    fk_target = {}
+    for fk in fks:
+        fk_target[(fk["src_table"], fk["src_col"])] = fk["dst_table"]
+    detail_cards = []
+    for t in sorted(tables):
+        cols = tables[t]["columns"]
+        rows = tables[t].get("rows")
+        rows_txt = espace_milliers(rows) if rows is not None else "?"
+        lignes_html = []
+        for col in cols:
+            typ = short_type(col["type"])
+            if col["maxlen"]:
+                typ += f"({col['maxlen']})"
+            requis = "non" if col["nullable"] else "oui"
+            req_cls = "req-no" if col["nullable"] else "req-yes"
+            cles = []
+            if col["pk"]:
+                cles.append('<span class="key pk">PK</span>')
+            if col["name"] in fk_cols_by_table.get(t, set()):
+                dst = fk_target.get((t, col["name"]))
+                cles.append(f'<span class="key fk">FK &rarr; {dst}</span>' if dst
+                            else '<span class="key fk">FK</span>')
+            lignes_html.append(
+                f'<tr><td class="cn">{col["name"]}</td><td class="ct">{typ}</td>'
+                f'<td class="{req_cls}">{requis}</td><td class="ck">{"".join(cles)}</td></tr>')
+        stroke = DOMAINS[table_domain[t]][1]
+        detail_cards.append(
+            f'<section class="tbl-card" style="--c:{stroke}" id="t-{t}">'
+            f'<header><h3>{t}</h3><span class="tbl-meta">{len(cols)} colonnes &middot; '
+            f'{rows_txt} lignes</span></header>'
+            f'<table class="tbl-cols"><thead><tr><th>Colonne</th><th>Type</th>'
+            f'<th>Requis</th><th>Cl&eacute;</th></tr></thead>'
+            f'<tbody>{"".join(lignes_html)}</tbody></table></section>')
+    tables_detail = "\n".join(detail_cards)
+
     # ---- Legende + index des volumes par domaine ----
     legend_cards, domain_index = [], []
     for key, (label, stroke, fill, txt, tlist) in DOMAINS.items():
@@ -218,6 +255,7 @@ def construire_html(data: dict) -> str:
         "__LEGEND__": "\n".join(legend_cards),
         "__EPURE__": epure,
         "__COMPLET__": complet,
+        "__TABLES__": tables_detail,
         "__INDEX__": "\n".join(domain_index),
         "__NOTE_UNKNOWN__": note_unknown,
         "__MERMAID_ENGINE__": engine,
@@ -298,6 +336,26 @@ _TEMPLATE = r"""<title>Carte de la base - aSchool</title>
   .tname{color:var(--ink)}
   .trows{color:var(--muted);font-variant-numeric:tabular-nums}
 
+  .grid-tbl{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;margin-top:16px}
+  .tbl-card{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--c);
+    border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .tbl-card header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--line)}
+  .tbl-card h3{margin:0;font-size:15px;font-family:var(--mono)}
+  .tbl-meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.tbl-cols{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.tbl-cols th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:600;padding:8px 16px;background:var(--bg)}
+  table.tbl-cols td{padding:6px 16px;border-top:1px solid var(--line);vertical-align:top}
+  table.tbl-cols .cn{font-family:var(--mono);color:var(--ink)}
+  table.tbl-cols .ct{font-family:var(--mono);color:var(--muted)}
+  .req-yes{color:#16a34a;font-weight:600}
+  .req-no{color:var(--muted)}
+  .key{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;
+    border-radius:5px;padding:1px 6px;margin-right:4px;white-space:nowrap}
+  .key.pk{background:#dcfce7;color:#14532d}
+  .key.fk{background:#dbeafe;color:#1e3a8a}
+
   .foot{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
   .foot.warn{color:#b45309;border-top:0;margin-top:12px;padding-top:0}
   h2.sec{font-size:20px;letter-spacing:-.01em;margin:36px 0 4px}
@@ -327,6 +385,7 @@ _TEMPLATE = r"""<title>Carte de la base - aSchool</title>
   <nav class="toolbar">
     <a href="#carte">Vue epuree <span class="k">tables + liens</span></a>
     <a href="#detail">Vue complete <span class="k">colonnes</span></a>
+    <a href="#tables">Detail par table <span class="k">colonnes en clair</span></a>
     <a href="#volumes">Volumes <span class="k">par domaine</span></a>
   </nav>
 
@@ -339,6 +398,12 @@ _TEMPLATE = r"""<title>Carte de la base - aSchool</title>
     <div class="ph"><h2>Vue complete - le detail (MLD)</h2><small>toutes les colonnes - PK = cle primaire - FK = cle etrangere</small></div>
     <div class="diagram"><pre class="mermaid">__COMPLET__</pre></div>
   </section>
+
+  <h2 class="sec" id="tables">Detail par table</h2>
+  <p class="sec-sub">Chaque table et ses colonnes, en clair : le type, si le champ est requis, et les cles (PK = cle primaire, FK = cle etrangere avec sa table cible).</p>
+  <div class="grid-tbl">
+    __TABLES__
+  </div>
 
   <h2 class="sec" id="volumes">Volumes par domaine</h2>
   <p class="sec-sub">Le nombre de lignes de chaque table - pour suivre le remplissage dans le temps.</p>
