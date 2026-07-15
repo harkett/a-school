@@ -35,3 +35,9 @@ MesMD/*.html
 MesAdmin/
 # Carte de la base : sortie regeneree a la demande (on la reconstruit, jamais versionnee)
 outils_bdd/carte_base/carte_base.html
+# Referentiels : PDF/extractions generes et remanies pendant les tests (artefacts, hors depot)
+REFERENTIELS/
+# Apercu HTML genere depuis un .md (« enregistrer sous » — artefact, hors depot)
+Scripts/bilan.html
+# Config editeur perso VS Code (workspace local, hors depot)
+A-SCHOOL.code-workspace
