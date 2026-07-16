@@ -33,9 +33,8 @@ from backend.core.limiter import limiter
 from backend.core.middleware import UserSessionMiddleware
 from backend.routers import auth
 from backend.systeme import admin
-from backend.activite import generate
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
-from backend.contenu import activites, mes_activites, fiches
+from backend.contenu import mes_activites
 from backend.prof import profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
@@ -99,9 +98,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
 
-app.include_router(generate.router, prefix="/api")
 app.include_router(exemple_referentiel.router, prefix="/api")
-app.include_router(activites.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(mes_activites.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
@@ -111,7 +108,6 @@ app.include_router(ocr.router, prefix="/api")
 app.include_router(bibliotheque.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
-app.include_router(fiches.router, prefix="/api")
 app.include_router(optimiseur.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(sequence.router, prefix="/api")

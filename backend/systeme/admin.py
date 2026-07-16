@@ -464,57 +464,6 @@ def delete_feedback(
     return {"status": "ok"}
 
 
-@router.get("/admin/activites")
-def get_activites_admin(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from backend.llm.activities import ACTIVITES_PAR_MATIERE, ACTIVITES_PAR_ACTIVITE
-
-    matieres = list(ACTIVITES_PAR_MATIERE.keys())
-    total_entrees = sum(len(a) for a in ACTIVITES_PAR_MATIERE.values())
-
-    par_matiere = {
-        matiere: [
-            {
-                "nom": nom,
-                "key": data["key"],
-                "sous_types": data["sous_types"],
-                "nb_sous_types": len(data["sous_types"]),
-            }
-            for nom, data in activites.items()
-        ]
-        for matiere, activites in ACTIVITES_PAR_MATIERE.items()
-    }
-
-    matrice = [
-        {
-            "activite": activite,
-            "matieres": list(matieres_data.keys()),
-        }
-        for activite, matieres_data in ACTIVITES_PAR_ACTIVITE.items()
-    ]
-
-    total_generees = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-    generees_par_matiere = dict(
-        db.query(User.subject, func.count(ActiviteSauvegardee.id))
-        .join(ActiviteSauvegardee, User.id == ActiviteSauvegardee.user_id)
-        .filter(User.subject.isnot(None))
-        .group_by(User.subject)
-        .all()
-    )
-
-    return {
-        "stats": {
-            "nb_matieres": len(matieres),
-            "nb_activites_uniques": len(ACTIVITES_PAR_ACTIVITE),
-            "nb_entrees": total_entrees,
-            "total_generees": total_generees,
-        },
-        "matieres": matieres,
-        "par_matiere": par_matiere,
-        "matrice": matrice,
-        "generees_par_matiere": generees_par_matiere,
-    }
-
-
 class UpdateUserBody(BaseModel):
     prenom: str = ""
     nom: str = ""

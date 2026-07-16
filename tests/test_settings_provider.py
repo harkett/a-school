@@ -114,27 +114,3 @@ def test_generate_provider_inconnu_leve():
         gen.generate("bonjour", provider="fournisseur-bidon")
 
 
-# ============ Chaine complete via /api/generate (cablage routeur prouve) ============
-
-def test_endpoint_generate_utilise_le_provider_en_base():
-    # Le fournisseur ecrit en base ("groq") commande l'adaptateur appele par le routeur.
-    db = _fresh_db()
-    db.add(Setting(key="ai_provider", value="groq"))
-    db.commit()
-    db.close()
-
-    cap = {}
-    c = TestClient(app)
-    c.cookies.set("aschool_access", TOKEN)
-    # build_prompt mocke : ce test porte sur le provider, pas sur l'assemblage du prompt.
-    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
-         patch.object(gen, "AI_PROVIDER", "anthropic"), \
-         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
-         patch("requests.post", side_effect=_fake_groq_post(cap)):
-        r = c.post("/api/generate", json={
-            "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
-        })
-    # AI_PROVIDER force a "anthropic" : si le routeur ignorait la base, l'adaptateur Anthropic
-    # serait appele (pas d'URL Groq capturee). L'URL Groq prouve que la base ("groq") a gagne.
-    assert r.status_code == 200, r.text
-    assert "api.groq.com" in cap["url"]

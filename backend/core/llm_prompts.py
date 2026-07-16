@@ -2,8 +2,9 @@
 
 Source de vérité des DÉFAUTS + métadonnées (libellé, repères obligatoires). Le texte mis en
 base (Setting `prompt_<clé>`) surcharge le défaut quand il est présent ; sinon on retombe ici.
-Les ACTIVITÉS (catalogue, 140 entrées) ne sont PAS ici : elles passent par
-`src/prompts.build_prompt` (catalogue produit, pas un réglage).
+Ce fichier ne concerne QUE les prompts d'outils : l'ancien catalogue d'activités en dur
+(dicts + prompts par type) a été SUPPRIMÉ, les types d'activité vivent désormais en base
+(table `activite_types`, un jeu propre à chaque couple).
 
 Garde-fou (validé à l'écriture, côté admin) : chaque repère obligatoire `{x}` doit rester
 présent, et le texte doit `.format()` sans casser (repère inconnu / accolades mal équilibrées).

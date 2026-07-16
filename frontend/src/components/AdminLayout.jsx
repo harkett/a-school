@@ -36,8 +36,6 @@ const NAV_ITEMS = [
     ),
     items: [
       { to: '/admin/programmes',   label: 'Programmes',     aide: 'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.' },
-      { to: '/admin/activites',    label: 'Activités',      aide: 'Catalogue des activités pédagogiques disponibles, par matière et par sous-type.' },
-      { to: '/admin/fiches',       label: 'Fiches matières', aide: 'Documents de présentation aSchool par matière — consulter, modifier et générer automatiquement via Groq.' },
     ],
   },
   // — Contenu (les données brutes de référence) —

@@ -17,8 +17,6 @@ import os
 import sys
 from unittest.mock import patch
 
-import requests
-
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 sys.path.insert(0, ROOT)
@@ -51,15 +49,6 @@ CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée"
 
 
 # ===================== HAPPY PATH (200 + sortie cohérente) =====================
-
-def test_generate_happy():
-    with patch("backend.activite.generate.generate", return_value="1. Question ? 2. Autre ?"):
-        r = authed().post("/api/generate", json={
-            "texte": "La photosynthèse.", "activite_key": "comprehension",
-            "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
-    assert r.status_code == 200, r.text
-    assert r.json()["resultat"].startswith("1. Question")
-
 
 def test_generate_sequence_happy():
     with patch("backend.sequence.sequence.generate", return_value=SEQ_MD):
@@ -102,7 +91,6 @@ def test_consigne_happy():
 def test_401_sans_cookie():
     c = noauth()
     cases = [
-        ("/api/generate", {"texte": "x", "activite_key": "comprehension", "niveau": "3e"}),
         ("/api/generate-sequence", {"theme": "x", "matiere": "SVT", "niveau": "3e", "duree": 55}),
         ("/api/optimize-sequence", {"sequence": "x", "matiere": "SVT", "niveau": "3e"}),
         ("/api/detect-ambiguites", {"texte": "x", "matiere": "SVT", "niveau": "3e"}),
@@ -135,12 +123,6 @@ def test_400_entrees_vides_ou_invalides():
     assert c.post("/api/analyser-consigne", json={"consigne": "   ", "matiere": "SVT", "niveau": "3e"}).status_code == 400
 
 
-def test_422_champ_requis_manquant():
-    # Pydantic rejette un payload incomplet (activite_key manquant) avant tout traitement.
-    r = authed().post("/api/generate", json={"texte": "x", "niveau": "3e"})
-    assert r.status_code == 422, r.text
-
-
 # ===================== RÉSILIENCE — panne LLM amont =====================
 # Les 4 outils (ambiguites/consigne/optimiseur/sequence) passent par generate().
 # Une panne LLM (generate lève RuntimeError) -> 500 côté outil (Tâche 2 : unification
@@ -152,59 +134,6 @@ def test_endpoint_outil_llm_down_500():
         r = authed().post("/api/optimize-sequence", json={
             "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
     assert r.status_code == 500, r.text
-
-
-# ===================== P3.4 — /api/generate : durcissement des erreurs =====================
-# /api/generate passe par generate() (backend.llm.generator). Son except distingue :
-# clé inconnue -> 400, LLM down -> 502 (RuntimeError / RequestException).
-
-def test_generate_activite_inconnue_400():
-    """Clé d'activité absente du catalogue -> 400 (faute client), pas 500.
-    Échoue dans build_prompt avant tout appel Groq : aucun mock nécessaire."""
-    r = authed().post("/api/generate", json={
-        "texte": "La photosynthèse.", "activite_key": "nexiste_pas",
-        "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
-    assert r.status_code == 400, r.text
-
-
-def test_generate_groq_down_502():
-    """Groq répond non-ok (generate lève RuntimeError) -> 502 (panne amont), pas 500."""
-    with patch("backend.activite.generate.generate", side_effect=RuntimeError("Erreur 503: service unavailable")):
-        r = authed().post("/api/generate", json={
-            "texte": "La photosynthèse.", "activite_key": "comprehension",
-            "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
-    assert r.status_code == 502, r.text
-
-
-def test_generate_reseau_down_502():
-    """Réseau Groq injoignable (requests.ConnectionError) -> 502, pas 500."""
-    with patch("backend.activite.generate.generate",
-               side_effect=requests.exceptions.ConnectionError("connexion refusée")):
-        r = authed().post("/api/generate", json={
-            "texte": "La photosynthèse.", "activite_key": "comprehension",
-            "niveau": "3e", "sous_type": "simples", "nb": 3, "avec_correction": False})
-    assert r.status_code == 502, r.text
-
-
-# ===================== P3.6 — /api/generate : param requis manquant -> 400 =====================
-# "comprehension" exige {nb} ET {sous_type} dans son template. Le frontend supprime ces champs
-# s'ils sont vides ; sans garde, .format() lève KeyError -> 500. P3.6 : faute client -> 400.
-# Échoue dans build_prompt avant tout appel Groq : aucun mock nécessaire.
-
-def test_generate_nb_manquant_400():
-    """Activité exigeant {nb} appelée sans nb -> 400 (faute client), pas 500."""
-    r = authed().post("/api/generate", json={
-        "texte": "La photosynthèse.", "activite_key": "comprehension",
-        "niveau": "3e", "sous_type": "simples", "avec_correction": False})
-    assert r.status_code == 400, r.text
-
-
-def test_generate_sous_type_manquant_400():
-    """Activité exigeant {sous_type} appelée sans sous_type -> 400 (faute client), pas 500."""
-    r = authed().post("/api/generate", json={
-        "texte": "La photosynthèse.", "activite_key": "comprehension",
-        "niveau": "3e", "nb": 3, "avec_correction": False})
-    assert r.status_code == 400, r.text
 
 
 # ===================== Programmes — lecture référentiel (profil) =====================

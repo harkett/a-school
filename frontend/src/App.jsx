@@ -31,7 +31,6 @@ import ResetPassword from './pages/ResetPassword'
 import MentionsLegales from './pages/MentionsLegales'
 import AdminLogin from './pages/AdminLogin'
 import AdminLogs from './pages/AdminLogs'
-import AdminActivites from './pages/AdminActivites'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
@@ -59,7 +58,6 @@ import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
 import AdminAnalytiqueCommunaute from './pages/AdminAnalytiqueCommunaute'
 import MesFeedbacks from './pages/MesFeedbacks'
 import MesStats from './components/MesStats'
-import AdminFiches from './pages/AdminFiches'
 import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
@@ -1067,7 +1065,6 @@ export default function App() {
             <Route path="serveur"    element={<AdminServeur />} />
             <Route path="sessions"   element={<AdminSessions />} />
             <Route path="logs"       element={<AdminLogs />} />
-            <Route path="activites"  element={<AdminActivites />} />
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
             <Route path="referentiels" element={<AdminReferentiels />} />
@@ -1098,7 +1095,6 @@ export default function App() {
               <Route path="outils"     element={<AdminAnalytiqueOutils />} />
               <Route path="communaute" element={<AdminAnalytiqueCommunaute />} />
             </Route>
-            <Route path="fiches"       element={<AdminFiches />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

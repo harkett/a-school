@@ -72,19 +72,6 @@ def test_ambiguites_429_amont():
     assert "instant" in r.json()["detail"].lower()
 
 
-def test_generate_429_amont():
-    _reset_sem()
-    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
-         patch.object(gen, "AI_PROVIDER", "groq"), \
-         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
-         patch("requests.post", side_effect=_post_429):
-        r = _client_prof().post("/api/generate", json={
-            "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
-        })
-    assert r.status_code == 429, r.text                 # avant : 502
-    assert "instant" in r.json()["detail"].lower()
-
-
 # ===================== 2. Saturation locale -> 429 =====================
 
 def test_ambiguites_429_saturation():

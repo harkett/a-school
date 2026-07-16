@@ -8,8 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from backend.core.database import get_db
 from backend.core.models_db import ActiviteSauvegardee, FewShotMilestone, User
 from backend import auth as auth_lib
-from backend.activite.generate import _FEW_SHOT_MIN  # source unique du seuil few-shot
 
+_FEW_SHOT_MIN = 3  # nombre minimum de sauvegardes (par couple prof×type) pour poser le jalon few-shot
 
 
 router = APIRouter()

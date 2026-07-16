@@ -497,9 +497,10 @@ class ActiviteType(Base):
     """Type d'activité PROPRE à un couple — plus AUCUN type générique ni en dur.
 
     Chaque couple porte SES types d'activité dans cette table (get pour afficher, put pour
-    éditer). DONNÉE MÉTIER → EN BASE : les dicts en dur (ACTIVITES_* dans llm/activities.py,
-    PROMPTS_* dans llm/prompts.py) sont voués à disparaître au profit de ces lignes. Le PROMPT
-    du type vit ici (colonne `prompt`), à un seul endroit. Ancré au RÉFÉRENTIEL du couple
+    éditer). DONNÉE MÉTIER → EN BASE : l'ancien système en dur (dicts ACTIVITES_* dans
+    llm/activities.py, PROMPTS_* dans llm/prompts.py, endpoints /activites et /generate) A ÉTÉ
+    SUPPRIMÉ — ces lignes le remplacent intégralement. Le PROMPT du type vit ici (colonne
+    `prompt`), à un seul endroit. Ancré au RÉFÉRENTIEL du couple
     (referentiel_id, CASCADE — même patron que referentiel_chunks) : le couple = son référentiel,
     supprimer le référentiel supprime ses types. `key` = identifiant stable du type (ex. l'id API
     du prompt) ; unique DANS le couple. `sous_types` / `params` = tableaux JSON (les choix offerts

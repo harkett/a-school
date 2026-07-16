@@ -105,26 +105,3 @@ def test_generate_repli_sur_AI_MODEL_si_model_none():
          patch("requests.post", side_effect=_fake_groq_post(cap)):
         gen.generate("bonjour")
     assert cap["body"]["model"] == AI_MODEL
-
-
-# ============ Chaine complete via /api/generate (cablage routeur prouve) ============
-
-def test_endpoint_generate_utilise_le_modele_en_base():
-    db = _fresh_db()
-    db.add(Setting(key="ai_model", value="modele-endpoint-xyz"))
-    db.commit()
-    db.close()
-
-    cap = {}
-    c = TestClient(app)
-    c.cookies.set("aschool_access", TOKEN)
-    # build_prompt mocke : ce test porte sur le modele, pas sur l'assemblage du prompt.
-    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
-         patch.object(gen, "AI_PROVIDER", "groq"), \
-         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
-         patch("requests.post", side_effect=_fake_groq_post(cap)):
-        r = c.post("/api/generate", json={
-            "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
-        })
-    assert r.status_code == 200, r.text
-    assert cap["body"]["model"] == "modele-endpoint-xyz"

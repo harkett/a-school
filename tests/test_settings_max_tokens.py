@@ -142,28 +142,6 @@ def test_surcharge_corrompue_repli_sur_defaut():
     db.close()
 
 
-# ============ Chaine complete via /api/generate (cablage routeur prouve) ============
-
-def test_endpoint_generate_utilise_le_defaut_en_base():
-    _reset_settings()
-    db = dbmod.SessionLocal()
-    db.add(Setting(key="max_tokens_default", value="1234"))
-    db.commit()
-    db.close()
-
-    cap = {}
-    c = TestClient(app)
-    c.cookies.set("aschool_access", TOKEN)
-    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
-         patch.object(gen, "AI_PROVIDER", "groq"), \
-         patch("requests.post", side_effect=_fake_groq_post(cap)):
-        r = c.post("/api/generate", json={
-            "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
-        })
-    assert r.status_code == 200, r.text
-    assert cap["body"]["max_tokens"] == 1234  # la valeur en base ressort dans l'appel LLM
-
-
 # ============ GET / PUT /admin/max-tokens ============
 
 def test_get_max_tokens_defauts_et_bornes():

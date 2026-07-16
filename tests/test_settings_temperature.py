@@ -123,40 +123,6 @@ def test_a_chaud_sans_redemarrage():
     db.close()
 
 
-# ============ Chaine complete via /api/generate (cablage routeur prouve) ============
-
-def _call_generate(cap):
-    c = TestClient(app)
-    c.cookies.set("aschool_access", TOKEN)
-    with patch("backend.activite.generate.build_prompt", return_value="PROMPT"), \
-         patch.object(gen, "AI_PROVIDER", "groq"), \
-         patch.object(gen, "GROQ_API_KEY", "cle-test"), \
-         patch("requests.post", side_effect=_fake_groq_post(cap)):
-        return c.post("/api/generate", json={
-            "activite_key": "comprehension", "texte": "Un texte.", "niveau": "4e",
-        })
-
-
-def test_generate_envoie_la_temperature_en_base():
-    _reset_settings()
-    db = dbmod.SessionLocal()
-    db.add(Setting(key="ai_temperature", value="0.4"))
-    db.commit()
-    db.close()
-    cap = {}
-    r = _call_generate(cap)
-    assert r.status_code == 200, r.text
-    assert cap["body"]["temperature"] == 0.4  # la valeur en base ressort dans l'appel LLM
-
-
-def test_generate_non_reglee_n_envoie_pas_de_temperature():
-    _reset_settings()  # aucune ligne -> None -> rien envoye -> defaut fournisseur (zero regression)
-    cap = {}
-    r = _call_generate(cap)
-    assert r.status_code == 200, r.text
-    assert "temperature" not in cap["body"]
-
-
 # ============ GET / PUT /admin/temperature ============
 
 def test_get_defaut_none_et_bornes():
