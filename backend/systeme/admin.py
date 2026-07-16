@@ -374,6 +374,28 @@ def admin_base(_: None = Depends(_require_admin)):
     return {"base": nom, "host": engine.url.host, "port": engine.url.port, "type": type_}
 
 
+@router.post("/admin/base/carte")
+def admin_base_carte(_: None = Depends(_require_admin)):
+    """Lance le script LOCAL `outils_bdd/carte_base/carte.py` : il régénère la carte visuelle
+    de la base (structure réelle lue dans information_schema) et l'ouvre dans Edge. Outil de
+    DÉVELOPPEMENT local : lecture seule de la base, aucune écriture. Fire-and-forget — on ne
+    bloque pas la requête pendant que le script tourne et qu'Edge s'ouvre."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]          # backend/systeme -> racine du dépôt
+    script = root / "outils_bdd" / "carte_base" / "carte.py"
+    if not script.exists():
+        raise HTTPException(500, "Script de la carte introuvable.")
+    python = root / ".venv" / "Scripts" / "python.exe"   # même Python que le lanceur carte.ps1
+    exe = str(python) if python.exists() else sys.executable
+    try:
+        subprocess.Popen([exe, str(script)], cwd=str(root))
+    except Exception as e:
+        raise HTTPException(500, f"Lancement de la carte impossible : {e}")
+    return {"ok": True}
+
+
 @router.get("/admin/feedbacks")
 def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     rows = (

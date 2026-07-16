@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, Float, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func
+from sqlalchemy import String, Boolean, Integer, Float, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
@@ -494,28 +494,54 @@ class FamilleCouple(Base):
 
 
 class ActiviteType(Base):
-    """Type d'activité PROPRE à un couple — plus AUCUN type générique ni en dur.
+    """Catalogue GLOBAL des types d'activité — défini UNE seule fois, partagé (crèche → doctorat).
 
-    Chaque couple porte SES types d'activité dans cette table (get pour afficher, put pour
-    éditer). DONNÉE MÉTIER → EN BASE : l'ancien système en dur (dicts ACTIVITES_* dans
-    llm/activities.py, PROMPTS_* dans llm/prompts.py, endpoints /activites et /generate) A ÉTÉ
-    SUPPRIMÉ — ces lignes le remplacent intégralement. Le PROMPT du type vit ici (colonne
-    `prompt`), à un seul endroit. Ancré au RÉFÉRENTIEL du couple
-    (referentiel_id, CASCADE — même patron que referentiel_chunks) : le couple = son référentiel,
-    supprimer le référentiel supprime ses types. `key` = identifiant stable du type (ex. l'id API
-    du prompt) ; unique DANS le couple. `sous_types` / `params` = tableaux JSON (les choix offerts
-    au prof et les paramètres qu'il saisit, ex. nb)."""
-    __tablename__ = "activite_types"
-    __table_args__ = (UniqueConstraint("referentiel_id", "key", name="uq_activite_types_ref_key"),)
+    Un type d'activité N'APPARTIENT PAS à un référentiel : il vit dans ce catalogue. Le référentiel
+    (PDF d'un couple) ne fait que COCHER/DÉCOCHER quels types s'appliquent, via la table de liaison
+    `referentiel_types_activite` (relation N–N). Le PROMPT du type vit ICI (colonne `prompt`), à un
+    seul endroit — zéro duplication. `key` = identifiant stable et UNIQUE dans le catalogue.
+    `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
+    aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
+    `sous_types` / `params` = tableaux JSON (choix offerts au prof et paramètres saisis, ex. nb)."""
+    __tablename__ = "types_activite"
+    __table_args__ = (
+        Index("ux_default", "is_default", unique=True, postgresql_where=text("is_default")),
+    )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    referentiel_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
-    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     sous_types: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array
     params: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")       # JSON array
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Origine du type dans le catalogue : 'systeme' (fourni par aSchool, pré-rempli) | 'admin' (ajouté
+    # à la main via « Ajouter ») | 'ia' (issu d'une suggestion IA). Sert de source du LIEN quand l'admin
+    # COCHE le type — le badge affiché = l'origine, jamais « qui a coché ».
+    origine: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class ReferentielActiviteType(Base):
+    """Liaison référentiel ↔ type d'activité (N–N) : LE « coché / décoché ».
+
+    Le référentiel (PDF d'un couple) active/désactive des types du catalogue `types_activite` :
+    une ligne = « ce type est proposé pour ce couple ». `actif` = coché ou non (l'admin décoche sans
+    supprimer). `source` = origine de la coche : 'ia' (détectée dans le PDF) ou 'admin' (ajout manuel).
+    CASCADE des DEUX côtés : supprimer le référentiel OU le type retire les liaisons. Unicité
+    (referentiel_id, activite_type_id) : un type ne peut être coché qu'une fois par référentiel."""
+    __tablename__ = "referentiel_types_activite"
+    __table_args__ = (
+        UniqueConstraint("referentiel_id", "activite_type_id", name="uq_ref_activite_type"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
+    activite_type_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)   # origine du LIEN : 'ia' | 'admin' | 'systeme'
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)

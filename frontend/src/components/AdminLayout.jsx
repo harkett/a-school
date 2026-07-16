@@ -55,6 +55,7 @@ const NAV_ITEMS = [
       { to: '/admin/fc-autorisees', label: 'Famille-Couples', aide: 'Contenu de la table famille_couples : les couples (famille + niveau, cycle dérivé du niveau), lu directement en base. Fenêtre de contrôle en lecture seule.' },
       { to: '/admin/cycles',   label: 'Cycles',   aide: 'Contenu de la table cycles (id, nom, ordre), lu directement en base. Fenêtre de contrôle en lecture seule.' },
       { to: '/admin/matieres', label: 'Matières', aide: 'Contenu de la table matieres (id, nom, ordre, actif), lu directement en base. Fenêtre de contrôle en lecture seule.' },
+      { to: '/admin/types-activite', label: 'Type d\'activité', aide: 'Contenu de la table types_activite, lu directement en base. Fenêtre de contrôle en lecture seule.' },
     ],
   },
   // — Profs & communication —
@@ -116,6 +117,19 @@ const NAV_ITEMS = [
       { to: '/admin/analytique/communaute', label: 'Communauté',    aide: 'Activités partagées — contributeurs et top types.' },
     ],
   },
+  // — Base de données — entrée de premier niveau (au même niveau que « Système »), au-dessus.
+  {
+    to:    '/admin/base',
+    label: 'Base de données',
+    aide:  'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+        <path d="M3 12a9 3 0 0 0 18 0"/>
+      </svg>
+    ),
+  },
   // — Système —
   {
     group:  true,
@@ -132,8 +146,20 @@ const NAV_ITEMS = [
       { to: '/admin/parametres/email',      label: 'Email',          aide: 'Email de bienvenue envoyé automatiquement à chaque nouvel inscrit.' },
       { to: '/admin/parametres/general',    label: 'Paramètres',     aide: 'Table des paramètres du projet (clé / valeur / description), en consultation.' },
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
-      { to: '/admin/base',                  label: 'Base de données', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
     ],
+  },
+  // — Labo (écrans brouillons, temporaires) — derrière Système.
+  {
+    to:    '/admin/labo',
+    label: 'Labo',
+    aide:  'Écrans brouillons : on met une fonctionnalité au point isolément, avec les vrais get/put, avant de l\'intégrer dans la vraie page.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3h6"/>
+        <path d="M10 3v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V3"/>
+        <path d="M7 15h10"/>
+      </svg>
+    ),
   },
   SEP,
   // — Entrées simples (hors catégorie) —

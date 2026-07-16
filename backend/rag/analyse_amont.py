@@ -396,3 +396,49 @@ def detecter_matieres(texte: str, *, db: Session) -> list[str]:
             vus.add(nom.lower())
             noms.append(nom)
     return noms
+
+
+# Clé EN BASE du prompt de détection des TYPES D'ACTIVITÉ — proposés à partir des chunks du couple
+# (proposition, pas une liaison validée : l'admin coche ce qu'il garde). Même patron que les matières.
+_CLE_TYPES_ACTIVITE = "detecter_types_activite"
+
+
+def _schema_types_activite() -> dict:
+    """Sortie structurée de la détection : `types` = tableau de noms. `additionalProperties: false`
+    interdit tout champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
+    return {
+        "type": "object",
+        "properties": {
+            "types": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["types"],
+        "additionalProperties": False,
+    }
+
+
+def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
+    """L'IA LIT le texte d'un référentiel (les chunks du couple) et PROPOSE la liste des TYPES
+    D'ACTIVITÉ (formats / modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin
+    coche ce qu'il garde (jamais un type coché d'office). Prompt / provider / modèle lus EN BASE ;
+    température 0 (sortie déterministe). Renvoie les noms nettoyés, sans doublon (insensible à la
+    casse), dans l'ordre lu. Liste vide si l'IA n'en lit aucun. Lève `ValueError` si l'IA ne rend pas
+    un JSON exploitable. Laisse remonter les pannes IA (l'appelant traduit / absorbe)."""
+    prompt = get_prompt(db, _CLE_TYPES_ACTIVITE).replace("{texte}", texte)
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_TYPES_ACTIVITE),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_types_activite(),
+    )
+    data = parser_reponse(raw)
+    noms: list[str] = []
+    vus: set[str] = set()
+    for m in data.get("types", []):
+        nom = (m if isinstance(m, str) else str(m)).strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower())
+            noms.append(nom)
+    return noms

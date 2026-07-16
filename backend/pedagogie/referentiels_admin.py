@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType
 from backend.systeme.admin import _require_admin, get_settings_dict
 
 router = APIRouter()
@@ -219,6 +219,15 @@ def lister_matieres_table(db: Session = Depends(get_db)):
     """Contenu de la table `matieres` (get direct, lecture seule) — fenêtre de contrôle admin."""
     ma = db.query(Matiere).order_by(Matiere.ordre).all()
     return {"total": len(ma), "matieres": [{"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif} for m in ma]}
+
+
+@router.get("/admin/activite-types", dependencies=[Depends(_require_admin)])
+def lister_activite_types_table(db: Session = Depends(get_db)):
+    """Contenu de la table `types_activite` (get direct, lecture seule) — fenêtre de contrôle admin."""
+    ta = db.query(ActiviteType).order_by(ActiviteType.ordre, ActiviteType.id).all()
+    return {"total": len(ta), "types": [
+        {"id": t.id, "key": t.key, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre}
+        for t in ta]}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
@@ -698,6 +707,22 @@ def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
     return {"ok": True, "total": len(unites), "unites": unites}
 
 
+@router.get("/admin/referentiels/decoupe", dependencies=[Depends(_require_admin)])
+def lire_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit les unités du découpage DÉJÀ en base (referentiel_chunks) pour ce couple — get, aucun
+    recalcul. Même forme {titre, taille} que la découpe en direct, pour réafficher à l'ouverture ce
+    qui est réellement stocké. Liste vide si rien n'est ingéré."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"unites": []}
+    chunks = (db.query(ReferentielChunk)
+              .filter(ReferentielChunk.referentiel_id == ref.id)
+              .order_by(ReferentielChunk.option_ab, ReferentielChunk.chunk_index)
+              .all())
+    unites = [{"titre": c.texte.split("\n")[0].strip(), "taille": len(c.texte)} for c in chunks]
+    return {"unites": unites}
+
+
 # ── Découpe (ingestion) en TÂCHE DE FOND : l'écriture des chunks + embeddings prend ~2 min, bien
 #    plus long qu'une requête HTTP ne peut tenir. Le bouton LANCE l'ingestion et rend la main tout de
 #    suite ; l'écran SURVEILLE ensuite l'aboutissement via /decoupe/statut. `_INGESTIONS` = état
@@ -954,3 +979,183 @@ def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db))
     db.delete(ref)
     db.commit()
     return {"ok": True}
+
+
+# ── Types d'activité d'un couple : CATALOGUE global (types_activite) coché/décoché via la LIAISON
+#    (referentiel_types_activite). Exact calque du patron matières (catalogue partagé + paire N-N),
+#    mais ici le référentiel ne fait que COCHER des lignes d'un catalogue global — il ne les possède
+#    pas. get pour lire (l'écran), put pour écrire (le coché), zéro donnée en dur.
+
+def _cle_type(label: str) -> str:
+    """Libellé → clé stable du catalogue (ascii, minuscule, « _ »). Ex. « Activité d'apprentissage »
+    → « activite_d_apprentissage ». Même normalisation que `_dossier_cle`, en minuscules (le patron
+    des clés existantes, ex. « activite_apprentissage »). Sert au get-or-create anti-doublon."""
+    return _dossier_cle(label).lower()
+
+
+@router.get("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
+def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Fenêtre de l'écran (lecture seule) : le CATALOGUE global des types actifs + lesquels sont COCHÉS
+    (liaison `actif`) pour le référentiel de CE couple. L'écran rend une case par type du catalogue,
+    cochée si son id est dans `coches`. `coches` vide si le couple n'a pas encore de référentiel (rien
+    à cocher) — 404/422 seulement pour cycle inconnu / niveau manquant (via `_ref_du_couple`)."""
+    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau ; None si pas de référentiel
+    catalogue = [
+        {"id": t.id, "key": t.key, "label": t.label, "is_default": bool(t.is_default)}
+        for t in (db.query(ActiviteType)
+                    .filter(ActiviteType.actif.is_(True))
+                    .order_by(ActiviteType.ordre, ActiviteType.id).all())
+    ]
+    coches = []
+    if ref is not None:
+        coches = [
+            {"activite_type_id": l.activite_type_id, "source": l.source}
+            for l in (db.query(ReferentielActiviteType)
+                        .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                                ReferentielActiviteType.actif.is_(True))
+                        .order_by(ReferentielActiviteType.ordre, ReferentielActiviteType.id).all())
+        ]
+    return {"catalogue": catalogue, "coches": coches}
+
+
+class BasculerTypeBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    activite_type_id: int               # LE type basculé (un seul)
+    actif: bool                         # True = cocher (lien actif), False = décocher (lien inactif)
+
+
+@router.put("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
+def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)):
+    """La case EST le put : un clic écrit DIRECTEMENT en base l'état d'UN type pour le couple (pas de
+    bouton Valider, pas de tampon). `actif=True` → liaison `actif=True` (get-or-create ; à la création
+    `source` = l'ORIGINE du type : 'systeme' | 'admin' | 'ia' — le badge reflète d'où vient le type, pas
+    qui a coché ; source CONSERVÉE si la liaison existait déjà — ex. une détection IA). `actif=False` →
+    liaison `actif=False` (jamais de suppression dure : historique + source restent). Idempotent.
+    404 si le couple n'a pas de référentiel ; 400 si le type n'existe pas au catalogue (FK)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+
+    # Origine du type (→ source du lien à la création). Contrôle d'existence au catalogue AVANT écriture.
+    t = (db.query(ActiviteType.id, ActiviteType.origine)
+           .filter(ActiviteType.id == body.activite_type_id).first())
+    if t is None:
+        raise HTTPException(400, f"Type d'activité inconnu au catalogue : {body.activite_type_id}.")
+
+    l = (db.query(ReferentielActiviteType)
+           .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                   ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
+    if l is None:
+        if body.actif:                       # cocher un type jamais lié → on crée le lien (source = origine)
+            db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=body.activite_type_id,
+                                           actif=True, source=t.origine))
+    else:
+        l.actif = body.actif                 # bascule le lien existant (source d'origine conservée)
+    db.commit()
+    return {"ok": True, "activite_type_id": body.activite_type_id, "actif": body.actif}
+
+
+class AjouterTypeCatalogueBody(BaseModel):
+    label: str
+    cycle_id: int | None = None   # fournis SEULEMENT quand l'ajout vient d'une SUGGESTION IA : on coche
+    niveau: str | None = None     # alors le type pour ce couple avec source='ia' (origine IA tracée).
+
+
+@router.post("/admin/referentiels/types-activite/catalogue", dependencies=[Depends(_require_admin)])
+def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends(get_db)):
+    """Ajoute un type au CATALOGUE GLOBAL (Create encadré). Anti-doublon par LIBELLÉ insensible à la
+    casse — la clé métier du catalogue, exactement comme `matieres.nom` (jamais deux types de même
+    libellé). La `key` est la version machine (slug) utilisée par `/generate` : dérivée du libellé et
+    GARANTIE unique (si le slug est déjà pris par un AUTRE libellé, on suffixe). Renvoie le type (créé
+    ou réutilisé) + `deja_present`.
+
+    ORIGINE (badge) : si `cycle_id`+`niveau` sont fournis, l'ajout vient d'une SUGGESTION IA → on COCHE
+    aussi le type pour ce couple avec `source='ia'` (get-or-create encadré). Ainsi l'origine IA est
+    tracée sur le LIEN même si c'est l'admin qui a cliqué « + ». Sans couple (saisie manuelle), on
+    n'ajoute qu'au catalogue : l'origine deviendra 'admin' quand l'admin cochera via le put."""
+    label = (body.label or "").strip()
+    if not label:
+        raise HTTPException(400, "Le libellé du type d'activité est requis.")
+    # Origine du type : ajout depuis une SUGGESTION IA (couple fourni) → 'ia' ; saisie MANUELLE → 'admin'.
+    from_suggestion = body.cycle_id is not None and bool((body.niveau or "").strip())
+    t = db.query(ActiviteType).filter(func.lower(ActiviteType.label) == label.lower()).first()
+    deja_present = t is not None
+    if t is None:
+        base = _cle_type(label) or "type"
+        key, n = base, 2
+        while db.query(ActiviteType).filter(ActiviteType.key == key).first():
+            key = f"{base}_{n}"; n += 1
+        maxo = db.query(func.max(ActiviteType.ordre)).scalar()
+        t = ActiviteType(key=key, label=label, ordre=(maxo or 0) + 1, actif=True,
+                         origine=("ia" if from_suggestion else "admin"))
+        db.add(t); db.commit(); db.refresh(t)
+
+    # Suggestion IA acceptée → on coche le type pour le couple avec source='ia' (get-or-create encadré).
+    coche_ia = False
+    if from_suggestion:
+        ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+        if ref is not None:
+            l = (db.query(ReferentielActiviteType)
+                   .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                           ReferentielActiviteType.activite_type_id == t.id).first())
+            if l is None:
+                db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
+                                               actif=True, source="ia"))
+                coche_ia = True
+            elif not l.actif:
+                l.actif = True                     # réactivé ; source d'origine conservée
+                coche_ia = True
+            db.commit()
+
+    return {"id": t.id, "key": t.key, "label": t.label, "deja_present": deja_present, "coche_ia": coche_ia}
+
+
+@router.post("/admin/referentiels/types-activite/detecter", dependencies=[Depends(_require_admin)])
+def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
+    """L'IA LIT le référentiel du couple et COCHE automatiquement les types déjà au CATALOGUE (liaison
+    `source='ia'`). Calque de la détection matières : même source (le TEXTE du PDF déposé, lu à la volée,
+    zéro copie) + la brique `detecter_types_activite`. Elle ne crée JAMAIS de type au catalogue : les
+    libellés détectés ABSENTS du catalogue remontent en `suggestions` (l'admin les ajoute puis coche).
+
+    CREATE encadré : une liaison n'est créée que si elle n'existe pas ENCORE (contrôle avant écriture)
+    → jamais de doublon, et une liaison déjà posée (par l'admin ou une détection précédente, cochée OU
+    décochée) est LAISSÉE TELLE QUELLE — l'IA ne se bat pas contre la décision de l'admin."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))   # 404 si pas de PDF
+    if not texte.strip():
+        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
+
+    from backend.rag.analyse_amont import detecter_types_activite
+    try:
+        detectes = detecter_types_activite(texte, db=db)
+    except Exception as e:
+        raise HTTPException(400, f"Détection des types par l'IA impossible : {e}")
+
+    # Liaisons EXISTANTES du couple, indexées par type — pour ne jamais recréer ni écraser.
+    liaisons = {l.activite_type_id
+                for l in (db.query(ReferentielActiviteType.activite_type_id)
+                            .filter(ReferentielActiviteType.referentiel_id == ref.id).all())}
+
+    coches_ia, deja_lies, suggestions = [], [], []
+    vus: set[str] = set()
+    for label in detectes:
+        cle = label.strip().lower()        # matching par LIBELLÉ, comme les matières
+        if not cle or cle in vus:          # même libellé (à la casse près) : une seule fois
+            continue
+        vus.add(cle)
+        t = (db.query(ActiviteType)
+               .filter(func.lower(ActiviteType.label) == cle, ActiviteType.actif.is_(True)).first())
+        if t is None:
+            suggestions.append(label)      # hors catalogue : rien écrit, proposé à l'admin
+        elif t.id in liaisons:
+            deja_lies.append({"id": t.id, "key": t.key, "label": t.label})   # laissé tel quel
+        else:
+            db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
+                                           actif=True, source="ia"))
+            coches_ia.append({"id": t.id, "key": t.key, "label": t.label})
+    db.commit()
+    return {"detectes": detectes, "coches_ia": coches_ia,
+            "deja_lies": deja_lies, "suggestions": suggestions}

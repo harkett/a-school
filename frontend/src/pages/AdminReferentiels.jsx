@@ -45,6 +45,28 @@ function construireLignesMatieres(etatObj) {
   return [...enBase, ...nouvelles]
 }
 
+// Badge d'ORIGINE d'un type coché : IA (violet) | ADMIN (vert) | SYSTÈME (gris). Le badge dit d'où
+// VIENT le type (origine tracée sur le lien), jamais qui a coché.
+const SOURCE_LABEL = { ia: 'IA', admin: 'ADMIN', systeme: 'SYSTÈME' }
+const SOURCE_STYLE = {
+  ia:      { background: '#f5f3ff', color: '#7c3aed' },
+  admin:   { background: '#f0fdf4', color: '#16a34a' },
+  systeme: { background: '#f1f5f9', color: '#64748b' },
+}
+const badgeOrigine = (s) => ({
+  display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 6, marginLeft: 8,
+  textTransform: 'uppercase', letterSpacing: '0.5px',
+  ...(SOURCE_STYLE[s] || SOURCE_STYLE.systeme),
+})
+// Norme boutons : hauteur unique (36px) + centrage + icône ; grisé (off) = fond gris, texte estompé,
+// curseur « sens interdit ». Voir norme-boutons-ui.
+const btnTypes = (bg, off = false) => ({
+  height: 36, padding: '0 16px', borderRadius: 8, border: 'none',
+  background: off ? '#e2e8f0' : bg, color: off ? '#94a3b8' : 'white',
+  fontSize: 13, fontWeight: 600, cursor: off ? 'not-allowed' : 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+})
+
 export default function AdminReferentiels() {
   const [couples, setCouples] = useState([])    // les 137 famille-couples (GET /admin/fc-autorisees)
   const [coupleId, setCoupleId] = useState('')  // id du couple choisi dans le menu unique
@@ -86,7 +108,7 @@ export default function AdminReferentiels() {
   // s'affiche. Remis à false à chaque changement de couple / « Nouveau ». La carte Prompt s'affiche aussi
   // toute seule si un prompt existe déjà en base (promptDecoupe non vide) — travail déjà fait.
   const [afficherPrompt, setAfficherPrompt] = useState(false)
-  const [matieresOuvert, setMatieresOuvert] = useState(true)   // bloc Matières repliable (vue d'ensemble)
+  const [matieresOuvert, setMatieresOuvert] = useState(false)   // bloc Matières repliable (vue d'ensemble) — démarre replié
   // Prompt de découpe du couple — GÉNÉRÉ PAR L'IA, stocké en base, corrigé/validé par l'admin.
   const [promptDecoupe, setPromptDecoupe] = useState('')       // texte éditable du prompt
   const [promptValide, setPromptValide] = useState(false)      // garde-fou : découpe refusée tant que false
@@ -94,7 +116,23 @@ export default function AdminReferentiels() {
   const [promptBusy, setPromptBusy] = useState('')             // 'generer' | 'regenerer' | 'valider' | 'decouper' | ''
   const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
   const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
-  const [promptOuvert, setPromptOuvert] = useState(true)
+  const [promptOuvert, setPromptOuvert] = useState(false)   // démarre replié
+  // Repli/développement des autres cartouches — état de départ INCHANGÉ (dépliées → true).
+  const [familleOuvert, setFamilleOuvert] = useState(true)
+  const [pdfOuvert, setPdfOuvert] = useState(true)
+  const [decoupeOuvert, setDecoupeOuvert] = useState(true)
+  const [typesOuvert, setTypesOuvert] = useState(true)
+  // ── Types d'activité du couple (dernière cartouche) : fenêtre sur le CATALOGUE global
+  //    `types_activite` + la LIAISON `referentiel_types_activite`. Cocher/décocher = écriture
+  //    directe en base au clic (put), puis re-GET. Zéro donnée en dur, zéro tampon.
+  const [typesCatalogue, setTypesCatalogue] = useState([])     // [{id, key, label, is_default}]
+  const [typesChecked, setTypesChecked] = useState(new Set())  // ids cochés (reflet base, relu à chaque put)
+  const [typesSource, setTypesSource] = useState({})           // {id: 'ia'|'admin'|'systeme'} → badge d'origine
+  const [typesSuggestions, setTypesSuggestions] = useState([]) // libellés détectés hors catalogue
+  const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter au catalogue »
+  const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
+  const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
+  const [typesDejaDetecte, setTypesDejaDetecte] = useState(false) // une détection a déjà eu lieu → « Redétecter »
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
@@ -205,8 +243,15 @@ export default function AdminReferentiels() {
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setAfficherPrompt(false); return }
+    if (!cycleId || !niveau) {
+      setEtat(null); setMatieres([]); setAfficherPrompt(false)
+      setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesSuggestions([]); setTypesNouveau(''); setTypesDejaDetecte(false)
+      return
+    }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
+    setTypesSuggestions([]); setTypesNouveau(''); setTypesDejaDetecte(false)   // repartir propre sur ce couple (le get réhydrate cases + badges)
+    // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
+    setFamilleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -221,8 +266,26 @@ export default function AdminReferentiels() {
     fetchWithTimeout(`/api/admin/referentiels/prompt-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeValide(!!(d && d.decoupe_valide)); setDecoupeUnites(null) } })
+      .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeValide(!!(d && d.decoupe_valide)) } })
       .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false); setDecoupeValide(false) } })
+    // Unités du découpage DÉJÀ en base (referentiel_chunks) → réaffichées telles quelles (get, zéro recalcul).
+    fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) setDecoupeUnites(d && d.unites && d.unites.length ? d.unites : null) })
+      .catch(() => { if (!annule) setDecoupeUnites(null) })
+    // Types d'activité du couple (catalogue + cases cochées) — lu en base, badges compris (get, zéro copie).
+    fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (annule || !d) return
+        setTypesCatalogue(d.catalogue || [])
+        setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
+        setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
+        if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
+      })
+      .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}) } })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -522,6 +585,94 @@ export default function AdminReferentiels() {
     finally { setBusy(false) }
   }
 
+  // ── Types d'activité du couple : re-GET (la base fait foi) après chaque écriture.
+  async function chargerTypes() {
+    if (!cycleId || !niveau) return
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      if (!r.ok) return
+      const d = await r.json()
+      setTypesCatalogue(d.catalogue || [])
+      setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
+      setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
+      if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
+    } catch { /* réseau : on garde l'affichage courant */ }
+  }
+
+  // La case EST le put : cocher = lien actif, décocher = lien inactif — écrit direct en base au clic, puis re-GET.
+  async function basculerType(id) {
+    if (!cycleId || !niveau) return
+    const veutCocher = !typesChecked.has(id)
+    setTypesChecked(prev => { const n = new Set(prev); veutCocher ? n.add(id) : n.delete(id); return n })  // optimiste
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: id, actif: veutCocher }),
+      }, TIMEOUT_STD)
+      if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`) }
+      await chargerTypes()
+    } catch { showError('Enregistrement impossible.'); await chargerTypes() }
+  }
+
+  // « Tout sélectionner » : coche en base tous les types pas encore cochés (chacun = une écriture), puis re-GET.
+  async function toutCocherTypes() {
+    if (!cycleId || !niveau) return
+    const aCocher = typesCatalogue.filter(t => !typesChecked.has(t.id))
+    if (!aCocher.length) return
+    try {
+      for (const t of aCocher) {
+        const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
+          method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, actif: true }),
+        }, TIMEOUT_STD)
+        if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); break }
+      }
+      await chargerTypes()
+    } catch { showError('Enregistrement impossible.'); await chargerTypes() }
+  }
+
+  // Détecter (IA) : coche les types du catalogue lus dans le PDF (source='ia'), propose le reste. Re-GET ensuite.
+  async function detecterTypes() {
+    if (!cycleId || !niveau) return
+    setTypesBusy(true); setTypesDetecting(true); setTypesSuggestions([])
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/detecter', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_LONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Détection impossible (${r.status}).`); return }
+      await chargerTypes()
+      setTypesSuggestions(d.suggestions || [])
+      setTypesDejaDetecte(true)
+    } catch { showError('Détection impossible.') }
+    finally { setTypesBusy(false); setTypesDetecting(false) }
+  }
+
+  // Ajout au catalogue GLOBAL (create encadré : anti-doublon par libellé). fromSuggestion → couple envoyé,
+  // le backend coche le type en source='ia'. Saisie manuelle → ajout seul (origine 'admin' au moment du coche).
+  async function ajouterTypeCatalogue(label, fromSuggestion = false) {
+    const lib = (label || '').trim()
+    if (!lib) return
+    setTypesBusy(true)
+    try {
+      const payload = (fromSuggestion && cycleId && niveau)
+        ? { label: lib, cycle_id: Number(cycleId), niveau }
+        : { label: lib }
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/catalogue', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Ajout impossible (${r.status}).`); return }
+      if (fromSuggestion) setTypesSuggestions(prev => prev.filter(s => s.trim().toLowerCase() !== lib.toLowerCase()))
+      else setTypesNouveau('')
+      await chargerTypes()
+    } catch { showError('Ajout impossible.') }
+    finally { setTypesBusy(false) }
+  }
+
   const dejaTraite = !!(etat && etat.existe_referentiel)
   // Libellé « Cycle · Niveau » du couple courant, lu dans la liste des couples (get, zéro copie).
   const coupleCourant = couples.find(c => String(c.id) === String(coupleId))
@@ -538,6 +689,7 @@ export default function AdminReferentiels() {
     { id: 'matieres',      done: !!(etat?.matieres?.length > 0) },
     { id: 'prompt',        done: !!etat?.prompt_decoupe_valide },   // lu depuis etat (get), comme matieres
     { id: 'decoupe',       done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
+    { id: 'types',         done: typesChecked.size > 0 },           // dernière étape : au moins un type coché
   ]
   function estVisible(id) {
     const i = steps.findIndex(s => s.id === id)
@@ -601,11 +753,18 @@ export default function AdminReferentiels() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
-        <h2 className="text-base font-semibold text-gray-800">
-          <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
-          Famille-Couple
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+            <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
+            Famille-Couple
+          </h2>
+          <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+            title={familleOuvert ? 'Réduire' : 'Développer'} onClick={() => setFamilleOuvert(o => !o)}>
+            {familleOuvert ? 'Réduire' : 'Développer'}
+          </button>
+        </div>
 
+        {familleOuvert && (<>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Couple (famille · cycle · niveau)</label>
           <select style={{ ...champ, background: '#fff' }} value={coupleId}
@@ -645,6 +804,7 @@ export default function AdminReferentiels() {
             </div>
           )
         })()}
+        </>)}
 
       </div>
 
@@ -657,20 +817,27 @@ export default function AdminReferentiels() {
             <Pastille etat={(dejaTraite || resultat) ? 'vert' : 'rouge'} titre="Vert = une ligne référentiel existe en base pour ce couple." />
             Référentiel au format PDF
           </h2>
-          {/* DELETE encadré : visible seulement si un référentiel existe (sinon rien à supprimer).
-              Rouge + sens interdit ; ouvre une modale de confirmation (jamais de suppression au clic). */}
-          {dejaTraite && (
-            <button type="button" onClick={() => setShowSuppr(true)} disabled={supprBusy}
-              title="Supprimer définitivement ce référentiel (efface la fiche + le PDF). Refusé s'il a déjà servi."
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
-                cursor: supprBusy ? 'wait' : 'pointer',
-                background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
-              ⛔ Supprimer le référentiel
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* DELETE encadré : visible seulement si un référentiel existe (sinon rien à supprimer).
+                Rouge + sens interdit ; ouvre une modale de confirmation (jamais de suppression au clic). */}
+            {dejaTraite && (
+              <button type="button" onClick={() => setShowSuppr(true)} disabled={supprBusy}
+                title="Supprimer définitivement ce référentiel (efface la fiche + le PDF). Refusé s'il a déjà servi."
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                  fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
+                  cursor: supprBusy ? 'wait' : 'pointer',
+                  background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
+                ⛔ Supprimer le référentiel
+              </button>
+            )}
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={pdfOuvert ? 'Réduire' : 'Développer'} onClick={() => setPdfOuvert(o => !o)}>
+              {pdfOuvert ? 'Réduire' : 'Développer'}
             </button>
-          )}
+          </div>
         </div>
 
+        {pdfOuvert && (<>
         {dejaTraite ? (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
@@ -913,6 +1080,7 @@ export default function AdminReferentiels() {
             Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s).
           </div>
         )}
+        </>)}
 
       </div>
       )}
@@ -1096,15 +1264,22 @@ export default function AdminReferentiels() {
           découpage : dernière étape → la puce du menu passe au vert (decoupe_valide en base). */}
       {estVisible('decoupe') && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-          <div>
-            <h2 className="text-base font-semibold text-gray-800">
-              <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide) — dernière étape." />
-              Découpe
-            </h2>
-            <p className="text-sm text-gray-500">
-              Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — dernière étape.
-            </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">
+                <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide) — dernière étape." />
+                Découpe
+              </h2>
+              <p className="text-sm text-gray-500">
+                Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — dernière étape.
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={decoupeOuvert ? 'Réduire' : 'Développer'} onClick={() => setDecoupeOuvert(o => !o)}>
+              {decoupeOuvert ? 'Réduire' : 'Développer'}
+            </button>
           </div>
+          {decoupeOuvert && (<>
           <div>
             <button type="button" className="btn-action" onClick={declencherDecoupe}
               disabled={!!promptBusy}
@@ -1134,6 +1309,101 @@ export default function AdminReferentiels() {
               </div>
             </div>
           )}
+          </>)}
+        </div>
+      )}
+
+      {/* Carte 6 (DERNIÈRE étape de la chaîne) — Types d'activité de ce couple. Visible seulement une
+          fois le découpage (N-1) validé (estVisible, comme les autres cartouches). Cocher/décocher =
+          écriture directe en base au clic (put) ; badges = origine du type (IA/ADMIN/SYSTÈME). */}
+      {estVisible('types') && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+                <Pastille etat={typesChecked.size > 0 ? 'vert' : 'rouge'} titre="Vert = au moins un type d'activité coché pour ce couple." />
+                Types d'activité de ce couple
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Cocher/décocher écrit direct en base (put au clic). « Détecter (IA) » coche les types présents dans le référentiel et propose le reste.
+              </p>
+            </div>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title={typesOuvert ? 'Réduire' : 'Développer'} onClick={() => setTypesOuvert(o => !o)}>
+              {typesOuvert ? 'Réduire' : 'Développer'}
+            </button>
+          </div>
+
+          {typesOuvert && (<>
+          {/* Ligne du haut, 2 colonnes : à gauche titre Catalogue + Tout sélectionner ; à droite titre Ajouter. */}
+          <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Catalogue des types d'activité</h3>
+              <button type="button" className="btn-action"
+                onClick={toutCocherTypes} disabled={typesCatalogue.length === 0}
+                title="Cocher en base tous les types du catalogue pour ce couple"><span aria-hidden="true">☑</span> Tout sélectionner</button>
+            </div>
+            <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Ajouter un type d'activité au catalogue</h3>
+          </div>
+
+          <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+            {/* Catalogue en cases à cocher — chaque clic écrit en base (basculerType) */}
+            <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              {typesCatalogue.length === 0 ? (
+                <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>Catalogue vide.</p>
+              ) : typesCatalogue.map((t, i) => {
+                const coche = typesChecked.has(t.id)
+                return (
+                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                    borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={coche} onChange={() => basculerType(t.id)} style={{ width: 16, height: 16 }} />
+                    <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
+                    {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
+                    {coche && typesSource[t.id] && <span style={badgeOrigine(typesSource[t.id])}>{SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id]}</span>}
+                  </label>
+                )
+              })}
+            </div>
+
+            {/* Colonne de droite : champ d'ajout (titre sur la ligne du haut), puis suggestions IA */}
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
+                  placeholder="Libellé du type…"
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
+                <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
+                  style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
+                  title="Ajouter ce libellé au catalogue global des types d'activité"><span aria-hidden="true">＋</span> Ajouter</button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Suggestions IA (hors catalogue)</h3>
+                <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
+                  title="Détecter par l'IA les types d'activité présents dans le référentiel, et proposer les autres">
+                  {typesDetecting ? <><Spinner /> Détection en cours…</> : (typesDejaDetecte ? '✨ Redétecter (IA)' : '✨ Détecter (IA)')}
+                </button>
+              </div>
+              {typesSuggestions.length === 0 ? (
+                <p className="text-xs text-gray-400">Aucune — lance « Détecter (IA) ».</p>
+              ) : (
+                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
+                  {typesSuggestions.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '7px 10px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8 }}>
+                      <button type="button" className="btn-action" onClick={() => ajouterTypeCatalogue(s, true)} disabled={typesBusy}
+                        title="Ajouter ce type détecté au catalogue global des types d'activité"
+                        style={{ padding: '1px 8px', fontSize: 16, fontWeight: 700, lineHeight: 1.2, flexShrink: 0 }}>
+                        +
+                      </button>
+                      <span style={{ fontSize: 12, color: '#6b21a8' }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          </>)}
         </div>
       )}
 

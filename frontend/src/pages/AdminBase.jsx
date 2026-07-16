@@ -19,6 +19,8 @@ const STYLES = {
 export default function AdminBase() {
   const [info, setInfo] = useState(null)
   const [erreur, setErreur] = useState(false)
+  const [carteBusy, setCarteBusy] = useState(false)   // lancement de la carte en cours
+  const [carteMsg, setCarteMsg] = useState(null)      // {type:'ok'|'err', texte}
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/base', { credentials: 'include' }, TIMEOUT_STD)
@@ -27,35 +29,71 @@ export default function AdminBase() {
       .catch(() => setErreur(true))
   }, [])
 
+  // Lance le script local `carte.py` (via l'endpoint) : il régénère la carte et l'ouvre dans Edge.
+  async function ouvrirCarte() {
+    setCarteBusy(true); setCarteMsg(null)
+    try {
+      const r = await fetchWithTimeout('/api/admin/base/carte', { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
+      if (!r.ok) { const e = await r.json().catch(() => ({})); setCarteMsg({ type: 'err', texte: e.detail || 'Lancement impossible.' }); return }
+      setCarteMsg({ type: 'ok', texte: 'Carte lancée — elle s’ouvre dans Edge.' })
+    } catch { setCarteMsg({ type: 'err', texte: 'Lancement impossible.' }) }
+    finally { setCarteBusy(false) }
+  }
+
   const s = info ? (STYLES[info.type] || STYLES.autre) : null
 
   return (
     <div className="flex flex-col gap-6" style={{ maxWidth: 720 }}>
-      <div>
-        <h2 className="text-base font-semibold text-gray-800">Base de données</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          La base de données sur laquelle l’application est réellement connectée en ce moment.
-        </p>
+      {/* Tout l'écran dans une seule cartouche */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Base de données actuellement utilisée</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            La base de données sur laquelle l’application est réellement connectée en ce moment.
+          </p>
+        </div>
+
+        {erreur && (
+          <div className="text-sm text-gray-500">
+            Impossible de lire l’état de la base.
+          </div>
+        )}
+
+        {!info && !erreur && <div className="text-gray-400 text-sm">Lecture…</div>}
+
+        {info && s && (
+          <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: 20 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.label}</div>
+            <div style={{ fontSize: 13, color: s.color, marginTop: 6, lineHeight: 1.5 }}>{s.note}</div>
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#334155' }}>
+              <div>Nom : <strong>{info.base}</strong></div>
+              <div>Serveur : <strong>{info.host}:{info.port}</strong></div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {erreur && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 text-sm text-gray-500">
-          Impossible de lire l’état de la base.
+      {/* Cartouche « Carte de la base » : lance le script local qui régénère la carte et l'ouvre dans Edge. */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Carte de la base</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Génère la carte visuelle de la base (tables, colonnes, relations, volumes) à partir de la structure réelle, et l’ouvre dans Edge.
+          </p>
         </div>
-      )}
-
-      {!info && !erreur && <div className="text-gray-400 text-sm">Lecture…</div>}
-
-      {info && s && (
-        <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: 20 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.label}</div>
-          <div style={{ fontSize: 13, color: s.color, marginTop: 6, lineHeight: 1.5 }}>{s.note}</div>
-          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: '#334155' }}>
-            <div>Nom : <strong>{info.base}</strong></div>
-            <div>Serveur : <strong>{info.host}:{info.port}</strong></div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button type="button" className="btn-primary" onClick={ouvrirCarte} disabled={carteBusy}
+            title="Régénérer la carte de la base et l’ouvrir dans Edge"
+            style={{ cursor: carteBusy ? 'wait' : 'pointer' }}>
+            {carteBusy ? 'Ouverture…' : '🗺️ Afficher la carte'}
+          </button>
+          {carteMsg && (
+            <span style={{ fontSize: 13, color: carteMsg.type === 'ok' ? '#166534' : '#b91c1c' }}>
+              {carteMsg.texte}
+            </span>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -34,7 +34,10 @@ input[type="checkbox"] {
   border: none; cursor: pointer;
 }
 .btn-primary:hover { background-color: var(--bleu-dark); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+/* Norme boutons : grisé = fond gris + texte estompé + curseur « sens interdit », partout. */
+.btn-primary:disabled,
+.btn-action:disabled,
+.btn-secondary:disabled { background: #e2e8f0; color: #94a3b8; border-color: #e2e8f0; cursor: not-allowed; }
 
 .btn-action {
   display: inline-flex; align-items: center; gap: 6px;

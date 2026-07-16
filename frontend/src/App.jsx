@@ -45,6 +45,8 @@ import AdminCompte from './pages/AdminCompte'
 import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminReferentiels from './pages/AdminReferentiels'
+import Labo from './pages/Labo'   // écran labo générique (bac à sable réutilisable)
+import AdminTypesActivite from './pages/AdminTypesActivite'
 import AdminFCAutorisees from './pages/AdminFCAutorisees'
 import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminCycles from './pages/AdminCycles'
@@ -245,7 +247,7 @@ function MainApp() {
   }, [user?.niveau])
 
   useEffect(() => {
-    fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}`, {}, TIMEOUT_STD)
+    fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}?niveau=${encodeURIComponent(params.niveau || '')}`, {}, TIMEOUT_STD)
       .then(r => r.json())
       .then(data => {
         const list = Array.isArray(data) ? data : []  // garde-fou : toujours un tableau (jamais .find sur autre chose)
@@ -260,7 +262,7 @@ function MainApp() {
         }
       })
       .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
-  }, [sessionMatiere])
+  }, [sessionMatiere, params.niveau])
 
   // Guidage : si le prof vide le texte source, on repart de l'étape 1 → l'accent doit
   // remonter, donc on « oublie » que le type avait été vu.
@@ -1068,6 +1070,8 @@ export default function App() {
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
             <Route path="referentiels" element={<AdminReferentiels />} />
+            <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
+            <Route path="types-activite" element={<AdminTypesActivite />} />
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="fc-autorisees" element={<AdminFCAutorisees />} />
             <Route path="cycles"   element={<AdminCycles />} />

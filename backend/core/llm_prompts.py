@@ -4,7 +4,7 @@ Source de vérité des DÉFAUTS + métadonnées (libellé, repères obligatoires
 base (Setting `prompt_<clé>`) surcharge le défaut quand il est présent ; sinon on retombe ici.
 Ce fichier ne concerne QUE les prompts d'outils : l'ancien catalogue d'activités en dur
 (dicts + prompts par type) a été SUPPRIMÉ, les types d'activité vivent désormais en base
-(table `activite_types`, un jeu propre à chaque couple).
+(table `types_activite`, un jeu propre à chaque couple).
 
 Garde-fou (validé à l'écriture, côté admin) : chaque repère obligatoire `{x}` doit rester
 présent, et le texte doit `.format()` sans casser (repère inconnu / accolades mal équilibrées).
@@ -338,6 +338,22 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau de chaînes)."""
 
 
+PROMPT_DETECTER_TYPES_ACTIVITE = """Tu lis un référentiel officiel et tu en dégages la liste des TYPES D'ACTIVITÉ (formats ou modalités d'activité pédagogique) qu'il met en œuvre à ce niveau.
+
+Texte du référentiel :
+{texte}
+
+Ta tâche :
+- Repère les types d'activité, formats ou modalités de travail que ce référentiel organise (par exemple : atelier, jeu, mise en situation, exercice, projet, observation — selon ce qui apparaît réellement).
+- Donne leur nom tel qu'il apparaît dans le document, court et lisible (le nom du type d'activité, pas une phrase).
+
+Règle :
+- "types" : la liste des noms de types d'activité que tu lis dans le document, sans doublon.
+- N'invente aucun type absent du document. Si aucun n'apparaît clairement, renvoie une liste vide.
+
+Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -388,5 +404,10 @@ PROMPTS = {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",
         "placeholders": ["texte"],
         "default": PROMPT_DETECTER_MATIERES,
+    },
+    "detecter_types_activite": {
+        "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
+        "placeholders": ["texte"],
+        "default": PROMPT_DETECTER_TYPES_ACTIVITE,
     },
 }
