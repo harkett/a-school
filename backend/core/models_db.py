@@ -491,3 +491,30 @@ class FamilleCouple(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     famille_id: Mapped[int] = mapped_column(Integer, ForeignKey("familles.id"), nullable=False, index=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)
+
+
+class ActiviteType(Base):
+    """Type d'activité PROPRE à un couple — plus AUCUN type générique ni en dur.
+
+    Chaque couple porte SES types d'activité dans cette table (get pour afficher, put pour
+    éditer). DONNÉE MÉTIER → EN BASE : les dicts en dur (ACTIVITES_* dans llm/activities.py,
+    PROMPTS_* dans llm/prompts.py) sont voués à disparaître au profit de ces lignes. Le PROMPT
+    du type vit ici (colonne `prompt`), à un seul endroit. Ancré au RÉFÉRENTIEL du couple
+    (referentiel_id, CASCADE — même patron que referentiel_chunks) : le couple = son référentiel,
+    supprimer le référentiel supprime ses types. `key` = identifiant stable du type (ex. l'id API
+    du prompt) ; unique DANS le couple. `sous_types` / `params` = tableaux JSON (les choix offerts
+    au prof et les paramètres qu'il saisit, ex. nb)."""
+    __tablename__ = "activite_types"
+    __table_args__ = (UniqueConstraint("referentiel_id", "key", name="uq_activite_types_ref_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    sous_types: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array
+    params: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")       # JSON array
+    prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
