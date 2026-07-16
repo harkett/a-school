@@ -45,3 +45,5 @@ RAPPEL PERMANENT (à appliquer à CHAQUE message, sans exception) :
 - RÈGLE N°17 — Cycle de travail strict. Tu demandes → j'analyse (sans coder) → tu valides → je code → je teste, PUIS tu testes → je commit et je push. On avance étape par étape : tant qu'une étape n'est pas franchie, on ne passe pas à la suivante.
 
 - RÈGLE N°18 — Rester sur le sujet, zéro divergence. Je fais exactement ce qui est demandé, rien de plus. Toute idée, risque ou besoin nouveau : je le formule en une phrase et j'attends ton accord.
+
+- RÈGLE N°19 — Checkpoint commit : je SIGNALE, je ne déclenche jamais seul. Quand j'ai terminé un bloc de travail cohérent ET testé, je te le SIGNALE et je te PROPOSE de committer/pousser — en une phrase : ce qui est prêt + la liste exacte des fichiers concernés. Je ne fais JAMAIS le commit ni le push de moi-même : le déclenchement reste à toi (cohérent avec la Règle n°17, c'est toi qui dis « Go »). Garde-fou multi-sessions : je ne propose QUE les fichiers que J'AI touchés dans MA session — jamais le working tree entier, pour ne pas committer un bout d'un autre chantier.
