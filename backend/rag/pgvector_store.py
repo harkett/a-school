@@ -1,11 +1,8 @@
 """Stockage RAG sur PostgreSQL/pgvector — moteur unique du RAG (ChromaDB retiré le 29/06/2026).
 
-Ingestion d'un référentiel DEPUIS SON PDF vers la table referentiel_chunks. Ce module ne
-connaît AUCUN référentiel en propre : la SOURCE (où lire, comment extraire, comment découper)
-vient de la FICHE du référentiel, résolue par sa `collection` via le registre `get_fiche()`.
-
-CIEL, crèche… chaque référentiel apporte sa méthode d'extraction (`fiche.extract_pages`) ;
-le moteur ne fait qu'orchestrer extraction -> découpe générique -> embeddings -> insertion.
+Ingestion d'un référentiel DEPUIS SON PDF vers la table referentiel_chunks. La découpe est
+GÉNÉRIQUE : produite par l'IA à partir du PROMPT VALIDÉ du couple (EN BASE), sans aucune fiche
+en dur. Le moteur orchestre : découpe IA -> embeddings -> insertion. Tout couple est ingérable.
 
 Lancer (venv, racine, .env chargé) :
     python -m backend.rag.pgvector_store --collection bebes_0_1_an     # un couple crèche
@@ -27,9 +24,7 @@ from sqlalchemy import select, delete, func
 
 from backend.core.database import SessionLocal
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
-from .chunker import build_chunks                     # découpeur générique, sans référentiel
 from .embeddings import embed_texts, EMBEDDING_MODEL  # voie directe (pas ChromaDB)
-from .referentiels import get_fiche                   # registre collection -> fiche
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +44,9 @@ def _dossier_cle(nom: str) -> str:
     return s or "REFERENTIEL"
 
 
-def _pdf_path_for(db, ref: Referentiel, fiche) -> Path:
-    """Chemin du PDF du référentiel. Si la fiche fixe un PDF_PATH (cas CIEL), on l'utilise ;
-    sinon on le dérive du couple cycle/niveau : REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf
-    (convention de rangement du dépôt admin)."""
-    fixe = getattr(fiche, "PDF_PATH", None)
-    if fixe is not None:
-        return Path(fixe)
+def _pdf_path_for(db, ref: Referentiel) -> Path:
+    """Chemin du PDF du référentiel, dérivé du couple cycle/niveau :
+    REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf (convention de rangement du dépôt admin)."""
     niveau = db.get(Niveau, ref.niveau_id)
     cycle = db.get(Cycle, niveau.cycle_id)
     return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.nom) / "referentiel.pdf"
@@ -134,10 +125,8 @@ def _decouper_ia(pdf_path, prompt: str) -> list[dict]:
 def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
     """(Re)construit referentiel_chunks pour LE référentiel de `collection`, depuis son PDF.
     Idempotent : supprime les chunks du même referentiel_id (après sauvegarde) puis réinsère.
-    Ne touche aucun autre référentiel. La méthode d'extraction et les réglages de découpe
-    viennent de la fiche du référentiel (registre `get_fiche`)."""
-    fiche = get_fiche(collection)
-
+    Ne touche aucun autre référentiel. La découpe est produite par l'IA à partir du PROMPT
+    VALIDÉ du couple (EN BASE) — aucune fiche en dur, tout couple est ingérable."""
     # 1. Résoudre le référentiel (id) et le chemin du PDF (courte ouverture DB).
     db = SessionLocal()
     try:
@@ -150,7 +139,7 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
                 f"Le couple (niveau + PDF) doit exister dans la table referentiels."
             )
         rid = ref.id
-        pdf_path = _pdf_path_for(db, ref, fiche)
+        pdf_path = _pdf_path_for(db, ref)
         prompt_ok = ref.prompt_decoupe_valide
         prompt_txt = ref.prompt_decoupe or ""
     finally:
@@ -218,75 +207,6 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
             "embedding_model": EMBEDDING_MODEL,
         })
         return report
-    finally:
-        db.close()
-
-
-def _labels_douteux(db, ref, fiche, chunks: list) -> list:
-    """Verdict d'analyse amont de l'IA, PERSISTÉ (referentiels.doutes_ia) : calculé UNE fois via la
-    fiche (si la colonne est vide) puis relu. L'aperçu ET l'ingestion passent par ici → ils tranchent
-    le MÊME verdict, jamais deux appels IA divergents (l'IA n'est pas parfaitement répétable). Renvoie
-    la liste des libellés jugés douteux (vide si la fiche n'expose pas d'analyse amont)."""
-    import json
-    if not hasattr(fiche, "libelles_douteux"):
-        return []
-    if ref.doutes_ia is not None:
-        try:
-            data = json.loads(ref.doutes_ia)
-            if isinstance(data, list):
-                return [str(x) for x in data]
-        except Exception:
-            pass   # colonne illisible -> on recalcule proprement ci-dessous
-    labels = fiche.libelles_douteux(chunks, db=db)   # UN appel IA, puis on le fige
-    ref.doutes_ia = json.dumps(labels, ensure_ascii=False)
-    db.commit()
-    return labels
-
-
-def apercu_decoupage(collection: str) -> dict:
-    """Aperçu du découpage d'un référentiel : découpe le PDF avec EXACTEMENT les réglages de la fiche
-    (comme l'ingestion), NE VECTORISE RIEN et n'écrit AUCUN chunk. Seule écriture possible : au tout
-    premier appel, le verdict d'analyse amont de l'IA est calculé UNE fois et figé (colonne doutes_ia)
-    — ensuite il est relu. Renvoie l'aperçu produit par la fiche (unités, titres, bandes, cas flous,
-    totaux par niveau). Lève si la règle n'est pas validée (même garde-fou que l'ingestion)."""
-    fiche = get_fiche(collection)
-    apercu = getattr(fiche, "apercu_unites", None)
-    if apercu is None:
-        raise RuntimeError(f"Aperçu de découpage non disponible pour collection='{collection}'.")
-
-    db = SessionLocal()
-    try:
-        ref = db.execute(
-            select(Referentiel).where(Referentiel.collection == collection)
-        ).scalar_one_or_none()
-        if ref is None:
-            raise RuntimeError(f"Aucun référentiel en base pour collection='{collection}'.")
-        pdf_path = _pdf_path_for(db, ref, fiche)
-        if not pdf_path.exists():
-            raise RuntimeError(f"PDF introuvable : {pdf_path}")
-        if not ref.prompt_decoupe_valide:
-            raise RuntimeError(
-                "Découpe refusée : le prompt de découpe du couple n'est pas validé "
-                "(l'admin doit le générer puis le valider)."
-            )
-
-        chunks = _decouper_ia(pdf_path, ref.prompt_decoupe or "")   # découpe PAR L'IA, prompt validé du couple
-        # Verdict d'analyse amont de l'IA, PERSISTÉ (calculé une fois) et relu ici -> MÊME verdict que
-        # l'ingestion. On reconstitue le doute par unité depuis les libellés persistés (pur, sans IA).
-        doutes = None
-        if hasattr(fiche, "doutes_depuis_labels"):
-            labels = _labels_douteux(db, ref, fiche, chunks)
-            doutes = fiche.doutes_depuis_labels(chunks, labels)
-        resultat = apercu(chunks, collection, doutes=doutes)
-        # Résumé du filtre par niveau — on exécute le VRAI filtre (filtrer_chunks, lecture seule) et on
-        # joint son verdict à l'aperçu, pour la cartouche « Résultat du filtre » de l'écran admin. ok=True
-        # -> couple prêt (X/Y retenues) ; ok=False -> refus (message clair, un cas non tranché reste).
-        try:
-            gardes = fiche.filtrer_chunks(chunks, collection, doutes)
-            resultat["filtre"] = {"ok": True, "gardes": len(gardes), "total": len(chunks), "message": None}
-        except Exception as e:
-            resultat["filtre"] = {"ok": False, "gardes": 0, "total": len(chunks), "message": str(e)}
-        return resultat
     finally:
         db.close()
 

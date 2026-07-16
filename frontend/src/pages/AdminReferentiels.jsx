@@ -86,29 +86,7 @@ export default function AdminReferentiels() {
   // s'affiche. Remis à false à chaque changement de couple / « Nouveau ». La carte Prompt s'affiche aussi
   // toute seule si un prompt existe déjà en base (promptDecoupe non vide) — travail déjà fait.
   const [afficherPrompt, setAfficherPrompt] = useState(false)
-  // Règle de découpe du couple : { existe, explication_clair, critere_technique, depose_par, valide }
-  // ou null si aucune règle n'est déposée pour ce référentiel.
-  const [regle, setRegle] = useState(null)
   const [matieresOuvert, setMatieresOuvert] = useState(true)   // bloc Matières repliable (vue d'ensemble)
-  const [regleOuvert, setRegleOuvert] = useState(true)         // bloc Règle de découpe repliable
-  // Aperçu du découpage : { disponible, total, total_niveau, bande_niveau, options_arbitrage:[…],
-  //   unites:[{titre, age_label, bandes, flou, arbitre, dans_niveau}] }
-  // ou { disponible:false, raison } ; null si non applicable (pas de règle pour ce cycle).
-  // (Nom distinct de `apercu`, qui est l'aperçu du PDF au dépôt.)
-  const [apercuDecoupe, setApercuDecoupe] = useState(null)
-  const [apercuOuvert, setApercuOuvert] = useState(true)       // bloc Résultat du découpage repliable
-  // Arbitrage des cas flous : décisions enregistrées { libellé_flou: [options] }, servies par
-  // GET arbitrage-flou. `selection` = choix en cours de l'admin, pré-rempli depuis les décisions.
-  // Les OPTIONS proposées viennent de l'aperçu (apercuDecoupe.options_arbitrage, tenu par la
-  // fiche) — jamais écrites en dur ici. `savingArbitrage` = libellé en cours d'enregistrement.
-  const [selection, setSelection] = useState({})              // { age_label: [options] }
-  const [savingArbitrage, setSavingArbitrage] = useState('')
-  // TEMPS 2 — demander l'avis d'un professionnel sur un cas flou (statut « en attente » EN BASE).
-  const [enAttente, setEnAttente] = useState([])              // [{ label, destinataire }] servis par GET en-attente
-  const [demandeOuverte, setDemandeOuverte] = useState('')    // age_label dont le formulaire de demande est ouvert
-  const [demandeEmail, setDemandeEmail] = useState('')
-  const [demandeMessage, setDemandeMessage] = useState('')
-  const [envoiDemande, setEnvoiDemande] = useState('')        // age_label en cours d'envoi
   // Prompt de découpe du couple — GÉNÉRÉ PAR L'IA, stocké en base, corrigé/validé par l'admin.
   const [promptDecoupe, setPromptDecoupe] = useState('')       // texte éditable du prompt
   const [promptValide, setPromptValide] = useState(false)      // garde-fou : découpe refusée tant que false
@@ -117,7 +95,6 @@ export default function AdminReferentiels() {
   const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
   const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
   const [promptOuvert, setPromptOuvert] = useState(true)
-  const [ambiguiteOuverte, setAmbiguiteOuverte] = useState('') // age_label dont le panneau « ambiguïté » est ouvert
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
@@ -157,17 +134,46 @@ export default function AdminReferentiels() {
   async function validerDecoupe() {
     setPromptBusy('valider-decoupe')
     try {
+      // On LANCE l'ingestion en tâche de fond (réponse immédiate) — l'écriture des chunks prend ~2 min,
+      // trop long pour une requête HTTP. On surveille ensuite l'aboutissement via /decoupe/statut.
       const r = await fetchWithTimeout('/api/admin/referentiels/decoupe/valider', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La validation du découpage a échoué."); return }
-      setDecoupeValide(true)
-      chargerListe()   // decoupe_valide=true en base → la puce du menu passe au vert (relecture)
-    } catch { showError("La validation du découpage a échoué (réseau).") }
-    finally { setPromptBusy('') }
+      if (!r.ok) { showError(d.detail || "Le lancement de la découpe a échoué."); setPromptBusy(''); return }
+      surveillerDecoupe(Number(cycleId), niveau)
+    } catch {
+      showError("Le lancement de la découpe a échoué (réseau).")
+      setPromptBusy('')
+    }
+  }
+
+  // Surveille l'ingestion lancée en tâche de fond : poll /decoupe/statut toutes les 3 s jusqu'à
+  // decoupe_valide (puce verte) ou erreur. Le bouton reste « Validation… » (promptBusy inchangé).
+  // On fige le couple (c, nv) au lancement : un changement d'écran n'égare pas la surveillance.
+  function surveillerDecoupe(c, nv) {
+    const tick = async () => {
+      try {
+        const r = await fetchWithTimeout(
+          `/api/admin/referentiels/decoupe/statut?cycle_id=${c}&niveau=${encodeURIComponent(nv)}`,
+          { credentials: 'include' }, TIMEOUT_STD)
+        const d = await r.json().catch(() => ({}))
+        if (d.decoupe_valide) {   // aboutissement lu EN BASE
+          if (Number(cycleId) === c && niveau === nv) { setDecoupeValide(true); setPromptBusy('') }
+          chargerListe()          // la puce du menu passe au vert (relecture base)
+          return
+        }
+        if (d.status === 'error') {
+          showError(d.message ? `La découpe a échoué : ${d.message}` : "La découpe a échoué.")
+          if (Number(cycleId) === c && niveau === nv) setPromptBusy('')
+          return
+        }
+      } catch { /* réseau momentané : on retente au prochain tick */ }
+      setTimeout(tick, 3000)
+    }
+    setTimeout(tick, 3000)
   }
 
   // Bouton « Supprimer le référentiel » (DELETE encadré). Le backend REFUSE (409) si le référentiel a
@@ -199,7 +205,7 @@ export default function AdminReferentiels() {
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setRegle(null); setApercuDecoupe(null); setSelection({}); setEnAttente([]); setDemandeOuverte(''); setAfficherPrompt(false); return }
+    if (!cycleId || !niveau) { setEtat(null); setMatieres([]); setAfficherPrompt(false); return }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
@@ -211,42 +217,6 @@ export default function AdminReferentiels() {
         setMatieres(construireLignesMatieres(d))
       })
       .catch(() => { if (!annule) setEtat(null) })
-    // Règle de découpe du couple (EN BASE : colonnes regle_* de referentiels, résolu par cycle + niveau).
-    fetchWithTimeout(`/api/admin/referentiels/regle-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-      { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) setRegle(d && d.existe ? d : null) })
-      .catch(() => { if (!annule) setRegle(null) })
-    // Aperçu du découpage (lecture seule). Masqué si non applicable (pas de règle pour ce cycle).
-    fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-      { credentials: 'include' }, TIMEOUT_LONG)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (annule) return
-        const ap = d && d.raison !== 'non_applicable' ? d : null
-        setApercuDecoupe(ap)
-        // Garde-fou (règle « incohérence = modale ») : couple ouvert mais filtre EN ÉCHEC -> modale
-        // bloquante qui OBLIGE l'admin à revenir trancher. À l'OUVERTURE du couple seulement (pas
-        // après chaque arbitrage), pour ne pas le harceler pendant qu'il tranche.
-        if (ap && ap.filtre && !ap.filtre.ok) {
-          const n = (ap.unites || []).filter(u => u.flou && !u.arbitre).length
-          showError(`Ce couple n'est pas prêt : il reste ${n} cas « âge à confirmer » à trancher.\n\nRevenez les régler dans la carte « Résultat du découpage » ci-dessus. Tant qu'ils ne sont pas tranchés, ce niveau ne peut pas être ingéré.`)
-        }
-      })
-      .catch(() => { if (!annule) setApercuDecoupe(null) })
-    // Décisions d'arbitrage des cas flous (EN BASE : colonne referentiels.arbitrage du couple).
-    // On pré-remplit la sélection de l'admin avec ce qui est déjà tranché.
-    fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-      { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) setSelection(d && d.arbitrages ? d.arbitrages : {}) })
-      .catch(() => { if (!annule) setSelection({}) })
-    // Cas flous EN ATTENTE d'un avis (TEMPS 2) — pour afficher le badge « en attente ».
-    fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou/en-attente?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-      { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!annule) setEnAttente(d && d.en_attente ? d.en_attente : []) })
-      .catch(() => { if (!annule) setEnAttente([]) })
     // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
     fetchWithTimeout(`/api/admin/referentiels/prompt-decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -256,108 +226,6 @@ export default function AdminReferentiels() {
     return () => { annule = true }
   }, [cycleId, niveau])
 
-  // Bascule une option pour un libellé flou dans la sélection en cours (avant enregistrement).
-  function basculerOption(label, opt) {
-    setSelection(prev => {
-      const actuelles = prev[label] || []
-      const majs = actuelles.includes(opt) ? actuelles.filter(o => o !== opt) : [...actuelles, opt]
-      return { ...prev, [label]: majs }
-    })
-  }
-
-  // Enregistre l'arbitrage d'un libellé flou (POST), puis RECHARGE l'aperçu + les décisions :
-  // la ligne bascule (arbitre -> vrai, compteur du niveau réévalué). Sélection vide = dé-trancher.
-  async function validerAge(label) {
-    setSavingArbitrage(label)
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/arbitrage-flou', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, label, bandes: selection[label] || [] }),
-      }, TIMEOUT_STD)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "L'âge n'a pas pu être enregistré."); return }
-      // Recharger l'aperçu (la ligne bascule) et les décisions (source de vérité disque).
-      const [ap, arb] = await Promise.all([
-        fetchWithTimeout(`/api/admin/referentiels/apercu-decoupage?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-          { credentials: 'include' }, TIMEOUT_LONG).then(x => (x.ok ? x.json() : null)).catch(() => null),
-        fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-          { credentials: 'include' }, TIMEOUT_STD).then(x => (x.ok ? x.json() : null)).catch(() => null),
-      ])
-      if (ap && ap.raison !== 'non_applicable') setApercuDecoupe(ap)
-      if (arb && arb.arbitrages) setSelection(arb.arbitrages)
-    } catch {
-      showError("L'âge n'a pas pu être enregistré (réseau).")
-    } finally {
-      setSavingArbitrage('')
-    }
-  }
-
-  // Corps du mail d'avis pré-rempli (générique + éditable). Le SEUL spécifique vient du texte extrait
-  // de l'ambiguïté (l'activité, telle quelle) — aucun mot en dur propre à un référentiel (ni « âge »,
-  // ni « crèche ») : l'admin ajuste avant d'envoyer, et un autre référentiel réutilise le même squelette.
-  // On pose une question ouverte ; c'est l'admin qui range ensuite la réponse.
-  function construireMessageMail(extrait) {
-    return [
-      'Bonjour,',
-      '',
-      "Nous préparons des activités pédagogiques à partir des référentiels officiels. Pour l'une d'elles, nous aimerions votre avis de terrain.",
-      '',
-      "L'activité :",
-      '« ' + (extrait || '').trim() + ' »',
-      '',
-      'Quel est votre avis sur cette activité ? Un simple mot en réponse nous suffit.',
-      '',
-      'Merci beaucoup pour votre aide.',
-      '',
-      'Bien cordialement,',
-      "L'équipe aSchool",
-    ].join('\n')
-  }
-
-  function enAttentePour(label) {
-    return enAttente.find(e => e.label === label) || null
-  }
-
-  // Ouvre (ou referme) le formulaire de demande d'avis pour un cas flou : pré-remplit le message.
-  function ouvrirDemande(u) {
-    if (demandeOuverte === u.age_label) { setDemandeOuverte(''); return }
-    setDemandeOuverte(u.age_label)
-    const deja = enAttentePour(u.age_label)
-    setDemandeEmail(deja ? deja.destinataire : '')
-    setDemandeMessage(construireMessageMail(u.extrait))
-  }
-
-  // Déplie / replie le panneau « ambiguïté » d'un cas flou : l'admin y VOIT ce qu'il doit trancher
-  // (l'indication du document + l'activité complète) avant de décider ou de demander un avis.
-  function basculerAmbiguite(label) {
-    setAmbiguiteOuverte(prev => (prev === label ? '' : label))
-  }
-
-  // Envoie la demande d'avis (POST /demander) : mail parti + cas « en attente », puis on recharge.
-  async function envoyerDemande(label) {
-    if (!demandeEmail.trim()) { showError("Indiquez l'adresse du professionnel à qui envoyer la demande."); return }
-    if (!demandeMessage.trim()) { showError('Le message à envoyer est vide.'); return }
-    setEnvoiDemande(label)
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/arbitrage-flou/demander', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, label, email: demandeEmail.trim(), message: demandeMessage }),
-      }, TIMEOUT_LONG)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La demande n'a pas pu être envoyée."); return }
-      // Recharger les cas en attente (le badge apparaît) et fermer le formulaire.
-      const att = await fetchWithTimeout(`/api/admin/referentiels/arbitrage-flou/en-attente?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
-        { credentials: 'include' }, TIMEOUT_STD).then(x => (x.ok ? x.json() : null)).catch(() => null)
-      if (att && att.en_attente) setEnAttente(att.en_attente)
-      setDemandeOuverte('')
-    } catch {
-      showError("La demande n'a pas pu être envoyée (réseau).")
-    } finally {
-      setEnvoiDemande('')
-    }
-  }
 
   // L'IA génère le prompt de découpe du document → rempli dans la zone éditable (non validé).
   async function genererPromptDecoupe() {
@@ -563,22 +431,6 @@ export default function AdminReferentiels() {
     finally { setBusy(false) }
   }
 
-  // Règle de découpe : l'admin valide (valide→true) ou rejette (valide→false) le STATUT.
-  // Il ne modifie pas le texte de la règle (pas d'édition des deux faces à ce stade).
-  async function majStatutRegle(action) {   // action = 'valider' | 'rejeter'
-    setBusy(true)
-    try {
-      const r = await fetchWithTimeout(`/api/admin/referentiels/regle-decoupe/${action}`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_STD)
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setRegle(rg => (rg ? { ...rg, valide: d.valide } : rg))
-    } catch (e) { showError(`Action sur la règle impossible.\n\n${e.message}`) }
-    finally { setBusy(false) }
-  }
 
   const champ = { width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 13 }
   const onglet = (actif) => ({
@@ -1280,249 +1132,6 @@ export default function AdminReferentiels() {
                     : decoupeValide ? '✓ Découpage validé' : 'Valider le découpage'}
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Règle de découpe — RESTE de l'ANCIEN système regex, remplacé par la découpe IA (carte D).
-          CACHÉE DÉFINITIVEMENT : ne réapparaît jamais. Bloc conservé en place, à supprimer au nettoyage. */}
-      {false && regle && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">
-                <Pastille etat={(regle && regle.valide) ? 'vert' : 'rouge'} titre="Vert = règle de découpe validée (referentiels.regle_valide)." />
-                Règle de découpe
-              </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Comment ce référentiel est découpé en unités. Validez si la description est juste ; rejetez pour la remettre en proposition.
-              </p>
-            </div>
-            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-              title={regleOuvert ? 'Réduire la règle de découpe' : 'Développer la règle de découpe'}
-              onClick={() => setRegleOuvert(o => !o)}>
-              {regleOuvert ? 'Réduire' : 'Développer'}
-            </button>
-          </div>
-
-          {regleOuvert && (
-          <>
-          {/* Face en clair — ce que l'admin lit et valide */}
-          <div style={{ fontSize: 14, color: '#1e293b', lineHeight: 1.5,
-            background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
-            {regle.explication_clair}
-          </div>
-
-          {/* Face technique — pour le dev, discrète */}
-          <div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
-              Critère technique (vérifié par le développeur)
-            </div>
-            <code style={{ fontSize: 12, color: '#475569', background: '#f1f5f9',
-              border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 10px', display: 'block',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {regle.critere_technique}
-            </code>
-          </div>
-
-          {/* Qui a proposé + statut */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 12 }}>
-            <span style={{ color: '#64748b' }}>Proposé par : <strong>{regle.depose_par || '—'}</strong></span>
-            <span style={{ fontWeight: 600, color: regle.valide ? '#16a34a' : '#b45309' }}>
-              Statut : {regle.valide ? 'validée' : 'à valider'}
-            </span>
-          </div>
-
-          {/* Valider / Rejeter = bascule du statut (on désactive celui qui correspond à l'état courant) */}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn-primary"
-              title="Valider cette règle de découpe : elle devient la règle retenue"
-              onClick={() => majStatutRegle('valider')} disabled={busy || regle.valide}>
-              Valider
-            </button>
-            <button type="button" className="btn-secondary"
-              title="Rejeter cette règle : elle repart en proposition"
-              onClick={() => majStatutRegle('rejeter')} disabled={busy || !regle.valide}>
-              Rejeter
-            </button>
-          </div>
-          </>
-          )}
-        </div>
-      )}
-
-      {/* Résultat du découpage — RESTE de l'ANCIEN système regex, remplacé par la découpe IA (carte D).
-          CACHÉE DÉFINITIVEMENT : ne réapparaît jamais. Bloc conservé en place, à supprimer au nettoyage. */}
-      {false && apercuDecoupe && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">Résultat du découpage avec arbitrage des cas ambigus</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Ce que la règle validée produit : vérifiez qu'aucune unité n'est coupée ni sans titre, et voyez son rattachement au niveau.
-              </p>
-            </div>
-            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-              title={apercuOuvert ? 'Réduire le résultat' : 'Développer le résultat'}
-              onClick={() => setApercuOuvert(o => !o)}>
-              {apercuOuvert ? 'Réduire' : 'Développer'}
-            </button>
-          </div>
-
-          {apercuOuvert && (
-          <>
-          {apercuDecoupe.disponible ? (
-            <>
-              <div style={{ fontSize: 13, color: '#1e293b' }}>
-                <strong>{apercuDecoupe.total}</strong> unité(s) découpée(s) ·{' '}
-                <strong>{apercuDecoupe.total_niveau}</strong> pour ce niveau
-                {apercuDecoupe.bande_niveau ? ` (bande ${apercuDecoupe.bande_niveau})` : ''}
-              </div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-                {(apercuDecoupe.unites || []).map((u, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                    flexWrap: 'wrap',
-                    borderTop: i ? '1px solid #f1f5f9' : 'none',
-                    background: u.dans_niveau ? '#fff' : '#f8fafc', opacity: u.dans_niveau ? 1 : 0.55 }}>
-                    <span style={{ flex: 1, minWidth: 140, fontSize: 13, color: '#1e293b' }}>{u.titre}</span>
-                    {/* Cas flou : contrôle actif. Les OPTIONS bouclent sur apercuDecoupe.options_arbitrage
-                        (tenu par la fiche via le backend) — aucune valeur d'âge en dur ici. */}
-                    {u.flou && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span title={u.arbitre ? 'Âge tranché par l\'admin' : 'Âge ambigu — à confirmer par l\'admin'}
-                          style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap',
-                            color: u.arbitre ? '#166534' : '#92400e',
-                            background: u.arbitre ? '#dcfce7' : '#fef3c7',
-                            border: u.arbitre ? '1px solid #bbf7d0' : '1px solid #fde68a' }}>
-                          {u.arbitre ? 'âge tranché' : 'âge à confirmer'}
-                        </span>
-                        {(apercuDecoupe.options_arbitrage || []).map(opt => {
-                          const on = (selection[u.age_label] || []).includes(opt)
-                          return (
-                            <button key={opt} type="button"
-                              title={`Ranger cette unité dans « ${opt} »`}
-                              aria-pressed={on}
-                              onClick={() => basculerOption(u.age_label, opt)}
-                              style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                                cursor: 'pointer', whiteSpace: 'nowrap',
-                                border: on ? '1px solid #1F6EEB' : '1px solid #cbd5e1',
-                                background: on ? '#1F6EEB' : '#fff', color: on ? '#fff' : '#475569' }}>
-                              {opt}
-                            </button>
-                          )
-                        })}
-                        <button type="button" className="btn-secondary"
-                          title="Enregistrer la tranche d'âge choisie pour cette unité"
-                          disabled={savingArbitrage === u.age_label}
-                          onClick={() => validerAge(u.age_label)}
-                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                          {savingArbitrage === u.age_label ? '…' : "Valider l'âge"}
-                        </button>
-                        {/* TEMPS 2 : badge « en attente » + voir l'ambiguïté + demander l'avis d'un pro par mail. */}
-                        {enAttentePour(u.age_label) && (
-                          <span title={`Avis demandé à ${enAttentePour(u.age_label).destinataire}`}
-                            style={{ fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap',
-                              color: '#1e3a8a', background: '#dbeafe', border: '1px solid #bfdbfe' }}>
-                            en attente
-                          </span>
-                        )}
-                        <button type="button" className="btn-secondary"
-                          title="Voir ce qui rend le cas ambigu : l'indication du document et l'activité complète"
-                          onClick={() => basculerAmbiguite(u.age_label)}
-                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                          {ambiguiteOuverte === u.age_label ? "Masquer l'ambiguïté" : "Afficher l'ambiguïté"}
-                        </button>
-                        <button type="button" className="btn-secondary"
-                          title="Demander par mail l'avis d'un professionnel sur ce cas"
-                          onClick={() => ouvrirDemande(u)}
-                          style={{ fontSize: 11, padding: '2px 8px', whiteSpace: 'nowrap' }}>
-                          {demandeOuverte === u.age_label ? 'Fermer' : 'Demander un avis'}
-                        </button>
-                      </div>
-                    )}
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>
-                      {(u.bandes || []).join(' · ') || '—'}
-                    </span>
-                    {/* Panneau « ambiguïté » : ce que l'admin doit voir pour trancher — l'indication
-                        d'âge écrite dans le document + l'activité complète (titre + matériel + déroulé). */}
-                    {u.flou && ambiguiteOuverte === u.age_label && (
-                      <div style={{ flexBasis: '100%', marginTop: 8, padding: 10, background: '#fffbeb',
-                        border: '1px solid #fde68a', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ fontSize: 12, color: '#92400e' }}>
-                          <strong>Indication du document :</strong> « {u.age_label} » — imprécise, à trancher.
-                        </div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Activité complète</div>
-                        <pre style={{ margin: 0, fontSize: 12, color: '#1e293b', whiteSpace: 'pre-wrap',
-                          fontFamily: 'inherit' }}>{u.extrait || '—'}</pre>
-                      </div>
-                    )}
-                    {/* Formulaire de demande d'avis (inline, pleine largeur sous la ligne). Mail générique
-                        pré-rempli, éditable : l'admin lit, ajuste, envoie. */}
-                    {u.flou && demandeOuverte === u.age_label && (
-                      <div style={{ flexBasis: '100%', marginTop: 8, padding: 10, background: '#f8fafc',
-                        border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Adresse du professionnel</label>
-                        <input type="email" value={demandeEmail} onChange={e => setDemandeEmail(e.target.value)}
-                          placeholder="ex. contact@exemple.fr"
-                          style={{ fontSize: 13, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
-                        <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Message (pré-rempli, modifiable)</label>
-                        <textarea value={demandeMessage} onChange={e => setDemandeMessage(e.target.value)} rows={12}
-                          style={{ fontSize: 12, padding: '6px 8px', border: '1px solid #cbd5e1', borderRadius: 6, fontFamily: 'inherit', resize: 'vertical' }} />
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                          <button type="button" className="btn-secondary" title="Annuler la demande"
-                            onClick={() => setDemandeOuverte('')} style={{ fontSize: 12, padding: '4px 10px' }}>
-                            Annuler
-                          </button>
-                          <button type="button" className="btn-primary" title="Envoyer la demande d'avis par mail au professionnel"
-                            disabled={envoiDemande === u.age_label}
-                            onClick={() => envoyerDemande(u.age_label)} style={{ fontSize: 12, padding: '4px 10px' }}>
-                            {envoiDemande === u.age_label ? 'Envoi…' : 'Envoyer la demande'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {(apercuDecoupe.unites || []).length === 0 && (
-                  <div style={{ padding: '10px', fontSize: 12, color: '#94a3b8' }}>Aucune unité découpée.</div>
-                )}
-              </div>
-            </>
-          ) : apercuDecoupe.raison === 'regle_non_validee' ? (
-            <div style={{ fontSize: 13, color: '#b45309' }}>
-              Validez d'abord la règle de découpe (ci-dessus) pour voir le résultat.
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: '#64748b' }}>
-              Résultat indisponible{apercuDecoupe.message ? ` : ${apercuDecoupe.message}` : ''}.
-            </div>
-          )}
-          </>
-          )}
-        </div>
-      )}
-
-      {/* Cartouche « Résultat du filtre par niveau » — verdict du VRAI filtre (backend), sous le
-          découpage. Vert = couple prêt ; rouge = il reste des cas à trancher. La modale bloquante se
-          déclenche à l'ouverture du couple (effet de chargement ci-dessus, règle « incohérence = modale »). */}
-      {apercuDecoupe && apercuDecoupe.disponible && apercuDecoupe.filtre && (
-        <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 12, padding: 16,
-          background: apercuDecoupe.filtre.ok ? '#f0fdf4' : '#fef2f2' }}>
-          <h2 className="text-base font-semibold"
-            style={{ color: apercuDecoupe.filtre.ok ? '#166534' : '#991b1b' }}>
-            Résultat du filtre par niveau
-          </h2>
-          {apercuDecoupe.filtre.ok ? (
-            <div style={{ fontSize: 13, color: '#166534', marginTop: 6 }}>
-              Filtre réussi — <strong>{apercuDecoupe.filtre.gardes}</strong> unités retenues pour ce niveau
-              {apercuDecoupe.bande_niveau ? ` (bande ${apercuDecoupe.bande_niveau})` : ''}. Ce niveau est prêt.
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, color: '#991b1b', marginTop: 6 }}>
-              Filtre en échec — il reste{' '}
-              <strong>{(apercuDecoupe.unites || []).filter(u => u.flou && !u.arbitre).length}</strong> cas
-              « âge à confirmer » à trancher pour ce couple. Réglez-les dans la carte « Résultat du découpage » ci-dessus.
             </div>
           )}
         </div>

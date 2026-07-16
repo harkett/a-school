@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import shutil
+import threading
 import unicodedata
 import uuid
 from pathlib import Path
@@ -23,10 +24,9 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.core.database import get_db
-from backend.core.models_db import ArbitrageDemande, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple
+from backend.core.database import get_db, SessionLocal
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple
 from backend.systeme.admin import _require_admin, get_settings_dict
-from backend.auth import send_custom_email
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -429,13 +429,12 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
 
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
-        # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, verdict IA, chunks.
+        # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, chunks.
         existing.fichier = fichier_origine
         existing.source = (body.source.strip() if body.source else None)
         existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
         existing.prompt_decoupe = None
         existing.prompt_decoupe_valide = False
-        existing.doutes_ia = None
         existing.forcage_motif = forcage_motif
         existing.verif_couple = verif_couple_json
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
@@ -552,18 +551,12 @@ def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
                         headers={"Content-Disposition": "inline; filename=referentiel.pdf"})
 
 
-# ── Règle de découpe d'un référentiel : lire + valider/rejeter le statut ──
-#    Objet à deux faces (explication_clair + critere_technique) porté EN BASE par la ligne
-#    `referentiels` du COUPLE (colonnes regle_explication / regle_motif / regle_depose_par /
-#    regle_valide) — une règle PAR référentiel, jamais partagée au niveau du cycle. Un niveau =
-#    un référentiel = un document = sa règle (aucune exception crèche : le code voit 3 référentiels
-#    distincts, donc 3 règles). L'admin ne fait que valider/rejeter le STATUT (regle_valide) ; il
-#    ne modifie pas les deux faces.
+# ── Résolution du référentiel d'un couple (cycle + niveau) — porteur EN BASE des données du couple ──
 
 def _ref_du_couple(db: Session, cycle_id: int, niveau: str) -> Referentiel | None:
     """Résout la ligne `referentiels` (matiere_id NULL) du COUPLE cycle+niveau — le porteur EN BASE
-    de la règle de découpe et de l'arbitrage. Lève 404 si le cycle est inconnu, 422 si le niveau
-    manque. Renvoie None si le niveau ou le référentiel du couple n'existe pas encore."""
+    des données du couple (prompt de découpe, PDF…). Lève 404 si le cycle est inconnu, 422 si le
+    niveau manque. Renvoie None si le niveau ou le référentiel du couple n'existe pas encore."""
     cycle = db.get(Cycle, cycle_id)
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
@@ -578,52 +571,9 @@ def _ref_du_couple(db: Session, cycle_id: int, niveau: str) -> Referentiel | Non
               .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
 
 
-def _ecrire_statut_regle(db: Session, cycle_id: int, niveau: str, valide: bool) -> dict:
-    """Passe `regle_valide` du couple à la valeur voulue, EN BASE (les deux faces intactes). Lève
-    404 si aucun référentiel ou aucune règle posée (motif vide) pour ce couple — jamais de statut
-    fantôme."""
-    ref = _ref_du_couple(db, cycle_id, niveau)
-    if ref is None or not (ref.regle_motif or "").strip():
-        raise HTTPException(404, "Aucune règle de découpe pour ce couple.")
-    ref.regle_valide = valide
-    ref.doutes_ia = None   # la règle change -> le verdict d'analyse amont est périmé : on le vide
-    db.commit()            #   (il sera recalculé une fois, au prochain aperçu/ingestion)
-    return {"ok": True, "valide": valide}
-
-
-@router.get("/admin/referentiels/regle-decoupe", dependencies=[Depends(_require_admin)])
-def lire_regle_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit la règle de découpe du référentiel (lecture seule), EN BASE, résolue par COUPLE
-    (cycle + niveau). `existe: false` si aucun référentiel pour ce couple ou aucune règle posée
-    (motif vide) → l'écran n'affiche simplement pas la carte."""
-    ref = _ref_du_couple(db, cycle_id, niveau)          # 404 cycle inconnu / 422 niveau manquant
-    if ref is None or not (ref.regle_motif or "").strip():
-        return {"existe": False}
-    return {
-        "existe": True,
-        "explication_clair": ref.regle_explication or "",
-        "critere_technique": ref.regle_motif or "",
-        "depose_par": ref.regle_depose_par or "",
-        "valide": bool(ref.regle_valide),
-    }
-
-
 class RegleStatutBody(BaseModel):
     cycle_id: int
-    niveau: str                 # couple = cycle + niveau ; entre dans le chemin de la règle
-
-
-@router.post("/admin/referentiels/regle-decoupe/valider", dependencies=[Depends(_require_admin)])
-def valider_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """L'admin valide la règle : `valide` → true. Elle devient la règle retenue pour le
-    découpage (le branchement effectif du moteur est une étape suivante)."""
-    return _ecrire_statut_regle(db, body.cycle_id, body.niveau, True)
-
-
-@router.post("/admin/referentiels/regle-decoupe/rejeter", dependencies=[Depends(_require_admin)])
-def rejeter_regle_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """L'admin rejette la règle : `valide` → false. Elle repart en proposition."""
-    return _ecrire_statut_regle(db, body.cycle_id, body.niveau, False)
+    niveau: str                 # couple = cycle + niveau ; entre dans le chemin de la découpe
 
 
 # ── Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché/corrigé/validé ──
@@ -748,27 +698,79 @@ def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
     return {"ok": True, "total": len(unites), "unites": unites}
 
 
+# ── Découpe (ingestion) en TÂCHE DE FOND : l'écriture des chunks + embeddings prend ~2 min, bien
+#    plus long qu'une requête HTTP ne peut tenir. Le bouton LANCE l'ingestion et rend la main tout de
+#    suite ; l'écran SURVEILLE ensuite l'aboutissement via /decoupe/statut. `_INGESTIONS` = état
+#    d'orchestration RUNTIME (en cours / échec), PAS une donnée métier : l'unique vérité d'aboutissement
+#    reste `referentiels.decoupe_valide` + les chunks EN BASE. Perdu au redémarrage serveur (l'admin
+#    relance le bouton) — acceptable.
+_INGESTIONS: dict[str, dict] = {}
+_INGESTIONS_LOCK = threading.Lock()
+
+
+def _ingest_en_fond(collection: str) -> None:
+    """Tâche de fond : découpe IA + embeddings + écriture des chunks, puis pose `decoupe_valide=true`
+    EN BASE (le VRAI PUT). Met à jour l'état d'orchestration `_INGESTIONS` (done / error). Session
+    dédiée (le thread ne partage pas celle de la requête, déjà fermée)."""
+    try:
+        from backend.rag.pgvector_store import ingest_pgvector
+        rapport = ingest_pgvector(collection)
+        db = SessionLocal()
+        try:
+            ref = db.query(Referentiel).filter(Referentiel.collection == collection).first()
+            if ref is not None:
+                ref.decoupe_valide = True   # drapeau posé UNIQUEMENT après l'ingestion réussie
+                db.commit()
+        finally:
+            db.close()
+        with _INGESTIONS_LOCK:
+            _INGESTIONS[collection] = {"status": "done", "chunks": rapport.get("inseres_en_base"), "message": None}
+    except Exception as e:
+        logger.exception("Ingestion de la découpe échouée (collection=%s)", collection)
+        with _INGESTIONS_LOCK:
+            _INGESTIONS[collection] = {"status": "error", "chunks": None, "message": str(e)}
+
+
 @router.post("/admin/referentiels/decoupe/valider", dependencies=[Depends(_require_admin)])
 def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """Bouton FINAL : l'admin a contrôlé le résultat de la découpe et l'accepte → `decoupe_valide = true`.
-    C'est LA dernière étape : elle seule fait passer la puce du menu au vert. Garde métier : on ne valide
-    pas la découpe tant que le PROMPT n'est pas validé (la découpe en dépend)."""
+    """Bouton FINAL : l'admin accepte la découpe. LANCE l'ingestion (découpe + embeddings + chunks
+    EN BASE, puis `decoupe_valide=true`) en TÂCHE DE FOND et rend la main aussitôt — l'opération est
+    trop longue pour tenir dans une requête HTTP. L'écran surveille ensuite via /decoupe/statut.
+    Garde métier : on ne valide pas la découpe tant que le PROMPT n'est pas validé (elle en dépend)."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
     if not ref.prompt_decoupe_valide:
         raise HTTPException(400, "Validez d'abord le prompt de découpe.")
-    # LE VRAI PUT : découper + vectoriser + écrire les chunks en base (referentiel_chunks), pour que
-    # l'IA des profs les trouve. On ingère AVANT de poser le drapeau : si l'ingestion échoue, le
-    # référentiel ne passe PAS « complet » (la puce ne ment jamais).
-    from backend.rag.pgvector_store import ingest_pgvector
-    try:
-        rapport = ingest_pgvector(ref.collection)
-    except Exception as e:
-        raise HTTPException(400, f"Ingestion de la découpe impossible : {e}")
-    ref.decoupe_valide = True
-    db.commit()
-    return {"ok": True, "decoupe_valide": True, "chunks": rapport.get("total_chunks_PDF")}
+    collection = ref.collection
+    with _INGESTIONS_LOCK:
+        deja = _INGESTIONS.get(collection, {}).get("status") == "running"
+        if not deja:
+            _INGESTIONS[collection] = {"status": "running", "chunks": None, "message": None}
+    if not deja:   # jamais deux ingestions en parallèle pour le même couple (idempotent)
+        threading.Thread(target=_ingest_en_fond, args=(collection,), daemon=True).start()
+    return {"ok": True, "status": "running"}
+
+
+@router.get("/admin/referentiels/decoupe/statut", dependencies=[Depends(_require_admin)])
+def statut_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """État de l'ingestion d'un couple (surveillance après « Valider le découpage »). La VÉRITÉ
+    d'aboutissement = `decoupe_valide` + nombre de chunks EN BASE (get) ; `status` d'orchestration
+    (running / error) lu dans `_INGESTIONS` (runtime). idle = rien en cours et pas encore validé."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"status": "absent", "decoupe_valide": False, "chunks": 0, "message": None}
+    n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
+    with _INGESTIONS_LOCK:
+        job = _INGESTIONS.get(ref.collection)
+    if ref.decoupe_valide:
+        status = "done"
+    elif job is not None:
+        status = job["status"]
+    else:
+        status = "idle"
+    return {"status": status, "decoupe_valide": bool(ref.decoupe_valide), "chunks": n,
+            "message": (job or {}).get("message")}
 
 
 # ── Méta-prompt (générique) : EN BASE (Setting 'prompt_meta_decoupe'), lu par le code, éditable ──
@@ -796,172 +798,6 @@ def ecrire_meta_prompt(body: MetaPromptBody, db: Session = Depends(get_db)):
         db.add(Setting(key="prompt_meta_decoupe", value=body.texte))
     db.commit()
     return {"ok": True}
-
-
-# ── Aperçu du découpage : ce que la règle validée produit (lecture seule, aucune ingestion) ──
-
-@router.get("/admin/referentiels/apercu-decoupage", dependencies=[Depends(_require_admin)])
-def apercu_decoupage_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Aperçu du découpage pour un couple : nombre d'unités, leurs titres, bandes d'âge, cas flous,
-    et combien reviennent à ce niveau. LECTURE SEULE (aucune écriture, aucune ingestion, pas de
-    vectorisation). L'admin VOIT le résultat de la règle qu'il a validée.
-      - pas de règle pour ce cycle  -> {disponible:false, raison:"non_applicable"} (carte masquée) ;
-      - règle non validée           -> {disponible:false, raison:"regle_non_validee"} (invite à valider) ;
-      - sinon                       -> l'aperçu complet."""
-    ref = _ref_du_couple(db, cycle_id, niveau)   # lève 404 cycle / 422 niveau
-    if ref is None or not (ref.regle_motif or "").strip():
-        return {"disponible": False, "raison": "non_applicable"}
-    if not ref.regle_valide:
-        return {"disponible": False, "raison": "regle_non_validee"}
-
-    from backend.rag.pgvector_store import apercu_decoupage   # import paresseux (aucun coût au boot)
-    try:
-        apercu = apercu_decoupage(ref.collection)
-    except Exception as e:
-        return {"disponible": False, "raison": "erreur", "message": str(e)}
-    return {"disponible": True, **apercu}
-
-
-# ── Arbitrage des cas flous : l'admin tranche la tranche d'âge d'un libellé flou ──
-#    Donnée du couple, EN BASE (colonne referentiels.arbitrage, JSON {label: [bandes]}), comme la
-#    règle de découpe. La fiche lit cette colonne à l'ingestion (le flou n'est plus deviné).
-#    Écrire = trancher ; bandes vides = dé-trancher. On valide les bandes contre celles de la FICHE
-#    -> jamais une bande inconnue (qui rangerait l'unité dans aucune collection = trou muet).
-
-@router.get("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
-def lire_arbitrage_flou(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit l'arbitrage des cas flous du couple (lecture seule), EN BASE (referentiels.arbitrage).
-    Aucun référentiel / aucun arbitrage -> {arbitrages: {}}. La LISTE des flous à trancher se lit
-    dans l'aperçu (champ `arbitre`) — ici on sert les décisions."""
-    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle inconnu / 422 niveau manquant
-    if ref is None or not ref.arbitrage:
-        return {"arbitrages": {}}
-    try:
-        data = json.loads(ref.arbitrage)
-    except Exception as e:
-        raise HTTPException(400, f"Arbitrage (referentiels.arbitrage) illisible : {e}")
-    arb = data if isinstance(data, dict) else {}
-    return {"arbitrages": {str(k): [str(b) for b in (v or [])] for k, v in arb.items()}}
-
-
-class ArbitrageFlouBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    label: str                 # libellé d'âge flou exact (= age_label de l'aperçu)
-    bandes: list[str]          # tranche(s) choisie(s) ; [] = retirer la décision (dé-trancher)
-
-
-@router.post("/admin/referentiels/arbitrage-flou", dependencies=[Depends(_require_admin)])
-def enregistrer_arbitrage_flou(body: ArbitrageFlouBody, db: Session = Depends(get_db)):
-    """L'admin tranche un cas flou : écrit { label: [bandes] } dans referentiels.arbitrage (JSON).
-    Valide les bandes contre celles de la FICHE (jamais une bande inconnue -> pas de trou muet).
-    bandes vides = retire la décision. Préserve les autres entrées."""
-    label = (body.label or "").strip()
-    if not label:
-        raise HTTPException(400, "Le libellé du cas flou est requis.")
-
-    # Résoudre le couple -> référentiel -> collection -> fiche (pour ses bandes valides).
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple — rien à arbitrer.")
-    from backend.rag.referentiels import get_fiche
-    valides = getattr(get_fiche(ref.collection), "BANDES_VALIDES", None)
-    if valides is None:
-        raise HTTPException(400, "Ce référentiel n'a pas de tranches d'âge à arbitrer.")
-
-    bandes = [str(b).strip() for b in (body.bandes or []) if str(b).strip()]
-    hors = [b for b in bandes if b not in valides]
-    if hors:
-        raise HTTPException(400, f"Tranche(s) d'âge inconnue(s) : {hors}. Attendu : {sorted(valides)}.")
-
-    # Lire l'existant (préserver les autres décisions), appliquer, réécrire EN BASE.
-    arb = {}
-    if ref.arbitrage:
-        try:
-            data = json.loads(ref.arbitrage)
-            arb = data if isinstance(data, dict) else {}
-        except Exception as e:
-            raise HTTPException(400, f"Arbitrage (referentiels.arbitrage) illisible : {e}")
-    if bandes:
-        arb[label] = bandes
-    else:
-        arb.pop(label, None)               # bandes vides = dé-trancher
-    ref.arbitrage = json.dumps(arb, ensure_ascii=False) if arb else None
-    # TEMPS 2 : trancher un cas ferme la demande d'avis en attente (le cas sort de « en attente »).
-    if bandes:
-        db.query(ArbitrageDemande).filter(
-            ArbitrageDemande.referentiel_id == ref.id, ArbitrageDemande.label == label
-        ).delete()
-    db.commit()
-    return {"ok": True, "arbitrages": arb}
-
-
-# ── TEMPS 2 : demander l'avis d'un professionnel quand l'admin ne sait pas trancher ──
-#    L'admin envoie un mail (porte SMTP existante `send_custom_email`) et le cas passe « en attente »
-#    (table `arbitrage_demandes`, EN BASE — cap « tout en base »). La réponse arrive dans la boîte de
-#    l'admin (l'app ne reçoit pas encore : item 65) ; l'admin revient et tranche via arbitrage-flou,
-#    ce qui ferme la demande. « en attente » = présence d'une ligne. PROVISOIRE : absorbé par l'item 65.
-
-class DemandeAvisBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    label: str        # libellé flou exact (= age_label de l'aperçu)
-    email: str        # adresse du professionnel sollicité
-    message: str      # corps du mail, pré-rempli côté écran et éditable par l'admin
-
-
-@router.post("/admin/referentiels/arbitrage-flou/demander", dependencies=[Depends(_require_admin)])
-def demander_avis(body: DemandeAvisBody, db: Session = Depends(get_db)):
-    """L'admin demande l'avis d'un professionnel par mail sur un cas flou → envoi via
-    `send_custom_email` (aucune archi mail neuve) + le cas passe « en attente » (upsert EN BASE).
-    Une demande par cas flou (référentiel + libellé) : redemander met à jour l'adresse, jamais un doublon."""
-    label = (body.label or "").strip()
-    email = (body.email or "").strip()
-    message = (body.message or "").strip()
-    if not label:
-        raise HTTPException(400, "Le libellé du cas flou est requis.")
-    if not email:
-        raise HTTPException(400, "L'adresse du professionnel est requise.")
-    if not message:
-        raise HTTPException(400, "Le message à envoyer est requis.")
-
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple — rien à arbitrer.")
-
-    # Objet du mail = étiquette factuelle du COUPLE (cycle · niveau), composée EN BASE → toujours
-    # exacte, jamais un couple faux ou oublié. Le corps, lui, reste éditable par l'admin. (Le nom du
-    # produit « aSchool » reste en dur ici comme partout — chantier « nom en réglage admin » à part.)
-    cycle = db.get(Cycle, body.cycle_id)
-    couple = f"{cycle.nom} · {body.niveau.strip()}" if cycle else body.niveau.strip()
-    objet = f"aSchool — {couple} : votre avis sur une activité"
-
-    # Envoi via la porte SMTP unique (objet = couple ; corps éditable de l'admin).
-    try:
-        send_custom_email(email, None, objet, message)
-    except Exception as e:
-        raise HTTPException(502, f"L'email n'a pas pu être envoyé : {e}")
-
-    # Upsert du statut « en attente » (une demande par cas flou : référentiel + libellé).
-    row = (db.query(ArbitrageDemande)
-             .filter(ArbitrageDemande.referentiel_id == ref.id, ArbitrageDemande.label == label).first())
-    if row:
-        row.destinataire = email
-    else:
-        db.add(ArbitrageDemande(referentiel_id=ref.id, label=label, destinataire=email))
-    db.commit()
-    return {"ok": True, "en_attente": True, "destinataire": email}
-
-
-@router.get("/admin/referentiels/arbitrage-flou/en-attente", dependencies=[Depends(_require_admin)])
-def lire_arbitrages_en_attente(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Libellés flous EN ATTENTE d'un avis pour ce couple (pour baliser les lignes de l'aperçu).
-    Référentiel du couple absent → liste vide (jamais d'erreur bloquante en lecture)."""
-    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle inconnu / 422 niveau manquant
-    if ref is None:
-        return {"en_attente": []}
-    rows = db.query(ArbitrageDemande).filter(ArbitrageDemande.referentiel_id == ref.id).all()
-    return {"en_attente": [{"label": r.label, "destinataire": r.destinataire} for r in rows]}
 
 
 # ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──

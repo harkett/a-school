@@ -419,20 +419,6 @@ class Referentiel(Base):
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Règle de découpe du couple (objet à deux faces) — DONNÉE MÉTIER EN BASE (plus de fichier
-    # regle-decoupe.json). L'admin valide sur `regle_explication` (face claire, sans code) ; la fiche
-    # exécute `regle_motif` (regex) à l'ingestion. `regle_valide` : découpage REFUSÉ tant que False.
-    regle_explication: Mapped[str | None] = mapped_column(Text, nullable=True)
-    regle_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
-    regle_depose_par: Mapped[str | None] = mapped_column(Text, nullable=True)   # 'dev' | 'admin'
-    regle_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
-    # Arbitrage des cas flous du couple : JSON {libellé d'âge flou: [bandes]} — DONNÉE MÉTIER EN BASE
-    # (plus de fichier arbitrage-flou.json). NULL/absent = aucun cas flou tranché.
-    arbitrage: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Verdict d'analyse amont de l'IA, calculé UNE fois puis relu (aperçu ET ingestion lisent le
-    # MÊME verdict → jamais deux appels IA divergents) : JSON = liste des libellés jugés douteux.
-    # NULL = pas encore analysé (calculé au 1er besoin) ; vidé quand la règle du couple change.
-    doutes_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), puis affiché, corrigé et
     # validé par l'admin. DONNÉE MÉTIER EN BASE (aucun prompt écrit en dur dans le code).
     # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
@@ -480,25 +466,6 @@ class ReferentielChunk(Base):
     embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-
-
-class ArbitrageDemande(Base):
-    """TEMPS 2 de l'arbitrage : cas flou où l'admin a demandé l'avis d'un pro par mail et ATTEND la
-    réponse. La DÉCISION d'arbitrage vit en base (`referentiels.arbitrage`) ; ici on ne stocke QUE le
-    statut « en attente » — donnée saisie via l'app, cap « tout en base ». Une ligne = un cas flou
-    (référentiel + libellé) en attente ; « en attente » = présence de la ligne. La ligne est supprimée
-    quand l'admin tranche le cas (endpoint arbitrage-flou). Ancrée au MÊME référentiel que la décision
-    (referentiel_id), jamais au niveau — un seul point d'ancrage. PROVISOIRE : absorbé plus tard par la
-    gestion unifiée des mails (item 65)."""
-    __tablename__ = "arbitrage_demandes"
-    __table_args__ = (UniqueConstraint("referentiel_id", "label", name="uq_arbitrage_demandes_ref_label"),)
-
-    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    referentiel_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
-    label: Mapped[str] = mapped_column(Text, nullable=False)                 # libellé d'âge flou (= age_label de l'aperçu)
-    destinataire: Mapped[str] = mapped_column(String(255), nullable=False)   # adresse du pro sollicité
-    demande_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
 class Famille(Base):
