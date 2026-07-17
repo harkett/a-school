@@ -442,3 +442,118 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
             vus.add(nom.lower())
             noms.append(nom)
     return noms
+
+
+# Clé EN BASE du prompt de suggestion des cycles d'une famille — proposés à l'admin lors de la
+# construction d'une famille (proposition, pas un lien validé : l'admin choisit/coche ce qu'il garde).
+_CLE_SUGGERER_CYCLES = "suggerer_cycles"
+
+
+def formater_cycles(cycles: list[dict]) -> str:
+    """Rend les cycles existants en texte pour le prompt : un nom par ligne. Pur (ni IA ni base)."""
+    return "\n".join(f"- {c['nom']}" for c in cycles)
+
+
+def _schema_suggerer_cycles() -> dict:
+    """Sortie structurée de la suggestion : `cycles` = tableau de noms. `additionalProperties: false`
+    interdit tout champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
+    return {
+        "type": "object",
+        "properties": {
+            "cycles": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["cycles"],
+        "additionalProperties": False,
+    }
+
+
+def suggerer_cycles(famille: dict, cycles: list[dict], *, db: Session) -> list[str]:
+    """L'IA PROPOSE les cycles sur lesquels s'appuie une famille (nom + description). On lui donne
+    aussi les cycles DÉJÀ EN BASE pour qu'elle réutilise leur nom exact quand ils conviennent.
+    Proposition seulement : l'admin choisit / coche (jamais un cycle relié d'office). L'appelant
+    décide ensuite, nom par nom, si chaque suggestion existe déjà en base ou reste à créer.
+
+    `famille` = {nom, description} ; `cycles` = [{id, nom}, …] (les cycles existants). Renvoie les
+    noms nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu. Liste vide si l'IA n'en
+    propose aucun. Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Lève
+    `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA (l'appelant
+    traduit)."""
+    prompt = (get_prompt(db, _CLE_SUGGERER_CYCLES)
+              .replace("{famille}", famille.get("nom") or "")
+              .replace("{description}", famille.get("description") or "")
+              .replace("{cycles}", formater_cycles(cycles)))
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_SUGGERER_CYCLES),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_suggerer_cycles(),
+    )
+    data = parser_reponse(raw)
+    noms: list[str] = []
+    vus: set[str] = set()
+    for c in data.get("cycles", []):
+        nom = (c if isinstance(c, str) else str(c)).strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower())
+            noms.append(nom)
+    return noms
+
+
+# Clé EN BASE du prompt de suggestion des niveaux d'un cycle pertinents pour une famille (proposition).
+_CLE_SUGGERER_NIVEAUX = "suggerer_niveaux"
+
+
+def formater_niveaux(niveaux: list[dict]) -> str:
+    """Rend les niveaux existants d'un cycle en texte pour le prompt : un nom par ligne. Pur."""
+    return "\n".join(f"- {n['nom']}" for n in niveaux)
+
+
+def _schema_suggerer_niveaux() -> dict:
+    """Sortie structurée : `niveaux` = tableau de noms. `additionalProperties: false` interdit tout
+    champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
+    return {
+        "type": "object",
+        "properties": {
+            "niveaux": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["niveaux"],
+        "additionalProperties": False,
+    }
+
+
+def suggerer_niveaux(famille: dict, cycle: str, niveaux: list[dict], *, db: Session) -> list[str]:
+    """L'IA PROPOSE les niveaux d'un cycle qui concernent une famille (nom + description). On lui donne
+    aussi les niveaux DÉJÀ EN BASE du cycle pour qu'elle réutilise leur nom exact. Proposition seulement :
+    l'admin coche / crée (jamais un niveau relié d'office). L'appelant décide ensuite, nom par nom, si
+    chaque suggestion existe déjà (et si elle est reliée) ou reste à créer.
+
+    `famille` = {nom, description} ; `cycle` = nom du cycle ; `niveaux` = [{id, nom}, …] (niveaux du cycle).
+    Renvoie les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu. Liste vide si
+    aucun niveau du cycle ne concerne la famille. Prompt / provider / modèle lus EN BASE ; température 0.
+    Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA."""
+    prompt = (get_prompt(db, _CLE_SUGGERER_NIVEAUX)
+              .replace("{famille}", famille.get("nom") or "")
+              .replace("{description}", famille.get("description") or "")
+              .replace("{cycle}", cycle or "")
+              .replace("{niveaux}", formater_niveaux(niveaux)))
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_SUGGERER_NIVEAUX),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_suggerer_niveaux(),
+    )
+    data = parser_reponse(raw)
+    noms: list[str] = []
+    vus: set[str] = set()
+    for n in data.get("niveaux", []):
+        nom = (n if isinstance(n, str) else str(n)).strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower())
+            noms.append(nom)
+    return noms

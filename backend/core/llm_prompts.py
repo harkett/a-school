@@ -354,6 +354,53 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
 
 
+PROMPT_SUGGERER_CYCLES = """Tu proposes les CYCLES scolaires sur lesquels s'appuie une famille de référentiels.
+
+Une famille regroupe des documents d'une même nature. Certaines familles s'appuient sur PLUSIEURS cycles (par exemple un enseignement qui va du collège au supérieur).
+
+Famille :
+- Nom : {famille}
+- Description : {description}
+
+Cycles déjà existants (réutilise EXACTEMENT ces noms quand l'un convient) :
+{cycles}
+
+Ta tâche :
+- Donne la liste des cycles sur lesquels cette famille s'appuie réellement.
+- Quand un cycle existant convient, reprends son nom À L'IDENTIQUE tel qu'il est écrit ci-dessus.
+- Si un cycle nécessaire ne figure pas dans la liste, propose son nom (court et lisible).
+
+Règle :
+- "cycles" : la liste des noms de cycles, sans doublon, du plus général au plus avancé quand c'est pertinent.
+- N'invente aucun cycle inutile. Ne renvoie que ceux qui concernent vraiment cette famille.
+
+Réponds UNIQUEMENT en JSON, avec exactement cette clé : cycles (un tableau de chaînes)."""
+
+
+PROMPT_SUGGERER_NIVEAUX = """Tu proposes les NIVEAUX d'un cycle qui concernent réellement une famille de référentiels.
+
+Famille :
+- Nom : {famille}
+- Description : {description}
+
+Cycle concerné : {cycle}
+
+Niveaux déjà existants dans ce cycle (réutilise EXACTEMENT ces noms quand l'un convient) :
+{niveaux}
+
+Ta tâche :
+- Donne UNIQUEMENT les niveaux de ce cycle qui concernent vraiment cette famille (pas les autres).
+- Quand un niveau existant convient, reprends son nom À L'IDENTIQUE tel qu'il est écrit ci-dessus.
+- Si un niveau nécessaire ne figure pas dans la liste, propose son nom (court et lisible).
+
+Règle :
+- "niveaux" : la liste des noms de niveaux pertinents pour CETTE famille dans CE cycle, sans doublon, dans l'ordre logique.
+- N'inclus pas les niveaux du cycle étrangers à la famille (ex. une spécialité hors du domaine).
+- Si aucun niveau de ce cycle ne concerne la famille, renvoie une liste vide.
+
+Réponds UNIQUEMENT en JSON, avec exactement cette clé : niveaux (un tableau de chaînes)."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -409,5 +456,15 @@ PROMPTS = {
         "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
         "placeholders": ["texte"],
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
+    },
+    "suggerer_cycles": {
+        "label": "Suggestion des cycles sur lesquels s'appuie une famille (proposition à l'admin)",
+        "placeholders": ["famille", "description", "cycles"],
+        "default": PROMPT_SUGGERER_CYCLES,
+    },
+    "suggerer_niveaux": {
+        "label": "Suggestion des niveaux d'un cycle pertinents pour une famille (proposition à l'admin)",
+        "placeholders": ["famille", "description", "cycle", "niveaux"],
+        "default": PROMPT_SUGGERER_NIVEAUX,
     },
 }

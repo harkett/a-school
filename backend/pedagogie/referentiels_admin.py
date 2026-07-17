@@ -303,6 +303,207 @@ def creer_famille(body: CreerFamilleBody, db: Session = Depends(get_db)):
     return _famille_dict(fam)
 
 
+class ModifierDescriptionBody(BaseModel):
+    description: str
+
+
+@router.put("/admin/familles/{famille_id}/description", dependencies=[Depends(_require_admin)])
+def modifier_description_famille(famille_id: int, body: ModifierDescriptionBody, db: Session = Depends(get_db)):
+    """Update encadré : modifie UNIQUEMENT la description d'une famille (jamais le nom). 404 si la famille
+    n'existe pas, 400 si la description est vide. Put direct en base (règle get/put, zéro copie)."""
+    description = (body.description or "").strip()
+    if not description:
+        raise HTTPException(400, "La description ne peut pas être vide.")
+    fam = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not fam:
+        raise HTTPException(404, "Famille introuvable.")
+    fam.description = description
+    db.commit(); db.refresh(fam)
+    return _famille_dict(fam)
+
+
+# ── Construction d'une famille : choisir/ajouter le cycle, cocher/ajouter les niveaux, relier au couple.
+#    Tout via l'admin (get/put, zéro seed sauf obligation). Trois briques neuves + creer_famille (ci-dessus).
+
+class CreerCycleBody(BaseModel):
+    nom: str
+
+
+@router.post("/admin/cycles", dependencies=[Depends(_require_admin)])
+def creer_cycle(body: CreerCycleBody, db: Session = Depends(get_db)):
+    """Crée un cycle (Create encadré : nom non vide, unique insensible à la casse). `ordre` = max+1."""
+    nom = (body.nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nom du cycle est requis.")
+    if db.query(Cycle).filter(func.lower(Cycle.nom) == nom.lower()).first():
+        raise HTTPException(409, f"Le cycle « {nom} » existe déjà.")
+    maxo = db.query(func.max(Cycle.ordre)).scalar()
+    c = Cycle(nom=nom, ordre=(maxo or 0) + 1)
+    db.add(c); db.commit(); db.refresh(c)
+    return {"id": c.id, "nom": c.nom, "ordre": c.ordre}
+
+
+@router.post("/admin/familles/{famille_id}/suggerer-cycles", dependencies=[Depends(_require_admin)])
+def suggerer_cycles_famille(famille_id: int, db: Session = Depends(get_db)):
+    """L'IA PROPOSE les cycles sur lesquels s'appuie la famille (aide au remplissage, jamais une
+    écriture). Chaque proposition est marquée `existant` (avec son `cycle_id`) si un cycle du même nom
+    est déjà en base, sinon `à créer` (`cycle_id` null → l'admin l'ajoute en 1 clic via POST /admin/cycles).
+    Lecture seule ici : l'IA suggère, le code apparie aux cycles réels, l'admin décide (règle 4)."""
+    from backend.rag.analyse_amont import suggerer_cycles as ia_suggerer_cycles
+    fam = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not fam:
+        raise HTTPException(404, "Famille introuvable.")
+    cycles = db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all()
+    par_nom = {c.nom.strip().lower(): c for c in cycles}
+    try:
+        noms = ia_suggerer_cycles(
+            {"nom": fam.nom, "description": fam.description},
+            [{"id": c.id, "nom": c.nom} for c in cycles],
+            db=db,
+        )
+    except Exception:
+        logger.exception("suggerer_cycles : appel IA échoué (famille %s)", famille_id)
+        raise HTTPException(502, "L'IA n'a pas pu proposer de cycles. Réessaie.")
+    propositions = []
+    for nom in noms:
+        c = par_nom.get(nom.strip().lower())
+        propositions.append({
+            "nom": (c.nom if c else nom.strip()),
+            "cycle_id": (c.id if c else None),
+            "existant": c is not None,
+        })
+    return {"propositions": propositions}
+
+
+@router.post("/admin/familles/{famille_id}/cycles/{cycle_id}/suggerer-niveaux", dependencies=[Depends(_require_admin)])
+def suggerer_niveaux_famille(famille_id: int, cycle_id: int, db: Session = Depends(get_db)):
+    """L'IA PROPOSE les niveaux d'un cycle pertinents pour la famille (aide au remplissage, jamais une
+    écriture). Chaque proposition est marquée `existant` (avec `niveau_id` + `lie` = déjà relié à la
+    famille) ou `à créer` (`niveau_id` null). Lecture seule : l'IA suggère, le code apparie aux niveaux
+    réels du cycle + lit les liens, l'admin coche/crée (règle 4)."""
+    from backend.rag.analyse_amont import suggerer_niveaux as ia_suggerer_niveaux
+    fam = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not fam:
+        raise HTTPException(404, "Famille introuvable.")
+    cyc = db.get(Cycle, cycle_id)
+    if not cyc:
+        raise HTTPException(404, "Cycle inconnu.")
+    niveaux = db.query(Niveau).filter(Niveau.cycle_id == cycle_id).order_by(Niveau.ordre, Niveau.id).all()
+    par_nom = {n.nom.strip().lower(): n for n in niveaux}
+    lies = {r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
+                                    .filter(FamilleCouple.famille_id == famille_id).all())}
+    try:
+        noms = ia_suggerer_niveaux(
+            {"nom": fam.nom, "description": fam.description},
+            cyc.nom,
+            [{"id": n.id, "nom": n.nom} for n in niveaux],
+            db=db,
+        )
+    except Exception:
+        logger.exception("suggerer_niveaux : appel IA échoué (famille %s cycle %s)", famille_id, cycle_id)
+        raise HTTPException(502, "L'IA n'a pas pu proposer de niveaux. Réessaie.")
+    propositions = []
+    for nom in noms:
+        n = par_nom.get(nom.strip().lower())
+        propositions.append({
+            "nom": (n.nom if n else nom.strip()),
+            "niveau_id": (n.id if n else None),
+            "existant": n is not None,
+            "lie": (n.id in lies if n else False),
+        })
+    return {"propositions": propositions}
+
+
+class CreerNiveauBody(BaseModel):
+    cycle_id: int
+    nom: str
+
+
+@router.post("/admin/niveaux", dependencies=[Depends(_require_admin)])
+def creer_niveau(body: CreerNiveauBody, db: Session = Depends(get_db)):
+    """Crée un niveau dans un cycle (Create encadré : nom non vide, unique DANS le cycle). `ordre` = max+1
+    du cycle. Même geste que le get-or-create du dépôt de référentiel, mais explicite et à la demande."""
+    nom = (body.nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nom du niveau est requis.")
+    cycle = db.get(Cycle, body.cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    if db.query(Niveau).filter(Niveau.cycle_id == cycle.id, func.lower(Niveau.nom) == nom.lower()).first():
+        raise HTTPException(409, f"Le niveau « {nom} » existe déjà dans ce cycle.")
+    maxo = db.query(func.max(Niveau.ordre)).filter(Niveau.cycle_id == cycle.id).scalar()
+    n = Niveau(cycle_id=cycle.id, nom=nom, ordre=(maxo or 0) + 1)
+    db.add(n); db.commit(); db.refresh(n)
+    return {"id": n.id, "nom": n.nom, "cycle_id": n.cycle_id}
+
+
+@router.get("/admin/familles/niveaux", dependencies=[Depends(_require_admin)])
+def lister_niveaux_pour_famille(famille_id: int, cycle_id: int, db: Session = Depends(get_db)):
+    """Fenêtre de l'écran : les niveaux d'un cycle + lesquels sont DÉJÀ reliés à la famille (get, zéro copie).
+    `lie` = présence d'une ligne dans `famille_couples` (famille_id, niveau_id)."""
+    lies = {r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
+                                    .filter(FamilleCouple.famille_id == famille_id).all())}
+    nivs = (db.query(Niveau).filter(Niveau.cycle_id == cycle_id)
+              .order_by(Niveau.ordre, Niveau.id).all())
+    return {"niveaux": [{"id": n.id, "nom": n.nom, "lie": n.id in lies} for n in nivs]}
+
+
+@router.get("/admin/familles/{famille_id}/matrice", dependencies=[Depends(_require_admin)])
+def matrice_famille(famille_id: int, db: Session = Depends(get_db)):
+    """Détail (GET pur) de la famille : les cycles auxquels elle est reliée + les niveaux reliés,
+    groupés par cycle et triés. Sert à afficher l'état COURANT à l'ouverture de la famille (avant toute
+    proposition IA). Lecture seule, zéro écriture, zéro copie."""
+    fam = db.query(Famille).filter(Famille.id == famille_id).first()
+    if not fam:
+        raise HTTPException(404, "Famille introuvable.")
+    ids = [r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
+                                   .filter(FamilleCouple.famille_id == famille_id).all())]
+    if not ids:
+        return {"cycles": []}
+    niveaux = db.query(Niveau).filter(Niveau.id.in_(ids)).all()
+    par_cycle = {}
+    for n in niveaux:
+        par_cycle.setdefault(n.cycle_id, []).append(n)
+    cycles = (db.query(Cycle).filter(Cycle.id.in_(list(par_cycle.keys())))
+                .order_by(Cycle.ordre, Cycle.id).all())
+    out = []
+    for c in cycles:
+        nivs = sorted(par_cycle[c.id], key=lambda x: (x.ordre or 0, x.id))
+        out.append({"cycle_id": c.id, "nom": c.nom,
+                    "niveaux": [{"niveau_id": n.id, "nom": n.nom, "lie": True} for n in nivs]})
+    return {"cycles": out}
+
+
+class BasculerFamilleCoupleBody(BaseModel):
+    famille_id: int
+    niveau_id: int
+    actif: bool               # True = relier (créer le couple), False = délier (supprimer le couple)
+
+
+@router.put("/admin/familles/couple", dependencies=[Depends(_require_admin)])
+def basculer_famille_couple(body: BasculerFamilleCoupleBody, db: Session = Depends(get_db)):
+    """La case EST le put : cocher un niveau = créer le couple famille↔niveau, décocher = le supprimer.
+    Écriture directe au clic. CREATE encadré : l'UNIQUE(famille_id, niveau_id) empêche le doublon.
+    DELETE encadré : on REFUSE de délier si un référentiel est déposé sur ce niveau (le couple sert)."""
+    fam = db.get(Famille, body.famille_id)
+    if not fam:
+        raise HTTPException(404, "Famille inconnue.")
+    niv = db.get(Niveau, body.niveau_id)
+    if not niv:
+        raise HTTPException(404, "Niveau inconnu.")
+    lien = (db.query(FamilleCouple)
+              .filter(FamilleCouple.famille_id == fam.id, FamilleCouple.niveau_id == niv.id).first())
+    if body.actif:
+        if lien is None:
+            db.add(FamilleCouple(famille_id=fam.id, niveau_id=niv.id)); db.commit()
+    else:
+        if lien is not None:
+            if db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first():
+                raise HTTPException(409, "Impossible de délier : un référentiel est déposé sur ce niveau.")
+            db.delete(lien); db.commit()
+    return {"ok": True, "famille_id": fam.id, "niveau_id": niv.id, "actif": body.actif}
+
+
 class VerifierDepotBody(BaseModel):
     token: str
     cycle_id: int
