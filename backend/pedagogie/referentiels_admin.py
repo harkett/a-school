@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone
 from backend.systeme.admin import _require_admin, get_settings_dict
 
 router = APIRouter()
@@ -223,11 +223,38 @@ def lister_matieres_table(db: Session = Depends(get_db)):
 
 @router.get("/admin/activite-types", dependencies=[Depends(_require_admin)])
 def lister_activite_types_table(db: Session = Depends(get_db)):
-    """Contenu de la table `types_activite` (get direct, lecture seule) — fenêtre de contrôle admin."""
+    """Contenu de la table `types_activite` (get direct, lecture seule) — fenêtre de contrôle admin.
+    Ajoute par type `usage` (nb de références VIVANTES) + `supprimable`, CALCULÉS À LA VOLÉE (zéro copie,
+    rien n'est stocké) : un type est référencé par sa CLÉ dans `activites_sauvegardees` et
+    `few_shot_milestones`. supprimable = 0 usage → le front sait quel bouton poubelle griser."""
     ta = db.query(ActiviteType).order_by(ActiviteType.ordre, ActiviteType.id).all()
+    usage: dict[str, int] = {}
+    for key, n in db.query(ActiviteSauvegardee.activite_key, func.count()).group_by(ActiviteSauvegardee.activite_key).all():
+        usage[key] = usage.get(key, 0) + n
+    for key, n in db.query(FewShotMilestone.activite_key, func.count()).group_by(FewShotMilestone.activite_key).all():
+        usage[key] = usage.get(key, 0) + n
     return {"total": len(ta), "types": [
-        {"id": t.id, "key": t.key, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre}
+        {"id": t.id, "key": t.key, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre,
+         "usage": usage.get(t.key, 0), "supprimable": usage.get(t.key, 0) == 0}
         for t in ta]}
+
+
+@router.delete("/admin/activite-types/{type_id}", dependencies=[Depends(_require_admin)])
+def supprimer_activite_type(type_id: int, db: Session = Depends(get_db)):
+    """Supprime un type du catalogue `types_activite`. CONTRÔLE DELETE (règle 4) — refuse si le type est
+    encore UTILISÉ, c.-à-d. référencé par sa CLÉ dans une activité sauvegardée ou un jalon few-shot. Les
+    coches référentiel cascadent (FK ondelete=CASCADE) : elles ne bloquent pas. 404 si absent, 409 si utilisé."""
+    t = db.get(ActiviteType, type_id)
+    if t is None:
+        raise HTTPException(404, "Type d'activité introuvable.")
+    n_act = db.query(func.count()).select_from(ActiviteSauvegardee).filter(ActiviteSauvegardee.activite_key == t.key).scalar()
+    n_few = db.query(func.count()).select_from(FewShotMilestone).filter(FewShotMilestone.activite_key == t.key).scalar()
+    if n_act or n_few:
+        raise HTTPException(409, f"Type utilisé ({n_act} activité(s) sauvegardée(s), {n_few} jalon(s) few-shot) : suppression impossible.")
+    db.delete(t)
+    db.commit()
+    logger.info("Type d'activité supprimé : id=%s key=%s label=%s", type_id, t.key, t.label)
+    return {"ok": True, "id": type_id}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
