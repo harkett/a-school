@@ -1,6 +1,4 @@
 ﻿import { useState, useEffect } from 'react'
-import { niveauxRefDisponibles } from '../utils/profil.js'
-import { useMatieres } from '../utils/useMatieres.js'
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -10,15 +8,15 @@ const IconGenerer = () => (
 
 export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
   const activite = activites.find(a => a.key === params.activite_key) || activites[0]
-  const { matieres, chargement: matieresChargement } = useMatieres()
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
+  const [matieresParNiveau, setMatieresParNiveau] = useState([])  // [{niveau, matieres:[{id,nom}]}] — filtre la matière par le niveau
 
   useEffect(() => {
     fetch('/api/programmes', { credentials: 'include' })
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
+      .then(d => { if (d) { setNiveauxParCycle(d.niveaux_par_cycle || []); setMatieresParNiveau(d.matieres_par_niveau || []) } })
       .catch(() => {})
   }, [])
 
@@ -47,6 +45,25 @@ export default function Parametres({ activites, params, accentType, onChange, on
     setShowAjuster(false)
   }
 
+  // Matières réellement rattachées au niveau choisi (get base, zéro copie) — la matière DÉPEND du niveau.
+  const matieresDuNiveauAjust = (matieresParNiveau.find(x => x.niveau === ajustTemp.niveau)?.matieres) || []
+  // Couple valide = un niveau + une matière qui existe POUR ce niveau. Sinon Valider reste grisé (on n'écrit rien).
+  const coupleAjustValide = !!ajustTemp.niveau && matieresDuNiveauAjust.some(m => m.nom === ajustTemp.matiere)
+
+  // Changer le niveau peut invalider la matière courante → on la vide si elle n'existe pas pour ce niveau.
+  function choisirNiveauAjust(nom) {
+    const mats = (matieresParNiveau.find(x => x.niveau === nom)?.matieres) || []
+    setAjustTemp(t => ({ niveau: nom, matiere: mats.some(m => m.nom === t.matiere) ? t.matiere : '' }))
+  }
+
+  // On ne SORT PAS du cycle : le menu Niveau ne propose que les niveaux du cycle du niveau courant du prof.
+  // Le lien cycle→niveaux vient de la base (/api/programmes → niveaux_par_cycle) ; on garde le SEUL groupe
+  // qui contient params.niveau, filtré sur les niveaux disponibles. Zéro dur : le cycle est déduit, pas écrit.
+  const cycleCourant = niveauxParCycle.find(g => g.niveaux.some(n => n.nom === params.niveau))
+  const niveauxDuCycle = cycleCourant
+    ? [{ ...cycleCourant, niveaux: cycleCourant.niveaux.filter(n => n.refDisponible !== false) }]
+    : []
+
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
       <div className="section-title mb-4">Paramètres de l'activité</div>
@@ -65,14 +82,18 @@ export default function Parametres({ activites, params, accentType, onChange, on
         <button
           type="button"
           onClick={ouvrirAjuster}
-          title="Modifier la matière et le niveau pour cette activité uniquement — votre profil reste inchangé"
+          title="Générer cette activité pour une autre classe de votre cycle ou une autre matière — votre profil n'est pas modifié."
           style={{
-            background: 'none', border: '1px solid #d1d5db', borderRadius: '5px',
-            padding: '3px 10px', fontSize: '12px', color: '#374151',
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            background: '#eff6ff', border: '1px solid #1F6EEB', borderRadius: '6px',
+            padding: '6px 12px', fontSize: '13px', color: '#1F6EEB', fontWeight: 600,
             cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
           }}
         >
-          Ajuster pour cette activité
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+          Changer la classe ou la matière
         </button>
       </div>
 
@@ -189,36 +210,36 @@ export default function Parametres({ activites, params, accentType, onChange, on
             display: 'flex', flexDirection: 'column', gap: '16px',
           }}>
             <div>
-              <div className="text-sm font-semibold text-gray-800">Ajuster pour cette activité</div>
-              <div className="text-xs text-gray-400 mt-0.5">Votre profil reste inchangé.</div>
+              <div className="text-sm font-semibold text-gray-800">Changer la classe ou la matière</div>
+              <div className="text-xs text-gray-400 mt-0.5">Pour cette activité seulement — votre profil reste inchangé.</div>
             </div>
 
             <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Niveau de la classe</label>
+                <select
+                  className="w-full border border-gray-300 rounded p-2 text-sm"
+                  value={ajustTemp.niveau}
+                  onChange={e => choisirNiveauAjust(e.target.value)}
+                >
+                  <option value="">— choisir un niveau —</option>
+                  {niveauxDuCycle.map(grp => (
+                    <optgroup key={grp.cycle} label={grp.cycle}>
+                      {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Matière</label>
                 <select
                   className="w-full border border-gray-300 rounded p-2 text-sm"
                   value={ajustTemp.matiere}
                   onChange={e => setAjustTemp(t => ({ ...t, matiere: e.target.value }))}
-                  disabled={matieresChargement}
+                  disabled={!ajustTemp.niveau}
                 >
-                  {matieresChargement
-                    ? <option value={ajustTemp.matiere}>Chargement…</option>
-                    : matieres.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Niveau de la classe</label>
-                <select
-                  className="w-full border border-gray-300 rounded p-2 text-sm"
-                  value={ajustTemp.niveau}
-                  onChange={e => setAjustTemp(t => ({ ...t, niveau: e.target.value }))}
-                >
-                  {niveauxRefDisponibles(niveauxParCycle).map(grp => (
-                    <optgroup key={grp.cycle} label={grp.cycle}>
-                      {grp.niveaux.map(n => <option key={n.id} value={n.nom}>{n.nom}</option>)}
-                    </optgroup>
-                  ))}
+                  <option value="">{ajustTemp.niveau ? '— choisir une matière —' : '— choisis d’abord un niveau —'}</option>
+                  {matieresDuNiveauAjust.map(m => <option key={m.id} value={m.nom}>{m.nom}</option>)}
                 </select>
               </div>
             </div>
@@ -238,10 +259,12 @@ export default function Parametres({ activites, params, accentType, onChange, on
               <button
                 type="button"
                 onClick={validerAjust}
-                title="Valider les ajustements pour cette activité"
+                disabled={!coupleAjustValide}
+                title={coupleAjustValide ? 'Valider les ajustements pour cette activité' : 'Choisis un niveau et une matière valides'}
                 style={{
                   padding: '7px 16px', fontSize: '13px', borderRadius: '6px',
-                  border: 'none', background: 'var(--bleu)', color: '#fff', cursor: 'pointer', fontWeight: 600,
+                  border: 'none', background: coupleAjustValide ? 'var(--bleu)' : '#cbd5e1',
+                  color: '#fff', cursor: coupleAjustValide ? 'pointer' : 'not-allowed', fontWeight: 600,
                 }}
               >
                 Valider
