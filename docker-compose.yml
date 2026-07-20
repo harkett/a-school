@@ -27,6 +27,18 @@ services:
       timeout: 3s
       retries: 30
 
+  # --- Adminer : une page web pour VOIR la base (outil de dev, pas l'appli) ---
+  # Ouvre http://localhost:8082 → serveur "db", base "aschool_dev".
+  adminer:
+    image: adminer:5
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: db      # le champ "Serveur" pré-rempli sur le service "db"
+    ports:
+      - "8082:8080"                   # la page web côté machine sur 8082
+    depends_on:
+      - db
+
   # --- Le backend (FastAPI / uvicorn) ---
   backend:
     build: .
