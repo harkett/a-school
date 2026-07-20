@@ -1,0 +1,61 @@
+# ============================================================
+# aSchool — LE SYSTÈME (la boîte), identique de A à B.
+# Une seule commande : docker compose up --build   (ou : .\Scripts\systeme.ps1)
+#
+# Les DONNÉES restent DEHORS, dans le dossier du projet :
+#   ./docker/pgdata  = la base PostgreSQL (voyage avec le dossier quand tu le copies sur B)
+# Le PROJET reste DEHORS aussi : monté par volume (.:/app) — le code n'est pas enfermé.
+# ============================================================
+services:
+
+  # --- La base de données (PostgreSQL + pgvector) ---
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aschool
+      POSTGRES_PASSWORD: aschool
+      POSTGRES_DB: aschool_dev
+    ports:
+      - "5433:5432"          # même port que le natif, côté machine
+    volumes:
+      - ./docker/pgdata:/var/lib/postgresql/data        # DONNÉES DEHORS (dans le dossier)
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro  # extension vector à la 1re création
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aschool -d aschool_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # --- Le backend (FastAPI / uvicorn) ---
+  backend:
+    build: .
+    restart: unless-stopped
+    environment:
+      # Dans la boîte, le backend joint la base par le nom du service "db" (pas 127.0.0.1).
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_dev
+    command: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001"
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app                # PROJET DEHORS (le code vit dans le dossier, pas dans la boîte)
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # --- Le frontend (React / Vite) ---
+  frontend:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend  # dans la boîte, le proxy vise le service "backend"
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules   # node_modules propre à la boîte (jamais mélangé à l'hôte)
+    depends_on:
+      - backend

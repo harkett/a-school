@@ -363,12 +363,12 @@ def admin_base(_: None = Depends(_require_admin)):
     with engine.connect() as conn:
         nom = conn.execute(text("SELECT current_database()")).scalar()
     n = (nom or "").lower()
-    if n == "aschool":
-        type_ = "reelle"
-    elif "miroir" in n:
+    if "miroir" in n:
         type_ = "miroir"
     elif "test" in n:
         type_ = "test"
+    elif n in ("aschool", "aschool_dev"):
+        type_ = "reelle"
     else:
         type_ = "autre"
     return {"base": nom, "host": engine.url.host, "port": engine.url.port, "type": type_}
