@@ -41,3 +41,5 @@ REFERENTIELS/
 Scripts/bilan.html
 # Config editeur perso VS Code (workspace local, hors depot)
 A-SCHOOL.code-workspace
+# Docker local (base + caches, 4,4 Go) — donnees locales du poste, JAMAIS en depot ni sur le serveur
+docker/
