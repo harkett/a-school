@@ -1237,13 +1237,29 @@ def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db
     coches = []
     if ref is not None:
         coches = [
-            {"activite_type_id": l.activite_type_id, "source": l.source}
+            {"activite_type_id": l.activite_type_id, "source": l.source, "prompt": l.prompt or ""}
             for l in (db.query(ReferentielActiviteType)
                         .filter(ReferentielActiviteType.referentiel_id == ref.id,
                                 ReferentielActiviteType.actif.is_(True))
                         .order_by(ReferentielActiviteType.ordre, ReferentielActiviteType.id).all())
         ]
     return {"catalogue": catalogue, "coches": coches}
+
+
+def _generer_prompt_type(label: str, niveau: str) -> str:
+    """Prompt de génération d'un type d'activité POUR CE couple, produit AUTOMATIQUEMENT au coche.
+    Deux emplacements laissés à remplir à la génération : {texte} (l'idée du prof, elle mène) et
+    {referentiel} (le programme officiel, pour cadrer et enrichir). {niveau} est fixé ici (le niveau
+    du couple). Résultat stocké sur la ligne de liaison ; l'admin peut le relire/corriger via ✎ Prompt."""
+    return (
+        "Tu es un enseignant expérimenté.\n"
+        f"Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.\n\n"
+        "Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :\n"
+        "{texte}\n\n"
+        "Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activité, sans t'en écarter :\n"
+        "{referentiel}\n\n"
+        "Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."
+    )
 
 
 class BasculerTypeBody(BaseModel):
@@ -1265,8 +1281,8 @@ def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
 
-    # Origine du type (→ source du lien à la création). Contrôle d'existence au catalogue AVANT écriture.
-    t = (db.query(ActiviteType.id, ActiviteType.origine)
+    # Origine + libellé du type (→ source du lien + génération du prompt). Contrôle d'existence AVANT écriture.
+    t = (db.query(ActiviteType.id, ActiviteType.origine, ActiviteType.label)
            .filter(ActiviteType.id == body.activite_type_id).first())
     if t is None:
         raise HTTPException(400, f"Type d'activité inconnu au catalogue : {body.activite_type_id}.")
@@ -1276,12 +1292,44 @@ def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)
                    ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
     if l is None:
         if body.actif:                       # cocher un type jamais lié → on crée le lien (source = origine)
+            # Génération AUTO du prompt de ce type POUR CE couple, dès la création du lien (zéro copie).
             db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=body.activite_type_id,
-                                           actif=True, source=t.origine))
+                                           actif=True, source=t.origine,
+                                           prompt=_generer_prompt_type(t.label, body.niveau)))
     else:
         l.actif = body.actif                 # bascule le lien existant (source d'origine conservée)
+        # Recoche d'un lien sans prompt (ex. lien posé avant cette fonctionnalité) → on génère à ce moment.
+        if body.actif and not (l.prompt or "").strip():
+            l.prompt = _generer_prompt_type(t.label, body.niveau)
     db.commit()
     return {"ok": True, "activite_type_id": body.activite_type_id, "actif": body.actif}
+
+
+class PromptLienBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    activite_type_id: int
+    prompt: str
+
+
+@router.put("/admin/referentiels/types-activite/prompt", dependencies=[Depends(_require_admin)])
+def ecrire_prompt_type_couple(body: PromptLienBody, db: Session = Depends(get_db)):
+    """UPDATE (règle 4) du prompt d'un type POUR CE couple — réécrit la colonne `prompt` de la ligne de
+    liaison (une seule place, zéro copie). Contrôles : 404 si le couple n'a pas de référentiel ou si le
+    type n'est pas lié à ce couple ; 422 si le prompt est vide (un prompt vide = type non opérationnel)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    l = (db.query(ReferentielActiviteType)
+           .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                   ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
+    if l is None:
+        raise HTTPException(404, "Ce type n'est pas coché pour ce couple.")
+    if not (body.prompt or "").strip():
+        raise HTTPException(422, "Le prompt est vide.")
+    l.prompt = body.prompt
+    db.commit()
+    return {"ok": True, "activite_type_id": body.activite_type_id}
 
 
 class AjouterTypeCatalogueBody(BaseModel):

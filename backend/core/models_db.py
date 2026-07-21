@@ -498,8 +498,9 @@ class ActiviteType(Base):
 
     Un type d'activité N'APPARTIENT PAS à un référentiel : il vit dans ce catalogue. Le référentiel
     (PDF d'un couple) ne fait que COCHER/DÉCOCHER quels types s'appliquent, via la table de liaison
-    `referentiel_types_activite` (relation N–N). Le PROMPT du type vit ICI (colonne `prompt`), à un
-    seul endroit — zéro duplication. `key` = identifiant stable et UNIQUE dans le catalogue.
+    `referentiel_types_activite` (relation N–N). Le PROMPT n'est PAS ici : il est SPÉCIFIQUE au couple
+    (référentiel × type) et vit sur la liaison `referentiel_types_activite.prompt`, à un seul endroit
+    — un type seul ne porte aucun prompt. `key` = identifiant stable et UNIQUE dans le catalogue.
     `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
     aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
     `sous_types` / `params` = tableaux JSON (choix offerts au prof et paramètres saisis, ex. nb)."""
@@ -513,7 +514,6 @@ class ActiviteType(Base):
     label: Mapped[str] = mapped_column(String(128), nullable=False)
     sous_types: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array
     params: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")       # JSON array
-    prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
@@ -545,3 +545,7 @@ class ReferentielActiviteType(Base):
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)   # origine du LIEN : 'ia' | 'admin' | 'systeme'
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Prompt de génération de CE type POUR CE couple (référentiel × type) — une seule place, zéro copie.
+    # Écrit automatiquement au coche (généré), réécrit à l'édition. Le décoche ne le touche pas (il reste).
+    # Contient les deux emplacements {texte} (idée du prof) et {referentiel} (programme officiel). Vide = pas encore généré.
+    prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")

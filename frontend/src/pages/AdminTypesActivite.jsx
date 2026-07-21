@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-// Fenêtre sur la table `activite_types` (get direct à chaque ouverture). Une action : SUPPRIMER un type
+// Fenêtre sur la table `types_activite` (get direct à chaque ouverture). Une action : SUPPRIMER un type
 // (bouton poubelle en bout de ligne). Contrôle DELETE côté base (règle 4) : le back refuse si le type est
 // encore utilisé (activité sauvegardée / jalon few-shot) ; le front reflète ça en GRISANT le bouton.
+// Le PROMPT n'est PAS ici : il est spécifique au couple × type (sur le lien referentiel_types_activite),
+// pas sur le catalogue global — donc aucun prompt ne s'affiche ni ne s'édite à ce niveau.
 export default function AdminTypesActivite() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)

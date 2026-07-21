@@ -512,7 +512,9 @@ export default function AdminLayout() {
         </header>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ padding: 32, maxWidth: 900, width: '100%', margin: '0 auto' }}>
+          {/* Plafond de largeur 900 px pour la plupart des écrans admin. EXCEPTIONS : Référentiel et
+              Type d'activité exploitent toute la largeur (beaucoup de colonnes) → pas de plafond sur ces routes. */}
+          <div style={{ padding: 32, maxWidth: (location.pathname.includes('/referentiels') || location.pathname.includes('/types-activite')) ? 'none' : 900, width: '100%', margin: '0 auto' }}>
             <Outlet />
           </div>
         </div>

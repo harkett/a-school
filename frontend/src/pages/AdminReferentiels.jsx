@@ -3,7 +3,7 @@
 // par DÉPÔT, CONTRÔLE l'aperçu du document récupéré, puis valide : le système le
 // range, en extrait le texte et enregistre sa provenance.
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
@@ -66,6 +66,20 @@ const btnTypes = (bg, off = false) => ({
   fontSize: 13, fontWeight: 600, cursor: off ? 'not-allowed' : 'pointer',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 })
+
+// Repère « IA » — petit badge violet posé là où l'IA agit SANS bouton dédié (détection de la
+// famille, vérification du couple, ingestion). Il signale à l'admin que le résultat vient de l'IA.
+// Même palette IA que les badges d'origine (SOURCE_STYLE.ia) : cohérence, aucune couleur en double.
+function BadgeIA({ titre }) {
+  return (
+    <span title={titre || "Réalisé par l'IA"} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+      padding: '2px 7px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed',
+      textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>
+      <span aria-hidden="true">🤖</span> IA
+    </span>
+  )
+}
 
 export default function AdminReferentiels() {
   const [couples, setCouples] = useState([])    // les 137 famille-couples (GET /admin/fc-autorisees)
@@ -133,6 +147,13 @@ export default function AdminReferentiels() {
   const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
   const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
   const [typesDejaDetecte, setTypesDejaDetecte] = useState(false) // une détection a déjà eu lieu → « Redétecter »
+  // MAQUETTE prompt par type (spécifique au couple) : éditeur déplié sous la ligne. `promptEditId` = id du
+  // type dont l'éditeur est ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base).
+  // La génération IA et l'enregistrement PAR COUPLE (colonne prompt sur le lien) = chantier backend d'après.
+  const [promptEditId, setPromptEditId] = useState(null)
+  const [promptBrouillon, setPromptBrouillon] = useState('')
+  const [typesPrompt, setTypesPrompt] = useState({})   // {activite_type_id: prompt} — prompt PAR couple, lu en base
+  const [promptSaving, setPromptSaving] = useState(false)
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
@@ -165,6 +186,7 @@ export default function AdminReferentiels() {
     // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
     setCoupleId(''); setCycleId(''); setNiveau(''); setFamilleId('')  // → familleCouple.done = false
     setEtat(null)                                                     // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
+    setFamilleOuvert(true)                                            // repartir en création : la carte Famille-Couple s'ouvre (bouton « Réduire »)
   }
 
   // Bouton FINAL « Valider le découpage » : l'admin accepte la découpe → put decoupe_valide=true en base.
@@ -199,7 +221,7 @@ export default function AdminReferentiels() {
           { credentials: 'include' }, TIMEOUT_STD)
         const d = await r.json().catch(() => ({}))
         if (d.decoupe_valide) {   // aboutissement lu EN BASE
-          if (Number(cycleId) === c && niveau === nv) { setDecoupeValide(true); setPromptBusy('') }
+          if (Number(cycleId) === c && niveau === nv) { setDecoupeValide(true); setPromptBusy(''); await rafraichirEtat(); setTypesOuvert(true) }  // découpe validée → relit /etat (decoupe_valide=true → estVisible('types') vrai) → cartouche Types apparaît, dépliée
           chargerListe()          // la puce du menu passe au vert (relecture base)
           return
         }
@@ -260,6 +282,9 @@ export default function AdminReferentiels() {
         if (annule) return
         setEtat(d)
         setMatieres(construireLignesMatieres(d))
+        // Mode AJOUT (couple sans référentiel) : la carte PDF s'ouvre pour déposer tout de suite.
+        // Mode « déjà traité » : elle reste repliée (simple relecture).
+        setPdfOuvert(!(d && d.existe_referentiel))
       })
       .catch(() => { if (!annule) setEtat(null) })
     // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
@@ -283,9 +308,10 @@ export default function AdminReferentiels() {
         setTypesCatalogue(d.catalogue || [])
         setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
         setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
+        setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
         if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
       })
-      .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}) } })
+      .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesPrompt({}) } })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -339,6 +365,8 @@ export default function AdminReferentiels() {
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La validation a échoué."); return }
       setPromptValide(true)   // la découpe est une ÉTAPE À PART (cartouche « Découpe » en dessous) — pas lancée ici
+      await rafraichirEtat()  // relit /etat → prompt_decoupe_valide passe à true → estVisible('decoupe') devient vrai (la cartouche apparaît)
+      setDecoupeOuvert(true)  // prompt validé → ouvrir la cartouche Découpe (dépliée)
     } catch { showError("La validation a échoué (réseau)."); return }
     finally { setPromptBusy('') }
   }
@@ -488,8 +516,12 @@ export default function AdminReferentiels() {
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
       chargerListe()   // un nouveau référentiel vient d'apparaître → recharger la colonne 2
-      // La table matières reste alimentée par construireLignesMatieres (candidates du
-      // référentiel + matières déjà en base), chargée à la sélection du couple.
+      // Relire l'état du couple EN BASE (get) : le référentiel existe désormais, donc
+      // etat.existe_referentiel passe à true → la cartouche Matières (et la suite) se déroule
+      // sans re-sélectionner le couple. rafraichirEtat réhydrate aussi la table matières
+      // (candidates du nouveau PDF + matières déjà en base). Zéro copie : on relit la base.
+      await rafraichirEtat()
+      setMatieresOuvert(true)   // référentiel validé → ouvrir la cartouche Matières
     } catch (e) { showError(`Validation impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
@@ -596,8 +628,25 @@ export default function AdminReferentiels() {
       setTypesCatalogue(d.catalogue || [])
       setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
       setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
+      setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
       if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
     } catch { /* réseau : on garde l'affichage courant */ }
+  }
+
+  // ✎ Prompt → Valider : PUT réel du prompt de CE type POUR CE couple (réécrit la colonne du lien), puis re-GET.
+  async function validerPromptType(t) {
+    if (!promptBrouillon.trim()) return
+    setPromptSaving(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/prompt', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, prompt: promptBrouillon }),
+      }, TIMEOUT_STD)
+      if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); return }
+      setPromptEditId(null); setPromptBrouillon('')
+      await chargerTypes()
+    } catch { showError('Enregistrement impossible.') }
+    finally { setPromptSaving(false) }
   }
 
   // La case EST le put : cocher = lien actif, décocher = lien inactif — écrit direct en base au clic, puis re-GET.
@@ -742,8 +791,8 @@ export default function AdminReferentiels() {
         })}
       </aside>
 
-      {/* Colonne 3 — l'écran de travail du référentiel. */}
-      <div className="flex flex-col gap-6" style={{ maxWidth: 720, flex: 1 }}>
+      {/* Colonne 3 — l'écran de travail du référentiel. Prend toute la largeur disponible (plus de plafond). */}
+      <div className="flex flex-col gap-6" style={{ flex: 1, minWidth: 0 }}>
       <div>
         <h2 className="text-base font-semibold text-gray-800">Référentiels</h2>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -947,6 +996,7 @@ export default function AdminReferentiels() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <label className="block text-xs text-gray-500">Famille du référentiel</label>
+              <BadgeIA titre="Famille détectée automatiquement par l'IA" />
               {detectFamille && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
                   <Spinner /> Analyse par l’IA…
@@ -1014,6 +1064,7 @@ export default function AdminReferentiels() {
                       : `✗ Couple : ${couples.find(c => String(c.id) === String(coupleId))?.cycle || ''} / ${niveau} — le document ne correspond pas`}
                   </div>
                   <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{verif.couple.raison}</div>
+                  <div style={{ marginTop: 6 }}><BadgeIA titre="Couple vérifié par l'IA (lecture du document)" /></div>
                 </div>
                 <div style={{ padding: '10px 12px', borderRadius: 8,
                   border: `2px solid ${verif.famille.existe ? '#16a34a' : '#dc2626'}`,
@@ -1166,7 +1217,7 @@ export default function AdminReferentiels() {
                 la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence. */}
             {estVisible('prompt') && !matieres.some(m => m.cochee && !m.en_base) && (
               <button type="button" className="btn-primary"
-                onClick={() => setAfficherPrompt(true)} disabled={afficherPrompt || !!promptDecoupe}
+                onClick={() => { setAfficherPrompt(true); setPromptOuvert(true) }} disabled={afficherPrompt || !!promptDecoupe}
                 title="Passer à l'étape suivante : afficher la cartouche « Prompt de découpe »">
                 Générer le prompt
               </button>
@@ -1207,9 +1258,11 @@ export default function AdminReferentiels() {
           {promptOuvert && (
             <>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button type="button" className="btn-action" onClick={genererPromptDecoupe}
-                  disabled={!!promptBusy} title="L'IA génère le prompt de découpe adapté à ce document">
-                  {promptBusy === 'generer' ? <><Spinner /> Génération…</> : "Générer le prompt (IA)"}
+                <button type="button" onClick={genererPromptDecoupe}
+                  disabled={!!promptBusy}
+                  style={{ ...btnTypes('#7c3aed', !!promptBusy), cursor: promptBusy ? 'wait' : 'pointer' }}
+                  title="L'IA génère le prompt de découpe adapté à ce document">
+                  {promptBusy === 'generer' ? <><Spinner /> Génération…</> : <><span aria-hidden="true">🤖</span> Générer le prompt (IA)</>}
                 </button>
                 <span style={{ fontSize: 13, fontWeight: 600, color: promptValide ? '#166534' : '#A63045' }}>
                   {promptValide ? 'Statut : validé' : 'Statut : à valider'}
@@ -1237,10 +1290,11 @@ export default function AdminReferentiels() {
                            border: '1px solid #E5E7EB', borderRadius: 8, resize: 'vertical' }}
                 />
                 <div>
-                  <button type="button" className="btn-action" onClick={regenererPromptDecoupe}
+                  <button type="button" onClick={regenererPromptDecoupe}
                     disabled={!!promptBusy || !promptDecoupe.trim() || !remarques.trim()}
+                    style={btnTypes('#7c3aed', !!promptBusy || !promptDecoupe.trim() || !remarques.trim())}
                     title="L'IA reprend le prompt actuel + vos remarques et produit un nouveau prompt qui en tient compte">
-                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : 'Régénérer le prompt en tenant compte de ma remarque ci-dessus'}
+                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : <><span aria-hidden="true">🤖</span> Régénérer le prompt en tenant compte de ma remarque ci-dessus</>}
                   </button>
                 </div>
               </div>
@@ -1281,10 +1335,11 @@ export default function AdminReferentiels() {
           </div>
           {decoupeOuvert && (<>
           <div>
-            <button type="button" className="btn-action" onClick={declencherDecoupe}
+            <button type="button" onClick={declencherDecoupe}
               disabled={!!promptBusy}
+              style={btnTypes('#7c3aed', !!promptBusy)}
               title="Découper le référentiel avec le prompt validé (aperçu, aucune écriture).">
-              {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : 'Découper'}
+              {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : <><span aria-hidden="true">🤖</span> Découper</>}
             </button>
           </div>
           {decoupeUnites && (
@@ -1299,13 +1354,14 @@ export default function AdminReferentiels() {
               </ol>
               {/* Bouton FINAL — l'admin a contrôlé la découpe et l'accepte : dernière étape, la puce
                   du menu passe au vert (decoupe_valide en base). Grisé une fois validé. */}
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button type="button" className="btn-primary" onClick={validerDecoupe}
                   disabled={!!promptBusy || decoupeValide}
                   title="Accepter ce découpage — dernière étape : le référentiel devient complet (puce verte).">
                   {promptBusy === 'valider-decoupe' ? <><Spinner /> Validation…</>
                     : decoupeValide ? '✓ Découpage validé' : 'Valider le découpage'}
                 </button>
+                <BadgeIA titre="Découpe + embeddings réalisés par l'IA à la validation" />
               </div>
             </div>
           )}
@@ -1335,7 +1391,7 @@ export default function AdminReferentiels() {
           </div>
 
           {typesOuvert && (<>
-          {/* Ligne du haut, 2 colonnes : à gauche titre Catalogue + Tout sélectionner ; à droite titre Ajouter. */}
+          {/* Ligne du haut, 2 colonnes : à gauche titre Catalogue + Tout sélectionner ; à droite titre Suggestions IA + Détecter. */}
           <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Catalogue des types d'activité</h3>
@@ -1343,7 +1399,13 @@ export default function AdminReferentiels() {
                 onClick={toutCocherTypes} disabled={typesCatalogue.length === 0}
                 title="Cocher en base tous les types du catalogue pour ce couple"><span aria-hidden="true">☑</span> Tout sélectionner</button>
             </div>
-            <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Ajouter un type d'activité au catalogue</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Suggestions IA (hors catalogue)</h3>
+              <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
+                title="Détecter par l'IA les types d'activité présents dans le référentiel, et proposer les autres">
+                {typesDetecting ? <><Spinner /> Détection en cours…</> : (typesDejaDetecte ? '🤖 Redétecter (IA)' : '🤖 Détecter (IA)')}
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
@@ -1353,37 +1415,58 @@ export default function AdminReferentiels() {
                 <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>Catalogue vide.</p>
               ) : typesCatalogue.map((t, i) => {
                 const coche = typesChecked.has(t.id)
+                const editOuvert = promptEditId === t.id
                 return (
-                  <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                    borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={coche} onChange={() => basculerType(t.id)} style={{ width: 16, height: 16 }} />
-                    <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
-                    {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
-                    {coche && typesSource[t.id] && <span style={badgeOrigine(typesSource[t.id])}>{SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id]}</span>}
-                  </label>
+                  <Fragment key={t.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                    borderBottom: (i < typesCatalogue.length - 1 && !editOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                    {/* Case + libellé : cocher/décocher écrit en base (basculerType) */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0 }}>
+                      <input type="checkbox" checked={coche} onChange={() => basculerType(t.id)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
+                      {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
+                      {coche && typesSource[t.id] && <span style={badgeOrigine(typesSource[t.id])}>{SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id]}</span>}
+                    </label>
+                    {/* Prompt du type POUR CE COUPLE — état lu en base + bouton d'édition (si le type est coché). */}
+                    {coche && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        {(typesPrompt[t.id] || '').trim()
+                          ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>✓ prompt</span>
+                          : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#dc2626', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚠ vide</span>}
+                        <button type="button" onClick={() => { setPromptEditId(editOuvert ? null : t.id); setPromptBrouillon(editOuvert ? '' : (typesPrompt[t.id] || '')) }}
+                          title={`Voir / corriger le prompt de « ${t.label} » pour ce couple`}
+                          style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+                            background: editOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          ✎ Prompt
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  {editOuvert && (
+                    <div style={{ padding: '12px 14px', background: '#f8fafc',
+                      borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
+                        Prompt de « {t.label} » — pour {coupleLabel}
+                      </div>
+                      <textarea value={promptBrouillon} onChange={e => setPromptBrouillon(e.target.value)}
+                        rows={8} placeholder="Prompt généré automatiquement au coche, avec {texte} et {referentiel} — éditable ici."
+                        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, padding: 10, border: '1px solid #cbd5e1', borderRadius: 8, resize: 'vertical', boxSizing: 'border-box' }} />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button type="button" onClick={() => validerPromptType(t)} disabled={promptSaving || !promptBrouillon.trim()}
+                          style={btnTypes('#16a34a', promptSaving || !promptBrouillon.trim())}
+                          title="Enregistrer ce prompt pour ce couple">{promptSaving ? 'Enregistrement…' : 'Valider'}</button>
+                        <button type="button" onClick={() => { setPromptEditId(null); setPromptBrouillon('') }}
+                          style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                  </Fragment>
                 )
               })}
             </div>
 
-            {/* Colonne de droite : champ d'ajout (titre sur la ligne du haut), puis suggestions IA */}
+            {/* Colonne de droite : résultats des suggestions IA (le titre + Détecter sont remontés en haut). */}
             <div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
-                  placeholder="Libellé du type…"
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
-                <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
-                  style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
-                  title="Ajouter ce libellé au catalogue global des types d'activité"><span aria-hidden="true">＋</span> Ajouter</button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Suggestions IA (hors catalogue)</h3>
-                <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
-                  title="Détecter par l'IA les types d'activité présents dans le référentiel, et proposer les autres">
-                  {typesDetecting ? <><Spinner /> Détection en cours…</> : (typesDejaDetecte ? '✨ Redétecter (IA)' : '✨ Détecter (IA)')}
-                </button>
-              </div>
               {typesSuggestions.length === 0 ? (
                 <p className="text-xs text-gray-400">Aucune — lance « Détecter (IA) ».</p>
               ) : (
@@ -1402,6 +1485,17 @@ export default function AdminReferentiels() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Zone d'ajout (champ + bouton) — descendue en bas, sous la liste. Le titre reste en haut. */}
+          <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
+            <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
+              placeholder="Libellé du type…"
+              style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
+            <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
+              style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
+              title="Ajouter ce libellé au catalogue global des types d'activité"><span aria-hidden="true">＋</span> Ajouter</button>
           </div>
           </>)}
         </div>
