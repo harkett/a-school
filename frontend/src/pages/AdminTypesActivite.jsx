@@ -61,7 +61,6 @@ export default function AdminTypesActivite() {
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                 <th style={th}>id</th>
                 <th style={th}>Libellé</th>
-                <th style={th}>Clé</th>
                 <th style={th}>Défaut</th>
                 <th style={th}>Actif</th>
                 <th style={th}>Ordre</th>
@@ -73,7 +72,6 @@ export default function AdminTypesActivite() {
                 <tr key={t.id} style={{ borderBottom: i < rows.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                   <td style={{ ...td, color: '#94a3b8', fontFamily: 'monospace' }}>{t.id}</td>
                   <td style={{ ...td, fontWeight: 600 }}>{t.label}</td>
-                  <td style={{ ...td, fontFamily: 'monospace', color: '#64748b' }}>{t.key}</td>
                   <td style={td}>{t.is_default ? 'oui' : ''}</td>
                   <td style={td}>{t.actif ? 'oui' : 'non'}</td>
                   <td style={td}>{t.ordre}</td>

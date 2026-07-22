@@ -7,7 +7,7 @@ const IconGenerer = () => (
 )
 
 export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
-  const activite = activites.find(a => a.key === params.activite_key) || activites[0]
+  const activite = activites.find(a => a.id === params.activite_type_id) || activites[0]
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
@@ -24,11 +24,11 @@ export default function Parametres({ activites, params, accentType, onChange, on
     onChange({ ...params, [field]: value })
   }
 
-  function handleActivite(key) {
-    const act = activites.find(a => a.key === key)
+  function handleActivite(id) {
+    const act = activites.find(a => a.id === id)
     onChange({
       ...params,
-      activite_key: key,
+      activite_type_id: act?.id ?? null,   // identité du type = son id
       sous_type: act?.sous_types[0] || null,
       nb: act?.params.includes('nb') ? 5 : null,
     })
@@ -106,11 +106,11 @@ export default function Parametres({ activites, params, accentType, onChange, on
           <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
           <select
             className="w-full border border-gray-300 rounded p-2 text-sm"
-            value={params.activite_key}
-            onChange={e => handleActivite(e.target.value)}
+            value={params.activite_type_id ?? ''}
+            onChange={e => handleActivite(Number(e.target.value))}
           >
             {activites.map(a => (
-              <option key={a.key} value={a.key}>{a.label}</option>
+              <option key={a.id} value={a.id}>{a.label}</option>
             ))}
           </select>
         </div>

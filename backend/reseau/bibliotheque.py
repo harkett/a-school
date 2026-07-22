@@ -40,7 +40,7 @@ def lister(
     return [
         {
             "id": a.id,
-            "activite_key": a.activite_key,
+            "activite_type_id": a.activite_type_id,
             "activite_label": a.activite_label,
             "niveau": a.niveau,
             "sous_type": a.sous_type,

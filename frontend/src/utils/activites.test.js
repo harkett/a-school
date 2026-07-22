@@ -9,23 +9,23 @@ import { sauvegarderActivite, grouperParCouple, coupleKey, formatDateActivite, c
 
 test('succès (HTTP ok) -> résout avec le JSON', async () => {
   global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ id: 42 }) })
-  const r = await sauvegarderActivite({ activite_key: 'x' })
+  const r = await sauvegarderActivite({ activite_type_id: 1 })
   assert.deepEqual(r, { id: 42 })
 })
 
 test('statut HTTP non-ok (500) -> LÈVE (plus de perte silencieuse)', async () => {
   global.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) })
-  await assert.rejects(() => sauvegarderActivite({ activite_key: 'x' }), /HTTP 500/)
+  await assert.rejects(() => sauvegarderActivite({ activite_type_id: 1 }), /HTTP 500/)
 })
 
 test('statut HTTP non-ok (401) -> LÈVE', async () => {
   global.fetch = async () => ({ ok: false, status: 401, json: async () => ({}) })
-  await assert.rejects(() => sauvegarderActivite({ activite_key: 'x' }), /HTTP 401/)
+  await assert.rejects(() => sauvegarderActivite({ activite_type_id: 1 }), /HTTP 401/)
 })
 
 test('échec réseau (fetch rejette) -> LÈVE', async () => {
   global.fetch = async () => { throw new Error('network down') }
-  await assert.rejects(() => sauvegarderActivite({ activite_key: 'x' }), /network down/)
+  await assert.rejects(() => sauvegarderActivite({ activite_type_id: 1 }), /network down/)
 })
 
 // --- grouperParCouple : onglet « Toutes mes activités » ---

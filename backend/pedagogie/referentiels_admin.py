@@ -228,14 +228,14 @@ def lister_activite_types_table(db: Session = Depends(get_db)):
     rien n'est stocké) : un type est référencé par sa CLÉ dans `activites_sauvegardees` et
     `few_shot_milestones`. supprimable = 0 usage → le front sait quel bouton poubelle griser."""
     ta = db.query(ActiviteType).order_by(ActiviteType.ordre, ActiviteType.id).all()
-    usage: dict[str, int] = {}
-    for key, n in db.query(ActiviteSauvegardee.activite_key, func.count()).group_by(ActiviteSauvegardee.activite_key).all():
-        usage[key] = usage.get(key, 0) + n
-    for key, n in db.query(FewShotMilestone.activite_key, func.count()).group_by(FewShotMilestone.activite_key).all():
-        usage[key] = usage.get(key, 0) + n
+    usage: dict[int, int] = {}
+    for tid, n in db.query(ActiviteSauvegardee.activite_type_id, func.count()).group_by(ActiviteSauvegardee.activite_type_id).all():
+        usage[tid] = usage.get(tid, 0) + n
+    for tid, n in db.query(FewShotMilestone.activite_type_id, func.count()).group_by(FewShotMilestone.activite_type_id).all():
+        usage[tid] = usage.get(tid, 0) + n
     return {"total": len(ta), "types": [
-        {"id": t.id, "key": t.key, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre,
-         "usage": usage.get(t.key, 0), "supprimable": usage.get(t.key, 0) == 0}
+        {"id": t.id, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre,
+         "usage": usage.get(t.id, 0), "supprimable": usage.get(t.id, 0) == 0}
         for t in ta]}
 
 
@@ -247,13 +247,13 @@ def supprimer_activite_type(type_id: int, db: Session = Depends(get_db)):
     t = db.get(ActiviteType, type_id)
     if t is None:
         raise HTTPException(404, "Type d'activité introuvable.")
-    n_act = db.query(func.count()).select_from(ActiviteSauvegardee).filter(ActiviteSauvegardee.activite_key == t.key).scalar()
-    n_few = db.query(func.count()).select_from(FewShotMilestone).filter(FewShotMilestone.activite_key == t.key).scalar()
+    n_act = db.query(func.count()).select_from(ActiviteSauvegardee).filter(ActiviteSauvegardee.activite_type_id == t.id).scalar()
+    n_few = db.query(func.count()).select_from(FewShotMilestone).filter(FewShotMilestone.activite_type_id == t.id).scalar()
     if n_act or n_few:
         raise HTTPException(409, f"Type utilisé ({n_act} activité(s) sauvegardée(s), {n_few} jalon(s) few-shot) : suppression impossible.")
     db.delete(t)
     db.commit()
-    logger.info("Type d'activité supprimé : id=%s key=%s label=%s", type_id, t.key, t.label)
+    logger.info("Type d'activité supprimé : id=%s label=%s", type_id, t.label)
     return {"ok": True, "id": type_id}
 
 
@@ -1214,12 +1214,6 @@ def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db))
 #    mais ici le référentiel ne fait que COCHER des lignes d'un catalogue global — il ne les possède
 #    pas. get pour lire (l'écran), put pour écrire (le coché), zéro donnée en dur.
 
-def _cle_type(label: str) -> str:
-    """Libellé → clé stable du catalogue (ascii, minuscule, « _ »). Ex. « Activité d'apprentissage »
-    → « activite_d_apprentissage ». Même normalisation que `_dossier_cle`, en minuscules (le patron
-    des clés existantes, ex. « activite_apprentissage »). Sert au get-or-create anti-doublon."""
-    return _dossier_cle(label).lower()
-
 
 @router.get("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
 def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
@@ -1229,7 +1223,7 @@ def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db
     à cocher) — 404/422 seulement pour cycle inconnu / niveau manquant (via `_ref_du_couple`)."""
     ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau ; None si pas de référentiel
     catalogue = [
-        {"id": t.id, "key": t.key, "label": t.label, "is_default": bool(t.is_default)}
+        {"id": t.id, "label": t.label, "is_default": bool(t.is_default)}
         for t in (db.query(ActiviteType)
                     .filter(ActiviteType.actif.is_(True))
                     .order_by(ActiviteType.ordre, ActiviteType.id).all())
@@ -1342,9 +1336,8 @@ class AjouterTypeCatalogueBody(BaseModel):
 def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends(get_db)):
     """Ajoute un type au CATALOGUE GLOBAL (Create encadré). Anti-doublon par LIBELLÉ insensible à la
     casse — la clé métier du catalogue, exactement comme `matieres.nom` (jamais deux types de même
-    libellé). La `key` est la version machine (slug) utilisée par `/generate` : dérivée du libellé et
-    GARANTIE unique (si le slug est déjà pris par un AUTRE libellé, on suffixe). Renvoie le type (créé
-    ou réutilisé) + `deja_present`.
+    libellé). Le type est identifié par son `id` (plus de slug `key`). Renvoie le type (créé ou
+    réutilisé) + `deja_present`.
 
     ORIGINE (badge) : si `cycle_id`+`niveau` sont fournis, l'ajout vient d'une SUGGESTION IA → on COCHE
     aussi le type pour ce couple avec `source='ia'` (get-or-create encadré). Ainsi l'origine IA est
@@ -1358,12 +1351,8 @@ def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends
     t = db.query(ActiviteType).filter(func.lower(ActiviteType.label) == label.lower()).first()
     deja_present = t is not None
     if t is None:
-        base = _cle_type(label) or "type"
-        key, n = base, 2
-        while db.query(ActiviteType).filter(ActiviteType.key == key).first():
-            key = f"{base}_{n}"; n += 1
         maxo = db.query(func.max(ActiviteType.ordre)).scalar()
-        t = ActiviteType(key=key, label=label, ordre=(maxo or 0) + 1, actif=True,
+        t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True,
                          origine=("ia" if from_suggestion else "admin"))
         db.add(t); db.commit(); db.refresh(t)
 
@@ -1384,7 +1373,7 @@ def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends
                 coche_ia = True
             db.commit()
 
-    return {"id": t.id, "key": t.key, "label": t.label, "deja_present": deja_present, "coche_ia": coche_ia}
+    return {"id": t.id, "label": t.label, "deja_present": deja_present, "coche_ia": coche_ia}
 
 
 @router.post("/admin/referentiels/types-activite/detecter", dependencies=[Depends(_require_admin)])
@@ -1427,11 +1416,11 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
         if t is None:
             suggestions.append(label)      # hors catalogue : rien écrit, proposé à l'admin
         elif t.id in liaisons:
-            deja_lies.append({"id": t.id, "key": t.key, "label": t.label})   # laissé tel quel
+            deja_lies.append({"id": t.id, "label": t.label})   # laissé tel quel
         else:
             db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
                                            actif=True, source="ia"))
-            coches_ia.append({"id": t.id, "key": t.key, "label": t.label})
+            coches_ia.append({"id": t.id, "label": t.label})
     db.commit()
     return {"detectes": detectes, "coches_ia": coches_ia,
             "deja_lies": deja_lies, "suggestions": suggestions}

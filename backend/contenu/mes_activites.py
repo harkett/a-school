@@ -15,7 +15,7 @@ _FEW_SHOT_MIN = 3  # nombre minimum de sauvegardes (par couple prof×type) pour 
 router = APIRouter()
 
 
-def _maybe_mark_few_shot(db: Session, user_id: int, activite_key: str) -> bool:
+def _maybe_mark_few_shot(db: Session, user_id: int, activite_type_id: int) -> bool:
     """Pose le jalon « aSchool vous reconnaît » UNE fois par couple (prof, type).
     Renvoie True seulement au franchissement réel du seuil — jamais au-delà, jamais
     rejoué après une suppression qui repasse par le seuil (l'unique fait foi)."""
@@ -23,13 +23,13 @@ def _maybe_mark_few_shot(db: Session, user_id: int, activite_key: str) -> bool:
         db.query(ActiviteSauvegardee)
         .filter(
             ActiviteSauvegardee.user_id == user_id,
-            ActiviteSauvegardee.activite_key == activite_key,
+            ActiviteSauvegardee.activite_type_id == activite_type_id,
         )
         .count()
     )
     if count < _FEW_SHOT_MIN:
         return False
-    db.add(FewShotMilestone(user_id=user_id, activite_key=activite_key))
+    db.add(FewShotMilestone(user_id=user_id, activite_type_id=activite_type_id))
     try:
         db.commit()
         return True          # jalon réellement créé = premier franchissement
@@ -39,7 +39,7 @@ def _maybe_mark_few_shot(db: Session, user_id: int, activite_key: str) -> bool:
 
 
 class SauvegarderRequest(BaseModel):
-    activite_key: str
+    activite_type_id: int
     activite_label: str
     matiere: Optional[str] = None
     niveau: str
@@ -75,7 +75,7 @@ def sauvegarder(
     user_id = db.query(User.id).filter(User.email == email).scalar()
     activite = ActiviteSauvegardee(
         user_id=user_id,
-        activite_key=req.activite_key,
+        activite_type_id=req.activite_type_id,
         activite_label=req.activite_label,
         matiere=req.matiere or None,
         niveau=req.niveau,
@@ -89,7 +89,7 @@ def sauvegarder(
     db.add(activite)
     db.commit()
     db.refresh(activite)
-    few_shot_just_reached = _maybe_mark_few_shot(db, user_id, req.activite_key)
+    few_shot_just_reached = _maybe_mark_few_shot(db, user_id, req.activite_type_id)
     return {"id": activite.id, "few_shot_just_reached": few_shot_just_reached}
 
 
@@ -108,7 +108,7 @@ def lister(
     return [
         {
             "id": a.id,
-            "activite_key": a.activite_key,
+            "activite_type_id": a.activite_type_id,
             "activite_label": a.activite_label,
             "matiere": a.matiere,
             "niveau": a.niveau,

@@ -13,7 +13,7 @@ export function estPageCreer(pageId) {
 export function typeParDefaut(activites) {
   const premier = Array.isArray(activites) ? activites[0] : undefined
   return {
-    activite_key: premier?.key || '',
+    activite_type_id: premier?.id ?? null,   // identité du type = son id
     sous_type: premier?.sous_types?.[0] || null,
     nb: premier?.params?.includes('nb') ? 5 : null,
     avec_correction: false,

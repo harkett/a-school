@@ -16,7 +16,9 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, GenerateResponse
-from backend.core.models_db import Niveau, Referentiel, ActiviteType, ReferentielActiviteType
+from backend.core.models_db import (
+    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, TypePrecision, TypeParametre,
+)
 from backend.llm.generator import generate, LLMRateLimitError
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
@@ -54,21 +56,14 @@ def _referentiel_du_niveau(db: Session, niveau: str) -> int | None:
     return rows[0][0]
 
 
-def _to_list(txt: str) -> list:
-    """Colonne texte JSON → liste Python. [] si illisible (jamais de crash d'affichage)."""
-    try:
-        v = json.loads(txt or "[]")
-        return v if isinstance(v, list) else []
-    except Exception:
-        return []
-
-
 def types_du_couple(db: Session, niveau: str) -> list[dict]:
     """Types d'activité à afficher pour le couple, LUS EN BASE.
 
     1) types COCHÉS (`liaison.actif`) du référentiel du niveau, joints au catalogue (`actif`) ;
     2) si vide (pas de référentiel, ou rien de coché) → le type par DÉFAUT du catalogue.
-    Renvoie `[{label, key, sous_types:[...], params:[...]}]` (ordre liaison puis catalogue)."""
+    Précisions et paramètres LUS dans leurs tables filles (`type_precisions` ordonnées par `ordre`,
+    `type_parametres`) — plus de blob JSON. Renvoie `[{label, key, sous_types:[...], params:[...]}]`
+    (ordre liaison puis catalogue)."""
     ref_id = _referentiel_du_niveau(db, niveau)
     lignes = []
     if ref_id is not None:
@@ -85,9 +80,26 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
                     .filter(ActiviteType.is_default.is_(True), ActiviteType.actif.is_(True))
                     .order_by(ActiviteType.ordre)
                     .all())
+
+    # Précisions / paramètres de chaque type, LUS dans leurs tables filles (une requête chacune,
+    # groupée par type). Ordre des précisions = `ordre`. Zéro JSON, une donnée = une ligne.
+    type_ids = [t.id for t in lignes]
+    prec_par_type: dict[int, list[str]] = {}
+    par_par_type: dict[int, list[str]] = {}
+    if type_ids:
+        for tid, libelle in (db.query(TypePrecision.type_activite_id, TypePrecision.libelle)
+                               .filter(TypePrecision.type_activite_id.in_(type_ids))
+                               .order_by(TypePrecision.type_activite_id, TypePrecision.ordre)
+                               .all()):
+            prec_par_type.setdefault(tid, []).append(libelle)
+        for tid, cle in (db.query(TypeParametre.type_activite_id, TypeParametre.cle)
+                           .filter(TypeParametre.type_activite_id.in_(type_ids))
+                           .all()):
+            par_par_type.setdefault(tid, []).append(cle)
+
     return [
-        {"label": t.label, "key": t.key,
-         "sous_types": _to_list(t.sous_types), "params": _to_list(t.params)}
+        {"id": t.id, "label": t.label,
+         "sous_types": prec_par_type.get(t.id, []), "params": par_par_type.get(t.id, [])}
         for t in lignes
     ]
 
@@ -131,12 +143,12 @@ def api_generate(
     if ref_id is None:
         raise HTTPException(400, "Ce niveau n'a pas encore de référentiel officiel. La génération n'est pas encore possible ici.")
 
-    # 2. Le type choisi (catalogue), pour son id — sert à retrouver la ligne de liaison.
+    # 2. Le type choisi (catalogue), retrouvé par son id — sert à retrouver la ligne de liaison.
     t = (db.query(ActiviteType)
-           .filter(ActiviteType.key == req.activite_key, ActiviteType.actif.is_(True))
+           .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
            .first())
     if t is None:
-        raise HTTPException(400, f"Type d'activité inconnu : {req.activite_key}")
+        raise HTTPException(400, "Type d'activité inconnu.")
 
     # 3. Le PROMPT du COUPLE × type, LU EN BASE sur la liaison (coché + non vide). Une seule source
     # par donnée, zéro prompt en dur, zéro repli sur un prompt global : le prompt est propre au couple.
@@ -169,7 +181,9 @@ def api_generate(
         kwargs["sous_type"] = req.sous_type
     if req.nb:
         kwargs["nb"] = req.nb
-    if req.activite_key.startswith("lv_"):
+    # LV : signalée par la présence de `langue_lv` (le front ne l'envoie que pour la matière LV),
+    # plus par un préfixe de clé — la clé disparaît, la langue vient de la donnée réelle.
+    if req.langue_lv:
         kwargs["langue"] = req.langue_lv or "langues vivantes"
     try:
         prompt = modele.format(texte=req.texte, **kwargs)

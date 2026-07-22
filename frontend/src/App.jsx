@@ -218,7 +218,7 @@ function MainApp() {
   }, [profilIncomplet, page])
 
   const [params, setParams] = useState({
-    activite_key: '',
+    activite_type_id: null,       // identité du type = son id (génération ET sauvegarde pointent par id)
     niveau: user?.niveau || '',   // source unique = base (users.niveau via /me) — plus de cache localStorage
     sous_type: null,
     nb: 5,
@@ -255,7 +255,7 @@ function MainApp() {
         if (list.length > 0) {
           setParams(p => ({
             ...p,
-            activite_key: list[0].key,
+            activite_type_id: list[0].id ?? null,
             sous_type: list[0].sous_types[0] || null,
             nb: list[0].params.includes('nb') ? 5 : null,
           }))
@@ -284,7 +284,7 @@ function MainApp() {
   }
 
   async function generer() {
-    if (!params.activite_key) {
+    if (!params.activite_type_id) {
       showError('Sélectionnez un type d\'activité avant de générer.')
       return
     }
@@ -317,8 +317,12 @@ function MainApp() {
         body: JSON.stringify(body),
       }, TIMEOUT_LONG)
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || `Erreur ${res.status}`)
+        // Le backend renvoie un message HUMAIN dans `detail`. Si la réponse n'est pas du JSON
+        // (ex. 500 « Internal Server Error »), on n'affiche JAMAIS l'erreur brute au prof (règle 23).
+        const err = await res.json().catch(() => ({}))
+        const e = new Error(err.detail || "La génération n'a pas abouti. Réessayez dans un instant.")
+        e.humain = true
+        throw e
       }
       const data = await res.json()
       setResultat(data.resultat)
@@ -330,8 +334,8 @@ function MainApp() {
       // La modale « aSchool vous reconnaît » est pilotée par le backend (few_shot_just_reached) :
       // une seule fois, au franchissement réel du seuil de sauvegardes (P4.7).
       sauvegarderActivite({
-        activite_key: params.activite_key,
-        activite_label: activites.find(a => a.key === params.activite_key)?.label || params.activite_key,
+        activite_type_id: params.activite_type_id,
+        activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
         matiere: sessionMatiere,
         niveau: params.niveau,
         sous_type: params.sous_type || null,
@@ -348,7 +352,9 @@ function MainApp() {
         "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
       ))
     } catch (e) {
-      showError(`Erreur : ${e.message}`)
+      // Message HUMAIN pour le prof (règle 23) ; le détail technique part dans la console, jamais à l'écran.
+      console.error('génération activité :', e)
+      showError(e?.humain ? e.message : "La génération n'a pas abouti. Vérifiez votre connexion et réessayez.")
     } finally {
       setLoading(false)
     }
@@ -363,7 +369,7 @@ function MainApp() {
     setTexte(act.texte_source)
     setObjet(act.objet || '')
     setParamsWithSave({
-      activite_key: act.activite_key,
+      activite_type_id: act.activite_type_id ?? null,   // l'id du type est renvoyé par la liste sauvegardée
       niveau: act.niveau,
       sous_type: act.sous_type || null,
       nb: act.nb || 5,
@@ -815,7 +821,7 @@ function MainApp() {
                       onGenerer={generer}
                       loading={loading}
                       hasResultat={!!resultat}
-                      canGenerer={!!texte.trim() && !!params.activite_key}
+                      canGenerer={!!texte.trim() && !!params.activite_type_id}
                       onFeedback={() => setShowFeedback(true)}
                       sessionMatiere={sessionMatiere}
                       onMatiereChange={setSessionMatiere}

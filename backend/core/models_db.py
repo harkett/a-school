@@ -168,8 +168,10 @@ class ActiviteSauvegardee(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    activite_key: Mapped[str] = mapped_column(String(64), nullable=False)
-    activite_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    # Type d'activité référencé par sa CLÉ ÉTRANGÈRE (l'id), jamais par une chaîne recopiée (règle 4).
+    activite_type_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id"), nullable=False, index=True)
+    activite_label: Mapped[str] = mapped_column(String(128), nullable=False)  # libellé FIGÉ (instantané d'historique)
     niveau: Mapped[str] = mapped_column(String(32), nullable=False)
     sous_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     nb: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -283,11 +285,12 @@ class FewShotMilestone(Base):
     # one-shot durable (jamais rejoué, même si le compte retombe puis repasse le seuil).
     # Table neuve et vide → créée par create_all au démarrage, l'existant n'est pas touché.
     __tablename__ = "few_shot_milestones"
-    __table_args__ = (Index("ix_few_shot_milestones_unique", "user_id", "activite_key", unique=True),)
+    __table_args__ = (Index("ix_few_shot_milestones_unique", "user_id", "activite_type_id", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    activite_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    activite_type_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id"), nullable=False)
     reached_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -500,20 +503,19 @@ class ActiviteType(Base):
     (PDF d'un couple) ne fait que COCHER/DÉCOCHER quels types s'appliquent, via la table de liaison
     `referentiel_types_activite` (relation N–N). Le PROMPT n'est PAS ici : il est SPÉCIFIQUE au couple
     (référentiel × type) et vit sur la liaison `referentiel_types_activite.prompt`, à un seul endroit
-    — un type seul ne porte aucun prompt. `key` = identifiant stable et UNIQUE dans le catalogue.
+    — un type seul ne porte aucun prompt. Le type est identifié par son `id` (plus de slug `key`) ;
+    l'anti-doublon du catalogue se fait par `label` (insensible à la casse), comme `matieres.nom`.
     `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
     aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
-    `sous_types` / `params` = tableaux JSON (choix offerts au prof et paramètres saisis, ex. nb)."""
+    Précisions et paramètres du type vivent dans leurs tables filles `type_precisions` /
+    `type_parametres` (une ligne par valeur), plus dans un blob JSON."""
     __tablename__ = "types_activite"
     __table_args__ = (
         Index("ux_default", "is_default", unique=True, postgresql_where=text("is_default")),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     label: Mapped[str] = mapped_column(String(128), nullable=False)
-    sous_types: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array
-    params: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")       # JSON array
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
@@ -549,3 +551,44 @@ class ReferentielActiviteType(Base):
     # Écrit automatiquement au coche (généré), réécrit à l'édition. Le décoche ne le touche pas (il reste).
     # Contient les deux emplacements {texte} (idée du prof) et {referentiel} (programme officiel). Vide = pas encore généré.
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+
+
+class TypePrecision(Base):
+    """Précision d'un type d'activité — UNE ligne par choix offert au prof (ex. « dictée »).
+
+    Remplace l'ancien blob JSON `types_activite.sous_types` : une donnée = une ligne, en base, avec
+    contrôle (règle 4). Un type a 0..N précisions ; à la génération, le prof en choisit une (menu
+    « Précision »). `source` = provenance de la ligne ('systeme' pré-rempli | 'admin' saisie manuelle |
+    'ia' proposée par l'analyse), même logique que `ReferentielActiviteType.source`. CASCADE : supprimer
+    le type retire ses précisions. UNIQUE (type_activite_id, libelle) : pas de doublon dans un type."""
+    __tablename__ = "type_precisions"
+    __table_args__ = (
+        UniqueConstraint("type_activite_id", "libelle", name="uq_type_precisions_type_libelle"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    type_activite_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    libelle: Mapped[str] = mapped_column(String(128), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")
+
+
+class TypeParametre(Base):
+    """Paramètre saisi qu'un type d'activité réclame — UNE ligne par paramètre (ex. « nb » = nombre
+    de questions).
+
+    Remplace l'ancien blob JSON `types_activite.params` : une donnée = une ligne, en base, avec contrôle
+    (règle 4). Un type a 0..N paramètres ; leur présence déclenche un champ de saisie côté prof (ex. `nb`
+    → champ « Nombre de questions »). `source` = provenance ('systeme' | 'admin' | 'ia'). CASCADE :
+    supprimer le type retire ses paramètres. UNIQUE (type_activite_id, cle) : pas de doublon dans un type."""
+    __tablename__ = "type_parametres"
+    __table_args__ = (
+        UniqueConstraint("type_activite_id", "cle", name="uq_type_parametres_type_cle"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    type_activite_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    cle: Mapped[str] = mapped_column(String(32), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")

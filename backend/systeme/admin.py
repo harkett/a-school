@@ -1575,7 +1575,7 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             User.niveau.label("niveau_profil"),
             ActiviteSauvegardee.matiere.label("activite_matiere"),
             ActiviteSauvegardee.niveau.label("activite_niveau"),
-            ActiviteSauvegardee.activite_key,
+            ActiviteSauvegardee.activite_type_id,
             ActiviteSauvegardee.activite_label,
             func.count(ActiviteSauvegardee.id).label("nb"),
         )
@@ -1584,7 +1584,7 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             ActiviteSauvegardee.user_id,
             ActiviteSauvegardee.matiere,
             ActiviteSauvegardee.niveau,
-            ActiviteSauvegardee.activite_key,
+            ActiviteSauvegardee.activite_type_id,
             ActiviteSauvegardee.activite_label,
         )
         .all()
@@ -1613,7 +1613,7 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
 
         mat = row.activite_matiere or row.subject or "—"
         niv = row.activite_niveau or "—"
-        typ = row.activite_label or row.activite_key or "—"
+        typ = row.activite_label or "—"
 
         if mat not in prof["par_matiere"]:
             prof["par_matiere"][mat] = {"total": 0, "par_niveau": {}}

@@ -4,7 +4,7 @@ from typing import Optional
 
 class GenerateRequest(BaseModel):
     texte: str
-    activite_key: str
+    activite_type_id: int
     niveau: str
     sous_type: Optional[str] = None
     nb: Optional[int] = None

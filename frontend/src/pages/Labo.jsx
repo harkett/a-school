@@ -17,8 +17,8 @@ export default function Labo() {
   const [matieresParNiveau, setMatieresParNiveau] = useState([])  // [{niveau, matieres:[{id,nom}]}]
   const [niveau, setNiveau] = useState('')                        // nom du niveau choisi (le couple)
   const [matiere, setMatiere] = useState('')                      // nom de la matière choisie
-  const [activites, setActivites] = useState([])                  // [{label, key, sous_types, params}] du couple (get)
-  const [typeKey, setTypeKey] = useState('')                      // type d'activité sélectionné
+  const [activites, setActivites] = useState([])                  // [{id, label, sous_types, params}] du couple (get)
+  const [typeId, setTypeId] = useState(null)                      // id du type d'activité sélectionné
   const [busy, setBusy] = useState(false)
 
   // Programmes : niveaux (par cycle) + matières (par niveau), lus en base (get).
@@ -42,7 +42,7 @@ export default function Labo() {
       .then(d => {
         const list = Array.isArray(d) ? d : []
         setActivites(list)
-        setTypeKey(list[0]?.key || '')
+        setTypeId(list[0]?.id ?? null)
       })
       .catch(() => showError('Lecture des types d’activité impossible.'))
       .finally(() => setBusy(false))
@@ -54,7 +54,7 @@ export default function Labo() {
     setMatiere('')
   }
 
-  const typeCourant = activites.find(a => a.key === typeKey) || null
+  const typeCourant = activites.find(a => a.id === typeId) || null
 
   return (
     <div style={{ maxWidth: 760 }}>
@@ -110,8 +110,8 @@ export default function Labo() {
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
-              <select value={typeKey} onChange={e => setTypeKey(e.target.value)} style={{ ...champ, minWidth: 240 }}>
-                {activites.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+              <select value={typeId ?? ''} onChange={e => setTypeId(Number(e.target.value))} style={{ ...champ, minWidth: 240 }}>
+                {activites.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             </div>
             <div>
@@ -130,8 +130,8 @@ export default function Labo() {
         {typeCourant && (
           <div style={{ marginTop: 14, padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a',
             borderRadius: 8, fontSize: 12.5, color: '#92400e', lineHeight: 1.5 }}>
-            ⚠️ Ces précisions viennent de <b>la ligne du type « {typeCourant.label} »</b> (colonne <code>sous_types</code>,
-            catalogue global). <b>Change le niveau ou la matière</b> ci-dessus : pour le même type, la liste de précisions
+            ⚠️ Ces précisions viennent de <b>la table <code>type_precisions</code> du type « {typeCourant.label} »</b>
+            (catalogue global). <b>Change le niveau ou la matière</b> ci-dessus : pour le même type, la liste de précisions
             <b> ne bougera pas</b> — elle n'est pas filtrée par le couple. C'est le point à corriger.
           </div>
         )}
