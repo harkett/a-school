@@ -153,7 +153,16 @@ export default function AdminReferentiels() {
   const [promptEditId, setPromptEditId] = useState(null)
   const [promptBrouillon, setPromptBrouillon] = useState('')
   const [typesPrompt, setTypesPrompt] = useState({})   // {activite_type_id: prompt} — prompt PAR couple, lu en base
+  const [typesNbPrecis, setTypesNbPrecis] = useState({})   // {activite_type_id: nb} — comptage précisions PAR couple, lu en base (/etat)
   const [promptSaving, setPromptSaving] = useState(false)
+
+  // Précisions PAR COUPLE × type (table `referentiel_type_precisions`, fille de la liaison — comme le prompt).
+  const [precisEditId, setPrecisEditId] = useState(null)   // id du type dont le panneau Précisions est ouvert (null = aucun)
+  const [precisList, setPrecisList] = useState([])          // précisions du type ouvert, LUES en base (zéro copie)
+  const [precisLoading, setPrecisLoading] = useState(false)
+  const [newPrecis, setNewPrecis] = useState('')            // saisie « Ajouter une précision »
+  const [precisBusy, setPrecisBusy] = useState(false)
+  const [precisGenType, setPrecisGenType] = useState(null)  // id du type dont l'IA génère les précisions (sablier qui se déplace pendant « Tout sélectionner »)
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
@@ -309,6 +318,7 @@ export default function AdminReferentiels() {
         setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
         setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
         setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
+        setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
         if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
       })
       .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesPrompt({}) } })
@@ -629,6 +639,7 @@ export default function AdminReferentiels() {
       setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
       setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
       setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
+      setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
       if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
     } catch { /* réseau : on garde l'affichage courant */ }
   }
@@ -649,6 +660,81 @@ export default function AdminReferentiels() {
     finally { setPromptSaving(false) }
   }
 
+  // GET (lecture pure) des précisions de CE type POUR CE couple. Aucune écriture, aucun sablier IA.
+  // Renvoie le tableau lu (et l'affiche). Utilisé à l'ouverture ET après ajout/suppression (re-lecture).
+  async function chargerPrecisCouple(typeId) {
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${typeId}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Lecture des précisions impossible (${r.status}).`); setPrecisList([]); return null }
+      const list = d.precisions || []
+      setPrecisList(list)
+      return list
+    } catch { showError('Lecture des précisions impossible.'); setPrecisList([]); return null }
+  }
+
+  // Ouvre/ferme le panneau. À l'ouverture : GET (lecture). S'il y a des précisions → on les affiche.
+  // S'il n'y en a AUCUNE → on lance l'IA pour aller les chercher (seul cas où l'IA tourne).
+  function ouvrirPrecisions(t) {
+    if (precisEditId === t.id) { setPrecisEditId(null); setPrecisList([]); setNewPrecis(''); return }
+    setPrecisEditId(t.id); setNewPrecis(''); setPrecisList([])
+    chargerPrecisCouple(t.id).then(list => {
+      if (Array.isArray(list) && list.length === 0) genererPrecisCouple(t.id)
+    })
+  }
+
+  // Lance l'IA (sablier 🤖) : génère les précisions et les ÉCRIT en base, puis les affiche. Appelé
+  // UNIQUEMENT quand la lecture est vide — jamais après une suppression manuelle.
+  async function genererPrecisCouple(typeId) {
+    setPrecisLoading(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: typeId }),
+      }, TIMEOUT_LONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Génération des précisions impossible (${r.status}).`); return }
+      setPrecisList(d.precisions || [])
+      await chargerTypes()   // met à jour le badge « N précisions » de la ligne
+    } catch { showError('Génération des précisions impossible.') }
+    finally { setPrecisLoading(false) }
+  }
+
+  // CREATE encadré (précision du couple) : Ajouter = POST. Doublon refusé côté back (deja_present) → message humain.
+  async function ajouterPrecisCouple(t) {
+    const libelle = newPrecis.trim()
+    if (!libelle) { showError('Indiquez un libellé pour la précision.'); return }
+    setPrecisBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, libelle }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Ajout impossible (${r.status}).`); return }
+      setNewPrecis('')
+      if (d.deja_present) showError(`La précision « ${d.libelle} » existe déjà pour ce couple.`)
+      await chargerPrecisCouple(t.id)
+      await chargerTypes()   // met à jour le badge « N précisions » de la ligne
+    } catch { showError('Ajout impossible.') }
+    finally { setPrecisBusy(false) }
+  }
+
+  // DELETE encadré (précision du couple) : après confirmation, puis re-get.
+  async function supprimerPrecisCouple(t, p) {
+    if (!window.confirm(`Supprimer la précision « ${p.libelle} » ?\nCette action est irréversible.`)) return
+    setPrecisBusy(true)
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions/${p.id}?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${t.id}`,
+        { method: 'DELETE', credentials: 'include' }, TIMEOUT_STD)
+      if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Suppression impossible (${r.status}).`) }
+      await chargerPrecisCouple(t.id)
+      await chargerTypes()   // met à jour le badge « N précisions » de la ligne
+    } catch { showError('Suppression impossible.') }
+    finally { setPrecisBusy(false) }
+  }
+
   // La case EST le put : cocher = lien actif, décocher = lien inactif — écrit direct en base au clic, puis re-GET.
   async function basculerType(id) {
     if (!cycleId || !niveau) return
@@ -664,21 +750,39 @@ export default function AdminReferentiels() {
     } catch { showError('Enregistrement impossible.'); await chargerTypes() }
   }
 
-  // « Tout sélectionner » : coche en base tous les types pas encore cochés (chacun = une écriture), puis re-GET.
+  // « Tout sélectionner » : (1) coche en base tous les types pas encore cochés (instantané, aucun IA),
+  // puis (2) pour CHAQUE type coché, même logique que ✎ Précisions — GET ; si vide, l'IA génère + écrit.
+  // Le sablier 🤖 se déplace sur le type en cours (precisGenType).
   async function toutCocherTypes() {
     if (!cycleId || !niveau) return
+    // (1) COCHER tous les types pas encore cochés
     const aCocher = typesCatalogue.filter(t => !typesChecked.has(t.id))
-    if (!aCocher.length) return
     try {
       for (const t of aCocher) {
         const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
           method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, actif: true }),
         }, TIMEOUT_STD)
-        if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); break }
+        if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); return }
       }
       await chargerTypes()
-    } catch { showError('Enregistrement impossible.'); await chargerTypes() }
+    } catch { showError('Enregistrement impossible.'); await chargerTypes(); return }
+
+    // (2) PRÉCISIONS : boucle sur TOUS les types (tous cochés maintenant). GET ; si vide → l'IA génère + écrit.
+    try {
+      for (const t of typesCatalogue) {
+        setPrecisGenType(t.id)                                   // le sablier se pose sur ce type
+        const rg = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${t.id}`,
+          { credentials: 'include' }, TIMEOUT_STD)
+        const dg = await rg.json().catch(() => ({}))
+        if (rg.ok && (dg.precisions || []).length > 0) continue  // déjà des précisions → rien à faire
+        const rp = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id }),
+        }, TIMEOUT_LONG)
+        if (!rp.ok) { const e = await rp.json().catch(() => ({})); showError(e.detail || `Génération impossible (${rp.status}).`); break }
+      }
+    } finally { setPrecisGenType(null); await chargerTypes() }   // met à jour tous les badges « N précisions »
   }
 
   // Détecter (IA) : coche les types du catalogue lus dans le PDF (source='ia'), propose le reste. Re-GET ensuite.
@@ -762,10 +866,12 @@ export default function AdminReferentiels() {
           return (
             <button type="button" onClick={nouveau}
               title="Créer un nouveau référentiel (choisir un couple, déposer le PDF)"
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px',
-                border: 'none', borderBottom: '1px solid #e2e8f0', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                background: nouveauActif ? '#16a34a' : '#f0fdf4', color: nouveauActif ? '#fff' : '#166534' }}>
-              + Nouveau
+              style={{ width: '100%', height: 42, cursor: 'pointer',
+                border: '1px solid #334155', borderRadius: 8, fontWeight: 600, fontSize: 13,
+                background: nouveauActif ? '#334155' : '#0f172a', color: '#fff',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 0, fontWeight: 400 }}>＋</span>
+              Nouveau
             </button>
           )
         })()}
@@ -1416,10 +1522,11 @@ export default function AdminReferentiels() {
               ) : typesCatalogue.map((t, i) => {
                 const coche = typesChecked.has(t.id)
                 const editOuvert = promptEditId === t.id
+                const precisOuvert = precisEditId === t.id
                 return (
                   <Fragment key={t.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                    borderBottom: (i < typesCatalogue.length - 1 && !editOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                    borderBottom: (i < typesCatalogue.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
                     {/* Case + libellé : cocher/décocher écrit en base (basculerType) */}
                     <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0 }}>
                       <input type="checkbox" checked={coche} onChange={() => basculerType(t.id)} style={{ width: 16, height: 16, flexShrink: 0 }} />
@@ -1427,6 +1534,12 @@ export default function AdminReferentiels() {
                       {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
                       {coche && typesSource[t.id] && <span style={badgeOrigine(typesSource[t.id])}>{SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id]}</span>}
                     </label>
+                    {/* Sablier mobile : l'IA génère les précisions de CE type (pendant « Tout sélectionner »). */}
+                    {precisGenType === t.id && (
+                      <span title="L'IA génère les précisions de ce type" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#7c3aed', flexShrink: 0, fontWeight: 700, fontSize: 11 }}>
+                        <Spinner /> <span aria-hidden="true">🤖</span>
+                      </span>
+                    )}
                     {/* Prompt du type POUR CE COUPLE — état lu en base + bouton d'édition (si le type est coché). */}
                     {coche && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -1438,6 +1551,15 @@ export default function AdminReferentiels() {
                           style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
                             background: editOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
                           ✎ Prompt
+                        </button>
+                        {(typesNbPrecis[t.id] || 0) > 0
+                          ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚑ {typesNbPrecis[t.id]} précision{typesNbPrecis[t.id] > 1 ? 's' : ''}</span>
+                          : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>0 précision</span>}
+                        <button type="button" onClick={() => ouvrirPrecisions(t)}
+                          title={`Précisions de « ${t.label} » pour ce couple`}
+                          style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+                            background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          ✎ Précisions
                         </button>
                       </span>
                     )}
@@ -1457,6 +1579,47 @@ export default function AdminReferentiels() {
                           title="Enregistrer ce prompt pour ce couple">{promptSaving ? 'Enregistrement…' : 'Valider'}</button>
                         <button type="button" onClick={() => { setPromptEditId(null); setPromptBrouillon('') }}
                           style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Annuler</button>
+                      </div>
+                    </div>
+                  )}
+                  {precisOuvert && (
+                    <div style={{ padding: '12px 14px', background: '#f8fafc',
+                      borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
+                        Précisions de « {t.label} » — pour {coupleLabel}
+                      </div>
+                      {precisLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#7c3aed', margin: 0 }}>
+                          <BadgeIA titre="L'IA génère les précisions de ce type pour ce niveau" />
+                          <Spinner />
+                          <span>L'IA prépare les précisions adaptées à ce niveau…</span>
+                        </div>
+                      ) : precisList.length > 0 ? (
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {precisList.map(p => (
+                            <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                              padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', fontSize: 13, color: '#1e293b' }}>
+                              <span style={{ fontWeight: 500 }}>{p.libelle}</span>
+                              <button type="button" onClick={() => supprimerPrecisCouple(t, p)} disabled={precisBusy}
+                                title={`Supprimer « ${p.libelle} »`}
+                                style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626',
+                                  cursor: precisBusy ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🗑</button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune précision pour ce couple.</p>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <input value={newPrecis} onChange={e => setNewPrecis(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); ajouterPrecisCouple(t) } }}
+                          placeholder="Ajouter une précision…"
+                          style={{ flex: 1, minWidth: 0, height: 36, padding: '0 12px', fontSize: 13, borderRadius: 8, border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+                        <button type="button" onClick={() => ajouterPrecisCouple(t)} disabled={precisBusy || !newPrecis.trim()}
+                          style={btnTypes('#0f172a', precisBusy || !newPrecis.trim())}
+                          title="Ajouter cette précision pour ce couple">＋ Ajouter</button>
+                        <button type="button" onClick={() => { setPrecisEditId(null); setPrecisList([]); setNewPrecis('') }}
+                          style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Fermer</button>
                       </div>
                     </div>
                   )}

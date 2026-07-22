@@ -17,7 +17,7 @@ from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, GenerateResponse
 from backend.core.models_db import (
-    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, TypePrecision, TypeParametre,
+    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre,
 )
 from backend.llm.generator import generate, LLMRateLimitError
 from backend.rag.pgvector_store import retrieve_pg
@@ -87,11 +87,28 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
     prec_par_type: dict[int, list[str]] = {}
     par_par_type: dict[int, list[str]] = {}
     if type_ids:
-        for tid, libelle in (db.query(TypePrecision.type_activite_id, TypePrecision.libelle)
-                               .filter(TypePrecision.type_activite_id.in_(type_ids))
-                               .order_by(TypePrecision.type_activite_id, TypePrecision.ordre)
-                               .all()):
-            prec_par_type.setdefault(tid, []).append(libelle)
+        # Précisions PAR COUPLE (table fille de la liaison `referentiel_type_precisions`), comme le
+        # prompt : chaque couple a SES précisions. On passe par les liaisons de CE référentiel — pas
+        # de repli sur une table globale. Sans référentiel (types par défaut) : aucune précision.
+        if ref_id is not None:
+            type_par_lien = {
+                lien_id: tid
+                for tid, lien_id in (db.query(ReferentielActiviteType.activite_type_id,
+                                              ReferentielActiviteType.id)
+                                       .filter(ReferentielActiviteType.referentiel_id == ref_id,
+                                               ReferentielActiviteType.actif.is_(True),
+                                               ReferentielActiviteType.activite_type_id.in_(type_ids))
+                                       .all())
+            }
+            if type_par_lien:
+                for lien_id, libelle in (db.query(ReferentielTypePrecision.referentiel_activite_type_id,
+                                                  ReferentielTypePrecision.libelle)
+                                           .filter(ReferentielTypePrecision.referentiel_activite_type_id
+                                                   .in_(list(type_par_lien.keys())))
+                                           .order_by(ReferentielTypePrecision.referentiel_activite_type_id,
+                                                     ReferentielTypePrecision.ordre)
+                                           .all()):
+                    prec_par_type.setdefault(type_par_lien[lien_id], []).append(libelle)
         for tid, cle in (db.query(TypeParametre.type_activite_id, TypeParametre.cle)
                            .filter(TypeParametre.type_activite_id.in_(type_ids))
                            .all()):

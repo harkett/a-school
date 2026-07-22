@@ -553,6 +553,27 @@ class ReferentielActiviteType(Base):
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
 
 
+class ReferentielTypePrecision(Base):
+    """Précision d'un type d'activité POUR UN COUPLE — fille de la liaison `referentiel_types_activite`.
+
+    Contrairement à `type_precisions` (catalogue GLOBAL, même valeur crèche→doctorat), ici la précision
+    est PROPRE AU COUPLE × TYPE : elle pend sur la ligne de liaison (comme le `prompt`), donc « exploration
+    sensorielle » n'existe que pour le couple qui l'a saisie — le doctorat n'hérite plus du vocabulaire
+    crèche. `source` = 'admin' (saisie manuelle) | 'ia' (proposée). CASCADE : supprimer la liaison retire
+    ses précisions. UNIQUE (referentiel_activite_type_id, libelle) : pas de doublon dans un couple×type."""
+    __tablename__ = "referentiel_type_precisions"
+    __table_args__ = (
+        UniqueConstraint("referentiel_activite_type_id", "libelle", name="uq_ref_type_precisions_lien_libelle"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_activite_type_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiel_types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    libelle: Mapped[str] = mapped_column(String(128), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")
+
+
 class TypePrecision(Base):
     """Précision d'un type d'activité — UNE ligne par choix offert au prof (ex. « dictée »).
 

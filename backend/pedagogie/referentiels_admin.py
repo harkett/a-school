@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone, TypePrecision, ReferentielTypePrecision
 from backend.systeme.admin import _require_admin, get_settings_dict
 
 router = APIRouter()
@@ -235,7 +235,7 @@ def lister_activite_types_table(db: Session = Depends(get_db)):
         usage[tid] = usage.get(tid, 0) + n
     return {"total": len(ta), "types": [
         {"id": t.id, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre,
-         "usage": usage.get(t.id, 0), "supprimable": usage.get(t.id, 0) == 0}
+         "origine": t.origine, "usage": usage.get(t.id, 0), "supprimable": usage.get(t.id, 0) == 0}
         for t in ta]}
 
 
@@ -255,6 +255,65 @@ def supprimer_activite_type(type_id: int, db: Session = Depends(get_db)):
     db.commit()
     logger.info("Type d'activité supprimé : id=%s label=%s", type_id, t.label)
     return {"ok": True, "id": type_id}
+
+
+@router.get("/admin/activite-types/{type_id}/precisions", dependencies=[Depends(_require_admin)])
+def lister_precisions_type(type_id: int, db: Session = Depends(get_db)):
+    """Précisions d'un type — get direct dans `type_precisions`, ordonné (ordre, id). Lecture seule :
+    la cartouche « Précisions » de l'admin AFFICHE cette liste, jamais recopiée (règle 4). 404 si le type
+    n'existe pas. L'ajout/suppression (put) viendra à l'étape B, mêmes contrôles que le catalogue."""
+    if db.get(ActiviteType, type_id) is None:
+        raise HTTPException(404, "Type d'activité introuvable.")
+    precs = (db.query(TypePrecision)
+               .filter(TypePrecision.type_activite_id == type_id)
+               .order_by(TypePrecision.ordre, TypePrecision.id).all())
+    return {"type_id": type_id, "precisions": [
+        {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
+
+
+class PrecisionIn(BaseModel):
+    libelle: str
+
+
+@router.post("/admin/activite-types/{type_id}/precisions", dependencies=[Depends(_require_admin)])
+def creer_precision_type(type_id: int, body: PrecisionIn, db: Session = Depends(get_db)):
+    """Ajoute une précision au type (table `type_precisions`). CONTRÔLE CREATE (règle 4) : type existe
+    (404), libellé non vide (400), et REFUS DU DOUBLON par libellé insensible à la casse dans CE type
+    (comme le catalogue) → on renvoie l'existante avec `deja_present=True` plutôt que d'en refaire une.
+    Sinon crée avec `source='admin'` (saisie manuelle) et `ordre = max(ordre)+1` (ajout en fin)."""
+    if db.get(ActiviteType, type_id) is None:
+        raise HTTPException(404, "Type d'activité introuvable.")
+    libelle = (body.libelle or "").strip()
+    if not libelle:
+        raise HTTPException(400, "Indiquez un libellé pour la précision.")
+    existante = (db.query(TypePrecision)
+                   .filter(TypePrecision.type_activite_id == type_id,
+                           func.lower(TypePrecision.libelle) == libelle.lower()).first())
+    if existante is not None:
+        return {"id": existante.id, "libelle": existante.libelle, "deja_present": True}
+    ordre_max = (db.query(func.coalesce(func.max(TypePrecision.ordre), -1))
+                   .filter(TypePrecision.type_activite_id == type_id).scalar())
+    p = TypePrecision(type_activite_id=type_id, libelle=libelle, ordre=ordre_max + 1, source="admin")
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    logger.info("Précision ajoutée : type_id=%s id=%s libelle=%s", type_id, p.id, p.libelle)
+    return {"id": p.id, "libelle": p.libelle, "deja_present": False}
+
+
+@router.delete("/admin/activite-types/{type_id}/precisions/{prec_id}", dependencies=[Depends(_require_admin)])
+def supprimer_precision_type(type_id: int, prec_id: int, db: Session = Depends(get_db)):
+    """Supprime une précision. CONTRÔLE DELETE (règle 4) : la précision doit exister ET appartenir à CE
+    type (404 sinon). Aucun grisage : rien ne référence une précision par clé étrangère — la précision
+    choisie par le prof est un instantané TEXTE dans `activites_sauvegardees.sous_type`, pas un lien —
+    donc la suppression est toujours sûre et n'oriente aucune activité déjà sauvegardée."""
+    p = db.get(TypePrecision, prec_id)
+    if p is None or p.type_activite_id != type_id:
+        raise HTTPException(404, "Précision introuvable pour ce type.")
+    db.delete(p)
+    db.commit()
+    logger.info("Précision supprimée : type_id=%s id=%s libelle=%s", type_id, prec_id, p.libelle)
+    return {"ok": True, "id": prec_id}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
@@ -1230,12 +1289,20 @@ def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db
     ]
     coches = []
     if ref is not None:
+        liens = (db.query(ReferentielActiviteType)
+                   .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                           ReferentielActiviteType.actif.is_(True))
+                   .order_by(ReferentielActiviteType.ordre, ReferentielActiviteType.id).all())
+        # Comptage RÉEL des précisions par lien (get, zéro copie) : un count groupé, pas de N+1.
+        nb_par_lien = dict(
+            db.query(ReferentielTypePrecision.referentiel_activite_type_id, func.count())
+              .filter(ReferentielTypePrecision.referentiel_activite_type_id.in_([l.id for l in liens]))
+              .group_by(ReferentielTypePrecision.referentiel_activite_type_id).all()
+        ) if liens else {}
         coches = [
-            {"activite_type_id": l.activite_type_id, "source": l.source, "prompt": l.prompt or ""}
-            for l in (db.query(ReferentielActiviteType)
-                        .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                                ReferentielActiviteType.actif.is_(True))
-                        .order_by(ReferentielActiviteType.ordre, ReferentielActiviteType.id).all())
+            {"activite_type_id": l.activite_type_id, "source": l.source, "prompt": l.prompt or "",
+             "nb_precisions": int(nb_par_lien.get(l.id, 0))}
+            for l in liens
         ]
     return {"catalogue": catalogue, "coches": coches}
 
@@ -1295,8 +1362,40 @@ def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)
         # Recoche d'un lien sans prompt (ex. lien posé avant cette fonctionnalité) → on génère à ce moment.
         if body.actif and not (l.prompt or "").strip():
             l.prompt = _generer_prompt_type(t.label, body.niveau)
+    # Le coche reste INSTANTANÉ (prompt = gabarit, aucun appel IA) — sinon « Tout sélectionner » (boucle de
+    # coches, timeout court) casse. Les PRÉCISIONS ne sont PAS touchées ici : à l'ouverture du panneau
+    # ✎ Précisions le front LIT (GET) ; si la lecture est vide, il appelle `…/precisions/generer` (l'IA écrit).
     db.commit()
     return {"ok": True, "activite_type_id": body.activite_type_id, "actif": body.actif}
+
+
+def _generer_precisions_ia(db: Session, lien: ReferentielActiviteType, label: str, cycle_id: int, niveau: str) -> None:
+    """Écrit les précisions IA du type POUR CE COUPLE dans `referentiel_type_precisions` (source='ia'), au
+    coche. IDEMPOTENT : ne fait rien si la liaison a déjà des précisions (recocher ne réécrase pas, et
+    n'écrase JAMAIS les précisions 'admin' saisies à la main). Toute panne (PDF absent, IA down) est
+    ABSORBÉE (loggée) — la coche réussit quoi qu'il arrive."""
+    deja = (db.query(ReferentielTypePrecision.id)
+              .filter(ReferentielTypePrecision.referentiel_activite_type_id == lien.id).first())
+    if deja is not None:
+        return
+    try:
+        texte = _texte_du_pdf(_pdf_du_couple(db, cycle_id, niveau))
+        if not texte.strip():
+            return
+        from backend.rag.analyse_amont import suggerer_precisions_type
+        libelles = suggerer_precisions_type(label, niveau, texte, db=db)
+    except Exception as e:
+        logger.warning("Précisions IA non générées (coche non bloquée) lien=%s : %s", lien.id, e)
+        return
+    for i, lib in enumerate(libelles):
+        lib = (lib or "").strip()
+        if not lib:
+            continue
+        existe = (db.query(ReferentielTypePrecision.id)
+                    .filter(ReferentielTypePrecision.referentiel_activite_type_id == lien.id,
+                            func.lower(ReferentielTypePrecision.libelle) == lib.lower()).first())
+        if existe is None:
+            db.add(ReferentielTypePrecision(referentiel_activite_type_id=lien.id, libelle=lib, ordre=i, source="ia"))
 
 
 class PromptLienBody(BaseModel):
@@ -1324,6 +1423,101 @@ def ecrire_prompt_type_couple(body: PromptLienBody, db: Session = Depends(get_db
     l.prompt = body.prompt
     db.commit()
     return {"ok": True, "activite_type_id": body.activite_type_id}
+
+
+def _lien_couple_type(db: Session, cycle_id: int, niveau: str, activite_type_id: int) -> ReferentielActiviteType:
+    """Résout la ligne de liaison (couple × type) — le SEUL endroit où vit ce qui est propre au couple
+    (prompt, et désormais précisions). 404 si le couple n'a pas de référentiel ou si le type n'y est pas lié."""
+    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    l = (db.query(ReferentielActiviteType)
+           .filter(ReferentielActiviteType.referentiel_id == ref.id,
+                   ReferentielActiviteType.activite_type_id == activite_type_id).first())
+    if l is None:
+        raise HTTPException(404, "Ce type n'est pas coché pour ce couple.")
+    return l
+
+
+@router.get("/admin/referentiels/types-activite/precisions", dependencies=[Depends(_require_admin)])
+def lister_precisions_couple(cycle_id: int, niveau: str, activite_type_id: int, db: Session = Depends(get_db)):
+    """Précisions d'un type POUR CE COUPLE — get direct dans `referentiel_type_precisions`, ordonné
+    (ordre, id). Lecture seule : la liste est LUE, jamais recopiée (règle 4). Clé = la liaison couple×type."""
+    l = _lien_couple_type(db, cycle_id, niveau, activite_type_id)
+    precs = (db.query(ReferentielTypePrecision)
+               .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id)
+               .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all())
+    return {"precisions": [
+        {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
+
+
+class PrecisionCoupleIn(BaseModel):
+    cycle_id: int
+    niveau: str
+    activite_type_id: int
+    libelle: str
+
+
+@router.post("/admin/referentiels/types-activite/precisions", dependencies=[Depends(_require_admin)])
+def creer_precision_couple(body: PrecisionCoupleIn, db: Session = Depends(get_db)):
+    """Ajoute une précision au type POUR CE COUPLE (`referentiel_type_precisions`). CREATE encadré
+    (règle 4) : couple×type valide (404), libellé non vide (400), REFUS DU DOUBLON par libellé insensible
+    à la casse DANS CE couple×type → renvoie l'existante (`deja_present`). Sinon crée `source='admin'`,
+    `ordre = max(ordre)+1`. Rien de global : c'est propre au couple, jamais partagé avec un autre niveau."""
+    l = _lien_couple_type(db, body.cycle_id, body.niveau, body.activite_type_id)
+    libelle = (body.libelle or "").strip()
+    if not libelle:
+        raise HTTPException(400, "Indiquez un libellé pour la précision.")
+    existante = (db.query(ReferentielTypePrecision)
+                   .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id,
+                           func.lower(ReferentielTypePrecision.libelle) == libelle.lower()).first())
+    if existante is not None:
+        return {"id": existante.id, "libelle": existante.libelle, "deja_present": True}
+    ordre_max = (db.query(func.coalesce(func.max(ReferentielTypePrecision.ordre), -1))
+                   .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id).scalar())
+    p = ReferentielTypePrecision(referentiel_activite_type_id=l.id, libelle=libelle, ordre=ordre_max + 1, source="admin")
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    logger.info("Précision couple ajoutée : lien=%s id=%s libelle=%s", l.id, p.id, p.libelle)
+    return {"id": p.id, "libelle": p.libelle, "deja_present": False}
+
+
+@router.delete("/admin/referentiels/types-activite/precisions/{prec_id}", dependencies=[Depends(_require_admin)])
+def supprimer_precision_couple(prec_id: int, cycle_id: int, niveau: str, activite_type_id: int,
+                               db: Session = Depends(get_db)):
+    """Supprime une précision d'un couple×type. DELETE encadré : la précision doit exister ET appartenir
+    au bon couple×type (404 sinon). CASCADE côté base si la liaison disparaît ; ici suppression unitaire."""
+    l = _lien_couple_type(db, cycle_id, niveau, activite_type_id)
+    p = db.get(ReferentielTypePrecision, prec_id)
+    if p is None or p.referentiel_activite_type_id != l.id:
+        raise HTTPException(404, "Précision introuvable pour ce couple.")
+    db.delete(p)
+    db.commit()
+    logger.info("Précision couple supprimée : lien=%s id=%s libelle=%s", l.id, prec_id, p.libelle)
+    return {"ok": True, "id": prec_id}
+
+
+class CoupleTypeRef(BaseModel):
+    cycle_id: int
+    niveau: str
+    activite_type_id: int
+
+
+@router.post("/admin/referentiels/types-activite/precisions/generer", dependencies=[Depends(_require_admin)])
+def generer_precisions_couple(body: CoupleTypeRef, db: Session = Depends(get_db)):
+    """ÉCRITURE : l'IA génère les précisions du couple×type et les enregistre (`source='ia'`), puis renvoie
+    la liste. Appelé par le front UNIQUEMENT quand la LECTURE (GET) est revenue vide — jamais autrement.
+    Garde-fou : si la liaison a déjà des précisions, le helper ne régénère pas. Pannes IA absorbées."""
+    l = _lien_couple_type(db, body.cycle_id, body.niveau, body.activite_type_id)
+    t = db.get(ActiviteType, body.activite_type_id)
+    _generer_precisions_ia(db, l, t.label if t else "", body.cycle_id, body.niveau)
+    db.commit()
+    precs = (db.query(ReferentielTypePrecision)
+               .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id)
+               .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all())
+    return {"precisions": [
+        {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
 
 
 class AjouterTypeCatalogueBody(BaseModel):

@@ -444,6 +444,52 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
     return noms
 
 
+def _schema_precisions_type() -> dict:
+    """Sortie structurée : `precisions` = tableau de libellés. `additionalProperties: false` interdit tout
+    champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
+    return {
+        "type": "object",
+        "properties": {"precisions": {"type": "array", "items": {"type": "string"}}},
+        "required": ["precisions"],
+        "additionalProperties": False,
+    }
+
+
+def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session) -> list[str]:
+    """L'IA PROPOSE les PRÉCISIONS d'un type d'activité POUR CE NIVEAU, ancrées au référentiel. Une
+    précision = une déclinaison concrète du type, RÉELLEMENT adaptée au niveau (ex. « Activités écrites » :
+    « copie », « dictée » en primaire ; « dissertation », « mémoire » dans le supérieur). Même plomberie
+    que `detecter_types_activite` : provider / modèle lus EN BASE, température 0 (déterministe), JSON
+    contraint. Renvoie des libellés nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu.
+    Lève `ValueError` si l'IA ne rend pas un JSON exploitable (l'appelant absorbe)."""
+    prompt = (
+        f"Tu es un concepteur pédagogique.\n"
+        f"Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propose 3 à 6 PRÉCISIONS : "
+        f"des déclinaisons concrètes de ce type, réellement adaptées à ce niveau (ni trop enfantines, ni "
+        f"trop avancées).\n"
+        f"Appuie-toi sur le référentiel officiel ci-dessous pour rester dans le programme :\n{texte}\n\n"
+        f"Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."
+    )
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=2000,   # marge large : 300 coupait la réponse (JSON tronqué → erreur → 0 précision)
+        temperature=0,
+        json_mode=True,
+        schema=_schema_precisions_type(),
+    )
+    data = parser_reponse(raw)
+    noms: list[str] = []
+    vus: set[str] = set()
+    for m in data.get("precisions", []):
+        nom = (m if isinstance(m, str) else str(m)).strip()
+        if nom and nom.lower() not in vus:
+            vus.add(nom.lower())
+            noms.append(nom)
+    return noms
+
+
 # Clé EN BASE du prompt de suggestion des cycles d'une famille — proposés à l'admin lors de la
 # construction d'une famille (proposition, pas un lien validé : l'admin choisit/coche ce qu'il garde).
 _CLE_SUGGERER_CYCLES = "suggerer_cycles"
