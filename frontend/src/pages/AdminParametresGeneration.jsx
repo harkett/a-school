@@ -315,7 +315,7 @@ export default function AdminParametresGeneration() {
   )
 
   return (
-    <div style={{ maxWidth: 900 }} className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
 
       <div>
         <h2 className="text-sm font-semibold text-gray-700 mb-1">Génération LLM</h2>

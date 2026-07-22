@@ -34,7 +34,7 @@ export default function AdminCompte() {
   const adminUser = import.meta.env.VITE_ADMIN_USER || 'admin'
 
   return (
-    <div style={{ maxWidth: 480 }}>
+    <div>
       <h2 className="text-sm font-semibold text-gray-700 mb-6">Mon compte</h2>
 
       <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', padding: '24px 28px' }}>

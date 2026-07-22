@@ -263,7 +263,7 @@ export default function AdminFamilles() {
       </aside>
 
       {/* Panneau de droite : création OU builder de la famille sélectionnée. */}
-      <div style={{ flex: 1, maxWidth: 760 }}>
+      <div style={{ flex: 1 }}>
 
         {vue === 'nouvelle' ? (
           <div style={carte}>

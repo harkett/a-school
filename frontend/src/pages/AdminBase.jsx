@@ -43,7 +43,7 @@ export default function AdminBase() {
   const s = info ? (STYLES[info.type] || STYLES.autre) : null
 
   return (
-    <div className="flex flex-col gap-6" style={{ maxWidth: 720 }}>
+    <div className="flex flex-col gap-6">
       {/* Tout l'écran dans une seule cartouche */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
         <div>
