@@ -7,6 +7,28 @@ APP_DIR="/var/www/a-school"
 cd "$APP_DIR"
 
 echo ""
+echo "=== [Controle] Verification des variables .env requises ==="
+# Garde-fou : on verifie la PRESENCE (ligne non vide) des variables obligatoires — jamais leur VALEUR.
+# ENV fait exception : sa valeur doit etre exactement 'production' (sinon cookies de session non securises).
+if [ ! -f .env ]; then
+    echo "ERREUR : fichier .env introuvable dans $APP_DIR — deploiement interrompu."
+    exit 1
+fi
+# ADMIN_JWT_SECRET n'est PAS requis : le code retombe sur JWT_SECRET si absent (backend/systeme/admin.py:32).
+REQUISES="DATABASE_URL ADMIN_USERNAME ADMIN_PASSWORD CLAUDE_API_KEY_TEXTE SMTP_HOST SMTP_PORT SMTP_USERNAME SMTP_PASSWORD SMTP_FROM"
+manquantes=""
+for v in $REQUISES; do
+    grep -qE "^${v}=.+" .env || manquantes="$manquantes $v"
+done
+grep -qE "^ENV=production$" .env || manquantes="$manquantes ENV(doit=production)"
+if [ -n "$manquantes" ]; then
+    echo "ERREUR : variables .env absentes/vides ou incorrectes :$manquantes"
+    echo "  → completer le .env du serveur puis relancer. Deploiement interrompu."
+    exit 1
+fi
+echo "  → toutes les variables requises sont presentes."
+
+echo ""
 echo "=== [1/7] Git pull ==="
 git pull
 
@@ -19,10 +41,6 @@ echo "=== [2/7] Python venv + dépendances ==="
 echo ""
 echo "=== [2.2/7] Migrations base (Alembic) ==="
 .venv/bin/alembic upgrade head
-
-echo ""
-echo "=== [2.5/7] Reconstruction de la base RAG (PostgreSQL/pgvector, donnees generees) ==="
-.venv/bin/python -m backend.rag.pgvector_store
 
 echo ""
 echo "=== [3/7] Build frontend React ==="

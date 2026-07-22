@@ -21,10 +21,15 @@ if ($msg -eq "") {
 Write-Host ""
 Write-Host "0/2  Bump version..." -ForegroundColor Cyan
 
-Push-Location frontend
-npm version patch --no-git-tag-version | Out-Null
-$newVersion = (Get-Content package.json | ConvertFrom-Json).version
-Pop-Location
+$pkg = "frontend/package.json"
+$raw = Get-Content $pkg -Raw
+if ($raw -notmatch '"version":\s*"(\d+)\.(\d+)\.(\d+)"') {
+    Write-Host "Version introuvable dans $pkg" -ForegroundColor Red
+    exit 1
+}
+$newVersion = "$($Matches[1]).$($Matches[2]).$([int]$Matches[3] + 1)"
+$raw = $raw -replace '"version":\s*"\d+\.\d+\.\d+"', "`"version`": `"$newVersion`""
+[System.IO.File]::WriteAllText((Resolve-Path $pkg), $raw, (New-Object System.Text.UTF8Encoding($false)))
 
 Write-Host "     v$newVersion" -ForegroundColor Green
 

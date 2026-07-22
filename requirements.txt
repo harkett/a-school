@@ -1,22 +1,26 @@
-requests>=2.31.0
-python-dotenv>=1.0.0
+# torch en variante CPU (déploiement sans GPU) — index officiel PyTorch CPU
+--extra-index-url https://download.pytorch.org/whl/cpu
+requests==2.33.1
+python-dotenv==1.2.2
 # Backend
-fastapi>=0.110.0
-httpx>=0.27.0
-anthropic>=0.116.0  # SDK Anthropic (fournisseur texte) — backend/llm/generator.py
-uvicorn[standard]>=0.27.0
-sqlalchemy>=2.0.0
-psycopg[binary]>=3.1.0  # driver PostgreSQL (psycopg3, synchrone) — moteur unique d'aSchool
-alembic>=1.13.0  # migrations de schéma (standard SQLAlchemy) — autorité du schéma PostgreSQL
-pgvector>=0.4.2  # type de colonne Vector (SQLAlchemy/Alembic) — RAG vecteurs sur PostgreSQL (remplace ChromaDB)
-bcrypt>=4.0.0
-python-jose[cryptography]>=3.3.0
-python-multipart>=0.0.9
-pdfplumber>=0.11.0
+fastapi==0.136.1
+httpx==0.28.1
+anthropic==0.116.0  # SDK Anthropic (fournisseur texte) — backend/llm/generator.py
+uvicorn[standard]==0.46.0
+sqlalchemy==2.0.49
+psycopg[binary]==3.3.4  # driver PostgreSQL (psycopg3, synchrone) — moteur unique d'aSchool
+alembic==1.18.5  # migrations de schéma (standard SQLAlchemy) — autorité du schéma PostgreSQL
+pgvector==0.4.2  # type de colonne Vector (SQLAlchemy/Alembic) — RAG vecteurs sur PostgreSQL (remplace ChromaDB)
+torch==2.13.0+cpu  # moteur d'inférence (CPU) pour les embeddings — dépendance de sentence-transformers
+sentence-transformers==5.6.0  # embeddings RAG (modèle BAAI/bge-m3, dim 1024) — backend/rag/embeddings.py
+bcrypt==5.0.0
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.27
+pdfplumber==0.11.9
 # Admin backoffice
-slowapi>=0.1.9
-user-agents>=2.2.0
-psutil>=5.9.0
-apscheduler>=3.10.0
+slowapi==0.1.9
+user-agents==2.2.0
+psutil==7.2.2
+apscheduler==3.11.2
 # Tests — suite pytest (convention unique du projet)
-pytest>=8.0.0
+pytest==9.0.3

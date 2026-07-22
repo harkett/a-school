@@ -43,14 +43,18 @@ services:
   backend:
     build: .
     restart: unless-stopped
+    env_file:
+      - .env                 # clés LLM (CLAUDE_API_KEY_TEXTE…), SMTP, etc. — lues depuis le .env du dossier
     environment:
       # Dans la boîte, le backend joint la base par le nom du service "db" (pas 127.0.0.1).
+      # Défini APRÈS env_file → écrase le DATABASE_URL du .env pour viser "db:5432" dans la boîte.
       DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_dev
-    command: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001"
+    command: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
       - "8001:8001"
     volumes:
       - .:/app                # PROJET DEHORS (le code vit dans le dossier, pas dans la boîte)
+      - ./docker/hf-cache:/root/.cache/huggingface   # modèle d'embedding (BGE-M3, ~2,2 Go) DEHORS — téléchargé 1 fois, pas à chaque recréation
     depends_on:
       db:
         condition: service_healthy
