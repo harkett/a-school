@@ -45,6 +45,7 @@ import AdminCompte from './pages/AdminCompte'
 import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminReferentiels from './pages/AdminReferentiels'
+import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
 import Labo from './pages/Labo'   // écran labo générique (bac à sable réutilisable)
 import AdminTypesActivite from './pages/AdminTypesActivite'
 import AdminFCAutorisees from './pages/AdminFCAutorisees'
@@ -104,7 +105,10 @@ function MainApp() {
   // Garde-fou : pas de matière = pas de couple → profil BLOQUANT (l'app force « Mon profil »
   // comme tout premier écran, et neutralise la navigation tant que le couple n'est pas enregistré).
   // Le prénom/nom, eux, ne bloquent PAS : simple rappel discret dans le header (profilNomIncomplet).
-  const profilIncomplet = user && !user.subject
+  // Profil à revoir = matière absente OU matière devenue incohérente avec le programme vivant
+  // (profil_coherent renvoyé en direct par /auth/me, ex. après remplacement d'un référentiel).
+  // Dans les deux cas on force « Mon profil » à la connexion, où la modale + le re-choix existent.
+  const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
   const isMobile = window.innerWidth < 768
@@ -1119,6 +1123,7 @@ export default function App() {
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/serveur" replace />} />
+            <Route path="mise-en-route" element={<AdminMiseEnRoute />} />
             <Route path="serveur"    element={<AdminServeur />} />
             <Route path="sessions"   element={<AdminSessions />} />
             <Route path="logs"       element={<AdminLogs />} />

@@ -51,9 +51,13 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Docker/Windows : les événements de fichiers ne traversent pas la frontière hôte→conteneur.
+    // Sans polling, Vite ne voit jamais les éditions du code → pas de hot-reload (il sert l'ancien
+    // module en cache). Le polling force la surveillance → toute modif se recharge toute seule.
+    watch: { usePolling: true },
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.VITE_API_PORT || 8000}`,
+        target: `http://${process.env.VITE_API_HOST || 'localhost'}:${process.env.VITE_API_PORT || 8000}`,
         changeOrigin: false,
         cookieDomainRewrite: 'localhost',
       },

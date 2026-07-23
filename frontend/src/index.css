@@ -26,6 +26,22 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
+/* Écran de connexion admin : carte foncée → texte saisi en BLANC (sinon noir sur noir,
+   illisible), y compris quand le navigateur pré-remplit (autofill). */
+.admin-login-input {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  background: #0f172a;
+}
+.admin-login-input::placeholder { color: #94a3b8; }
+.admin-login-input:-webkit-autofill,
+.admin-login-input:-webkit-autofill:hover,
+.admin-login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0 1000px #0f172a inset;
+  caret-color: #fff;
+}
+
 .btn-primary {
   display: inline-flex; align-items: center; gap: 6px;
   background-color: var(--bleu); color: white;

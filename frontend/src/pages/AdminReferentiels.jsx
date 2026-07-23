@@ -235,7 +235,7 @@ export default function AdminReferentiels() {
           return
         }
         if (d.status === 'error') {
-          showError(d.message ? `La découpe a échoué : ${d.message}` : "La découpe a échoué.")
+          showError(d.message || "La découpe n'a pas pu aboutir. Réessayez dans un instant.")
           if (Number(cycleId) === c && niveau === nv) setPromptBusy('')
           return
         }

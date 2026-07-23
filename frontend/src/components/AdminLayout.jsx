@@ -5,11 +5,23 @@ import { registerErrorHandler } from '../errorDialog'
 
 const SEP = { separator: true }
 
-// Menu rangé du général au détaillé : 6 catégories (groupes) + 2 entrées simples.
+// Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
 // Règle (CLAUDE.md) : toute nouvelle page se range sous une famille existante,
-// jamais une entrée à plat de plus. « Pédagogie » = le métier construit ; « Contenu »
+// jamais une entrée à plat de plus. « Contenu »
 // = les données brutes de référence (référentiels sources + tables).
 const NAV_ITEMS = [
+  // — Mise en route (assistant de première configuration) —
+  {
+    to:    '/admin/mise-en-route',
+    label: 'Mise en route',
+    aide:  'Assistant de première mise en route : les 8 étapes pour rendre aSchool pleinement opérationnel. Chaque pastille est lue en direct dans la base (get, zéro copie) ; les boutons mènent à l’écran où agir.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3L22 4"/>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    ),
+  },
   // — Référentiel (écran unique CRUD) —
   {
     to:    '/admin/referentiels',
@@ -23,20 +35,17 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Pédagogie (le métier construit sur le contenu) —
+  // — Programmes (entrée directe, ex-groupe « Pédagogie » à entrée unique) —
   {
-    group:  true,
-    label:  'Pédagogie',
-    aide:   'Le métier construit sur le contenu : programme officiel, activités et fiches matières.',
+    to:    '/admin/programmes',
+    label: 'Programmes',
+    aide:  'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
       </svg>
     ),
-    items: [
-      { to: '/admin/programmes',   label: 'Programmes',     aide: 'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.' },
-    ],
   },
   // — Contenu (les données brutes de référence) —
   {

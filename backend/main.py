@@ -16,7 +16,7 @@ import json
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=True)
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=False)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s — %(message)s")
 
@@ -42,7 +42,7 @@ from backend.analyse import ambiguites, consigne
 from backend.dictee import ocr, transcribe
 from backend.reseau import bibliotheque
 from backend.sequence import sequence, optimiseur
-from backend.systeme import maintenance
+from backend.systeme import maintenance, mise_en_route
 
 # Schéma géré par Alembic (`alembic upgrade head`) — plus de create_all au démarrage (Pas 9).
 
@@ -117,6 +117,7 @@ app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
 app.include_router(referentiels_admin.router, prefix="/api")
+app.include_router(mise_en_route.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
