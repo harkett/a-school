@@ -11,17 +11,21 @@ import json
 import logging
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models import GenerateRequest, GenerateResponse
+from backend.core.models import GenerateRequest
 from backend.core.models_db import (
     Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre,
 )
-from backend.llm.generator import generate, LLMRateLimitError
+from backend.llm.generator import generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.rag.pgvector_store import retrieve_pg
-from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
+from backend.systeme.admin import (
+    get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k,
+    get_stream_silence_timeout,
+)
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -137,22 +141,26 @@ def _exiger_session(aschool_access: str | None) -> None:
         raise HTTPException(401, "Non connecté.")
 
 
-@router.post("/generate", response_model=GenerateResponse)
+@router.post("/generate")
 def api_generate(
     req: GenerateRequest,
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    """Génère une activité à partir du PROMPT du COUPLE × type, LU EN BASE sur la liaison
-    `referentiel_types_activite` (une seule place, zéro copie) — PAS le catalogue global. Le couple
-    est résolu par le NIVEAU (même patron que `types_du_couple`). Le prompt contient deux marqueurs :
-    {texte} (l'idée du prof, elle mène) et {referentiel} (extraits du programme officiel du couple,
-    récupérés par RAG sur l'idée du prof — même voie que « Tester un exemple »). Provider / modèle /
-    max_tokens / température lus EN BASE.
+    """Génère une activité EN STREAMING à partir du PROMPT du COUPLE × type, LU EN BASE sur la
+    liaison `referentiel_types_activite` (une seule place, zéro copie) — PAS le catalogue global.
+    Le couple est résolu par le NIVEAU (même patron que `types_du_couple`). Le prompt contient deux
+    marqueurs : {texte} (l'idée du prof, elle mène) et {referentiel} (extraits du programme officiel
+    du couple, récupérés par RAG sur l'idée du prof). Provider / modèle / max_tokens / température /
+    coupure de silence lus EN BASE.
 
-    NB : `avec_correction` et le few-shot « aSchool vous reconnaît » sont DIFFÉRÉS (rebranchés à une
-    étape ultérieure) — on ne réintroduit aucun texte de prompt en dur ici. La sauvegarde côté prof
-    (/api/mes-activites) reste inchangée."""
+    Réponse : flux SSE (`text/event-stream`) — événements `delta` (morceau de texte), `error`
+    (échec technique survenu APRÈS le début du flux) et `done` (fin normale). Les échecs MÉTIER
+    (référentiel absent, type pas prêt, RAG vide, saturation) sont renvoyés AVANT le flux, en JSON
+    HTTP classique (4xx/429) — l'écran affiche alors leur message tel quel.
+
+    NB : `avec_correction` et le few-shot « aSchool vous reconnaît » sont DIFFÉRÉS. La sauvegarde
+    côté prof (/api/mes-activites) reste inchangée (déclenchée par l'écran à la fin du flux)."""
     _exiger_session(aschool_access)
 
     # 1. Le COUPLE : le référentiel du niveau. Sans référentiel, aucun prompt de couple → rien à générer.
@@ -210,18 +218,46 @@ def api_generate(
             raise  # placeholder inconnu = bug du prompt → 500, jamais masqué
         raise HTTPException(400, f"Indiquez {_USER_PARAMS[manquant]} pour cette activité.") from e
 
+    # 6. Réglages LLM lus EN BASE, AVANT le flux (get) — passés en valeurs au flux (aucune lecture
+    # de base pendant le streaming, la session de requête étant destinée à se fermer). `silence` =
+    # coupure de silence admin en base (zéro délai en dur).
+    provider = get_ai_provider(db)
+    model = get_ai_model(db)
+    max_toks = get_max_tokens(db, "activite")
+    temp = get_temperature(db)
+    silence = get_stream_silence_timeout(db)
+
+    # 7. Créneau LLM pris AVANT le flux : si saturation, message MÉTIER « service très demandé »
+    # renvoyé en 429 pré-flux (jamais après le début du flux, où le statut 200 est déjà parti).
     try:
-        resultat = generate(
-            prompt,
-            provider=get_ai_provider(db), model=get_ai_model(db),
-            max_tokens=get_max_tokens(db, "activite"), temperature=get_temperature(db),
-        )
+        acquire_llm_slot()
     except LLMRateLimitError as e:
-        log.warning("/api/generate — service très demandé : %s", e)   # détail technique = pour les logs
+        log.warning("/api/generate — service très demandé : %s", e)   # détail technique = logs
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
-    except Exception as e:
-        # Filet HUMAIN (règle 23) : tout échec de génération (LLM, réseau, contenu vide…) devient un
-        # message clair pour le prof. Le détail technique reste dans les logs, jamais à l'écran.
-        log.warning("/api/generate — génération indisponible : %s", e)
-        raise HTTPException(502, "La génération n'a pas abouti. Réessayez dans un instant.")
-    return GenerateResponse(resultat=resultat)
+
+    def flux():
+        # Le créneau est RENDU dans le finally — donc dans TOUS les cas : fin normale, erreur
+        # technique en cours de flux, ET déconnexion du prof (Starlette ferme ce générateur →
+        # GeneratorExit remonte jusqu'au finally). GeneratorExit est une BaseException : le
+        # `except Exception` ne l'attrape pas (pas de faux événement `error`), le finally, lui,
+        # s'exécute toujours. Un créneau jamais rendu = perdu jusqu'au redémarrage : c'est le
+        # piège à ne pas laisser passer.
+        try:
+            for morceau in generate_stream(
+                prompt, provider=provider, model=model,
+                max_tokens=max_toks, temperature=temp, read_timeout=silence,
+            ):
+                yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
+            yield "event: done\ndata: {}\n\n"
+        except Exception as e:
+            # Détail technique = logs (règle 23) ; l'écran ne recevra qu'un `error` neutre.
+            log.warning("/api/generate — flux interrompu : %s", e)
+            yield "event: error\ndata: {}\n\n"
+        finally:
+            release_llm_slot()
+
+    return StreamingResponse(
+        flux(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

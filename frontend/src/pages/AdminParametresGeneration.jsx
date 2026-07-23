@@ -29,6 +29,12 @@ export default function AdminParametresGeneration() {
   const [savingTemp, setSavingTemp] = useState(false)
   const [messageTemp, setMessageTemp] = useState(null)
 
+  // Coupure de SILENCE du flux de génération (streaming) — secondes, réglage admin en base.
+  const [streamTimeout, setStreamTimeout] = useState('')
+  const [streamBounds, setStreamBounds]   = useState({ min: 5, max: 300 })
+  const [savingStream, setSavingStream]   = useState(false)
+  const [messageStream, setMessageStream] = useState(null)
+
   // Prompts des outils (administrables en base). Liste depuis le backend ; un éditeur par prompt.
   const [prompts, setPrompts] = useState([])      // [{ key, label, placeholders, current, default, is_default }]
   const [promptKey, setPromptKey] = useState('')
@@ -73,6 +79,14 @@ export default function AdminParametresGeneration() {
       .then(data => {
         setTemperature(data.temperature == null ? '' : String(data.temperature))
         if (data.bounds) setTempBounds(data.bounds)
+      })
+      .catch(() => {})
+
+    fetch('/api/admin/stream-timeout', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        setStreamTimeout(String(data.timeout ?? ''))
+        if (data.bounds) setStreamBounds(data.bounds)
       })
       .catch(() => {})
 
@@ -219,6 +233,40 @@ export default function AdminParametresGeneration() {
     }
   }
 
+  // Coupure de silence : entier dans [min, max]. Vide / non entier / hors bornes = invalide.
+  const streamInvalide = v => {
+    const n = Number(v)
+    return v === '' || !Number.isInteger(n) || n < streamBounds.min || n > streamBounds.max
+  }
+
+  async function saveStreamTimeout() {
+    if (streamInvalide(streamTimeout)) {
+      showError(
+        `Le délai doit être un nombre entier de secondes entre ${streamBounds.min} et ${streamBounds.max}. ` +
+        `C'est la coupure de SILENCE du flux (temps sans nouveau texte avant d'abandonner), pas la durée ` +
+        `totale d'une génération : le compteur se remet à zéro à chaque morceau reçu.`
+      )
+      return
+    }
+    setSavingStream(true)
+    setMessageStream(null)
+    try {
+      const res = await fetchWithTimeout('/api/admin/stream-timeout', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ timeout: Number(streamTimeout) }),
+      }, TIMEOUT_STD)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMessageStream({ type: 'ok', text: 'Coupure du flux enregistrée.' })
+      else showError(data.detail || 'Erreur lors de l\'enregistrement de la coupure du flux.')
+    } catch {
+      showError('Erreur réseau — vérifiez que le backend tourne.')
+    } finally {
+      setSavingStream(false)
+    }
+  }
+
   // Prompt sélectionné + repères obligatoires manquants (miroir du garde-fou backend).
   // Un repère absent = injection cassée (matière/niveau/contenu non insérés) -> on refuse.
   const promptActif = prompts.find(p => p.key === promptKey)
@@ -335,6 +383,7 @@ export default function AdminParametresGeneration() {
               ['modele', 'Fournisseur & modèle'],
               ['tokens', 'Longueur (tokens)'],
               ['temperature', 'Température'],
+              ['stream', 'Coupure du flux'],
               ['prompts', 'Prompts'],
             ].map(([key, label]) => {
               const active = onglet === key
@@ -538,6 +587,62 @@ export default function AdminParametresGeneration() {
                 borderRadius: 8, padding: '10px 14px', fontSize: 13,
               }}>
                 {messageTemp.text}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Onglet Coupure du flux — coupure de SILENCE du streaming de génération (secondes).
+          Ce n'est PAS la durée totale : le compteur se réarme à chaque morceau reçu, seuls les
+          silences anormaux coupent. Hors bornes -> bord rouge + modale + bouton off. */}
+      {onglet === 'stream' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
+          <p className="text-xs text-gray-500">
+            Coupure de <strong>silence</strong> du flux de génération : nombre de secondes sans nouveau
+            texte avant d'abandonner. Ce n'est PAS la durée totale d'une génération — le compteur se
+            remet à zéro à chaque morceau reçu, donc une génération qui progresse n'est jamais coupée.
+            Entre {streamBounds.min} et {streamBounds.max} s. Pris en compte immédiatement, sans redémarrage.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Coupure de silence (secondes)
+            </label>
+            <input
+              type="number"
+              min={streamBounds.min}
+              max={streamBounds.max}
+              value={streamTimeout}
+              onChange={e => setStreamTimeout(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+              style={{ borderColor: streamInvalide(streamTimeout) ? '#dc2626' : '#d1d5db' }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Défaut 30 s. Trop bas = des générations lentes mais normales seraient coupées à tort.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-1">
+            <button
+              onClick={saveStreamTimeout}
+              disabled={savingStream || streamInvalide(streamTimeout)}
+              title="Enregistrer la coupure du flux"
+              style={{
+                background: '#1F6EEB', color: 'white', border: 'none',
+                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                alignSelf: 'flex-start',
+                cursor: (savingStream || streamInvalide(streamTimeout)) ? 'not-allowed' : 'pointer',
+                opacity: (savingStream || streamInvalide(streamTimeout)) ? 0.6 : 1,
+              }}
+            >
+              {savingStream ? 'Enregistrement…' : 'Enregistrer la coupure'}
+            </button>
+            {messageStream && (
+              <div style={{
+                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+              }}>
+                {messageStream.text}
               </div>
             )}
           </div>

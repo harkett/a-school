@@ -19,16 +19,28 @@ class LLMRateLimitError(RuntimeError):
 _llm_semaphore = threading.BoundedSemaphore(AI_MAX_CONCURRENCY)
 
 
-@contextmanager
-def _llm_slot():
-    """Réserve un créneau d'appel LLM. Attend au plus AI_SLOT_TIMEOUT secondes ; si aucun
-    créneau ne se libère, lève une erreur honnête plutôt que de laisser la requête pendre."""
+def acquire_llm_slot() -> None:
+    """Prend un créneau d'appel LLM (attend au plus AI_SLOT_TIMEOUT s). Lève LLMRateLimitError si
+    aucun créneau ne se libère. Le CALLER est alors responsable d'appeler release_llm_slot() dans
+    TOUS ses cas de sortie — voie utilisée par le streaming, où le créneau doit rester pris pendant
+    TOUTE la durée du flux (un ticket jamais rendu = créneau perdu jusqu'au redémarrage)."""
     if not _llm_semaphore.acquire(timeout=AI_SLOT_TIMEOUT):
         raise LLMRateLimitError("Trop de générations simultanées en ce moment. Réessayez dans un instant.")
+
+
+def release_llm_slot() -> None:
+    """Rend un créneau pris par acquire_llm_slot(). À appeler UNE seule fois par acquisition."""
+    _llm_semaphore.release()
+
+
+@contextmanager
+def _llm_slot():
+    """Réserve un créneau d'appel LLM le temps d'un bloc (voie synchrone, non-streaming)."""
+    acquire_llm_slot()
     try:
         yield
     finally:
-        _llm_semaphore.release()
+        release_llm_slot()
 
 
 def generate(
@@ -212,3 +224,113 @@ def _anthropic(
         types = [getattr(b, "type", "?") for b in message.content]
         raise RuntimeError(f"Réponse Anthropic sans bloc de texte (blocs reçus : {types}).")
     return "".join(textes)
+
+
+# ---------------------------------------------------------------------------
+# STREAMING — génération au fil de l'écriture (deltas de texte)
+#
+# Le créneau LLM (sémaphore) N'EST PAS pris ici : l'appelant le prend AVANT (acquire_llm_slot) et
+# le rend dans TOUS ses cas de sortie (fin, erreur, déconnexion du client) — le flux doit tenir le
+# créneau tout du long. `read_timeout` = coupure de SILENCE : durée max sans nouveau morceau. Elle
+# se RÉARME à chaque morceau reçu (timeout de lecture HTTP), donc elle ne borne PAS une génération
+# qui progresse — seulement les silences anormaux. Valeur lue en base (réglage admin), zéro dur.
+# ---------------------------------------------------------------------------
+
+def generate_stream(
+    prompt: str,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    max_tokens: int = 2048,
+    temperature: float | None = None,
+    read_timeout: float = 30.0,
+):
+    """Itérateur de morceaux de texte (deltas), au fil de l'écriture par le modèle. Même résolution
+    fournisseur/modèle que generate() (chaînes déjà résolues par l'appelant). NE prend PAS le créneau
+    LLM (cf. en-tête). Lève LLMRateLimitError (429 fournisseur) ou RuntimeError (autre échec)."""
+    fournisseur = provider or AI_PROVIDER
+    if fournisseur == "groq":
+        yield from _groq_stream(prompt, model=model, max_tokens=max_tokens, temperature=temperature, read_timeout=read_timeout)
+    elif fournisseur == "anthropic":
+        yield from _anthropic_stream(prompt, model=model, max_tokens=max_tokens, read_timeout=read_timeout)
+    else:
+        raise ValueError(f"Fournisseur inconnu : {fournisseur}")
+
+
+def _anthropic_stream(prompt, *, model=None, max_tokens=2048, read_timeout=30.0):
+    import anthropic
+    import httpx
+    if not CLAUDE_API_KEY_TEXTE:
+        raise RuntimeError("CLAUDE_API_KEY_TEXTE manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
+    # temperature : volontairement IGNORÉE (les Claude Opus 4.x la rejettent), comme _anthropic.
+    # timeout de LECTURE = coupure de silence (se réarme à chaque morceau) ; connect/write/pool =
+    # petits garde-fous de connexion, indépendants de la durée de génération.
+    client = anthropic.Anthropic(
+        api_key=CLAUDE_API_KEY_TEXTE,
+        timeout=httpx.Timeout(read_timeout, connect=10.0, write=10.0, pool=10.0),
+    )
+    kwargs = {
+        "model": model or AI_MODEL,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    try:
+        with client.messages.stream(**kwargs) as stream:
+            for text in stream.text_stream:
+                yield text
+            # Garde-fou troncature (repris de la voie non-streaming) : si le modèle s'est arrêté sur
+            # sa limite de sortie, le texte est COUPÉ. On le SIGNALE en fin de flux (le motif vient de
+            # l'API, rien n'est deviné) → l'endpoint émet `error` au lieu de `done`, l'écran refuse un
+            # texte amputé au lieu de l'enregistrer comme complet.
+            final = stream.get_final_message()
+            if getattr(final, "stop_reason", None) == "max_tokens":
+                raise RuntimeError("Réponse coupée : le modèle a atteint sa limite de sortie.")
+    except anthropic.RateLimitError:
+        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
+
+
+def _groq_stream(prompt, *, model=None, max_tokens=2048, temperature=None, read_timeout=30.0):
+    import json
+    import requests
+    if not GROQ_API_KEY:
+        raise RuntimeError(
+            "Texte Groq non configuré (aucune clé Groq-texte dans le .env). "
+            "Le texte passe par Anthropic — réglez le fournisseur sur « anthropic »."
+        )
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    body = {
+        "model": model or AI_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    if temperature is not None:
+        body["temperature"] = temperature
+    # (connect, read) : read = silence toléré entre deux morceaux (se réarme à chaque morceau reçu).
+    with requests.post(url, headers=headers, json=body, stream=True, timeout=(10, read_timeout)) as response:
+        if response.status_code == 429:
+            raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
+        if not response.ok:
+            raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
+        finish_reason = None
+        for line in response.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data: "):
+                continue
+            payload = line[6:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                data = json.loads(payload)
+            except ValueError:
+                continue
+            choix = (data.get("choices") or [{}])[0]
+            if choix.get("finish_reason"):
+                finish_reason = choix["finish_reason"]
+            delta = choix.get("delta", {}).get("content")
+            if delta:
+                yield delta
+        # Garde-fou troncature symétrique de la voie Anthropic : « length » = sortie coupée sur la
+        # limite de tokens → on lève, l'endpoint émet `error`, l'écran refuse un texte amputé.
+        if finish_reason == "length":
+            raise RuntimeError("Réponse coupée : le modèle a atteint sa limite de sortie.")

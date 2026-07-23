@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useLayoutEffect, useRef } from 'react'
-import { showError } from './errorDialog'
+import { showError, registerFeedbackOpener } from './errorDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -66,10 +66,17 @@ import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
-import { fetchWithTimeout, apiFetch, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_LONG } from './utils/api.js'
+import { fetchWithTimeout, apiFetch, refreshSession, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeParDefaut } from './utils/activite.js'
 import './index.css'
+
+// Message UNIQUE de tout échec TECHNIQUE de génération (règle 23). « cliquez ici » ouvre le
+// feedback existant (opts.feedback). Les échecs MÉTIER (référentiel absent, RAG vide, service
+// très demandé) gardent leur propre message, renvoyé par le backend.
+const MSG_ECHEC_GENERATION =
+  'La génération de votre activité n\'a pas pu aboutir. Merci de réessayer.\n' +
+  'Si le problème persiste, cliquez ici pour nous le signaler.'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -125,6 +132,10 @@ function MainApp() {
   const cdRef      = useRef(null)
   const warningRef = useRef(false)
   const resultatRef = useRef(null)
+
+  // « cliquez ici » de la modale d'erreur ouvre le feedback existant (état local showFeedback).
+  // ErrorDialog est monté ailleurs dans l'arbre : on passe par ce canal enregistré.
+  useEffect(() => { registerFeedbackOpener(() => setShowFeedback(true)) }, [])
 
   useEffect(() => {
     function arm() {
@@ -310,29 +321,66 @@ function MainApp() {
         body.langue_lv = user.langue_lv
       }
 
-      const res = await apiFetch('/api/generate', {
+      // Génération EN STREAMING : PAS de fetchWithTimeout — son abort à 45 s coupait le flux en
+      // plein travail (LE bug du 23/07). L'autorité de coupure est le serveur (silence lu en base).
+      // On garde le réflexe 401 (renouvellement partagé + rejeu UNE fois), sans aucun délai dur.
+      const opts = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
-      }, TIMEOUT_LONG)
-      if (!res.ok) {
-        // Le backend renvoie un message HUMAIN dans `detail`. Si la réponse n'est pas du JSON
-        // (ex. 500 « Internal Server Error »), on n'affiche JAMAIS l'erreur brute au prof (règle 23).
-        const err = await res.json().catch(() => ({}))
-        const e = new Error(err.detail || "La génération n'a pas abouti. Réessayez dans un instant.")
-        e.humain = true
-        throw e
       }
-      const data = await res.json()
-      setResultat(data.resultat)
-      setTimeout(() => resultatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+      let res = await fetch('/api/generate', opts)
+      if (res.status === 401 && await refreshSession()) {
+        res = await fetch('/api/generate', opts)
+      }
 
-      // Sauvegarde best-effort mais JAMAIS silencieuse (Phase 2.1 reprise) : si elle échoue
-      // (réseau OU statut HTTP non-ok), on prévient le prof — l'activité reste affichée, il
-      // peut l'exporter ou réessayer. Payload inchangé (contrat éprouvé de /api/mes-activites).
-      // La modale « aSchool vous reconnaît » est pilotée par le backend (few_shot_just_reached) :
-      // une seule fois, au franchissement réel du seuil de sauvegardes (P4.7).
+      // Échec AVANT le flux : le backend a répondu en JSON. Message MÉTIER (`detail`) tel quel ;
+      // sinon (pas de detail, pas de flux) = échec technique → message unique + lien feedback.
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}))
+        if (err.detail) showError(err.detail)
+        else showError(MSG_ECHEC_GENERATION, { feedback: true })
+        return
+      }
+
+      // Lecture du flux SSE (événements delta / error / done) : on affiche au fil de l'eau.
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let tampon = '', complet = '', erreurFlux = false, termine = false
+      setResultat('')
+      setTimeout(() => resultatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        tampon += decoder.decode(value, { stream: true })
+        let sep
+        while ((sep = tampon.indexOf('\n\n')) >= 0) {
+          const bloc = tampon.slice(0, sep)
+          tampon = tampon.slice(sep + 2)
+          const evt  = (bloc.split('\n').find(l => l.startsWith('event:')) || '').slice(6).trim()
+          const data = (bloc.split('\n').find(l => l.startsWith('data:'))  || '').slice(5).trim()
+          if (evt === 'delta') {
+            try { complet += JSON.parse(data).text; setResultat(complet) } catch { /* bloc partiel ignoré */ }
+          } else if (evt === 'error') {
+            erreurFlux = true
+          } else if (evt === 'done') {
+            termine = true
+          }
+        }
+      }
+
+      // Succès = UNIQUEMENT un flux terminé proprement (`done`), sans `error`, avec du texte. Ceinture
+      // de sécurité : un flux qui meurt en route SANS `done` (serveur tombé, connexion coupée) ne doit
+      // JAMAIS passer pour un succès ni être enregistré tronqué → message unique + zéro sauvegarde.
+      if (erreurFlux || !termine || !complet) {
+        setResultat(null)
+        showError(MSG_ECHEC_GENERATION, { feedback: true })
+        return
+      }
+
+      // Succès : sauvegarde best-effort mais JAMAIS silencieuse (inchangée — contrat éprouvé de
+      // /api/mes-activites). La modale « aSchool vous reconnaît » est pilotée par le backend.
       sauvegarderActivite({
         activite_type_id: params.activite_type_id,
         activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
@@ -343,7 +391,7 @@ function MainApp() {
         avec_correction: params.avec_correction,
         objet: objet.trim() || null,
         texte_source: texte,
-        resultat: data.resultat,
+        resultat: complet,
       }).then(res => {
         if (res?.few_shot_just_reached) {
           setFewShotModal(true)
@@ -352,9 +400,10 @@ function MainApp() {
         "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
       ))
     } catch (e) {
-      // Message HUMAIN pour le prof (règle 23) ; le détail technique part dans la console, jamais à l'écran.
+      // Coupure réseau / flux interrompu côté navigateur → message unique (règle 23), détail en console.
       console.error('génération activité :', e)
-      showError(e?.humain ? e.message : "La génération n'a pas abouti. Vérifiez votre connexion et réessayez.")
+      setResultat(null)
+      showError(MSG_ECHEC_GENERATION, { feedback: true })
     } finally {
       setLoading(false)
     }

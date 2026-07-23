@@ -99,6 +99,11 @@ SETTING_DEFAULTS = {
     # traitement lourd (pas d'extraction longue, pas de timeout, pas d'incohérence écran/serveur).
     # Défaut 150 : admet largement un vrai référentiel (BTS CIEL = 88 p.). Lu au dépôt, coercé int.
     "depot_max_pages": "150",
+    # Coupure de SILENCE du flux de génération (streaming) : nombre de SECONDES sans nouveau
+    # morceau avant de couper le flux. Le timeout de lecture HTTP se RÉARME à chaque morceau reçu,
+    # donc ce délai ne borne QUE les silences anormaux, jamais une génération qui progresse.
+    # Réglage admin EN BASE (zéro délai en dur), lu à chaud via get_stream_silence_timeout(db).
+    "stream_silence_timeout": "30",
 }
 
 
@@ -214,6 +219,25 @@ def get_rag_top_k(db: Session) -> int:
 # modèle — ce n'est PAS le plafond du fournisseur, c'est notre garde-fou coût/quota figé.
 MAX_TOKENS_MIN = 256
 MAX_TOKENS_MAX = 8000
+
+
+# Bornes de la coupure de silence du flux (secondes). MIN = un plancher qui laisse le modèle
+# « respirer » entre deux morceaux ; MAX = garde-fou pour ne pas laisser un flux muet pendre trop
+# longtemps. Ce n'est PAS la durée totale d'une génération (le délai se réarme à chaque morceau).
+STREAM_SILENCE_MIN = 5
+STREAM_SILENCE_MAX = 300
+
+
+def get_stream_silence_timeout(db: Session) -> int:
+    """Coupure de silence du flux de génération (secondes), lue en base au moment de l'appel
+    (rechargeable à chaud, même motif que get_rag_top_k). Renvoie un int borné [MIN, MAX] ;
+    valeur corrompue / hors bornes -> défaut code."""
+    raw = get_settings_dict(db)["stream_silence_timeout"]
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return int(SETTING_DEFAULTS["stream_silence_timeout"])
+    return max(STREAM_SILENCE_MIN, min(STREAM_SILENCE_MAX, v))
 
 
 def get_max_tokens(db: Session, outil: str) -> int:
@@ -933,6 +957,47 @@ def save_temperature(body: TemperatureBody, request: Request, db: Session = Depe
         target_email=None,
         ip=request.client.host if request.client else None,
         details=f"Température mise à jour : {valeur or 'défaut fournisseur'}",
+    )
+    return {"status": "ok"}
+
+
+class StreamTimeoutBody(BaseModel):
+    timeout: int
+
+
+@router.get("/admin/stream-timeout")
+def get_stream_timeout_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Coupure de silence courante (secondes) + bornes — alimente le formulaire admin et sa
+    validation. Miroir de GET /admin/temperature."""
+    return {
+        "timeout": get_stream_silence_timeout(db),
+        "bounds": {"min": STREAM_SILENCE_MIN, "max": STREAM_SILENCE_MAX},
+    }
+
+
+@router.put("/admin/stream-timeout")
+def save_stream_timeout(body: StreamTimeoutBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit la coupure de silence du flux (secondes). Endpoint DÉDIÉ. Validation stricte : entier
+    dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien n'est écrit."""
+    if not (STREAM_SILENCE_MIN <= body.timeout <= STREAM_SILENCE_MAX):
+        raise HTTPException(
+            400,
+            f"Valeur hors limites : {body.timeout}. Le délai doit être un nombre entier de "
+            f"secondes entre {STREAM_SILENCE_MIN} et {STREAM_SILENCE_MAX}.",
+        )
+    row = db.query(Setting).filter(Setting.key == "stream_silence_timeout").first()
+    if row:
+        row.value = str(body.timeout)
+    else:
+        db.add(Setting(key="stream_silence_timeout", value=str(body.timeout)))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_STREAM_TIMEOUT",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Coupure de silence du flux mise à jour : {body.timeout} s",
     )
     return {"status": "ok"}
 
