@@ -305,9 +305,24 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
 # franchissement réel du seuil de SAUVEGARDES (_FEW_SHOT_MIN), par couple (prof, type).
 # Robustesse exigée : jamais raté, jamais rejoué (au-delà du seuil, ni après suppression).
 
-def _save_payload(key="comprehension"):
+def _type_id(label="Compréhension"):
+    """Get-or-create d'un type au CATALOGUE (types_activite) — la route save exige
+    `activite_type_id` (FK, identité par id depuis aecf0d1). Session en `with` :
+    refermée même si le test plante (plus jamais de transaction fantôme qui bloque
+    le TRUNCATE inter-tests)."""
+    from backend.core.models_db import ActiviteType
+    with dbmod.SessionLocal() as db:
+        t = db.query(ActiviteType).filter(ActiviteType.label == label).first()
+        if not t:
+            t = ActiviteType(label=label)
+            db.add(t)
+            db.commit()
+        return t.id
+
+
+def _save_payload(type_id):
     return {
-        "activite_key": key, "activite_label": "Compréhension",
+        "activite_type_id": type_id, "activite_label": "Compréhension",
         "niveau": "3e", "texte_source": "La photosynthèse.", "resultat": "1. ? 2. ?",
     }
 
@@ -315,39 +330,41 @@ def _save_payload(key="comprehension"):
 def _client_for(email):
     """Client authentifié pour un prof réel en base (la route save lit user_id depuis users)."""
     from backend.core.models_db import User
-    db = dbmod.SessionLocal()
-    if not db.query(User).filter(User.email == email).first():
-        db.add(User(email=email, password_hash="x", is_verified=True))
-        db.commit()
-    db.close()
+    with dbmod.SessionLocal() as db:
+        if not db.query(User).filter(User.email == email).first():
+            db.add(User(email=email, password_hash="x", is_verified=True))
+            db.commit()
     c = TestClient(app)
     c.cookies.set("aschool_access", create_access_token(email))
     return c
 
 
-def _reached(client, key="comprehension"):
-    return client.post("/api/mes-activites", json=_save_payload(key)).json()["few_shot_just_reached"]
+def _reached(client, type_id):
+    return client.post("/api/mes-activites", json=_save_payload(type_id)).json()["few_shot_just_reached"]
 
 
 def test_few_shot_franchi_une_seule_fois_au_seuil():
     c = _client_for("fewshot-1@local.test")
-    assert [_reached(c) for _ in range(3)] == [False, False, True]   # vrai à la 3e seulement
-    assert _reached(c) is False                                      # 4e -> plus jamais
+    tid = _type_id()
+    assert [_reached(c, tid) for _ in range(3)] == [False, False, True]   # vrai à la 3e seulement
+    assert _reached(c, tid) is False                                      # 4e -> plus jamais
 
 
 def test_few_shot_pas_rejoue_apres_suppression():
     c = _client_for("fewshot-2@local.test")
-    ids = [c.post("/api/mes-activites", json=_save_payload()).json()["id"] for _ in range(3)]
+    tid = _type_id()
+    ids = [c.post("/api/mes-activites", json=_save_payload(tid)).json()["id"] for _ in range(3)]
     assert c.delete(f"/api/mes-activites/{ids[0]}").status_code == 200   # compte 3 -> 2
-    assert _reached(c) is False                                          # repasse par 3 -> pas de rejeu
+    assert _reached(c, tid) is False                                     # repasse par 3 -> pas de rejeu
 
 
 def test_few_shot_etanche_par_type_et_par_prof():
     c = _client_for("fewshot-3@local.test")
-    assert [_reached(c, "typeA") for _ in range(3)] == [False, False, True]
-    assert _reached(c, "typeB") is False                 # autre type, MÊME prof -> compteur indépendant
+    tA, tB = _type_id("TypeA"), _type_id("TypeB")
+    assert [_reached(c, tA) for _ in range(3)] == [False, False, True]
+    assert _reached(c, tB) is False                      # autre type, MÊME prof -> compteur indépendant
     c2 = _client_for("fewshot-4@local.test")
-    assert _reached(c2, "typeA") is False                # autre prof, même type -> indépendant aussi
+    assert _reached(c2, tA) is False                     # autre prof, même type -> indépendant aussi
 
 
 def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
@@ -355,20 +372,21 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
     (ex. sauvegardes concurrentes) : le >= garantit qu'on ne rate PAS le franchissement
     -> few_shot_just_reached = True une seule fois, jamais ensuite."""
     from backend.core.models_db import User, ActiviteSauvegardee
-    db = dbmod.SessionLocal()
-    db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True))
-    db.commit()
-    uid = db.query(User.id).filter(User.email == "fewshot-5@local.test").scalar()
-    # 3 sauvegardes posées DIRECTEMENT en base : la route n'a jamais évalué le jalon à 3
-    for _ in range(3):
-        db.add(ActiviteSauvegardee(user_id=uid, activite_key="saut", activite_label="X",
-                                   niveau="3e", avec_correction=False, texte_source="t", resultat="r"))
-    db.commit(); db.close()
+    tid = _type_id("Saut")
+    with dbmod.SessionLocal() as db:
+        db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True))
+        db.commit()
+        uid = db.query(User.id).filter(User.email == "fewshot-5@local.test").scalar()
+        # 3 sauvegardes posées DIRECTEMENT en base : la route n'a jamais évalué le jalon à 3
+        for _ in range(3):
+            db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="X",
+                                       niveau="3e", avec_correction=False, texte_source="t", resultat="r"))
+        db.commit()
 
     c = TestClient(app)
     c.cookies.set("aschool_access", create_access_token("fewshot-5@local.test"))
-    assert _reached(c, "saut") is True     # 1er POST -> compte passe à 4 -> franchissement quand même
-    assert _reached(c, "saut") is False    # ensuite -> jalon déjà posé -> plus jamais
+    assert _reached(c, tid) is True     # 1er POST -> compte passe à 4 -> franchissement quand même
+    assert _reached(c, tid) is False    # ensuite -> jalon déjà posé -> plus jamais
 
 
 # ===================== /api/matieres — matières dérivées de la base =====================

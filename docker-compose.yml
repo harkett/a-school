@@ -27,6 +27,29 @@ services:
       timeout: 3s
       retries: 30
 
+  # --- La base de TEST (jetable, EN RAM) — strictement isolée de la base dev ---
+  # Utilisée UNIQUEMENT par la suite pytest (TEST_DATABASE_URL → db_test:5432, dans le .env local).
+  # Données en tmpfs : recréées à chaque démarrage, rapides, JAMAIS sur le montage Windows (pgdata)
+  # → plus de crash Postgres sous la charge des tests, et la base dev n'est plus jamais renversée
+  # par un passage de tests. Rien à faire voyager A↔B (base jetable). Pas de port publié : accès
+  # interne seulement (le backend joint db_test par son nom de service sur le réseau compose).
+  db_test:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aschool
+      POSTGRES_PASSWORD: aschool
+      POSTGRES_DB: aschool_test
+    tmpfs:
+      - /var/lib/postgresql/data                        # données EN RAM (jetables)
+    volumes:
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro  # extension vector à la création
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aschool -d aschool_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   # --- Adminer : une page web pour VOIR la base (outil de dev, pas l'appli) ---
   # Ouvre http://localhost:8082 → serveur "db", base "aschool_dev".
   adminer:

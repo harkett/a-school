@@ -51,6 +51,7 @@ def test_le_plafond_agit_sous_charge():
         resultats.append(gen.generate("p", provider="groq"))
 
     with patch.object(gen, "AI_PROVIDER", "groq"), \
+         patch.object(gen, "GROQ_API_KEY", "cle-de-test-fictive"), \
          patch("requests.post", side_effect=_fake_groq_lent(concurrence, lock)):
         threads = [threading.Thread(target=_appel) for _ in range(8)]
         for t in threads:
