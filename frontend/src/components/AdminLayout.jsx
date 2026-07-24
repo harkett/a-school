@@ -51,7 +51,7 @@ const NAV_ITEMS = [
   {
     group:  true,
     label:  'Contenu',
-    aide:   'Les données brutes de référence : référentiels sources et tables (cycles, matières, familles, famille-couples).',
+    aide:   'Les données brutes de référence : référentiels sources et tables (cycles, matières, types d\'activité).',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -60,8 +60,6 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/familles', label: 'Familles', aide: 'Contenu de la table familles (id, nom, description, rejet), lu directement en base. Fenêtre de contrôle en lecture seule.' },
-      { to: '/admin/fc-autorisees', label: 'Famille-Couples', aide: 'Contenu de la table famille_couples : les couples (famille + niveau, cycle dérivé du niveau), lu directement en base. Fenêtre de contrôle en lecture seule.' },
       { to: '/admin/cycles',   label: 'Cycles',   aide: 'Contenu de la table cycles (id, nom, ordre), lu directement en base. Fenêtre de contrôle en lecture seule.' },
       { to: '/admin/matieres', label: 'Matières', aide: 'Contenu de la table matieres (id, nom, ordre, actif), lu directement en base. Fenêtre de contrôle en lecture seule.' },
       { to: '/admin/types-activite', label: 'Type d\'activité', aide: 'Contenu de la table types_activite, lu directement en base. Fenêtre de contrôle en lecture seule.' },

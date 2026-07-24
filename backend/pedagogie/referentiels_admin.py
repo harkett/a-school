@@ -25,7 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, Famille, FamilleCouple, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone, TypePrecision, ReferentielTypePrecision
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone, TypePrecision, ReferentielTypePrecision
 from backend.systeme.admin import _require_admin, get_settings_dict
 
 router = APIRouter()
@@ -155,43 +155,13 @@ async def preparer_depot(file: UploadFile = File(...), db: Session = Depends(get
 
 # ── Validation : range + extrait le texte + enregistre la provenance ──────────
 
-@router.get("/admin/familles", dependencies=[Depends(_require_admin)])
-def lister_familles(db: Session = Depends(get_db)):
-    """Les familles de structure, lues EN BASE (aucune liste en dur)."""
-    fam = db.query(Famille).order_by(Famille.id).all()
-    return {"familles": [{"id": f.id, "nom": f.nom, "description": f.description, "rejet": f.rejet} for f in fam]}
-
-
-@router.get("/admin/fc-autorisees", dependencies=[Depends(_require_admin)])
-def lister_fc_autorisees(db: Session = Depends(get_db)):
-    """Catalogue des couples (famille + niveau) lu EN BASE dans `famille_couples` (get direct, lecture
-    seule) — la liste qui alimente le choix « Couple » de la procédure. Les noms famille + cycle/niveau
-    ET le cycle_id sont résolus par jointure AU MOMENT DE LA LECTURE (aucune donnée recopiée). Jointures
-    INTERNES : les clés étrangères de `famille_couples` garantissent que famille et niveau existent, donc
-    aucune ligne orpheline à gérer. Le `cycle_id` n'est pas stocké (dérivé du niveau) : on le LIT ici."""
-    rows = (db.query(FamilleCouple, Famille.nom, Cycle.id, Cycle.nom, Niveau.nom)
-              .join(Famille, Famille.id == FamilleCouple.famille_id)
-              .join(Niveau, Niveau.id == FamilleCouple.niveau_id)
-              .join(Cycle, Cycle.id == Niveau.cycle_id)
-              .order_by(Cycle.ordre, Niveau.ordre).all())
-    couples = [
-        {"id": fc.id, "famille_id": fc.famille_id, "niveau_id": fc.niveau_id,
-         "cycle_id": cyc_id, "famille": fam_nom, "cycle": cyc_nom, "niveau": niv_nom}
-        for fc, fam_nom, cyc_id, cyc_nom, niv_nom in rows
-    ]
-    return {"total": len(couples), "couples": couples}
-
-
 @router.get("/admin/referentiels/liste", dependencies=[Depends(_require_admin)])
 def lister_referentiels(db: Session = Depends(get_db)):
     """Liste des référentiels déposés (get direct, lecture seule) — pour la page « Consulter ».
-    La famille se lit par jointure sur `famille_couples` via le niveau (aucune colonne famille
-    sur le référentiel). Vide tant qu'aucun dépôt."""
-    rows = (db.query(Referentiel, Cycle.nom, Niveau.nom, Famille.nom, Cycle.id)
+    Une ligne par référentiel, identifié par son couple cycle → niveau. Vide tant qu'aucun dépôt."""
+    rows = (db.query(Referentiel, Cycle.nom, Niveau.nom, Cycle.id)
               .join(Niveau, Niveau.id == Referentiel.niveau_id)
               .join(Cycle, Cycle.id == Niveau.cycle_id)
-              .outerjoin(FamilleCouple, FamilleCouple.niveau_id == Referentiel.niveau_id)
-              .outerjoin(Famille, Famille.id == FamilleCouple.famille_id)
               .order_by(Cycle.ordre, Niveau.ordre).all())
 
     # `complet` = puce de synthèse du menu Catalogues. REFLET lu en base (get), jamais recopié. Vert =
@@ -199,10 +169,10 @@ def lister_referentiels(db: Session = Depends(get_db)):
     # C'est ce booléen, et lui seul, qui pilote le vert — les étapes intermédiaires (matières, prompt)
     # se valident au fur et à mesure mais ne suffisent PAS à déclarer le référentiel complet.
     refs = [
-        {"id": r.id, "cycle": cyc, "cycle_id": cyc_id, "niveau": niv, "famille": fam,
+        {"id": r.id, "cycle": cyc, "cycle_id": cyc_id, "niveau": niv, "niveau_id": r.niveau_id,
          "fichier": r.fichier, "source": r.source, "forcage_motif": r.forcage_motif,
          "complet": bool(r.decoupe_valide)}
-        for r, cyc, niv, fam, cyc_id in rows
+        for r, cyc, niv, cyc_id in rows
     ]
     return {"total": len(refs), "referentiels": refs}
 
@@ -317,293 +287,27 @@ def supprimer_precision_type(type_id: int, prec_id: int, db: Session = Depends(g
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:
-    """Texte des premières pages du PDF en attente (staging) — la structure se lit sur le début ;
-    on n'envoie pas tout le PDF à l'IA. Lève si le document a expiré."""
+    """Texte ÉPURÉ des premières pages du PDF en attente (staging) — la structure se lit sur le
+    début ; on n'envoie pas tout le PDF à l'IA. Porte d'extraction UNIQUE (rag.extraction) :
+    texte vertical des marges + numéros de page écartés. Lève si le document a expiré."""
     staged = STAGING_DIR / f"{token}.pdf"
     if not staged.exists():
         raise HTTPException(400, "Document introuvable (aperçu expiré ?). Recommencez.")
-    import pdfplumber  # import paresseux
-    with pdfplumber.open(str(staged)) as pdf:
-        pages = [(p.extract_text() or "") for p in pdf.pages[:max_pages]]
-    return "\n".join(pages).strip()
-
-
-def _famille_dict(f: Famille) -> dict:
-    """Fiche d'une famille pour le front : classification pure (id, nom, description)."""
-    return {"id": f.id, "nom": f.nom, "description": f.description}
-
-
-def famille_couple_existe(db: Session, famille_id: int, niveau_id: int) -> bool:
-    """Vérif n°2 au dépôt : cette famille a-t-elle sa place à ce niveau ? Lit `famille_couples`
-    (le couple famille_id + niveau_id, décidé par l'humain, jamais par l'IA). True si la ligne
-    existe, False sinon. Requête base pure (aucune IA), testable seule."""
-    return db.query(FamilleCouple).filter(
-        FamilleCouple.famille_id == famille_id,
-        FamilleCouple.niveau_id == niveau_id,
-    ).first() is not None
-
-
-class DetecterFamilleBody(BaseModel):
-    token: str
-
-
-@router.post("/admin/referentiels/detecter-famille", dependencies=[Depends(_require_admin)])
-def detecter_famille_endpoint(body: DetecterFamilleBody, db: Session = Depends(get_db)):
-    """L'IA classe le PDF en attente parmi les familles classables (rejet=false) EN BASE.
-    Deux réponses possibles :
-      - {"scenario": "match", "famille": {id, nom, description}} — une famille existante convient ;
-      - {"scenario": "candidate", "candidate": {nom, description}} — aucune ne convient, l'IA propose une famille.
-    L'IA ne prononce jamais le rejet. Générique : texte + familles de la base, aucun cas particulier."""
-    from backend.rag.analyse_amont import classer_famille
-    familles = [{"id": f.id, "nom": f.nom, "description": f.description}
-                for f in db.query(Famille).filter(Famille.rejet == False).order_by(Famille.id).all()]
-    if not familles:
-        raise HTTPException(400, "Aucune famille classable en base.")
-    texte = _texte_staged(body.token)
-    if not texte:
-        raise HTTPException(400, "PDF sans texte lisible : classement impossible.")
-    res = classer_famille(texte, familles, db=db)
-    if res["scenario"] == "match":
-        return {"scenario": "match", "famille": _famille_dict(db.get(Famille, res["famille_id"]))}
-    return {"scenario": "candidate", "candidate": res["candidate"]}
-
-
-class CreerFamilleBody(BaseModel):
-    nom: str
-    description: str
-
-
-@router.post("/admin/referentiels/familles", dependencies=[Depends(_require_admin)])
-def creer_famille(body: CreerFamilleBody, db: Session = Depends(get_db)):
-    """Crée une famille validée par l'admin (proposée par l'IA, éventuellement éditée). `rejet=false`.
-    `nom` et `description` non vides ; `nom` unique. Donnée runtime — la migration ne sème que les
-    familles initiales (familles est une table métier vivante)."""
-    nom = (body.nom or "").strip()
-    description = (body.description or "").strip()
-    if not nom or not description:
-        raise HTTPException(400, "Champs obligatoires vides : nom et description.")
-    if db.query(Famille).filter(Famille.nom == nom).first():
-        raise HTTPException(409, f"Une famille porte déjà le nom « {nom} ». Renomme-la.")
-    fam = Famille(nom=nom, description=description, rejet=False)
-    db.add(fam); db.commit(); db.refresh(fam)
-    return _famille_dict(fam)
-
-
-class ModifierDescriptionBody(BaseModel):
-    description: str
-
-
-@router.put("/admin/familles/{famille_id}/description", dependencies=[Depends(_require_admin)])
-def modifier_description_famille(famille_id: int, body: ModifierDescriptionBody, db: Session = Depends(get_db)):
-    """Update encadré : modifie UNIQUEMENT la description d'une famille (jamais le nom). 404 si la famille
-    n'existe pas, 400 si la description est vide. Put direct en base (règle get/put, zéro copie)."""
-    description = (body.description or "").strip()
-    if not description:
-        raise HTTPException(400, "La description ne peut pas être vide.")
-    fam = db.query(Famille).filter(Famille.id == famille_id).first()
-    if not fam:
-        raise HTTPException(404, "Famille introuvable.")
-    fam.description = description
-    db.commit(); db.refresh(fam)
-    return _famille_dict(fam)
-
-
-# ── Construction d'une famille : choisir/ajouter le cycle, cocher/ajouter les niveaux, relier au couple.
-#    Tout via l'admin (get/put, zéro seed sauf obligation). Trois briques neuves + creer_famille (ci-dessus).
-
-class CreerCycleBody(BaseModel):
-    nom: str
-
-
-@router.post("/admin/cycles", dependencies=[Depends(_require_admin)])
-def creer_cycle(body: CreerCycleBody, db: Session = Depends(get_db)):
-    """Crée un cycle (Create encadré : nom non vide, unique insensible à la casse). `ordre` = max+1."""
-    nom = (body.nom or "").strip()
-    if not nom:
-        raise HTTPException(400, "Le nom du cycle est requis.")
-    if db.query(Cycle).filter(func.lower(Cycle.nom) == nom.lower()).first():
-        raise HTTPException(409, f"Le cycle « {nom} » existe déjà.")
-    maxo = db.query(func.max(Cycle.ordre)).scalar()
-    c = Cycle(nom=nom, ordre=(maxo or 0) + 1)
-    db.add(c); db.commit(); db.refresh(c)
-    return {"id": c.id, "nom": c.nom, "ordre": c.ordre}
-
-
-@router.post("/admin/familles/{famille_id}/suggerer-cycles", dependencies=[Depends(_require_admin)])
-def suggerer_cycles_famille(famille_id: int, db: Session = Depends(get_db)):
-    """L'IA PROPOSE les cycles sur lesquels s'appuie la famille (aide au remplissage, jamais une
-    écriture). Chaque proposition est marquée `existant` (avec son `cycle_id`) si un cycle du même nom
-    est déjà en base, sinon `à créer` (`cycle_id` null → l'admin l'ajoute en 1 clic via POST /admin/cycles).
-    Lecture seule ici : l'IA suggère, le code apparie aux cycles réels, l'admin décide (règle 4)."""
-    from backend.rag.analyse_amont import suggerer_cycles as ia_suggerer_cycles
-    fam = db.query(Famille).filter(Famille.id == famille_id).first()
-    if not fam:
-        raise HTTPException(404, "Famille introuvable.")
-    cycles = db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all()
-    par_nom = {c.nom.strip().lower(): c for c in cycles}
-    try:
-        noms = ia_suggerer_cycles(
-            {"nom": fam.nom, "description": fam.description},
-            [{"id": c.id, "nom": c.nom} for c in cycles],
-            db=db,
-        )
-    except Exception:
-        logger.exception("suggerer_cycles : appel IA échoué (famille %s)", famille_id)
-        raise HTTPException(502, "L'IA n'a pas pu proposer de cycles. Réessaie.")
-    propositions = []
-    for nom in noms:
-        c = par_nom.get(nom.strip().lower())
-        propositions.append({
-            "nom": (c.nom if c else nom.strip()),
-            "cycle_id": (c.id if c else None),
-            "existant": c is not None,
-        })
-    return {"propositions": propositions}
-
-
-@router.post("/admin/familles/{famille_id}/cycles/{cycle_id}/suggerer-niveaux", dependencies=[Depends(_require_admin)])
-def suggerer_niveaux_famille(famille_id: int, cycle_id: int, db: Session = Depends(get_db)):
-    """L'IA PROPOSE les niveaux d'un cycle pertinents pour la famille (aide au remplissage, jamais une
-    écriture). Chaque proposition est marquée `existant` (avec `niveau_id` + `lie` = déjà relié à la
-    famille) ou `à créer` (`niveau_id` null). Lecture seule : l'IA suggère, le code apparie aux niveaux
-    réels du cycle + lit les liens, l'admin coche/crée (règle 4)."""
-    from backend.rag.analyse_amont import suggerer_niveaux as ia_suggerer_niveaux
-    fam = db.query(Famille).filter(Famille.id == famille_id).first()
-    if not fam:
-        raise HTTPException(404, "Famille introuvable.")
-    cyc = db.get(Cycle, cycle_id)
-    if not cyc:
-        raise HTTPException(404, "Cycle inconnu.")
-    niveaux = db.query(Niveau).filter(Niveau.cycle_id == cycle_id).order_by(Niveau.ordre, Niveau.id).all()
-    par_nom = {n.nom.strip().lower(): n for n in niveaux}
-    lies = {r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
-                                    .filter(FamilleCouple.famille_id == famille_id).all())}
-    try:
-        noms = ia_suggerer_niveaux(
-            {"nom": fam.nom, "description": fam.description},
-            cyc.nom,
-            [{"id": n.id, "nom": n.nom} for n in niveaux],
-            db=db,
-        )
-    except Exception:
-        logger.exception("suggerer_niveaux : appel IA échoué (famille %s cycle %s)", famille_id, cycle_id)
-        raise HTTPException(502, "L'IA n'a pas pu proposer de niveaux. Réessaie.")
-    propositions = []
-    for nom in noms:
-        n = par_nom.get(nom.strip().lower())
-        propositions.append({
-            "nom": (n.nom if n else nom.strip()),
-            "niveau_id": (n.id if n else None),
-            "existant": n is not None,
-            "lie": (n.id in lies if n else False),
-        })
-    return {"propositions": propositions}
-
-
-class CreerNiveauBody(BaseModel):
-    cycle_id: int
-    nom: str
-
-
-@router.post("/admin/niveaux", dependencies=[Depends(_require_admin)])
-def creer_niveau(body: CreerNiveauBody, db: Session = Depends(get_db)):
-    """Crée un niveau dans un cycle (Create encadré : nom non vide, unique DANS le cycle). `ordre` = max+1
-    du cycle. Même geste que le get-or-create du dépôt de référentiel, mais explicite et à la demande."""
-    nom = (body.nom or "").strip()
-    if not nom:
-        raise HTTPException(400, "Le nom du niveau est requis.")
-    cycle = db.get(Cycle, body.cycle_id)
-    if not cycle:
-        raise HTTPException(404, "Cycle inconnu.")
-    if db.query(Niveau).filter(Niveau.cycle_id == cycle.id, func.lower(Niveau.nom) == nom.lower()).first():
-        raise HTTPException(409, f"Le niveau « {nom} » existe déjà dans ce cycle.")
-    maxo = db.query(func.max(Niveau.ordre)).filter(Niveau.cycle_id == cycle.id).scalar()
-    n = Niveau(cycle_id=cycle.id, nom=nom, ordre=(maxo or 0) + 1)
-    db.add(n); db.commit(); db.refresh(n)
-    return {"id": n.id, "nom": n.nom, "cycle_id": n.cycle_id}
-
-
-@router.get("/admin/familles/niveaux", dependencies=[Depends(_require_admin)])
-def lister_niveaux_pour_famille(famille_id: int, cycle_id: int, db: Session = Depends(get_db)):
-    """Fenêtre de l'écran : les niveaux d'un cycle + lesquels sont DÉJÀ reliés à la famille (get, zéro copie).
-    `lie` = présence d'une ligne dans `famille_couples` (famille_id, niveau_id)."""
-    lies = {r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
-                                    .filter(FamilleCouple.famille_id == famille_id).all())}
-    nivs = (db.query(Niveau).filter(Niveau.cycle_id == cycle_id)
-              .order_by(Niveau.ordre, Niveau.id).all())
-    return {"niveaux": [{"id": n.id, "nom": n.nom, "lie": n.id in lies} for n in nivs]}
-
-
-@router.get("/admin/familles/{famille_id}/matrice", dependencies=[Depends(_require_admin)])
-def matrice_famille(famille_id: int, db: Session = Depends(get_db)):
-    """Détail (GET pur) de la famille : les cycles auxquels elle est reliée + les niveaux reliés,
-    groupés par cycle et triés. Sert à afficher l'état COURANT à l'ouverture de la famille (avant toute
-    proposition IA). Lecture seule, zéro écriture, zéro copie."""
-    fam = db.query(Famille).filter(Famille.id == famille_id).first()
-    if not fam:
-        raise HTTPException(404, "Famille introuvable.")
-    ids = [r.niveau_id for r in (db.query(FamilleCouple.niveau_id)
-                                   .filter(FamilleCouple.famille_id == famille_id).all())]
-    if not ids:
-        return {"cycles": []}
-    niveaux = db.query(Niveau).filter(Niveau.id.in_(ids)).all()
-    par_cycle = {}
-    for n in niveaux:
-        par_cycle.setdefault(n.cycle_id, []).append(n)
-    cycles = (db.query(Cycle).filter(Cycle.id.in_(list(par_cycle.keys())))
-                .order_by(Cycle.ordre, Cycle.id).all())
-    out = []
-    for c in cycles:
-        nivs = sorted(par_cycle[c.id], key=lambda x: (x.ordre or 0, x.id))
-        out.append({"cycle_id": c.id, "nom": c.nom,
-                    "niveaux": [{"niveau_id": n.id, "nom": n.nom, "lie": True} for n in nivs]})
-    return {"cycles": out}
-
-
-class BasculerFamilleCoupleBody(BaseModel):
-    famille_id: int
-    niveau_id: int
-    actif: bool               # True = relier (créer le couple), False = délier (supprimer le couple)
-
-
-@router.put("/admin/familles/couple", dependencies=[Depends(_require_admin)])
-def basculer_famille_couple(body: BasculerFamilleCoupleBody, db: Session = Depends(get_db)):
-    """La case EST le put : cocher un niveau = créer le couple famille↔niveau, décocher = le supprimer.
-    Écriture directe au clic. CREATE encadré : l'UNIQUE(famille_id, niveau_id) empêche le doublon.
-    DELETE encadré : on REFUSE de délier si un référentiel est déposé sur ce niveau (le couple sert)."""
-    fam = db.get(Famille, body.famille_id)
-    if not fam:
-        raise HTTPException(404, "Famille inconnue.")
-    niv = db.get(Niveau, body.niveau_id)
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu.")
-    lien = (db.query(FamilleCouple)
-              .filter(FamilleCouple.famille_id == fam.id, FamilleCouple.niveau_id == niv.id).first())
-    if body.actif:
-        if lien is None:
-            db.add(FamilleCouple(famille_id=fam.id, niveau_id=niv.id)); db.commit()
-    else:
-        if lien is not None:
-            if db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first():
-                raise HTTPException(409, "Impossible de délier : un référentiel est déposé sur ce niveau.")
-            db.delete(lien); db.commit()
-    return {"ok": True, "famille_id": fam.id, "niveau_id": niv.id, "actif": body.actif}
+    from backend.rag.extraction import extraire_texte
+    return extraire_texte(staged, max_pages=max_pages)
 
 
 class VerifierDepotBody(BaseModel):
     token: str
     cycle_id: int
     niveau_id: int
-    famille_id: int
 
 
 @router.post("/admin/referentiels/verifier-depot", dependencies=[Depends(_require_admin)])
 def verifier_depot(body: VerifierDepotBody, db: Session = Depends(get_db)):
-    """Vérification au dépôt (LECTURE SEULE), avant de proposer la validation. Lance les deux
-    contrôles et renvoie les deux verdicts :
-      - n°1 (couple) : l'IA lit le couple visé par le PDF et le compare au couple déclaré ;
-      - n°2 (famille) : le couple (famille, niveau) est-il présent dans famille_couples ?
-    L'écran n'affiche le document à valider que si les deux passent."""
+    """Vérification au dépôt (LECTURE SEULE), avant de proposer la validation : la vérif n°1
+    (couple) — l'IA lit le couple visé par le PDF et le compare au couple cycle → niveau déclaré.
+    L'écran n'affiche le document à valider que si elle passe (ou sur forçage motivé)."""
     cycle = db.get(Cycle, body.cycle_id)
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
@@ -622,8 +326,7 @@ def verifier_depot(body: VerifierDepotBody, db: Session = Depends(get_db)):
         logger.exception("verifier_depot : échec de la vérification du couple par l'IA")
         raise HTTPException(400, "Vérification du couple impossible.")
 
-    famille = {"existe": famille_couple_existe(db, body.famille_id, niv.id)}
-    return {"couple": couple, "famille": famille}
+    return {"couple": couple}
 
 
 class AbandonnerBody(BaseModel):
@@ -640,12 +343,11 @@ def abandonner(body: AbandonnerBody):
 class ValiderBody(BaseModel):
     token: str
     cycle_id: int
-    niveau: str
-    famille_id: int | None = None        # famille de structure choisie par l'admin (une des 5)
+    niveau_id: int                       # niveau EXISTANT choisi en cascade — créé UNIQUEMENT via Programmes
     fichier_origine: str | None = None   # vrai nom du PDF déposé/téléchargé — gardé en base comme trace
     source: str | None = None
     date_doc: str | None = None
-    forcage_motif: str | None = None     # motif si l'admin FORCE malgré une alerte (couple/famille) ; NULL sinon
+    forcage_motif: str | None = None     # motif si l'admin FORCE malgré une alerte du couple ; NULL sinon
     verif_couple: dict | None = None     # verdict IA du couple {correspond, niveau_lu, raison} — figé à la validation
 
 
@@ -655,23 +357,16 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     if not staged.exists():
         raise HTTPException(400, "Document à valider introuvable (aperçu expiré ?). Recommencez.")
 
-    niveau_nom = body.niveau.strip()
-    if not niveau_nom:
-        raise HTTPException(400, "Le niveau est requis.")
     cycle = db.get(Cycle, body.cycle_id)
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
 
-    # get-or-create du niveau. Créé sans référentiel : il n'est donc pas « disponible »
-    # (refDisponible est dérivé = le niveau a un référentiel ingéré). La mise à disposition
-    # au prof reste l'affaire du garde-fou, APRÈS validation complète (étape 4).
-    niveau = (db.query(Niveau)
-                .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle.id).first())
-    if not niveau:
-        maxo = db.query(func.max(Niveau.ordre)).filter(Niveau.cycle_id == cycle.id).scalar()
-        niveau = Niveau(cycle_id=cycle.id, nom=niveau_nom, ordre=(maxo or 0) + 1)
-        db.add(niveau)
-        db.flush()
+    # Le niveau EXISTE forcément déjà (une seule place pour créer un niveau : l'écran
+    # Programmes, bouton « + Niveau »). Le dépôt ne crée JAMAIS de niveau — 404 sinon.
+    niveau = db.get(Niveau, body.niveau_id)
+    if not niveau or niveau.cycle_id != cycle.id:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+    niveau_nom = niveau.nom
 
     # Un référentiel par niveau (matiere_id NULL = tout le niveau). S'il existe déjà pour ce couple
     # → MISE À JOUR (le nouveau PDF remplace l'ancien, on refait texte/prompt/découpe). Sinon → création.
@@ -689,15 +384,19 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     pdf_final = dossier / "referentiel.pdf"
     shutil.move(str(staged), str(pdf_final))
 
-    # On NE fait PAS l'extraction du texte ici : c'est le travail lourd (≈0,18 s/page → ~3 min pour
-    # un gros PDF, ce qui figeait l'écran et déclenchait un faux « échec réseau ») et il est INUTILE
-    # à ce stade — le fichier produit n'était relu par personne, et le découpage/ingestion ré-extrait
-    # déjà du PDF (pgvector_store._decouper_ia). On se contente de COMPTER les pages (rapide) pour le
-    # retour. Le plafond au dépôt (depot_max_pages) garantit en amont un PDF de taille raisonnable.
+    # LE moment de l'épuration : le texte de travail est extrait UNE SEULE FOIS ici, épuré avec
+    # les règles du jour (porte unique rag.extraction), puis FIGÉ en base (texte_epure). Toutes
+    # les étapes suivantes (matières, prompt, découpe, re-découpe) LISENT cette colonne — plus
+    # aucune ré-extraction du PDF après la validation, et une règle d'épuration ajoutée plus tard
+    # ne touche jamais ce dépôt. Le plafond depot_max_pages (contrôlé au dépôt) garde le geste court.
     try:
         import pdfplumber  # import paresseux
         with pdfplumber.open(str(pdf_final)) as pdf:
             n_pages = len(pdf.pages)
+        from backend.rag.extraction import extraire_texte
+        texte_epure = extraire_texte(pdf_final)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(400, f"Lecture du PDF impossible : {e}")
 
@@ -715,13 +414,6 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     # C'est une donnée NEUVE (n'existe nulle part ailleurs) : on la FIGE ici en JSON. Réécrit sur les
     # deux branches → une mise à jour de PDF ne laisse jamais traîner l'ancien verdict. None = non fourni.
     verif_couple_json = json.dumps(body.verif_couple, ensure_ascii=False) if body.verif_couple else None
-    # PUT du couple (famille + niveau) dans `famille_couples` : cette table relationnelle est la
-    # SEULE source de vérité du lien famille↔niveau. Valider un référentiel FAIT exister le couple.
-    # Idempotent : on LIT d'abord (famille_couple_existe), on n'écrit que s'il manque — la contrainte
-    # UNIQUE(famille_id, niveau_id) garantit qu'on n'aura jamais de doublon.
-    if body.famille_id is not None and not famille_couple_existe(db, body.famille_id, niveau.id):
-        db.add(FamilleCouple(famille_id=body.famille_id, niveau_id=niveau.id))
-        db.flush()
 
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
@@ -733,6 +425,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         existing.prompt_decoupe_valide = False
         existing.forcage_motif = forcage_motif
         existing.verif_couple = verif_couple_json
+        existing.texte_epure = texte_epure   # le NOUVEAU PDF impose SON texte de travail
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
         # Candidates issues de l'ANCIEN PDF : effacées ici (elles seront refaites par le nouveau juste
         # après). Ainsi, si la détection échoue, on reste sur une proposition VIDE, jamais périmée.
@@ -749,6 +442,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
             date_doc=(body.date_doc.strip() if body.date_doc else None),
             forcage_motif=forcage_motif,
             verif_couple=verif_couple_json,
+            texte_epure=texte_epure,
         )
         db.add(ref)
         db.commit()
@@ -760,9 +454,8 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     # référentiel (les candidates ne sont qu'une aide au remplissage, jamais une donnée figée).
     try:
         from backend.rag.analyse_amont import detecter_matieres
-        texte_pdf = _texte_du_pdf(pdf_final)        # TOUT le PDF (toutes les pages), pas les 6 premières
-        if texte_pdf.strip():
-            _ecrire_candidates(db, niveau.id, detecter_matieres(texte_pdf, db=db))
+        if texte_epure.strip():                     # le texte de travail qui vient d'être figé (get)
+            _ecrire_candidates(db, niveau.id, detecter_matieres(texte_epure, db=db))
     except Exception:
         logger.exception("valider : détection des matières échouée (%s / %s)", cycle.nom, niveau_nom)
 
@@ -885,13 +578,23 @@ def _pdf_du_couple(db: Session, cycle_id: int, niveau: str) -> Path:
     return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle((niveau or "").strip()) / "referentiel.pdf"
 
 
-def _texte_du_pdf(pdf: Path) -> str:
-    """Texte brut du PDF (même extraction que la découpe). 404 si le PDF n'existe pas."""
-    if not pdf.exists():
-        raise HTTPException(404, "Aucun PDF déposé pour ce couple.")
-    import pdfplumber
-    with pdfplumber.open(str(pdf)) as p:
-        return "\n".join((pg.extract_text() or "") for pg in p.pages)
+def _texte_du_couple(db: Session, ref: Referentiel) -> str:
+    """LE texte de travail du référentiel — get pur de la colonne `texte_epure`, FIGÉE à la
+    validation du dépôt avec les règles d'épuration de ce jour-là. Aucun recalcul en lecture.
+    Filet pour un dépôt antérieur à la colonne (NULL) : calculé UNE fois depuis le PDF d'origine
+    (porte unique rag.extraction) puis ÉCRIT en base — la donnée vit ensuite à sa place."""
+    if (ref.texte_epure or "").strip():
+        return ref.texte_epure
+    niv = db.get(Niveau, ref.niveau_id)
+    cycle = db.get(Cycle, niv.cycle_id) if niv else None
+    pdf = (REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niv.nom) / "referentiel.pdf"
+           if cycle else None)
+    if pdf is None or not pdf.exists():
+        raise HTTPException(404, "Aucun texte de travail pour ce couple (PDF d'origine introuvable).")
+    from backend.rag.extraction import extraire_texte
+    ref.texte_epure = extraire_texte(pdf)
+    db.commit()
+    return ref.texte_epure
 
 
 class PromptDecoupeBody(BaseModel):
@@ -918,7 +621,7 @@ def generer_prompt_decoupe_couple(body: RegleStatutBody, db: Session = Depends(g
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))
+    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
     from backend.rag.analyse_amont import generer_prompt_decoupe
     try:
         prompt = generer_prompt_decoupe(texte, db=db)
@@ -945,7 +648,7 @@ def regenerer_prompt_decoupe_couple(body: RegenererPromptBody, db: Session = Dep
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))
+    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
     from backend.rag.analyse_amont import regenerer_prompt_decoupe
     try:
         prompt = regenerer_prompt_decoupe(
@@ -982,14 +685,16 @@ def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
     if not ref.prompt_decoupe_valide:
         raise HTTPException(400, "Prompt de découpe non validé : validez-le avant de découper.")
-    pdf = _pdf_du_couple(db, body.cycle_id, body.niveau)
-    if not pdf.exists():
-        raise HTTPException(404, "Aucun PDF déposé pour ce couple.")
+    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
     from backend.rag.pgvector_store import _decouper_ia
     try:
-        chunks = _decouper_ia(pdf, ref.prompt_decoupe or "")
+        chunks = _decouper_ia(texte, ref.prompt_decoupe or "")
     except Exception as e:
         raise HTTPException(400, f"Découpe par l'IA impossible : {e}")
+    # On garde ce résultat (avec le prompt qui l'a produit) : la validation écrira EXACTEMENT
+    # cette découpe — celle que l'admin voit — au lieu de refaire l'appel IA.
+    with _DECOUPES_LOCK:
+        _DECOUPES_APERCU[ref.collection] = {"prompt": ref.prompt_decoupe or "", "chunks": chunks}
     unites = [{"titre": c["text"].split("\n")[0].strip(), "taille": len(c["text"])} for c in chunks]
     return {"ok": True, "total": len(unites), "unites": unites}
 
@@ -1006,8 +711,77 @@ def lire_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
               .filter(ReferentielChunk.referentiel_id == ref.id)
               .order_by(ReferentielChunk.option_ab, ReferentielChunk.chunk_index)
               .all())
-    unites = [{"titre": c.texte.split("\n")[0].strip(), "taille": len(c.texte)} for c in chunks]
+    unites = [{"id": c.id, "titre": c.texte.split("\n")[0].strip(), "taille": len(c.texte)} for c in chunks]
     return {"unites": unites}
+
+
+@router.get("/admin/referentiels/decoupe/unite", dependencies=[Depends(_require_admin)])
+def lire_unite(cycle_id: int, niveau: str, unite_id: int, db: Session = Depends(get_db)):
+    """Texte COMPLET d'UNE unité de la découpe (lecture seule, get pur, à la demande du clic).
+    C'est exactement la matière première que l'IA des profs reçoit — l'admin la consulte pour
+    juger la découpe et mieux cibler. Garde : l'unité doit appartenir au référentiel DU couple."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    chunk = (db.query(ReferentielChunk)
+             .filter(ReferentielChunk.id == unite_id,
+                     ReferentielChunk.referentiel_id == ref.id).first())
+    if chunk is None:
+        raise HTTPException(404, "Cette unité n'existe pas pour ce couple.")
+    return {"id": chunk.id, "texte": chunk.texte}
+
+
+@router.get("/admin/referentiels/epuration", dependencies=[Depends(_require_admin)])
+def lire_regles_epuration():
+    """Consultation PURE des règles d'épuration appliquées à chaque PDF déposé. La liste est lue
+    directement dans le module d'épuration (une seule source, l'affichage ne peut pas mentir) :
+    l'admin voit, ne modifie pas — une nouvelle règle se fabrique avec le DEV."""
+    from backend.rag.extraction import REGLES_EPURATION
+    return {"regles": REGLES_EPURATION}
+
+
+@router.get("/admin/referentiels/epure", dependencies=[Depends(_require_admin)])
+def lire_texte_epure(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le DOCUMENT ÉPURÉ du couple — get pur de la colonne `texte_epure`, figée à la validation
+    du dépôt avec les règles de ce jour-là. C'est EXACTEMENT le texte de travail que toutes les
+    étapes IA lisent (matières, prompt, découpe). Aucun recalcul à l'affichage."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    return {"texte": _texte_du_couple(db, ref)}
+
+
+class ModifierUniteBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    unite_id: int
+    texte: str
+
+
+@router.put("/admin/referentiels/decoupe/unite", dependencies=[Depends(_require_admin)])
+def modifier_unite(body: ModifierUniteBody, db: Session = Depends(get_db)):
+    """UPDATE encadré d'UNE unité : geste de NETTOYAGE (numéro de page collé, coquille
+    d'extraction) — jamais une réécriture du référentiel officiel. Le put écrit le texte ET
+    recalcule l'empreinte dans le MÊME geste : l'empreinte est une donnée CALCULÉE à partir du
+    texte — quand la source change, le calcul se refait, sinon la recherche des profs retrouve
+    l'unité sur un texte qui n'existe plus. Garde : l'unité doit appartenir au référentiel du couple."""
+    texte = (body.texte or "").strip()
+    if not texte:
+        raise HTTPException(400, "Le texte de l'unité ne peut pas être vide.")
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    chunk = (db.query(ReferentielChunk)
+             .filter(ReferentielChunk.id == body.unite_id,
+                     ReferentielChunk.referentiel_id == ref.id).first())
+    if chunk is None:
+        raise HTTPException(404, "Cette unité n'existe pas pour ce couple.")
+    from backend.rag.embeddings import embed_texts
+    vec = embed_texts([texte])[0]   # AVANT l'écriture : si le calcul échoue, rien n'est modifié
+    chunk.texte = texte
+    chunk.embedding = vec
+    db.commit()
+    return {"ok": True, "id": chunk.id, "taille": len(texte)}
 
 
 # ── Découpe (ingestion) en TÂCHE DE FOND : l'écriture des chunks + embeddings prend ~2 min, bien
@@ -1019,14 +793,33 @@ def lire_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
 _INGESTIONS: dict[str, dict] = {}
 _INGESTIONS_LOCK = threading.Lock()
 
+# Découpe de l'APERÇU en attente de validation : {collection: {"prompt", "chunks"}}. État
+# d'orchestration RUNTIME (comme _INGESTIONS, perdu au redémarrage — l'ingestion redécoupe alors
+# elle-même) : la vérité métier reste les chunks EN BASE, posés à la validation. Sert à écrire
+# EXACTEMENT ce que l'admin a vu et accepté, sans refaire l'appel IA — réutilisé seulement si le
+# prompt n'a pas bougé entre l'aperçu et la validation (garde dans ingest_pgvector).
+_DECOUPES_APERCU: dict[str, dict] = {}
+_DECOUPES_LOCK = threading.Lock()
+
 
 def _ingest_en_fond(collection: str) -> None:
     """Tâche de fond : découpe IA + embeddings + écriture des chunks, puis pose `decoupe_valide=true`
-    EN BASE (le VRAI PUT). Met à jour l'état d'orchestration `_INGESTIONS` (done / error). Session
-    dédiée (le thread ne partage pas celle de la requête, déjà fermée)."""
+    EN BASE (le VRAI PUT). Met à jour l'état d'orchestration `_INGESTIONS` (running/done/error +
+    avancement réel pour la jauge de l'écran). Session dédiée (le thread ne partage pas celle de
+    la requête, déjà fermée)."""
+    def _progression(etape: str, fait: int, total: int) -> None:
+        # Avancement RÉEL remonté par l'ingestion (état runtime, pas une donnée métier).
+        with _INGESTIONS_LOCK:
+            job = _INGESTIONS.get(collection)
+            if job is not None:
+                job["progress"] = {"etape": etape, "fait": fait, "total": total}
     try:
         from backend.rag.pgvector_store import ingest_pgvector
-        rapport = ingest_pgvector(collection)
+        with _DECOUPES_LOCK:
+            decoupe_prete = _DECOUPES_APERCU.get(collection)
+        rapport = ingest_pgvector(collection, on_progress=_progression, decoupe_prete=decoupe_prete)
+        with _DECOUPES_LOCK:
+            _DECOUPES_APERCU.pop(collection, None)   # consommée : la vérité est en base désormais
         db = SessionLocal()
         try:
             ref = db.query(Referentiel).filter(Referentiel.collection == collection).first()
@@ -1058,7 +851,8 @@ def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
     with _INGESTIONS_LOCK:
         deja = _INGESTIONS.get(collection, {}).get("status") == "running"
         if not deja:
-            _INGESTIONS[collection] = {"status": "running", "chunks": None, "message": None}
+            _INGESTIONS[collection] = {"status": "running", "chunks": None, "message": None,
+                                       "progress": {"etape": "decoupe", "fait": 0, "total": 0}}
     if not deja:   # jamais deux ingestions en parallèle pour le même couple (idempotent)
         threading.Thread(target=_ingest_en_fond, args=(collection,), daemon=True).start()
     return {"ok": True, "status": "running"}
@@ -1082,7 +876,7 @@ def statut_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     else:
         status = "idle"
     return {"status": status, "decoupe_valide": bool(ref.decoupe_valide), "chunks": n,
-            "message": (job or {}).get("message")}
+            "message": (job or {}).get("message"), "progress": (job or {}).get("progress")}
 
 
 # ── Méta-prompt (générique) : EN BASE (Setting 'prompt_meta_decoupe'), lu par le code, éditable ──
@@ -1254,8 +1048,8 @@ class SupprimerRefBody(BaseModel):
 @router.post("/admin/referentiels/supprimer", dependencies=[Depends(_require_admin)])
 def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db)):
     """Supprime le référentiel d'un couple — UNIQUEMENT s'il n'a JAMAIS servi (aucun chunk ingéré) ;
-    sinon refus (409). Efface la ligne `referentiels` + le PDF sur disque. Ne touche NI `famille_couples`
-    (le couple garde le droit d'exister) NI les matières (données du couple, pas du document)."""
+    sinon refus (409). Efface la ligne `referentiels` + le PDF sur disque. Ne touche PAS les
+    matières (données du couple, pas du document)."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
@@ -1282,7 +1076,7 @@ def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db
     à cocher) — 404/422 seulement pour cycle inconnu / niveau manquant (via `_ref_du_couple`)."""
     ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau ; None si pas de référentiel
     catalogue = [
-        {"id": t.id, "label": t.label, "is_default": bool(t.is_default)}
+        {"id": t.id, "label": t.label, "is_default": bool(t.is_default), "origine": t.origine}
         for t in (db.query(ActiviteType)
                     .filter(ActiviteType.actif.is_(True))
                     .order_by(ActiviteType.ordre, ActiviteType.id).all())
@@ -1332,12 +1126,12 @@ class BasculerTypeBody(BaseModel):
 
 @router.put("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
 def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)):
-    """La case EST le put : un clic écrit DIRECTEMENT en base l'état d'UN type pour le couple (pas de
-    bouton Valider, pas de tampon). `actif=True` → liaison `actif=True` (get-or-create ; à la création
-    `source` = l'ORIGINE du type : 'systeme' | 'admin' | 'ia' — le badge reflète d'où vient le type, pas
-    qui a coché ; source CONSERVÉE si la liaison existait déjà — ex. une détection IA). `actif=False` →
-    liaison `actif=False` (jamais de suppression dure : historique + source restent). Idempotent.
-    404 si le couple n'a pas de référentiel ; 400 si le type n'existe pas au catalogue (FK)."""
+    """Écrit DIRECTEMENT en base l'état d'UN type pour le couple — modèle SIMPLE (décision admin) :
+    un type retenu = une ligne de lien, rien d'autre. `actif=True` → get-or-create du lien (à la
+    création : `source` = origine du type, prompt gabarit posé). `actif=False` → le lien est
+    SUPPRIMÉ, vraiment (ses précisions partent avec lui — CASCADE) : supprimé = plus en base, on
+    n'en parle plus ; une future détection le recréera si l'IA relit le type dans le document.
+    Idempotent. 404 si le couple n'a pas de référentiel ; 400 si le type n'existe pas au catalogue."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
@@ -1351,20 +1145,16 @@ def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)
     l = (db.query(ReferentielActiviteType)
            .filter(ReferentielActiviteType.referentiel_id == ref.id,
                    ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
-    if l is None:
-        if body.actif:                       # cocher un type jamais lié → on crée le lien (source = origine)
+    if body.actif:
+        if l is None:                        # retenir un type sans lien → on crée le lien (source = origine)
             # Génération AUTO du prompt de ce type POUR CE couple, dès la création du lien (zéro copie).
             db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=body.activite_type_id,
                                            actif=True, source=t.origine,
                                            prompt=_generer_prompt_type(t.label, body.niveau)))
-    else:
-        l.actif = body.actif                 # bascule le lien existant (source d'origine conservée)
-        # Recoche d'un lien sans prompt (ex. lien posé avant cette fonctionnalité) → on génère à ce moment.
-        if body.actif and not (l.prompt or "").strip():
+        elif not (l.prompt or "").strip():   # lien déjà là mais sans prompt (ancien) → on le pose
             l.prompt = _generer_prompt_type(t.label, body.niveau)
-    # Le coche reste INSTANTANÉ (prompt = gabarit, aucun appel IA) — sinon « Tout sélectionner » (boucle de
-    # coches, timeout court) casse. Les PRÉCISIONS ne sont PAS touchées ici : à l'ouverture du panneau
-    # ✎ Précisions le front LIT (GET) ; si la lecture est vide, il appelle `…/precisions/generer` (l'IA écrit).
+    elif l is not None:
+        db.delete(l)                         # retirer = SUPPRIMER le lien (précisions en cascade)
     db.commit()
     return {"ok": True, "activite_type_id": body.activite_type_id, "actif": body.actif}
 
@@ -1379,7 +1169,8 @@ def _generer_precisions_ia(db: Session, lien: ReferentielActiviteType, label: st
     if deja is not None:
         return
     try:
-        texte = _texte_du_pdf(_pdf_du_couple(db, cycle_id, niveau))
+        ref = db.get(Referentiel, lien.referentiel_id)
+        texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
         if not texte.strip():
             return
         from backend.rag.analyse_amont import suggerer_precisions_type
@@ -1522,37 +1313,35 @@ def generer_precisions_couple(body: CoupleTypeRef, db: Session = Depends(get_db)
 
 class AjouterTypeCatalogueBody(BaseModel):
     label: str
-    cycle_id: int | None = None   # fournis SEULEMENT quand l'ajout vient d'une SUGGESTION IA : on coche
-    niveau: str | None = None     # alors le type pour ce couple avec source='ia' (origine IA tracée).
+    cycle_id: int | None = None    # couple fourni → le type est aussi COCHÉ pour ce couple
+    niveau: str | None = None
+    suggestion_ia: bool = False    # True = l'ajout vient d'une SUGGESTION IA (badge 'ia' sur le lien)
 
 
 @router.post("/admin/referentiels/types-activite/catalogue", dependencies=[Depends(_require_admin)])
 def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends(get_db)):
-    """Ajoute un type au CATALOGUE GLOBAL (Create encadré). Anti-doublon par LIBELLÉ insensible à la
-    casse — la clé métier du catalogue, exactement comme `matieres.nom` (jamais deux types de même
-    libellé). Le type est identifié par son `id` (plus de slug `key`). Renvoie le type (créé ou
-    réutilisé) + `deja_present`.
+    """Ajoute un type au CATALOGUE GLOBAL (Create encadré) ET le COCHE pour le couple si le couple
+    est fourni. Anti-doublon par LIBELLÉ insensible à la casse — la clé métier du catalogue, comme
+    `matieres.nom` : un libellé déjà connu RÉUTILISE le type existant (jamais deux types de même
+    libellé). Renvoie le type (créé ou réutilisé) + `deja_present`.
 
-    ORIGINE (badge) : si `cycle_id`+`niveau` sont fournis, l'ajout vient d'une SUGGESTION IA → on COCHE
-    aussi le type pour ce couple avec `source='ia'` (get-or-create encadré). Ainsi l'origine IA est
-    tracée sur le LIEN même si c'est l'admin qui a cliqué « + ». Sans couple (saisie manuelle), on
-    n'ajoute qu'au catalogue : l'origine deviendra 'admin' quand l'admin cochera via le put."""
+    ORIGINE (badge) : `suggestion_ia=True` = l'ajout vient d'une suggestion de la détection → type
+    créé `origine='ia'`, lien coché `source='ia'`. Sinon (saisie manuelle de l'admin) → 'admin'.
+    Le coche est un get-or-create encadré : lien déjà présent → rien, jamais de doublon."""
     label = (body.label or "").strip()
     if not label:
         raise HTTPException(400, "Le libellé du type d'activité est requis.")
-    # Origine du type : ajout depuis une SUGGESTION IA (couple fourni) → 'ia' ; saisie MANUELLE → 'admin'.
-    from_suggestion = body.cycle_id is not None and bool((body.niveau or "").strip())
+    origine = "ia" if body.suggestion_ia else "admin"
     t = db.query(ActiviteType).filter(func.lower(ActiviteType.label) == label.lower()).first()
     deja_present = t is not None
     if t is None:
         maxo = db.query(func.max(ActiviteType.ordre)).scalar()
-        t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True,
-                         origine=("ia" if from_suggestion else "admin"))
+        t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True, origine=origine)
         db.add(t); db.commit(); db.refresh(t)
 
-    # Suggestion IA acceptée → on coche le type pour le couple avec source='ia' (get-or-create encadré).
-    coche_ia = False
-    if from_suggestion:
+    # Couple fourni → coller le type au couple (coche = lien actif), avec la bonne origine.
+    coche = False
+    if body.cycle_id is not None and (body.niveau or "").strip():
         ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
         if ref is not None:
             l = (db.query(ReferentielActiviteType)
@@ -1560,32 +1349,36 @@ def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends
                            ReferentielActiviteType.activite_type_id == t.id).first())
             if l is None:
                 db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                               actif=True, source="ia"))
-                coche_ia = True
-            elif not l.actif:
-                l.actif = True                     # réactivé ; source d'origine conservée
-                coche_ia = True
+                                               actif=True, source=origine,
+                                               prompt=_generer_prompt_type(t.label, body.niveau)))
+                coche = True
             db.commit()
 
-    return {"id": t.id, "label": t.label, "deja_present": deja_present, "coche_ia": coche_ia}
+    return {"id": t.id, "label": t.label, "deja_present": deja_present, "coche_ia": coche}
 
 
 @router.post("/admin/referentiels/types-activite/detecter", dependencies=[Depends(_require_admin)])
 def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """L'IA LIT le référentiel du couple et COCHE automatiquement les types déjà au CATALOGUE (liaison
-    `source='ia'`). Calque de la détection matières : même source (le TEXTE du PDF déposé, lu à la volée,
-    zéro copie) + la brique `detecter_types_activite`. Elle ne crée JAMAIS de type au catalogue : les
-    libellés détectés ABSENTS du catalogue remontent en `suggestions` (l'admin les ajoute puis coche).
+    """L'IA LIT le document épuré du couple AVEC le catalogue des types sous les yeux
+    (`detecter_types_activite`), et TOUT ce qu'elle retient est collé au couple (liaison
+    `source='ia'`, prompt gabarit posé) : un libellé qui correspond au catalogue réutilise le type
+    existant (badge Système · IA à l'écran) ; un libellé NOUVEAU est créé au catalogue
+    (`origine='ia'`) dans le même geste — plus d'étape « suggestions » (décision admin : tout est
+    déjà une proposition d'IA, l'admin fait le ménage sur la liste avec ✕).
 
-    CREATE encadré : une liaison n'est créée que si elle n'existe pas ENCORE (contrôle avant écriture)
-    → jamais de doublon, et une liaison déjà posée (par l'admin ou une détection précédente, cochée OU
-    décochée) est LAISSÉE TELLE QUELLE — l'IA ne se bat pas contre la décision de l'admin."""
+    Modèle SIMPLE (décision admin) : un type retenu = une ligne de lien, le ✕ la SUPPRIME pour de
+    vrai. La détection n'a donc qu'une règle : type lu AVEC un lien → rien à faire ; type lu SANS
+    lien → lien créé. Un type retiré puis relu dans le document revient naturellement (sa ligne se
+    recrée) ; un type retiré que l'IA ne lit plus reste dehors.
+
+    CREATE encadré : type réutilisé par libellé (anti-doublon, insensible à la casse) ; une liaison
+    n'est créée que si elle n'existe pas ENCORE — jamais de doublon."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    texte = _texte_du_pdf(_pdf_du_couple(db, body.cycle_id, body.niveau))   # 404 si pas de PDF
+    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
     if not texte.strip():
-        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
+        raise HTTPException(400, "Document sans texte lisible : détection impossible.")
 
     from backend.rag.analyse_amont import detecter_types_activite
     try:
@@ -1593,28 +1386,36 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
     except Exception as e:
         raise HTTPException(400, f"Détection des types par l'IA impossible : {e}")
 
-    # Liaisons EXISTANTES du couple, indexées par type — pour ne jamais recréer ni écraser.
+    # Liaisons EXISTANTES du couple, indexées par type — pour ne jamais doublonner.
     liaisons = {l.activite_type_id
                 for l in (db.query(ReferentielActiviteType.activite_type_id)
                             .filter(ReferentielActiviteType.referentiel_id == ref.id).all())}
 
-    coches_ia, deja_lies, suggestions = [], [], []
+    coches_ia, deja_lies, crees = [], [], []
     vus: set[str] = set()
     for label in detectes:
-        cle = label.strip().lower()        # matching par LIBELLÉ, comme les matières
+        label = label.strip()
+        cle = label.lower()                # matching par LIBELLÉ, comme les matières
         if not cle or cle in vus:          # même libellé (à la casse près) : une seule fois
             continue
         vus.add(cle)
         t = (db.query(ActiviteType)
                .filter(func.lower(ActiviteType.label) == cle, ActiviteType.actif.is_(True)).first())
         if t is None:
-            suggestions.append(label)      # hors catalogue : rien écrit, proposé à l'admin
+            # Type NOUVEAU : créé au catalogue (origine='ia') puis collé au couple, même geste.
+            maxo = db.query(func.max(ActiviteType.ordre)).scalar()
+            t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True, origine="ia")
+            db.add(t); db.flush()
+            crees.append({"id": t.id, "label": t.label})
         elif t.id in liaisons:
-            deja_lies.append({"id": t.id, "label": t.label})   # laissé tel quel
-        else:
-            db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                           actif=True, source="ia"))
-            coches_ia.append({"id": t.id, "label": t.label})
+            deja_lies.append({"id": t.id, "label": t.label})   # déjà retenu : rien à faire
+            continue
+        # Prompt gabarit posé dès la création du lien : un type collé au couple est opérationnel
+        # tout de suite, jamais « prompt vide ».
+        db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
+                                       actif=True, source="ia",
+                                       prompt=_generer_prompt_type(t.label, body.niveau)))
+        coches_ia.append({"id": t.id, "label": t.label})
     db.commit()
     return {"detectes": detectes, "coches_ia": coches_ia,
-            "deja_lies": deja_lies, "suggestions": suggestions}
+            "deja_lies": deja_lies, "crees": crees}

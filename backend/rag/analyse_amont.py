@@ -114,13 +114,19 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
     return parser_reponse(raw)
 
 
+# L'épuration vit à UNE seule place : backend/rag/extraction.py (porte d'extraction unique).
+# Ré-exposée ici car le tranchage la ré-applique (défensif : idempotent sur un texte déjà propre).
+from backend.rag.extraction import _sans_numeros_de_page
+
+
 def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
     """Tranche le TEXTE RÉEL aux lignes de titre rendues par l'IA — jamais réécrit par l'IA
     (cap « aSchool n'invente rien »). Pur, sans IA, sans base : testable seul.
     Chaque unité = du titre trouvé jusqu'au titre suivant (recherche séquentielle, ordre du
-    document). Un titre introuvable est ignoré (on ne fabrique pas de frontière). Renvoie
-    `[{"titre","texte"}]` dans l'ordre."""
-    lignes = texte.split("\n")
+    document). Un titre introuvable est ignoré (on ne fabrique pas de frontière). Les numéros
+    de page (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte"}]`
+    dans l'ordre."""
+    lignes = _sans_numeros_de_page(texte).split("\n")
     debuts: list[int] = []
     curseur = 0
     for t in titres:
@@ -245,65 +251,6 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
     return _trancher_par_titres(texte, titres)
 
 
-def formater_familles(familles: list[dict]) -> str:
-    """Rend les familles en texte pour le prompt : `[id] nom — description`. Pur (ni IA ni base)."""
-    return "\n".join(f"[{f['id']}] {f['nom']} — {f['description']}" for f in familles)
-
-
-# Clé EN BASE du prompt du classifieur "deux modes" (famille existante OU candidate).
-_CLE_CLASSER = "classer_famille"
-_CANDIDATE_CHAMPS = ("nom", "description")
-
-
-def _schema_classer(ids: list[int]) -> dict:
-    """Sortie structurée du classifieur deux modes. `match_id` contraint à {0} ∪ ids réels :
-    0 = aucune famille ne convient (→ proposition), sinon un id existant. `nom`/`description`
-    toujours présents (vides si match). GÉNÉRIQUE : aucun id/nom en dur."""
-    return {
-        "type": "object",
-        "properties": {
-            "match_id": {"type": "integer", "enum": [0] + ids},
-            "nom": {"type": "string"},
-            "description": {"type": "string"},
-        },
-        "required": ["match_id", *(_CANDIDATE_CHAMPS)],
-        "additionalProperties": False,
-    }
-
-
-def classer_famille(texte: str, familles: list[dict], *, db: Session) -> dict:
-    """Classe un PDF : soit une famille EXISTANTE, soit une famille CANDIDATE complète.
-
-    `familles` = familles classables (l'appelant exclut les `rejet=true`). Retour :
-      - `{"scenario": "match", "famille_id": <id>}`  si une famille existante convient ;
-      - `{"scenario": "candidate", "candidate": {nom, description}}`  si aucune (match_id=0).
-    L'IA ne prononce jamais le rejet — au pire elle propose une candidate. Prompt/provider/modèle
-    lus EN BASE ; température 0. Lève `ValueError` si l'IA sort du contrat (id inconnu, candidate
-    incomplète). Laisse remonter les pannes IA (l'appelant traduit)."""
-    ids = [f["id"] for f in familles]
-    prompt = get_prompt(db, _CLE_CLASSER).format(familles=formater_familles(familles), texte=texte)
-    raw = generate(
-        prompt,
-        provider=get_ai_provider(db),
-        model=get_ai_model(db),
-        max_tokens=get_max_tokens(db, _CLE_CLASSER),
-        temperature=0,
-        json_mode=True,
-        schema=_schema_classer(ids),
-    )
-    data = parser_reponse(raw)
-    mid = data.get("match_id")
-    if mid in ids:
-        return {"scenario": "match", "famille_id": int(mid)}
-    if mid == 0:
-        candidate = {c: (data.get(c) or "").strip() for c in _CANDIDATE_CHAMPS}
-        vides = [c for c, v in candidate.items() if not v]
-        if vides:
-            raise ValueError(f"Famille candidate incomplète (champs vides : {', '.join(vides)}).")
-        return {"scenario": "candidate", "candidate": candidate}
-    raise ValueError(f"match_id hors contrat : {mid!r}.")
-
-
 # Clé EN BASE du prompt de vérification du couple (cycle + niveau) — vérif n°1 au dépôt.
 _CLE_COUPLE = "verifier_couple"
 
@@ -373,11 +320,21 @@ def _schema_matieres() -> dict:
 def detecter_matieres(texte: str, *, db: Session) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des matières (disciplines / domaines)
     qu'il structure. Proposition seulement : l'admin coche ce qu'il ajoute (jamais une matière écrite
-    d'office). Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie
+    d'office). L'IA reçoit AUSSI la table des matières actives (get, zéro copie) pour faire
+    CORRESPONDRE le document avec l'existant : orthographe exacte de la table, et un intitulé qui
+    regroupe plusieurs matières connues (ex. « Mathématiques et physique-chimie ») est séparé.
+    Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie
     les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
     lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit / absorbe)."""
-    prompt = get_prompt(db, _CLE_MATIERES).replace("{texte}", texte)
+    from backend.core.models_db import Matiere
+    existantes = [nom for (nom,) in (db.query(Matiere.nom)
+                                       .filter(Matiere.actif == True)
+                                       .order_by(Matiere.ordre, Matiere.id).all())]
+    prompt = (get_prompt(db, _CLE_MATIERES)
+              .replace("{matieres_existantes}",
+                       "\n".join(f"- {n}" for n in existantes) or "(aucune pour le moment)")
+              .replace("{texte}", texte))
     raw = generate(
         prompt,
         provider=get_ai_provider(db),
@@ -417,13 +374,22 @@ def _schema_types_activite() -> dict:
 
 
 def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
-    """L'IA LIT le texte d'un référentiel (les chunks du couple) et PROPOSE la liste des TYPES
-    D'ACTIVITÉ (formats / modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin
-    coche ce qu'il garde (jamais un type coché d'office). Prompt / provider / modèle lus EN BASE ;
-    température 0 (sortie déterministe). Renvoie les noms nettoyés, sans doublon (insensible à la
-    casse), dans l'ordre lu. Liste vide si l'IA n'en lit aucun. Lève `ValueError` si l'IA ne rend pas
-    un JSON exploitable. Laisse remonter les pannes IA (l'appelant traduit / absorbe)."""
-    prompt = get_prompt(db, _CLE_TYPES_ACTIVITE).replace("{texte}", texte)
+    """L'IA LIT le texte d'un référentiel et PROPOSE la liste des TYPES D'ACTIVITÉ (formats /
+    modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin coche ce qu'il garde
+    (jamais un type coché d'office). L'IA reçoit AUSSI le catalogue des types actifs (get, zéro
+    copie) pour faire CORRESPONDRE le document avec l'existant — libellé exact du catalogue quand ça
+    correspond, libellé du document sinon (même patron que `detecter_matieres`). Prompt / provider /
+    modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie les noms nettoyés, sans doublon
+    (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en lit aucun. Lève `ValueError`
+    si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA (l'appelant traduit)."""
+    from backend.core.models_db import ActiviteType
+    existants = [lbl for (lbl,) in (db.query(ActiviteType.label)
+                                      .filter(ActiviteType.actif == True)
+                                      .order_by(ActiviteType.ordre, ActiviteType.id).all())]
+    prompt = (get_prompt(db, _CLE_TYPES_ACTIVITE)
+              .replace("{types_existants}",
+                       "\n".join(f"- {n}" for n in existants) or "(aucun pour le moment)")
+              .replace("{texte}", texte))
     raw = generate(
         prompt,
         provider=get_ai_provider(db),
@@ -490,116 +456,3 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
     return noms
 
 
-# Clé EN BASE du prompt de suggestion des cycles d'une famille — proposés à l'admin lors de la
-# construction d'une famille (proposition, pas un lien validé : l'admin choisit/coche ce qu'il garde).
-_CLE_SUGGERER_CYCLES = "suggerer_cycles"
-
-
-def formater_cycles(cycles: list[dict]) -> str:
-    """Rend les cycles existants en texte pour le prompt : un nom par ligne. Pur (ni IA ni base)."""
-    return "\n".join(f"- {c['nom']}" for c in cycles)
-
-
-def _schema_suggerer_cycles() -> dict:
-    """Sortie structurée de la suggestion : `cycles` = tableau de noms. `additionalProperties: false`
-    interdit tout champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
-    return {
-        "type": "object",
-        "properties": {
-            "cycles": {"type": "array", "items": {"type": "string"}},
-        },
-        "required": ["cycles"],
-        "additionalProperties": False,
-    }
-
-
-def suggerer_cycles(famille: dict, cycles: list[dict], *, db: Session) -> list[str]:
-    """L'IA PROPOSE les cycles sur lesquels s'appuie une famille (nom + description). On lui donne
-    aussi les cycles DÉJÀ EN BASE pour qu'elle réutilise leur nom exact quand ils conviennent.
-    Proposition seulement : l'admin choisit / coche (jamais un cycle relié d'office). L'appelant
-    décide ensuite, nom par nom, si chaque suggestion existe déjà en base ou reste à créer.
-
-    `famille` = {nom, description} ; `cycles` = [{id, nom}, …] (les cycles existants). Renvoie les
-    noms nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu. Liste vide si l'IA n'en
-    propose aucun. Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Lève
-    `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA (l'appelant
-    traduit)."""
-    prompt = (get_prompt(db, _CLE_SUGGERER_CYCLES)
-              .replace("{famille}", famille.get("nom") or "")
-              .replace("{description}", famille.get("description") or "")
-              .replace("{cycles}", formater_cycles(cycles)))
-    raw = generate(
-        prompt,
-        provider=get_ai_provider(db),
-        model=get_ai_model(db),
-        max_tokens=get_max_tokens(db, _CLE_SUGGERER_CYCLES),
-        temperature=0,
-        json_mode=True,
-        schema=_schema_suggerer_cycles(),
-    )
-    data = parser_reponse(raw)
-    noms: list[str] = []
-    vus: set[str] = set()
-    for c in data.get("cycles", []):
-        nom = (c if isinstance(c, str) else str(c)).strip()
-        if nom and nom.lower() not in vus:
-            vus.add(nom.lower())
-            noms.append(nom)
-    return noms
-
-
-# Clé EN BASE du prompt de suggestion des niveaux d'un cycle pertinents pour une famille (proposition).
-_CLE_SUGGERER_NIVEAUX = "suggerer_niveaux"
-
-
-def formater_niveaux(niveaux: list[dict]) -> str:
-    """Rend les niveaux existants d'un cycle en texte pour le prompt : un nom par ligne. Pur."""
-    return "\n".join(f"- {n['nom']}" for n in niveaux)
-
-
-def _schema_suggerer_niveaux() -> dict:
-    """Sortie structurée : `niveaux` = tableau de noms. `additionalProperties: false` interdit tout
-    champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
-    return {
-        "type": "object",
-        "properties": {
-            "niveaux": {"type": "array", "items": {"type": "string"}},
-        },
-        "required": ["niveaux"],
-        "additionalProperties": False,
-    }
-
-
-def suggerer_niveaux(famille: dict, cycle: str, niveaux: list[dict], *, db: Session) -> list[str]:
-    """L'IA PROPOSE les niveaux d'un cycle qui concernent une famille (nom + description). On lui donne
-    aussi les niveaux DÉJÀ EN BASE du cycle pour qu'elle réutilise leur nom exact. Proposition seulement :
-    l'admin coche / crée (jamais un niveau relié d'office). L'appelant décide ensuite, nom par nom, si
-    chaque suggestion existe déjà (et si elle est reliée) ou reste à créer.
-
-    `famille` = {nom, description} ; `cycle` = nom du cycle ; `niveaux` = [{id, nom}, …] (niveaux du cycle).
-    Renvoie les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu. Liste vide si
-    aucun niveau du cycle ne concerne la famille. Prompt / provider / modèle lus EN BASE ; température 0.
-    Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA."""
-    prompt = (get_prompt(db, _CLE_SUGGERER_NIVEAUX)
-              .replace("{famille}", famille.get("nom") or "")
-              .replace("{description}", famille.get("description") or "")
-              .replace("{cycle}", cycle or "")
-              .replace("{niveaux}", formater_niveaux(niveaux)))
-    raw = generate(
-        prompt,
-        provider=get_ai_provider(db),
-        model=get_ai_model(db),
-        max_tokens=get_max_tokens(db, _CLE_SUGGERER_NIVEAUX),
-        temperature=0,
-        json_mode=True,
-        schema=_schema_suggerer_niveaux(),
-    )
-    data = parser_reponse(raw)
-    noms: list[str] = []
-    vus: set[str] = set()
-    for n in data.get("niveaux", []):
-        nom = (n if isinstance(n, str) else str(n)).strip()
-        if nom and nom.lower() not in vus:
-            vus.add(nom.lower())
-            noms.append(nom)
-    return noms

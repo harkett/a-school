@@ -72,6 +72,10 @@ services:
       # Dans la boîte, le backend joint la base par le nom du service "db" (pas 127.0.0.1).
       # Défini APRÈS env_file → écrase le DATABASE_URL du .env pour viser "db:5432" dans la boîte.
       DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_dev
+      # Embeddings (BGE-M3) sur plusieurs cœurs : le garde-fou OMP_NUM_THREADS=1 de main.py est un
+      # pansement Windows (plantage OpenMP hors Docker) inutile dans la boîte Linux — ici on rend
+      # 8 cœurs au calcul (setdefault dans main.py → cette valeur gagne). Vectorisation ~8× plus vite.
+      OMP_NUM_THREADS: "8"
     command: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
       - "8001:8001"

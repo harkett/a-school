@@ -3,7 +3,7 @@
 // par DÉPÔT, CONTRÔLE l'aperçu du document récupéré, puis valide : le système le
 // range, en extrait le texte et enregistre sa provenance.
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
@@ -67,8 +67,8 @@ const btnTypes = (bg, off = false) => ({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 })
 
-// Repère « IA » — petit badge violet posé là où l'IA agit SANS bouton dédié (détection de la
-// famille, vérification du couple, ingestion). Il signale à l'admin que le résultat vient de l'IA.
+// Repère « IA » — petit badge violet posé là où l'IA agit SANS bouton dédié (vérification du
+// couple, ingestion). Il signale à l'admin que le résultat vient de l'IA.
 // Même palette IA que les badges d'origine (SOURCE_STYLE.ia) : cohérence, aucune couleur en double.
 function BadgeIA({ titre }) {
   return (
@@ -81,12 +81,37 @@ function BadgeIA({ titre }) {
   )
 }
 
+// Jauge d'attente réutilisable pour UN appel IA d'un bloc (durée inconnue, pas d'étapes mesurables) :
+// barre navette animée + secondes écoulées — jamais de faux pourcentage. Montée uniquement pendant
+// l'attente (le montage/démontage remet le compteur à zéro).
+function JaugeAttente({ libelle }) {
+  const [sec, setSec] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setSec(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div style={{ marginTop: 10 }}>
+      <style>{'@keyframes jaugeAttente { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }'}</style>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12,
+        color: '#475569', marginBottom: 4 }}>
+        <span>{libelle}</span>
+        <span style={{ fontWeight: 600 }}>{sec} s</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: '35%', background: '#7c3aed',
+          borderRadius: 999, animation: 'jaugeAttente 1.6s linear infinite' }} />
+      </div>
+    </div>
+  )
+}
+
 export default function AdminReferentiels() {
-  const [couples, setCouples] = useState([])    // les 137 famille-couples (GET /admin/fc-autorisees)
-  const [coupleId, setCoupleId] = useState('')  // id du couple choisi dans le menu unique
+  const [arbre, setArbre] = useState([])        // arbre COMPLET cycles → niveaux (GET /admin/programmes)
   const [refsListe, setRefsListe] = useState([])  // colonne 2 : référentiels déposés (GET /admin/referentiels/liste)
-  const [cycleId, setCycleId] = useState('')    // dérivé du couple choisi (cycle_id de la ligne)
-  const [niveau, setNiveau] = useState('')      // dérivé du couple choisi (nom du niveau)
+  const [cycleId, setCycleId] = useState('')    // cycle choisi (cascade, 1er select)
+  const [niveauId, setNiveauId] = useState('')  // niveau choisi (cascade, 2e select) — envoyé à valider/verifier-depot
+  const [niveau, setNiveau] = useState('')      // NOM du niveau choisi (requis par les endpoints post-dépôt)
   const [mode, setMode] = useState('depot')       // 'depot' | 'lien'
   const [url, setUrl] = useState('')
   const [nomFichier, setNomFichier] = useState('')  // nom du PDF choisi (zone « Par dépôt »)
@@ -94,14 +119,8 @@ export default function AdminReferentiels() {
   const [busy, setBusy] = useState(false)
   const [apercu, setApercu] = useState(null)      // { token, filename, pages, taille_ko, apercu }
   const [resultat, setResultat] = useState(null)  // { cycle, niveau, dossier, pages, caracteres_extraits, nom_fixe }
-  const [familleId, setFamilleId] = useState('')  // famille retenue pour le PDF en cours de dépôt
-  const [detectFamille, setDetectFamille] = useState(false)  // classement IA en cours
-  const [detection, setDetection] = useState(null)      // { scenario:'match', famille } | { scenario:'candidate', candidate }
-  const [familleValidee, setFamilleValidee] = useState(false)  // l'admin a validé la famille → le bloc document apparaît
-  const [cand, setCand] = useState(null)          // fiche candidate éditable (6 champs)
-  const [familleBusy, setFamilleBusy] = useState(false)
-  // Vérifications au dépôt (backend verifier-depot) : { couple:{correspond,niveau_lu,raison}, famille:{existe} }
-  // 'loading' pendant l'appel, null au repos. Le document à valider ne s'affiche que si les deux passent.
+  // Vérification au dépôt (backend verifier-depot) : { couple:{correspond,niveau_lu,raison} }
+  // 'loading' pendant l'appel, null au repos. Le document à valider ne s'affiche que si elle passe.
   const [verif, setVerif] = useState(null)
   const [forcageMotif, setForcageMotif] = useState('')   // motif obligatoire si l'admin force malgré une alerte
   // Table des matières du référentiel — INTERFACE seule ; le code (lecture des
@@ -130,9 +149,85 @@ export default function AdminReferentiels() {
   const [promptBusy, setPromptBusy] = useState('')             // 'generer' | 'regenerer' | 'valider' | 'decouper' | ''
   const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
   const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
+  const [decoupeProgress, setDecoupeProgress] = useState(null) // jauge : avancement RÉEL lu via /decoupe/statut ({etape, fait, total})
+  const [uniteOuverteId, setUniteOuverteId] = useState(null)   // lecture d'une unité : id choisi dans la liste (unités EN BASE seulement)
+  const [uniteTexte, setUniteTexte] = useState('')             // texte complet de l'unité choisie (get à la demande, zéro copie)
+  const [uniteLoading, setUniteLoading] = useState(false)
+  const [uniteEdit, setUniteEdit] = useState(false)            // édition de l'unité ouverte (geste de nettoyage)
+  const [uniteBrouillon, setUniteBrouillon] = useState('')
+  const [uniteSaving, setUniteSaving] = useState(false)
+  const [epurationOuvert, setEpurationOuvert] = useState(false)  // consultation des règles d'épuration (repliée)
+  const [epurationRegles, setEpurationRegles] = useState(null)   // lues chez le serveur au premier dépliage (get)
+  const [showEpure, setShowEpure] = useState(false)              // fenêtre du document épuré (le texte de travail)
+  const [epureTexte, setEpureTexte] = useState(null)             // texte épuré lu en base au premier clic (get, figé au dépôt)
+
+  // Consultation pure des règles d'épuration : lecture au premier dépliage, puis simple repli/dépli.
+  function ouvrirEpuration() {
+    setEpurationOuvert(o => !o)
+    if (epurationRegles) return
+    fetchWithTimeout('/api/admin/referentiels/epuration', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.regles) setEpurationRegles(d.regles) })
+      .catch(() => {})
+  }
+
+  // Document épuré : le TEXTE DE TRAVAIL du couple, FIGÉ en base à la validation du dépôt
+  // (colonne texte_epure) — get pur au clic, aucun recalcul. C'est exactement ce que l'IA lit.
+  function ouvrirEpure() {
+    setShowEpure(true)
+    if (epureTexte !== null) return
+    fetchWithTimeout(`/api/admin/referentiels/epure?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setEpureTexte(d && typeof d.texte === 'string' ? d.texte : ''))
+      .catch(() => setEpureTexte(''))
+  }
+
+  // Valider l'édition d'une unité : put du texte + recalcul de son empreinte dans le MÊME geste
+  // (côté serveur) — l'empreinte est calculée à partir du texte, elle doit le suivre.
+  async function validerUnite() {
+    const texte = uniteBrouillon.trim()
+    if (!texte) { showError('Le texte de l’unité ne peut pas être vide.'); return }
+    setUniteSaving(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/decoupe/unite', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, unite_id: uniteOuverteId, texte }),
+      }, TIMEOUT_LONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || 'Enregistrement de l’unité impossible.'); return }
+      setUniteTexte(texte); setUniteEdit(false); setUniteBrouillon('')
+      // Relit la liste (titres/tailles depuis la base) : l'affichage suit ce qui est réellement stocké.
+      fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+        .then(rr => (rr.ok ? rr.json() : null))
+        .then(dd => { if (dd && dd.unites && dd.unites.length) setDecoupeUnites(dd.unites) })
+        .catch(() => {})
+    } catch { showError('Enregistrement de l’unité impossible.') }
+    finally { setUniteSaving(false) }
+  }
+
+  // Clic sur une unité de la découpe : lit son texte COMPLET en base (get pur, à la demande).
+  // Re-clic sur la même unité = referme la lecture. Les unités d'aperçu (pas encore en base,
+  // donc sans id) ne sont pas cliquables.
+  async function ouvrirUnite(u) {
+    if (!u.id) return
+    setUniteEdit(false); setUniteBrouillon('')
+    if (uniteOuverteId === u.id) { setUniteOuverteId(null); setUniteTexte(''); return }
+    setUniteOuverteId(u.id); setUniteTexte(''); setUniteLoading(true)
+    try {
+      const r = await fetchWithTimeout(
+        `/api/admin/referentiels/decoupe/unite?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&unite_id=${u.id}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || 'Lecture de cette unité impossible.'); setUniteOuverteId(null); return }
+      setUniteTexte(d.texte || '')
+    } catch { showError('Lecture de cette unité impossible.'); setUniteOuverteId(null) }
+    finally { setUniteLoading(false) }
+  }
   const [promptOuvert, setPromptOuvert] = useState(false)   // démarre replié
   // Repli/développement des autres cartouches — état de départ INCHANGÉ (dépliées → true).
-  const [familleOuvert, setFamilleOuvert] = useState(true)
+  const [coupleOuvert, setCoupleOuvert] = useState(true)
   const [pdfOuvert, setPdfOuvert] = useState(true)
   const [decoupeOuvert, setDecoupeOuvert] = useState(true)
   const [typesOuvert, setTypesOuvert] = useState(true)
@@ -142,11 +237,12 @@ export default function AdminReferentiels() {
   const [typesCatalogue, setTypesCatalogue] = useState([])     // [{id, key, label, is_default}]
   const [typesChecked, setTypesChecked] = useState(new Set())  // ids cochés (reflet base, relu à chaque put)
   const [typesSource, setTypesSource] = useState({})           // {id: 'ia'|'admin'|'systeme'} → badge d'origine
-  const [typesSuggestions, setTypesSuggestions] = useState([]) // libellés détectés hors catalogue
-  const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter au catalogue »
+  const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter un type à ce couple »
   const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
   const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
-  const [typesDejaDetecte, setTypesDejaDetecte] = useState(false) // une détection a déjà eu lieu → « Redétecter »
+  const [typesInit, setTypesInit] = useState(false)            // 1re lecture des liaisons du couple faite (base lue)
+  const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
+  const autoDetectFait = useRef('')                            // clé couple : l'auto-détection ne se lance qu'UNE fois par couple affiché
   // MAQUETTE prompt par type (spécifique au couple) : éditeur déplié sous la ligne. `promptEditId` = id du
   // type dont l'éditeur est ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base).
   // La génération IA et l'enregistrement PAR COUPLE (colonne prompt sur le lien) = chantier backend d'après.
@@ -162,12 +258,13 @@ export default function AdminReferentiels() {
   const [precisLoading, setPrecisLoading] = useState(false)
   const [newPrecis, setNewPrecis] = useState('')            // saisie « Ajouter une précision »
   const [precisBusy, setPrecisBusy] = useState(false)
-  const [precisGenType, setPrecisGenType] = useState(null)  // id du type dont l'IA génère les précisions (sablier qui se déplace pendant « Tout sélectionner »)
 
   useEffect(() => {
-    fetchWithTimeout('/api/admin/fc-autorisees', { credentials: 'include' }, TIMEOUT_STD)
+    // Arbre COMPLET cycles → niveaux (tous les niveaux, même sans matière) : la source de la
+    // cascade « Couple » de la Carte 1. Lu en base via /admin/programmes (get, zéro copie).
+    fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setCouples(d.couples || []) })
+      .then(d => { if (d) setArbre(d.cycles || []) })
       .catch(() => {})
     chargerListe()
   }, [])
@@ -181,27 +278,26 @@ export default function AdminReferentiels() {
       .catch(() => {})
   }
 
-  // Clic sur une ligne de la colonne 2 : sélectionne le couple (comme le menu déroulant) → l'écran
-  // de droite charge ce référentiel via l'effet [cycleId, niveau]. On résout le couple dans `couples`
-  // (par cycle_id + niveau) pour aussi refléter le choix dans le menu déroulant.
+  // Clic sur une ligne de la colonne 2 : sélectionne le couple (comme la cascade) → l'écran
+  // de droite charge ce référentiel via l'effet [cycleId, niveau]. La liste porte cycle_id,
+  // niveau_id et le nom du niveau : la cascade se cale directement dessus.
   function ouvrirRef(r) {
-    const c = couples.find(x => String(x.cycle_id) === String(r.cycle_id) && x.niveau === r.niveau)
-    if (c) { setCoupleId(String(c.id)); setCycleId(String(c.cycle_id)); setNiveau(c.niveau); setFamilleId(String(c.famille_id)) }
-    else { setCoupleId(''); setCycleId(String(r.cycle_id)); setNiveau(r.niveau) }
+    setCycleId(String(r.cycle_id)); setNiveauId(String(r.niveau_id)); setNiveau(r.niveau)
   }
 
   // « + Nouveau » (colonne 2) : remet l'écran en création — aucun couple choisi, tout vide.
   function nouveau() {
     // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
-    setCoupleId(''); setCycleId(''); setNiveau(''); setFamilleId('')  // → familleCouple.done = false
-    setEtat(null)                                                     // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
-    setFamilleOuvert(true)                                            // repartir en création : la carte Famille-Couple s'ouvre (bouton « Réduire »)
+    setCycleId(''); setNiveauId(''); setNiveau('')  // → couple.done = false
+    setEtat(null)                                   // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
+    setCoupleOuvert(true)                           // repartir en création : la carte Couple s'ouvre (bouton « Réduire »)
   }
 
   // Bouton FINAL « Valider le découpage » : l'admin accepte la découpe → put decoupe_valide=true en base.
   // C'est la dernière étape : on recharge la liste pour que la puce du menu passe au vert (get, zéro copie).
   async function validerDecoupe() {
     setPromptBusy('valider-decoupe')
+    setDecoupeProgress({ etape: 'decoupe', fait: 0, total: 0 })   // la jauge démarre tout de suite
     try {
       // On LANCE l'ingestion en tâche de fond (réponse immédiate) — l'écriture des chunks prend ~2 min,
       // trop long pour une requête HTTP. On surveille ensuite l'aboutissement via /decoupe/statut.
@@ -230,15 +326,24 @@ export default function AdminReferentiels() {
           { credentials: 'include' }, TIMEOUT_STD)
         const d = await r.json().catch(() => ({}))
         if (d.decoupe_valide) {   // aboutissement lu EN BASE
+          setDecoupeProgress(null)
           if (Number(cycleId) === c && niveau === nv) { setDecoupeValide(true); setPromptBusy(''); await rafraichirEtat(); setTypesOuvert(true) }  // découpe validée → relit /etat (decoupe_valide=true → estVisible('types') vrai) → cartouche Types apparaît, dépliée
+          // Relit la liste des unités depuis la BASE (avec leur id) : elles deviennent cliquables (lecture du texte).
+          fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${c}&niveau=${encodeURIComponent(nv)}`,
+            { credentials: 'include' }, TIMEOUT_STD)
+            .then(r => (r.ok ? r.json() : null))
+            .then(dd => { if (dd && dd.unites && dd.unites.length && Number(cycleId) === c && niveau === nv) setDecoupeUnites(dd.unites) })
+            .catch(() => {})
           chargerListe()          // la puce du menu passe au vert (relecture base)
           return
         }
         if (d.status === 'error') {
+          setDecoupeProgress(null)
           showError(d.message || "La découpe n'a pas pu aboutir. Réessayez dans un instant.")
           if (Number(cycleId) === c && niveau === nv) setPromptBusy('')
           return
         }
+        if (d.status === 'running' && d.progress) setDecoupeProgress(d.progress)   // la jauge suit l'avancement réel
       } catch { /* réseau momentané : on retente au prochain tick */ }
       setTimeout(tick, 3000)
     }
@@ -276,13 +381,14 @@ export default function AdminReferentiels() {
   useEffect(() => {
     if (!cycleId || !niveau) {
       setEtat(null); setMatieres([]); setAfficherPrompt(false)
-      setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesSuggestions([]); setTypesNouveau(''); setTypesDejaDetecte(false)
+      setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
       return
     }
     setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
-    setTypesSuggestions([]); setTypesNouveau(''); setTypesDejaDetecte(false)   // repartir propre sur ce couple (le get réhydrate cases + badges)
+    setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
+    setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
     // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
-    setFamilleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
+    setCoupleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -303,6 +409,7 @@ export default function AdminReferentiels() {
       .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeValide(!!(d && d.decoupe_valide)) } })
       .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false); setDecoupeValide(false) } })
     // Unités du découpage DÉJÀ en base (referentiel_chunks) → réaffichées telles quelles (get, zéro recalcul).
+    setUniteOuverteId(null); setUniteTexte('')   // changement de couple : on referme la lecture d'unité
     fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
@@ -319,7 +426,7 @@ export default function AdminReferentiels() {
         setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
         setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
         setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
-        if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
+        setTypesInit(true)   // 1re lecture des liaisons faite → l'auto-détection peut juger
       })
       .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesPrompt({}) } })
     return () => { annule = true }
@@ -412,84 +519,26 @@ export default function AdminReferentiels() {
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerDetectionFamille(d.token)
+      setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerVerifDepot(d.token)
     } catch (e) { showError(`Récupération impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
 
-  // Dès qu'un PDF est récupéré : l'IA le classe. Deux issues : une famille existante (scénario
-  // match) ou une famille candidate complète (scénario candidate). Tant que l'admin n'a pas tranché,
-  // rien d'autre ne s'affiche.
-  async function lancerDetectionFamille(token) {
-    setFamilleId(''); setDetection(null); setFamilleValidee(false); setCand(null); setVerif(null); setForcageMotif(''); setDetectFamille(true)
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/detecter-famille', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      }, TIMEOUT_LONG)
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setDetection(d)
-      if (d.scenario === 'candidate') setCand(d.candidate)
-      // Match = famille connue → on enchaîne AUTOMATIQUEMENT les vérifications (aucun clic).
-      if (d.scenario === 'match' && d.famille) { setFamilleId(String(d.famille.id)); setFamilleValidee(true) }
-    } catch (e) { showError(`Analyse de la famille impossible.\n\n${e.message}`) }
-    finally { setDetectFamille(false) }
-  }
-
-  // Scénario candidate : l'admin valide la fiche (éventuellement éditée) → création en base, puis on
-  // repasse en scénario match avec la nouvelle famille (le PDF repart).
-  async function validerFamilleCandidate() {
-    if (!cand) return
-    setFamilleBusy(true)
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/familles', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cand),
-      }, TIMEOUT_STD)
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setFamilleId(String(d.id)); setDetection({ scenario: 'match', famille: d }); setFamilleValidee(true)
-    } catch (e) { showError(`Création de la famille impossible.\n\n${e.message}`) }
-    finally { setFamilleBusy(false) }
-  }
-
-  // Dès que la famille est validée : vérifications au dépôt (couple par l'IA + famille↔couple).
-  async function lancerVerifDepot() {
-    const c = couples.find(x => String(x.id) === String(coupleId))
-    if (!apercu?.token || !c || !familleId) return
-    setVerif('loading')
+  // Dès qu'un PDF est récupéré : vérif n°1 au dépôt — l'IA lit le couple visé par le document
+  // et le compare au couple cycle → niveau déclaré. Le document à valider ne s'affiche qu'après.
+  async function lancerVerifDepot(token) {
+    if (!token || !cycleId || !niveauId) return
+    setVerif('loading'); setForcageMotif('')
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/verifier-depot', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: c.niveau_id, famille_id: Number(familleId) }),
+        body: JSON.stringify({ token, cycle_id: Number(cycleId), niveau_id: Number(niveauId) }),
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setVerif(d)
     } catch (e) { setVerif(null); showError(`Vérification du dépôt impossible.\n\n${e.message}`) }
-  }
-
-  useEffect(() => {
-    if (familleValidee && familleId) lancerVerifDepot()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [familleValidee, familleId])
-
-  // Jeter : l'admin refuse le document (scénario candidate). On efface le PDF en attente, fin.
-  async function jeterDocument() {
-    if (apercu?.token) {
-      try {
-        await fetchWithTimeout('/api/admin/referentiels/abandonner', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: apercu.token }),
-        }, TIMEOUT_STD)
-      } catch { /* best-effort */ }
-    }
-    setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif(''); setNomFichier('')
   }
 
   async function recupererDepot(file) {
@@ -504,7 +553,7 @@ export default function AdminReferentiels() {
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerDetectionFamille(d.token)
+      setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerVerifDepot(d.token)
     } catch (e) { showError(`Lecture du fichier impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
@@ -520,11 +569,12 @@ export default function AdminReferentiels() {
         headers: { 'Content-Type': 'application/json' },
         // verif_couple : on transmet le verdict IA déjà en main à l'écran ({correspond, niveau_lu,
         // raison}) pour qu'il soit FIGÉ en base (avant, il était calculé puis jeté). null s'il manque.
-        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau: niveau.trim(), famille_id: familleId ? Number(familleId) : null, source, fichier_origine: apercu.filename, forcage_motif: forcageArg, verif_couple: (verif && verif.couple) ? verif.couple : null }),
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: Number(niveauId), source, fichier_origine: apercu.filename, forcage_motif: forcageArg, verif_couple: (verif && verif.couple) ? verif.couple : null }),
       }, TIMEOUT_LONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
+      setEpureTexte(null)   // nouveau PDF validé = nouveau texte de travail figé en base : on relira au clic
       chargerListe()   // un nouveau référentiel vient d'apparaître → recharger la colonne 2
       // Relire l'état du couple EN BASE (get) : le référentiel existe désormais, donc
       // etat.existe_referentiel passe à true → la cartouche Matières (et la suite) se déroule
@@ -750,45 +800,14 @@ export default function AdminReferentiels() {
     } catch { showError('Enregistrement impossible.'); await chargerTypes() }
   }
 
-  // « Tout sélectionner » : (1) coche en base tous les types pas encore cochés (instantané, aucun IA),
-  // puis (2) pour CHAQUE type coché, même logique que ✎ Précisions — GET ; si vide, l'IA génère + écrit.
-  // Le sablier 🤖 se déplace sur le type en cours (precisGenType).
-  async function toutCocherTypes() {
-    if (!cycleId || !niveau) return
-    // (1) COCHER tous les types pas encore cochés
-    const aCocher = typesCatalogue.filter(t => !typesChecked.has(t.id))
-    try {
-      for (const t of aCocher) {
-        const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
-          method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, actif: true }),
-        }, TIMEOUT_STD)
-        if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); return }
-      }
-      await chargerTypes()
-    } catch { showError('Enregistrement impossible.'); await chargerTypes(); return }
-
-    // (2) PRÉCISIONS : boucle sur TOUS les types (tous cochés maintenant). GET ; si vide → l'IA génère + écrit.
-    try {
-      for (const t of typesCatalogue) {
-        setPrecisGenType(t.id)                                   // le sablier se pose sur ce type
-        const rg = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${t.id}`,
-          { credentials: 'include' }, TIMEOUT_STD)
-        const dg = await rg.json().catch(() => ({}))
-        if (rg.ok && (dg.precisions || []).length > 0) continue  // déjà des précisions → rien à faire
-        const rp = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
-          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id }),
-        }, TIMEOUT_LONG)
-        if (!rp.ok) { const e = await rp.json().catch(() => ({})); showError(e.detail || `Génération impossible (${rp.status}).`); break }
-      }
-    } finally { setPrecisGenType(null); await chargerTypes() }   // met à jour tous les badges « N précisions »
-  }
-
-  // Détecter (IA) : coche les types du catalogue lus dans le PDF (source='ia'), propose le reste. Re-GET ensuite.
+  // Détection : l'IA lit le document épuré AVEC le catalogue des types sous les yeux — tout ce
+  // qu'elle retient est collé au couple (correspondance = type de la table, nouveauté = type créé
+  // origine 'ia'), prompt gabarit posé. Puis, DANS LA FOULÉE, les précisions manquantes sont
+  // générées type par type (jauge réelle). Se lance TOUTE SEULE à l'arrivée sur un couple sans
+  // types (auto-détection) ; le bouton ne sert qu'à RELANCER.
   async function detecterTypes() {
     if (!cycleId || !niveau) return
-    setTypesBusy(true); setTypesDetecting(true); setTypesSuggestions([])
+    setTypesBusy(true); setTypesDetecting(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/detecter', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
@@ -797,47 +816,85 @@ export default function AdminReferentiels() {
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Détection impossible (${r.status}).`); return }
       await chargerTypes()
-      setTypesSuggestions(d.suggestions || [])
-      setTypesDejaDetecte(true)
+      setTypesDetecting(false)
+      await genererPrecisionsManquantes()   // dans la foulée : prompts déjà posés, précisions générées
     } catch { showError('Détection impossible.') }
     finally { setTypesBusy(false); setTypesDetecting(false) }
   }
 
-  // Ajout au catalogue GLOBAL (create encadré : anti-doublon par libellé). fromSuggestion → couple envoyé,
-  // le backend coche le type en source='ia'. Saisie manuelle → ajout seul (origine 'admin' au moment du coche).
+  // Précisions MANQUANTES du couple, générées type par type avec une jauge RÉELLE (fait/total).
+  // Idempotent côté serveur : un type qui a déjà des précisions n'est jamais réécrasé — on ne
+  // dépense l'IA que sur les types à 0 précision. Relit la base à la fin (badges à jour).
+  async function genererPrecisionsManquantes() {
+    const rg = await fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+    const dg = await rg.json().catch(() => ({}))
+    if (!rg.ok) return
+    const aFaire = (dg.coches || []).filter(x => !(x.nb_precisions > 0))
+    if (aFaire.length === 0) return
+    const labels = Object.fromEntries((dg.catalogue || []).map(t => [t.id, t.label]))
+    try {
+      for (let i = 0; i < aFaire.length; i++) {
+        const x = aFaire[i]
+        setPrecisProgress({ fait: i, total: aFaire.length, label: labels[x.activite_type_id] || '' })
+        const rp = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: x.activite_type_id }),
+        }, TIMEOUT_LONG)
+        if (!rp.ok) { const e = await rp.json().catch(() => ({})); showError(e.detail || `Génération des précisions impossible (${rp.status}).`); break }
+      }
+    } finally { setPrecisProgress(null); await chargerTypes() }
+  }
+
+  // Ajout d'un type À CE COUPLE (create encadré : anti-doublon par libellé au catalogue global, puis
+  // coche pour le couple). fromSuggestion → badge 'ia' (suggestion de la détection) ; sinon 'admin'.
   async function ajouterTypeCatalogue(label, fromSuggestion = false) {
     const lib = (label || '').trim()
     if (!lib) return
     setTypesBusy(true)
     try {
-      const payload = (fromSuggestion && cycleId && niveau)
-        ? { label: lib, cycle_id: Number(cycleId), niveau }
-        : { label: lib }
+      const payload = { label: lib, cycle_id: Number(cycleId), niveau, suggestion_ia: fromSuggestion }
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/catalogue', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Ajout impossible (${r.status}).`); return }
-      if (fromSuggestion) setTypesSuggestions(prev => prev.filter(s => s.trim().toLowerCase() !== lib.toLowerCase()))
-      else setTypesNouveau('')
+      setTypesNouveau('')
       await chargerTypes()
+      await genererPrecisionsManquantes()   // le type ajouté reçoit ses précisions dans la foulée
     } catch { showError('Ajout impossible.') }
     finally { setTypesBusy(false) }
   }
 
   const dejaTraite = !!(etat && etat.existe_referentiel)
-  // Libellé « Cycle · Niveau » du couple courant, lu dans la liste des couples (get, zéro copie).
-  const coupleCourant = couples.find(c => String(c.id) === String(coupleId))
-  const coupleLabel = coupleCourant ? `${coupleCourant.cycle} · ${coupleCourant.niveau}` : niveau
+  // Types RETENUS pour ce couple = liaisons actives (reflet base). L'écran n'affiche plus le
+  // catalogue entier : le couple ne voit que SES types.
+  const typesDuCouple = typesCatalogue.filter(t => typesChecked.has(t.id))
+
+  // AUTO-DÉTECTION : à l'arrivée sur un couple dont la découpe est validée et qui n'a ENCORE AUCUN
+  // type, l'IA se lance toute seule (une seule fois par couple affiché — clé dans autoDetectFait).
+  // Tout est proposition d'IA de toute façon : l'admin fait ensuite le ménage sur la liste (✕ / ajout).
+  useEffect(() => {
+    if (!cycleId || !niveau || !typesInit || typesDetecting || typesBusy) return
+    if (!etat?.decoupe_valide) return            // la carte Types n'existe qu'après la découpe validée
+    if (typesChecked.size > 0) return            // le couple a déjà ses types : rien d'automatique
+    const cle = `${cycleId}|${niveau}`
+    if (autoDetectFait.current === cle) return   // déjà lancée pour ce couple
+    autoDetectFait.current = cle
+    detecterTypes()
+  }, [cycleId, niveau, typesInit, typesChecked, etat, typesDetecting, typesBusy])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Cycle courant + libellé « Cycle · Niveau », lus dans l'arbre des programmes (get, zéro copie).
+  const cycleCourant = arbre.find(c => String(c.id) === String(cycleId))
+  const coupleLabel = cycleCourant && niveau ? `${cycleCourant.nom} · ${niveau}` : niveau
 
   // Les 5 cartouches = 5 étapes, ordre FIXE. `done` = REFLET lu en base (get, zéro copie), jamais un
-  // booléen stocké en double : familleCouple = couple choisi ; pdf = référentiel enregistré ;
+  // booléen stocké en double : couple = couple choisi ; pdf = référentiel enregistré ;
   // matieres = matières reliées ; prompt = prompt validé ; decoupe = découpage validé. Règle unique
   // d'affichage : une carte n'est visible que si TOUT ce qui la précède est fait (estVisible). Le
   // tableau ne change jamais ; « Nouveau » ne fait que revider l'état lu → les `done` repassent à false.
   const steps = [
-    { id: 'familleCouple', done: !!(cycleId && niveau) },
+    { id: 'couple',        done: !!(cycleId && niveau) },
     { id: 'pdf',           done: dejaTraite },   // = etat.existe_referentiel (une seule source : etat)
     { id: 'matieres',      done: !!(etat?.matieres?.length > 0) },
     { id: 'prompt',        done: !!etat?.prompt_decoupe_valide },   // lu depuis etat (get), comme matieres
@@ -881,7 +938,7 @@ export default function AdminReferentiels() {
           const actif = String(cycleId) === String(r.cycle_id) && niveau === r.niveau
           return (
             <button key={r.id} type="button" onClick={() => ouvrirRef(r)}
-              title={`${r.famille || '—'} · ${r.cycle} · ${r.niveau}`}
+              title={`${r.cycle} · ${r.niveau}`}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                 border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
                 background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
@@ -911,59 +968,55 @@ export default function AdminReferentiels() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
           <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
             <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
-            Famille-Couple
+            Couple (cycle + niveau)
           </h2>
           <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-            title={familleOuvert ? 'Réduire' : 'Développer'} onClick={() => setFamilleOuvert(o => !o)}>
-            {familleOuvert ? 'Réduire' : 'Développer'}
+            title={coupleOuvert ? 'Réduire' : 'Développer'} onClick={() => setCoupleOuvert(o => !o)}>
+            {coupleOuvert ? 'Réduire' : 'Développer'}
           </button>
         </div>
 
-        {familleOuvert && (<>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Couple (famille · cycle · niveau)</label>
-          <select style={{ ...champ, background: '#fff' }} value={coupleId}
-            onChange={e => {
-              const id = e.target.value
-              setCoupleId(id)
-              const c = couples.find(x => String(x.id) === String(id))
-              if (c) { setCycleId(String(c.cycle_id)); setNiveau(c.niveau); setFamilleId(String(c.famille_id)) }
-              else { setCycleId(''); setNiveau(''); setFamilleId('') }
-            }}
-            title="Choisissez le couple à traiter — la famille, le cycle et le niveau en découlent">
-            <option value="">— Choisissez un couple —</option>
-            {Object.entries(couples.reduce((groupes, c) => {
-              (groupes[c.cycle] = groupes[c.cycle] || []).push(c)
-              return groupes
-            }, {})).map(([cycleNom, liste]) => (
-              <optgroup key={cycleNom} label={cycleNom}>
-                {liste.map(c => (
-                  <option key={c.id} value={c.id}>{c.famille} · {c.niveau}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+        {coupleOuvert && (<>
+        {/* Cascade cycle → niveau sur l'arbre COMPLET des programmes (tous les niveaux existants).
+            Le dépôt ne propose QUE l'existant : créer un niveau = écran Programmes (« + Niveau »). */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label className="block text-xs text-gray-500 mb-1">Cycle</label>
+            <select style={{ ...champ, background: '#fff' }} value={cycleId}
+              onChange={e => { setCycleId(e.target.value); setNiveauId(''); setNiveau('') }}
+              title="Choisissez d'abord le cycle — les niveaux de ce cycle apparaissent à droite">
+              <option value="">— Choisissez un cycle —</option>
+              {arbre.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <label className="block text-xs text-gray-500 mb-1">Niveau</label>
+            <select style={{ ...champ, background: '#fff' }} value={niveauId} disabled={!cycleId}
+              onChange={e => {
+                const id = e.target.value
+                setNiveauId(id)
+                const n = (arbre.find(c => String(c.id) === String(cycleId))?.niveaux || [])
+                  .find(x => String(x.id) === String(id))
+                setNiveau(n ? n.nom : '')
+              }}
+              title={cycleId ? 'Choisissez le niveau du cycle' : 'Choisissez d’abord le cycle'}>
+              <option value="">{cycleId ? '— Choisissez un niveau —' : '—'}</option>
+              {(arbre.find(c => String(c.id) === String(cycleId))?.niveaux || []).map(n => (
+                <option key={n.id} value={n.id}>{n.nom}</option>
+              ))}
+            </select>
+            {cycleId && (arbre.find(c => String(c.id) === String(cycleId))?.niveaux || []).length === 0 && (
+              <p style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                Ce cycle n’a encore aucun niveau — créez-le d’abord dans l’écran Programmes (bouton « + Niveau »).
+              </p>
+            )}
+          </div>
         </div>
-
-        {/* Récap lecture seule du couple choisi : le menu fermé masque le cycle (porté par
-            l'optgroup), on le réaffiche ici en clair. Lu depuis le couple sélectionné (get, zéro copie). */}
-        {coupleId && (() => {
-          const c = couples.find(x => String(x.id) === String(coupleId))
-          if (!c) return null
-          return (
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', padding: '10px 12px',
-              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
-              <span><span style={{ color: '#94a3b8' }}>Famille : </span><strong style={{ color: '#1e293b' }}>{c.famille}</strong></span>
-              <span><span style={{ color: '#94a3b8' }}>Cycle : </span><strong style={{ color: '#1e293b' }}>{c.cycle}</strong></span>
-              <span><span style={{ color: '#94a3b8' }}>Niveau : </span><strong style={{ color: '#1e293b' }}>{c.niveau}</strong></span>
-            </div>
-          )
-        })()}
         </>)}
 
       </div>
 
-      {/* Carte 2 — visible seulement si l'étape 1 (Famille-Couple) est faite (estVisible, règle N-1). */}
+      {/* Carte 2 — visible seulement si l'étape 1 (Couple) est faite (estVisible, règle N-1). */}
       {estVisible('pdf') && (
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
@@ -993,9 +1046,13 @@ export default function AdminReferentiels() {
         </div>
 
         {pdfOuvert && (<>
+        {/* ── Zone 1 : le PDF ORIGINAL — la pièce téléchargée, conservée telle quelle, relue par l'admin. ── */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+          Fichier PDF original <span style={{ fontWeight: 400, color: '#64748b' }}>(téléchargé — pièce d’origine consultable, matière première du dépôt, réserve pour l’avenir)</span>
+        </div>
         {dejaTraite ? (
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
+            <label className="block text-xs text-gray-500 mb-1">Nom du fichier téléchargé</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <div style={{ flex: 1 }}>
                 <input style={champ} value={etat.referentiel?.fichier || ''} readOnly
@@ -1032,11 +1089,8 @@ export default function AdminReferentiels() {
               let v = null
               try { v = JSON.parse(etat.referentiel.verif_couple) } catch { v = null }
               if (!v) return null
-              // Libellé du couple + famille : lus dans la liste des couples déjà en main (fc-autorisees),
-              // jamais recopiés. Affichage identique à celui du dépôt (zéro copie).
-              const fc = couples.find(c => String(c.id) === String(coupleId))
-              const cycleLbl = fc?.cycle || ''
-              const familleLbl = fc?.famille || ''
+              // Libellé du cycle : lu dans l'arbre des programmes déjà en main, jamais recopié.
+              const cycleLbl = cycleCourant?.nom || ''
               return (
                 <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 12,
                   background: v.correspond ? '#f0fdf4' : '#fef2f2',
@@ -1047,7 +1101,7 @@ export default function AdminReferentiels() {
                     : `✗ Couple : ${cycleLbl} / ${niveau} — non confirmé par le document`}</strong>
                   {v.niveau_lu ? <div style={{ color: '#475569', marginTop: 2 }}>niveau lu : {v.niveau_lu}</div> : null}
                   {v.raison && <div style={{ color: '#475569', marginTop: 2 }}>{v.raison}</div>}
-                  {familleLbl && <div style={{ color: '#166534', marginTop: 4 }}>✓ Cette famille ({familleLbl}) a sa place à ce niveau</div>}
+                  <div style={{ marginTop: 6 }}><BadgeIA titre="Couple vérifié par l'IA à la validation (verdict figé)" /></div>
                 </div>
               )
             })()}
@@ -1095,97 +1149,33 @@ export default function AdminReferentiels() {
           </>
         )}
 
-        {/* Famille : dès qu'un PDF est récupéré, l'IA classe. Scénario match (famille trouvée + Valider)
-            ou scénario candidate (structure non reconnue → fiche candidate éditable + Valider/Jeter).
-            Tant que l'admin n'a pas validé la famille, le bloc document ci-dessous ne s'affiche pas. */}
+        {/* Vérif n°1 au dépôt : le couple (lu par l'IA dans le document) vs le couple déclaré.
+            Le document à valider n'apparaît que si elle a répondu (garde-fou). */}
         {apercu && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <label className="block text-xs text-gray-500">Famille du référentiel</label>
-              <BadgeIA titre="Famille détectée automatiquement par l'IA" />
-              {detectFamille && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
-                  <Spinner /> Analyse par l’IA…
-                </span>
-              )}
-            </div>
-
-            {/* Famille validée : rappel (le bloc document apparaît en dessous) */}
-            {familleValidee && detection?.famille && (
-              <div style={{ padding: '10px 12px', borderRadius: 8, border: '2px solid #16a34a', background: '#f0fdf4' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: '#166534' }}>✓ Famille : {detection.famille.nom}</div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{detection.famille.description}</div>
-              </div>
-            )}
-
-            {/* Scénario candidate, pas encore validé : Bloc A (refus) + Bloc B (fiche éditable) + Valider/Jeter */}
-            {!familleValidee && detection?.scenario === 'candidate' && cand && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ border: '1px solid #fecaca', background: '#fef2f2', borderRadius: 8, padding: 12, fontSize: 12, color: '#991b1b' }}>
-                  Structure non reconnue — ce référentiel n’est pas ingéré. L’IA propose une nouvelle famille ci-dessous.
-                </div>
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>Famille proposée par l’IA (éditable)</div>
-                  {[['nom', 'Nom'], ['description', 'Description']].map(([k, lab]) => (
-                    <div key={k}>
-                      <label className="block text-xs text-gray-500 mb-1">{lab}</label>
-                      {k === 'nom'
-                        ? <input style={champ} value={cand[k] || ''} onChange={e => setCand({ ...cand, [k]: e.target.value })} />
-                        : <textarea style={{ ...champ, minHeight: 48, resize: 'vertical' }} value={cand[k] || ''}
-                            onChange={e => setCand({ ...cand, [k]: e.target.value })} />}
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <button type="button" className="btn-primary" onClick={validerFamilleCandidate} disabled={familleBusy}
-                      title="Créer cette famille en base et continuer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {familleBusy ? <><Spinner /> Création…</> : 'Valider'}
-                    </button>
-                    <button type="button" className="btn-secondary" onClick={jeterDocument} disabled={familleBusy}
-                      title="Refuser ce document">Jeter</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Vérifications au dépôt : couple (lu par l'IA) + famille↔couple. Le document à valider
-            n'apparaît que si les DEUX passent (garde-fou). */}
-        {apercu && familleValidee && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {verif === 'loading' && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
-                <Spinner /> Vérification du couple et de la famille…
+                <Spinner /> Vérification du couple…
               </span>
             )}
             {verif && verif !== 'loading' && (
-              <>
-                <div style={{ padding: '10px 12px', borderRadius: 8,
-                  border: `2px solid ${verif.couple.correspond ? '#16a34a' : '#dc2626'}`,
-                  background: verif.couple.correspond ? '#f0fdf4' : '#fef2f2' }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: verif.couple.correspond ? '#166534' : '#991b1b' }}>
-                    {verif.couple.correspond
-                      ? `✓ Couple : ${couples.find(c => String(c.id) === String(coupleId))?.cycle || ''} / ${niveau} — confirmé par le document`
-                      : `✗ Couple : ${couples.find(c => String(c.id) === String(coupleId))?.cycle || ''} / ${niveau} — le document ne correspond pas`}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{verif.couple.raison}</div>
-                  <div style={{ marginTop: 6 }}><BadgeIA titre="Couple vérifié par l'IA (lecture du document)" /></div>
+              <div style={{ padding: '10px 12px', borderRadius: 8,
+                border: `2px solid ${verif.couple.correspond ? '#16a34a' : '#dc2626'}`,
+                background: verif.couple.correspond ? '#f0fdf4' : '#fef2f2' }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: verif.couple.correspond ? '#166534' : '#991b1b' }}>
+                  {verif.couple.correspond
+                    ? `✓ Couple : ${cycleCourant?.nom || ''} / ${niveau} — confirmé par le document`
+                    : `✗ Couple : ${cycleCourant?.nom || ''} / ${niveau} — le document ne correspond pas`}
                 </div>
-                <div style={{ padding: '10px 12px', borderRadius: 8,
-                  border: `2px solid ${verif.famille.existe ? '#16a34a' : '#dc2626'}`,
-                  background: verif.famille.existe ? '#f0fdf4' : '#fef2f2' }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: verif.famille.existe ? '#166534' : '#991b1b' }}>
-                    {verif.famille.existe ? '✓ Cette famille a sa place à ce niveau' : '✗ Cette famille n’est pas prévue pour ce niveau'}
-                  </div>
-                </div>
-              </>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{verif.couple.raison}</div>
+                <div style={{ marginTop: 6 }}><BadgeIA titre="Couple vérifié par l'IA (lecture du document)" /></div>
+              </div>
             )}
           </div>
         )}
 
-        {/* POINT DE CONTRÔLE : dès que les DEUX tests ont répondu. Vert → valider ; rouge → forçage motivé. */}
-        {apercu && familleValidee && verif && verif !== 'loading' && (
+        {/* POINT DE CONTRÔLE : dès que la vérif a répondu. Vert → valider ; rouge → forçage motivé. */}
+        {apercu && verif && verif !== 'loading' && (
           <div style={{ border: '1px solid #bfdbfe', background: '#f8fafc', borderRadius: 8, padding: 14 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
               Document récupéré — vérifiez que c’est le bon
@@ -1197,14 +1187,14 @@ export default function AdminReferentiels() {
               borderRadius: 6, padding: 10, maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
               {apercu.apercu || '(aucun texte lisible sur la première page — PDF scanné ?)'}
             </pre>
-            {verif.couple.correspond && verif.famille.existe ? (
+            {verif.couple.correspond ? (
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button type="button" className="btn-primary" title="Confirmer que c’est le bon document : ranger, extraire le texte, enregistrer la provenance"
                   onClick={() => valider(null)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   {busy ? <><Spinner /> Validation…</> : 'Valider : c’est le bon document'}
                 </button>
                 <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
-                  onClick={() => { setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif('') }} disabled={busy}>
+                  onClick={() => { setApercu(null); setVerif(null); setForcageMotif('') }} disabled={busy}>
                   Recommencer
                 </button>
               </div>
@@ -1221,7 +1211,7 @@ export default function AdminReferentiels() {
                     {busy ? <><Spinner /> Validation…</> : 'Forcer la validation malgré l’alerte'}
                   </button>
                   <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
-                    onClick={() => { setApercu(null); setDetection(null); setCand(null); setFamilleValidee(false); setFamilleId(''); setVerif(null); setForcageMotif('') }} disabled={busy}>
+                    onClick={() => { setApercu(null); setVerif(null); setForcageMotif('') }} disabled={busy}>
                     Recommencer
                   </button>
                 </div>
@@ -1237,6 +1227,49 @@ export default function AdminReferentiels() {
             Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s).
           </div>
         )}
+
+        {/* ── Zone 2 : le document ÉPURÉ — le texte de travail que l'IA lit (colonne texte_epure,
+            figée à la validation du dépôt). Lien de lecture + consultation pure des règles
+            d'épuration (liste lue chez le serveur, une seule source : le module d'épuration ;
+            l'admin voit, ne modifie pas — une nouvelle règle se fabrique avec le DEV). ── */}
+        <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+            Fichier PDF épuré <span style={{ fontWeight: 400, color: '#64748b' }}>(utilisé par l’IA)</span>
+          </div>
+          {(dejaTraite || resultat) ? (
+            <div style={{ marginTop: 6 }}>
+              <button type="button" onClick={ouvrirEpure}
+                title="Ouvrir le texte de travail épuré de ce référentiel — celui que l'IA lit (figé au dépôt)"
+                style={{ background: 'none', border: 'none', padding: 0, color: '#1d4ed8',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                Voir le document épuré
+              </button>
+            </div>
+          ) : (
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>
+              Créé automatiquement à la validation du dépôt : le texte nettoyé que l’IA lira.
+            </p>
+          )}
+          <div style={{ marginTop: 8 }}>
+            <button type="button" onClick={ouvrirEpuration}
+              title="Voir les règles de nettoyage appliquées automatiquement au texte de chaque PDF déposé"
+              style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#64748b',
+                cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#cbd5e1' }}>
+              {epurationOuvert ? '▾' : '▸'} Épuration automatique du document
+              {epurationRegles ? ` (${epurationRegles.length} règles)` : ''}
+            </button>
+            {epurationOuvert && epurationRegles && (
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#475569',
+                display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {epurationRegles.map((r, i) => (
+                  <li key={i}>
+                    <strong style={{ color: '#1e293b' }}>{r.nom}</strong> — {r.description}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
         </>)}
 
       </div>
@@ -1251,6 +1284,9 @@ export default function AdminReferentiels() {
                 Matières de ce référentiel
                 <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
                   ({matieres.length})
+                </span>
+                <span style={{ marginLeft: 8 }}>
+                  <BadgeIA titre="Matières proposées par l'IA (lecture du document + table des matières existantes)" />
                 </span>
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
@@ -1318,13 +1354,16 @@ export default function AdminReferentiels() {
                 base (m.cochee && !m.en_base). État lu (get), zéro copie. Se réactive dès qu'on coche une nouvelle. */}
             <button type="button" className="btn-primary" title="Enregistrer en base les matières cochées et nouvelles"
               onClick={recuperer} disabled={busy || !matieres.some(m => m.cochee && !m.en_base)}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
-            {/* Passage Matières → Prompt (cas exceptionnel). Rôle UNIQUE : afficher la cartouche Prompt.
+            {/* Passage Matières → Prompt (cas exceptionnel) : UN seul geste — affiche la cartouche
+                Prompt ET lance la génération IA dans la foulée (le bouton fait ce qu'il dit).
                 N'apparaît que lorsque « Récupérer » est grisé (plus rien à récupérer) ; se grise dès que
-                la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence. */}
+                la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence,
+                donc jamais de génération par-dessus un prompt existant. */}
             {estVisible('prompt') && !matieres.some(m => m.cochee && !m.en_base) && (
               <button type="button" className="btn-primary"
-                onClick={() => { setAfficherPrompt(true); setPromptOuvert(true) }} disabled={afficherPrompt || !!promptDecoupe}
-                title="Passer à l'étape suivante : afficher la cartouche « Prompt de découpe »">
+                onClick={() => { setAfficherPrompt(true); setPromptOuvert(true); genererPromptDecoupe() }}
+                disabled={afficherPrompt || !!promptDecoupe}
+                title="Ouvrir la cartouche « Prompt de découpe » et lancer la génération du prompt par l'IA">
                 Générer le prompt
               </button>
             )}
@@ -1349,7 +1388,10 @@ export default function AdminReferentiels() {
             <div>
               <h2 className="text-base font-semibold text-gray-800">
                 <Pastille etat={promptValide ? 'vert' : 'rouge'} titre="Vert = prompt de découpe validé (referentiels.prompt_decoupe_valide)." />
-                Prompt de découpe (généré par l'IA)
+                Prompt de découpe
+                <span style={{ marginLeft: 8 }}>
+                  <BadgeIA titre="Prompt généré par l'IA (lecture du document) — relu, corrigé et validé par l'admin" />
+                </span>
               </h2>
               <p className="text-sm text-gray-500">
                 L'IA lit le PDF et propose le prompt qui découpe CE document. Lisez-le, corrigez-le si besoin, validez-le,
@@ -1427,11 +1469,14 @@ export default function AdminReferentiels() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
               <h2 className="text-base font-semibold text-gray-800">
-                <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide) — dernière étape." />
+                <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide)." />
                 Découpe
+                <span style={{ marginLeft: 8 }}>
+                  <BadgeIA titre="Document découpé en unités par l'IA (avec le prompt validé)" />
+                </span>
               </h2>
               <p className="text-sm text-gray-500">
-                Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — dernière étape.
+                Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — l'étape Types d'activité s'ouvre ensuite.
               </p>
             </div>
             <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
@@ -1447,28 +1492,121 @@ export default function AdminReferentiels() {
               title="Découper le référentiel avec le prompt validé (aperçu, aucune écriture).">
               {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : <><span aria-hidden="true">🤖</span> Découper</>}
             </button>
+            {promptBusy === 'decouper' && (
+              <JaugeAttente libelle="L’IA lit le document et le découpe en unités…" />
+            )}
           </div>
           {decoupeUnites && (
             <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
                 Résultat : {decoupeUnites.length} unité(s) produite(s) par l'IA
+                {decoupeUnites.some(u => u.id) && (
+                  <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 8, fontSize: 12 }}>
+                    — cliquez sur une unité pour lire son texte complet
+                  </span>
+                )}
               </div>
-              <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: '#374151' }}>
-                {decoupeUnites.map((u, i) => (
-                  <li key={i} style={{ marginBottom: 2 }}>{u.titre} <span style={{ color: '#9CA3AF' }}>({u.taille} car.)</span></li>
-                ))}
-              </ol>
-              {/* Bouton FINAL — l'admin a contrôlé la découpe et l'accepte : dernière étape, la puce
-                  du menu passe au vert (decoupe_valide en base). Grisé une fois validé. */}
+              {/* Liste à gauche (cliquable si l'unité est EN BASE, donc a un id) ; lecture à droite :
+                  le texte COMPLET de l'unité choisie — la matière première exacte de l'IA des profs. */}
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <ol style={{ margin: 0, paddingLeft: 22, fontSize: 13, color: '#374151',
+                  flex: uniteOuverteId ? '0 0 42%' : 1, minWidth: 0 }}>
+                  {decoupeUnites.map((u, i) => (
+                    <li key={u.id || i} style={{ marginBottom: 2 }}>
+                      {u.id ? (
+                        <button type="button" onClick={() => ouvrirUnite(u)}
+                          title={uniteOuverteId === u.id ? 'Refermer la lecture' : 'Lire le texte complet de cette unité'}
+                          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', textAlign: 'left',
+                            cursor: 'pointer', color: uniteOuverteId === u.id ? '#1d4ed8' : '#374151',
+                            fontWeight: uniteOuverteId === u.id ? 600 : 400, textDecoration: 'underline',
+                            textDecorationColor: '#cbd5e1' }}>
+                          {u.titre}
+                        </button>
+                      ) : u.titre}
+                      {' '}<span style={{ color: '#9CA3AF' }}>({u.taille} car.)</span>
+                    </li>
+                  ))}
+                </ol>
+                {uniteOuverteId && (
+                  <div style={{ flex: 1, minWidth: 0, border: '1px solid #e2e8f0', borderRadius: 8,
+                    background: '#f8fafc', padding: '10px 12px' }}>
+                    {uniteLoading ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
+                        <Spinner /> Lecture…
+                      </div>
+                    ) : uniteEdit ? (
+                      <>
+                        <textarea value={uniteBrouillon} onChange={e => setUniteBrouillon(e.target.value)}
+                          rows={14} disabled={uniteSaving}
+                          style={{ width: '100%', fontFamily: 'inherit', fontSize: 13, color: '#1e293b',
+                            border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', resize: 'vertical' }} />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button type="button" className="btn-primary" onClick={validerUnite} disabled={uniteSaving}
+                            title="Enregistrer le texte corrigé — son empreinte de recherche est recalculée dans le même geste">
+                            {uniteSaving ? 'Enregistrement…' : 'Valider'}
+                          </button>
+                          <button type="button" className="btn-secondary" onClick={() => { setUniteEdit(false); setUniteBrouillon('') }}
+                            disabled={uniteSaving} title="Abandonner la modification (rien n'est écrit)">
+                            Annuler
+                          </button>
+                        </div>
+                        {uniteSaving && (
+                          <JaugeAttente libelle="Enregistrement du texte + recalcul de son empreinte de recherche…" />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <pre style={{ margin: 0, fontFamily: 'inherit', fontSize: 13, color: '#1e293b',
+                          whiteSpace: 'pre-wrap', maxHeight: 420, overflow: 'auto' }}>{uniteTexte}</pre>
+                        <div style={{ marginTop: 8 }}>
+                          <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
+                            onClick={() => { setUniteEdit(true); setUniteBrouillon(uniteTexte) }}
+                            title="Corriger ce texte (nettoyage : numéro de page, coquille) — l'empreinte de recherche sera recalculée">
+                            ✎ Modifier
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* L'admin a contrôlé la découpe et l'accepte : les unités sont vectorisées et écrites
+                  en base (decoupe_valide → vert), puis l'étape Types d'activité s'ouvre. Grisé une
+                  fois validé. */}
               <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button type="button" className="btn-primary" onClick={validerDecoupe}
                   disabled={!!promptBusy || decoupeValide}
-                  title="Accepter ce découpage — dernière étape : le référentiel devient complet (puce verte).">
+                  title="Accepter ce découpage : les unités sont enregistrées en base, puis l'étape Types d'activité s'ouvre (dernière étape).">
                   {promptBusy === 'valider-decoupe' ? <><Spinner /> Validation…</>
                     : decoupeValide ? '✓ Découpage validé' : 'Valider le découpage'}
                 </button>
                 <BadgeIA titre="Découpe + embeddings réalisés par l'IA à la validation" />
               </div>
+              {/* Jauge d'avancement RÉEL de la validation (lu via /decoupe/statut, jamais simulé) :
+                  découpe IA → préparation des unités (fait/total) → écriture en base. */}
+              {promptBusy === 'valider-decoupe' && decoupeProgress && (() => {
+                const p = decoupeProgress
+                const pct = p.etape === 'vectorisation' && p.total > 0
+                  ? Math.round(15 + 80 * (p.fait / p.total))
+                  : p.etape === 'ecriture' ? 97 : 8
+                const libelle = p.etape === 'vectorisation'
+                  ? `Préparation des unités pour la recherche (${p.fait}/${p.total})…`
+                  : p.etape === 'ecriture' ? 'Enregistrement en base…'
+                  : 'L’IA lit et découpe le document…'
+                return (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12,
+                      color: '#475569', marginBottom: 4 }}>
+                      <span>{libelle}</span>
+                      <span style={{ fontWeight: 600 }}>{pct} %</span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: '#7c3aed',
+                        borderRadius: 999, transition: 'width 0.6s ease' }} />
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           )}
           </>)}
@@ -1485,9 +1623,12 @@ export default function AdminReferentiels() {
               <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
                 <Pastille etat={typesChecked.size > 0 ? 'vert' : 'rouge'} titre="Vert = au moins un type d'activité coché pour ce couple." />
                 Types d'activité de ce couple
+                <span style={{ marginLeft: 8 }}>
+                  <BadgeIA titre="Types détectés et suggérés par l'IA (lecture du référentiel) — cochés par l'admin" />
+                </span>
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                Cocher/décocher écrit direct en base (put au clic). « Détecter (IA) » coche les types présents dans le référentiel et propose le reste.
+                L’IA se lance toute seule : elle lit le document épuré avec la table des types sous les yeux, retient les types de ce couple (prompts et précisions générés dans la foulée). Toi tu fais le ménage : ✕ pour retirer, le champ du bas pour ajouter.
               </p>
             </div>
             <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
@@ -1497,50 +1638,67 @@ export default function AdminReferentiels() {
           </div>
 
           {typesOuvert && (<>
-          {/* Ligne du haut, 2 colonnes : à gauche titre Catalogue + Tout sélectionner ; à droite titre Suggestions IA + Détecter. */}
-          <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Catalogue des types d'activité</h3>
-              <button type="button" className="btn-action"
-                onClick={toutCocherTypes} disabled={typesCatalogue.length === 0}
-                title="Cocher en base tous les types du catalogue pour ce couple"><span aria-hidden="true">☑</span> Tout sélectionner</button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>Suggestions IA (hors catalogue)</h3>
-              <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
-                title="Détecter par l'IA les types d'activité présents dans le référentiel, et proposer les autres">
-                {typesDetecting ? <><Spinner /> Détection en cours…</> : (typesDejaDetecte ? '🤖 Redétecter (IA)' : '🤖 Détecter (IA)')}
-              </button>
-            </div>
+          {/* Ligne du haut : le compte des types retenus + le seul bouton restant (RELANCER la
+              détection — la première se lance toute seule à l'arrivée sur un couple vierge). */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>
+              Types retenus pour ce couple
+              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>({typesDuCouple.length})</span>
+            </h3>
+            <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
+              title="Relancer la lecture du document par l'IA (utile après un nouveau dépôt ou une table enrichie)">
+              {typesDetecting ? <><Spinner /> Détection en cours…</> : '🤖 Relancer la détection'}
+            </button>
           </div>
+          {typesDetecting && (
+            <JaugeAttente libelle="L’IA lit le document épuré et le compare à la table des types…" />
+          )}
+          {/* Jauge RÉELLE des précisions : générées type par type juste après la détection. */}
+          {precisProgress && (
+            <div>
+              <div style={{ fontSize: 12, color: '#1d4ed8', marginBottom: 4 }}>
+                <BadgeIA titre="L'IA prépare les précisions de chaque type pour ce niveau" />{' '}
+                Précisions en cours de préparation ({precisProgress.fait + 1}/{precisProgress.total})
+                {precisProgress.label ? ` — ${precisProgress.label}` : ''}…
+              </div>
+              <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.round(100 * precisProgress.fait / Math.max(1, precisProgress.total))}%`,
+                  background: '#7c3aed', transition: 'width 0.4s' }} />
+              </div>
+            </div>
+          )}
 
-          <div style={{ display: 'grid', gap: 24, gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
-            {/* Catalogue en cases à cocher — chaque clic écrit en base (basculerType) */}
-            <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              {typesCatalogue.length === 0 ? (
-                <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>Catalogue vide.</p>
-              ) : typesCatalogue.map((t, i) => {
-                const coche = typesChecked.has(t.id)
+          {/* Types RETENUS pour ce couple — chaque ligne = une ligne de lien en base, rien d'autre.
+              Retirer (✕) = confirmation puis SUPPRESSION réelle du lien (+ ses précisions, cascade) ;
+              une future détection recrée la ligne si l'IA relit le type dans le document. */}
+          <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              {typesDuCouple.length === 0 ? (
+                <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>
+                  {typesDetecting ? 'La liste se remplit dès que l’IA a fini sa lecture…'
+                    : 'Aucun type pour ce couple — la détection se lance toute seule, ou ajoute un type ci-dessous.'}
+                </p>
+              ) : typesDuCouple.map((t, i) => {
+                const coche = true
                 const editOuvert = promptEditId === t.id
                 const precisOuvert = precisEditId === t.id
                 return (
                   <Fragment key={t.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                    borderBottom: (i < typesCatalogue.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
-                    {/* Case + libellé : cocher/décocher écrit en base (basculerType) */}
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flex: 1, minWidth: 0 }}>
-                      <input type="checkbox" checked={coche} onChange={() => basculerType(t.id)} style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    borderBottom: (i < typesDuCouple.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                       <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
                       {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
-                      {coche && typesSource[t.id] && <span style={badgeOrigine(typesSource[t.id])}>{SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id]}</span>}
-                    </label>
-                    {/* Sablier mobile : l'IA génère les précisions de CE type (pendant « Tout sélectionner »). */}
-                    {precisGenType === t.id && (
-                      <span title="L'IA génère les précisions de ce type" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#7c3aed', flexShrink: 0, fontWeight: 700, fontSize: 11 }}>
-                        <Spinner /> <span aria-hidden="true">🤖</span>
-                      </span>
-                    )}
-                    {/* Prompt du type POUR CE COUPLE — état lu en base + bouton d'édition (si le type est coché). */}
+                      {/* Badge DOUBLE : d'où vient le type × qui l'a retenu. « SYSTÈME · IA » = type de
+                          notre table retenu par l'IA ; « IA » = type né de la détection ; « ADMIN » = ajout manuel. */}
+                      {typesSource[t.id] && (
+                        <span style={badgeOrigine(typesSource[t.id])}>
+                          {typesSource[t.id] === 'ia'
+                            ? (t.origine === 'ia' ? 'IA' : 'SYSTÈME · IA')
+                            : (SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id])}
+                        </span>
+                      )}
+                    </span>
+                    {/* Prompt du type POUR CE COUPLE — état lu en base + bouton d'édition. */}
                     {coche && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                         {(typesPrompt[t.id] || '').trim()
@@ -1561,12 +1719,18 @@ export default function AdminReferentiels() {
                             background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
                           ✎ Précisions
                         </button>
+                        <button type="button"
+                          onClick={() => { if (window.confirm(`Retirer « ${t.label} » des types de ce couple ?\n\nSes précisions pour ce couple seront supprimées aussi. Une future détection le remettra si l'IA le relit dans le document.`)) basculerType(t.id) }}
+                          title={`Retirer « ${t.label} » de ce couple — supprime ce type et ses précisions pour ce couple (les autres niveaux ne sont pas touchés)`}
+                          style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2',
+                            color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                            justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>✕</button>
                       </span>
                     )}
                   </div>
                   {editOuvert && (
                     <div style={{ padding: '12px 14px', background: '#f8fafc',
-                      borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      borderBottom: i < typesDuCouple.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
                         Prompt de « {t.label} » — pour {coupleLabel}
                       </div>
@@ -1584,15 +1748,14 @@ export default function AdminReferentiels() {
                   )}
                   {precisOuvert && (
                     <div style={{ padding: '12px 14px', background: '#f8fafc',
-                      borderBottom: i < typesCatalogue.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      borderBottom: i < typesDuCouple.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
                         Précisions de « {t.label} » — pour {coupleLabel}
                       </div>
                       {precisLoading ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#7c3aed', margin: 0 }}>
+                        <div>
                           <BadgeIA titre="L'IA génère les précisions de ce type pour ce niveau" />
-                          <Spinner />
-                          <span>L'IA prépare les précisions adaptées à ce niveau…</span>
+                          <JaugeAttente libelle="L’IA prépare les précisions adaptées à ce niveau…" />
                         </div>
                       ) : precisList.length > 0 ? (
                         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1600,7 +1763,8 @@ export default function AdminReferentiels() {
                             <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
                               padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', fontSize: 13, color: '#1e293b' }}>
                               <span style={{ fontWeight: 500 }}>{p.libelle}</span>
-                              <button type="button" onClick={() => supprimerPrecisCouple(t, p)} disabled={precisBusy}
+                              <button type="button" disabled={precisBusy}
+                                onClick={() => supprimerPrecisCouple(t, p)}
                                 title={`Supprimer « ${p.libelle} »`}
                                 style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626',
                                   cursor: precisBusy ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🗑</button>
@@ -1628,37 +1792,16 @@ export default function AdminReferentiels() {
               })}
             </div>
 
-            {/* Colonne de droite : résultats des suggestions IA (le titre + Détecter sont remontés en haut). */}
-            <div>
-              {typesSuggestions.length === 0 ? (
-                <p className="text-xs text-gray-400">Aucune — lance « Détecter (IA) ».</p>
-              ) : (
-                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr' }}>
-                  {typesSuggestions.map((s, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '7px 10px', background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8 }}>
-                      <button type="button" className="btn-action" onClick={() => ajouterTypeCatalogue(s, true)} disabled={typesBusy}
-                        title="Ajouter ce type détecté au catalogue global des types d'activité"
-                        style={{ padding: '1px 8px', fontSize: 16, fontWeight: 700, lineHeight: 1.2, flexShrink: 0 }}>
-                        +
-                      </button>
-                      <span style={{ fontSize: 12, color: '#6b21a8' }}>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Zone d'ajout (champ + bouton) — descendue en bas, sous la liste. Le titre reste en haut. */}
+          {/* Zone d'ajout MANUEL (champ + bouton) : le libellé rejoint le catalogue s'il est nouveau
+              (anti-doublon) et est collé à CE couple dans le même geste (badge admin). */}
           <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
             <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
-              placeholder="Libellé du type…"
+              placeholder="Ajouter un type à ce couple…"
               style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
             <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
               style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
-              title="Ajouter ce libellé au catalogue global des types d'activité"><span aria-hidden="true">＋</span> Ajouter</button>
+              title="Ajouter ce type pour ce couple (rejoint le catalogue s'il est nouveau)"><span aria-hidden="true">＋</span> Ajouter</button>
           </div>
           </>)}
         </div>
@@ -1684,6 +1827,32 @@ export default function AdminReferentiels() {
               title="Référentiel PDF"
               src={`/api/admin/referentiels/pdf?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`}
               style={{ flex: 1, width: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Fenêtre du DOCUMENT ÉPURÉ : le texte de travail lu par l'IA (colonne texte_epure,
+          figée à la validation du dépôt). Même patron que la fenêtre PDF (clic dehors ou ×). */}
+      {showEpure && (
+        <div onClick={() => setShowEpure(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                Document épuré — le texte de travail que l’IA lit (figé au dépôt)
+              </span>
+              <button type="button" onClick={() => setShowEpure(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <pre style={{ flex: 1, overflow: 'auto', margin: 0, padding: 14, fontSize: 12,
+              color: '#334155', whiteSpace: 'pre-wrap', background: '#f8fafc' }}>
+              {epureTexte === null ? 'Lecture…'
+                : (epureTexte || 'Aucun texte de travail enregistré pour ce couple.')}
+            </pre>
           </div>
         </div>
       )}

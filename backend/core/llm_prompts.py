@@ -282,25 +282,6 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
-PROMPT_CLASSER_FAMILLE = """Tu classes un document dans UNE famille de structure existante, OU tu proposes une nouvelle famille.
-
-Une famille dit ce que le document EST (sa nature), pas ce qu'il contient.
-
-Familles existantes (identifiant, nom, description) :
-{familles}
-
-Texte du document :
-{texte}
-
-Règle :
-- Si une famille existante correspond à la nature du document → "match_id" = son identifiant, et laisse "nom" et "description" vides ("").
-- Si AUCUNE famille existante ne correspond → "match_id" = 0, et propose la famille manquante :
-  - "nom" : un identifiant court en MAJUSCULES avec des underscores (ex. PROGRAMME_ENSEIGNEMENT) ;
-  - "description" : ce qu'est ce type de document, en une phrase.
-
-Réponds UNIQUEMENT en JSON, avec exactement ces clés : match_id, nom, description."""
-
-
 PROMPT_VERIFIER_COUPLE = """Tu vérifies qu'un document officiel correspond bien au couple (cycle + niveau) déclaré.
 
 Couple déclaré par l'administrateur :
@@ -324,81 +305,46 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, 
 
 PROMPT_DETECTER_MATIERES = """Tu lis un référentiel officiel et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
 
+Matières déjà connues de l'application :
+{matieres_existantes}
+
 Texte du référentiel :
 {texte}
 
 Ta tâche :
 - Repère les matières, disciplines ou domaines d'apprentissage que ce référentiel organise (ses grands champs).
-- Donne leur nom tel qu'il apparaît dans le document, court et lisible (le nom de la matière, pas une phrase).
+- Fais CORRESPONDRE ce que tu lis avec les matières déjà connues :
+  - Si un intitulé du document correspond à une matière déjà connue, reprends EXACTEMENT le nom de la liste (même orthographe, mêmes majuscules), pas celui du document.
+  - Si un intitulé du document REGROUPE plusieurs matières déjà connues (par exemple « Mathématiques et physique-chimie »), sépare-le : donne chacune de ces matières comme une entrée à part, avec le nom exact de la liste.
+  - Si un intitulé du document ne correspond à aucune matière connue, donne son nom tel qu'il apparaît dans le document, court et lisible (le nom de la matière, pas une phrase).
+- Ne sépare jamais un intitulé qui désigne UNE seule discipline, même si son nom est composé (par exemple « Prévention-santé-environnement » ou « Éducation physique et sportive » restent entières).
 
 Règle :
-- "matieres" : la liste des noms de matières que tu lis dans le document, sans doublon.
-- N'invente aucune matière absente du document. Si aucune n'apparaît clairement, renvoie une liste vide.
+- "matieres" : la liste des noms de matières, sans doublon.
+- N'invente aucune matière absente du document : la liste des matières connues sert à faire correspondre et à séparer, jamais à ajouter une matière que le document ne couvre pas. Si aucune n'apparaît clairement, renvoie une liste vide.
 
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau de chaînes)."""
 
 
 PROMPT_DETECTER_TYPES_ACTIVITE = """Tu lis un référentiel officiel et tu en dégages la liste des TYPES D'ACTIVITÉ (formats ou modalités d'activité pédagogique) qu'il met en œuvre à ce niveau.
 
+Types d'activité déjà connus de l'application :
+{types_existants}
+
 Texte du référentiel :
 {texte}
 
 Ta tâche :
-- Repère les types d'activité, formats ou modalités de travail que ce référentiel organise (par exemple : atelier, jeu, mise en situation, exercice, projet, observation — selon ce qui apparaît réellement).
-- Donne leur nom tel qu'il apparaît dans le document, court et lisible (le nom du type d'activité, pas une phrase).
+- Repère les types d'activité, formats ou modalités de travail que ce référentiel met réellement en œuvre (par exemple : atelier, mise en situation, travaux pratiques, projet, évaluation — selon ce qui apparaît réellement).
+- Fais CORRESPONDRE ce que tu lis avec les types déjà connus :
+  - Si ce que tu lis correspond à un type déjà connu, reprends EXACTEMENT le libellé de la liste (même orthographe, mêmes majuscules), pas la formulation du document.
+  - Si ce que tu lis ne correspond à aucun type connu, donne son nom tel qu'il ressort du document, court et lisible (le nom du type, pas une phrase).
 
 Règle :
-- "types" : la liste des noms de types d'activité que tu lis dans le document, sans doublon.
-- N'invente aucun type absent du document. Si aucun n'apparaît clairement, renvoie une liste vide.
+- "types" : la liste des libellés de types d'activité, sans doublon.
+- N'invente aucun type absent du document : la liste des types connus sert à faire correspondre, jamais à ajouter un type que le document ne met pas en œuvre. Si aucun n'apparaît clairement, renvoie une liste vide.
 
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
-
-
-PROMPT_SUGGERER_CYCLES = """Tu proposes les CYCLES scolaires sur lesquels s'appuie une famille de référentiels.
-
-Une famille regroupe des documents d'une même nature. Certaines familles s'appuient sur PLUSIEURS cycles (par exemple un enseignement qui va du collège au supérieur).
-
-Famille :
-- Nom : {famille}
-- Description : {description}
-
-Cycles déjà existants (réutilise EXACTEMENT ces noms quand l'un convient) :
-{cycles}
-
-Ta tâche :
-- Donne la liste des cycles sur lesquels cette famille s'appuie réellement.
-- Quand un cycle existant convient, reprends son nom À L'IDENTIQUE tel qu'il est écrit ci-dessus.
-- Si un cycle nécessaire ne figure pas dans la liste, propose son nom (court et lisible).
-
-Règle :
-- "cycles" : la liste des noms de cycles, sans doublon, du plus général au plus avancé quand c'est pertinent.
-- N'invente aucun cycle inutile. Ne renvoie que ceux qui concernent vraiment cette famille.
-
-Réponds UNIQUEMENT en JSON, avec exactement cette clé : cycles (un tableau de chaînes)."""
-
-
-PROMPT_SUGGERER_NIVEAUX = """Tu proposes les NIVEAUX d'un cycle qui concernent réellement une famille de référentiels.
-
-Famille :
-- Nom : {famille}
-- Description : {description}
-
-Cycle concerné : {cycle}
-
-Niveaux déjà existants dans ce cycle (réutilise EXACTEMENT ces noms quand l'un convient) :
-{niveaux}
-
-Ta tâche :
-- Donne UNIQUEMENT les niveaux de ce cycle qui concernent vraiment cette famille (pas les autres).
-- Quand un niveau existant convient, reprends son nom À L'IDENTIQUE tel qu'il est écrit ci-dessus.
-- Si un niveau nécessaire ne figure pas dans la liste, propose son nom (court et lisible).
-
-Règle :
-- "niveaux" : la liste des noms de niveaux pertinents pour CETTE famille dans CE cycle, sans doublon, dans l'ordre logique.
-- N'inclus pas les niveaux du cycle étrangers à la famille (ex. une spécialité hors du domaine).
-- Si aucun niveau de ce cycle ne concerne la famille, renvoie une liste vide.
-
-Réponds UNIQUEMENT en JSON, avec exactement cette clé : niveaux (un tableau de chaînes)."""
 
 
 PROMPTS = {
@@ -437,11 +383,6 @@ PROMPTS = {
         "placeholders": ["texte"],
         "default": PROMPT_DECOUPE_AMONT,
     },
-    "classer_famille": {
-        "label": "Classement d'un référentiel : famille existante OU famille candidate",
-        "placeholders": ["familles", "texte"],
-        "default": PROMPT_CLASSER_FAMILLE,
-    },
     "verifier_couple": {
         "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
         "placeholders": ["cycle", "niveau", "texte"],
@@ -449,22 +390,12 @@ PROMPTS = {
     },
     "detecter_matieres": {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",
-        "placeholders": ["texte"],
+        "placeholders": ["matieres_existantes", "texte"],
         "default": PROMPT_DETECTER_MATIERES,
     },
     "detecter_types_activite": {
         "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
-        "placeholders": ["texte"],
+        "placeholders": ["types_existants", "texte"],
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
-    },
-    "suggerer_cycles": {
-        "label": "Suggestion des cycles sur lesquels s'appuie une famille (proposition à l'admin)",
-        "placeholders": ["famille", "description", "cycles"],
-        "default": PROMPT_SUGGERER_CYCLES,
-    },
-    "suggerer_niveaux": {
-        "label": "Suggestion des niveaux d'un cycle pertinents pour une famille (proposition à l'admin)",
-        "placeholders": ["famille", "description", "cycle", "niveaux"],
-        "default": PROMPT_SUGGERER_NIVEAUX,
     },
 }

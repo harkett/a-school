@@ -48,11 +48,9 @@ import AdminReferentiels from './pages/AdminReferentiels'
 import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
 import Labo from './pages/Labo'   // écran labo générique (bac à sable réutilisable)
 import AdminTypesActivite from './pages/AdminTypesActivite'
-import AdminFCAutorisees from './pages/AdminFCAutorisees'
 import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminCycles from './pages/AdminCycles'
 import AdminMatieres from './pages/AdminMatieres'
-import AdminFamilles from './pages/AdminFamilles'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminBase from './pages/AdminBase'
 import AdminAnalytique from './pages/AdminAnalytique'
@@ -1133,10 +1131,8 @@ export default function App() {
             <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
             <Route path="types-activite" element={<AdminTypesActivite />} />
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
-            <Route path="fc-autorisees" element={<AdminFCAutorisees />} />
             <Route path="cycles"   element={<AdminCycles />} />
             <Route path="matieres" element={<AdminMatieres />} />
-            <Route path="familles" element={<AdminFamilles />} />
             <Route path="programmes" element={<AdminProgrammes />} />
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />

@@ -105,15 +105,13 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
-def _decouper_ia(pdf_path, prompt: str) -> list[dict]:
-    """Découpe d'un référentiel PAR L'IA (SOCLE, générique) : lit le TEXTE BRUT du PDF et délègue à
-    `analyse_amont.decouper_texte`, piloté par le PROMPT VALIDÉ DU COUPLE (`prompt`, lu en base par
-    l'appelant). Remplace l'ancienne extraction regex + motif de la fiche. Renvoie des chunks
-    `{text, page, meta}` directement consommables par la suite du pipeline."""
-    import pdfplumber
+def _decouper_ia(texte: str, prompt: str) -> list[dict]:
+    """Découpe d'un référentiel PAR L'IA (SOCLE, générique) : reçoit le TEXTE DE TRAVAIL du
+    couple (colonne referentiels.texte_epure, figée à la validation du dépôt — plus aucune
+    extraction PDF ici) et délègue à `analyse_amont.decouper_texte`, piloté par le PROMPT VALIDÉ
+    DU COUPLE (`prompt`, lu en base par l'appelant). Renvoie des chunks `{text, page, meta}`
+    directement consommables par la suite du pipeline."""
     from backend.rag.analyse_amont import decouper_texte
-    with pdfplumber.open(str(pdf_path)) as pdf:
-        texte = "\n".join((p.extract_text() or "") for p in pdf.pages)
     db = SessionLocal()
     try:
         unites = decouper_texte(texte, db=db, prompt=prompt)
@@ -122,11 +120,17 @@ def _decouper_ia(pdf_path, prompt: str) -> list[dict]:
     return [{"text": u["texte"], "page": 1, "meta": {"option": ""}} for u in unites]
 
 
-def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
+def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
+                    decoupe_prete: dict | None = None) -> dict:
     """(Re)construit referentiel_chunks pour LE référentiel de `collection`, depuis son PDF.
     Idempotent : supprime les chunks du même referentiel_id (après sauvegarde) puis réinsère.
     Ne touche aucun autre référentiel. La découpe est produite par l'IA à partir du PROMPT
-    VALIDÉ du couple (EN BASE) — aucune fiche en dur, tout couple est ingérable."""
+    VALIDÉ du couple (EN BASE) — aucune fiche en dur, tout couple est ingérable.
+    `on_progress(etape, fait, total)` : avancement RÉEL remonté à l'appelant (jauge de l'écran) —
+    étapes 'decoupe' (IA, durée inconnue), 'vectorisation' (fait/total unités), 'ecriture'.
+    `decoupe_prete` = {"prompt", "chunks"} : la découpe que l'admin vient de VOIR et d'accepter
+    (aperçu). Réutilisée UNIQUEMENT si son prompt est identique au prompt validé en base —
+    sinon (prompt corrigé entre-temps, cache absent) l'IA redécoupe comme avant."""
     # 1. Résoudre le référentiel (id) et le chemin du PDF (courte ouverture DB).
     db = SessionLocal()
     try:
@@ -142,21 +146,36 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
         pdf_path = _pdf_path_for(db, ref)
         prompt_ok = ref.prompt_decoupe_valide
         prompt_txt = ref.prompt_decoupe or ""
+        # LE texte de travail : colonne texte_epure, figée à la validation du dépôt (get).
+        # Filet pour un dépôt antérieur à la colonne (NULL) : calcul UNIQUE depuis le PDF
+        # d'origine (porte unique rag.extraction) puis ÉCRIT en base — plus jamais recalculé.
+        texte_epure = (ref.texte_epure or "").strip()
+        if not texte_epure:
+            if not pdf_path.exists():
+                raise RuntimeError(f"Texte de travail absent et PDF introuvable : {pdf_path}")
+            from backend.rag.extraction import extraire_texte
+            texte_epure = extraire_texte(pdf_path)
+            ref.texte_epure = texte_epure
+            db.commit()
     finally:
         db.close()
 
-    if not pdf_path.exists():
-        raise RuntimeError(f"PDF introuvable : {pdf_path}")
     if not prompt_ok:
         raise RuntimeError(
             "Découpe refusée : le prompt de découpe du couple n'est pas validé. "
             "L'admin doit le générer puis le valider (cap « aSchool n'invente rien »)."
         )
 
-    # 2. Découpe PAR L'IA (SOCLE, générique), pilotée par le PROMPT VALIDÉ du couple (base).
-    #    Le prompt validé du couple cadre déjà le contenu au bon niveau : la découpe produite
-    #    EST le résultat à écrire en base, sans filtre supplémentaire.
-    chunks = _decouper_ia(pdf_path, prompt_txt)
+    # 2. Découpe : on RÉUTILISE celle que l'admin a vue et acceptée (aperçu) si elle vient bien
+    #    du même prompt — on écrit alors exactement ce qui a été validé, sans refaire l'appel IA.
+    #    À défaut (pas d'aperçu, prompt modifié entre-temps), découpe PAR L'IA comme avant,
+    #    pilotée par le PROMPT VALIDÉ du couple (base).
+    if decoupe_prete and decoupe_prete.get("chunks") and decoupe_prete.get("prompt") == prompt_txt:
+        chunks = decoupe_prete["chunks"]
+    else:
+        if on_progress:
+            on_progress("decoupe", 0, 0)
+        chunks = _decouper_ia(texte_epure, prompt_txt)
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
         "collection": collection,
@@ -168,10 +187,22 @@ def ingest_pgvector(collection: str, dry_run: bool = False) -> dict:
         report["mode"] = "dry-run (aucune ecriture)"
         return report
 
-    # 3. Embeddings puis (re)écriture, sous sauvegarde-avant-purge.
-    vecs = embed_texts([c["text"] for c in chunks])   # voie directe, dim 1024 (BGE-M3)
+    # 3. Embeddings puis (re)écriture, sous sauvegarde-avant-purge. Vectorisation par petits lots
+    #    pour remonter un avancement RÉEL (les vecteurs sont indépendants texte par texte : lots ou
+    #    pas, le résultat est identique — voie directe, dim 1024, BGE-M3).
+    textes = [c["text"] for c in chunks]
+    if on_progress:
+        on_progress("vectorisation", 0, len(textes))
+    vecs: list = []
+    LOT = 4   # petits lots : la jauge avance souvent (le gain de regroupement est négligeable sur des unités longues)
+    for i in range(0, len(textes), LOT):
+        vecs.extend(embed_texts(textes[i:i + LOT]))
+        if on_progress:
+            on_progress("vectorisation", min(i + LOT, len(textes)), len(textes))
     if len(vecs) != len(chunks):
         raise RuntimeError(f"Embeddings {len(vecs)} != chunks {len(chunks)}")
+    if on_progress:
+        on_progress("ecriture", 0, 0)
 
     db = SessionLocal()
     try:

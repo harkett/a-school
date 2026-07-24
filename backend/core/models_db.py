@@ -432,15 +432,21 @@ class Referentiel(Base):
     # au VERT. Écrit par le bouton final « Valider le découpage ». Donnée NEUVE (n'existe nulle part
     # ailleurs) → EN BASE, sur la ligne du document. false = pas encore validée (puce rouge).
     decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
-    # Motif de FORÇAGE d'une validation malgré une alerte des vérifications au dépôt (couple lu par
-    # l'IA ≠ couple déclaré, ou famille absente de famille_couples). NULL = validation normale (aucun
-    # forçage). Renseigné = l'admin a passé outre, motif tracé EN BASE (+ log). DONNÉE MÉTIER EN BASE.
+    # Motif de FORÇAGE d'une validation malgré une alerte de la vérification au dépôt (couple lu par
+    # l'IA ≠ couple déclaré). NULL = validation normale (aucun forçage). Renseigné = l'admin a passé
+    # outre, motif tracé EN BASE (+ log). DONNÉE MÉTIER EN BASE.
     forcage_motif: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Verdict de l'IA sur le couple, rendu AU DÉPÔT (verifier_couple) et FIGÉ à la validation : JSON
     # {correspond: bool, niveau_lu: str, raison: str}. Sans lui, l'analyse de l'IA (« le document est
     # intitulé Cycle 4 · 5e… ») serait perdue. Donnée NEUVE (n'existe nulle part ailleurs) → EN BASE,
     # sur la ligne du document, comme forcage_motif. NULL = non renseigné (ancien dépôt / non transmis).
     verif_couple: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Texte ÉPURÉ du document — LE texte de travail. Calculé UNE SEULE FOIS à la validation du
+    # dépôt (porte rag.extraction, règles d'épuration du jour) puis FIGÉ ici : toutes les étapes
+    # suivantes le LISENT (matières, prompt de découpe, découpe, re-découpe). Plus aucune
+    # ré-extraction du PDF après la validation — une règle d'épuration ajoutée plus tard ne
+    # touche donc JAMAIS un dépôt passé. Le PDF sur disque reste la pièce d'origine intacte.
+    texte_epure: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
@@ -469,31 +475,6 @@ class ReferentielChunk(Base):
     embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-
-
-class Famille(Base):
-    """Famille de structure d'un référentiel (6 types) : ce que le document EST.
-    Classification pure — ne pilote pas la découpe. DONNÉE MÉTIER → EN BASE."""
-    __tablename__ = "familles"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    # État interne (jamais renvoyé par l'IA) : la famille de rejet, à exclure de la classification.
-    # Le code ne connaît QUE ce drapeau, jamais le nom/id de la ligne (cap « aucun cas particulier »).
-    rejet: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='false', default=False)
-
-
-class FamilleCouple(Base):
-    """Couple (niveau) rattaché à une famille de structure — décidé par l'humain (admin/dev),
-    jamais écrit par l'IA. Le cycle se déduit du niveau (niveaux.cycle_id), donc pas stocké ici
-    (zéro redondance). UNIQUE (famille_id, niveau_id) : un niveau ne s'inscrit qu'une fois par famille."""
-    __tablename__ = "famille_couples"
-    __table_args__ = (UniqueConstraint("famille_id", "niveau_id", name="uq_famille_couples_famille_niveau"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    famille_id: Mapped[int] = mapped_column(Integer, ForeignKey("familles.id"), nullable=False, index=True)
-    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)
 
 
 class ActiviteType(Base):

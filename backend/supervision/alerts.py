@@ -11,6 +11,14 @@ from backend.core.models_db import AdminAlert, FailedLoginAttempt
 _COOLDOWN_HOURS = 2
 
 
+def _ou_mesure() -> str:
+    """Où la mesure est prise — l'alerte dit la VÉRITÉ selon l'environnement : en production le
+    serveur (VPS), en développement la machine de travail (le PC qui fait tourner Docker). Avant,
+    le texte disait toujours « sur le VPS » et envoyait l'admin chercher au mauvais endroit quand
+    c'était sa machine de dev qui chauffait (cas réel du 24/07 : démarrage de la pile locale)."""
+    return "sur le serveur (VPS)" if os.getenv("ENV") == "production" else "sur cette machine de développement"
+
+
 def _already_alerted(db, title: str) -> bool:
     """Évite le flood : une seule alerte du même titre toutes les 2h."""
     since = datetime.utcnow() - timedelta(hours=_COOLDOWN_HOURS)
@@ -83,7 +91,8 @@ def check_cpu_alert():
         create_alert(
             "critical",
             f"CPU critique : {charge_pct}%",
-            "Le CPU dépasse 90% en moyenne sur 5 minutes. Vérifier les processus actifs sur le VPS.",
+            f"Le processeur dépasse 90 % en moyenne sur 5 minutes {_ou_mesure()}. "
+            f"Vérifier les processus actifs.",
         )
 
 
@@ -91,7 +100,8 @@ def check_disk_alert():
     disk = psutil.disk_usage('/')
     if disk.percent > 85:
         libre = round((disk.total - disk.used) / 1024**3, 1)
-        create_alert("warning", f"Disque faible : {disk.percent}% utilisé", f"Il reste {libre} Go libres sur le VPS.")
+        create_alert("warning", f"Disque faible : {disk.percent}% utilisé",
+                     f"Il reste {libre} Go libres {_ou_mesure()}.")
 
 
 def check_brute_force_alert():

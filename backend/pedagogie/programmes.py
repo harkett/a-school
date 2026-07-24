@@ -6,6 +6,7 @@ programme (Crèche, Supérieur) ou un niveau sans matière n'apparaît pas.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -185,3 +186,48 @@ def admin_toggle_paire(body: PaireUpdate, db: Session = Depends(get_db)):
         ))
     db.commit()
     return {"matiere_id": body.matiere_id, "niveau_id": body.niveau_id, "actif": body.actif}
+
+
+# ── Création de cycle / niveau — la SEULE place où l'on crée ces entrées (boutons
+# « + Cycle / + Niveau » d'AdminProgrammes). Le dépôt de référentiel ne crée JAMAIS
+# de niveau : il ne propose que l'existant, en cascade cycle → niveau.
+
+class CreerCycleBody(BaseModel):
+    nom: str
+
+
+@router.post("/admin/cycles", dependencies=[Depends(_require_admin)])
+def creer_cycle(body: CreerCycleBody, db: Session = Depends(get_db)):
+    """Crée un cycle (Create encadré : nom non vide, unique insensible à la casse). `ordre` = max+1."""
+    nom = (body.nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nom du cycle est requis.")
+    if db.query(Cycle).filter(func.lower(Cycle.nom) == nom.lower()).first():
+        raise HTTPException(409, f"Le cycle « {nom} » existe déjà.")
+    maxo = db.query(func.max(Cycle.ordre)).scalar()
+    c = Cycle(nom=nom, ordre=(maxo or 0) + 1)
+    db.add(c); db.commit(); db.refresh(c)
+    return {"id": c.id, "nom": c.nom, "ordre": c.ordre}
+
+
+class CreerNiveauBody(BaseModel):
+    cycle_id: int
+    nom: str
+
+
+@router.post("/admin/niveaux", dependencies=[Depends(_require_admin)])
+def creer_niveau(body: CreerNiveauBody, db: Session = Depends(get_db)):
+    """Crée un niveau dans un cycle (Create encadré : nom non vide, unique DANS le cycle).
+    `ordre` = max+1 du cycle."""
+    nom = (body.nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nom du niveau est requis.")
+    cycle = db.get(Cycle, body.cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    if db.query(Niveau).filter(Niveau.cycle_id == cycle.id, func.lower(Niveau.nom) == nom.lower()).first():
+        raise HTTPException(409, f"Le niveau « {nom} » existe déjà dans ce cycle.")
+    maxo = db.query(func.max(Niveau.ordre)).filter(Niveau.cycle_id == cycle.id).scalar()
+    n = Niveau(cycle_id=cycle.id, nom=nom, ordre=(maxo or 0) + 1)
+    db.add(n); db.commit(); db.refresh(n)
+    return {"id": n.id, "nom": n.nom, "cycle_id": n.cycle_id}

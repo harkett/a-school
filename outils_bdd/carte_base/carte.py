@@ -96,7 +96,7 @@ DOMAINS = {
          "failed_login_attempts", "user_sessions", "admin_audit_log", "admin_alerts"]),
     "peda":     ("Structure pedagogique", "#16a34a", "#dcfce7", "#14532d",
         ["cycles", "niveaux", "matieres", "matiere_niveaux", "matieres_candidates",
-         "user_enseignements", "familles", "famille_couples", "fiches_matieres"]),
+         "user_enseignements", "fiches_matieres"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
         ["referentiels", "referentiel_chunks", "arbitrage_demandes"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",

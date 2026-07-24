@@ -49,6 +49,24 @@ def test_charge_basse_ne_declenche_pas__cas_23_06(monkeypatch):
     assert calls == []
 
 
+def test_le_message_dit_ou_la_mesure_est_prise(monkeypatch):
+    """L'alerte dit la VÉRITÉ selon l'environnement : « machine de développement » hors production,
+    « serveur (VPS) » en production — plus jamais un texte qui envoie chercher au mauvais endroit."""
+    monkeypatch.setattr(alerts.psutil, "cpu_count", lambda: 4)
+    monkeypatch.setattr(alerts.psutil, "getloadavg", lambda: (3.9, 3.8, 3.7))
+
+    calls = _capture(monkeypatch)
+    monkeypatch.delenv("ENV", raising=False)          # dev (aucun ENV posé)
+    alerts.check_cpu_alert()
+    assert "machine de développement" in calls[0][2]
+    assert "VPS" not in calls[0][2]
+
+    calls2 = _capture(monkeypatch)
+    monkeypatch.setenv("ENV", "production")
+    alerts.check_cpu_alert()
+    assert "serveur (VPS)" in calls2[0][2]
+
+
 def test_pourcentage_normalise_par_coeurs(monkeypatch):
     # 5min = 2.0 sur 4 coeurs = 50% -> sous le seuil, aucune alerte.
     calls = _capture(monkeypatch)

@@ -65,6 +65,59 @@ def test_nouveau_pdf_ecrase_les_candidates():
         db.close()
 
 
+def test_detecter_matieres_injecte_la_table_des_matieres(monkeypatch):
+    """L'IA reçoit la table des matières ACTIVES dans son prompt (get, zéro copie) pour faire
+    correspondre le document avec l'existant. Preuve : les matières actives figurent dans le prompt
+    envoyé à `generate`, pas les inactives, et les deux trous {matieres_existantes}/{texte} sont remplis."""
+    from backend.core.models_db import Matiere
+    with dbmod.SessionLocal() as db:
+        db.add(Matiere(nom="Mathématiques", ordre=1, actif=True))
+        db.add(Matiere(nom="Physique-Chimie", ordre=2, actif=True))
+        db.add(Matiere(nom="Vieille matière", ordre=3, actif=False))
+        db.commit()
+    capture = {}
+
+    def faux_generate(prompt, **k):
+        capture["prompt"] = prompt
+        return json.dumps({"matieres": []})
+
+    monkeypatch.setattr(amont, "generate", faux_generate)
+    with dbmod.SessionLocal() as db:
+        amont.detecter_matieres("texte du référentiel", db=db)
+    p = capture["prompt"]
+    assert "- Mathématiques" in p and "- Physique-Chimie" in p
+    assert "Vieille matière" not in p                      # inactive = hors liste
+    assert "{matieres_existantes}" not in p and "{texte}" not in p
+    assert "texte du référentiel" in p
+
+
+def test_detecter_types_injecte_le_catalogue(monkeypatch):
+    """Calque des matières pour les TYPES D'ACTIVITÉ : l'IA reçoit le catalogue des types ACTIFS
+    dans son prompt (get, zéro copie) pour faire correspondre le document avec l'existant. Preuve :
+    les types actifs figurent dans le prompt envoyé à `generate`, pas les inactifs, et les deux
+    trous {types_existants}/{texte} sont remplis."""
+    from backend.core.models_db import ActiviteType
+    with dbmod.SessionLocal() as db:
+        db.add(ActiviteType(label="Travaux pratiques", ordre=1, actif=True, origine="systeme"))
+        db.add(ActiviteType(label="Évaluation", ordre=2, actif=True, origine="systeme"))
+        db.add(ActiviteType(label="Vieux type", ordre=3, actif=False, origine="admin"))
+        db.commit()
+    capture = {}
+
+    def faux_generate(prompt, **k):
+        capture["prompt"] = prompt
+        return json.dumps({"types": []})
+
+    monkeypatch.setattr(amont, "generate", faux_generate)
+    with dbmod.SessionLocal() as db:
+        amont.detecter_types_activite("texte du référentiel", db=db)
+    p = capture["prompt"]
+    assert "- Travaux pratiques" in p and "- Évaluation" in p
+    assert "Vieux type" not in p                          # inactif = hors liste
+    assert "{types_existants}" not in p and "{texte}" not in p
+    assert "texte du référentiel" in p
+
+
 def test_detecter_matieres_parse_nettoie_dedoublonne(monkeypatch):
     """L'IA rend un JSON {matieres:[...]} : on prouve le parsing, le strip et la déduplication
     (insensible à la casse), sans appeler de vrai LLM. On mocke la porte IA unique `generate`."""

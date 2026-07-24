@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // Consulter les référentiels — LECTURE SEULE. Deux panneaux :
-//  - à gauche, le menu des couples DÉJÀ déposés (Cycle · Niveau, groupés par famille), bulle d'aide au survol ;
+//  - à gauche, le menu des couples DÉJÀ déposés (Cycle · Niveau), bulle d'aide au survol ;
 //  - à droite, le détail du couple choisi : le même écran que la page de travail, mais en consultation
 //    (PDF, source, forçage, matières, prompt de découpe). Tout est lu en base (get, zéro copie) via les
 //    endpoints existants : /referentiels/liste, /etat, /prompt-decoupe, /referentiels/pdf.
@@ -65,7 +65,7 @@ export default function AdminReferentielsConsulter() {
               const actif = selected && selected.id === r.id
               return (
                 <button key={r.id} type="button" onClick={() => ouvrir(r)}
-                  title={`Famille : ${r.famille || '—'} · Cycle : ${r.cycle} · Niveau : ${r.niveau}. Cliquez pour consulter le détail (lecture seule).`}
+                  title={`Cycle : ${r.cycle} · Niveau : ${r.niveau}. Cliquez pour consulter le détail (lecture seule).`}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                     border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
                     background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
@@ -89,9 +89,8 @@ export default function AdminReferentielsConsulter() {
               <>
                 {/* Couple */}
                 <div style={carte}>
-                  <div style={titreCarte}>Famille-Couple</div>
+                  <div style={titreCarte}>Couple (cycle + niveau)</div>
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
-                    <span><span style={infoLabel}>Famille : </span><strong style={infoVal}>{selected.famille || '—'}</strong></span>
                     <span><span style={infoLabel}>Cycle : </span><strong style={infoVal}>{selected.cycle}</strong></span>
                     <span><span style={infoLabel}>Niveau : </span><strong style={infoVal}>{selected.niveau}</strong></span>
                   </div>
@@ -126,8 +125,8 @@ export default function AdminReferentielsConsulter() {
                     let v = null
                     try { v = JSON.parse(etat.referentiel.verif_couple) } catch { v = null }
                     if (!v) return null
-                    // Libellé du couple + famille : lus dans la ligne du référentiel choisi (liste),
-                    // jamais recopiés. Affichage identique à l'écran de création (zéro copie).
+                    // Libellé du couple : lu dans la ligne du référentiel choisi (liste),
+                    // jamais recopié. Affichage identique à l'écran de création (zéro copie).
                     return (
                       <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, fontSize: 12,
                         background: v.correspond ? '#f0fdf4' : '#fef2f2',
@@ -138,7 +137,6 @@ export default function AdminReferentielsConsulter() {
                           : `✗ Couple : ${selected.cycle} / ${selected.niveau} — non confirmé par le document`}</strong>
                         {v.niveau_lu ? <div style={{ color: '#475569', marginTop: 2 }}>niveau lu : {v.niveau_lu}</div> : null}
                         {v.raison && <div style={{ color: '#475569', marginTop: 2 }}>{v.raison}</div>}
-                        {selected.famille && <div style={{ color: '#166534', marginTop: 4 }}>✓ Cette famille ({selected.famille}) a sa place à ce niveau</div>}
                       </div>
                     )
                   })()}

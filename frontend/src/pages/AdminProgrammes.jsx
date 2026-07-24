@@ -6,21 +6,31 @@ export default function AdminProgrammes() {
   const [msg, setMsg]       = useState(null)
   const [erreur, setErreur] = useState(null)
   const [selectedCycleId, setSelectedCycleId] = useState(null)  // id du cycle ouvert à droite
+  // Création de cycle / niveau — la SEULE place de l'admin où l'on crée ces entrées
+  // (le dépôt de référentiel ne propose que l'existant, en cascade cycle → niveau).
+  const [newCycleNom, setNewCycleNom]   = useState('')
+  const [newNiveauNom, setNewNiveauNom] = useState('')
+  const [ajoutBusy, setAjoutBusy]       = useState(false)
 
   function flash(text, isErr = false) {
     if (isErr) setErreur(text); else setMsg(text)
     setTimeout(() => { setMsg(null); setErreur(null) }, 3500)
   }
 
-  useEffect(() => {
-    fetch('/api/admin/programmes', { credentials: 'include' })
+  // (Re)lecture de l'arbre complet en base (get, zéro copie). `garderSelection` = après un ajout,
+  // on reste sur le cycle courant (ou on ouvre celui qu'on vient de créer via `ouvrirId`).
+  function recharger(ouvrirId = null) {
+    return fetch('/api/admin/programmes', { credentials: 'include' })
       .then(r => r.json())
       .then(d => {
         setData(d)
-        if (d.cycles && d.cycles.length) setSelectedCycleId(d.cycles[0].id)
+        if (ouvrirId) setSelectedCycleId(ouvrirId)
+        else if (!selectedCycleId && d.cycles && d.cycles.length) setSelectedCycleId(d.cycles[0].id)
       })
       .catch(() => flash('Impossible de charger les programmes.', true))
-  }, [])
+  }
+
+  useEffect(() => { recharger() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   function isActif(matiere_id, niveau_id) {
     const p = data.paires.find(p => p.matiere_id === matiere_id && p.niveau_id === niveau_id)
@@ -51,6 +61,46 @@ export default function AdminProgrammes() {
     }
   }
 
+  // CREATE encadré (backend : nom requis + unicité) : POST puis relecture de l'arbre en base.
+  async function creerCycle() {
+    const nom = newCycleNom.trim()
+    if (!nom) { flash('Indiquez le nom du cycle.', true); return }
+    setAjoutBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/cycles', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { flash(d.detail || 'Création du cycle impossible.', true); return }
+      setNewCycleNom('')
+      await recharger(d.id)   // le nouveau cycle s'ouvre à droite
+      flash(`Cycle « ${d.nom} » créé.`)
+    } catch { flash('Création du cycle impossible (réseau).', true) }
+    finally { setAjoutBusy(false) }
+  }
+
+  async function creerNiveau() {
+    const nom = newNiveauNom.trim()
+    if (!nom) { flash('Indiquez le nom du niveau.', true); return }
+    if (!selectedCycleId) return
+    setAjoutBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/niveaux', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: selectedCycleId, nom }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { flash(d.detail || 'Création du niveau impossible.', true); return }
+      setNewNiveauNom('')
+      await recharger(selectedCycleId)
+      flash(`Niveau « ${d.nom} » créé.`)
+    } catch { flash('Création du niveau impossible (réseau).', true) }
+    finally { setAjoutBusy(false) }
+  }
+
   if (!data) return <p className="text-gray-400 text-sm">Chargement…</p>
 
   const selected = data.cycles.find(c => c.id === selectedCycleId) || null
@@ -59,12 +109,16 @@ export default function AdminProgrammes() {
     setSelectedCycleId(id)
   }
 
+  const champAjout = { flex: 1, minWidth: 0, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 8px', fontSize: 12 }
+  const btnAjout = { whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, padding: '6px 10px', borderRadius: 6,
+    border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', cursor: ajoutBusy ? 'wait' : 'pointer' }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-base font-semibold text-gray-800">Programmes</h2>
         <p className="text-xs text-gray-400 mt-0.5">
-          Choisissez un cycle à gauche : son détail s’ouvre à droite. Cochez les paires matière × niveau — décocher <strong>désactive</strong> (l’historique reste intact).
+          Choisissez un cycle à gauche : son détail s’ouvre à droite. Cochez les paires matière × niveau — décocher <strong>désactive</strong> (l’historique reste intact). Les boutons « + Cycle » et « + Niveau » sont la seule place où l’on crée un cycle ou un niveau.
         </p>
       </div>
 
@@ -100,6 +154,15 @@ export default function AdminProgrammes() {
                 </button>
               )
             })}
+            {/* + Cycle : CREATE encadré (le backend refuse un nom vide ou déjà pris). */}
+            <div style={{ display: 'flex', gap: 6, padding: '10px 10px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+              <input style={champAjout} value={newCycleNom} disabled={ajoutBusy}
+                placeholder="Nom du cycle…" title="Nom du nouveau cycle (ex. CAP)"
+                onChange={e => setNewCycleNom(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') creerCycle() }} />
+              <button type="button" style={btnAjout} onClick={creerCycle} disabled={ajoutBusy}
+                title="Créer ce cycle (il apparaît dans la liste et s’ouvre à droite)">+ Cycle</button>
+            </div>
           </div>
         </div>
 
@@ -110,9 +173,19 @@ export default function AdminProgrammes() {
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
 
-              {/* En-tête : nom du cycle */}
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+              {/* En-tête : nom du cycle + ajout d'un niveau dans CE cycle */}
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: '#1a3a6e' }}>{selected.nom}</span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 220, flex: '0 1 320px' }}>
+                  <input style={champAjout} value={newNiveauNom} disabled={ajoutBusy}
+                    placeholder={`Nom du niveau dans « ${selected.nom} »…`}
+                    title="Nom du nouveau niveau de ce cycle (ex. CAP Cuisine)"
+                    onChange={e => setNewNiveauNom(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') creerNiveau() }} />
+                  <button type="button" style={btnAjout} onClick={creerNiveau} disabled={ajoutBusy}
+                    title="Créer ce niveau dans le cycle ouvert">+ Niveau</button>
+                </div>
               </div>
 
               {selected.niveaux.length === 0 ? (
