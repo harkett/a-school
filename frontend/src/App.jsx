@@ -94,9 +94,6 @@ function MainApp() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const matiere = user?.subject
-  const matiereLabel = matiere === 'Langues Vivantes (LV)' && user?.langue_lv
-    ? `LV - ${user.langue_lv}`
-    : matiere
 
   // Garde-fou : pas de matière = pas de couple → profil BLOQUANT (l'app force « Mon profil »
   // comme tout premier écran, et neutralise la navigation tant que le couple n'est pas enregistré).
@@ -121,6 +118,11 @@ function MainApp() {
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
   const [sessionMatiere, setSessionMatiere] = useState(matiere)
+  // Libellé affiché (bandeau, Accueil) = le couple de TRAVAIL de la session — celui que le
+  // moteur utilise vraiment — jamais un mélange matière du profil / niveau de session.
+  const matiereLabel = sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv
+    ? `LV - ${user.langue_lv}`
+    : sessionMatiere
   const [fewShotModal, setFewShotModal] = useState(false)  // « aSchool vous reconnaît » : modale au franchissement du seuil
   const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
   const [activiteTab, setActiviteTab] = useState('creer')
@@ -248,6 +250,13 @@ function MainApp() {
     setParamsWithSave(newParams)
   }
 
+  // Retour au couple du PROFIL : on réapplique à la session les valeurs du profil lues en
+  // base (/auth/me) — aucune écriture, le geste inverse de « Changer la classe ou la matière ».
+  function revenirAuProfil() {
+    setSessionMatiere(matiere)
+    setParams(p => ({ ...p, niveau: user?.niveau || '' }))
+  }
+
   // Resynchronise params.niveau quand user.niveau change (sauvegarde profil)
   // — sans ce useEffect, params.niveau reste figé à la valeur du mount.
   useEffect(() => {
@@ -268,7 +277,7 @@ function MainApp() {
             ...p,
             activite_type_id: list[0].id ?? null,
             sous_type: list[0].sous_types[0] || null,
-            nb: list[0].params.includes('nb') ? 5 : null,
+            nb: (list[0].besoins || []).includes('nb') ? 5 : null,
           }))
         }
       })
@@ -299,6 +308,8 @@ function MainApp() {
       showError('Sélectionnez un type d\'activité avant de générer.')
       return
     }
+    // La zone texte est LA BASE DE TOUT : la demande de l'utilisateur (tapée, dictée, scannée)
+    // mène la génération et ancre la recherche au programme. Elle est TOUJOURS exigée.
     if (!texte.trim()) {
       showError(
         'Saisissez un texte source avant de générer — collez un extrait, dictez ou importez un fichier.' +
@@ -874,6 +885,9 @@ function MainApp() {
                       onFeedback={() => setShowFeedback(true)}
                       sessionMatiere={sessionMatiere}
                       onMatiereChange={setSessionMatiere}
+                      profilMatiere={matiere}
+                      profilNiveau={user?.niveau || ''}
+                      onRevenirProfil={revenirAuProfil}
                     />
                   )}
                   <div ref={resultatRef}>

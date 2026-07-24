@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState } from 'react'
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -6,19 +6,12 @@ const IconGenerer = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange }) {
+export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, sessionMatiere, onMatiereChange, profilMatiere, profilNiveau, onRevenirProfil }) {
   const activite = activites.find(a => a.id === params.activite_type_id) || activites[0]
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau: params.niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
   const [matieresParNiveau, setMatieresParNiveau] = useState([])  // [{niveau, matieres:[{id,nom}]}] — filtre la matière par le niveau
-
-  useEffect(() => {
-    fetch('/api/programmes', { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) { setNiveauxParCycle(d.niveaux_par_cycle || []); setMatieresParNiveau(d.matieres_par_niveau || []) } })
-      .catch(() => {})
-  }, [])
 
   function set(field, value) {
     onChange({ ...params, [field]: value })
@@ -30,14 +23,22 @@ export default function Parametres({ activites, params, accentType, onChange, on
       ...params,
       activite_type_id: act?.id ?? null,   // identité du type = son id
       sous_type: act?.sous_types[0] || null,
-      nb: act?.params.includes('nb') ? 5 : null,
+      nb: (act?.besoins || []).includes('nb') ? 5 : null,  // besoin lu du prompt du couple×type
     })
   }
 
   function ouvrirAjuster() {
     setAjustTemp({ matiere: sessionMatiere, niveau: params.niveau })
     setShowAjuster(true)
+    // Listes relues EN BASE à CHAQUE ouverture (get frais) — jamais servies d'un chargement périmé.
+    fetch('/api/programmes', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) { setNiveauxParCycle(d.niveaux_par_cycle || []); setMatieresParNiveau(d.matieres_par_niveau || []) } })
+      .catch(() => {})
   }
+
+  // Le prof travaille-t-il hors de son couple de profil ? (comparaison pure, rien de stocké)
+  const coupleAjuste = sessionMatiere !== profilMatiere || params.niveau !== profilNiveau
 
   function validerAjust() {
     onMatiereChange(ajustTemp.matiere)
@@ -79,22 +80,37 @@ export default function Parametres({ activites, params, accentType, onChange, on
           <span className="text-gray-400 mx-2">·</span>
           <span>{params.niveau}</span>
         </span>
-        <button
-          type="button"
-          onClick={ouvrirAjuster}
-          title="Générer cette activité pour une autre classe de votre cycle ou une autre matière — votre profil n'est pas modifié."
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: '#eff6ff', border: '1px solid #1F6EEB', borderRadius: '6px',
-            padding: '6px 12px', fontSize: '13px', color: '#1F6EEB', fontWeight: 600,
-            cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-          </svg>
-          Changer la classe ou la matière
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          {coupleAjuste && (
+            <button
+              type="button"
+              onClick={onRevenirProfil}
+              title="Revenir à la classe et à la matière de votre profil."
+              style={{
+                background: 'none', border: 'none', padding: 0, fontSize: '12px',
+                color: '#64748b', textDecoration: 'underline', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              Revenir à mon profil
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={ouvrirAjuster}
+            title="Générer cette activité pour une autre classe de votre cycle ou une autre matière — votre profil n'est pas modifié."
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              background: '#eff6ff', border: '1px solid #1F6EEB', borderRadius: '6px',
+              padding: '6px 12px', fontSize: '13px', color: '#1F6EEB', fontWeight: 600,
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+            Changer la classe ou la matière
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -134,7 +150,7 @@ export default function Parametres({ activites, params, accentType, onChange, on
           </div>
         )}
 
-        {activite?.params.includes('nb') && (
+        {(activite?.besoins || []).includes('nb') && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Nombre de questions</label>
             <input
