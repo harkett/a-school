@@ -65,8 +65,8 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
 
     1) types COCHÉS (`liaison.actif`) du référentiel du niveau, joints au catalogue (`actif`) ;
     2) si vide (pas de référentiel, ou rien de coché) → le type par DÉFAUT du catalogue.
-    Précisions et paramètres LUS dans leurs tables filles (`type_precisions` ordonnées par `ordre`,
-    `type_parametres`) — plus de blob JSON. Renvoie `[{label, key, sous_types:[...], params:[...]}]`
+    Précisions LUES PAR COUPLE (`referentiel_type_precisions`, ordonnées par `ordre`) et paramètres
+    dans `type_parametres` — plus de blob JSON. Renvoie `[{label, key, sous_types:[...], params:[...]}]`
     (ordre liaison puis catalogue)."""
     ref_id = _referentiel_du_niveau(db, niveau)
     lignes = []

@@ -115,7 +115,7 @@ export default function Labo() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Précision (lue sur le TYPE)</label>
+              <label className="block text-xs text-gray-500 mb-1">Précision (lue sur le COUPLE)</label>
               {typeCourant && typeCourant.sous_types.length > 0 ? (
                 <select style={{ ...champ, minWidth: 240 }} defaultValue={typeCourant.sous_types[0]}>
                   {typeCourant.sous_types.map(s => <option key={s} value={s}>{s}</option>)}
@@ -128,11 +128,10 @@ export default function Labo() {
         )}
 
         {typeCourant && (
-          <div style={{ marginTop: 14, padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a',
-            borderRadius: 8, fontSize: 12.5, color: '#92400e', lineHeight: 1.5 }}>
-            ⚠️ Ces précisions viennent de <b>la table <code>type_precisions</code> du type « {typeCourant.label} »</b>
-            (catalogue global). <b>Change le niveau ou la matière</b> ci-dessus : pour le même type, la liste de précisions
-            <b> ne bougera pas</b> — elle n'est pas filtrée par le couple. C'est le point à corriger.
+          <div style={{ marginTop: 14, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0',
+            borderRadius: 8, fontSize: 12.5, color: '#166534', lineHeight: 1.5 }}>
+            Ces précisions viennent du <b>couple × type</b> (table <code>referentiel_type_precisions</code>) :
+            change le niveau ci-dessus et, pour le même type, la liste suit le couple — chaque couple a SES précisions.
           </div>
         )}
       </div>

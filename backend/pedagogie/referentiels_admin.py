@@ -26,7 +26,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, ActiviteType, ReferentielActiviteType, ActiviteSauvegardee, FewShotMilestone, TypePrecision, ReferentielTypePrecision
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
 from backend.systeme.admin import _require_admin, get_settings_dict
 
 router = APIRouter()
@@ -275,101 +275,6 @@ def lire_contenu(db: Session = Depends(get_db)):
             })
         arbre.append({"id": c.id, "nom": c.nom, "niveaux": blocs_niveaux})
     return {"cycles": arbre}
-
-
-@router.get("/admin/activite-types", dependencies=[Depends(_require_admin)])
-def lister_activite_types_table(db: Session = Depends(get_db)):
-    """Contenu de la table `types_activite` (get direct, lecture seule) — fenêtre de contrôle admin.
-    Ajoute par type `usage` (nb de références VIVANTES) + `supprimable`, CALCULÉS À LA VOLÉE (zéro copie,
-    rien n'est stocké) : un type est référencé par sa CLÉ dans `activites_sauvegardees` et
-    `few_shot_milestones`. supprimable = 0 usage → le front sait quel bouton poubelle griser."""
-    ta = db.query(ActiviteType).order_by(ActiviteType.ordre, ActiviteType.id).all()
-    usage: dict[int, int] = {}
-    for tid, n in db.query(ActiviteSauvegardee.activite_type_id, func.count()).group_by(ActiviteSauvegardee.activite_type_id).all():
-        usage[tid] = usage.get(tid, 0) + n
-    for tid, n in db.query(FewShotMilestone.activite_type_id, func.count()).group_by(FewShotMilestone.activite_type_id).all():
-        usage[tid] = usage.get(tid, 0) + n
-    return {"total": len(ta), "types": [
-        {"id": t.id, "label": t.label, "is_default": t.is_default, "actif": t.actif, "ordre": t.ordre,
-         "origine": t.origine, "usage": usage.get(t.id, 0), "supprimable": usage.get(t.id, 0) == 0}
-        for t in ta]}
-
-
-@router.delete("/admin/activite-types/{type_id}", dependencies=[Depends(_require_admin)])
-def supprimer_activite_type(type_id: int, db: Session = Depends(get_db)):
-    """Supprime un type du catalogue `types_activite`. CONTRÔLE DELETE (règle 4) — refuse si le type est
-    encore UTILISÉ, c.-à-d. référencé par sa CLÉ dans une activité sauvegardée ou un jalon few-shot. Les
-    coches référentiel cascadent (FK ondelete=CASCADE) : elles ne bloquent pas. 404 si absent, 409 si utilisé."""
-    t = db.get(ActiviteType, type_id)
-    if t is None:
-        raise HTTPException(404, "Type d'activité introuvable.")
-    n_act = db.query(func.count()).select_from(ActiviteSauvegardee).filter(ActiviteSauvegardee.activite_type_id == t.id).scalar()
-    n_few = db.query(func.count()).select_from(FewShotMilestone).filter(FewShotMilestone.activite_type_id == t.id).scalar()
-    if n_act or n_few:
-        raise HTTPException(409, f"Type utilisé ({n_act} activité(s) sauvegardée(s), {n_few} jalon(s) few-shot) : suppression impossible.")
-    db.delete(t)
-    db.commit()
-    logger.info("Type d'activité supprimé : id=%s label=%s", type_id, t.label)
-    return {"ok": True, "id": type_id}
-
-
-@router.get("/admin/activite-types/{type_id}/precisions", dependencies=[Depends(_require_admin)])
-def lister_precisions_type(type_id: int, db: Session = Depends(get_db)):
-    """Précisions d'un type — get direct dans `type_precisions`, ordonné (ordre, id). Lecture seule :
-    la cartouche « Précisions » de l'admin AFFICHE cette liste, jamais recopiée (règle 4). 404 si le type
-    n'existe pas. L'ajout/suppression (put) viendra à l'étape B, mêmes contrôles que le catalogue."""
-    if db.get(ActiviteType, type_id) is None:
-        raise HTTPException(404, "Type d'activité introuvable.")
-    precs = (db.query(TypePrecision)
-               .filter(TypePrecision.type_activite_id == type_id)
-               .order_by(TypePrecision.ordre, TypePrecision.id).all())
-    return {"type_id": type_id, "precisions": [
-        {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
-
-
-class PrecisionIn(BaseModel):
-    libelle: str
-
-
-@router.post("/admin/activite-types/{type_id}/precisions", dependencies=[Depends(_require_admin)])
-def creer_precision_type(type_id: int, body: PrecisionIn, db: Session = Depends(get_db)):
-    """Ajoute une précision au type (table `type_precisions`). CONTRÔLE CREATE (règle 4) : type existe
-    (404), libellé non vide (400), et REFUS DU DOUBLON par libellé insensible à la casse dans CE type
-    (comme le catalogue) → on renvoie l'existante avec `deja_present=True` plutôt que d'en refaire une.
-    Sinon crée avec `source='admin'` (saisie manuelle) et `ordre = max(ordre)+1` (ajout en fin)."""
-    if db.get(ActiviteType, type_id) is None:
-        raise HTTPException(404, "Type d'activité introuvable.")
-    libelle = (body.libelle or "").strip()
-    if not libelle:
-        raise HTTPException(400, "Indiquez un libellé pour la précision.")
-    existante = (db.query(TypePrecision)
-                   .filter(TypePrecision.type_activite_id == type_id,
-                           func.lower(TypePrecision.libelle) == libelle.lower()).first())
-    if existante is not None:
-        return {"id": existante.id, "libelle": existante.libelle, "deja_present": True}
-    ordre_max = (db.query(func.coalesce(func.max(TypePrecision.ordre), -1))
-                   .filter(TypePrecision.type_activite_id == type_id).scalar())
-    p = TypePrecision(type_activite_id=type_id, libelle=libelle, ordre=ordre_max + 1, source="admin")
-    db.add(p)
-    db.commit()
-    db.refresh(p)
-    logger.info("Précision ajoutée : type_id=%s id=%s libelle=%s", type_id, p.id, p.libelle)
-    return {"id": p.id, "libelle": p.libelle, "deja_present": False}
-
-
-@router.delete("/admin/activite-types/{type_id}/precisions/{prec_id}", dependencies=[Depends(_require_admin)])
-def supprimer_precision_type(type_id: int, prec_id: int, db: Session = Depends(get_db)):
-    """Supprime une précision. CONTRÔLE DELETE (règle 4) : la précision doit exister ET appartenir à CE
-    type (404 sinon). Aucun grisage : rien ne référence une précision par clé étrangère — la précision
-    choisie par le prof est un instantané TEXTE dans `activites_sauvegardees.sous_type`, pas un lien —
-    donc la suppression est toujours sûre et n'oriente aucune activité déjà sauvegardée."""
-    p = db.get(TypePrecision, prec_id)
-    if p is None or p.type_activite_id != type_id:
-        raise HTTPException(404, "Précision introuvable pour ce type.")
-    db.delete(p)
-    db.commit()
-    logger.info("Précision supprimée : type_id=%s id=%s libelle=%s", type_id, prec_id, p.libelle)
-    return {"ok": True, "id": prec_id}
 
 
 def _texte_staged(token: str, max_pages: int = 6) -> str:

@@ -490,8 +490,8 @@ class ActiviteType(Base):
     l'anti-doublon du catalogue se fait par `label` (insensible à la casse), comme `matieres.nom`.
     `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
     aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
-    Précisions et paramètres du type vivent dans leurs tables filles `type_precisions` /
-    `type_parametres` (une ligne par valeur), plus dans un blob JSON."""
+    Les paramètres du type vivent dans la table fille `type_parametres` (une ligne par valeur) ;
+    les précisions vivent PAR COUPLE sur la liaison (`referentiel_type_precisions`)."""
     __tablename__ = "types_activite"
     __table_args__ = (
         Index("ux_default", "is_default", unique=True, postgresql_where=text("is_default")),
@@ -539,7 +539,7 @@ class ReferentielActiviteType(Base):
 class ReferentielTypePrecision(Base):
     """Précision d'un type d'activité POUR UN COUPLE — fille de la liaison `referentiel_types_activite`.
 
-    Contrairement à `type_precisions` (catalogue GLOBAL, même valeur crèche→doctorat), ici la précision
+    Contrairement à l'ancien catalogue GLOBAL `type_precisions` (supprimé — même valeur crèche→doctorat), ici la précision
     est PROPRE AU COUPLE × TYPE : elle pend sur la ligne de liaison (comme le `prompt`), donc « exploration
     sensorielle » n'existe que pour le couple qui l'a saisie — le doctorat n'hérite plus du vocabulaire
     crèche. `source` = 'admin' (saisie manuelle) | 'ia' (proposée). CASCADE : supprimer la liaison retire
@@ -555,27 +555,6 @@ class ReferentielTypePrecision(Base):
     libelle: Mapped[str] = mapped_column(String(128), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")
-
-
-class TypePrecision(Base):
-    """Précision d'un type d'activité — UNE ligne par choix offert au prof (ex. « dictée »).
-
-    Remplace l'ancien blob JSON `types_activite.sous_types` : une donnée = une ligne, en base, avec
-    contrôle (règle 4). Un type a 0..N précisions ; à la génération, le prof en choisit une (menu
-    « Précision »). `source` = provenance de la ligne ('systeme' pré-rempli | 'admin' saisie manuelle |
-    'ia' proposée par l'analyse), même logique que `ReferentielActiviteType.source`. CASCADE : supprimer
-    le type retire ses précisions. UNIQUE (type_activite_id, libelle) : pas de doublon dans un type."""
-    __tablename__ = "type_precisions"
-    __table_args__ = (
-        UniqueConstraint("type_activite_id", "libelle", name="uq_type_precisions_type_libelle"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    type_activite_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
-    libelle: Mapped[str] = mapped_column(String(128), nullable=False)
-    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
-    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")
 
 
 class TypeParametre(Base):
