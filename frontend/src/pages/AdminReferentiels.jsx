@@ -517,7 +517,7 @@ export default function AdminReferentiels() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() }),
       }, TIMEOUT_LONG)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerVerifDepot(d.token)
     } catch (e) { showError(`Récupération impossible.\n\n${e.message}`) }
@@ -535,7 +535,7 @@ export default function AdminReferentiels() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, cycle_id: Number(cycleId), niveau_id: Number(niveauId) }),
       }, TIMEOUT_LONG)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setVerif(d)
     } catch (e) { setVerif(null); showError(`Vérification du dépôt impossible.\n\n${e.message}`) }
@@ -551,7 +551,7 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/preparer-depot', {
         method: 'POST', credentials: 'include', body: form,
       }, TIMEOUT_LONG)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerVerifDepot(d.token)
     } catch (e) { showError(`Lecture du fichier impossible.\n\n${e.message}`) }
@@ -573,7 +573,7 @@ export default function AdminReferentiels() {
         // TIMEOUT_XLONG : la validation épure le texte ET détecte les matières (IA) en un seul
         // appel (~3 min mesurées). Abandonner avant le serveur = reclics sur jeton consommé.
       }, TIMEOUT_XLONG)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
       setEpureTexte(null)   // nouveau PDF validé = nouveau texte de travail figé en base : on relira au clic
@@ -636,7 +636,7 @@ export default function AdminReferentiels() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ matiere_id: ligne.id, nouveau_nom: nom }),
         }, TIMEOUT_STD)
-        const d = await r.json()
+        const d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
         await rafraichirEtat()
       } catch (e) { showError(`Renommage impossible.\n\n${e.message}`) }
@@ -658,7 +658,7 @@ export default function AdminReferentiels() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau, matiere_id: ligne.id }),
       }, TIMEOUT_STD)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       if (d.profs > 0 || d.referentiels > 0) {
         showError(`« ${d.matiere} » a été retirée de ce niveau (réversible).\n\nÀ savoir : elle est encore utilisée par ${d.profs} prof(s) et ${d.referentiels} référentiel(s) de matière. Rien n'a été cassé (désactivation seulement).`)
@@ -677,7 +677,7 @@ export default function AdminReferentiels() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau, matieres: aEnvoyer }),
       }, TIMEOUT_STD)
-      const d = await r.json()
+      const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setBilanApercu(`Enregistré : ${d.nb_ajoutees} ajoutée(s), ${d.nb_deja} déjà en base.`)
       await rafraichirEtat()   // les nouvelles matières deviennent « déjà en base »
@@ -1434,6 +1434,10 @@ export default function AdminReferentiels() {
                   {promptValide ? 'Statut : validé' : 'Statut : à valider'}
                 </span>
               </div>
+              {/* Jauge IA — même patron que la Découpe : montée UNIQUEMENT pendant l'appel IA. */}
+              {promptBusy === 'generer' && (
+                <JaugeAttente libelle="L’IA lit le document épuré et rédige le prompt de découpe…" />
+              )}
               <textarea
                 value={promptDecoupe}
                 onChange={e => { setPromptDecoupe(e.target.value); setPromptValide(false) }}

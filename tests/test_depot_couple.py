@@ -373,6 +373,34 @@ def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
     assert "expiré" not in r.json()["detail"]
 
 
+def test_enregistrer_matiere_longue_passe_et_trop_longue_422():
+    """Cas réel du 24/07 : « Conception et réalisation d'orthèses temporaires et d'aides
+    techniques » (70 car.) explosait contre VARCHAR(64) en 500 brut à l'écran. La colonne passe
+    à 255 ; au-delà, refus 422 en langage humain — jamais un « Internal Server Error »."""
+    from backend.core.models_db import Matiere
+    cid = _cycle("DC-Long", 88)
+    _niveau(cid, "DC-NivLong", 88)
+    c = admin_client()
+    long70 = "Conception et réalisation d'orthèses temporaires et d'aides techniques"
+    r = c.post("/api/admin/referentiels/matieres", json={
+        "cycle_id": cid, "niveau": "DC-NivLong", "matieres": [long70]})
+    assert r.status_code == 200, r.text
+    assert r.json()["nb_ajoutees"] == 1
+    with dbmod.SessionLocal() as db:
+        mat = db.query(Matiere).filter(Matiere.nom == long70).first()
+        assert mat is not None                     # les 70 caractères sont EN BASE, intacts
+        mat_id = mat.id
+    trop = "X" * 256
+    r2 = c.post("/api/admin/referentiels/matieres", json={
+        "cycle_id": cid, "niveau": "DC-NivLong", "matieres": [trop]})
+    assert r2.status_code == 422, r2.text
+    assert "trop long" in r2.json()["detail"]      # message humain, pas de 500 brut
+    # Même garde au renommage (l'autre seul endroit qui écrit matieres.nom).
+    r3 = c.patch("/api/admin/referentiels/matiere", json={
+        "matiere_id": mat_id, "nouveau_nom": trop})
+    assert r3.status_code == 422, r3.text
+
+
 def test_page_contenu_arbre_complet():
     """GET /admin/contenu = l'arbre COMPLET en une lecture : cycle → niveau → référentiel du couple
     (états lus, unités comptées), matières du programme, types liés avec les précisions du couple.

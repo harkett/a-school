@@ -1022,9 +1022,16 @@ def enregistrer_matieres(body: EnregistrerMatieresBody, db: Session = Depends(ge
         raise HTTPException(404, "Niveau inconnu pour ce cycle.")
 
     # Dédoublonnage des noms reçus (insensible à la casse), 1er libellé vu conservé.
+    # Garde de longueur AVANT toute écriture : la limite est LUE sur la colonne (zéro copie),
+    # et le refus est un message humain — jamais un 500 brut à l'écran (cas réel du 24/07).
+    max_nom = Matiere.__table__.c.nom.type.length
     noms, vus = [], set()
     for raw in body.matieres:
         nom = (raw or "").strip()
+        if len(nom) > max_nom:
+            raise HTTPException(422, f"Le nom de matière « {nom[:60]}… » est trop long "
+                                     f"({len(nom)} caractères, maximum {max_nom}). "
+                                     "Raccourcissez-le puis relancez « Récupérer ».")
         if nom and nom.lower() not in vus:
             vus.add(nom.lower()); noms.append(nom)
 
@@ -1066,6 +1073,10 @@ def renommer_matiere(body: RenommerMatiereBody, db: Session = Depends(get_db)):
     nom = (body.nouveau_nom or "").strip()
     if not nom:
         raise HTTPException(400, "Le nouveau nom est requis.")
+    max_nom = Matiere.__table__.c.nom.type.length   # même garde qu'à l'enregistrement (zéro copie)
+    if len(nom) > max_nom:
+        raise HTTPException(422, f"Ce nom est trop long ({len(nom)} caractères, "
+                                 f"maximum {max_nom}). Raccourcissez-le puis revalidez.")
     mat = db.get(Matiere, body.matiere_id)
     if not mat:
         raise HTTPException(404, "Matière inconnue.")

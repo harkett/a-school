@@ -319,7 +319,9 @@ class Matiere(Base):
     __tablename__ = "matieres"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    nom: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 255 : les intitulés officiels dépassent 64 (cas réel : 70 car. dans le référentiel
+    # ergothérapie). Cette colonne EST la limite — les gardes la lisent ici (zéro copie).
+    nom: Mapped[str] = mapped_column(String(255), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = retirée du programme (historique conservé)
 
