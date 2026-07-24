@@ -373,6 +373,55 @@ def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
     assert "expiré" not in r.json()["detail"]
 
 
+def test_detecter_couple_correspondance_et_niveau_inconnu():
+    """POST /detecter-couple (dépôt « PDF d'abord », LECTURE SEULE) : l'IA lit (mockée), le SERVEUR
+    fait la correspondance en dur avec les tables — couple existant → ids (insensible à la casse) ;
+    niveau inconnu → niveau null + niveau_lu (l'écran proposera « Ajouter ce niveau ») ; et RIEN
+    n'est écrit en base (le dépôt ne crée jamais de niveau : porte unique POST /admin/niveaux)."""
+    from backend.core.models_db import Niveau
+    cid = _cycle("DC-Det2", 91)
+    nid = _niveau(cid, "DC-NivDet2", 91)
+    token = _staged_token()
+    c = admin_client()
+    try:
+        with patch.object(refadm, "_texte_staged", return_value="texte du document"), \
+             patch("backend.rag.analyse_amont.detecter_couple",
+                   return_value={"cycle_lu": "dc-det2", "niveau_lu": "DC-NIVDET2"}):
+            r = c.post("/api/admin/referentiels/detecter-couple", json={"token": token})
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["cycle"] == {"id": cid, "nom": "DC-Det2"}       # correspondance insensible à la casse
+        assert d["niveau"] == {"id": nid, "nom": "DC-NivDet2"}
+        with patch.object(refadm, "_texte_staged", return_value="texte du document"), \
+             patch("backend.rag.analyse_amont.detecter_couple",
+                   return_value={"cycle_lu": "DC-Det2", "niveau_lu": "Licence Inconnue"}):
+            r2 = c.post("/api/admin/referentiels/detecter-couple", json={"token": token})
+        assert r2.status_code == 200, r2.text
+        d2 = r2.json()
+        assert d2["cycle"]["id"] == cid and d2["niveau"] is None
+        assert d2["niveau_lu"] == "Licence Inconnue"             # l'écran s'en sert pour « Ajouter ce niveau »
+        with dbmod.SessionLocal() as db:
+            assert db.query(Niveau).count() == 1                 # LECTURE SEULE : aucun niveau créé en douce
+    finally:
+        _purge(token)
+
+
+def test_detecter_couple_ia_meme_patron():
+    """detecter_couple (analyse_amont) : prompt seedé au catalogue (get_prompt), arbre des cycles →
+    niveaux EXISTANTS injecté dans le prompt, retour nettoyé (strip) — même patron que les matières."""
+    from backend.rag import analyse_amont as am
+    cid = _cycle("DC-Arb", 92)
+    _niveau(cid, "DC-NivArb", 92)
+    with dbmod.SessionLocal() as db:
+        with patch.object(am, "generate",
+                          return_value='{"cycle_lu": " DC-Arb ", "niveau_lu": " DC-NivArb "}') as g:
+            out = am.detecter_couple("TEXTE-DU-DOCUMENT", db=db)
+    assert out == {"cycle_lu": "DC-Arb", "niveau_lu": "DC-NivArb"}
+    prompt_envoye = g.call_args[0][0]
+    assert "- DC-Arb : DC-NivArb" in prompt_envoye    # l'arbre existant est bien injecté
+    assert "TEXTE-DU-DOCUMENT" in prompt_envoye       # le texte du document aussi
+
+
 def test_depot_nettoie_les_apercus_abandonnes():
     """La zone d'attente est TRANSITOIRE : chaque nouveau dépôt supprime les aperçus abandonnés
     plus vieux que le TTL (`staging_ttl_heures` en base, défaut 24 h) ; un aperçu récent survit.

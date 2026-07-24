@@ -320,6 +320,42 @@ def verifier_depot(body: VerifierDepotBody, db: Session = Depends(get_db)):
     return {"couple": couple}
 
 
+class DetecterCoupleBody(BaseModel):
+    token: str
+
+
+@router.post("/admin/referentiels/detecter-couple", dependencies=[Depends(_require_admin)])
+def detecter_couple_depot(body: DetecterCoupleBody, db: Session = Depends(get_db)):
+    """Dépôt « PDF d'abord » (LECTURE SEULE — aucune écriture) : l'IA lit le début du document en
+    zone d'attente et propose le cycle + le niveau (nom exact du diplôme). Le SERVEUR fait ensuite
+    la CORRESPONDANCE en dur avec les tables cycles/niveaux (insensible à la casse) — l'IA lit,
+    la base tranche. `cycle`/`niveau` valent null si rien ne correspond : l'écran propose alors
+    « Ajouter ce niveau » (porte unique POST /admin/niveaux, sur clic de l'admin) ou renvoie vers
+    Programmes pour un cycle inconnu. Ne crée JAMAIS rien ici."""
+    texte = _texte_staged(body.token)
+    if not texte:
+        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
+    from backend.rag.analyse_amont import detecter_couple
+    try:
+        lu = detecter_couple(texte[:4000], db=db)
+    except Exception:
+        logger.exception("detecter_couple : échec de la lecture du couple par l'IA")
+        raise HTTPException(400, "La détection du cycle par l'IA a échoué. Réessayez.")
+    cycle = None
+    if lu["cycle_lu"]:
+        cycle = db.query(Cycle).filter(func.lower(Cycle.nom) == lu["cycle_lu"].lower()).first()
+    niveau = None
+    if cycle is not None and lu["niveau_lu"]:
+        niveau = (db.query(Niveau)
+                    .filter(Niveau.cycle_id == cycle.id,
+                            func.lower(Niveau.nom) == lu["niveau_lu"].lower()).first())
+    return {
+        "cycle": {"id": cycle.id, "nom": cycle.nom} if cycle else None,
+        "niveau": {"id": niveau.id, "nom": niveau.nom} if niveau else None,
+        "cycle_lu": lu["cycle_lu"], "niveau_lu": lu["niveau_lu"],
+    }
+
+
 class AbandonnerBody(BaseModel):
     token: str
 

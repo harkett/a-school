@@ -347,6 +347,29 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
 
 
+PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
+
+Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
+{cycles_existants}
+
+Texte du document :
+{texte}
+
+Ta tâche :
+- Lis à quel cycle et à quel niveau ce document s'adresse réellement.
+- Fais CORRESPONDRE ce que tu lis avec la liste ci-dessus :
+  - Si le cycle visé correspond à un cycle de la liste, reprends EXACTEMENT son nom (même orthographe, mêmes majuscules).
+  - Si le niveau visé correspond à un niveau de ce cycle dans la liste, reprends EXACTEMENT son nom.
+  - Sinon, donne le nom tel qu'il ressort du document, court et lisible (le nom exact du diplôme ou du niveau, pas une phrase).
+
+Règle :
+- "cycle_lu" : le cycle visé par le document (nom de la liste si correspondance, sinon nom lu). Chaîne vide si le document ne permet pas de le dire.
+- "niveau_lu" : le niveau, diplôme ou spécialité visé (nom de la liste si correspondance, sinon nom lu). Chaîne vide si le document ne permet pas de le dire.
+- N'invente rien : la liste sert à faire correspondre, jamais à choisir un cycle que le document ne vise pas.
+
+Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -397,5 +420,10 @@ PROMPTS = {
         "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
         "placeholders": ["types_existants", "texte"],
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
+    },
+    "detecter_couple": {
+        "label": "Détection du cycle et du niveau depuis le document (dépôt « PDF d'abord »)",
+        "placeholders": ["cycles_existants", "texte"],
+        "default": PROMPT_DETECTER_COUPLE,
     },
 }

@@ -355,6 +355,58 @@ def detecter_matieres(texte: str, *, db: Session) -> list[str]:
     return noms
 
 
+# Clé EN BASE du prompt de détection du COUPLE (cycle + niveau) — dépôt « PDF d'abord » :
+# l'IA propose, le serveur fait la correspondance avec les tables, l'admin dispose.
+_CLE_DETECTER_COUPLE = "detecter_couple"
+
+
+def _schema_detecter_couple() -> dict:
+    """Sortie structurée de la détection du couple : `cycle_lu` / `niveau_lu` = ce que le document
+    vise, repris à l'ORTHOGRAPHE EXACTE de la liste fournie quand ça correspond (sinon le nom lu).
+    Chaîne vide = le document ne permet pas de le dire."""
+    return {
+        "type": "object",
+        "properties": {
+            "cycle_lu": {"type": "string"},
+            "niveau_lu": {"type": "string"},
+        },
+        "required": ["cycle_lu", "niveau_lu"],
+        "additionalProperties": False,
+    }
+
+
+def detecter_couple(texte: str, *, db: Session) -> dict:
+    """Dépôt « PDF d'abord » : l'IA LIT le début du document et PROPOSE le couple (cycle + niveau).
+    Elle reçoit l'arbre des cycles → niveaux EXISTANTS (get, zéro copie) pour faire CORRESPONDRE
+    le document avec les tables : orthographe exacte de la liste quand ça correspond, sinon le nom
+    lu dans le document. La CORRESPONDANCE finale (ids) est faite par l'APPELANT contre la base —
+    l'IA lit, la base tranche. Prompt / provider / modèle lus EN BASE ; température 0. Lève
+    `ValueError` si l'IA ne rend pas un JSON exploitable ; laisse remonter les pannes IA."""
+    from backend.core.models_db import Cycle, Niveau
+    lignes = []
+    for c in db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all():
+        niveaux = [n.nom for n in (db.query(Niveau).filter(Niveau.cycle_id == c.id)
+                                     .order_by(Niveau.ordre, Niveau.id).all())]
+        lignes.append(f"- {c.nom} : {', '.join(niveaux) if niveaux else '(aucun niveau)'}")
+    prompt = (get_prompt(db, _CLE_DETECTER_COUPLE)
+              .replace("{cycles_existants}", "\n".join(lignes) or "(aucun cycle pour le moment)")
+              .replace("{texte}", texte))
+    raw = generate(
+        prompt,
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, _CLE_DETECTER_COUPLE),
+        temperature=0,
+        json_mode=True,
+        schema=_schema_detecter_couple(),
+    )
+    data = parser_reponse(raw)
+    return {
+        "cycle_lu": (data.get("cycle_lu") or "").strip(),
+        "niveau_lu": (data.get("niveau_lu") or "").strip(),
+    }
+
+
 # Clé EN BASE du prompt de détection des TYPES D'ACTIVITÉ — proposés à partir des chunks du couple
 # (proposition, pas une liaison validée : l'admin coche ce qu'il garde). Même patron que les matières.
 _CLE_TYPES_ACTIVITE = "detecter_types_activite"

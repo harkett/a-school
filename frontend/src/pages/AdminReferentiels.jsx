@@ -123,6 +123,10 @@ export default function AdminReferentiels() {
   // 'loading' pendant l'appel, null au repos. Le document à valider ne s'affiche que si elle passe.
   const [verif, setVerif] = useState(null)
   const [forcageMotif, setForcageMotif] = useState('')   // motif obligatoire si l'admin force malgré une alerte
+  // Détection du couple depuis le PDF (dépôt « PDF d'abord ») : réponse du serveur
+  // { cycle:{id,nom}|null, niveau:{id,nom}|null, cycle_lu, niveau_lu } | null au repos.
+  const [detection, setDetection] = useState(null)
+  const [detectBusy, setDetectBusy] = useState(false)
   // Table des matières du référentiel — INTERFACE seule ; le code (lecture des
   // candidats + enregistrement en base) sera branché à l'étape suivante.
   const [matieres, setMatieres] = useState([])
@@ -133,7 +137,6 @@ export default function AdminReferentiels() {
   // État du couple sélectionné : { existe_referentiel, referentiel:{fichier,source,date_doc}, matieres:[{id,nom}] }
   const [etat, setEtat] = useState(null)
   const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
-  const [showParIa, setShowParIa] = useState(false)  // modale explicative « Par IA » (idée, pas encore branchée)
   const [showSuppr, setShowSuppr] = useState(false)  // modale de confirmation de suppression du référentiel
   const [supprBusy, setSupprBusy] = useState(false)  // suppression en cours (bouton grisé)
   // Cas exceptionnel Matières → Prompt : interrupteur d'AFFICHAGE (navigation front, pas de la donnée
@@ -243,6 +246,9 @@ export default function AdminReferentiels() {
   const [typesInit, setTypesInit] = useState(false)            // 1re lecture des liaisons du couple faite (base lue)
   const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
   const autoDetectFait = useRef('')                            // clé couple : l'auto-détection ne se lance qu'UNE fois par couple affiché
+  // Couple posé par la DÉTECTION (PDF d'abord) : l'effet [cycleId, niveau] garde alors le document
+  // en attente à l'écran (au lieu de le vider comme lors d'un changement de couple à la main).
+  const detectionApplique = useRef(false)
   // MAQUETTE prompt par type (spécifique au couple) : éditeur déplié sous la ligne. `promptEditId` = id du
   // type dont l'éditeur est ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base).
   // La génération IA et l'enregistrement PAR COUPLE (colonne prompt sur le lien) = chantier backend d'après.
@@ -290,6 +296,9 @@ export default function AdminReferentiels() {
     // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
     setCycleId(''); setNiveauId(''); setNiveau('')  // → couple.done = false
     setEtat(null)                                   // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
+    // Carte « Document PDF » (en haut, visible sans couple) : on repart d'une zone vierge —
+    // l'effet [cycleId, niveau] ne vide pas ces états-là quand le couple est déjà vide.
+    setApercu(null); setVerif(null); setDetection(null); setResultat(null); setNomFichier(''); setUrl('')
     setCoupleOuvert(true)                           // repartir en création : la carte Couple s'ouvre (bouton « Réduire »)
   }
 
@@ -384,7 +393,13 @@ export default function AdminReferentiels() {
       setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
       return
     }
-    setApercu(null); setResultat(null); setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
+    // « PDF d'abord » : un document EN ATTENTE survit à la sélection du couple (détection OU
+    // cascade à la main) — la décision de le garder se prend après lecture de l'état, plus bas.
+    // Sans document en attente : reset simple, comme avant.
+    const parDetection = detectionApplique.current
+    detectionApplique.current = false
+    if (!apercu) { setResultat(null); setDetection(null) }
+    setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
     setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
     setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
     // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
@@ -400,6 +415,13 @@ export default function AdminReferentiels() {
         // Mode AJOUT (couple sans référentiel) : la carte PDF s'ouvre pour déposer tout de suite.
         // Mode « déjà traité » : elle reste repliée (simple relecture).
         setPdfOuvert(!(d && d.existe_referentiel))
+        // Document EN ATTENTE (PDF d'abord) : couple LIBRE → on le garde et la vérif n°1 part
+        // pour CE couple (sauf si la détection vient de la lancer) ; couple DÉJÀ TRAITÉ → le
+        // document ne le concerne pas, on le jette (l'écran passe en relecture).
+        if (apercu) {
+          if (d && d.existe_referentiel) { setApercu(null); setVerif(null); setDetection(null); setResultat(null) }
+          else if (!parDetection) lancerVerifDepot(apercu.token, cycleId, niveauId)
+        }
       })
       .catch(() => { if (!annule) setEtat(null) })
     // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
@@ -508,9 +530,61 @@ export default function AdminReferentiels() {
     finally { setPromptBusy('') }
   }
 
+  // Applique un couple trouvé par la détection : mêmes setters que la cascade, drapeau levé pour
+  // que l'effet [cycleId, niveau] GARDE le document en attente, puis la vérif n°1 part avec les
+  // valeurs fraîches (pas l'état, pas encore à jour).
+  function appliquerCouple(cid, nid, nom) {
+    detectionApplique.current = true
+    setCoupleOuvert(false)   // la carte Couple apparaît REPLIÉE (pastille verte, « Développer ») — étape validée
+    setCycleId(String(cid)); setNiveauId(String(nid)); setNiveau(nom)
+    if (apercu) lancerVerifDepot(apercu.token, cid, nid)
+  }
+
+  // « Détecter le cycle » : l'IA lit le document en attente, le SERVEUR fait la correspondance
+  // avec les tables (lecture seule). Couple complet → sélection automatique ; niveau absent →
+  // bouton « Ajouter ce niveau » (sur clic) ; cycle inconnu → renvoi vers Programmes.
+  async function detecterCycle() {
+    if (!apercu) return
+    setDetectBusy(true); setDetection(null)
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/detecter-couple', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: apercu.token }),
+      }, TIMEOUT_LONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || "La détection du cycle a échoué."); return }
+      setDetection(d)   // PROPOSITION seulement : rien n'est sélectionné sans le clic « Valider » de l'admin
+    } catch { showError("La détection du cycle a échoué (réseau).") }
+    finally { setDetectBusy(false) }
+  }
+
+  // « Ajouter ce niveau » (sur MON clic) : la porte UNIQUE de création — POST /admin/niveaux,
+  // mêmes contrôles que l'écran Programmes (409 doublon, 404 cycle inconnu). Puis on recharge
+  // l'arbre (la cascade doit montrer le nouveau niveau) et on sélectionne le couple.
+  async function ajouterNiveauDetecte() {
+    if (!detection?.cycle || !detection?.niveau_lu) return
+    setDetectBusy(true)
+    try {
+      const r = await fetchWithTimeout('/api/admin/niveaux', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: detection.cycle.id, nom: detection.niveau_lu }),
+      }, TIMEOUT_STD)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { showError(d.detail || `Ajout du niveau impossible (${r.status}).`); return }
+      const ra = await fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
+      const da = await ra.json().catch(() => null)
+      if (da) setArbre(da.cycles || [])
+      setDetection(det => (det ? { ...det, niveau: { id: d.id, nom: d.nom } } : det))  // l'encadré passe au vert
+      appliquerCouple(detection.cycle.id, d.id, d.nom)
+    } catch { showError("Ajout du niveau impossible (réseau).") }
+    finally { setDetectBusy(false) }
+  }
+
   async function recupererLien() {
     if (!url.trim()) { showError('Collez d’abord le lien du PDF.'); return }
-    setBusy(true); setApercu(null); setResultat(null)
+    setBusy(true); setApercu(null); setResultat(null); setDetection(null)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/preparer-lien', {
         method: 'POST', credentials: 'include',
@@ -526,14 +600,16 @@ export default function AdminReferentiels() {
 
   // Dès qu'un PDF est récupéré : vérif n°1 au dépôt — l'IA lit le couple visé par le document
   // et le compare au couple cycle → niveau déclaré. Le document à valider ne s'affiche qu'après.
-  async function lancerVerifDepot(token) {
-    if (!token || !cycleId || !niveauId) return
+  async function lancerVerifDepot(token, cid = cycleId, nid = niveauId) {
+    // cid/nid : la détection du couple passe SES valeurs (les setters React sont asynchrones —
+    // l'état cycleId/niveauId n'est pas encore à jour au moment de l'appel).
+    if (!token || !cid || !nid) return
     setVerif('loading'); setForcageMotif('')
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/verifier-depot', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, cycle_id: Number(cycleId), niveau_id: Number(niveauId) }),
+        body: JSON.stringify({ token, cycle_id: Number(cid), niveau_id: Number(nid) }),
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
@@ -544,7 +620,7 @@ export default function AdminReferentiels() {
   async function recupererDepot(file) {
     if (!file) return
     setNomFichier(file.name)
-    setBusy(true); setApercu(null); setResultat(null)
+    setBusy(true); setApercu(null); setResultat(null); setDetection(null)
     try {
       const form = new FormData()
       form.append('file', file)
@@ -971,6 +1047,121 @@ export default function AdminReferentiels() {
         </p>
       </div>
 
+      {/* Carte 0 — Document PDF : le dépôt vient EN PREMIER (« PDF d'abord »). Mêmes portes
+          qu'avant (dépôt / lien → zone d'attente), puis « Détecter le cycle » : l'IA lit le
+          document, le serveur fait la correspondance avec les tables, et la carte Couple en
+          dessous se pré-remplit. Masquée quand le couple affiché a déjà son référentiel (la
+          mise à jour du PDF reste dans la carte « Référentiel au format PDF »). */}
+      {!dejaTraite && (
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+            <Pastille etat={apercu ? 'vert' : 'rouge'} titre="Vert = un document PDF est en zone d'attente." />
+            Document PDF
+          </h2>
+          <p className="text-sm text-gray-500" style={{ margin: 0 }}>
+            Fournissez le référentiel officiel (dépôt ou lien), puis laissez l’IA détecter le cycle et le niveau — la carte Couple s’ouvre une fois le couple validé.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" title="Déposer le fichier PDF du référentiel" style={onglet(mode === 'depot')} onClick={() => setMode('depot')}>Par dépôt</button>
+          <button type="button" title="Fournir le référentiel par un lien vers le PDF" style={onglet(mode === 'lien')} onClick={() => setMode('lien')}>Par lien</button>
+        </div>
+        {mode === 'lien' ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="block text-xs text-gray-500 mb-1">Lien du PDF</label>
+              <input style={champ} value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="https://…/referentiel.pdf" />
+            </div>
+            <button type="button" className="btn-primary" title="Télécharger le PDF depuis ce lien pour vérification"
+              onClick={recupererLien} disabled={busy}>
+              {busy ? 'Récupération…' : 'Récupérer'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
+              <input style={champ} value={nomFichier} readOnly placeholder="Aucun fichier choisi" />
+            </div>
+            <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+              disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
+            <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
+              style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {busy ? <><Spinner /> Lecture…</> : 'Choisir le fichier'}
+            </label>
+          </div>
+        )}
+        {apercu && (
+          <div style={{ fontSize: 12, color: '#475569' }}>
+            Document en attente : <strong>{apercu.filename}</strong> · {apercu.pages} page(s) · {apercu.taille_ko} Ko
+          </div>
+        )}
+        {/* Détection : seulement tant que le couple n'est pas déjà choisi (sinon la vérif n°1 suffit). */}
+        {apercu && (!cycleId || !niveauId) && (
+          <div>
+            <button type="button" onClick={detecterCycle} disabled={detectBusy}
+              style={{ ...btnTypes('#7c3aed', detectBusy), cursor: detectBusy ? 'wait' : 'pointer' }}
+              title="L'IA lit le document et propose le cycle et le niveau correspondants">
+              {detectBusy ? <><Spinner /> Détection…</> : <><span aria-hidden="true">🤖</span> Détecter le cycle</>}
+            </button>
+            {detectBusy && (
+              <JaugeAttente libelle="L’IA lit le document et cherche le cycle et le niveau correspondants…" />
+            )}
+          </div>
+        )}
+        {detection && !detectBusy && (
+          detection.cycle && detection.niveau ? (
+            (String(cycleId) === String(detection.cycle.id) && String(niveauId) === String(detection.niveau.id)) ? (
+              /* Couple VALIDÉ par l'admin (son clic) : constat vert, la suite est ouverte. */
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#f0fdf4',
+                border: '1px solid #bbf7d0', fontSize: 12.5, color: '#166534' }}>
+                ✓ Couple validé : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — sélectionné dans la carte Couple ci-dessous ; la vérification du document démarre.
+                <div style={{ marginTop: 6 }}><BadgeIA titre="Couple proposé par l'IA (lecture du document), validé par l'admin" /></div>
+              </div>
+            ) : (
+              /* PROPOSITION de l'IA : rien n'est sélectionné tant que l'admin n'a pas cliqué « Valider ». */
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#eff6ff',
+                border: '1px solid #bfdbfe', fontSize: 12.5, color: '#1e40af' }}>
+                Couple détecté : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — rien n’est sélectionné tant que vous ne validez pas.
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button type="button" className="btn-primary"
+                    onClick={() => appliquerCouple(detection.cycle.id, detection.niveau.id, detection.niveau.nom)}
+                    title="Sélectionner ce couple : la carte Couple se remplit et la vérification du document démarre">
+                    Valider ce couple
+                  </button>
+                  <BadgeIA titre="Couple proposé par l'IA (lecture du document) — la correspondance est confirmée par la base" />
+                </div>
+              </div>
+            )
+          ) : detection.cycle ? (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb',
+              border: '1px solid #fde68a', fontSize: 12.5, color: '#92400e' }}>
+              Le document vise le cycle <strong>{detection.cycle.nom}</strong>, niveau lu : <strong>« {detection.niveau_lu || '?'} »</strong> — ce niveau n’existe pas encore dans ce cycle.
+              <div style={{ marginTop: 8 }}>
+                <button type="button" className="btn-primary" onClick={ajouterNiveauDetecte}
+                  disabled={detectBusy || !detection.niveau_lu}
+                  title="Créer ce niveau dans le cycle (même porte que l'écran Programmes) puis le sélectionner">
+                  Ajouter ce niveau « {detection.niveau_lu} »
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2',
+              border: '1px solid #fecaca', fontSize: 12.5, color: '#991b1b' }}>
+              Le document vise <strong>« {detection.cycle_lu || '?'}{detection.niveau_lu ? ` / ${detection.niveau_lu}` : ''} »</strong>, qui ne correspond à aucun cycle existant. Créez d’abord ce cycle dans l’écran Programmes, puis relancez la détection.
+            </div>
+          )
+        )}
+      </div>
+      )}
+
+      {/* Carte 1 — Couple : n'apparaît que lorsqu'un couple EST choisi — clic « Valider ce
+          couple » / « Ajouter ce niveau » (détection), ou ouverture d'un référentiel depuis la
+          colonne 2. Tant que la détection n'est qu'une PROPOSITION, rien ne s'affiche ici
+          (règle : l'IA propose, l'admin valide, alors seulement l'étape suivante s'ouvre). */}
+      {cycleId && (
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
@@ -1023,6 +1214,7 @@ export default function AdminReferentiels() {
         </>)}
 
       </div>
+      )}
 
       {/* Carte 2 — visible seulement si l'étape 1 (Couple) est faite (estVisible, règle N-1). */}
       {estVisible('pdf') && (
@@ -1055,9 +1247,11 @@ export default function AdminReferentiels() {
 
         {pdfOuvert && (<>
         {/* ── Zone 1 : le PDF ORIGINAL — la pièce téléchargée, conservée telle quelle, relue par l'admin. ── */}
+        {dejaTraite && (
         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
           Fichier PDF original <span style={{ fontWeight: 400, color: '#64748b' }}>(téléchargé — pièce d’origine consultable, matière première du dépôt, réserve pour l’avenir)</span>
         </div>
+        )}
         {dejaTraite ? (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Nom du fichier téléchargé</label>
@@ -1114,48 +1308,11 @@ export default function AdminReferentiels() {
               )
             })()}
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" title="Déposer le fichier PDF du référentiel" style={onglet(mode === 'depot')} onClick={() => setMode('depot')}>Par dépôt</button>
-              <button type="button" title="Fournir le référentiel par un lien vers le PDF" style={onglet(mode === 'lien')} onClick={() => setMode('lien')}>Par lien</button>
-              <button type="button"
-                title="Laisser aSchool chercher le référentiel officiel sur le web — bientôt disponible (cliquez pour l’explication)"
-                onClick={() => setShowParIa(true)}
-                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
-                  border: '1px dashed #cbd5e1', background: '#f8fafc', color: '#94a3b8', fontWeight: 600 }}>
-                Par IA
-              </button>
-            </div>
-
-            {mode === 'lien' ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="block text-xs text-gray-500 mb-1">Lien du PDF</label>
-                  <input style={champ} value={url} onChange={e => setUrl(e.target.value)}
-                    placeholder="https://…/referentiel.pdf" />
-                </div>
-                <button type="button" className="btn-primary" title="Télécharger le PDF depuis ce lien pour vérification"
-                  onClick={recupererLien} disabled={busy}>
-                  {busy ? 'Récupération…' : 'Récupérer'}
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                <div style={{ flex: 1 }}>
-                  <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
-                  <input style={champ} value={nomFichier} readOnly placeholder="Aucun fichier choisi" />
-                </div>
-                <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
-                  disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
-                <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
-                  style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {busy ? <><Spinner /> Lecture…</> : 'Choisir le fichier'}
-                </label>
-              </div>
-            )}
-          </>
-        )}
+        ) : !apercu ? (
+          <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+            Déposez d’abord le document dans la cartouche « Document PDF » tout en haut — sa vérification et sa validation s’afficheront ici.
+          </p>
+        ) : null}
 
         {/* Vérif n°1 au dépôt : le couple (lu par l'IA dans le document) vs le couple déclaré.
             Le document à valider n'apparaît que si elle a répondu (garde-fou). */}
@@ -1875,43 +2032,6 @@ export default function AdminReferentiels() {
               {epureTexte === null ? 'Lecture…'
                 : (epureTexte || 'Aucun texte de travail enregistré pour ce couple.')}
             </pre>
-          </div>
-        </div>
-      )}
-
-      {/* Modale explicative « Par IA » — l'idée est posée, la fonction n'est pas encore branchée. */}
-      {showParIa && (
-        <div onClick={() => setShowParIa(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 460, padding: '24px 24px 20px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>
-              « Par IA » — bientôt disponible
-            </div>
-            <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.6 }}>
-              <p style={{ marginBottom: 10 }}>
-                Ce bouton laissera aSchool <strong>chercher lui-même, sur le web, le référentiel officiel</strong> de
-                ce couple (cycle + niveau + matière). Il vous proposera le document trouvé, et
-                <strong> c’est vous qui validez</strong>.
-              </p>
-              <p style={{ marginBottom: 10 }}>
-                Un seul document officiel, jamais une liste. aSchool <strong>n’invente jamais un lien</strong> :
-                s’il ne trouve pas la source officielle, il ne propose rien.
-              </p>
-              <p style={{ marginBottom: 0 }}>
-                <strong>Pas encore actif :</strong> cette recherche demande une intelligence capable de naviguer
-                sur le web, en préparation. En attendant, utilisez <strong>« Par dépôt »</strong> ou
-                <strong> « Par lien »</strong>.
-              </p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-              <button type="button" className="btn-primary" title="Fermer cette explication"
-                onClick={() => setShowParIa(false)}>
-                J’ai compris
-              </button>
-            </div>
           </div>
         </div>
       )}
