@@ -13,6 +13,7 @@ import logging
 import re
 import shutil
 import threading
+import time
 import unicodedata
 import uuid
 from pathlib import Path
@@ -88,8 +89,30 @@ def _apercu(pdf_path: Path) -> tuple[int, str]:
     return n_pages, "\n".join(lignes)
 
 
+def _nettoyer_staging(db: Session) -> None:
+    """Nettoyage paresseux de la zone d'attente (constat du 24/07 : 33 aperçus abandonnés,
+    202 Mo depuis le 13/07 — rien ne les effaçait jamais). Un fichier plus vieux que le TTL
+    n'est plus référencé par personne : le jeton ne vit que le temps d'un aperçu ouvert à
+    l'écran, et aucune table en base ne le retient. TTL réglable en base (`staging_ttl_heures`,
+    défaut 24), lu comme `depot_max_pages`. Best-effort : un raté de suppression ne bloque
+    jamais le dépôt en cours."""
+    try:
+        ttl_h = float(get_settings_dict(db).get("staging_ttl_heures", 24))
+    except (TypeError, ValueError):
+        ttl_h = 24.0
+    seuil = time.time() - ttl_h * 3600
+    for f in STAGING_DIR.glob("*.pdf"):
+        try:
+            if f.stat().st_mtime < seuil:
+                f.unlink()
+                logger.info("Zone d'attente : aperçu abandonné supprimé (%s)", f.name)
+        except OSError:
+            logger.warning("Zone d'attente : suppression impossible de %s", f.name)
+
+
 def _stage(content: bytes, filename: str, db: Session) -> dict:
     """Valide que c'est un PDF, le range en zone d'attente, renvoie l'aperçu pour le contrôle."""
+    _nettoyer_staging(db)   # zone transitoire : chaque dépôt balaie les aperçus abandonnés
     if len(content) > MAX_PDF_BYTES:
         raise HTTPException(400, "PDF trop volumineux (maximum 30 Mo).")
     if content[:5] != b"%PDF-":

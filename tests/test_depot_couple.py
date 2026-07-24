@@ -373,6 +373,33 @@ def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
     assert "expiré" not in r.json()["detail"]
 
 
+def test_depot_nettoie_les_apercus_abandonnes():
+    """La zone d'attente est TRANSITOIRE : chaque nouveau dépôt supprime les aperçus abandonnés
+    plus vieux que le TTL (`staging_ttl_heures` en base, défaut 24 h) ; un aperçu récent survit.
+    Constat d'origine (24/07) : 33 PDF / 202 Mo accumulés depuis le 13/07, jamais nettoyés."""
+    import time as _time
+    vieux = refadm.STAGING_DIR / "test-vieux-abandonne.pdf"
+    recent = refadm.STAGING_DIR / "test-recent-en-cours.pdf"
+    vieux.write_bytes(b"%PDF-fake")
+    recent.write_bytes(b"%PDF-fake")
+    ts = _time.time() - 25 * 3600                      # 25 h > TTL par défaut (24 h)
+    os.utime(vieux, (ts, ts))
+    token = None
+    try:
+        with patch.object(refadm, "_apercu", return_value=(1, "aperçu")):
+            r = admin_client().post("/api/admin/referentiels/preparer-depot",
+                                    files={"file": ("doc.pdf", b"%PDF-nouveau", "application/pdf")})
+        assert r.status_code == 200, r.text
+        token = r.json()["token"]
+        assert not vieux.exists()                      # l'abandonné (25 h) est parti
+        assert recent.exists()                         # le récent survit (son aperçu peut être ouvert)
+    finally:
+        vieux.unlink(missing_ok=True)
+        recent.unlink(missing_ok=True)
+        if token:
+            _purge(token)
+
+
 def test_enregistrer_matiere_longue_passe_et_trop_longue_422():
     """Cas réel du 24/07 : « Conception et réalisation d'orthèses temporaires et d'aides
     techniques » (70 car.) explosait contre VARCHAR(64) en 500 brut à l'écran. La colonne passe
