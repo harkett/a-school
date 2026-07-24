@@ -340,3 +340,81 @@ def test_creation_cycle_niveau_relogee():
     assert r2.status_code == 200, r2.text
     assert c.post("/api/admin/niveaux", json={"cycle_id": cid, "nom": "dc-spécialité"}).status_code == 409
     assert c.post("/api/admin/niveaux", json={"cycle_id": 999999, "nom": "X"}).status_code == 404
+
+
+def test_valider_jeton_consomme_avec_referentiel_dit_deja_valide():
+    """Reclic après une validation qui a ABOUTI (jeton consommé, référentiel en base) : le serveur
+    répond la VÉRITÉ — succès `deja_valide` (l'écran se resynchronise) — au lieu du mensonge
+    « aperçu expiré ? » (cas réel du 24/07 : validation ~3 min > patience de l'écran, reclics)."""
+    from backend.core.models_db import Referentiel
+    cid = _cycle("DC-Deja", 86)
+    nid = _niveau(cid, "DC-NivDeja", 86)
+    with dbmod.SessionLocal() as db:
+        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_deja", collection="dc_deja",
+                           filtres=None, fichier="mon-document.pdf"))
+        db.commit()
+    r = admin_client().post("/api/admin/referentiels/valider", json={
+        "token": "jeton-consomme-inexistant", "cycle_id": cid, "niveau_id": nid})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["ok"] is True and d["deja_valide"] is True
+    assert d["niveau"] == "DC-NivDeja" and d["fichier_origine"] == "mon-document.pdf"
+
+
+def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
+    """Jeton absent ET aucun référentiel pour le couple : vrai échec — message clair (« recommencez
+    le dépôt »), plus jamais le « aperçu expiré ? » fictif (rien n'expire dans la zone d'attente)."""
+    cid = _cycle("DC-Sans", 87)
+    nid = _niveau(cid, "DC-NivSans", 87)
+    r = admin_client().post("/api/admin/referentiels/valider", json={
+        "token": "jeton-inexistant", "cycle_id": cid, "niveau_id": nid})
+    assert r.status_code == 400, r.text
+    assert "Recommencez le dépôt" in r.json()["detail"]
+    assert "expiré" not in r.json()["detail"]
+
+
+def test_page_contenu_arbre_complet():
+    """GET /admin/contenu = l'arbre COMPLET en une lecture : cycle → niveau → référentiel du couple
+    (états lus, unités comptées), matières du programme, types liés avec les précisions du couple.
+    Un niveau SANS référentiel apparaît quand même (referentiel: null) — l'admin voit le « à remplir »."""
+    from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere, MatiereNiveau,
+                                        ActiviteType, ReferentielActiviteType, ReferentielTypePrecision)
+    cid = _cycle("DC-Cont", 84)
+    nid = _niveau(cid, "DC-NivCont", 84)
+    nid_vide = _niveau(cid, "DC-NivVide", 85)
+    with dbmod.SessionLocal() as db:
+        m = Matiere(nom="DC-Cuisine", ordre=1, actif=True)
+        db.add(m); db.flush()
+        db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nid, actif=True))
+        ref = Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_cont", collection="dc_cont",
+                          filtres=None, fichier="doc.pdf", source="education.gouv.fr",
+                          texte_epure="TEXTE FIGE", decoupe_valide=True)
+        t1 = ActiviteType(label="DC-Évaluation", ordre=1, actif=True, origine="systeme")
+        db.add_all([ref, t1]); db.flush()
+        db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
+                                texte="Unité 1", embedding=[0.0] * 1024, embedding_model="test"))
+        lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t1.id,
+                                       actif=True, source="ia", prompt="P")
+        db.add(lien); db.flush()
+        db.add(ReferentielTypePrecision(referentiel_activite_type_id=lien.id,
+                                        libelle="évaluation pratique", ordre=0, source="ia"))
+        db.commit()
+
+    r = admin_client().get("/api/admin/contenu")
+    assert r.status_code == 200, r.text
+    cycle = next(c for c in r.json()["cycles"] if c["id"] == cid)
+    assert cycle["nom"] == "DC-Cont"
+    par_nom = {n["nom"]: n for n in cycle["niveaux"]}
+
+    plein = par_nom["DC-NivCont"]
+    assert plein["referentiel"] == {"fichier": "doc.pdf", "source": "education.gouv.fr",
+                                    "date_doc": None, "epure": True, "decoupe_valide": True,
+                                    "nb_unites": 1}
+    assert [m["nom"] for m in plein["matieres"]] == ["DC-Cuisine"]
+    assert plein["types"] == [{"id": plein["types"][0]["id"], "label": "DC-Évaluation",
+                               "source": "ia", "origine": "systeme",
+                               "precisions": ["évaluation pratique"]}]
+
+    vide = par_nom["DC-NivVide"]
+    assert vide["referentiel"] is None      # le niveau sans dépôt reste VISIBLE : à remplir
+    assert vide["matieres"] == [] and vide["types"] == []

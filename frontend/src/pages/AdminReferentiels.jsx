@@ -4,7 +4,7 @@
 // range, en extrait le texte et enregistre sa provenance.
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, MSG_TIMEOUT } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
@@ -570,7 +570,9 @@ export default function AdminReferentiels() {
         // verif_couple : on transmet le verdict IA déjà en main à l'écran ({correspond, niveau_lu,
         // raison}) pour qu'il soit FIGÉ en base (avant, il était calculé puis jeté). null s'il manque.
         body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: Number(niveauId), source, fichier_origine: apercu.filename, forcage_motif: forcageArg, verif_couple: (verif && verif.couple) ? verif.couple : null }),
-      }, TIMEOUT_LONG)
+        // TIMEOUT_XLONG : la validation épure le texte ET détecte les matières (IA) en un seul
+        // appel (~3 min mesurées). Abandonner avant le serveur = reclics sur jeton consommé.
+      }, TIMEOUT_XLONG)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
       setResultat(d); setApercu(null); setVerif(null); setForcageMotif(''); setBilanApercu('')
@@ -599,6 +601,12 @@ export default function AdminReferentiels() {
   //    à l'étape code ; ici « Récupérer » ne fait qu'un aperçu du bilan, sans écrire.
   function toggleCochee(i) {
     setMatieres(matieres.map((m, j) => (j === i && !m.en_base ? { ...m, cochee: !m.cochee } : m)))
+  }
+  // « Sélectionner tout » : coche d'un coup toutes les matières NOUVELLES de la liste (les « déjà
+  // en base » sont déjà cochées et verrouillées). Interaction d'écran uniquement — aucune écriture :
+  // c'est « Récupérer » (le put) qui enregistre, et il se dégrise tout seul dès qu'une nouvelle est cochée.
+  function selectionnerTout() {
+    setMatieres(matieres.map(m => (m.en_base ? m : { ...m, cochee: true })))
   }
   function ajouterMain() {
     const nom = nouvelleMatiere.trim()
@@ -1191,7 +1199,7 @@ export default function AdminReferentiels() {
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button type="button" className="btn-primary" title="Confirmer que c’est le bon document : ranger, extraire le texte, enregistrer la provenance"
                   onClick={() => valider(null)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {busy ? <><Spinner /> Validation…</> : 'Valider : c’est le bon document'}
+                  {busy ? <><Spinner /> Validation en cours — épuration du texte et lecture des matières (jusqu’à 2-3 min)…</> : 'Valider : c’est le bon document'}
                 </button>
                 <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
                   onClick={() => { setApercu(null); setVerif(null); setForcageMotif('') }} disabled={busy}>
@@ -1208,7 +1216,7 @@ export default function AdminReferentiels() {
                   <button type="button" className="btn-primary" title="Valider malgré l’alerte : le motif est tracé"
                     onClick={() => valider(forcageMotif)} disabled={busy || !forcageMotif.trim()}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {busy ? <><Spinner /> Validation…</> : 'Forcer la validation malgré l’alerte'}
+                    {busy ? <><Spinner /> Validation en cours — épuration du texte et lecture des matières (jusqu’à 2-3 min)…</> : 'Forcer la validation malgré l’alerte'}
                   </button>
                   <button type="button" className="btn-secondary" title="Ce n’est pas le bon document : recommencer avec un autre lien ou fichier"
                     onClick={() => { setApercu(null); setVerif(null); setForcageMotif('') }} disabled={busy}>
@@ -1222,9 +1230,10 @@ export default function AdminReferentiels() {
 
         {resultat && (
           <div style={{ border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: 8, padding: 14, fontSize: 12, color: '#166534' }}>
+            {resultat.deja_valide && <><strong>Ce document avait déjà été validé</strong> — l’écran vient de se remettre à jour depuis la base.<br /></>}
             Référentiel enregistré pour <strong>{resultat.niveau}</strong> ({resultat.cycle}).<br />
             Document d’origine : <strong>{resultat.fichier_origine}</strong> (conservé en base).<br />
-            Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code> · {resultat.pages} page(s).
+            Rangé dans <code>REFERENTIELS/{resultat.dossier}/referentiel.pdf</code>{resultat.pages != null && <> · {resultat.pages} page(s)</>}.
           </div>
         )}
 
@@ -1295,11 +1304,20 @@ export default function AdminReferentiels() {
                   : 'Cochée = déjà en base (rien à faire). Décochée = nouvelle : cochez celles à ajouter. « Récupérer » enregistre en base les matières cochées et nouvelles.'}
               </p>
             </div>
-            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-              title={matieresOuvert ? 'Réduire la liste des matières' : 'Développer la liste des matières'}
-              onClick={() => setMatieresOuvert(o => !o)}>
-              {matieresOuvert ? 'Réduire' : 'Développer'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              {matieresOuvert && matieres.some(m => !m.en_base && !m.cochee) && (
+                <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                  title="Cocher d'un coup toutes les matières de la liste — « Récupérer » s'active ensuite"
+                  onClick={selectionnerTout}>
+                  Sélectionner tout
+                </button>
+              )}
+              <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                title={matieresOuvert ? 'Réduire la liste des matières' : 'Développer la liste des matières'}
+                onClick={() => setMatieresOuvert(o => !o)}>
+                {matieresOuvert ? 'Réduire' : 'Développer'}
+              </button>
+            </div>
           </div>
 
           {matieresOuvert && (

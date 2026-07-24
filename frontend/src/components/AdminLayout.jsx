@@ -47,11 +47,11 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Contenu (les données brutes de référence) —
+  // — Contenu (tout le contenu pédagogique en un seul tableau déroulant) —
   {
-    group:  true,
-    label:  'Contenu',
-    aide:   'Les données brutes de référence : référentiels sources et tables (cycles, matières, types d\'activité).',
+    to:    '/admin/contenu',
+    label: 'Contenu',
+    aide:  'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d\'activité. Lecture seule, lu en direct dans la base.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -59,11 +59,6 @@ const NAV_ITEMS = [
         <path d="M3 12a9 3 0 0 0 18 0"/>
       </svg>
     ),
-    items: [
-      { to: '/admin/cycles',   label: 'Cycles',   aide: 'Contenu de la table cycles (id, nom, ordre), lu directement en base. Fenêtre de contrôle en lecture seule.' },
-      { to: '/admin/matieres', label: 'Matières', aide: 'Contenu de la table matieres (id, nom, ordre, actif), lu directement en base. Fenêtre de contrôle en lecture seule.' },
-      { to: '/admin/types-activite', label: 'Type d\'activité', aide: 'Contenu de la table types_activite, lu directement en base. Fenêtre de contrôle en lecture seule.' },
-    ],
   },
   // — Profs & communication —
   {

@@ -191,6 +191,69 @@ def lister_matieres_table(db: Session = Depends(get_db)):
     return {"total": len(ma), "matieres": [{"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif} for m in ma]}
 
 
+@router.get("/admin/contenu", dependencies=[Depends(_require_admin)])
+def lire_contenu(db: Session = Depends(get_db)):
+    """Page « Contenu » : TOUT le contenu pédagogique en UN SEUL arbre (get direct, lecture seule).
+    Cycle → niveau (le couple) → son référentiel (PDF, texte épuré, découpe, unités), ses matières
+    du programme, ses types d'activité (avec les précisions du couple). Chaque bloc est LU dans sa
+    table — aucune écriture, aucune copie, l'écran n'est qu'une fenêtre sur la base. Un niveau sans
+    référentiel apparaît quand même (referentiel: null) : l'admin voit ce qui reste à remplir."""
+    cycles = db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all()
+    niveaux = db.query(Niveau).order_by(Niveau.ordre, Niveau.id).all()
+
+    # Référentiel du couple (dépôt cycle → niveau : matiere_id NULL = tout le niveau).
+    refs = {r.niveau_id: r for r in db.query(Referentiel).filter(Referentiel.matiere_id.is_(None)).all()}
+
+    # Nombre d'unités (chunks) par référentiel — comptage à la volée, rien de stocké.
+    nb_unites = dict(db.query(ReferentielChunk.referentiel_id, func.count())
+                       .group_by(ReferentielChunk.referentiel_id).all())
+
+    # Matières du programme par niveau (paires actives), dans l'ordre des matières.
+    mat_par_niveau: dict[int, list] = {}
+    for mn, m in (db.query(MatiereNiveau, Matiere)
+                    .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
+                    .filter(MatiereNiveau.actif == True)  # noqa: E712
+                    .order_by(Matiere.ordre, Matiere.id, MatiereNiveau.variante).all()):
+        mat_par_niveau.setdefault(mn.niveau_id, []).append((mn, m))
+
+    # Types d'activité liés par référentiel, puis précisions par lien (couple × type).
+    liens_par_ref: dict[int, list] = {}
+    for lien, t in (db.query(ReferentielActiviteType, ActiviteType)
+                      .join(ActiviteType, ActiviteType.id == ReferentielActiviteType.activite_type_id)
+                      .order_by(ActiviteType.ordre, ActiviteType.id).all()):
+        liens_par_ref.setdefault(lien.referentiel_id, []).append((lien, t))
+    precs_par_lien: dict[int, list[str]] = {}
+    for p in (db.query(ReferentielTypePrecision)
+                .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all()):
+        precs_par_lien.setdefault(p.referentiel_activite_type_id, []).append(p.libelle)
+
+    arbre = []
+    for c in cycles:
+        blocs_niveaux = []
+        for n in (x for x in niveaux if x.cycle_id == c.id):
+            ref = refs.get(n.id)
+            blocs_niveaux.append({
+                "id": n.id,
+                "nom": n.nom,
+                "referentiel": None if ref is None else {
+                    "fichier": ref.fichier,
+                    "source": ref.source,
+                    "date_doc": ref.date_doc,
+                    "epure": bool((ref.texte_epure or "").strip()),
+                    "decoupe_valide": bool(ref.decoupe_valide),
+                    "nb_unites": nb_unites.get(ref.id, 0),
+                },
+                "matieres": [{"id": m.id, "nom": m.nom, "variante": mn.variante}
+                             for mn, m in mat_par_niveau.get(n.id, [])],
+                "types": [] if ref is None else [
+                    {"id": t.id, "label": t.label, "source": lien.source, "origine": t.origine,
+                     "precisions": precs_par_lien.get(lien.id, [])}
+                    for lien, t in liens_par_ref.get(ref.id, [])],
+            })
+        arbre.append({"id": c.id, "nom": c.nom, "niveaux": blocs_niveaux})
+    return {"cycles": arbre}
+
+
 @router.get("/admin/activite-types", dependencies=[Depends(_require_admin)])
 def lister_activite_types_table(db: Session = Depends(get_db)):
     """Contenu de la table `types_activite` (get direct, lecture seule) — fenêtre de contrôle admin.
@@ -355,7 +418,39 @@ class ValiderBody(BaseModel):
 def valider(body: ValiderBody, db: Session = Depends(get_db)):
     staged = STAGING_DIR / f"{body.token}.pdf"
     if not staged.exists():
-        raise HTTPException(400, "Document à valider introuvable (aperçu expiré ?). Recommencez.")
+        # Jeton déjà CONSOMMÉ : le PDF a été rangé par une validation précédente qui a ABOUTI.
+        # Cas réel du 24/07 : la validation travaille plusieurs minutes (épuration + matières IA),
+        # l'écran perdait patience à 45 s et l'admin recliquait — le reclic recevait un mensonge
+        # (« aperçu expiré ? » alors que rien n'expire). Si le référentiel du couple EXISTE, la
+        # seule réponse vraie est : déjà validé → succès, l'écran se resynchronise sur la base.
+        deja = db.query(Referentiel).filter(Referentiel.niveau_id == body.niveau_id,
+                                            Referentiel.matiere_id.is_(None)).first()
+        if deja is not None:
+            cycle_deja = db.get(Cycle, body.cycle_id)
+            niveau_deja = db.get(Niveau, body.niveau_id)
+            pages_deja = None
+            pdf_deja = (REFERENTIELS_DIR / _dossier_cle(cycle_deja.nom) / _dossier_cle(niveau_deja.nom)
+                        / "referentiel.pdf") if (cycle_deja and niveau_deja) else None
+            if pdf_deja and pdf_deja.exists():
+                try:
+                    import pdfplumber
+                    with pdfplumber.open(str(pdf_deja)) as pdf:
+                        pages_deja = len(pdf.pages)
+                except Exception:
+                    pages_deja = None
+            return {
+                "ok": True,
+                "deja_valide": True,
+                "cycle": cycle_deja.nom if cycle_deja else "",
+                "niveau": niveau_deja.nom if niveau_deja else "",
+                "dossier": (f"{_dossier_cle(cycle_deja.nom)}/{_dossier_cle(niveau_deja.nom)}"
+                            if (cycle_deja and niveau_deja) else ""),
+                "fichier_disque": "referentiel.pdf",
+                "fichier_origine": deja.fichier or "referentiel.pdf",
+                "nom_fixe": deja.nom_fixe,
+                "pages": pages_deja,
+            }
+        raise HTTPException(400, "Le document en attente n'existe plus. Recommencez le dépôt (nouveau lien ou nouveau fichier).")
 
     cycle = db.get(Cycle, body.cycle_id)
     if not cycle:

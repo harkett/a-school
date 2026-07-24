@@ -94,9 +94,10 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
         {"num": 5, "cle": "decoupe", "fait": decoupe_ok, "ecran": "/admin/referentiels",
          "titre": "Lancer et valider la découpe",
          "message": "Lancez puis validez la découpe : c'est elle qui rend le référentiel réellement utilisable."},
-        {"num": 6, "cle": "types", "fait": types_ok, "ecran": "/admin/types-activite",
-         "titre": "Cocher les types d'activité",
-         "message": "Cochez les types d'activité de ce niveau, sinon le prof n'aura que le type générique."},
+        {"num": 6, "cle": "types", "fait": types_ok, "ecran": "/admin/referentiels",
+         "titre": "Contrôler les types d'activité",
+         "message": "Après la découpe, l'IA rattache elle-même les types d'activité lus dans le document. "
+                    "Contrôlez-les (retirez, ajoutez) — sinon le prof n'aura que le type générique."},
         {"num": 7, "cle": "email", "fait": email_ok, "ecran": "/admin/parametres/email",
          "titre": "Tester l'envoi d'email",
          "message": "Envoyez un email de test : c'est l'envoi qui permet la vérification d'inscription des profs."},

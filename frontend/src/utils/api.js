@@ -1,6 +1,10 @@
 export const TIMEOUT_AUTH = 8_000   // auth, heartbeat, logout
 export const TIMEOUT_STD  = 10_000  // appels standard (profil, activités, admin)
 export const TIMEOUT_LONG = 45_000  // opérations longues : génération IA, OCR, mail groupé, purge BDD
+// Validation d'un référentiel : épuration du texte + détection des matières par l'IA en un seul
+// appel — mesuré à ~3 min sur un vrai dépôt (24/07). L'écran doit attendre le serveur, pas
+// l'inverse : abandonner avant lui fabrique des reclics sur un jeton déjà consommé.
+export const TIMEOUT_XLONG = 300_000
 
 export const MSG_TIMEOUT = 'Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.'
 
