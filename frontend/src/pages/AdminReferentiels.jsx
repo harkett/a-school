@@ -90,6 +90,8 @@ export default function AdminReferentiels() {
   const [refsListe, setRefsListe] = useState([])  // colonne 2 : référentiels déposés (GET /admin/referentiels/liste)
   const [cycleId, setCycleId] = useState('')    // cycle choisi (cascade, 1er select)
   const [niveauId, setNiveauId] = useState('')  // niveau choisi (cascade, 2e select) — envoyé à valider/verifier-depot
+  const [manuelCycle, setManuelCycle]   = useState('')  // sélecteur MANUEL du couple (secours quand la détection IA ne convient pas)
+  const [manuelNiveau, setManuelNiveau] = useState('')
   const [niveau, setNiveau] = useState('')      // NOM du niveau choisi (requis par les endpoints post-dépôt)
   const [mode, setMode] = useState('depot')       // 'depot' | 'lien'
   const [url, setUrl] = useState('')
@@ -278,6 +280,7 @@ export default function AdminReferentiels() {
     // Carte « Document PDF » (en haut, visible sans couple) : on repart d'une zone vierge —
     // l'effet [cycleId, niveau] ne vide pas ces états-là quand le couple est déjà vide.
     setApercu(null); setVerif(null); setDetection(null); setResultat(null); setNomFichier(''); setUrl('')
+    setManuelCycle(''); setManuelNiveau('')         // sélecteur manuel remis à blanc
     setCoupleOuvert(true)                           // repartir en création : la carte Couple s'ouvre (bouton « Réduire »)
   }
 
@@ -533,7 +536,10 @@ export default function AdminReferentiels() {
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La détection du cycle a échoué."); return }
-      setDetection(d)   // PROPOSITION seulement : rien n'est sélectionné sans le clic « Valider » de l'admin
+      setDetection(d)   // PROPOSITION seulement : rien n'est sélectionné sans le clic « Choisir ce couple »
+      // aSchool PRÉ-REMPLIT les 2 listes avec sa proposition (l'admin peut corriger avant de valider).
+      // Niveau lu absent → on remplit juste le cycle et on laisse « Ajouter ce niveau » sous les listes.
+      if (d.cycle) { setManuelCycle(String(d.cycle.id)); setManuelNiveau(d.niveau ? String(d.niveau.id) : '') }
     } catch { showError("La détection du cycle a échoué (réseau).") }
     finally { setDetectBusy(false) }
   }
@@ -1077,61 +1083,96 @@ export default function AdminReferentiels() {
             Document en attente : <strong>{apercu.filename}</strong> · {apercu.pages} page(s) · {apercu.taille_ko} Ko
           </div>
         )}
-        {/* Détection : seulement tant que le couple n'est pas déjà choisi (sinon la vérif n°1 suffit). */}
+        {/* Cycle + niveau du document — UN seul bloc (fini le rafistolage en 3 encadrés) :
+            1) les 2 listes d'abord (la seule vérité de l'écran) ; 2) « Détecter le cycle »
+            (aSchool lit le PDF et PRÉ-REMPLIT les listes) et « Choisir ce couple » sur la même
+            rangée ; 3) le retour sous les boutons seulement quand utile. « Choisir ce couple »
+            = appliquerCouple → la carte Couple s'ouvre EN DESSOUS (aucun écrit en base ici).
+            Masqué dès qu'un couple est choisi. Largeur bornée à 800 px. */}
         {apercu && (!cycleId || !niveauId) && (
-          <div>
-            <button type="button" onClick={detecterCycle} disabled={detectBusy}
-              style={{ ...btnTypes('#7c3aed', detectBusy), cursor: detectBusy ? 'wait' : 'pointer' }}
-              title="L'IA lit le document et propose le cycle et le niveau correspondants">
-              {detectBusy ? <><Spinner /> Détection…</> : <><span aria-hidden="true">🤖</span> Détecter le cycle</>}
-            </button>
-            {detectBusy && (
-              <JaugeAttente libelle="L’IA lit le document et cherche le cycle et le niveau correspondants…" />
-            )}
-          </div>
-        )}
-        {detection && !detectBusy && (
-          detection.cycle && detection.niveau ? (
-            (String(cycleId) === String(detection.cycle.id) && String(niveauId) === String(detection.niveau.id)) ? (
-              /* Couple VALIDÉ par l'admin (son clic) : constat vert, la suite est ouverte. */
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#f0fdf4',
-                border: '1px solid #bbf7d0', fontSize: 12.5, color: '#166534' }}>
-                ✓ Couple validé : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — sélectionné dans la carte Couple ci-dessous ; la vérification du document démarre.
-                <div style={{ marginTop: 6 }}><BadgeIA titre="Couple proposé par l'IA (lecture du document), validé par l'admin" /></div>
+          <div style={{ maxWidth: 800, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Cycle et niveau du document</div>
+
+            {/* Rangée 1 — les 2 listes, côte à côte */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label className="block text-xs text-gray-500 mb-1">Cycle</label>
+                <select style={{ ...champ, background: '#fff' }} value={manuelCycle}
+                  onChange={e => { setManuelCycle(e.target.value); setManuelNiveau('') }}
+                  title="Choisissez le cycle, puis le niveau">
+                  <option value="">— Choisissez un cycle —</option>
+                  {arbre.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                </select>
               </div>
-            ) : (
-              /* PROPOSITION de l'IA : rien n'est sélectionné tant que l'admin n'a pas cliqué « Valider ». */
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#eff6ff',
-                border: '1px solid #bfdbfe', fontSize: 12.5, color: '#1e40af' }}>
-                Couple détecté : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — rien n’est sélectionné tant que vous ne validez pas.
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button type="button" className="btn-primary"
-                    onClick={() => appliquerCouple(detection.cycle.id, detection.niveau.id, detection.niveau.nom)}
-                    title="Sélectionner ce couple : la carte Couple se remplit et la vérification du document démarre">
-                    Valider ce couple
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label className="block text-xs text-gray-500 mb-1">Niveau</label>
+                <select style={{ ...champ, background: '#fff' }} value={manuelNiveau} disabled={!manuelCycle}
+                  onChange={e => setManuelNiveau(e.target.value)}
+                  title={manuelCycle ? 'Choisissez le niveau du cycle' : 'Choisissez d’abord le cycle'}>
+                  <option value="">{manuelCycle ? '— Choisissez un niveau —' : '—'}</option>
+                  {(arbre.find(c => String(c.id) === String(manuelCycle))?.niveaux || []).map(n => (
+                    <option key={n.id} value={n.id}>{n.nom}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Rangée 2 — les 2 boutons, même rangée */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button type="button" onClick={detecterCycle} disabled={detectBusy}
+                style={{ ...btnTypes('#7c3aed', detectBusy), cursor: detectBusy ? 'wait' : 'pointer' }}
+                title="aSchool lit le document et remplit le cycle et le niveau — vous validez ensuite">
+                {detectBusy ? <><Spinner /> Détection…</> : <><span aria-hidden="true">🤖</span> Détecter le cycle</>}
+              </button>
+              <button type="button" className="btn-primary"
+                disabled={!manuelCycle || !manuelNiveau}
+                onClick={() => {
+                  const c = arbre.find(x => String(x.id) === String(manuelCycle))
+                  const n = (c?.niveaux || []).find(x => String(x.id) === String(manuelNiveau))
+                  if (c && n) appliquerCouple(c.id, n.id, n.nom)
+                }}
+                style={{ whiteSpace: 'nowrap', opacity: (!manuelCycle || !manuelNiveau) ? 0.55 : 1,
+                         cursor: (!manuelCycle || !manuelNiveau) ? 'not-allowed' : 'pointer' }}
+                title="Ouvrir la carte Couple avec le cycle et le niveau choisis ci-dessus">
+                Choisir ce couple
+              </button>
+            </div>
+
+            {/* Retour sous les boutons — seulement quand c'est utile */}
+            {detectBusy && (
+              <JaugeAttente libelle="aSchool lit le document et cherche le cycle et le niveau correspondants…" />
+            )}
+            {detection && !detectBusy && detection.cycle && detection.niveau && (
+              <div style={{ fontSize: 12.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>Proposition remplie dans les listes : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — vérifiez, puis « Choisir ce couple ».</span>
+                <BadgeIA titre="Couple proposé par la lecture du document — la correspondance est confirmée par la base" />
+              </div>
+            )}
+            {detection && !detectBusy && detection.cycle && !detection.niveau && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb',
+                border: '1px solid #fde68a', fontSize: 12.5, color: '#92400e' }}>
+                Le document vise le cycle <strong>{detection.cycle.nom}</strong>, niveau lu : <strong>« {detection.niveau_lu || '?'} »</strong> — ce niveau n’existe pas encore dans ce cycle.
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" className="btn-primary" onClick={ajouterNiveauDetecte}
+                    disabled={detectBusy || !detection.niveau_lu}
+                    title="Créer ce niveau dans le cycle (même porte que l'écran Programmes) puis le sélectionner">
+                    Ajouter ce niveau « {detection.niveau_lu} »
                   </button>
-                  <BadgeIA titre="Couple proposé par l'IA (lecture du document) — la correspondance est confirmée par la base" />
                 </div>
               </div>
-            )
-          ) : detection.cycle ? (
-            <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb',
-              border: '1px solid #fde68a', fontSize: 12.5, color: '#92400e' }}>
-              Le document vise le cycle <strong>{detection.cycle.nom}</strong>, niveau lu : <strong>« {detection.niveau_lu || '?'} »</strong> — ce niveau n’existe pas encore dans ce cycle.
-              <div style={{ marginTop: 8 }}>
-                <button type="button" className="btn-primary" onClick={ajouterNiveauDetecte}
-                  disabled={detectBusy || !detection.niveau_lu}
-                  title="Créer ce niveau dans le cycle (même porte que l'écran Programmes) puis le sélectionner">
-                  Ajouter ce niveau « {detection.niveau_lu} »
-                </button>
+            )}
+            {detection && !detectBusy && !detection.cycle && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2',
+                border: '1px solid #fecaca', fontSize: 12.5, color: '#991b1b' }}>
+                Le document vise <strong>« {detection.cycle_lu || '?'}{detection.niveau_lu ? ` / ${detection.niveau_lu}` : ''} »</strong>, qui ne correspond à aucun cycle existant. Créez d’abord ce cycle dans l’écran Programmes, puis relancez la détection.
               </div>
-            </div>
-          ) : (
-            <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2',
-              border: '1px solid #fecaca', fontSize: 12.5, color: '#991b1b' }}>
-              Le document vise <strong>« {detection.cycle_lu || '?'}{detection.niveau_lu ? ` / ${detection.niveau_lu}` : ''} »</strong>, qui ne correspond à aucun cycle existant. Créez d’abord ce cycle dans l’écran Programmes, puis relancez la détection.
-            </div>
-          )
+            )}
+            {manuelCycle && (arbre.find(c => String(c.id) === String(manuelCycle))?.niveaux || []).length === 0 && (
+              <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>
+                Ce cycle n’a encore aucun niveau — créez-le d’abord dans l’écran Programmes.
+              </p>
+            )}
+          </div>
         )}
       </div>
       )}
