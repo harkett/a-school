@@ -1,15 +1,16 @@
 import re
 import unicodedata
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException
+from fastapi import APIRouter, Cookie, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
+from backend.core.models_db import CahierProf, Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
 from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
 
 router = APIRouter()
@@ -20,6 +21,9 @@ router = APIRouter()
 # pour ne pas coupler le routeur du profil au module RAG (même choix que pgvector_store).
 _ROOT = Path(__file__).resolve().parents[2]
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
+# Cahier des charges depose par le PROF (1 PDF/prof) : hors depot (data/ est gitignore), persiste
+# sur le serveur. Nom de disque fixe (cahier.pdf) par dossier prop, comme le referentiel admin.
+UPLOADS_CAHIERS_DIR = _ROOT / "data" / "uploads" / "cahiers"
 
 
 def _dossier_cle(nom: str) -> str:
@@ -217,3 +221,106 @@ def get_mon_referentiel_texte(aschool_access: str = Cookie(default=None), db: Se
     if ref is None or not (ref.texte_epure or "").strip():
         raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
     return {"texte": ref.texte_epure}
+
+
+@router.get("/user/referentiel/pdf")
+def get_mon_referentiel_pdf(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Le PDF D'ORIGINE du niveau du prof — le fichier déposé par l'admin, servi TEL QUEL et affiché
+    dans la visionneuse du navigateur (inline). get pur, aucune écriture. VERROUILLÉ sur SON niveau
+    (users.niveau_id, comme les deux endpoints ci-dessus). Chemin sur disque : même convention que le
+    dépôt admin — REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf. Le nom montré au navigateur est le
+    VRAI nom déposé (referentiels.fichier), pas le nom de disque figé. 404 si rien à servir."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    ref = _referentiel_du_profil(db, user)
+    if ref is None:
+        raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
+    niveau = db.get(Niveau, ref.niveau_id)
+    cycle = db.get(Cycle, niveau.cycle_id) if niveau else None
+    if not niveau or not cycle:
+        raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
+    pdf = REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.nom) / "referentiel.pdf"
+    if not pdf.exists():
+        raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
+    # Nom affiché = le vrai nom déposé ; en-tête sûr même avec accents (ASCII + filename* RFC 5987).
+    nom = ref.fichier or "referentiel.pdf"
+    ascii_nom = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode() or "referentiel.pdf"
+    cd = f"inline; filename=\"{ascii_nom}\"; filename*=UTF-8''{quote(nom)}"
+    return FileResponse(str(pdf), media_type="application/pdf", headers={"Content-Disposition": cd})
+
+
+# ── Cahier des charges du PROF — document interne à son école/structure, déposé par LUI ──
+#    (1 PDF par prof ; re-déposer remplace). Le pourquoi et l'extraction du texte viendront plus
+#    tard. Écran = fenêtre sur la table cahiers_prof : get (état/PDF), put (dépôt). Auth inchangée.
+
+def _cahier_du_profil(db: Session, user: User) -> CahierProf | None:
+    return db.query(CahierProf).filter(CahierProf.user_id == user.id).first()
+
+
+def _cahier_pdf_path(user: User) -> Path:
+    return UPLOADS_CAHIERS_DIR / str(user.id) / "cahier.pdf"
+
+
+@router.get("/user/cahier")
+def get_mon_cahier(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """État du cahier des charges du prof : { present, fichier }. get pur, aucune écriture."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    cahier = _cahier_du_profil(db, user)
+    if cahier is None:
+        return {"present": False, "fichier": None}
+    return {"present": True, "fichier": cahier.fichier}
+
+
+@router.post("/user/cahier")
+async def deposer_mon_cahier(file: UploadFile = File(...), aschool_access: str = Cookie(default=None),
+                             db: Session = Depends(get_db)):
+    """Dépôt du cahier des charges du prof (PDF) — CREATE si absent, UPDATE sinon (re-déposer
+    remplace : 1 par prof). Le PDF est écrit sur disque (nom fixe cahier.pdf, dossier du prof) et
+    la ligne cahiers_prof porte le nom d'origine. Messages d'erreur humains (règle des 2 publics)."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    nom = (file.filename or "cahier.pdf").strip()
+    if not nom.lower().endswith(".pdf"):
+        raise HTTPException(422, "Le fichier doit être un PDF (extension .pdf).")
+    content = await file.read()
+    if not content:
+        raise HTTPException(422, "Le fichier est vide.")
+    if not content[:4] == b"%PDF":
+        raise HTTPException(422, "Ce fichier n'est pas un vrai PDF.")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(413, "Le PDF dépasse 20 Mo — merci d'en déposer un plus léger.")
+    dossier = _cahier_pdf_path(user).parent
+    dossier.mkdir(parents=True, exist_ok=True)
+    _cahier_pdf_path(user).write_bytes(content)
+    cahier = _cahier_du_profil(db, user)
+    if cahier is None:
+        db.add(CahierProf(user_id=user.id, fichier=nom))   # CREATE (aucun cahier encore)
+    else:
+        cahier.fichier = nom                               # UPDATE (re-dépôt = remplacement)
+    db.commit()
+    return {"present": True, "fichier": nom}
+
+
+@router.get("/user/cahier/pdf")
+def get_mon_cahier_pdf(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Sert le cahier des charges déposé par le prof, affiché dans la visionneuse du navigateur
+    (inline), avec le vrai nom d'origine. get pur, verrouillé sur SON dépôt. 404 si rien."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    cahier = _cahier_du_profil(db, user)
+    pdf = _cahier_pdf_path(user)
+    if cahier is None or not pdf.exists():
+        raise HTTPException(404, "Aucun cahier des charges déposé.")
+    nom = cahier.fichier or "cahier.pdf"
+    ascii_nom = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode() or "cahier.pdf"
+    cd = f"inline; filename=\"{ascii_nom}\"; filename*=UTF-8''{quote(nom)}"
+    return FileResponse(str(pdf), media_type="application/pdf", headers={"Content-Disposition": cd})

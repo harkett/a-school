@@ -38,9 +38,8 @@ export default function MonProfil({ onNavigate }) {
   const [matieresParCycle, setMatieresParCycle]   = useState([])   // repli « tout groupé » sans niveau
   const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
   const [refOfficiel, setRefOfficiel] = useState(null)             // { disponible, fichier } — programme officiel du niveau (lecture seule)
-  const [progOuvert, setProgOuvert] = useState(false)              // panneau « Voir le programme » ouvert ?
-  const [progTexte, setProgTexte] = useState(null)                 // texte épuré du programme (null = pas encore chargé)
-  const [progChargement, setProgChargement] = useState(false)
+  const [cahier, setCahier] = useState(null)                       // { present, fichier } — cahier des charges déposé par le prof
+  const [cahierBusy, setCahierBusy] = useState(false)              // dépôt en cours (sablier sur le bouton)
 
   // Programme officiel du niveau du prof (lecture seule) : nom exact déposé + programme à lire. get
   // pur, aucune écriture — la carte n'est qu'une fenêtre sur le référentiel déposé par l'admin.
@@ -51,19 +50,66 @@ export default function MonProfil({ onNavigate }) {
       .catch(() => setRefOfficiel({ disponible: false }))
   }, [])
 
-  // « Voir le programme » : on charge le TEXTE ÉPURÉ à la demande (get pur) et on l'affiche
-  // proprement — la version lisible déjà produite au dépôt, PAS le PDF brut.
-  function toggleProgramme() {
-    if (progOuvert) { setProgOuvert(false); return }
-    setProgOuvert(true)
-    if (progTexte === null) {
-      setProgChargement(true)
-      apiFetch('/api/user/referentiel/texte', { credentials: 'include' }, TIMEOUT_STD)
-        .then(r => (r.ok ? r.json() : null))
-        .then(d => setProgTexte((d && d.texte) || ''))
-        .catch(() => setProgTexte(''))
-        .finally(() => setProgChargement(false))
-    }
+  // « Ouvrir le PDF d'origine » : ouvre le fichier déposé par l'admin dans un NOUVEL ONGLET
+  // (visionneuse du navigateur), jamais dans l'appli. On ouvre l'onglet TOUT DE SUITE (le geste
+  // utilisateur est préservé, sinon le bloqueur de pop-up coupe), puis on y charge le PDF. Si le
+  // serveur ne peut pas le fournir, on ferme l'onglet et on montre un message humain (jamais une
+  // erreur brute — règle des deux publics).
+  function ouvrirPdf() {
+    const onglet = window.open('', '_blank')
+    apiFetch('/api/user/referentiel/pdf', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => { if (!r.ok) throw new Error('indispo'); return r.blob() })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        if (onglet) onglet.location = url
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      })
+      .catch(() => {
+        if (onglet) onglet.close()
+        showError("Le programme officiel de votre niveau n'est pas disponible pour le moment.")
+      })
+  }
+
+  // Cahier des charges du prof (dépôt libre) : get de l'état au montage (présent + nom du fichier).
+  useEffect(() => {
+    apiFetch('/api/user/cahier', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setCahier(d || { present: false }))
+      .catch(() => setCahier({ present: false }))
+  }, [])
+
+  // « Déposer / Remplacer » : le prof envoie SON PDF (POST = put). Re-déposer REMPLACE l'ancien →
+  // confirmation d'abord (jamais de perte au clic direct). Erreurs en langage humain (règle 23).
+  function deposerCahier(file, remplace) {
+    if (remplace && !window.confirm('Remplacer le cahier des charges actuel ?\n\nL’ancien PDF sera perdu.')) return
+    setCahierBusy(true)
+    const form = new FormData()
+    form.append('file', file)
+    apiFetch('/api/user/cahier', { method: 'POST', credentials: 'include', body: form }, TIMEOUT_STD)
+      .then(async r => {
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(d.detail || '')
+        return d
+      })
+      .then(d => setCahier(d))
+      .catch(err => showError(`Dépôt impossible.\n\n${err.message || 'Vérifiez que le fichier est bien un PDF (20 Mo maximum) et réessayez.'}`))
+      .finally(() => setCahierBusy(false))
+  }
+
+  // Ouvre le cahier déposé dans un nouvel onglet (même geste sûr que le PDF du programme officiel).
+  function ouvrirCahier() {
+    const onglet = window.open('', '_blank')
+    apiFetch('/api/user/cahier/pdf', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => { if (!r.ok) throw new Error('indispo'); return r.blob() })
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        if (onglet) onglet.location = url
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      })
+      .catch(() => {
+        if (onglet) onglet.close()
+        showError("Le cahier des charges n'est pas disponible pour le moment.")
+      })
   }
 
   useEffect(() => {
@@ -131,7 +177,11 @@ export default function MonProfil({ onNavigate }) {
 
   return (
     <>
-    <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480 }}>
+    {/* Deux cartouches CÔTE À CÔTE, alignées en haut : « Mon profil » à gauche (largeur fixe
+        480), « Programme officiel » en haut à droite. Sur écran étroit, flex-wrap repasse en
+        empilé (rien de tassé). */}
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+    <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480, flexShrink: 0 }}>
       <div className="section-title mb-5">Mon profil</div>
 
       {erreur && (
@@ -260,61 +310,86 @@ export default function MonProfil({ onNavigate }) {
       </form>
     </section>
 
+    {/* Colonne DROITE : deux cartouches empilées — « Programme officiel » (lecture seule) puis
+        « Mon cahier des charges » (dépôt libre du prof). */}
+    <div style={{ flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
     {/* Programme officiel de votre niveau — lecture seule (le prof consulte, il n'écrit rien) :
-        le NOM EXACT du document déposé + le PROGRAMME EN TEXTE PROPRE (version épurée/lisible
-        figée au dépôt), affiché à la demande. Pas le PDF brut. */}
-    <section className="bg-white rounded border border-gray-200 p-6 mt-4">
+        le NOM EXACT du document déposé + un bouton qui OUVRE LE PDF D'ORIGINE dans un nouvel
+        onglet (visionneuse du navigateur), jamais dans l'appli. */}
+    <section className="bg-white rounded border border-gray-200 p-6">
       <div className="section-title mb-3">Programme officiel de votre niveau</div>
       {refOfficiel === null ? (
         <div className="text-sm text-gray-400">Chargement…</div>
       ) : refOfficiel.disponible ? (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <span
-              className="text-sm text-gray-700 truncate"
-              title={refOfficiel.fichier}
-              style={{ minWidth: 0 }}
-            >
-              {refOfficiel.fichier}
-            </span>
-            <button
-              type="button"
-              className="btn-secondary"
-              style={{ flexShrink: 0 }}
-              onClick={toggleProgramme}
-              title={progOuvert ? 'Masquer le programme' : 'Afficher le programme de votre niveau'}
-            >
-              {progOuvert ? 'Fermer' : 'Voir le programme'}
-            </button>
-          </div>
-          {progOuvert && (
-            progChargement ? (
-              <div className="text-sm text-gray-400" style={{ marginTop: 12 }}>Chargement…</div>
-            ) : progTexte ? (
-              <div
-                className="text-sm text-gray-700"
-                style={{
-                  marginTop: 12, padding: 16, background: '#f8faff',
-                  border: '1px solid #e2e8f0', borderLeftWidth: 4, borderLeftColor: 'var(--bordeaux)',
-                  borderRadius: 6, whiteSpace: 'pre-wrap', lineHeight: 1.6,
-                  maxHeight: 480, overflowY: 'auto',
-                }}
-              >
-                {progTexte}
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500" style={{ marginTop: 12 }}>
-                Le programme de votre niveau n'est pas encore consultable.
-              </div>
-            )
-          )}
-        </>
+        <div className="flex items-center justify-between gap-3">
+          <span
+            className="text-sm text-gray-700 truncate"
+            title={refOfficiel.fichier}
+            style={{ minWidth: 0 }}
+          >
+            {refOfficiel.fichier}
+          </span>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ flexShrink: 0 }}
+            onClick={ouvrirPdf}
+            title="Ouvrir le PDF d'origine dans un nouvel onglet"
+          >
+            Ouvrir le PDF d'origine
+          </button>
+        </div>
       ) : (
         <div className="text-sm text-gray-500">
           Aucun programme officiel n'est encore disponible pour votre niveau.
         </div>
       )}
     </section>
+
+    {/* Mon cahier des charges — document interne à l'école/structure, déposé par le prof lui-même.
+        Un seul PDF par prof (re-déposer remplace, avec confirmation). Le pourquoi et le texte : plus tard. */}
+    <section className="bg-white rounded border border-gray-200 p-6">
+      <div className="section-title mb-3">Mon cahier des charges</div>
+      {cahier === null ? (
+        <div className="text-sm text-gray-400">Chargement…</div>
+      ) : cahier.present ? (
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-gray-700 truncate" title={cahier.fichier} style={{ minWidth: 0 }}>
+            {cahier.fichier}
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button type="button" className="btn-secondary" onClick={ouvrirCahier}
+              title="Ouvrir votre cahier des charges dans un nouvel onglet">
+              Ouvrir
+            </button>
+            <label className="btn-secondary"
+              style={{ cursor: cahierBusy ? 'wait' : 'pointer', opacity: cahierBusy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center' }}
+              title="Remplacer par un autre PDF">
+              {cahierBusy ? 'Dépôt…' : 'Remplacer'}
+              <input type="file" accept="application/pdf,.pdf" className="hidden" disabled={cahierBusy}
+                onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) deposerCahier(f, true) }} />
+            </label>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="text-sm text-gray-500 mb-3">
+            Déposez le cahier des charges de votre établissement (PDF).
+          </p>
+          <label className="btn-primary"
+            style={{ cursor: cahierBusy ? 'wait' : 'pointer', opacity: cahierBusy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            title="Choisir un PDF à déposer">
+            {cahierBusy ? 'Dépôt…' : 'Déposer un PDF'}
+            <input type="file" accept="application/pdf,.pdf" className="hidden" disabled={cahierBusy}
+              onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (f) deposerCahier(f, false) }} />
+          </label>
+        </div>
+      )}
+    </section>
+
+    </div>
+    </div>
     </>
   )
 }
