@@ -439,6 +439,18 @@ function MainApp() {
     }
   }
 
+  // Bouton UNIQUE Générer / Régénérer (barre du haut) : tant qu'il n'y a pas de résultat il
+  // GÉNÈRE ; dès qu'un résultat est là il RÉGÉNÈRE (même action `generer`, fusion du 25/07).
+  // Confirmation HONNÊTE avant de relancer : chaque génération réussie a DÉJÀ créé une ligne
+  // dans « Mes activités » (mes_activites.py), donc la version affichée n'est jamais perdue —
+  // on prévient seulement qu'on lance une nouvelle version.
+  function genererOuRegenerer() {
+    if (resultat && !window.confirm('Lancer une nouvelle version ? La version actuelle reste enregistrée dans « Mes activités ».')) {
+      return
+    }
+    generer()
+  }
+
   function chargerSequence(seq) {
     setPrefillSeq(seq)
     setPage('creer-sequence')
@@ -906,11 +918,12 @@ function MainApp() {
                   <button
                     className="btn-primary"
                     data-guide="generer"
-                    onClick={generer}
+                    onClick={genererOuRegenerer}
                     disabled={loading || !pretAGenerer}
                     title={loading ? 'Génération en cours…'
                       : !params.activite_type_id ? "Choisissez d'abord un type d'activité (étape 1)"
                       : !texte.trim() ? 'Décrivez d\'abord votre demande dans la zone de texte (étape 2)'
+                      : resultat ? 'Régénérer une nouvelle version — la version actuelle reste enregistrée dans « Mes activités »'
                       : "Lancer la génération de l'activité avec aSchool"}
                     style={{ flexShrink: 0, opacity: loading || !pretAGenerer ? 0.55 : 1,
                              cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
@@ -924,7 +937,7 @@ function MainApp() {
                         : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
                                          fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
                                          justifyContent: 'center', flexShrink: 0 }}>3</span>}
-                    {loading ? 'Génération en cours...' : 'Générer l\'activité'}
+                    {loading ? 'Génération en cours...' : resultat ? 'Régénérer l\'activité' : 'Générer l\'activité'}
                   </button>
                 </div>
               </div>
@@ -953,7 +966,6 @@ function MainApp() {
                 <div ref={resultatRef}>
                   <ZoneResultat
                     resultat={resultat}
-                    onRegenerer={generer}
                     loading={loading}
                     email={user?.email}
                     onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}

@@ -35,13 +35,6 @@ const IconMail = () => (
     <polyline points="22,6 12,13 2,6"/>
   </svg>
 )
-const IconRegen = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-    <polyline points="1 4 1 10 7 10"/>
-    <path d="M3.51 15a9 9 0 1 0 .49-3.71"/>
-  </svg>
-)
-
 function telechargerTxt(texte) {
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([texte], { type: 'text/plain;charset=utf-8' }))
@@ -129,14 +122,8 @@ const IconSearch = () => (
   </svg>
 )
 
-export default function ZoneResultat({ resultat, onRegenerer, loading, email, onAnalyserAmbiguites }) {
+export default function ZoneResultat({ resultat, loading, email, onAnalyserAmbiguites }) {
   if (!resultat && !loading) return null
-
-  function handleRegenerer() {
-    if (window.confirm('La génération précédente sera perdue. Continuer ?')) {
-      onRegenerer()
-    }
-  }
 
   return (
     <section data-guide="resultat" className="bg-white rounded border border-gray-200 p-4">
@@ -201,14 +188,6 @@ export default function ZoneResultat({ resultat, onRegenerer, loading, email, on
               <IconSearch /> Ambiguïtés
             </button>
           )}
-          <button
-            className="btn-primary"
-            onClick={handleRegenerer}
-            disabled={loading}
-            title="Lancer une nouvelle génération — le résultat actuel sera perdu"
-          >
-            <IconRegen /> {loading ? 'Génération en cours...' : 'Régénérer'}
-          </button>
         </div>
       </div>
       <div
