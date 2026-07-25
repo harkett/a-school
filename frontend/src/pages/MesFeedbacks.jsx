@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchWithTimeout } from '../utils/api.js'
+import { libelleEcran } from '../utils/ecrans.js'
 
 const CATEGORIES = [
   { key: 'bug',        label: 'Problème' },
@@ -236,7 +237,8 @@ export default function MesFeedbacks() {
       const paths = newFiles.map(f => f.path).join(',')
       const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ type: 'feedback', message: newMessage.trim(), category: newCategory, attachment_path: paths || null }),
+        body: JSON.stringify({ type: 'feedback', message: newMessage.trim(), category: newCategory, attachment_path: paths || null,
+                               contexte: `Écran ${libelleEcran('mes-feedbacks')}` }),
       })
       if (!res.ok) throw new Error()
       setSent(true)
@@ -353,6 +355,7 @@ export default function MesFeedbacks() {
                   <div className="flex items-center gap-2 flex-wrap">
                     {fb.category && <span style={{ fontSize: '0.72rem', background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '2px 8px' }}>{fb.category}</span>}
                     <span style={{ fontSize: '0.72rem', fontWeight: 600, borderRadius: 4, padding: '2px 8px', background: st.bg, color: st.color }}>{st.label}</span>
+                    {fb.contexte && <span title="D'où ce retour a été envoyé" style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#64748b', borderRadius: 4, padding: '2px 8px' }}>{fb.contexte}</span>}
                   </div>
                   <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
                     {fb.updated_at ? `Modifié le ${fb.updated_at}` : fb.created_at}

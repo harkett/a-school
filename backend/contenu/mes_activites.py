@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.core.database import get_db
 from backend.core.models_db import ActiviteSauvegardee, FewShotMilestone, User
 from backend import auth as auth_lib
+from backend.prof.profil import couple_de_travail
 
 _FEW_SHOT_MIN = 3  # nombre minimum de sauvegardes (par couple prof×type) pour poser le jalon few-shot
 
@@ -38,11 +39,11 @@ def _maybe_mark_few_shot(db: Session, user_id: int, activite_type_id: int) -> bo
         return False         # jalon déjà présent = déjà fêté
 
 
+# L'écran n'envoie PLUS matière/niveau (décision du 25/07) : le couple enregistré est lu
+# EN BASE au moment de la sauvegarde — le même que la génération vient d'utiliser.
 class SauvegarderRequest(BaseModel):
     activite_type_id: int
     activite_label: str
-    matiere: Optional[str] = None
-    niveau: str
     sous_type: Optional[str] = None
     nb: Optional[int] = None
     avec_correction: bool = False
@@ -72,13 +73,20 @@ def sauvegarder(
     db: Session = Depends(get_db),
 ):
     email = _get_email(aschool_access)
-    user_id = db.query(User.id).filter(User.email == email).scalar()
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(401, "Non connecté.")
+    # Le couple ENREGISTRÉ = le couple de travail lu EN BASE (celui que la génération vient
+    # d'utiliser) — jamais une valeur envoyée par l'écran (zéro copie, décision du 25/07).
+    matiere, niveau, _ = couple_de_travail(user)
+    if not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
     activite = ActiviteSauvegardee(
-        user_id=user_id,
+        user_id=user.id,
         activite_type_id=req.activite_type_id,
         activite_label=req.activite_label,
-        matiere=req.matiere or None,
-        niveau=req.niveau,
+        matiere=matiere or None,
+        niveau=niveau,
         sous_type=req.sous_type,
         nb=req.nb,
         avec_correction=req.avec_correction,
@@ -89,7 +97,7 @@ def sauvegarder(
     db.add(activite)
     db.commit()
     db.refresh(activite)
-    few_shot_just_reached = _maybe_mark_few_shot(db, user_id, req.activite_type_id)
+    few_shot_just_reached = _maybe_mark_few_shot(db, user.id, req.activite_type_id)
     return {"id": activite.id, "few_shot_just_reached": few_shot_just_reached}
 
 

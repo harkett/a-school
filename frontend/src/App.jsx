@@ -7,7 +7,8 @@ import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
 import TexteSource from './components/TexteSource'
 import Parametres from './components/Parametres'
-import CoupleBandeau from './components/CoupleBandeau'
+import VisiteGuidee from './components/VisiteGuidee'
+import FenetreGuide from './components/FenetreGuide'
 import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
@@ -65,9 +66,11 @@ import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import JaugeAttente from './components/JaugeAttente.jsx'
-import { fetchWithTimeout, apiFetch, refreshSession, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
+import FriseProgression from './components/FriseProgression.jsx'
+import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeParDefaut } from './utils/activite.js'
+import { libelleEcran } from './utils/ecrans.js'
 import './index.css'
 
 // Message UNIQUE de tout échec TECHNIQUE de génération (règle 23). « cliquez ici » ouvre le
@@ -93,7 +96,7 @@ const INACTIVITY_MS = 2 * 60 * 60 * 1000
 const WARNING_SECS  = 300
 
 function MainApp() {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshUser } = useAuth()
   const navigate = useNavigate()
   const matiere = user?.subject
 
@@ -119,16 +122,18 @@ function MainApp() {
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState(null)
-  const [sessionMatiere, setSessionMatiere] = useState(matiere)
-  // Libellé affiché (bandeau, Accueil) = le couple de TRAVAIL de la session — celui que le
-  // moteur utilise vraiment — jamais un mélange matière du profil / niveau de session.
+  // Couple de TRAVAIL — LU du get /auth/me, résolu EN BASE par le serveur (couple de travail
+  // s'il est posé, sinon profil). Plus AUCUN état local : l'écran est une fenêtre sur la base
+  // (décision du 25/07) — un F5 ou un autre appareil montrent exactement la même vérité.
+  const sessionMatiere = user?.travail_matiere || ''
+  // Libellé affiché (header, Accueil) = ce même couple de travail — jamais un mélange.
   const matiereLabel = sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv
     ? `LV - ${user.langue_lv}`
     : sessionMatiere
   const [fewShotModal, setFewShotModal] = useState(false)  // « aSchool vous reconnaît » : modale au franchissement du seuil
   const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
-  const [activiteTab, setActiviteTab] = useState('creer')
-  const [typeConfirme, setTypeConfirme] = useState(false)  // guidage : le prof a-t-il vu/touché le sélecteur de type ?
+  const [guideActif, setGuideActif] = useState(false)      // visite guidée de l'écran Créer en cours
+  const [fenetreGuide, setFenetreGuide] = useState(false)  // fenêtre déplaçable « Comment ça marche » ouverte
   const [selectedCard, setSelectedCard] = useState('sequence')
   const [inactivityWarning, setInactivityWarning] = useState(false)
   const [countdown, setCountdown] = useState(WARNING_SECS)
@@ -221,10 +226,6 @@ function MainApp() {
     localStorage.removeItem('aschool_niveau')  // niveau vit en base désormais — on purge le vieux cache
   }, [])
 
-  useEffect(() => {
-    setSessionMatiere(matiere)
-  }, [matiere])
-
   // Écran forcé : tant que le profil n'a pas de matière (couple absent), on ramène TOUJOURS
   // sur « Mon profil ». useLayoutEffect (avant peinture) → aucune autre page ne s'affiche, même
   // une fraction de seconde. Se relâche seul dès que la matière est enregistrée (profilIncomplet=false).
@@ -233,8 +234,8 @@ function MainApp() {
   }, [profilIncomplet, page])
 
   const [params, setParams] = useState({
-    activite_type_id: null,       // identité du type = son id (génération ET sauvegarde pointent par id)
-    niveau: user?.niveau || '',   // source unique = base (users.niveau via /me) — plus de cache localStorage
+    activite_type_id: null,              // identité du type = son id (génération ET sauvegarde pointent par id)
+    niveau: user?.travail_niveau || '',  // reflet du get /auth/me (couple de travail résolu EN BASE)
     sous_type: null,
     nb: 5,
     avec_correction: false,
@@ -245,28 +246,48 @@ function MainApp() {
     setParams(newParams)
   }
 
-  // Guidage visuel : toute interaction du prof avec les paramètres (sélecteur de type,
-  // précision, nb…) signifie qu'il a VU le sélecteur → l'accent descend sur le Texte source.
   function changerParams(newParams) {
-    setTypeConfirme(true)
     setParamsWithSave(newParams)
   }
 
-  // Retour au couple du PROFIL : on réapplique à la session les valeurs du profil lues en
-  // base (/auth/me) — aucune écriture, le geste inverse de « Changer la classe ou la matière ».
-  function revenirAuProfil() {
-    setSessionMatiere(matiere)
-    setParams(p => ({ ...p, niveau: user?.niveau || '' }))
+  // « Revenir à mon profil » = EFFACER l'écart en base (DELETE), puis relire /auth/me :
+  // le header et l'écran suivent le même get — jamais une remise à zéro locale.
+  async function revenirAuProfil() {
+    try {
+      const res = await apiFetch('/api/user/couple-travail', { method: 'DELETE' }, TIMEOUT_STD)
+      await lireReponse(res)
+      await refreshUser()
+    } catch (err) {
+      showError(messagePourEcran(err))
+    }
   }
 
-  // Resynchronise params.niveau quand user.niveau change (sauvegarde profil)
-  // — sans ce useEffect, params.niveau reste figé à la valeur du mount.
+  // Valider de « Changer niveau et/ou matière » = PUT du couple de travail EN BASE, puis
+  // relecture /auth/me. Renvoie false si le serveur refuse (la modale reste ouverte).
+  async function validerCoupleTravail(m, n) {
+    try {
+      const res = await apiFetch('/api/user/couple-travail', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matiere: m, niveau: n }),
+      }, TIMEOUT_STD)
+      await lireReponse(res)
+      await refreshUser()
+      return true
+    } catch (err) {
+      showError(messagePourEcran(err))
+      return false
+    }
+  }
+
+  // Resynchronise params.niveau quand le couple de travail change en base (PUT/DELETE
+  // ci-dessus, ou sauvegarde du profil) — params reste un simple reflet du get.
   useEffect(() => {
-    if (user?.niveau && user.niveau !== params.niveau) {
-      setParams(p => ({ ...p, niveau: user.niveau }))
+    if (user?.travail_niveau && user.travail_niveau !== params.niveau) {
+      setParams(p => ({ ...p, niveau: user.travail_niveau }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.niveau])
+  }, [user?.travail_niveau])
 
   useEffect(() => {
     fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}?niveau=${encodeURIComponent(params.niveau || '')}`, {}, TIMEOUT_STD)
@@ -326,9 +347,9 @@ function MainApp() {
       const body = { ...params, texte }
       if (!body.nb) delete body.nb
       if (!body.sous_type) delete body.sous_type
-      if (sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv) {
-        body.langue_lv = user.langue_lv
-      }
+      // Le couple (matière/niveau) et la langue LV ne partent PLUS de l'écran : le serveur
+      // lit le couple de travail EN BASE au moment de générer (décision du 25/07).
+      delete body.niveau
 
       // Génération EN STREAMING : PAS de fetchWithTimeout — son abort à 45 s coupait le flux en
       // plein travail (LE bug du 23/07). L'autorité de coupure est le serveur (silence lu en base).
@@ -390,11 +411,11 @@ function MainApp() {
 
       // Succès : sauvegarde best-effort mais JAMAIS silencieuse (inchangée — contrat éprouvé de
       // /api/mes-activites). La modale « aSchool vous reconnaît » est pilotée par le backend.
+      // Le couple enregistré est STAMPÉ PAR LE SERVEUR (couple de travail lu en base au
+      // moment de la sauvegarde — le même que la génération vient d'utiliser).
       sauvegarderActivite({
         activite_type_id: params.activite_type_id,
         activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
-        matiere: sessionMatiere,
-        niveau: params.niveau,
         sous_type: params.sous_type || null,
         nb: params.nb || null,
         avec_correction: params.avec_correction,
@@ -447,8 +468,7 @@ function MainApp() {
     setTexte('')
     setObjet('')
     setResultat(null)
-    setActiviteTab('creer')
-    setTypeConfirme(false)
+    setFenetreGuide(false)
     setParams(p => ({ ...p, ...typeParDefaut(activites) }))
     setPage('creer-activite')
   }
@@ -461,18 +481,46 @@ function MainApp() {
     else setPage(p)
   }
 
-  // Guidage visuel pas à pas de l'écran « Créer » : une SEULE zone active à la fois,
-  // suit l'état réel. 0 = rien (activité déjà générée) · 1 = choisir le type (Paramètres)
-  // · 2 = Texte source · 3 = Générer. Retour arrière (texte vidé) → l'accent revient sur le texte.
-  const etapeGuide = resultat ? 0 : !typeConfirme ? 1 : !texte.trim() ? 2 : 3
+  // Première visite de l'écran Créer : la visite guidée se lance toute seule. Le « déjà
+  // vu » est lu EN BASE (get /auth/me → guide_creer_vu) — jamais un stockage navigateur :
+  // un autre appareil sait aussi que le guide a été montré.
+  useEffect(() => {
+    if (page === 'creer-activite' && user && user.guide_creer_vu === false) setGuideActif(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, user?.guide_creer_vu])
 
-  // Contour sobre (discret) sur la zone active. Outline → aucun décalage de mise en page.
-  const halo = (actif) => ({
-    outline: actif ? '2px solid #1F6EEB' : '2px solid transparent',
-    outlineOffset: '3px',
-    borderRadius: 8,
-    transition: 'outline-color 0.25s ease',
-  })
+  // Fin de visite (Terminer, Passer ou Échap) : on note le « vu » EN BASE (put) puis on
+  // relit /auth/me. Échec silencieux : au pire le guide se relancera, sans gravité.
+  async function fermerGuide() {
+    setGuideActif(false)
+    if (user && user.guide_creer_vu === false) {
+      try {
+        const res = await apiFetch('/api/user/guide-creer-vu', { method: 'PUT' }, TIMEOUT_STD)
+        await lireReponse(res)
+        await refreshUser()
+      } catch { /* rien à montrer au prof */ }
+    }
+  }
+
+  // « En savoir plus » d'une bulle ou lien de la fenêtre : le centre d'aide s'ouvre sur la
+  // fiche de l'écran Créer (le lien profond aideSection existe déjà).
+  function ouvrirAideDepuisGuide() {
+    fermerGuide()
+    setFenetreGuide(false)
+    setAideSection('comment')
+    setPage('aide')
+  }
+
+  // Guidage de l'écran Créer (patron « stepper », décision du 25/07) : les cartouches
+  // portent leurs numéros ①②③, l'état réel coche ce qui est fait, et le bouton Générer ne
+  // s'allume que quand tout est prêt — plus aucun halo qui se promène.
+  const pretAGenerer = !!texte.trim() && !!params.activite_type_id
+
+  // Contexte emporté par un feedback : l'écran courant + le couple de travail (résolu en
+  // base via /auth/me). Affiché en clair dans la fenêtre avant l'envoi — le prof n'a plus
+  // à décrire où il se trouve.
+  const contexteFeedback = `Écran ${libelleEcran(page)}`
+    + (matiereLabel && user?.travail_niveau ? ` · ${matiereLabel} × ${user.travail_niveau}` : '')
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -482,7 +530,7 @@ function MainApp() {
 
       <Header
         matiere={matiereLabel}
-        niveau={params.niveau}
+        niveau={user?.travail_niveau}
         email={user?.email}
         prenom={user?.prenom}
         nom={user?.nom}
@@ -490,6 +538,11 @@ function MainApp() {
         onLogout={logout}
         onNavigate={naviguer}
         onFeedback={() => setShowFeedback(true)}
+        sessionMatiere={sessionMatiere}
+        coupleAjuste={!!user?.couple_ajuste}
+        onValiderCouple={validerCoupleTravail}
+        onRevenirProfil={revenirAuProfil}
+        onOuvrirGuide={page === 'creer-activite' ? () => setFenetreGuide(true) : null}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
@@ -500,7 +553,7 @@ function MainApp() {
             <Accueil
               user={user}
               matiereLabel={matiereLabel}
-              niveau={params.niveau}
+              niveau={user?.travail_niveau}
               onNavigate={naviguer}
               onCharger={chargerActivite}
               onChargerSequence={chargerSequence}
@@ -834,123 +887,92 @@ function MainApp() {
           {page === 'creer-activite' && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center' }}>
-                <button
-                  onClick={() => setActiviteTab('creer')}
-                  title="Formulaire de création d'activité"
-                  style={{ padding: '10px 20px', fontSize: '13px', fontWeight: activiteTab === 'creer' ? 700 : 400, color: activiteTab === 'creer' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none', cursor: 'pointer', borderBottom: activiteTab === 'creer' ? '2px solid var(--bordeaux)' : '2px solid transparent', marginBottom: '-1px' }}
-                >
+                {/* L'ancien onglet « Comment ça marche » (copie de l'écran en prose, toujours
+                    périmée) est remplacé par la visite guidée + la fenêtre déplaçable. */}
+                <div style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: 'var(--bordeaux)', borderBottom: '2px solid var(--bordeaux)', marginBottom: '-1px' }}>
                   Nouvelle activité
-                </button>
-                <button
-                  onClick={() => setActiviteTab('aide')}
-                  title="Comment créer une activité — guide pas à pas"
-                  style={{ padding: '10px 20px', fontSize: '13px', fontWeight: activiteTab === 'aide' ? 700 : 400, color: activiteTab === 'aide' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none', cursor: 'pointer', borderBottom: activiteTab === 'aide' ? '2px solid var(--bordeaux)' : '2px solid transparent', marginBottom: '-1px' }}
-                >
-                  Comment ça marche
-                </button>
-                {activiteTab === 'creer' && (
-                  <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                    <CoupleBandeau
-                      sessionMatiere={sessionMatiere}
-                      niveau={params.niveau}
-                      profilMatiere={matiere}
-                      profilNiveau={user?.niveau || ''}
-                      onValider={(m, n) => { setSessionMatiere(m); changerParams({ ...params, niveau: n }) }}
-                      onRevenirProfil={revenirAuProfil}
-                    />
-                    <button
-                      className="btn-primary"
-                      onClick={generer}
-                      disabled={loading}
-                      title="Lancer la génération de l'activité avec aSchool"
-                      style={{ flexShrink: 0, ...halo(etapeGuide === 3) }}
-                    >
-                      {loading
-                        ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                        : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-                      {loading ? 'Génération en cours...' : 'Générer l\'activité'}
-                    </button>
-                  </div>
-                )}
+                </div>
+                <FriseProgression
+                  typeOk={!!params.activite_type_id}
+                  texteOk={!!texte.trim()}
+                  loading={loading}
+                  resultat={resultat}
+                />
+                {/* « Comment ça marche » vit désormais dans le header (colonne assistance) —
+                    la barre ne garde que Générer, jamais deux fois le même bouton à l'écran. */}
+                <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  {/* Étape ③ — le vrai guide : le bouton ne s'allume que quand tout est prêt,
+                      et sa bulle dit ce qui manque. */}
+                  <button
+                    className="btn-primary"
+                    data-guide="generer"
+                    onClick={generer}
+                    disabled={loading || !pretAGenerer}
+                    title={loading ? 'Génération en cours…'
+                      : !params.activite_type_id ? "Choisissez d'abord un type d'activité (étape 1)"
+                      : !texte.trim() ? 'Décrivez d\'abord votre demande dans la zone de texte (étape 2)'
+                      : "Lancer la génération de l'activité avec aSchool"}
+                    style={{ flexShrink: 0, opacity: loading || !pretAGenerer ? 0.55 : 1,
+                             cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
+                  >
+                    {loading
+                      ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                      : resultat
+                        ? <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#16a34a', color: '#fff',
+                                         fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
+                                         justifyContent: 'center', flexShrink: 0 }}>✓</span>
+                        : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
+                                         fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
+                                         justifyContent: 'center', flexShrink: 0 }}>3</span>}
+                    {loading ? 'Génération en cours...' : 'Générer l\'activité'}
+                  </button>
+                </div>
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {activiteTab === 'creer' && (
-                <>
-                  {activites.length > 0 && (
-                    <Parametres
-                      activites={activites}
-                      params={params}
-                      accentType={etapeGuide === 1}
-                      onChange={changerParams}
-                      onGenerer={generer}
-                      loading={loading}
-                      hasResultat={!!resultat}
-                      canGenerer={!!texte.trim() && !!params.activite_type_id}
-                      onFeedback={() => setShowFeedback(true)}
-                    />
-                  )}
-                  <div style={halo(etapeGuide === 2)}>
-                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} />
-                  </div>
-                  {/* Jauge IA — du clic Générer jusqu'aux premiers mots du flux (ensuite, le texte
-                      qui s'écrit EST la progression). Même jauge que partout où l'IA travaille. */}
-                  {loading && !resultat && (
-                    <JaugeAttente libelle="L'IA lit le programme officiel et rédige votre activité…" />
-                  )}
-                  <div ref={resultatRef}>
-                    <ZoneResultat
-                      resultat={resultat}
-                      onRegenerer={generer}
-                      loading={loading}
-                      email={user?.email}
-                      onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {activiteTab === 'aide' && (
-                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une activité — tout ce que vous pouvez faire</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Configurez les paramètres</div>
-                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                        <li><strong>Type d'activité</strong> — varie selon la matière : questions de compréhension, analyse de texte, résumé, production d'écrit, fiche de révision…</li>
-                        <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
-                        <li><strong>Nombre de questions</strong> — disponible selon le type d'activité choisi</li>
-                        <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
-                      </ul>
-                    </div>
-                    <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>2. Fournissez un texte source — 3 options</div>
-                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                        <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
-                        <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
-                        <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
-                        <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
-                      </ul>
-                    </div>
-                    <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>3. Exploitez le résultat</div>
-                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                        <li>Cliquez sur "Générer" — activité prête en quelques secondes</li>
-                        <li>Régénérez sans hésiter — chaque génération est différente</li>
-                        <li>Sauvegardez dans "Mes activités" — rechargeable en un clic à tout moment</li>
-                        <li>Partagez par email avec un collègue depuis le résultat</li>
-                      </ul>
-                    </div>
-                    <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-                    <p style={{ margin: 0, fontSize: '12px', color: '#64748b', background: '#f8fafc', borderRadius: '6px', padding: '8px 12px', lineHeight: 1.6, borderLeft: '3px solid #cbd5e1' }}>
-                      aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
-                    </p>
-                  </div>
+                {activites.length > 0 && (
+                  <Parametres
+                    activites={activites}
+                    params={params}
+                    onChange={changerParams}
+                    onGenerer={generer}
+                    loading={loading}
+                    hasResultat={!!resultat}
+                    canGenerer={!!texte.trim() && !!params.activite_type_id}
+                    onFeedback={() => setShowFeedback(true)}
+                  />
+                )}
+                <div data-guide="texte">
+                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} />
                 </div>
-              )}
+                {/* Jauge IA — synchronisée avec le sablier du bouton Générer : affichée tant que
+                    `loading` (du clic jusqu'à la fin de la génération), elle s'éteint avec lui. */}
+                {loading && (
+                  <JaugeAttente libelle="aSchool lit le programme officiel et rédige votre activité…" />
+                )}
+                <div ref={resultatRef}>
+                  <ZoneResultat
+                    resultat={resultat}
+                    onRegenerer={generer}
+                    loading={loading}
+                    email={user?.email}
+                    onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
+                  />
+                </div>
               </div>
+
+              {/* Visite guidée (bulles sur les vrais éléments) + fenêtre déplaçable « Comment
+                  ça marche » — les deux lisent le catalogue unique utils/aideCreer.js. */}
+              {guideActif && (
+                <VisiteGuidee onFermer={fermerGuide} onOuvrirAide={ouvrirAideDepuisGuide} />
+              )}
+              {fenetreGuide && (
+                <FenetreGuide
+                  onFermer={() => setFenetreGuide(false)}
+                  onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
+                  onOuvrirAide={ouvrirAideDepuisGuide}
+                />
+              )}
             </div>
           )}
 
@@ -1058,7 +1080,7 @@ function MainApp() {
       </div>
 
       <Footer />
-      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} />}
+      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} contexte={contexteFeedback} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
 
       {inactivityWarning && (

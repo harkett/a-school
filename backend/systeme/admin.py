@@ -437,6 +437,7 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "message":  f.message,
             "rating":   f.rating,
             "category": f.category,
+            "contexte": f.contexte,
             "statut":   f.statut,
             "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
         }

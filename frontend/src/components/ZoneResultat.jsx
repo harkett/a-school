@@ -1,4 +1,5 @@
 ﻿import { Document, Packer, Paragraph, TextRun } from 'docx'
+import EtapeBadge from './EtapeBadge.jsx'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -11,6 +12,14 @@ const IconWord = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
     <polyline points="14 2 14 8 20 8"/>
+  </svg>
+)
+const IconPdf = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="9" y1="15" x2="15" y2="15"/>
+    <line x1="9" y1="18" x2="13" y2="18"/>
   </svg>
 )
 const IconPrint = () => (
@@ -58,6 +67,38 @@ async function telechargerWord(texte) {
   a.click()
 }
 
+async function telechargerPdf(texte) {
+  // jsPDF chargé À LA DEMANDE (import dynamique) : son poids (~700 Ko) ne pèse que sur le
+  // clic PDF, pas au démarrage de l'appli. PDF texte fidèle au résultat (contenu brut, comme
+  // le Word) : découpe aux marges + saut de page auto + pied « aSchool » sur chaque page,
+  // comme le .txt / Word / impression. La police standard helvetica gère les accents français.
+  const { jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const margeX = 56, margeHaut = 56, margeBas = 48, interligne = 16
+  const largeurPage = doc.internal.pageSize.getWidth()
+  const hauteurPage = doc.internal.pageSize.getHeight()
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  const lignes = doc.splitTextToSize(texte, largeurPage - margeX * 2)
+  let y = margeHaut
+  lignes.forEach(ligne => {
+    if (y + interligne > hauteurPage - margeBas) {
+      doc.addPage()
+      y = margeHaut
+    }
+    doc.text(ligne, margeX, y)
+    y += interligne
+  })
+  const nbPages = doc.internal.getNumberOfPages()
+  for (let p = 1; p <= nbPages; p++) {
+    doc.setPage(p)
+    doc.setFontSize(8)
+    doc.setTextColor(153)
+    doc.text('Généré avec aSchool — aschool.fr', largeurPage / 2, hauteurPage - 24, { align: 'center' })
+  }
+  doc.save(`activite_${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
 function imprimer(texte) {
   const win = window.open('', '_blank')
   const escaped = texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -98,9 +139,22 @@ export default function ZoneResultat({ resultat, onRegenerer, loading, email, on
   }
 
   return (
-    <section className="bg-white rounded border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="section-title">Résultat généré</div>
+    <section data-guide="resultat" className="bg-white rounded border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-3 gap-3" style={{ flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+          <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <EtapeBadge n={4} fait={!!resultat} />
+            Résultat généré
+          </div>
+          {resultat && (
+            <span style={{ flex: 1, minWidth: 220, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              Si ce résultat ne vous convient pas, vous pouvez toujours le régénérer.
+            </span>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <button
             className="btn-secondary"
@@ -115,6 +169,13 @@ export default function ZoneResultat({ resultat, onRegenerer, loading, email, on
             title="Télécharger le résultat au format Word .docx"
           >
             <IconWord /> Word
+          </button>
+          <button
+            className="btn-secondary"
+            onClick={() => telechargerPdf(resultat)}
+            title="Télécharger le résultat au format PDF"
+          >
+            <IconPdf /> PDF
           </button>
           <button
             className="btn-secondary"
@@ -133,8 +194,9 @@ export default function ZoneResultat({ resultat, onRegenerer, loading, email, on
           {onAnalyserAmbiguites && resultat && (
             <button
               className="btn-secondary"
-              onClick={() => onAnalyserAmbiguites(resultat)}
-              title="Analyser les ambiguïtés cognitives de cette activité générée"
+              disabled
+              title="Analyse des ambiguïtés — bientôt disponible"
+              style={{ opacity: 0.5, cursor: 'not-allowed' }}
             >
               <IconSearch /> Ambiguïtés
             </button>

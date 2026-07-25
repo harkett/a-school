@@ -1,34 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
-import { useMatieres } from '../utils/useMatieres.js'
-
-// Phrase « matières disponibles » de l'Aide, alimentée par la base (source unique)
-// au lieu d'une énumération en dur — comme les déroulants (P5.10). Rendue dans l'arbre
-// React via une section statique, donc le hook s'exécute bien malgré le contenu module.
-function MatieresDisponibles() {
-  const { matieres, chargement } = useMatieres()
-  if (chargement || matieres.length === 0)
-    return <span>aSchool propose plusieurs matières.</span>
-  const liste = matieres.length > 1
-    ? `${matieres.slice(0, -1).join(', ')} et ${matieres[matieres.length - 1]}`
-    : matieres[0]
-  return <span>aSchool propose {matieres.length} matières : {liste}.</span>
-}
+import { GUIDE_CREER } from '../utils/aideCreer.js'
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-  </svg>
-)
-
-const IconSliders = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
-    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
-    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
-    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
-    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
   </svg>
 )
 
@@ -298,7 +275,7 @@ const sections = [
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Step n="1">
             <span><strong>Fournissez un texte source</strong> — collez un extrait de manuel, dictez à la voix ou scannez un document.<br />
-            <span style={{ fontSize: 12, color: '#64748b' }}>Pas de texte sous la main ? Cliquez sur <strong>Document d'exemple</strong> dans la rangée de boutons sous la zone de texte.</span></span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Pas de texte sous la main ? Cliquez sur <strong>Document d'exemple</strong> dans la rangée de boutons en haut à droite du texte source.</span></span>
           </Step>
           <Step n="2">
             <span><strong>Choisissez le type d'activité et le sous-type</strong> — votre matière et niveau sont pré-remplis depuis votre profil.</span>
@@ -479,50 +456,26 @@ const sections = [
   {
     id: 'comment',
     nav: 'Créer une activité',
-    titre: 'Créer une activité — tout ce que vous pouvez faire',
+    titre: "Créer une activité — l'écran expliqué",
     Icon: IconBook,
+    // Fiche ASSEMBLÉE depuis le catalogue unique (utils/aideCreer.js) : les MÊMES textes
+    // que les bulles de la visite guidée et la fenêtre « Comment ça marche ». Corriger une
+    // phrase au catalogue corrige aussi cette fiche — plus jamais deux textes à resynchroniser.
     contenu: (
       <div className="flex flex-col gap-5 text-sm text-gray-600">
-        <div>
-          <p className="font-semibold text-gray-700 mb-2">1. Fournissez un texte source — 3 options</p>
-          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
-            <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
-            <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
-            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Document d'exemple</strong> (dans la rangée de boutons sous la zone de texte). aSchool génère un extrait <strong>ancré sur le référentiel officiel de votre niveau</strong> — il <strong>change à chaque clic</strong>, mais reste toujours fidèle au programme. (Niveau sans référentiel : aSchool vous le dit, et vous collez votre propre texte.)</li>
-          </ul>
-        </div>
-        <hr className="border-gray-100" />
-        <div>
-          <p className="font-semibold text-gray-700 mb-2">2. Configurez les paramètres</p>
-          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            <li>
-              <strong>Type d'activité</strong> — varie selon la matière :
-              <ul className="mt-1 pl-3 flex flex-col gap-0.5" style={{ listStyleType: 'circle' }}>
-                <li>Questions de compréhension</li>
-                <li>Analyse de texte / document</li>
-                <li>Résumé / synthèse</li>
-                <li>Production d'écrit</li>
-                <li>Fiche de révision</li>
-                <li>Exercices de vocabulaire</li>
-                <li className="text-gray-400 italic">et d'autres selon la matière…</li>
-              </ul>
-            </li>
-            <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
-            <li><strong>Nombre de questions</strong> — disponible selon le type d'activité choisi</li>
-            <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
-          </ul>
-        </div>
-        <hr className="border-gray-100" />
-        <div>
-          <p className="font-semibold text-gray-700 mb-2">3. Exploitez le résultat</p>
-          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
-            <li>Cliquez sur "Générer" — activité prête en quelques secondes</li>
-            <li>Régénérez sans hésiter — chaque génération est différente</li>
-            <li>Sauvegardez dans "Mes activités" — rechargeable en un clic à tout moment</li>
-            <li>Partagez par email avec un collègue depuis le résultat</li>
-          </ul>
-        </div>
+        <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+          Cette fiche suit l'écran Créer élément par élément, dans l'ordre de la visite guidée.
+          Sur l'écran lui-même, le bouton « Comment ça marche » (à côté de « Générer l'activité »)
+          ouvre une fenêtre déplaçable avec ces étapes et un exemple pour votre classe.
+        </p>
+        {GUIDE_CREER.map((e, i) => (
+          <div key={e.cle}>
+            <p className="font-semibold text-gray-700 mb-2">{i + 1}. {e.titre}</p>
+            <div className="flex flex-col gap-1.5">
+              {e.detail.map((par, j) => <p key={j} style={{ margin: 0, lineHeight: 1.6 }}>{par}</p>)}
+            </div>
+          </div>
+        ))}
         <hr className="border-gray-100" />
         <p className="text-xs rounded-md px-3 py-2" style={{ background: '#f8fafc', color: '#64748b', borderLeft: '3px solid #cbd5e1' }}>
           aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
@@ -541,7 +494,7 @@ const sections = [
           La dictée fonctionne sur tous les appareils — ordinateur, iPhone (Safari) et Android (Chrome). Vous enregistrez votre voix, puis elle est transcrite (Groq Whisper, français) et insérée dans la zone source.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Step n="1">Dans la zone "Texte source", cliquez sur le bouton <strong>Dicter</strong>.</Step>
+          <Step n="1">Au-dessus de la zone "Texte source", cliquez sur le bouton <strong>Dicter</strong>.</Step>
           <Step n="2">Autorisez l'accès au microphone si le navigateur le demande.</Step>
           <Step n="3">Patientez le bip, puis parlez clairement — pendant l'enregistrement, vous voyez le niveau du micro et le chrono (le texte n'apparaît qu'après l'arrêt).</Step>
           <Step n="4">Cliquez sur <strong>Arrêter</strong> quand vous avez terminé : votre enregistrement est alors transcrit, puis le texte s'insère automatiquement dans la zone source.</Step>
@@ -574,7 +527,7 @@ const sections = [
           L'OCR convertit une photo de document en texte exploitable — idéal pour numériser un extrait de manuel ou une feuille photocopiée.
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Step n="1">Dans la zone "Texte source", cliquez sur l'icône appareil photo.</Step>
+          <Step n="1">Au-dessus de la zone "Texte source", cliquez sur le bouton <strong>Image / Scan</strong>.</Step>
           <Step n="2">Prenez une photo du document ou importez une image depuis votre appareil.</Step>
           <Step n="3">aSchool extrait et nettoie le texte automatiquement.</Step>
           <Step n="4">Vérifiez le texte obtenu — corrigez les erreurs de reconnaissance avant de générer.</Step>
@@ -588,40 +541,6 @@ const sections = [
           </div>
         </div>
       </div>
-    ),
-  },
-  {
-    id: 'champs',
-    nav: 'Les champs expliqués',
-    titre: 'Les champs expliqués',
-    Icon: IconSliders,
-    contenu: (
-      <dl className="flex flex-col gap-4 text-sm text-gray-600">
-        <div>
-          <dt className="font-semibold text-gray-700">Matière</dt>
-          <dd className="mt-0.5 flex flex-col gap-2">
-            <MatieresDisponibles />
-            <span><strong>Votre matière de profil</strong> est définie à l'inscription et modifiable via "Mon profil" — c'est votre identité par défaut, elle persiste d'une connexion à l'autre.</span>
-            <span><strong>Le sélecteur de matière dans les paramètres</strong> vous permet de changer de matière pour la session en cours uniquement, sans toucher à votre profil. Utile si vous intervenez ponctuellement dans une autre discipline ou souhaitez tester des activités d'une autre matière.</span>
-          </dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-gray-700">Niveau</dt>
-          <dd className="mt-0.5">Le niveau scolaire de vos élèves, de la 6e à la Terminale. Influence le vocabulaire et la complexité de l'activité. Votre niveau habituel est mémorisé d'une session à l'autre. Le niveau Supérieur (BTS, prépa) est en cours de développement.</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-gray-700">Type d'activité</dt>
-          <dd className="mt-0.5">Le genre d'exercice à produire — varie selon la matière (compréhension, vocabulaire, résumé, exercices…). Chaque type d'activité génère un format différent.</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-gray-700">Nombre de questions</dt>
-          <dd className="mt-0.5">Le nombre d'items dans l'activité. Disponible selon le type d'activité choisi.</dd>
-        </div>
-        <div>
-          <dt className="font-semibold text-gray-700">Avec correction</dt>
-          <dd className="mt-0.5">Si activé, aSchool ajoute la correction complète sous l'activité — pratique pour préparer votre cours ou gagner du temps sur la correction.</dd>
-        </div>
-      </dl>
     ),
   },
   {
@@ -1136,7 +1055,7 @@ const sections = [
 const CATEGORIES = [
   { label: 'Premiers pas', ids: ['compte', 'profil-setup', 'premiere-activite'] },
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
-  { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'champs', 'conseils', 'sequence', 'optimiseur'] },
+  { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'conseils', 'sequence', 'optimiseur'] },
   { label: 'Analyser', ids: ['ambiguites'] },
   { label: 'Gérer', ids: ['historique-activites', 'historique-sequences', 'partage', 'mon-reseau'] },
   { label: 'Comprendre', ids: ['organisation-outils', 'apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },

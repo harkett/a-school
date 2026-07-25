@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import ConnexionLog, User
+from backend.prof.profil import couple_de_travail
 
 router = APIRouter()
 
@@ -224,6 +225,9 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     if not email:
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()
+    # Couple de TRAVAIL résolu EN BASE (travail si posé, sinon profil) — LA lecture unique :
+    # le header et l'écran Créer affichent CE couple, le serveur génère avec CE couple.
+    tm, tn, ajuste = couple_de_travail(user) if user else (None, None, False)
     return {
         "email":     email,
         "subject":   user.subject   if user else None,
@@ -231,6 +235,12 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
         "nom":       user.nom       if user else None,
         "niveau":    user.niveau    if user else None,
         "langue_lv": user.langue_lv if user else None,
+        "travail_matiere": tm,
+        "travail_niveau":  tn,
+        "couple_ajuste":   ajuste,
+        # True = ne plus lancer la visite guidée de l'écran Créer (compte inconnu → True :
+        # on ne guide pas un compte cassé). L'écran lit CE drapeau, jamais un stockage local.
+        "guide_creer_vu":  bool(user.guide_creer_vu) if user else True,
     }
 
 

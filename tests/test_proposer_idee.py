@@ -36,8 +36,10 @@ def _client_prof():
 
 
 def _couple(nom, ordre, avec_ref=True):
-    """Cycle + niveau (+ référentiel) + un type actif. Renvoie (niveau_nom, type_id)."""
-    from backend.core.models_db import Cycle, Niveau, Referentiel, ActiviteType
+    """Cycle + niveau (+ référentiel) + un type actif + LE PROF EN BASE (son profil porte ce
+    niveau : l'endpoint lit désormais le couple de travail EN BASE, plus le corps de la
+    requête — décision du 25/07). Renvoie (niveau_nom, type_id)."""
+    from backend.core.models_db import Cycle, Niveau, Referentiel, ActiviteType, User
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom=f"PI-{nom}", ordre=ordre)
         db.add(cy); db.flush()
@@ -49,6 +51,8 @@ def _couple(nom, ordre, avec_ref=True):
                                texte_epure="TEXTE"))
         t = ActiviteType(label=f"PI-Manuelle-{nom}", ordre=1, actif=True, origine="systeme")
         db.add(t); db.flush()
+        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+                    subject=f"PI-Matiere-{nom}", niveau=niv.nom))
         db.commit()
         return niv.nom, t.id
 
@@ -66,8 +70,9 @@ def test_proposer_idee_nominal_ancre_sur_type_precision_niveau():
                   "L'objectif est de développer la motricité fine.")
     with patch("backend.contenu.activites.retrieve_pg", side_effect=_faux_rag), \
          patch("backend.contenu.activites.generate", return_value=reponse_ia) as gen:
+        # Le niveau ne part plus du corps de requête : il est lu EN BASE (profil du prof).
         r = _client_prof().post("/api/proposer-idee", json={
-            "activite_type_id": tid, "niveau": niveau, "sous_type": "exploration pâte à modeler"})
+            "activite_type_id": tid, "sous_type": "exploration pâte à modeler"})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["available"] is True
@@ -84,12 +89,12 @@ def test_proposer_idee_nominal_ancre_sur_type_precision_niveau():
 
 
 def test_reponse_sans_ligne_objet_ne_perd_rien():
-    niveau, tid = _couple("SansObjet", 94)
+    _niveau, tid = _couple("SansObjet", 94)
     with patch("backend.contenu.activites.retrieve_pg",
                return_value=[{"text": "Extrait officiel.", "score": 0.9, "page": 3}]), \
          patch("backend.contenu.activites.generate",
                return_value="Explorer librement les couleurs au doigt."):
-        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid, "niveau": niveau})
+        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["available"] is True
@@ -98,10 +103,10 @@ def test_reponse_sans_ligne_objet_ne_perd_rien():
 
 
 def test_sans_referentiel_available_false_et_zero_appel_llm():
-    niveau, tid = _couple("SansRef", 96, avec_ref=False)
+    _niveau, tid = _couple("SansRef", 96, avec_ref=False)
     with patch("backend.contenu.activites.retrieve_pg") as rag, \
          patch("backend.contenu.activites.generate") as gen:
-        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid, "niveau": niveau})
+        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid})
     assert r.status_code == 200, r.text
     assert r.json()["available"] is False
     rag.assert_not_called()
@@ -109,11 +114,11 @@ def test_sans_referentiel_available_false_et_zero_appel_llm():
 
 
 def test_rien_d_assez_pertinent_message_honnete_et_zero_appel_llm():
-    niveau, tid = _couple("Seuil", 97)
+    _niveau, tid = _couple("Seuil", 97)
     with patch("backend.contenu.activites.retrieve_pg",
                return_value=[{"text": "Hors sujet.", "score": 0.05}]), \
          patch("backend.contenu.activites.generate") as gen:
-        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid, "niveau": niveau})
+        r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": tid})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["available"] is False
@@ -122,7 +127,7 @@ def test_rien_d_assez_pertinent_message_honnete_et_zero_appel_llm():
 
 
 def test_type_inconnu_400_humain():
-    niveau, _ = _couple("Inconnu", 98)
-    r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": 999999, "niveau": niveau})
+    _couple("Inconnu", 98)
+    r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": 999999})
     assert r.status_code == 400, r.text
     assert r.json()["detail"] == "Type d'activité inconnu."

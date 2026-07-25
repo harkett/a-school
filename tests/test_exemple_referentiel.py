@@ -3,6 +3,8 @@ r"""Preuve de raccordement — Slice 2a (endpoint /api/exemple-referentiel, gén
 Ce que le test PROUVE (Groq MOCKÉ — déterministe, pas « le code existe ») :
   1. Couple SUPPORTÉ (Langage × Bébés (0-1 an)) : le prompt envoyé au LLM CONTIENT
      les chunks que retrieve_pg() remonte POUR CE COUPLE + le niveau → ancré, pas inventé.
+     Le couple est LU EN BASE (couple de travail du prof, décision du 25/07) — l'écran
+     n'envoie plus rien dans le corps.
   2. Couple SANS référentiel (Français × 4e) : {available:false}, AUCUN appel LLM,
      AUCUN texte fabriqué (règle d'or).
   3. Sans cookie d'auth : 401.
@@ -47,6 +49,16 @@ def _authed():
     return c
 
 
+def _prof_en_base(subject=MATIERE, niveau=NIVEAU_CRECHE):
+    """Le prof du TOKEN existe EN BASE avec son couple de profil — l'endpoint lit désormais
+    le couple de travail en base (décision du 25/07), plus le corps de la requête."""
+    from backend.core.models_db import User
+    with dbmod.SessionLocal() as db:
+        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+                    subject=subject, niveau=niveau))
+        db.commit()
+
+
 @pytest.fixture
 def couple_creche():
     """Sème le couple Bébés (0-1 an) dans la base de test (aschool_test) pour que
@@ -81,10 +93,10 @@ def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple(couple_creche):
         captured["prompt"] = prompt
         return "TEXTE SOURCE EXEMPLE (généré)"
 
+    _prof_en_base()
     with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=chunks_ok), \
          patch("backend.pedagogie.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
-        r = _authed().post("/api/exemple-referentiel",
-                           json={"matiere": MATIERE, "niveau": NIVEAU_CRECHE})
+        r = _authed().post("/api/exemple-referentiel", json={})
 
     assert r.status_code == 200, r.text
     data = r.json()
@@ -101,9 +113,9 @@ def test_couple_supporte_prompt_est_ancre_sur_le_bon_couple(couple_creche):
 
 def test_couple_sans_referentiel_ne_fabrique_rien():
     # Pas de fixture couple_creche → aucun référentiel en base → available=false, sans LLM.
+    _prof_en_base(subject="Français", niveau="4e")
     with patch("backend.pedagogie.exemple_referentiel.generate") as mock_gen:
-        r = _authed().post("/api/exemple-referentiel",
-                           json={"matiere": "Français", "niveau": "4e"})
+        r = _authed().post("/api/exemple-referentiel", json={})
 
     assert r.status_code == 200, r.text
     data = r.json()
@@ -113,8 +125,7 @@ def test_couple_sans_referentiel_ne_fabrique_rien():
 
 
 def test_exige_authentification():
-    r = TestClient(app).post("/api/exemple-referentiel",
-                             json={"matiere": MATIERE, "niveau": NIVEAU_CRECHE})
+    r = TestClient(app).post("/api/exemple-referentiel", json={})
     assert r.status_code == 401
 
 
@@ -126,10 +137,10 @@ def _chunk(text, score):
 def test_seuil_tout_sous_seuil_message_honnete_et_pas_de_generation(couple_creche):
     # Tous les chunks sous 0.30 (seuil crèche) → available=false, message C, generate JAMAIS appelé.
     faibles = [_chunk("bruit hors-sujet A", 0.15), _chunk("bruit hors-sujet B", 0.25)]
+    _prof_en_base()
     with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=faibles), \
          patch("backend.pedagogie.exemple_referentiel.generate") as mock_gen:
-        r = _authed().post("/api/exemple-referentiel",
-                           json={"matiere": MATIERE, "niveau": NIVEAU_CRECHE})
+        r = _authed().post("/api/exemple-referentiel", json={})
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["available"] is False
@@ -146,10 +157,10 @@ def test_seuil_filtre_les_chunks_faibles_avant_le_prompt(couple_creche):
     def fake_generate(prompt, **kwargs):
         captured["p"] = prompt
         return "EXEMPLE"
+    _prof_en_base()
     with patch("backend.pedagogie.exemple_referentiel.retrieve_pg", return_value=mixtes), \
          patch("backend.pedagogie.exemple_referentiel.generate", side_effect=fake_generate) as mock_gen:
-        r = _authed().post("/api/exemple-referentiel",
-                           json={"matiere": MATIERE, "niveau": NIVEAU_CRECHE})
+        r = _authed().post("/api/exemple-referentiel", json={})
     assert r.status_code == 200, r.text
     assert r.json()["available"] is True
     assert mock_gen.call_count == 1

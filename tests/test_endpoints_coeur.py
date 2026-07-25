@@ -321,18 +321,22 @@ def _type_id(label="Compréhension"):
 
 
 def _save_payload(type_id):
+    # Plus de matière/niveau dans le corps : le couple est STAMPÉ PAR LE SERVEUR
+    # (couple de travail lu en base — décision du 25/07).
     return {
         "activite_type_id": type_id, "activite_label": "Compréhension",
-        "niveau": "3e", "texte_source": "La photosynthèse.", "resultat": "1. ? 2. ?",
+        "texte_source": "La photosynthèse.", "resultat": "1. ? 2. ?",
     }
 
 
 def _client_for(email):
-    """Client authentifié pour un prof réel en base (la route save lit user_id depuis users)."""
+    """Client authentifié pour un prof réel en base (la route save lit user_id depuis users,
+    et STAMPE le couple depuis son profil — il lui faut donc matière + niveau)."""
     from backend.core.models_db import User
     with dbmod.SessionLocal() as db:
         if not db.query(User).filter(User.email == email).first():
-            db.add(User(email=email, password_hash="x", is_verified=True))
+            db.add(User(email=email, password_hash="x", is_verified=True,
+                        subject="SVT", niveau="3e"))
             db.commit()
     c = TestClient(app)
     c.cookies.set("aschool_access", create_access_token(email))
@@ -374,7 +378,8 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
     from backend.core.models_db import User, ActiviteSauvegardee
     tid = _type_id("Saut")
     with dbmod.SessionLocal() as db:
-        db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True))
+        db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True,
+                    subject="SVT", niveau="3e"))
         db.commit()
         uid = db.query(User.id).filter(User.email == "fewshot-5@local.test").scalar()
         # 3 sauvegardes posées DIRECTEMENT en base : la route n'a jamais évalué le jalon à 3

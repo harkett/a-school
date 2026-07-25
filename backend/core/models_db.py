@@ -25,6 +25,13 @@ class User(Base):
     langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+    # Couple de TRAVAIL (écran Créer, « Changer niveau et/ou matière ») — NULL = couple du
+    # profil. C'est LA donnée que le serveur lit pour générer ; jamais recopiée côté écran.
+    travail_matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    travail_niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Visite guidée de l'écran Créer déjà montrée ? En base (pas dans le navigateur) :
+    # un autre appareil doit le savoir aussi. False → elle se lance toute seule une fois.
+    guide_creer_vu: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0', nullable=False)
 
 
 class EmailToken(Base):
@@ -73,6 +80,9 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # D'où le feedback est parti (« Écran Créer une activité · Français × 6e ») — fait
+    # d'événement figé à l'envoi, jamais retouché à l'édition.
+    contexte: Mapped[str | None] = mapped_column(String(160), nullable=True)
 
 
 class FeedbackStatut(Base):

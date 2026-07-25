@@ -1,10 +1,12 @@
-﻿const IconGenerer = () => (
+﻿import EtapeBadge from './EtapeBadge.jsx'
+
+const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
   </svg>
 )
 
-export default function Parametres({ activites, params, accentType, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback }) {
+export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback }) {
   const activite = activites.find(a => a.id === params.activite_type_id) || activites[0]
 
   function set(field, value) {
@@ -23,14 +25,34 @@ export default function Parametres({ activites, params, accentType, onChange, on
 
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
-      <div className="section-title mb-4">Paramètres de l'activité</div>
+      {/* Étape ① du stepper — le numéro passe en ✓ vert dès qu'un type est choisi.
+          La ligne feedback vit à CÔTÉ du titre (sa demande du 25/07 : place gagnée). */}
+      <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <EtapeBadge n={1} fait={!!params.activite_type_id} />
+          Paramètres de l'activité
+        </div>
+        <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
+          <button
+            type="button"
+            onClick={onFeedback}
+            title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
+            className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
+            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+          >
+            Signalez-la via le Feedback
+          </button>
+          {' '}— nous l'ajouterons pour vous et pour tous les profs.
+        </span>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
 
-        <div style={{
-          outline: accentType ? '2px solid #1F6EEB' : '2px solid transparent',
-          outlineOffset: '3px', borderRadius: 6, transition: 'outline-color 0.25s ease',
-        }}>
+        <div data-guide="type">
           <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
           <select
             className="w-full border border-gray-300 rounded p-2 text-sm"
@@ -43,6 +65,25 @@ export default function Parametres({ activites, params, accentType, onChange, on
           </select>
         </div>
 
+        {/* À la place de Précision : la coche correction, à droite du Type */}
+        <div data-guide="corrige" className="flex items-start gap-2">
+          <input
+            type="checkbox" id="avec-correction"
+            checked={params.avec_correction}
+            onChange={e => set('avec_correction', e.target.checked)}
+            className="mt-0.5"
+          />
+          <div>
+            <label htmlFor="avec-correction" className="text-sm text-gray-700 cursor-pointer font-medium">
+              Inclure une proposition de correction
+            </label>
+            <p className="text-xs text-gray-400 mt-0.5">
+              aSchool génère une réponse-type après chaque question, que le professeur adapte à sa classe.
+            </p>
+          </div>
+        </div>
+
+        {/* Précision SOUS le Type d'activité (2e rang de la grille) */}
         {activite?.sous_types.length > 0 && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Précision</label>
@@ -86,41 +127,6 @@ export default function Parametres({ activites, params, accentType, onChange, on
         </div>
       )}
 
-      <div className="mt-4 flex items-start gap-2">
-        <input
-          type="checkbox" id="avec-correction"
-          checked={params.avec_correction}
-          onChange={e => set('avec_correction', e.target.checked)}
-          className="mt-0.5"
-        />
-        <div>
-          <label htmlFor="avec-correction" className="text-sm text-gray-700 cursor-pointer font-medium">
-            Inclure une proposition de correction
-          </label>
-          <p className="text-xs text-gray-400 mt-0.5">
-            aSchool génère une réponse-type après chaque question, que le professeur adapte à sa classe.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded border border-gray-200 bg-gray-50 px-4 py-3 flex items-start gap-3">
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" className="mt-0.5 shrink-0">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
-          <button
-            type="button"
-            onClick={onFeedback}
-            title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
-            className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
-            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
-          >
-            Signalez-la via le Feedback
-          </button>
-          {' '}— nous l'ajouterons pour vous et pour tous les profs.
-        </p>
-      </div>
     </section>
   )
 }

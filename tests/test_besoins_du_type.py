@@ -95,6 +95,12 @@ def test_generate_le_texte_reste_la_requete_rag():
     niveau, (tid,) = _couple_avec_types("Eco", 93, [
         ("BT-Compréhension", "Texte : {texte}\nFais des questions pour {niveau}.\n{referentiel}"),
     ])
+    # Le prof existe EN BASE avec ce niveau : la génération lit le couple en base (25/07).
+    from backend.core.models_db import User
+    with dbmod.SessionLocal() as db:
+        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+                    subject="BT-Matiere", niveau=niveau))
+        db.commit()
     capture = {}
 
     def _faux_rag(collection, query, filters=None, top_k=None):
@@ -104,7 +110,7 @@ def test_generate_le_texte_reste_la_requete_rag():
     with patch("backend.contenu.activites.retrieve_pg", side_effect=_faux_rag), \
          patch("backend.contenu.activites.generate_stream", return_value=iter(["OK"])):
         r = _client_prof().post("/api/generate", json={
-            "texte": "Le cycle de l'eau dans la nature.", "activite_type_id": tid, "niveau": niveau,
+            "texte": "Le cycle de l'eau dans la nature.", "activite_type_id": tid,
         })
     assert r.status_code == 200, r.text
     assert "event: done" in r.text and '"text": "OK"' in r.text

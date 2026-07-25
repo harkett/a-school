@@ -304,6 +304,12 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
         {tab === 'aide' && (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', flex: 1 }}>
             <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Détecter les ambiguïtés — comment ça marche</div>
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
+              <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '6px' }}>À quoi ça sert</div>
+              <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
+                Un énoncé mal formulé, et l'élève bute sur la consigne au lieu de l'exercice. Cet outil relit votre énoncé à la loupe : il repère chaque formulation qui prête à confusion et, pour chacune, vous montre l'<strong>extrait</strong> en cause, le <strong>type</strong> de piège, le <strong>risque concret pour l'élève</strong>, et une <strong>reformulation corrigée</strong> prête à copier — le tout précédé d'un <strong>verdict global</strong> sur la clarté. Et si une reformulation vous inspire, elle devient le <strong>thème d'une nouvelle séquence</strong> en un clic.
+              </p>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Collez votre énoncé</div>

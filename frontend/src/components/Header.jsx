@@ -1,4 +1,13 @@
-﻿export default function Header({ matiere, niveau, email, prenom, nom, profilNomIncomplet, onLogout, onNavigate, onFeedback }) {
+import CoupleBandeau from './CoupleBandeau'
+
+// Header sur DEUX lignes utiles (décision du 25/07) : à droite, trois colonnes empilées —
+// « assistance » (« Comment ça marche » selon le contexte de la page + « Feedback » partout,
+// sa demande du 25/07), « couple » (Matière - Niveau, l'UNIQUE afficheur du couple de
+// travail, avec son bouton « Changer niveau et/ou matière » juste dessous) et « compte »
+// (l'identité au-dessus de « Se déconnecter »). onOuvrirGuide null = la page n'a pas de
+// mode d'emploi → le bouton est CACHÉ (pas grisé).
+export default function Header({ matiere, niveau, email, prenom, nom, profilNomIncomplet, onLogout, onNavigate, onFeedback,
+                                 sessionMatiere, coupleAjuste, onValiderCouple, onRevenirProfil, onOuvrirGuide }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
   const isMobile = window.innerWidth < 768
@@ -22,47 +31,91 @@
               color: '#ff6b6b', background: 'none', border: 'none', padding: 0,
               cursor: 'pointer', fontSize: isMobile ? '0.7rem' : 'inherit',
               fontWeight: 600, textDecoration: 'underline', fontFamily: 'inherit',
+              whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.35,
             }}
           >
             Merci de compléter votre profil
           </button>
         )}
-        {!isMobile && <>
-          <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-          <span style={{ color: 'white', fontWeight: 600 }}>{matiereNiveau}</span>
-          <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>
-        </>}
-        <button
-          onClick={() => onNavigate('mon-profil')}
-          title="Voir et modifier mon profil"
-          style={{ color: 'rgba(255,255,255,0.8)', cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 'inherit', fontFamily: 'inherit' }}
-        >
-          {isMobile ? (
-            <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.78rem', borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</div>
-              <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.6)' }}>{matiereNiveau}</div>
-            </div>
-          ) : (
-            <span style={{ borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</span>
+        {!isMobile && <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>}
+        {/* Colonne assistance : le mode d'emploi de la page (si elle en a un) + le feedback */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          {onOuvrirGuide && (
+            <button
+              onClick={onOuvrirGuide}
+              title="Ouvrir le mode d'emploi de cet écran — une fenêtre déplaçable et étirable, avec un exemple pour votre classe."
+              style={{
+                color: 'white', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '6px',
+                padding: '0.18rem 0.7rem', fontSize: '0.75rem', background: 'none', cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', fontFamily: 'inherit',
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              Comment ça marche
+            </button>
           )}
-        </button>
-        <button
-          onClick={onLogout}
-          title="Fermer votre session et revenir à la page de connexion"
-          style={{
-            color: 'white', border: '1px solid rgba(255,255,255,0.4)',
-            borderRadius: '6px', padding: '0.3rem 0.85rem',
-            fontSize: '0.8rem', background: 'none', cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: '5px',
-          }}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-          {isMobile ? 'Déconnecter' : 'Se déconnecter'}
-        </button>
+          <button
+            onClick={onFeedback}
+            title="Envoyer un retour, une idée ou signaler un problème — nous lisons tout."
+            style={{
+              color: 'white', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '6px',
+              padding: '0.18rem 0.7rem', fontSize: '0.75rem', background: 'none', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', fontFamily: 'inherit',
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Feedback
+          </button>
+        </div>
+        {!isMobile && <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>}
+        {/* Colonne couple : l'afficheur unique du couple, son bouton de changement DESSOUS */}
+        <div data-guide="couple" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+          <span style={{ color: 'white', fontWeight: 600, fontSize: isMobile ? '0.72rem' : undefined, whiteSpace: 'nowrap' }}>
+            {matiereNiveau}
+          </span>
+          <CoupleBandeau
+            sessionMatiere={sessionMatiere}
+            niveau={niveau}
+            coupleAjuste={coupleAjuste}
+            onValider={onValiderCouple}
+            onRevenirProfil={onRevenirProfil}
+          />
+        </div>
+        {!isMobile && <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>}
+        {/* Colonne compte : l'identité AU-DESSUS du bouton Se déconnecter */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+          <button
+            onClick={() => onNavigate('mon-profil')}
+            title="Voir et modifier mon profil"
+            style={{
+              color: 'rgba(255,255,255,0.8)', cursor: 'pointer', background: 'none', border: 'none',
+              padding: 0, fontSize: isMobile ? '0.72rem' : 'inherit', fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ borderBottom: '1px dotted rgba(255,255,255,0.4)' }}>{nomAffiche}</span>
+          </button>
+          <button
+            onClick={onLogout}
+            title="Fermer votre session et revenir à la page de connexion"
+            style={{
+              color: 'white', border: '1px solid rgba(255,255,255,0.4)',
+              borderRadius: '6px', padding: '0.3rem 0.85rem',
+              fontSize: '0.8rem', background: 'none', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            {isMobile ? 'Déconnecter' : 'Se déconnecter'}
+          </button>
+        </div>
       </div>
     </header>
   )

@@ -2,33 +2,26 @@ from pydantic import BaseModel
 from typing import Optional
 
 
+# Décision du 25/07 : l'écran n'envoie PLUS matière/niveau — le serveur lit le couple de
+# TRAVAIL du prof EN BASE (users.travail_matiere/travail_niveau, sinon le profil) au moment
+# de chaque action. Une donnée, une place : le couple affiché EST le couple généré.
 class GenerateRequest(BaseModel):
     texte: str
     activite_type_id: int
-    niveau: str
     sous_type: Optional[str] = None
     nb: Optional[int] = None
     avec_correction: bool = False
-    langue_lv: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):
     resultat: str
 
 
-class ExempleReferentielRequest(BaseModel):
-    # Couple ACTIF affiché au prof (sélection courante, ajustement temporaire compris) —
-    # pas le profil figé : l'exemple doit suivre ce que le prof voit à l'écran.
-    matiere: str
-    niveau: str
-
-
 class ProposerIdeeRequest(BaseModel):
-    # Ce que le prof a DÉJÀ choisi à l'écran : le type d'activité (id), le niveau actif
-    # (ajustement temporaire compris) et la précision éventuelle. L'idée proposée s'écrit
-    # DANS la zone texte — elle ne remplace jamais la demande du prof, elle l'amorce.
+    # Ce que le prof a DÉJÀ choisi à l'écran : le type d'activité (id) et la précision
+    # éventuelle — le couple, lui, est lu EN BASE. L'idée proposée s'écrit DANS la zone
+    # texte — elle ne remplace jamais la demande du prof, elle l'amorce.
     activite_type_id: int
-    niveau: str
     sous_type: Optional[str] = None
 
 

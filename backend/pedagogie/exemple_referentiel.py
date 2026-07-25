@@ -18,8 +18,9 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models import ExempleReferentielRequest, ExempleReferentielResponse
-from backend.core.models_db import Niveau, Referentiel
+from backend.core.models import ExempleReferentielResponse
+from backend.core.models_db import Niveau, Referentiel, User
+from backend.prof.profil import couple_de_travail
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k
 from backend.llm.generator import generate, LLMRateLimitError
@@ -86,34 +87,42 @@ def _get_email(aschool_access: str | None) -> str:
 
 @router.post("/exemple-referentiel", response_model=ExempleReferentielResponse)
 def api_exemple_referentiel(
-    req: ExempleReferentielRequest,
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    _get_email(aschool_access)
+    """Le couple (matière + niveau) est LU EN BASE — le couple de TRAVAIL du prof, résolu
+    par couple_de_travail (travail si posé, sinon profil). L'écran n'envoie plus rien
+    (décision du 25/07) : le document d'exemple suit TOUJOURS le couple que le prof voit."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(401, "Non connecté.")
+    matiere, niveau, _ = couple_de_travail(user)
+    if not matiere or not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
 
-    resolved = _resolve_collection(db, req.niveau)
+    resolved = _resolve_collection(db, niveau)
     if resolved is None:
         # Règle d'or : pas de référentiel pour ce couple → on n'invente RIEN.
-        log.info(f"[exemple-ref] aucun référentiel pour niveau='{req.niveau}' → available=false")
+        log.info(f"[exemple-ref] aucun référentiel pour niveau='{niveau}' → available=false")
         return ExempleReferentielResponse(available=False)
 
     collection, filters, seuil = resolved
     # Filtre STRICT de pertinence : un chunk sous le seuil n'ancre JAMAIS une génération
     # (pas de « meilleur quand même »). Le seuil vit EN BASE, par référentiel
     # (`referentiels.score_min`, résolu ci-dessus) — plus aucune constante en dur.
-    requete = REQUETE_GABARIT.format(matiere=req.matiere, niveau=req.niveau)
+    requete = REQUETE_GABARIT.format(matiere=matiere, niveau=niveau)
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).
-        log.info(f"[exemple-ref] aucun chunk >= seuil {seuil} ({collection}, matiere='{req.matiere}') → available=false + message")
+        log.info(f"[exemple-ref] aucun chunk >= seuil {seuil} ({collection}, matiere='{matiere}') → available=false + message")
         return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
-    prompt = build_exemple_referentiel_prompt(chunks, matiere=req.matiere, niveau=req.niveau)
+    prompt = build_exemple_referentiel_prompt(chunks, matiere=matiere, niveau=niveau)
     try:
         texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
-    log.info(f"[exemple-ref] généré pour couple ({req.matiere}, {req.niveau}) — {len(chunks)} chunks ancrés (>= {seuil})")
+    log.info(f"[exemple-ref] généré pour couple ({matiere}, {niveau}) — {len(chunks)} chunks ancrés (>= {seuil})")
     return ExempleReferentielResponse(available=True, texte=texte)

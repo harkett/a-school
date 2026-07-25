@@ -19,8 +19,9 @@ from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
-    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre,
+    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre, User,
 )
+from backend.prof.profil import couple_de_travail
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.llm.prompts import build_proposer_idee_prompt
 from backend.rag.pgvector_store import retrieve_pg
@@ -162,11 +163,23 @@ def get_activites(matiere: str, niveau: str = "", db: Session = Depends(get_db))
     return types_du_couple(db, niveau)
 
 
-def _exiger_session(aschool_access: str | None) -> None:
-    """Génération réservée à un prof connecté (même posture que l'ancien /generate). Ne touche
-    PAS au mécanisme d'auth : lit juste le pass court du cookie et refuse 401 s'il est absent/mort."""
-    if not aschool_access or not auth_lib.verify_access_token(aschool_access):
+def _prof_et_couple(db: Session, aschool_access: str | None) -> tuple[User, str, str]:
+    """Le prof connecté et son couple de TRAVAIL, lus EN BASE au moment de l'action
+    (décision du 25/07) : l'écran n'envoie plus matière/niveau — le serveur lit le couple
+    que le prof a validé (« Changer niveau et/ou matière »), sinon son profil. Renvoie
+    (user, matiere, niveau) ; profil incomplet → 400 humain, jamais une génération à vide."""
+    if not aschool_access:
         raise HTTPException(401, "Non connecté.")
+    email = auth_lib.verify_access_token(aschool_access)
+    if not email:
+        raise HTTPException(401, "Session expirée.")
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(401, "Non connecté.")
+    matiere, niveau, _ = couple_de_travail(user)
+    if not matiere or not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau) — c'est lui qui guide la génération.")
+    return user, matiere, niveau
 
 
 # Message honnête au prof quand aucun extrait n'est assez pertinent (même contrat que
@@ -212,8 +225,9 @@ def api_proposer_idee(
 
     Règle d'or : pas de référentiel → available:false ; rien d'assez pertinent au seuil
     (lu en base, `referentiels.score_min`) → available:false + message honnête. On
-    n'invente RIEN hors du programme."""
-    _exiger_session(aschool_access)
+    n'invente RIEN hors du programme. Le couple (matière + niveau) est LU EN BASE
+    (couple de travail du prof) — l'écran ne l'envoie plus (décision du 25/07)."""
+    _user, _matiere, niveau = _prof_et_couple(db, aschool_access)
 
     t = (db.query(ActiviteType)
            .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
@@ -221,7 +235,7 @@ def api_proposer_idee(
     if t is None:
         raise HTTPException(400, "Type d'activité inconnu.")
 
-    ref_id = _referentiel_du_niveau(db, req.niveau)
+    ref_id = _referentiel_du_niveau(db, niveau)
     if ref_id is None:
         return ProposerIdeeResponse(available=False)
 
@@ -232,7 +246,7 @@ def api_proposer_idee(
     requete = _REQUETE_IDEE_GABARIT.format(
         type_label=t.label,
         precision=f" ({req.sous_type})" if req.sous_type else "",
-        niveau=req.niveau,
+        niveau=niveau,
     )
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
@@ -240,7 +254,7 @@ def api_proposer_idee(
         log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
         return ProposerIdeeResponse(available=False, message=_AUCUN_EXTRAIT_POUR_IDEE)
 
-    prompt = build_proposer_idee_prompt(chunks, type_label=t.label, precision=req.sous_type, niveau=req.niveau)
+    prompt = build_proposer_idee_prompt(chunks, type_label=t.label, precision=req.sous_type, niveau=niveau)
     try:
         texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db))
@@ -249,7 +263,7 @@ def api_proposer_idee(
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
     objet, texte_idee = _extraire_objet(texte)
     log.info("[proposer-idee] idée générée (%s, type=%r, %d chunks >= %s, objet=%r)",
-             req.niveau, t.label, len(chunks), seuil, objet)
+             niveau, t.label, len(chunks), seuil, objet)
     return ProposerIdeeResponse(available=True, texte=texte_idee, objet=objet)
 
 
@@ -275,11 +289,13 @@ def api_generate(
     `correction`, modifiable à chaud) est AJOUTÉE à la fin du prompt du couple avant le flux —
     le corrigé sort dans le même document, sous l'activité. Décochée → prompt strictement
     identique. NB : le few-shot « aSchool vous reconnaît » reste DIFFÉRÉ. La sauvegarde côté
-    prof (/api/mes-activites) reste inchangée (déclenchée par l'écran à la fin du flux)."""
-    _exiger_session(aschool_access)
+    prof (/api/mes-activites) reste inchangée (déclenchée par l'écran à la fin du flux).
+    Le couple (matière + niveau) est LU EN BASE (couple de travail du prof, résolu par
+    couple_de_travail) — l'écran ne l'envoie plus (décision du 25/07)."""
+    user, matiere, niveau = _prof_et_couple(db, aschool_access)
 
     # 1. Le COUPLE : le référentiel du niveau. Sans référentiel, aucun prompt de couple → rien à générer.
-    ref_id = _referentiel_du_niveau(db, req.niveau)
+    ref_id = _referentiel_du_niveau(db, niveau)
     if ref_id is None:
         raise HTTPException(400, "Ce niveau n'a pas encore de référentiel officiel. La génération n'est pas encore possible ici.")
 
@@ -316,15 +332,15 @@ def api_generate(
 
     # 5. Remplissage. Le texte source → {texte}, les extraits officiels → {referentiel}. Les autres
     # paramètres (niveau, sous_type, nb, langue) restent disponibles si l'admin les a mis dans le prompt.
-    kwargs = {"niveau": req.niveau, "referentiel": referentiel_txt}
+    kwargs = {"niveau": niveau, "referentiel": referentiel_txt}
     if req.sous_type:
         kwargs["sous_type"] = req.sous_type
     if req.nb:
         kwargs["nb"] = req.nb
-    # LV : signalée par la présence de `langue_lv` (le front ne l'envoie que pour la matière LV),
-    # plus par un préfixe de clé — la clé disparaît, la langue vient de la donnée réelle.
-    if req.langue_lv:
-        kwargs["langue"] = req.langue_lv or "langues vivantes"
+    # LV : la langue vient de la BASE (matière de travail LV + langue du profil) — plus
+    # aucune valeur envoyée par l'écran.
+    if matiere == "Langues Vivantes (LV)" and user.langue_lv:
+        kwargs["langue"] = user.langue_lv
     try:
         prompt = modele.format(texte=req.texte, **kwargs)
     except KeyError as e:

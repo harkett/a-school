@@ -1,10 +1,13 @@
 import { useState } from 'react'
 
-// Couple de travail (matière · niveau) + « Changer la classe ou la matière » — affiché dans la
-// barre du haut de l'écran Créer, à gauche du bouton Générer. La modale relit les listes EN BASE
-// à CHAQUE ouverture (get /api/programmes) ; Valider écrit le couple de SESSION seulement — le
-// profil du prof n'est jamais modifié.
-export default function CoupleBandeau({ sessionMatiere, niveau, profilMatiere, profilNiveau, onValider, onRevenirProfil }) {
+// Boutons du couple de travail (« Changer niveau et/ou matière » + « Revenir à mon profil »),
+// affichés dans le HEADER bleu, juste SOUS le couple qu'ils modifient (décision du 25/07 :
+// le header est l'UNIQUE endroit qui écrit le couple — même get /auth/me, jamais deux
+// affichages qui pourraient diverger ; le bouton vit sous son afficheur). Habit identique à
+// « Se déconnecter » (contour blanc sur le bleu). La modale relit les listes EN BASE à CHAQUE
+// ouverture (get /api/programmes) ; Valider = PUT du couple de travail EN BASE (App), qui
+// renvoie false si le serveur refuse → la modale reste ouverte. Le profil n'est jamais modifié.
+export default function CoupleBandeau({ sessionMatiere, niveau, coupleAjuste, onValider, onRevenirProfil }) {
   const [showAjuster, setShowAjuster] = useState(false)
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
@@ -20,12 +23,10 @@ export default function CoupleBandeau({ sessionMatiere, niveau, profilMatiere, p
       .catch(() => {})
   }
 
-  // Le prof travaille-t-il hors de son couple de profil ? (comparaison pure, rien de stocké)
-  const coupleAjuste = sessionMatiere !== profilMatiere || niveau !== profilNiveau
-
-  function validerAjust() {
-    onValider(ajustTemp.matiere, ajustTemp.niveau)
-    setShowAjuster(false)
+  // coupleAjuste vient du SERVEUR (/auth/me → couple_ajuste) — jamais recalculé ici.
+  async function validerAjust() {
+    const ok = await onValider(ajustTemp.matiere, ajustTemp.niveau)
+    if (ok !== false) setShowAjuster(false)
   }
 
   // Matières réellement rattachées au niveau choisi (get base, zéro copie) — la matière DÉPEND du niveau.
@@ -49,40 +50,38 @@ export default function CoupleBandeau({ sessionMatiere, niveau, profilMatiere, p
 
   return (
     <>
-      <span className="text-sm text-gray-700" style={{ whiteSpace: 'nowrap' }}>
-        <span className="font-medium">{sessionMatiere}</span>
-        <span className="text-gray-400 mx-2">·</span>
-        <span>{niveau}</span>
-      </span>
-      {coupleAjuste && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {coupleAjuste && (
+          <button
+            type="button"
+            onClick={onRevenirProfil}
+            title="Revenir à la classe et à la matière de votre profil."
+            style={{
+              background: 'none', border: 'none', padding: 0, fontSize: '0.72rem', fontFamily: 'inherit',
+              color: 'rgba(255,255,255,0.75)', textDecoration: 'underline', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            Revenir à mon profil
+          </button>
+        )}
         <button
           type="button"
-          onClick={onRevenirProfil}
-          title="Revenir à la classe et à la matière de votre profil."
+          onClick={ouvrirAjuster}
+          title="Générer cette activité pour une autre classe de votre cycle ou une autre matière — votre profil n'est pas modifié."
           style={{
-            background: 'none', border: 'none', padding: 0, fontSize: '12px',
-            color: '#64748b', textDecoration: 'underline', cursor: 'pointer', whiteSpace: 'nowrap',
+            color: 'white', border: '1px solid rgba(255,255,255,0.4)',
+            borderRadius: '6px', padding: '0.3rem 0.85rem',
+            fontSize: '0.8rem', background: 'none', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            whiteSpace: 'nowrap', fontFamily: 'inherit',
           }}
         >
-          Revenir à mon profil
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+          Changer niveau et/ou matière
         </button>
-      )}
-      <button
-        type="button"
-        onClick={ouvrirAjuster}
-        title="Générer cette activité pour une autre classe de votre cycle ou une autre matière — votre profil n'est pas modifié."
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          background: '#eff6ff', border: '1px solid #1F6EEB', borderRadius: '6px',
-          padding: '6px 12px', fontSize: '13px', color: '#1F6EEB', fontWeight: 600,
-          cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-        }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-        </svg>
-        Changer niveau et/ou matière
-      </button>
+      </div>
 
       {/* Modale — Ajuster pour cette activité */}
       {showAjuster && (

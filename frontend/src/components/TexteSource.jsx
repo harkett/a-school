@@ -2,7 +2,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { formatTime, computeBarLevels } from '../utils/audioViz.js'
+import { GUIDE_CREER } from '../utils/aideCreer.js'
+import EtapeBadge from './EtapeBadge.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
+
+// La phrase des 6 boutons, lue au catalogue unique — jamais réécrite ici.
+const PHRASE_BOUTONS = GUIDE_CREER.find(e => e.cle === 'boutons')?.phrase || ''
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume
 
@@ -78,6 +83,16 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const barsRef = useRef([])         // refs DOM des barres (mutation directe, pas de re-render)
 
   useEffect(() => { texteRef.current = texte }, [texte])
+
+  // Zone déjà remplie = le chemin est choisi : tout geste qui REMPLACERAIT le texte demande
+  // d'abord confirmation (jamais de destruction au clic direct), et les boutons écraseurs
+  // passent en retrait visuel. « Dicter » n'y passe pas : il AJOUTE à la suite du texte.
+  const zoneRemplie = !!texte.trim()
+  const enRetrait = zoneRemplie ? { opacity: 0.55 } : {}
+  function confirmerRemplacement() {
+    if (!zoneRemplie) return true
+    return window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')
+  }
 
   // Les bandeaux « exemple généré » / « idée proposée » sont attachés au texte courant : si le
   // texte est vidé (ex. « Créer » repart d'une activité vierge), ils n'ont plus de sens → effacés.
@@ -234,14 +249,17 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   // Règle d'or : si le couple n'a pas de référentiel → available:false → on n'injecte RIEN.
   async function handleExemple() {
     if (exempleLoading) return
+    if (!confirmerRemplacement()) return
     setExempleLoading(true)
     setExempleNote(null)
     try {
+      // Le couple ne part plus de l'écran : le serveur lit le couple de travail EN BASE
+      // (décision du 25/07) — le document d'exemple suit toujours ce que le prof voit.
       const res = await apiFetch('/api/exemple-referentiel', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matiere, niveau }),
+        body: JSON.stringify({}),
       }, TIMEOUT_LONG)
       const data = await lireReponse(res)
       if (data.available && data.texte) {
@@ -272,14 +290,16 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       showError("Choisissez d'abord un type d'activité dans les paramètres, puis recliquez sur « Propose-moi une idée ».")
       return
     }
+    if (!confirmerRemplacement()) return
     setIdeeLoading(true)
     setIdeeNote(false)
     try {
+      // Le niveau ne part plus de l'écran : le serveur lit le couple de travail EN BASE.
       const res = await apiFetch('/api/proposer-idee', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ activite_type_id: activiteTypeId, niveau, sous_type: sousType || null }),
+        body: JSON.stringify({ activite_type_id: activiteTypeId, sous_type: sousType || null }),
       }, TIMEOUT_LONG)
       const data = await lireReponse(res)
       if (data.available && data.texte) {
@@ -400,7 +420,117 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
-      <div className="section-title mb-3">Texte source</div>
+      {/* En-tête : titre à gauche, la rangée des 6 boutons EN HAUT À DROITE, face au titre
+          (son placement du 25/07). Deux familles, mêmes boutons : les 4 façons d'apporter un
+          DOCUMENT (TXT / Image / PDF / Document d'exemple) puis les 2 façons de formuler la
+          DEMANDE (Dicter / Propose-moi une idée). Sur écran étroit, la rangée passe dessous. */}
+      <div className="mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        {/* Étape ② du stepper — le numéro passe en ✓ vert dès que du texte est saisi. */}
+        <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <EtapeBadge n={2} fait={!!texte.trim()} />
+          Texte source
+        </div>
+        {/* L'espace après le titre explique le CHOIX — la phrase vient du CATALOGUE unique
+            (utils/aideCreer.js, entrée « boutons ») : la bulle de la visite guidée, la
+            fenêtre « Comment ça marche », la fiche d'aide et cette ligne disent le même texte. */}
+        <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+          {PHRASE_BOUTONS}
+        </span>
+        <div data-guide="boutons" className="flex flex-wrap gap-2" style={{ justifyContent: 'flex-end', marginLeft: 'auto' }}>
+
+          <label
+            className="btn-action"
+            title="Importer un fichier texte .txt"
+            style={enRetrait}
+          >
+            <IconTxt />
+            Fichier TXT
+            <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt}
+              onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+          </label>
+
+          <label
+            className="btn-action"
+            title="Extraire le texte d'une image (scan, photo de document)"
+            style={ocrLoading === 'image' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
+          >
+            <IconImage />
+            {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
+            <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
+              onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
+              onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+          </label>
+
+          <label
+            className="btn-action"
+            title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
+            style={ocrLoading === 'pdf' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
+          >
+            <IconPdf />
+            {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
+            <input type="file" accept="application/pdf,.pdf" className="hidden"
+              onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
+              onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+          </label>
+
+          {/* 4e façon d'obtenir un DOCUMENT (famille TXT / Image / PDF) : un document d'exemple
+              fabriqué par l'IA depuis le programme officiel — pour essayer sans rien sous la main. */}
+          <button
+            type="button"
+            className="btn-action"
+            title="aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
+            onClick={handleExemple}
+            disabled={exempleLoading}
+            style={exempleLoading ? { opacity: 0.6, cursor: 'wait' } : enRetrait}
+          >
+            {exempleLoading
+              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+              : <IconExemple />}
+            {exempleLoading ? 'Génération…' : "Document d'exemple"}
+          </button>
+
+          <button
+            type="button"
+            className="btn-action"
+            title={
+              !isSupported
+                ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent."
+                : isTranscribing
+                  ? 'Transcription en cours…'
+                  : isListening
+                    ? "Arrêter l'enregistrement et transcrire"
+                    : 'Dicter avec le microphone'
+            }
+            onClick={handleDicteClick}
+            disabled={!isSupported || isTranscribing}
+            style={
+              !isSupported || isTranscribing
+                ? { opacity: 0.5, cursor: isTranscribing ? 'wait' : 'not-allowed' }
+                : isListening
+                  ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
+                  : {}
+            }
+          >
+            <IconMic active={isListening} />
+            {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-action"
+            title="aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."
+            onClick={handleIdee}
+            disabled={ideeLoading}
+            style={ideeLoading ? { opacity: 0.6, cursor: 'wait' } : enRetrait}
+          >
+            {ideeLoading
+              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+              : <IconIdee />}
+            {ideeLoading ? 'Génération…' : 'Propose-moi une idée'}
+          </button>
+
+        </div>
+      </div>
 
       {exempleNote === 'ancre' && (
         <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
@@ -436,7 +566,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         rows={8}
         value={texte}
         onChange={e => onChange(e.target.value)}
-        placeholder={"Collez un extrait de texte ici\n— ou importez un fichier TXT\n— ou extrayez le texte d'une image (scan, photo)\n— ou extrayez le texte d'un PDF\n— ou dictez avec le micro"}
+        placeholder={"Décrivez votre demande ou collez votre texte ici…\n— ou importez un fichier TXT, une image scannée ou un PDF\n— ou cliquez « Document d'exemple » pour un texte tiré du programme officiel\n— ou dictez avec le micro\n— ou laissez « Propose-moi une idée » écrire la demande à votre place"}
         style={isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
       />
 
@@ -501,7 +631,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
       {/* Jauge IA — même patron que côté admin : montée UNIQUEMENT pendant l'appel IA. */}
       {ideeLoading && (
-        <JaugeAttente libelle="L'IA lit le programme officiel de votre niveau et prépare une idée…" />
+        <JaugeAttente libelle="aSchool lit le programme officiel de votre niveau et prépare une idée…" />
       )}
 
       {isTranscribing && (
@@ -524,96 +654,6 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-2">
-
-        <label
-          className="btn-action"
-          title="Importer un fichier texte .txt"
-        >
-          <IconTxt />
-          Fichier TXT
-          <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt} />
-        </label>
-
-        <label
-          className="btn-action"
-          title="Extraire le texte d'une image (scan, photo de document)"
-          style={ocrLoading === 'image' ? { opacity: 0.6, pointerEvents: 'none' } : {}}
-        >
-          <IconImage />
-          {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
-          <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
-            onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading} />
-        </label>
-
-        <label
-          className="btn-action"
-          title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
-          style={ocrLoading === 'pdf' ? { opacity: 0.6, pointerEvents: 'none' } : {}}
-        >
-          <IconPdf />
-          {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
-          <input type="file" accept="application/pdf,.pdf" className="hidden"
-            onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading} />
-        </label>
-
-        {/* 4e façon d'obtenir un DOCUMENT (famille TXT / Image / PDF) : un document d'exemple
-            fabriqué par l'IA depuis le programme officiel — pour essayer sans rien sous la main. */}
-        <button
-          type="button"
-          className="btn-action"
-          title="aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
-          onClick={handleExemple}
-          disabled={exempleLoading}
-          style={exempleLoading ? { opacity: 0.6, cursor: 'wait' } : {}}
-        >
-          {exempleLoading
-            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-            : <IconExemple />}
-          {exempleLoading ? 'Génération…' : "Document d'exemple"}
-        </button>
-
-        <button
-          type="button"
-          className="btn-action"
-          title={
-            !isSupported
-              ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent."
-              : isTranscribing
-                ? 'Transcription en cours…'
-                : isListening
-                  ? "Arrêter l'enregistrement et transcrire"
-                  : 'Dicter avec le microphone'
-          }
-          onClick={handleDicteClick}
-          disabled={!isSupported || isTranscribing}
-          style={
-            !isSupported || isTranscribing
-              ? { opacity: 0.5, cursor: isTranscribing ? 'wait' : 'not-allowed' }
-              : isListening
-                ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
-                : {}
-          }
-        >
-          <IconMic active={isListening} />
-          {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
-        </button>
-
-        <button
-          type="button"
-          className="btn-action"
-          title="aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."
-          onClick={handleIdee}
-          disabled={ideeLoading}
-          style={ideeLoading ? { opacity: 0.6, cursor: 'wait' } : {}}
-        >
-          {ideeLoading
-            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-            : <IconIdee />}
-          {ideeLoading ? 'Génération…' : 'Propose-moi une idée'}
-        </button>
-
-      </div>
     </section>
   )
 }

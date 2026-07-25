@@ -34,6 +34,9 @@ class FeedbackBody(BaseModel):
     rating: int = Field(ge=0, le=5, default=0)
     category: str | None = None
     attachment_path: str | None = None
+    # D'où le prof envoie (« Écran Créer une activité · Français × 6e ») — affiché dans la
+    # fenêtre avant envoi, figé à l'envoi, jamais modifiable ensuite.
+    contexte: str | None = Field(default=None, max_length=160)
 
 
 class FeedbackUpdateBody(BaseModel):
@@ -131,6 +134,7 @@ def submit_feedback(
         rating=body.rating,
         category=body.category,
         attachment_path=body.attachment_path,
+        contexte=body.contexte,
     ))
     db.commit()
 
@@ -143,7 +147,8 @@ def submit_feedback(
         "niveau":  user.niveau  if user else None,
     }
     try:
-        auth_lib.send_feedback_notification(prof, body.message, body.rating, body.category, body.type)
+        auth_lib.send_feedback_notification(prof, body.message, body.rating, body.category, body.type,
+                                            contexte=body.contexte)
     except Exception as e:
         logger.error(f"Notification feedback non envoyée : {type(e).__name__}: {e}")
 
@@ -170,6 +175,7 @@ def mes_feedbacks(
             "id":              f.id,
             "category":        f.category,
             "message":         f.message,
+            "contexte":        f.contexte,
             "statut":          f.statut or "nouveau",
             "created_at":      f.created_at.strftime("%d/%m/%Y") if f.created_at else "—",
             "updated_at":      f.updated_at.strftime("%d/%m/%Y") if f.updated_at else None,

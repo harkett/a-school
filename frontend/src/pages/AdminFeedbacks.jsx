@@ -244,6 +244,11 @@ export default function AdminFeedbacks() {
                         <span className="text-xs rounded px-2 py-0.5 font-medium" style={{ background: st.bg, color: st.color }}>
                           {st.label}
                         </span>
+                        {f.contexte && (
+                          <span className="text-xs rounded px-2 py-0.5" title="D'où le prof a envoyé ce retour" style={{ background: '#f1f5f9', color: '#64748b' }}>
+                            {f.contexte}
+                          </span>
+                        )}
                       </div>
                       <div className="text-right flex-shrink-0">
                         <div className="text-xs text-gray-400">{f.date}</div>

@@ -248,8 +248,10 @@ def _smtp_send(msg):
         s.send_message(msg)
 
 
-def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback"):
-    """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK."""
+def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback",
+                               contexte: str | None = None):
+    """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK.
+    `contexte` = d'où le prof a envoyé (écran + couple), quand le formulaire le fournit."""
     from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
     stars     = "★" * rating + "☆" * (5 - rating)
@@ -292,10 +294,17 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
         f"Email        : {email}\n"
         f"Matière      : {matiere}\n"
         f"Niveau       : {niveau}\n"
+        + (f"Depuis       : {contexte}\n" if contexte else "")
         + (f"Note         : {rating}/5  {stars}\n" if type == "notation" else "")
         + (f"Catégorie    : {cat}\n" if type not in ("notation", "idee") else "")
         + f"\nMessage :\n{message}\n"
     )
+
+    row_contexte = "" if not contexte else f"""
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Depuis</td>
+          <td style="padding:8px 12px;color:#1e293b;">{contexte}</td>
+        </tr>"""
 
     if type == "notation":
         rows_note_cat = f"""
@@ -341,6 +350,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
           <td style="padding:8px 12px;color:#64748b;font-weight:600;">Niveau</td>
           <td style="padding:8px 12px;color:#1e293b;">{niveau}</td>
         </tr>
+        {row_contexte}
         {rows_note_cat}
       </table>
 
