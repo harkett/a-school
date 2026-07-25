@@ -1079,7 +1079,7 @@ def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
                .filter(MatiereNiveau.matiere_id == mat.id, MatiereNiveau.niveau_id == niv.id).first())
     if not paire or not paire.actif:
         return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0, "referentiels": 0}
-    profs = db.query(User).filter(func.lower(User.subject) == mat.nom.lower()).count()
+    profs = db.query(User).filter(User.subject_id == mat.id).count()   # RÈGLE 4 : comptage PAR CLÉ (fin de la comparaison par nom)
     refs = db.query(Referentiel).filter(Referentiel.matiere_id == mat.id).count()
     paire.actif = False
     db.commit()

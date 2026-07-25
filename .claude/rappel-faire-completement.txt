@@ -10,6 +10,8 @@
 
 RAPPEL PERMANENT (à appliquer à CHAQUE message, sans exception) :
 
+- RÈGLE N°0 — On travaille toujours dans un brouillon : Valider écrit les données en base, Annuler les jette (en avertissant s'il y a des modifications non enregistrées).
+
 - RÈGLE N°1 — Zéro chargement tout seul. Le seul texte que je charge automatiquement, c'est ce hook. Je n'ouvre aucun autre document de ma propre initiative. Si j'ai besoin d'en lire ou d'en écrire un, je le demande AVANT — sinon c'est l'utilisateur qui me le propose.
 
 - RÈGLE N°2 — Le CODE est ma seule source de vérité. Je m'appuie sur le code du projet, jamais sur des notes ou des résumés qui peuvent être périmés.
@@ -51,3 +53,7 @@ RAPPEL PERMANENT (à appliquer à CHAQUE message, sans exception) :
 - RÈGLE N°20 — VÉRIFIER EN DUR AVANT DE RÉPONDRE — jamais deviner, jamais supposer. À CHAQUE question que tu me poses, avant de dire quoi que ce soit, je vais voir la réalité pour de vrai : je lis le code, j'interroge la base (get), je lance la commande — et je réponds UNIQUEMENT sur ce que j'ai constaté, preuve à l'appui (fichier/ligne, résultat de commande, comptage réel). Si je n'ai pas encore vérifié, je dis « pas vérifié » et je vais vérifier — je ne réponds pas « peut-être », « sans doute », « normalement », « ça doit être ». Une réponse sans preuve constatée en dur = interdite.
 
 - RÈGLE N°21 — ZÉRO PARAGRAPHE DE BÉMOL EN FIN DE RÉPONSE. Je termine sur la réponse claire, et je m'arrête là. INTERDIT de coller à la fin un paragraphe de nuance, de réserve ou de mise en garde : pas de « point honnête », « à noter », « limite », « attention », « sauf cas rare », « petit bémol », ni aucune variante qui rouvre le doute après coup. Ces ajouts font perdre un temps fou et sèment la pagaille. Si — et seulement si — un VRAI danger existe pour l'utilisateur ou son travail, je le dis en UNE seule phrase, au DÉBUT de ma réponse, jamais à la fin. Aucune exception.
+
+- RÈGLE N°22 — AUTRES CHANTIERS EN COURS = JE PRÉVIENS AVANT DE COMMITTER. Quand je m'apprête à committer et que je vois dans le working tree des changements qui appartiennent à d'AUTRES chantiers (des fichiers que je n'ai PAS touchés dans MA session), je le SIGNALE à l'utilisateur AVANT de committer, en listant précisément ces fichiers. Puis j'attends sa décision : soit « oui, committe-les aussi », soit « attends, je les committe de l'autre côté, j'y reviendrai ». Je ne committe JAMAIS un fichier d'un autre chantier sans son accord explicite.
+
+- RÈGLE N°23 — DEUX PUBLICS, DEUX LANGAGES. Tout message affiché à un utilisateur final (prof, élève) est HUMAIN : clair, net, simple, actionnable — jamais une erreur technique, un code, une trace, du JSON brut ni un « Internal Server Error ». Le technique (le vrai code d'erreur, la trace, le fichier/ligne) reste ENTRE NOUS, dans le chat, pour décider ensemble. Avant d'afficher le moindre message à l'écran, je me pose la question : « un prof le comprend-il, et sait-il quoi faire ensuite ? » — si non, je le reformule en langage humain. Aucun message brut ne doit jamais atteindre l'écran d'un utilisateur.

@@ -15,6 +15,7 @@ from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
 from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, RefreshToken, Setting, User, UserSession
+from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
 
 router = APIRouter()
 
@@ -548,10 +549,12 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    user.prenom  = body.prenom or None
-    user.nom     = body.nom or None
-    user.subject = body.subject or None
-    user.niveau  = body.niveau or None
+    user.prenom     = body.prenom or None
+    user.nom        = body.nom or None
+    user.subject    = body.subject or None
+    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
+    user.niveau     = body.niveau or None
+    user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
     db.commit()
     return {"status": "ok"}
 

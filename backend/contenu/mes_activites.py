@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import timezone
 from fastapi import APIRouter, HTTPException, Cookie, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -128,7 +129,7 @@ def lister(
             "texte_source": a.texte_source,
             "resultat": a.resultat,
             "apercu": a.texte_source[:60] + ("…" if len(a.texte_source) > 60 else ""),
-            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "created_at": a.created_at.replace(tzinfo=timezone.utc).isoformat() if a.created_at else None,
         }
         for a in rows
     ]

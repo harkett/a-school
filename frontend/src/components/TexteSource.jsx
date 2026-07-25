@@ -57,7 +57,7 @@ const IconIdee = () => (
   </svg>
 )
 
-export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType }) {
+export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
   const [isReady, setIsReady] = useState(false)           // micro prêt après le bip "go"
@@ -67,6 +67,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const [exempleNote, setExempleNote] = useState(null)        // 'ancre' (exemple injecté) | 'absent' (pas de référentiel pour ce couple)
   const [ideeLoading, setIdeeLoading] = useState(false)       // « Propose-moi une idée » en cours
   const [ideeNote, setIdeeNote] = useState(false)             // idée injectée dans la zone (bandeau)
+  const [replie, setReplie] = useState(false)                 // carte repliée en phase résultat (verrouillée) ; le prof peut déplier
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
   const texteRef = useRef(texte)
@@ -84,11 +85,17 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   useEffect(() => { texteRef.current = texte }, [texte])
 
+  // Repli automatique : la carte se replie quand elle se verrouille (phase résultat) et se déplie
+  // quand elle se déverrouille (« Changer votre demande »). Le prof peut plier/déplier à la main
+  // via le chevron tant que c'est verrouillé.
+  useEffect(() => { setReplie(verrouille) }, [verrouille])
+
   // Zone déjà remplie = le chemin est choisi : tout geste qui REMPLACERAIT le texte demande
-  // d'abord confirmation (jamais de destruction au clic direct), et les boutons écraseurs
-  // passent en retrait visuel. « Dicter » n'y passe pas : il AJOUTE à la suite du texte.
+  // d'abord confirmation (jamais de destruction au clic direct). C'est la confirmation qui
+  // protège — AUCUN demi-grisage visuel : les 6 boutons ont tous la même apparence, texte noir
+  // quand ils sont actifs, et tous grisés d'un coup (uniformément) quand la rangée est verrouillée.
   const zoneRemplie = !!texte.trim()
-  const enRetrait = zoneRemplie ? { opacity: 0.55 } : {}
+  const enRetrait = {}
   function confirmerRemplacement() {
     if (!zoneRemplie) return true
     return window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')
@@ -432,11 +439,21 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
         {/* L'espace après le titre explique le CHOIX — la phrase vient du CATALOGUE unique
             (utils/aideCreer.js, entrée « boutons ») : la bulle de la visite guidée, la
-            fenêtre « Comment ça marche », la fiche d'aide et cette ligne disent le même texte. */}
-        <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
-          {PHRASE_BOUTONS}
-        </span>
-        <div data-guide="boutons" className="flex flex-wrap gap-2" style={{ justifyContent: 'flex-end', marginLeft: 'auto' }}>
+            fenêtre « Comment ça marche », la fiche d'aide et cette ligne disent le même texte.
+            Masqué quand la carte est repliée (phase résultat). */}
+        {!replie && (
+          <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {PHRASE_BOUTONS}
+          </span>
+        )}
+        {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport
+            sont grisés et inertes d'un coup. « Changer votre demande » lève le verrou.
+            Masqués quand la carte est repliée (phase résultat). */}
+        {!replie && (
+        <div data-guide="boutons" className="flex flex-wrap gap-2" style={{ justifyContent: 'flex-end', marginLeft: 'auto', opacity: verrouille ? 0.5 : 1, pointerEvents: verrouille ? 'none' : 'auto' }}>
 
           <label
             className="btn-action"
@@ -530,7 +547,24 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           </button>
 
         </div>
+        )}
+        {/* Chevron plier/déplier : visible seulement quand la carte est verrouillée (phase résultat). */}
+        {verrouille && (
+          <button
+            type="button"
+            onClick={() => setReplie(r => !r)}
+            title={replie ? "Déplier le texte source" : "Replier le texte source"}
+            style={{ marginLeft: 'auto', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748b', display: 'flex', alignItems: 'center' }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+        )}
       </div>
+
+      {/* Corps de la carte — masqué quand elle est repliée (phase résultat). */}
+      {!replie && (<>
 
       {exempleNote === 'ancre' && (
         <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
@@ -556,7 +590,9 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           onChange={e => onObjetChange && onObjetChange(e.target.value)}
           placeholder="Ex : Dictée sur les accords, QCM chapitre 3 photosynthèse…"
           maxLength={150}
+          disabled={verrouille}
           className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-blue-400"
+          style={verrouille ? { background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed' } : undefined}
         />
       </div>
 
@@ -565,9 +601,13 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         className="w-full border border-gray-300 rounded p-3 text-sm resize-y"
         rows={8}
         value={texte}
+        disabled={verrouille}
         onChange={e => onChange(e.target.value)}
         placeholder={"Décrivez votre demande ou collez votre texte ici…\n— ou importez un fichier TXT, une image scannée ou un PDF\n— ou cliquez « Document d'exemple » pour un texte tiré du programme officiel\n— ou dictez avec le micro\n— ou laissez « Propose-moi une idée » écrire la demande à votre place"}
-        style={isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}}
+        style={{
+          ...(isListening ? { borderColor: '#fca5a5', outline: 'none', boxShadow: '0 0 0 2px #fecaca' } : {}),
+          ...(verrouille ? { background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed' } : {}),
+        }}
       />
 
       {isListening && !isReady && (
@@ -653,6 +693,8 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           <span>Transcription en cours… le texte va s'insérer à la fin.</span>
         </div>
       )}
+
+      </>)}
 
     </section>
   )

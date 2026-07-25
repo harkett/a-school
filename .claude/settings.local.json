@@ -68,7 +68,16 @@
       "Bash(ssh -o BatchMode=yes ubuntu@83.228.245.163 \"sudo nginx -T 2>/dev/null | grep -n -iE 'server_name|return 301|rewrite|school.afia'\")",
       "PowerShell(ssh ubuntu@83.228.245.163 \"sudo nginx -T 2>/dev/null | grep -n -iE 'server_name|return 301|rewrite|school.afia'\")",
       "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.ssh\" -Force | Select-Object Name, Length; \"--- agent ---\"; Get-Service ssh-agent | Select-Object Status, StartType)",
-      "PowerShell(ssh-add -l 2>&1; \"exit=$LASTEXITCODE\")"
+      "PowerShell(ssh-add -l 2>&1; \"exit=$LASTEXITCODE\")",
+      "Read(//c/Users/harketti/.claude/**)",
+      "Read(//c/Users/harketti/.claude/projects/**)",
+      "Read(//c/Users/harketti/**)",
+      "Bash(echo \"=== 3. Sessions Claude Code DE CE PROJET \\(hors dossier\\) ===\"; du -sh \"/c/Users/harketti/.claude/projects/d--A-SCHOOL\" 2>/dev/null; ls \"/c/Users/harketti/.claude/projects/d--A-SCHOOL\" | head -20; echo \"...\"; ls \"/c/Users/harketti/.claude/projects/d--A-SCHOOL\" | wc -l; echo \"fichiers\")",
+      "Read(//c/Users/harketti/.claude/projects/d--A-SCHOOL/**)",
+      "Bash(echo \"=== 4. Chemins absolus HORS D:\\\\\\\\A-SCHOOL référencés dans le code ===\")",
+      "Bash(grep -rniE \"[A-Z]:\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\|/c/Users|/mnt/|C:/Users|%USERPROFILE%|~/\\\\.claude\" --include=*.py --include=*.js --include=*.jsx --include=*.json --include=*.yml --include=*.yaml --include=*.ps1 --include=*.bat --include=*.env* .)",
+      "Bash(grep -viE \"node_modules|/\\\\.git/|package-lock\")",
+      "Bash(grep -vE '^\\\\s*#|^\\\\s*$')"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",

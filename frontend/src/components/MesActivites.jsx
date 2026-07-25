@@ -157,7 +157,8 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
     const couleur = couleurCouple(coupleKey(a.matiere, a.niveau))
     const coupleLbl = [a.matiere, a.niveau].filter(Boolean).join(' — ') || 'Non classé'
     // Récent → libellé relatif capitalisé ; ancien → date complète (sans « le »).
-    const dateLabel = dt.court ? (dt.recent ? dt.court.charAt(0).toUpperCase() + dt.court.slice(1) : dt.complet) : ''
+    const dateBase = dt.court ? (dt.recent ? dt.court.charAt(0).toUpperCase() + dt.court.slice(1) : dt.complet) : ''
+    const dateLabel = dateBase && dt.heure ? `${dateBase} à ${dt.heure}` : dateBase
     return (
     <div
       key={a.id}
@@ -183,7 +184,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
             )}
             {dateLabel && (
               <span
-                title={dt.complet ? `Créée le ${dt.complet}` : undefined}
+                title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
                 style={{
                   marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 11, fontWeight: 600, borderRadius: 99, padding: '2px 9px', flexShrink: 0,

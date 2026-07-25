@@ -17,6 +17,7 @@ bcrypt==5.0.0
 python-jose[cryptography]==3.5.0
 python-multipart==0.0.27
 pdfplumber==0.11.9
+pypdfium2==5.12.1  # rendu PDF→image (déjà tiré par pdfplumber) — utilisé en direct pour l'OCR des PDF scannés (backend/dictee/ocr.py)
 # Admin backoffice
 slowapi==0.1.9
 user-agents==2.2.0

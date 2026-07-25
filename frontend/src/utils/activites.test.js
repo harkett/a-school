@@ -114,8 +114,13 @@ test('date : au-delà de 7 jours -> date complète (recent=false), jamais « il 
 })
 
 test('date : null ou illisible -> libellés vides, recent=false', () => {
-  assert.deepEqual(formatDateActivite(null, NOW), { court: '', complet: '', recent: false })
-  assert.deepEqual(formatDateActivite('pas-une-date', NOW), { court: '', complet: '', recent: false })
+  assert.deepEqual(formatDateActivite(null, NOW), { court: '', complet: '', recent: false, heure: '' })
+  assert.deepEqual(formatDateActivite('pas-une-date', NOW), { court: '', complet: '', recent: false, heure: '' })
+})
+
+test('heure : HH:MM de la sauvegarde', () => {
+  assert.equal(formatDateActivite('2026-06-12T08:05:00', NOW).heure, '08:05')
+  assert.equal(formatDateActivite('2026-06-12T14:32:00', NOW).heure, '14:32')
 })
 
 // --- couleurCouple ---

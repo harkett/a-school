@@ -1,4 +1,5 @@
-﻿import EtapeBadge from './EtapeBadge.jsx'
+﻿import { useState, useEffect } from 'react'
+import EtapeBadge from './EtapeBadge.jsx'
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -6,8 +7,14 @@ const IconGenerer = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback }) {
+export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, verrouille = false }) {
   const activite = activites.find(a => a.id === params.activite_type_id) || activites[0]
+
+  // Repli automatique : la carte se replie quand elle se verrouille (phase résultat) et se déplie
+  // quand elle se déverrouille (« Changer votre demande »). Le prof peut plier/déplier à la main
+  // via le chevron tant que c'est verrouillé.
+  const [replie, setReplie] = useState(false)
+  useEffect(() => { setReplie(verrouille) }, [verrouille])
 
   function set(field, value) {
     onChange({ ...params, [field]: value })
@@ -32,31 +39,51 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
           <EtapeBadge n={1} fait={!!params.activite_type_id} />
           Paramètres de l'activité
         </div>
-        <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
+        {!replie && (
+          <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
+            <button
+              type="button"
+              onClick={onFeedback}
+              title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
+              className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+            >
+              Signalez-la via le Feedback
+            </button>
+            {' '}— nous l'ajouterons pour vous et pour tous les profs.
+          </span>
+        )}
+        {/* Chevron plier/déplier : visible seulement quand la carte est verrouillée (phase résultat). */}
+        {verrouille && (
           <button
             type="button"
-            onClick={onFeedback}
-            title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
-            className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
-            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+            onClick={() => setReplie(r => !r)}
+            title={replie ? "Déplier les paramètres" : "Replier les paramètres"}
+            style={{ marginLeft: 'auto', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748b', display: 'flex', alignItems: 'center' }}
           >
-            Signalez-la via le Feedback
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
           </button>
-          {' '}— nous l'ajouterons pour vous et pour tous les profs.
-        </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Corps de la carte — masqué quand elle est repliée (phase résultat). */}
+      {!replie && (<>
+      {/* Verrouillée en phase résultat (comme la carte Texte source) : toute la grille de
+          réglages est grisée et inerte d'un coup. « Changer votre demande » lève le verrou. */}
+      <div className="grid grid-cols-2 gap-4" style={verrouille ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
 
         <div data-guide="type">
           <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
           <select
             className="w-full border border-gray-300 rounded p-2 text-sm"
             value={params.activite_type_id ?? ''}
+            disabled={verrouille}
             onChange={e => handleActivite(Number(e.target.value))}
           >
             {activites.map(a => (
@@ -70,6 +97,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
           <input
             type="checkbox" id="avec-correction"
             checked={params.avec_correction}
+            disabled={verrouille}
             onChange={e => set('avec_correction', e.target.checked)}
             className="mt-0.5"
           />
@@ -90,6 +118,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             <select
               className="w-full border border-gray-300 rounded p-2 text-sm"
               value={params.sous_type || ''}
+              disabled={verrouille}
               onChange={e => set('sous_type', e.target.value)}
             >
               {activite.sous_types.map(s => <option key={s}>{s}</option>)}
@@ -110,6 +139,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
               type="number" min="1" max="20"
               className="w-full border border-gray-300 rounded p-2 text-sm"
               value={params.nb || 5}
+              disabled={verrouille}
               onChange={e => set('nb', parseInt(e.target.value))}
             />
           </div>
@@ -126,6 +156,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
           </p>
         </div>
       )}
+      </>)}
 
     </section>
   )

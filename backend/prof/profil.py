@@ -1,12 +1,31 @@
+import re
+import unicodedata
+from pathlib import Path
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models_db import Matiere, MatiereNiveau, Niveau, User
+from backend.core.models_db import Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
+from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
 
 router = APIRouter()
+
+# Dossier des référentiels déposés — même convention de rangement que le dépôt admin
+# (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf). `_dossier_cle` réplique la règle de nommage
+# (accents ôtés, MAJUSCULES) — identique à referentiels_admin/pgvector_store, gardée LOCALE ici
+# pour ne pas coupler le routeur du profil au module RAG (même choix que pgvector_store).
+_ROOT = Path(__file__).resolve().parents[2]
+REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
+
+
+def _dossier_cle(nom: str) -> str:
+    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
+    return s or "REFERENTIEL"
 
 
 def couple_de_travail(user: User) -> tuple[str | None, str | None, bool]:
@@ -72,12 +91,14 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    user.prenom    = body.prenom    or None
-    user.nom       = body.nom       or None
-    user.subject   = body.subject   or None
-    user.niveau    = body.niveau    or None
-    user.langue_lv = body.langue_lv or None
-    user.mobile    = body.mobile    or None
+    user.prenom     = body.prenom    or None
+    user.nom        = body.nom       or None
+    user.subject    = body.subject   or None
+    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
+    user.niveau     = body.niveau    or None
+    user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
+    user.langue_lv  = body.langue_lv or None
+    user.mobile     = body.mobile    or None
     db.commit()
     return {"status": "ok"}
 
@@ -107,9 +128,13 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
     if matiere == (user.subject or "") and niveau == (user.niveau or ""):
         user.travail_matiere = None   # même couple que le profil → aucun écart à stocker
         user.travail_niveau = None
+        user.travail_matiere_id = None
+        user.travail_niveau_id = None
     else:
         user.travail_matiere = matiere
         user.travail_niveau = niveau
+        user.travail_matiere_id = matiere_id_du_nom(db, matiere)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
+        user.travail_niveau_id = niveau_id_du_nom(db, niveau)
     db.commit()
     tm, tn, ajuste = couple_de_travail(user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
@@ -140,6 +165,55 @@ def delete_couple_travail(aschool_access: str = Cookie(default=None), db: Sessio
         raise HTTPException(404, "Utilisateur introuvable.")
     user.travail_matiere = None
     user.travail_niveau = None
+    user.travail_matiere_id = None
+    user.travail_niveau_id = None
     db.commit()
     tm, tn, ajuste = couple_de_travail(user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
+
+
+# ── Programme officiel du prof : voir, depuis son profil, le référentiel déposé par l'admin ──
+#    LECTURE SEULE (le prof consulte, il n'écrit rien → aucun Valider/Annuler). Zéro nouvelle
+#    donnée : le nom EXACT déposé vit déjà en base (referentiels.fichier) et le PDF sur disque.
+
+def _referentiel_du_profil(db: Session, user: User) -> Referentiel | None:
+    """Le référentiel officiel du NIVEAU de profil du prof (matiere_id NULL), lu PAR SA CLÉ
+    (users.niveau_id → referentiels.niveau_id). La clé lève toute ambiguïté — un niveau = une
+    ligne — donc plus de correspondance par nom ni de garde « len == 1 » (fini le bidouillage).
+    None si le prof n'a pas de niveau (niveau_id NULL) ou si ce niveau n'a pas de référentiel :
+    la carte du profil affiche alors « indisponible »."""
+    if not user.niveau_id:
+        return None
+    return (db.query(Referentiel)
+              .filter(Referentiel.niveau_id == user.niveau_id, Referentiel.matiere_id.is_(None))
+              .first())
+
+
+@router.get("/user/referentiel")
+def get_mon_referentiel(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Le programme officiel du niveau du prof : { disponible, fichier }. `fichier` = le NOM EXACT
+    du document déposé par l'admin (colonne referentiels.fichier, get — pas le nom de disque figé
+    « referentiel.pdf »). disponible=false s'il n'y a pas encore de référentiel pour son niveau."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    ref = _referentiel_du_profil(db, user)
+    if ref is None:
+        return {"disponible": False, "fichier": None}
+    return {"disponible": True, "fichier": ref.fichier or "referentiel.pdf"}
+
+
+@router.get("/user/referentiel/texte")
+def get_mon_referentiel_texte(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Le programme du niveau du prof en TEXTE PROPRE — get pur de `referentiels.texte_epure`, la
+    version épurée/lisible déjà figée au dépôt (rag.extraction), PAS le PDF brut. VERROUILLÉ sur SON
+    niveau (couple résolu en base, l'écran n'envoie aucun identifiant). 404 humain si rien à montrer."""
+    email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
+    ref = _referentiel_du_profil(db, user)
+    if ref is None or not (ref.texte_epure or "").strip():
+        raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
+    return {"texte": ref.texte_epure}

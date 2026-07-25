@@ -37,6 +37,34 @@ export default function MonProfil({ onNavigate }) {
   const [niveauxParCycle, setNiveauxParCycle]     = useState([])
   const [matieresParCycle, setMatieresParCycle]   = useState([])   // repli « tout groupé » sans niveau
   const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
+  const [refOfficiel, setRefOfficiel] = useState(null)             // { disponible, fichier } — programme officiel du niveau (lecture seule)
+  const [progOuvert, setProgOuvert] = useState(false)              // panneau « Voir le programme » ouvert ?
+  const [progTexte, setProgTexte] = useState(null)                 // texte épuré du programme (null = pas encore chargé)
+  const [progChargement, setProgChargement] = useState(false)
+
+  // Programme officiel du niveau du prof (lecture seule) : nom exact déposé + programme à lire. get
+  // pur, aucune écriture — la carte n'est qu'une fenêtre sur le référentiel déposé par l'admin.
+  useEffect(() => {
+    apiFetch('/api/user/referentiel', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setRefOfficiel(d || { disponible: false }))
+      .catch(() => setRefOfficiel({ disponible: false }))
+  }, [])
+
+  // « Voir le programme » : on charge le TEXTE ÉPURÉ à la demande (get pur) et on l'affiche
+  // proprement — la version lisible déjà produite au dépôt, PAS le PDF brut.
+  function toggleProgramme() {
+    if (progOuvert) { setProgOuvert(false); return }
+    setProgOuvert(true)
+    if (progTexte === null) {
+      setProgChargement(true)
+      apiFetch('/api/user/referentiel/texte', { credentials: 'include' }, TIMEOUT_STD)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => setProgTexte((d && d.texte) || ''))
+        .catch(() => setProgTexte(''))
+        .finally(() => setProgChargement(false))
+    }
+  }
 
   useEffect(() => {
     apiFetch('/api/programmes', { credentials: 'include' }, TIMEOUT_STD)
@@ -102,6 +130,7 @@ export default function MonProfil({ onNavigate }) {
   }
 
   return (
+    <>
     <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480 }}>
       <div className="section-title mb-5">Mon profil</div>
 
@@ -230,5 +259,62 @@ export default function MonProfil({ onNavigate }) {
         </div>
       </form>
     </section>
+
+    {/* Programme officiel de votre niveau — lecture seule (le prof consulte, il n'écrit rien) :
+        le NOM EXACT du document déposé + le PROGRAMME EN TEXTE PROPRE (version épurée/lisible
+        figée au dépôt), affiché à la demande. Pas le PDF brut. */}
+    <section className="bg-white rounded border border-gray-200 p-6 mt-4">
+      <div className="section-title mb-3">Programme officiel de votre niveau</div>
+      {refOfficiel === null ? (
+        <div className="text-sm text-gray-400">Chargement…</div>
+      ) : refOfficiel.disponible ? (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className="text-sm text-gray-700 truncate"
+              title={refOfficiel.fichier}
+              style={{ minWidth: 0 }}
+            >
+              {refOfficiel.fichier}
+            </span>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ flexShrink: 0 }}
+              onClick={toggleProgramme}
+              title={progOuvert ? 'Masquer le programme' : 'Afficher le programme de votre niveau'}
+            >
+              {progOuvert ? 'Fermer' : 'Voir le programme'}
+            </button>
+          </div>
+          {progOuvert && (
+            progChargement ? (
+              <div className="text-sm text-gray-400" style={{ marginTop: 12 }}>Chargement…</div>
+            ) : progTexte ? (
+              <div
+                className="text-sm text-gray-700"
+                style={{
+                  marginTop: 12, padding: 16, background: '#f8faff',
+                  border: '1px solid #e2e8f0', borderLeftWidth: 4, borderLeftColor: 'var(--bordeaux)',
+                  borderRadius: 6, whiteSpace: 'pre-wrap', lineHeight: 1.6,
+                  maxHeight: 480, overflowY: 'auto',
+                }}
+              >
+                {progTexte}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500" style={{ marginTop: 12 }}>
+                Le programme de votre niveau n'est pas encore consultable.
+              </div>
+            )
+          )}
+        </>
+      ) : (
+        <div className="text-sm text-gray-500">
+          Aucun programme officiel n'est encore disponible pour votre niveau.
+        </div>
+      )}
+    </section>
+    </>
   )
 }

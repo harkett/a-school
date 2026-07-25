@@ -121,6 +121,10 @@ function MainApp() {
   const [objet, setObjet] = useState('')
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
+  const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
+  const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
+  const [entreeDeverrouillee, setEntreeDeverrouillee] = useState(false)  // « Changer votre demande » : rouvre la saisie (sinon verrouillée dès qu'un résultat est là)
   const [erreur, setErreur] = useState(null)
   // Couple de TRAVAIL — LU du get /auth/me, résolu EN BASE par le serveur (couple de travail
   // s'il est posé, sinon profil). Plus AUCUN état local : l'écran est une fenêtre sur la base
@@ -141,6 +145,7 @@ function MainApp() {
   const cdRef      = useRef(null)
   const warningRef = useRef(false)
   const resultatRef = useRef(null)
+  const texteSourceRef = useRef(null)   // pour ramener le prof sur la saisie quand il clique « Changer votre demande »
 
   // « cliquez ici » de la modale d'erreur ouvre le feedback existant (état local showFeedback).
   // ErrorDialog est monté ailleurs dans l'arbre : on passe par ce canal enregistré.
@@ -342,6 +347,9 @@ function MainApp() {
     }
     setErreur(null)
     setResultat(null)
+    setValide(false)
+    setRepriseHistorique(false)     // (ré)générer = nouveau brouillon PAS en base → Valider/Annuler redeviennent actifs
+    setEntreeDeverrouillee(false)   // nouvelle génération → la saisie repart verrouillée dès qu'un résultat arrive
     setLoading(true)
     try {
       const body = { ...params, texte }
@@ -402,33 +410,17 @@ function MainApp() {
 
       // Succès = UNIQUEMENT un flux terminé proprement (`done`), sans `error`, avec du texte. Ceinture
       // de sécurité : un flux qui meurt en route SANS `done` (serveur tombé, connexion coupée) ne doit
-      // JAMAIS passer pour un succès ni être enregistré tronqué → message unique + zéro sauvegarde.
+      // JAMAIS passer pour un succès → message unique.
       if (erreurFlux || !termine || !complet) {
         setResultat(null)
         showError(MSG_ECHEC_GENERATION, { feedback: true })
         return
       }
 
-      // Succès : sauvegarde best-effort mais JAMAIS silencieuse (inchangée — contrat éprouvé de
-      // /api/mes-activites). La modale « aSchool vous reconnaît » est pilotée par le backend.
-      // Le couple enregistré est STAMPÉ PAR LE SERVEUR (couple de travail lu en base au
-      // moment de la sauvegarde — le même que la génération vient d'utiliser).
-      sauvegarderActivite({
-        activite_type_id: params.activite_type_id,
-        activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
-        sous_type: params.sous_type || null,
-        nb: params.nb || null,
-        avec_correction: params.avec_correction,
-        objet: objet.trim() || null,
-        texte_source: texte,
-        resultat: complet,
-      }).then(res => {
-        if (res?.few_shot_just_reached) {
-          setFewShotModal(true)
-        }
-      }).catch(() => showError(
-        "Activité générée mais NON enregistrée dans « Mes activités » (problème réseau ou serveur). Elle reste affichée — exportez-la ou réessayez."
-      ))
+      // Succès : le résultat reste AFFICHÉ, c'est un BROUILLON de travail — NON enregistré. L'écriture
+      // en base (put /api/mes-activites) n'est plus automatique « au coup par coup » : elle est
+      // déclenchée par le bouton Valider (modèle brouillon → Valider/Annuler, décision du 25/07,
+      // ta RÈGLE 4 : get pour lire/générer, put SEULEMENT sur action explicite du prof).
     } catch (e) {
       // Coupure réseau / flux interrompu côté navigateur → message unique (règle 23), détail en console.
       console.error('génération activité :', e)
@@ -441,14 +433,48 @@ function MainApp() {
 
   // Bouton UNIQUE Générer / Régénérer (barre du haut) : tant qu'il n'y a pas de résultat il
   // GÉNÈRE ; dès qu'un résultat est là il RÉGÉNÈRE (même action `generer`, fusion du 25/07).
-  // Confirmation HONNÊTE avant de relancer : chaque génération réussie a DÉJÀ créé une ligne
-  // dans « Mes activités » (mes_activites.py), donc la version affichée n'est jamais perdue —
-  // on prévient seulement qu'on lance une nouvelle version.
-  function genererOuRegenerer() {
-    if (resultat && !window.confirm('Lancer une nouvelle version ? La version actuelle reste enregistrée dans « Mes activités ».')) {
-      return
-    }
+  // AUCUNE confirmation : régénérer ne fait perdre AUCUNE donnée en base. En création pure, rien
+  // n'est encore enregistré (le put n'a lieu qu'au Valider) ; en reprise d'historique, l'originale
+  // reste intacte et régénérer produit une activité SÉPARÉE. Il n'y a donc rien à perdre — la
+  // question du « vous perdez tout » ne se pose pas ici (décision du 25/07).
+  function regenerer() {
     generer()
+  }
+
+  // Valider = put : écrit l'activité AFFICHÉE en base (une ligne dans « Mes activités »), puis on
+  // passe en phase VALIDÉE (résultat figé, boutons de gestion retirés — seuls les exports restent).
+  // Anti double-clic via enValidation. Le couple (matière/niveau) est stampé PAR LE SERVEUR (couple
+  // de travail lu en base au moment de la sauvegarde). La modale « aSchool vous reconnaît » suit le seuil.
+  async function valider() {
+    if (enValidation || valide || !resultat || repriseHistorique) return  // repriseHistorique = déjà en base : re-valider créerait un doublon (RÈGLE 4, unicité)
+    setEnValidation(true)
+    try {
+      const res = await sauvegarderActivite({
+        activite_type_id: params.activite_type_id,
+        activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
+        sous_type: params.sous_type || null,
+        nb: params.nb || null,
+        avec_correction: params.avec_correction,
+        objet: objet.trim() || null,
+        texte_source: texte,
+        resultat,
+      })
+      setValide(true)
+      if (res?.few_shot_just_reached) setFewShotModal(true)
+    } catch {
+      showError("Enregistrement impossible pour le moment. Votre activité reste affichée — réessayez, ou exportez-la en attendant.")
+    } finally {
+      setEnValidation(false)
+    }
+  }
+
+  // Annuler = RIEN en base : deux confirmations en cascade (vu l'importance de la tâche), puis retour
+  // à zéro via nouvelleActivite (vide texte / objet / résultat, type au défaut). La 1re confirmation
+  // est exactement le message de Régénérer, déclinée pour « annuler ».
+  function annuler() {
+    if (!window.confirm('Des informations ont été saisies. Si vous annulez, vous perdez tout.')) return
+    if (!window.confirm('Tout sera effacé et vous repartez de zéro. Confirmez-vous ?')) return
+    nouvelleActivite()
   }
 
   function chargerSequence(seq) {
@@ -467,6 +493,9 @@ function MainApp() {
       avec_correction: act.avec_correction,
     })
     setResultat(act.resultat)
+    setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
+    setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
+    setEntreeDeverrouillee(false)
     setPage('creer-activite')
   }
 
@@ -480,9 +509,23 @@ function MainApp() {
     setTexte('')
     setObjet('')
     setResultat(null)
+    setValide(false)
+    setRepriseHistorique(false)
+    setEntreeDeverrouillee(false)
     setFenetreGuide(false)
     setParams(p => ({ ...p, ...typeParDefaut(activites) }))
     setPage('creer-activite')
+  }
+
+  // « Changer votre demande » (encart du résultat) : rouvre la saisie (les 6 boutons + la zone
+  // + l'Objet redeviennent actifs) et ramène le prof sur la carte Texte source pour qu'il édite.
+  // En reprise d'historique : dès qu'on décide de changer la demande, on ne travaille plus sur
+  // l'original « tel quel » → on quitte l'état « déjà en base » pour que Valider/Annuler
+  // redeviennent actifs (on s'apprête à produire une version à soi).
+  function changerDemande() {
+    setEntreeDeverrouillee(true)
+    setRepriseHistorique(false)
+    setTimeout(() => texteSourceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   // Routeur de navigation : toute arrivée sur « Créer » repart d'une activité vierge ;
@@ -902,7 +945,9 @@ function MainApp() {
                 {/* L'ancien onglet « Comment ça marche » (copie de l'écran en prose, toujours
                     périmée) est remplacé par la visite guidée + la fenêtre déplaçable. */}
                 <div style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, color: 'var(--bordeaux)', borderBottom: '2px solid var(--bordeaux)', marginBottom: '-1px' }}>
-                  Nouvelle activité
+                  {repriseHistorique
+                    ? `Reprise : ${objet.trim() || activites.find(a => a.id === params.activite_type_id)?.label || "activité de l'historique"}`
+                    : 'Nouvelle activité'}
                 </div>
                 <FriseProgression
                   typeOk={!!params.activite_type_id}
@@ -910,35 +955,77 @@ function MainApp() {
                   loading={loading}
                   resultat={resultat}
                 />
-                {/* « Comment ça marche » vit désormais dans le header (colonne assistance) —
-                    la barre ne garde que Générer, jamais deux fois le même bouton à l'écran. */}
-                <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                  {/* Étape ③ — le vrai guide : le bouton ne s'allume que quand tout est prêt,
-                      et sa bulle dit ce qui manque. */}
-                  <button
-                    className="btn-primary"
-                    data-guide="generer"
-                    onClick={genererOuRegenerer}
-                    disabled={loading || !pretAGenerer}
-                    title={loading ? 'Génération en cours…'
-                      : !params.activite_type_id ? "Choisissez d'abord un type d'activité (étape 1)"
-                      : !texte.trim() ? 'Décrivez d\'abord votre demande dans la zone de texte (étape 2)'
-                      : resultat ? 'Régénérer une nouvelle version — la version actuelle reste enregistrée dans « Mes activités »'
-                      : "Lancer la génération de l'activité avec aSchool"}
-                    style={{ flexShrink: 0, opacity: loading || !pretAGenerer ? 0.55 : 1,
-                             cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
-                  >
-                    {loading
-                      ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                      : resultat
-                        ? <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#16a34a', color: '#fff',
-                                         fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
-                                         justifyContent: 'center', flexShrink: 0 }}>✓</span>
+                {/* Barre de commande, pilotée par PHASE (décision du 25/07, modèle brouillon → Valider/Annuler) :
+                    • COMPOSER (pas de résultat) ou génération en cours → le seul bouton Générer ;
+                    • TRAVAILLER (résultat affiché, pas encore validé) → Régénérer (bleu) · Valider (vert) · Annuler (rouge) ;
+                    • REPRISE DE L'HISTORIQUE (résultat DÉJÀ en base) → Régénérer actif, Valider/Annuler GRISÉS (rien à enregistrer, rien à annuler) ;
+                    • VALIDÉ → plus aucun bouton de gestion (l'activité est en base, seuls les exports restent). */}
+                <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {(!resultat || loading) && (
+                    <button
+                      className="btn-primary"
+                      data-guide="generer"
+                      onClick={generer}
+                      disabled={loading || !pretAGenerer}
+                      title={loading ? 'Génération en cours…'
+                        : !params.activite_type_id ? "Choisissez d'abord un type d'activité (étape 1)"
+                        : !texte.trim() ? 'Décrivez d\'abord votre demande dans la zone de texte (étape 2)'
+                        : "Lancer la génération de l'activité avec aSchool"}
+                      style={{ flexShrink: 0, opacity: loading || !pretAGenerer ? 0.55 : 1,
+                               cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
+                    >
+                      {loading
+                        ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
                         : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
                                          fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
                                          justifyContent: 'center', flexShrink: 0 }}>3</span>}
-                    {loading ? 'Génération en cours...' : resultat ? 'Régénérer l\'activité' : 'Générer l\'activité'}
-                  </button>
+                      {loading ? 'Génération en cours...' : 'Générer l\'activité'}
+                    </button>
+                  )}
+
+                  {resultat && !loading && !valide && (
+                    <>
+                      <button
+                        className="btn-primary"
+                        onClick={regenerer}
+                        title="Relancer une nouvelle version — le brouillon affiché sera remplacé"
+                        style={{ flexShrink: 0 }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.71"/></svg>
+                        Régénérer
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={valider}
+                        disabled={enValidation || repriseHistorique}
+                        title={repriseHistorique
+                          ? 'Cette activité est déjà enregistrée dans « Mes activités »'
+                          : 'Enregistrer cette activité dans « Mes activités »'}
+                        style={{ flexShrink: 0, background: '#16a34a', borderColor: '#16a34a',
+                                 opacity: (enValidation || repriseHistorique) ? 0.45 : 1,
+                                 cursor: repriseHistorique ? 'not-allowed' : (enValidation ? 'wait' : 'pointer') }}
+                      >
+                        {enValidation
+                          ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                          : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                        {enValidation ? 'Enregistrement…' : 'Valider'}
+                      </button>
+                      <button
+                        className="btn-primary"
+                        onClick={annuler}
+                        disabled={enValidation || repriseHistorique}
+                        title={repriseHistorique
+                          ? 'Cette activité est déjà enregistrée — pour repartir de zéro, cliquez sur « Créer » dans le menu'
+                          : "Tout effacer et repartir de zéro (rien n'est enregistré)"}
+                        style={{ flexShrink: 0, background: '#dc2626', borderColor: '#dc2626',
+                                 opacity: (enValidation || repriseHistorique) ? 0.45 : 1,
+                                 cursor: repriseHistorique ? 'not-allowed' : (enValidation ? 'not-allowed' : 'pointer') }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Annuler
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -953,13 +1040,19 @@ function MainApp() {
                     hasResultat={!!resultat}
                     canGenerer={!!texte.trim() && !!params.activite_type_id}
                     onFeedback={() => setShowFeedback(true)}
+                    verrouille={(loading || !!resultat) && !entreeDeverrouillee}
                   />
                 )}
-                <div data-guide="texte">
-                  <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} />
-                </div>
-                {/* Jauge IA — synchronisée avec le sablier du bouton Générer : affichée tant que
-                    `loading` (du clic jusqu'à la fin de la génération), elle s'éteint avec lui. */}
+                {/* Étape 2 — Texte source : apparaît dès qu'un type d'activité est choisi (étape 1 faite). */}
+                {params.activite_type_id && (
+                  <div data-guide="texte" ref={texteSourceRef}>
+                    {/* Verrouillée dès qu'une génération est lancée ou qu'un résultat est là (mode
+                        « Régénérer tel quel ») ; « Changer votre demande » la rouvre (entreeDeverrouillee). */}
+                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} />
+                  </div>
+                )}
+                {/* Étape 3/4 — Résultat : la jauge pendant la génération, puis l'activité générée.
+                    ZoneResultat s'affiche d'elle-même dès qu'il y a un résultat (ou un chargement). */}
                 {loading && (
                   <JaugeAttente libelle="aSchool lit le programme officiel et rédige votre activité…" />
                 )}
@@ -967,7 +1060,10 @@ function MainApp() {
                   <ZoneResultat
                     resultat={resultat}
                     loading={loading}
+                    valide={valide}
                     email={user?.email}
+                    onRegenerer={regenerer}
+                    onChangerDemande={changerDemande}
                     onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
                   />
                 </div>
