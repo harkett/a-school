@@ -87,7 +87,7 @@ export default function AdminContenu() {
       <p className="text-xs text-gray-500 mb-3" style={{ maxWidth: 760, lineHeight: 1.5 }}>
         Tout le contenu pédagogique, lu en direct dans la base : chaque cycle déroule ses niveaux, et
         chaque niveau montre son référentiel, ses matières et ses types d'activité (cliquez un niveau
-        pour le déplier, un type pour ses précisions). Lecture seule — pour agir, passez par
+        pour le déplier, un type d'activité pour ses précisions). Lecture seule — pour agir, passez par
         les écrans <b>Référentiel</b> et <b>Programmes</b>.
       </p>
 
@@ -220,9 +220,9 @@ function NiveauBloc({ niveau, ref_, ouvert, typesOuverts, basculerNiveau, bascul
               Types d'activité ({niveau.types.length})
             </p>
             {ref_ === null ? (
-              <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>Pas encore de référentiel : aucun type rattaché.</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>Pas encore de référentiel : aucun type d'activité rattaché.</p>
             ) : niveau.types.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>Aucun type rattaché à ce couple pour le moment.</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>Aucun type d'activité rattaché à ce couple pour le moment.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {niveau.types.map(t => {
@@ -247,7 +247,7 @@ function NiveauBloc({ niveau, ref_, ouvert, typesOuverts, basculerNiveau, bascul
                       </button>
                       {tOuvert && (
                         t.precisions.length === 0 ? (
-                          <p style={{ margin: '2px 0 4px 34px', fontSize: 12, color: '#94a3b8' }}>Aucune précision pour ce type sur ce couple.</p>
+                          <p style={{ margin: '2px 0 4px 34px', fontSize: 12, color: '#94a3b8' }}>Aucune précision pour ce type d'activité sur ce couple.</p>
                         ) : (
                           <ul style={{ margin: '2px 0 4px 34px', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {t.precisions.map((p, i) => (

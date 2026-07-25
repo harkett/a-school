@@ -121,7 +121,7 @@ export default function Labo() {
                   {typeCourant.sous_types.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               ) : (
-                <div className="text-sm" style={{ color: '#94a3b8', paddingTop: 6 }}>ce type n'a pas de précision</div>
+                <div className="text-sm" style={{ color: '#94a3b8', paddingTop: 6 }}>ce type d'activité n'a pas de précision</div>
               )}
             </div>
           </div>

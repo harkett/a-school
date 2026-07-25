@@ -4,7 +4,10 @@
 // Lance avec :  node --test src/utils/api.test.js   (depuis frontend/)
 import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { apiFetch, refreshSession, setSessionExpiredHandler, _resetForTests } from './api.js'
+import {
+  apiFetch, refreshSession, setSessionExpiredHandler, _resetForTests,
+  lireReponse, messagePourEcran, MSG_SERVEUR,
+} from './api.js'
 
 const ok200 = () => ({ ok: true,  status: 200, json: async () => ({}) })
 const r401  = () => ({ ok: false, status: 401, json: async () => ({}) })
@@ -103,4 +106,45 @@ test('6. appel multipart (FormData) → 401 terminal → UNE redirection + corps
   assert.equal(res.status, 401)
   assert.equal(redirects, 1)                 // sortie propre, une seule fois
   assert.ok(sentBody instanceof FormData)    // multipart transmis tel quel, jamais JSON.stringify
+})
+
+// ---------------------------------------------------------------------------
+// lireReponse / messagePourEcran (règle « deux publics, deux langages ») :
+// AUCUN message technique ne doit jamais atteindre l'écran d'un prof — même
+// quand le serveur crashe et répond « Internal Server Error » en texte brut.
+// ---------------------------------------------------------------------------
+
+test('7. lireReponse : réponse 200 JSON → l’objet, tel quel', async () => {
+  const data = await lireReponse({ ok: true, status: 200, json: async () => ({ texte: 'bonjour' }) })
+  assert.deepEqual(data, { texte: 'bonjour' })
+})
+
+test('8. lireReponse : erreur avec detail TEXTE → le message backend (déjà humain) est levé', async () => {
+  await assert.rejects(
+    lireReponse({ ok: false, status: 400, json: async () => ({ detail: 'Type d’activité inconnu.' }) }),
+    (e) => e.pourEcran === true && e.message === 'Type d’activité inconnu.',
+  )
+})
+
+test('9. lireReponse : 500 en texte brut (corps illisible) → MSG_SERVEUR, jamais l’erreur de parsing', async () => {
+  await assert.rejects(
+    lireReponse({ ok: false, status: 500, json: async () => { throw new SyntaxError("Unexpected token 'I'") } }),
+    (e) => e.pourEcran === true && e.message === MSG_SERVEUR,
+  )
+})
+
+test('10. lireReponse : detail NON-texte (tableau de validation 422) → MSG_SERVEUR, jamais le tableau brut', async () => {
+  await assert.rejects(
+    lireReponse({ ok: false, status: 422, json: async () => ({ detail: [{ loc: ['body', 'niveau'], msg: 'field required' }] }) }),
+    (e) => e.pourEcran === true && e.message === MSG_SERVEUR,
+  )
+})
+
+test('11. messagePourEcran : erreur marquée pourEcran → son message ; technique → MSG_SERVEUR', () => {
+  const humaine = new Error('Message écrit pour le prof.')
+  humaine.pourEcran = true
+  assert.equal(messagePourEcran(humaine), 'Message écrit pour le prof.')
+  assert.equal(messagePourEcran(new SyntaxError("Unexpected token 'I'")), MSG_SERVEUR)
+  assert.equal(messagePourEcran(new TypeError('Failed to fetch')), MSG_SERVEUR)
+  assert.equal(messagePourEcran(null), MSG_SERVEUR)
 })

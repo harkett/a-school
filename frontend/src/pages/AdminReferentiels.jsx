@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+import JaugeAttente from '../components/JaugeAttente.jsx'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
 // que Consigne/Ambiguites : SVG animé via l'@keyframes `spin` global (index.css).
@@ -81,30 +82,8 @@ function BadgeIA({ titre }) {
   )
 }
 
-// Jauge d'attente réutilisable pour UN appel IA d'un bloc (durée inconnue, pas d'étapes mesurables) :
-// barre navette animée + secondes écoulées — jamais de faux pourcentage. Montée uniquement pendant
-// l'attente (le montage/démontage remet le compteur à zéro).
-function JaugeAttente({ libelle }) {
-  const [sec, setSec] = useState(0)
-  useEffect(() => {
-    const t = setInterval(() => setSec(s => s + 1), 1000)
-    return () => clearInterval(t)
-  }, [])
-  return (
-    <div style={{ marginTop: 10 }}>
-      <style>{'@keyframes jaugeAttente { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }'}</style>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12,
-        color: '#475569', marginBottom: 4 }}>
-        <span>{libelle}</span>
-        <span style={{ fontWeight: 600 }}>{sec} s</span>
-      </div>
-      <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: '35%', background: '#7c3aed',
-          borderRadius: 999, animation: 'jaugeAttente 1.6s linear infinite' }} />
-      </div>
-    </div>
-  )
-}
+// La jauge d'attente IA (barre navette + secondes) vit désormais dans
+// components/JaugeAttente.jsx — partagée avec les écrans prof (une jauge dès qu'on appelle l'IA).
 
 export default function AdminReferentiels() {
   const [arbre, setArbre] = useState([])        // arbre COMPLET cycles → niveaux (GET /admin/programmes)
@@ -1836,7 +1815,7 @@ export default function AdminReferentiels() {
           {precisProgress && (
             <div>
               <div style={{ fontSize: 12, color: '#1d4ed8', marginBottom: 4 }}>
-                <BadgeIA titre="L'IA prépare les précisions de chaque type pour ce niveau" />{' '}
+                <BadgeIA titre="L'IA prépare les précisions de chaque type d'activité pour ce niveau" />{' '}
                 Précisions en cours de préparation ({precisProgress.fait + 1}/{precisProgress.total})
                 {precisProgress.label ? ` — ${precisProgress.label}` : ''}…
               </div>
@@ -1854,7 +1833,7 @@ export default function AdminReferentiels() {
               {typesDuCouple.length === 0 ? (
                 <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>
                   {typesDetecting ? 'La liste se remplit dès que l’IA a fini sa lecture…'
-                    : 'Aucun type pour ce couple — la détection se lance toute seule, ou ajoute un type ci-dessous.'}
+                    : 'Aucun type d’activité pour ce couple — la détection se lance toute seule, ou ajoute un type d’activité ci-dessous.'}
                 </p>
               ) : typesDuCouple.map((t, i) => {
                 const coche = true
@@ -1900,7 +1879,7 @@ export default function AdminReferentiels() {
                         </button>
                         <button type="button"
                           onClick={() => { if (window.confirm(`Retirer « ${t.label} » des types de ce couple ?\n\nSes précisions pour ce couple seront supprimées aussi. Une future détection le remettra si l'IA le relit dans le document.`)) basculerType(t.id) }}
-                          title={`Retirer « ${t.label} » de ce couple — supprime ce type et ses précisions pour ce couple (les autres niveaux ne sont pas touchés)`}
+                          title={`Retirer « ${t.label} » de ce couple — supprime ce type d'activité et ses précisions pour ce couple (les autres niveaux ne sont pas touchés)`}
                           style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2',
                             color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
                             justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>✕</button>
@@ -1933,7 +1912,7 @@ export default function AdminReferentiels() {
                       </div>
                       {precisLoading ? (
                         <div>
-                          <BadgeIA titre="L'IA génère les précisions de ce type pour ce niveau" />
+                          <BadgeIA titre="L'IA génère les précisions de ce type d'activité pour ce niveau" />
                           <JaugeAttente libelle="L’IA prépare les précisions adaptées à ce niveau…" />
                         </div>
                       ) : precisList.length > 0 ? (
@@ -1976,11 +1955,11 @@ export default function AdminReferentiels() {
           <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
             <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
-              placeholder="Ajouter un type à ce couple…"
+              placeholder="Ajouter un type d'activité à ce couple…"
               style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
             <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
               style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
-              title="Ajouter ce type pour ce couple (rejoint le catalogue s'il est nouveau)"><span aria-hidden="true">＋</span> Ajouter</button>
+              title="Ajouter ce type d'activité pour ce couple (rejoint le catalogue s'il est nouveau)"><span aria-hidden="true">＋</span> Ajouter</button>
           </div>
           </>)}
         </div>

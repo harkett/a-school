@@ -23,6 +23,22 @@ class ExempleReferentielRequest(BaseModel):
     niveau: str
 
 
+class ProposerIdeeRequest(BaseModel):
+    # Ce que le prof a DÉJÀ choisi à l'écran : le type d'activité (id), le niveau actif
+    # (ajustement temporaire compris) et la précision éventuelle. L'idée proposée s'écrit
+    # DANS la zone texte — elle ne remplace jamais la demande du prof, elle l'amorce.
+    activite_type_id: int
+    niveau: str
+    sous_type: Optional[str] = None
+
+
+class ProposerIdeeResponse(BaseModel):
+    available: bool          # False = pas de référentiel ou rien d'assez pertinent → on n'invente RIEN
+    texte: Optional[str] = None
+    objet: Optional[str] = None    # titre court pour le champ « Objet » (ligne « Objet : » de l'IA) — None si absent
+    message: Optional[str] = None  # message honnête au prof (seuil) — affiché en modale
+
+
 class ExempleReferentielResponse(BaseModel):
     available: bool          # False = pas de référentiel pour ce couple → on n'invente RIEN
     texte: Optional[str] = None

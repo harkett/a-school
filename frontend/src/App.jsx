@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
 import TexteSource from './components/TexteSource'
 import Parametres from './components/Parametres'
+import CoupleBandeau from './components/CoupleBandeau'
 import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
@@ -63,6 +64,7 @@ import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
+import JaugeAttente from './components/JaugeAttente.jsx'
 import { fetchWithTimeout, apiFetch, refreshSession, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeParDefaut } from './utils/activite.js'
@@ -244,7 +246,7 @@ function MainApp() {
   }
 
   // Guidage visuel : toute interaction du prof avec les paramètres (sélecteur de type,
-  // précision, nb…) signifie qu'il a VU le sélecteur → l'accent passe à l'étape « Générer ».
+  // précision, nb…) signifie qu'il a VU le sélecteur → l'accent descend sur le Texte source.
   function changerParams(newParams) {
     setTypeConfirme(true)
     setParamsWithSave(newParams)
@@ -283,10 +285,6 @@ function MainApp() {
       })
       .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere, params.niveau])
-
-  // Guidage : si le prof vide le texte source, on repart de l'étape 1 → l'accent doit
-  // remonter, donc on « oublie » que le type avait été vu.
-  useEffect(() => { if (!texte.trim()) setTypeConfirme(false) }, [texte])
 
   function isTexteGibberish(t) {
     const words = t.trim().split(/\s+/).filter(w => w.length > 2)
@@ -464,9 +462,9 @@ function MainApp() {
   }
 
   // Guidage visuel pas à pas de l'écran « Créer » : une SEULE zone active à la fois,
-  // suit l'état réel. 0 = rien (activité déjà générée) · 1 = Texte source · 2 = choisir
-  // le type · 3 = Générer. Retour arrière (texte vidé) → l'accent remonte tout seul.
-  const etapeGuide = resultat ? 0 : !texte.trim() ? 1 : typeConfirme ? 3 : 2
+  // suit l'état réel. 0 = rien (activité déjà générée) · 1 = choisir le type (Paramètres)
+  // · 2 = Texte source · 3 = Générer. Retour arrière (texte vidé) → l'accent revient sur le texte.
+  const etapeGuide = resultat ? 0 : !typeConfirme ? 1 : !texte.trim() ? 2 : 3
 
   // Contour sobre (discret) sur la zone active. Outline → aucun décalage de mise en page.
   const halo = (actif) => ({
@@ -547,7 +545,7 @@ function MainApp() {
                               </ul>
                             </li>
                             <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
-                            <li><strong>Nombre de questions</strong> — disponible selon le type choisi</li>
+                            <li><strong>Nombre de questions</strong> — disponible selon le type d'activité choisi</li>
                             <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
                           </ul>
                         </div>
@@ -851,44 +849,54 @@ function MainApp() {
                   Comment ça marche
                 </button>
                 {activiteTab === 'creer' && (
-                  <button
-                    className="btn-primary"
-                    onClick={generer}
-                    disabled={loading}
-                    title="Lancer la génération de l'activité avec aSchool"
-                    style={{ marginLeft: 'auto', marginRight: 8, ...halo(etapeGuide === 3) }}
-                  >
-                    {loading
-                      ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                      : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
-                    {loading ? 'Génération en cours...' : 'Générer l\'activité'}
-                  </button>
+                  <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    <CoupleBandeau
+                      sessionMatiere={sessionMatiere}
+                      niveau={params.niveau}
+                      profilMatiere={matiere}
+                      profilNiveau={user?.niveau || ''}
+                      onValider={(m, n) => { setSessionMatiere(m); changerParams({ ...params, niveau: n }) }}
+                      onRevenirProfil={revenirAuProfil}
+                    />
+                    <button
+                      className="btn-primary"
+                      onClick={generer}
+                      disabled={loading}
+                      title="Lancer la génération de l'activité avec aSchool"
+                      style={{ flexShrink: 0, ...halo(etapeGuide === 3) }}
+                    >
+                      {loading
+                        ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                        : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+                      {loading ? 'Génération en cours...' : 'Générer l\'activité'}
+                    </button>
+                  </div>
                 )}
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {activiteTab === 'creer' && (
                 <>
-                  <div style={halo(etapeGuide === 1)}>
-                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} />
-                  </div>
                   {activites.length > 0 && (
                     <Parametres
                       activites={activites}
                       params={params}
-                      accentType={etapeGuide === 2}
+                      accentType={etapeGuide === 1}
                       onChange={changerParams}
                       onGenerer={generer}
                       loading={loading}
                       hasResultat={!!resultat}
                       canGenerer={!!texte.trim() && !!params.activite_type_id}
                       onFeedback={() => setShowFeedback(true)}
-                      sessionMatiere={sessionMatiere}
-                      onMatiereChange={setSessionMatiere}
-                      profilMatiere={matiere}
-                      profilNiveau={user?.niveau || ''}
-                      onRevenirProfil={revenirAuProfil}
                     />
+                  )}
+                  <div style={halo(etapeGuide === 2)}>
+                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} />
+                  </div>
+                  {/* Jauge IA — du clic Générer jusqu'aux premiers mots du flux (ensuite, le texte
+                      qui s'écrit EST la progression). Même jauge que partout où l'IA travaille. */}
+                  {loading && !resultat && (
+                    <JaugeAttente libelle="L'IA lit le programme officiel et rédige votre activité…" />
                   )}
                   <div ref={resultatRef}>
                     <ZoneResultat
@@ -907,22 +915,22 @@ function MainApp() {
                   <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une activité — tout ce que vous pouvez faire</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
-                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Fournissez un texte source — 3 options</div>
+                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>1. Configurez les paramètres</div>
+                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
+                        <li><strong>Type d'activité</strong> — varie selon la matière : questions de compréhension, analyse de texte, résumé, production d'écrit, fiche de révision…</li>
+                        <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
+                        <li><strong>Nombre de questions</strong> — disponible selon le type d'activité choisi</li>
+                        <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
+                      </ul>
+                    </div>
+                    <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>2. Fournissez un texte source — 3 options</div>
                       <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
                         <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
                         <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
                         <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
                         <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source) pour pré-remplir avec un extrait adapté à votre matière.</li>
-                      </ul>
-                    </div>
-                    <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '7px' }}>2. Configurez les paramètres</div>
-                      <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                        <li><strong>Type d'activité</strong> — varie selon la matière : questions de compréhension, analyse de texte, résumé, production d'écrit, fiche de révision…</li>
-                        <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
-                        <li><strong>Nombre de questions</strong> — disponible selon le type choisi</li>
-                        <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
                       </ul>
                     </div>
                     <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
@@ -1082,7 +1090,7 @@ function MainApp() {
               aSchool reconnaît votre façon de travailler
             </div>
             <p style={{ fontSize: '13.5px', color: '#374151', lineHeight: 1.6, margin: '0 0 20px' }}>
-              À partir de 3 activités de ce type enregistrées, aSchool s'inspire de vos exemples pour générer dans votre style — automatiquement, sans rien régler.
+              À partir de 3 activités de ce type d'activité enregistrées, aSchool s'inspire de vos exemples pour générer dans votre style — automatiquement, sans rien régler.
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button

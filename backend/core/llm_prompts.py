@@ -347,6 +347,10 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
 
 
+PROMPT_CORRECTION = """Ajoute ensuite, après l'activité, une section « Correction » : le corrigé complet et ordonné de chaque question ou exercice de l'activité — la réponse attendue, avec une courte explication quand elle éclaire — directement utilisable par le professeur.
+Ne corrige que ce que l'activité demande : n'ajoute aucun nouvel exercice, aucune variante."""
+
+
 PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
 
 Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
@@ -425,5 +429,10 @@ PROMPTS = {
         "label": "Détection du cycle et du niveau depuis le document (dépôt « PDF d'abord »)",
         "placeholders": ["cycles_existants", "texte"],
         "default": PROMPT_DETECTER_COUPLE,
+    },
+    "correction": {
+        "label": "Consigne du corrigé (case « Inclure une proposition de correction »)",
+        "placeholders": [],
+        "default": PROMPT_CORRECTION,
     },
 }

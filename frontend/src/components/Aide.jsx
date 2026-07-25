@@ -298,7 +298,7 @@ const sections = [
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Step n="1">
             <span><strong>Fournissez un texte source</strong> — collez un extrait de manuel, dictez à la voix ou scannez un document.<br />
-            <span style={{ fontSize: 12, color: '#64748b' }}>Pas de texte sous la main ? Cliquez sur <strong>Tester un exemple</strong> en haut à droite du champ.</span></span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Pas de texte sous la main ? Cliquez sur <strong>Document d'exemple</strong> dans la rangée de boutons sous la zone de texte.</span></span>
           </Step>
           <Step n="2">
             <span><strong>Choisissez le type d'activité et le sous-type</strong> — votre matière et niveau sont pré-remplis depuis votre profil.</span>
@@ -489,7 +489,7 @@ const sections = [
             <li>Collez directement un texte — extrait de manuel, article de presse, document élève</li>
             <li>Dictez à la voix grâce au micro intégré — aSchool transcrit automatiquement</li>
             <li>Scannez un document papier avec l'OCR — la photo est convertie en texte exploitable</li>
-            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du texte source). aSchool génère un extrait <strong>ancré sur le référentiel officiel de votre niveau</strong> — il <strong>change à chaque clic</strong>, mais reste toujours fidèle au programme. (Niveau sans référentiel : aSchool vous le dit, et vous collez votre propre texte.)</li>
+            <li><strong>Pas de texte sous la main ?</strong> Cliquez sur <strong>Document d'exemple</strong> (dans la rangée de boutons sous la zone de texte). aSchool génère un extrait <strong>ancré sur le référentiel officiel de votre niveau</strong> — il <strong>change à chaque clic</strong>, mais reste toujours fidèle au programme. (Niveau sans référentiel : aSchool vous le dit, et vous collez votre propre texte.)</li>
           </ul>
         </div>
         <hr className="border-gray-100" />
@@ -509,7 +509,7 @@ const sections = [
               </ul>
             </li>
             <li><strong>Sous-type</strong> — précise la nature exacte (ex : inférence, lexique, mélange de types)</li>
-            <li><strong>Nombre de questions</strong> — disponible selon le type choisi</li>
+            <li><strong>Nombre de questions</strong> — disponible selon le type d'activité choisi</li>
             <li><strong>Avec correction</strong> — génère le corrigé complet sous l'activité</li>
           </ul>
         </div>
@@ -611,11 +611,11 @@ const sections = [
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Type d'activité</dt>
-          <dd className="mt-0.5">Le genre d'exercice à produire — varie selon la matière (compréhension, vocabulaire, résumé, exercices…). Chaque type génère un format différent.</dd>
+          <dd className="mt-0.5">Le genre d'exercice à produire — varie selon la matière (compréhension, vocabulaire, résumé, exercices…). Chaque type d'activité génère un format différent.</dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Nombre de questions</dt>
-          <dd className="mt-0.5">Le nombre d'items dans l'activité. Disponible selon le type choisi.</dd>
+          <dd className="mt-0.5">Le nombre d'items dans l'activité. Disponible selon le type d'activité choisi.</dd>
         </div>
         <div>
           <dt className="font-semibold text-gray-700">Avec correction</dt>

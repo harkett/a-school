@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { formatTime, computeBarLevels } from '../utils/audioViz.js'
+import JaugeAttente from './JaugeAttente.jsx'
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume
 
@@ -44,7 +45,14 @@ const IconExemple = () => (
   </svg>
 )
 
-export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau }) {
+const IconIdee = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 18h6"/><path d="M10 22h4"/>
+    <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.68.68 1.16 1.46 1.41 2.5"/>
+  </svg>
+)
+
+export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
   const [isReady, setIsReady] = useState(false)           // micro prêt après le bip "go"
@@ -52,6 +60,8 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const [elapsed, setElapsed] = useState(0)               // chrono d'enregistrement (secondes)
   const [exempleLoading, setExempleLoading] = useState(false) // génération d'un exemple ancré en cours
   const [exempleNote, setExempleNote] = useState(null)        // 'ancre' (exemple injecté) | 'absent' (pas de référentiel pour ce couple)
+  const [ideeLoading, setIdeeLoading] = useState(false)       // « Propose-moi une idée » en cours
+  const [ideeNote, setIdeeNote] = useState(false)             // idée injectée dans la zone (bandeau)
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
   const texteRef = useRef(texte)
@@ -69,9 +79,9 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   useEffect(() => { texteRef.current = texte }, [texte])
 
-  // Le bandeau « exemple généré » est attaché au texte courant : si le texte est vidé
-  // (ex. « Créer » repart d'une activité vierge), le bandeau n'a plus de sens → on l'efface.
-  useEffect(() => { if (!texte) setExempleNote(null) }, [texte])
+  // Les bandeaux « exemple généré » / « idée proposée » sont attachés au texte courant : si le
+  // texte est vidé (ex. « Créer » repart d'une activité vierge), ils n'ont plus de sens → effacés.
+  useEffect(() => { if (!texte) { setExempleNote(null); setIdeeNote(false) } }, [texte])
 
   // Dictée vocale en mode BATCH : enregistrer → stop → POST /api/transcribe (Groq
   // Whisper) → texte inséré à la fin. Le streaming temps réel Deepgram est une
@@ -140,8 +150,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         credentials: 'include',
         body: form,
       }, TIMEOUT_LONG)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      const data = await lireReponse(res)
       const transcrit = (data.text || '').trim()
       if (transcrit) {
         const prev = texteRef.current || ''
@@ -149,7 +158,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         onChange(prev + sep + transcrit)
       }
     } catch (err) {
-      showError(`Transcription impossible.\n\n${err.message}`)
+      showError(`Transcription impossible.\n\n${messagePourEcran(err)}`)
     } finally {
       setIsTranscribing(false)
     }
@@ -220,7 +229,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     }, 300)
   }
 
-  // « Tester un exemple » — texte source généré par le LLM, ANCRÉ sur le référentiel
+  // « Document d'exemple » (ex-« Tester un exemple ») — texte source généré par le LLM, ANCRÉ sur le référentiel
   // officiel du couple matière+niveau actif (plus de texte figé qui ignorait le niveau).
   // Règle d'or : si le couple n'a pas de référentiel → available:false → on n'injecte RIEN.
   async function handleExemple() {
@@ -234,8 +243,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ matiere, niveau }),
       }, TIMEOUT_LONG)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      const data = await lireReponse(res)
       if (data.available && data.texte) {
         onChange(data.texte)
         setExempleNote('ancre')
@@ -248,9 +256,49 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         showError(`Pas d'exemple tout prêt, pour le moment, pour ${(matiere && niveau) ? `${matiere} / ${niveau}` : 'ce couple'}.\n\nCollez votre propre texte de cours ou d'exercice ci-dessous — ou importez un fichier, une image, un PDF, ou dictez.`)
       }
     } catch (err) {
-      showError(`Génération de l'exemple impossible.\n\n${err.message}`)
+      showError(`Génération de l'exemple impossible.\n\n${messagePourEcran(err)}`)
     } finally {
       setExempleLoading(false)
+    }
+  }
+
+  // « Propose-moi une idée » — même famille que « Document d'exemple » : aSchool fabrique
+  // UNE idée de départ à partir de ce que le prof a déjà choisi (type + précision + niveau)
+  // et du référentiel officiel, et l'ÉCRIT DANS LA ZONE TEXTE. Le prof reste le patron :
+  // il relit, modifie ou efface, puis « Générer » suit le circuit normal.
+  async function handleIdee() {
+    if (ideeLoading) return
+    if (!activiteTypeId) {
+      showError("Choisissez d'abord un type d'activité dans les paramètres, puis recliquez sur « Propose-moi une idée ».")
+      return
+    }
+    setIdeeLoading(true)
+    setIdeeNote(false)
+    try {
+      const res = await apiFetch('/api/proposer-idee', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activite_type_id: activiteTypeId, niveau, sous_type: sousType || null }),
+      }, TIMEOUT_LONG)
+      const data = await lireReponse(res)
+      if (data.available && data.texte) {
+        onChange(data.texte)
+        // L'IA propose aussi un titre court pour le champ « Objet » (ligne « Objet : » détachée
+        // par le serveur) — remplacé comme le texte : l'idée arrive complète, le prof ajuste.
+        if (data.objet && onObjetChange) onObjetChange(data.objet)
+        setIdeeNote(true)
+      } else if (data.message) {
+        // Référentiel présent mais rien d'assez pertinent (seuil) : message honnête du backend.
+        showError(data.message)
+      } else {
+        // Pas de référentiel pour ce niveau : on n'invente rien, on le dit.
+        showError(`Pas de proposition possible pour le moment pour ${niveau ? `le niveau ${niveau}` : 'ce niveau'} (programme officiel pas encore chargé).\n\nDécrivez votre idée dans la zone de texte — ou dictez-la avec le micro.`)
+      }
+    } catch (err) {
+      showError(`Proposition d'idée impossible.\n\n${messagePourEcran(err)}`)
+    } finally {
+      setIdeeLoading(false)
     }
   }
 
@@ -276,12 +324,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         credentials: 'include',
         body: form,
       }, TIMEOUT_LONG)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      const data = await lireReponse(res)
       onChange(data.texte)
     } catch (err) {
       const source = type === 'image' ? "l'image" : 'le PDF'
-      showError(`Extraction du texte depuis ${source} impossible.\n\n${err.message}`)
+      showError(`Extraction du texte depuis ${source} impossible.\n\n${messagePourEcran(err)}`)
     } finally {
       setOcrLoading(null)
     }
@@ -353,28 +400,19 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   return (
     <section className="bg-white rounded border border-gray-200 p-4">
-      <div className="mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div className="section-title">Texte source</div>
-        <button
-          type="button"
-          title="Générer un exemple de texte source à partir du référentiel officiel de votre niveau"
-          onClick={handleExemple}
-          disabled={exempleLoading}
-          style={{ fontSize: '11px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe',
-            borderRadius: '5px', padding: '3px 10px', cursor: exempleLoading ? 'wait' : 'pointer',
-            display: 'flex', alignItems: 'center', gap: '5px', opacity: exempleLoading ? 0.6 : 1 }}
-        >
-          {exempleLoading
-            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-            : <IconExemple />}
-          {exempleLoading ? 'Génération...' : 'Tester un exemple'}
-        </button>
-      </div>
+      <div className="section-title mb-3">Texte source</div>
 
       {exempleNote === 'ancre' && (
         <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
           borderRadius: 6, fontSize: 12, color: '#1d4ed8', animation: 'fadeInSoft 0.4s ease-out' }}>
           Exemple généré depuis le référentiel officiel de votre niveau — adaptez-le si besoin.
+        </div>
+      )}
+
+      {ideeNote && (
+        <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
+          borderRadius: 6, fontSize: 12, color: '#1d4ed8', animation: 'fadeInSoft 0.4s ease-out' }}>
+          Idée proposée à partir du programme officiel de votre niveau — modifiez-la librement, puis générez.
         </div>
       )}
 
@@ -461,6 +499,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
       )}
 
+      {/* Jauge IA — même patron que côté admin : montée UNIQUEMENT pendant l'appel IA. */}
+      {ideeLoading && (
+        <JaugeAttente libelle="L'IA lit le programme officiel de votre niveau et prépare une idée…" />
+      )}
+
       {isTranscribing && (
         <div style={{
           marginTop: 6,
@@ -514,6 +557,22 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading} />
         </label>
 
+        {/* 4e façon d'obtenir un DOCUMENT (famille TXT / Image / PDF) : un document d'exemple
+            fabriqué par l'IA depuis le programme officiel — pour essayer sans rien sous la main. */}
+        <button
+          type="button"
+          className="btn-action"
+          title="aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
+          onClick={handleExemple}
+          disabled={exempleLoading}
+          style={exempleLoading ? { opacity: 0.6, cursor: 'wait' } : {}}
+        >
+          {exempleLoading
+            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+            : <IconExemple />}
+          {exempleLoading ? 'Génération…' : "Document d'exemple"}
+        </button>
+
         <button
           type="button"
           className="btn-action"
@@ -538,6 +597,20 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         >
           <IconMic active={isListening} />
           {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
+        </button>
+
+        <button
+          type="button"
+          className="btn-action"
+          title="aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."
+          onClick={handleIdee}
+          disabled={ideeLoading}
+          style={ideeLoading ? { opacity: 0.6, cursor: 'wait' } : {}}
+        >
+          {ideeLoading
+            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+            : <IconIdee />}
+          {ideeLoading ? 'Génération…' : 'Propose-moi une idée'}
         </button>
 
       </div>

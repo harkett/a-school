@@ -17,15 +17,16 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models import GenerateRequest
+from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
     Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre,
 )
-from backend.llm.generator import generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
+from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
+from backend.llm.prompts import build_proposer_idee_prompt
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k,
-    get_stream_silence_timeout,
+    get_stream_silence_timeout, get_prompt,
 )
 
 router = APIRouter()
@@ -168,6 +169,90 @@ def _exiger_session(aschool_access: str | None) -> None:
         raise HTTPException(401, "Non connecté.")
 
 
+# Message honnête au prof quand aucun extrait n'est assez pertinent (même contrat que
+# « Tester un exemple » : on n'invente RIEN, on le dit).
+_AUCUN_EXTRAIT_POUR_IDEE = (
+    "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez pertinent "
+    "pour proposer une idée fidèle. Essayez une autre précision — ou décrivez votre idée "
+    "directement dans la zone de texte."
+)
+
+# Gabarit de requête RAG — UNIFORME pour tout couple, construit sur ce que le prof a
+# RÉELLEMENT choisi (type d'activité + précision + niveau) ; jamais de formulation par matière en dur.
+_REQUETE_IDEE_GABARIT = "Idée d'activité pour le type d'activité {type_label}{precision}, niveau {niveau}"
+
+
+def _extraire_objet(texte: str | None) -> tuple[str | None, str]:
+    """Détache la ligne « Objet : titre court » (1re ligne demandée à l'IA) du corps de l'idée.
+
+    Renvoie (objet, texte_idee). DÉFENSIF : si l'IA n'a pas ouvert par une ligne Objet
+    reconnaissable, on ne perd RIEN — objet None et le texte ENTIER part dans la zone.
+    L'objet est plafonné à 150 caractères (la limite du champ Objet à l'écran)."""
+    brut = (texte or "").strip()
+    premiere, _, reste = brut.partition("\n")
+    tete = premiere.strip()
+    if tete.lower().startswith("objet") and ":" in tete:
+        candidat = tete.split(":", 1)[1].strip()
+        if candidat and reste.strip():
+            return candidat[:150], reste.strip()
+    return None, brut
+
+
+@router.post("/proposer-idee", response_model=ProposerIdeeResponse)
+def api_proposer_idee(
+    req: ProposerIdeeRequest,
+    aschool_access: str | None = Cookie(None),
+    db: Session = Depends(get_db),
+):
+    """Bouton « Propose-moi une idée » de la zone texte (même famille que « Tester un
+    exemple ») : fabrique UNE idée de départ à partir des choix du prof (type + précision +
+    niveau) et du référentiel officiel du niveau, et la renvoie pour être ÉCRITE DANS LA
+    ZONE TEXTE. Le prof la relit, la modifie, puis « Générer » suit le circuit normal
+    ({texte}) — la zone reste la base de tout, ce bouton ne fait que l'amorcer.
+
+    Règle d'or : pas de référentiel → available:false ; rien d'assez pertinent au seuil
+    (lu en base, `referentiels.score_min`) → available:false + message honnête. On
+    n'invente RIEN hors du programme."""
+    _exiger_session(aschool_access)
+
+    t = (db.query(ActiviteType)
+           .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
+           .first())
+    if t is None:
+        raise HTTPException(400, "Type d'activité inconnu.")
+
+    ref_id = _referentiel_du_niveau(db, req.niveau)
+    if ref_id is None:
+        return ProposerIdeeResponse(available=False)
+
+    ref = (db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
+             .filter(Referentiel.id == ref_id).first())
+    collection, filtres_json, seuil = ref
+    filters = json.loads(filtres_json) if filtres_json else None
+    requete = _REQUETE_IDEE_GABARIT.format(
+        type_label=t.label,
+        precision=f" ({req.sous_type})" if req.sous_type else "",
+        niveau=req.niveau,
+    )
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
+    if not chunks:
+        log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
+        return ProposerIdeeResponse(available=False, message=_AUCUN_EXTRAIT_POUR_IDEE)
+
+    prompt = build_proposer_idee_prompt(chunks, type_label=t.label, precision=req.sous_type, niveau=req.niveau)
+    try:
+        texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db),
+                         max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db))
+    except LLMRateLimitError as e:
+        log.warning("[proposer-idee] service très demandé : %s", e)
+        raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
+    objet, texte_idee = _extraire_objet(texte)
+    log.info("[proposer-idee] idée générée (%s, type=%r, %d chunks >= %s, objet=%r)",
+             req.niveau, t.label, len(chunks), seuil, objet)
+    return ProposerIdeeResponse(available=True, texte=texte_idee, objet=objet)
+
+
 @router.post("/generate")
 def api_generate(
     req: GenerateRequest,
@@ -186,8 +271,11 @@ def api_generate(
     (référentiel absent, type pas prêt, RAG vide, saturation) sont renvoyés AVANT le flux, en JSON
     HTTP classique (4xx/429) — l'écran affiche alors leur message tel quel.
 
-    NB : `avec_correction` et le few-shot « aSchool vous reconnaît » sont DIFFÉRÉS. La sauvegarde
-    côté prof (/api/mes-activites) reste inchangée (déclenchée par l'écran à la fin du flux)."""
+    `avec_correction` : case cochée → la consigne du corrigé (registre des prompts admin, clé
+    `correction`, modifiable à chaud) est AJOUTÉE à la fin du prompt du couple avant le flux —
+    le corrigé sort dans le même document, sous l'activité. Décochée → prompt strictement
+    identique. NB : le few-shot « aSchool vous reconnaît » reste DIFFÉRÉ. La sauvegarde côté
+    prof (/api/mes-activites) reste inchangée (déclenchée par l'écran à la fin du flux)."""
     _exiger_session(aschool_access)
 
     # 1. Le COUPLE : le référentiel du niveau. Sans référentiel, aucun prompt de couple → rien à générer.
@@ -244,6 +332,12 @@ def api_generate(
         if manquant not in _USER_PARAMS:
             raise  # placeholder inconnu = bug du prompt → 500, jamais masqué
         raise HTTPException(400, f"Indiquez {_USER_PARAMS[manquant]} pour cette activité.") from e
+
+    # 5 bis. Corrigé : case « Inclure une proposition de correction » cochée → la consigne du
+    # corrigé (registre des prompts admin, lue en base à l'appel) s'ajoute à la FIN du prompt
+    # du couple — le corrigé sort dans le même document, sous l'activité. Décochée → rien.
+    if req.avec_correction:
+        prompt = prompt + "\n\n" + get_prompt(db, "correction")
 
     # 6. Réglages LLM lus EN BASE, AVANT le flux (get) — passés en valeurs au flux (aucune lecture
     # de base pendant le streaming, la session de requête étant destinée à se fermer). `silence` =

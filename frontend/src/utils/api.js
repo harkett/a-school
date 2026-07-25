@@ -8,6 +8,39 @@ export const TIMEOUT_XLONG = 300_000
 
 export const MSG_TIMEOUT = 'Connexion lente ou indisponible. Vérifiez votre réseau et réessayez.'
 
+// Message humain unique quand le serveur est en panne ou répond n'importe quoi (crash base,
+// redémarrage, « Internal Server Error » en texte brut). Jamais de détail technique à l'écran.
+export const MSG_SERVEUR = "Le serveur aSchool n'a pas pu répondre.\n\nRéessayez dans une minute — si le problème persiste, prévenez votre administrateur."
+
+// Fabrique une erreur DESTINÉE À L'ÉCRAN : son message est écrit pour un prof, il peut être
+// affiché tel quel. Toute erreur SANS cette marque est technique → l'écran affiche MSG_SERVEUR.
+function erreurEcran(message) {
+  const e = new Error(message)
+  e.pourEcran = true
+  return e
+}
+
+// Le message d'une erreur, filtré pour l'écran : humain si marqué pourEcran, sinon MSG_SERVEUR.
+// À utiliser dans TOUT catch qui alimente showError — jamais err.message brut.
+export function messagePourEcran(err) {
+  return err && err.pourEcran ? err.message : MSG_SERVEUR
+}
+
+// Lit le corps JSON d'une réponse sans JAMAIS laisser fuiter un message technique :
+//  - réponse OK → l'objet JSON (ou {} si le corps est vide) ;
+//  - réponse en erreur → lève le `detail` du backend SEULEMENT si c'est un vrai message texte
+//    (nos messages backend sont écrits pour le prof), sinon MSG_SERVEUR ;
+//  - corps illisible (serveur en panne qui répond en texte brut) → MSG_SERVEUR aussi.
+export async function lireReponse(res) {
+  let data = null
+  try { data = await res.json() } catch { /* corps non-JSON = serveur en difficulté */ }
+  if (!res.ok) {
+    const detail = data && typeof data.detail === 'string' ? data.detail : null
+    throw erreurEcran(detail || MSG_SERVEUR)
+  }
+  return data || {}
+}
+
 import { reportApiSuccess, reportApiFailure } from '../serverHealth.js'
 
 export async function fetchWithTimeout(url, options = {}, timeout = TIMEOUT_STD) {
@@ -22,7 +55,7 @@ export async function fetchWithTimeout(url, options = {}, timeout = TIMEOUT_STD)
     return res
   } catch (err) {
     reportApiFailure() // timeout ou réseau : le serveur ne répond pas
-    if (err.name === 'AbortError') throw new Error(MSG_TIMEOUT)
+    if (err.name === 'AbortError') throw erreurEcran(MSG_TIMEOUT)
     throw err
   } finally {
     clearTimeout(id)

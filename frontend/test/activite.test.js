@@ -13,13 +13,13 @@ test('estPageCreer : vrai seulement pour creer-activite', () => {
   assert.equal(estPageCreer('creer-sequence'), false)
 })
 
-test('typeParDefaut : prend le 1er type de la liste', () => {
+test('typeParDefaut : prend le 1er type de la liste (identité = id, besoin nb lu du prompt)', () => {
   const activites = [
-    { key: 'gen_comprehension', sous_types: [], params: ['nb'] },
-    { key: 'gen_questions_cours', sous_types: ['x'], params: [] },
+    { id: 3, label: 'Compréhension', sous_types: [], besoins: ['nb'] },
+    { id: 8, label: 'Questions de cours', sous_types: ['x'], besoins: [] },
   ]
   assert.deepEqual(typeParDefaut(activites), {
-    activite_key: 'gen_comprehension',
+    activite_type_id: 3,
     sous_type: null,
     nb: 5,
     avec_correction: false,
@@ -27,20 +27,20 @@ test('typeParDefaut : prend le 1er type de la liste', () => {
 })
 
 test('typeParDefaut : 1er sous-type pris quand il existe', () => {
-  const activites = [{ key: 'comprehension', sous_types: ['inférence', 'mélange'], params: ['nb', 'sous_type'] }]
+  const activites = [{ id: 7, label: 'Compréhension', sous_types: ['inférence', 'mélange'], besoins: ['nb', 'sous_type'] }]
   const r = typeParDefaut(activites)
-  assert.equal(r.activite_key, 'comprehension')
+  assert.equal(r.activite_type_id, 7)
   assert.equal(r.sous_type, 'inférence')
   assert.equal(r.nb, 5)
 })
 
-test('typeParDefaut : pas de nb quand le type ne le demande pas', () => {
-  const activites = [{ key: 'fiche', sous_types: [], params: [] }]
+test('typeParDefaut : pas de nb quand le prompt du type ne le demande pas', () => {
+  const activites = [{ id: 5, label: 'Fiche', sous_types: [], besoins: [] }]
   assert.equal(typeParDefaut(activites).nb, null)
 })
 
-test('typeParDefaut : garde-fou liste vide / non-tableau → activite_key vide, pas de crash', () => {
-  assert.equal(typeParDefaut([]).activite_key, '')
-  assert.equal(typeParDefaut(undefined).activite_key, '')
-  assert.equal(typeParDefaut(null).activite_key, '')
+test('typeParDefaut : garde-fou liste vide / non-tableau → activite_type_id null, pas de crash', () => {
+  assert.equal(typeParDefaut([]).activite_type_id, null)
+  assert.equal(typeParDefaut(undefined).activite_type_id, null)
+  assert.equal(typeParDefaut(null).activite_type_id, null)
 })

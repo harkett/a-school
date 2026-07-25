@@ -2,9 +2,11 @@
 # aSchool — LE SYSTÈME (la boîte), identique de A à B.
 # Une seule commande : docker compose up --build   (ou : .\Scripts\systeme.ps1)
 #
-# Les DONNÉES restent DEHORS, dans le dossier du projet :
-#   ./docker/pgdata  = la base PostgreSQL (voyage avec le dossier quand tu le copies sur B)
-# Le PROJET reste DEHORS aussi : monté par volume (.:/app) — le code n'est pas enfermé.
+# Les DONNÉES de la base vivent dans le volume Docker nommé `pgdata_dev` (disque Linux
+# interne de Docker — fiable et rapide ; l'ancien montage du dossier Windows ./docker/pgdata
+# faisait crasher Postgres, migré le 24/07/2026). Pour emmener la base sur une autre machine :
+# une sauvegarde pg_dump (dossier db_backup/), restaurée là-bas — plus de copie de dossier.
+# Le PROJET reste DEHORS : monté par volume (.:/app) — le code n'est pas enfermé.
 # ============================================================
 services:
 
@@ -19,7 +21,7 @@ services:
     ports:
       - "5433:5432"          # même port que le natif, côté machine
     volumes:
-      - ./docker/pgdata:/var/lib/postgresql/data        # DONNÉES DEHORS (dans le dossier)
+      - pgdata_dev:/var/lib/postgresql/data             # DONNÉES dans le volume nommé (jamais sur le montage Windows — il faisait crasher Postgres)
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro  # extension vector à la 1re création
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aschool -d aschool_dev"]
@@ -102,3 +104,8 @@ services:
       - /app/frontend/node_modules   # node_modules propre à la boîte (jamais mélangé à l'hôte)
     depends_on:
       - backend
+
+# Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
+# survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.
+volumes:
+  pgdata_dev:
