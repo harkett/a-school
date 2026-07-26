@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
+import InfoGuide from './InfoGuide.jsx'
+import { aideProfil } from '../utils/aideProfil.js'
 
 const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
 
@@ -141,6 +143,15 @@ export default function MonProfil({ onNavigate }) {
   const matieresNiveau    = matieresDuNiveau(matieresParNiveau, form.niveau)
   const matieresAffichees = matieresNiveau ?? matieresParCycle.flatMap(g => g.matieres)
   const peutValider       = profilPretAValider(matieresParNiveau, form.niveau, form.subject)
+  // Brouillon (Règle 0) : Valider/Annuler ne s'activent QUE si le formulaire diffère de ce qui
+  // est enregistré (l'objet `user`). Rien touché = rien à valider ni à annuler → boutons grisés.
+  const modifie =
+    form.prenom    !== (user?.prenom    || '') ||
+    form.nom       !== (user?.nom       || '') ||
+    form.subject   !== (user?.subject   || '') ||
+    form.niveau    !== (user?.niveau    || '') ||
+    form.langue_lv !== (user?.langue_lv || '') ||
+    form.mobile    !== (user?.mobile    || '')
 
   function set(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -182,7 +193,7 @@ export default function MonProfil({ onNavigate }) {
         empilé (rien de tassé). */}
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
     <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480, flexShrink: 0 }}>
-      <div className="section-title mb-5">Mon profil</div>
+      <div className="section-title mb-5">Mon profil<InfoGuide {...aideProfil('profil')} /></div>
 
       {erreur && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">{erreur}</div>
@@ -292,7 +303,7 @@ export default function MonProfil({ onNavigate }) {
             title="Annuler les modifications et revenir à l'accueil"
             onClick={() => onNavigate('accueil')}
             className="btn-secondary"
-            disabled={saving}
+            disabled={saving || !modifie}
           >
             Annuler
           </button>
@@ -302,7 +313,7 @@ export default function MonProfil({ onNavigate }) {
               ? "Enregistrer le profil et revenir à l'accueil"
               : "Choisissez une matière correspondant à votre niveau pour pouvoir enregistrer"}
             className="btn-primary"
-            disabled={saving || !peutValider}
+            disabled={saving || !peutValider || !modifie}
           >
             {saving ? 'Enregistrement…' : 'Valider'}
           </button>
@@ -318,7 +329,7 @@ export default function MonProfil({ onNavigate }) {
         le NOM EXACT du document déposé + un bouton qui OUVRE LE PDF D'ORIGINE dans un nouvel
         onglet (visionneuse du navigateur), jamais dans l'appli. */}
     <section className="bg-white rounded border border-gray-200 p-6">
-      <div className="section-title mb-3">Programme officiel de votre niveau</div>
+      <div className="section-title mb-3">Programme officiel de votre niveau<InfoGuide {...aideProfil('programme')} /></div>
       {refOfficiel === null ? (
         <div className="text-sm text-gray-400">Chargement…</div>
       ) : refOfficiel.disponible ? (
@@ -350,7 +361,7 @@ export default function MonProfil({ onNavigate }) {
     {/* Mon cahier des charges — document interne à l'école/structure, déposé par le prof lui-même.
         Un seul PDF par prof (re-déposer remplace, avec confirmation). Le pourquoi et le texte : plus tard. */}
     <section className="bg-white rounded border border-gray-200 p-6">
-      <div className="section-title mb-3">Mon cahier des charges</div>
+      <div className="section-title mb-3">Mon cahier des charges<InfoGuide {...aideProfil('cahier')} /></div>
       {cahier === null ? (
         <div className="text-sm text-gray-400">Chargement…</div>
       ) : cahier.present ? (

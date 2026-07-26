@@ -1,5 +1,7 @@
 ﻿import { Document, Packer, Paragraph, TextRun } from 'docx'
 import EtapeBadge from './EtapeBadge.jsx'
+import InfoGuide from './InfoGuide.jsx'
+import { aideActivite } from '../utils/aideActivite.js'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -131,7 +133,10 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
           <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <EtapeBadge n={4} fait={!!resultat} />
-            Résultat généré
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+              Résultat généré
+              <InfoGuide {...aideActivite('resultat')} />
+            </span>
           </div>
           {/* Message + 2 boutons de retour arrière, sur la MÊME ligne que « Résultat généré ».
               Affichés seulement quand le résultat est TERMINÉ (!loading) et pas encore validé. */}

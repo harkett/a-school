@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from 'react'
 import EtapeBadge from './EtapeBadge.jsx'
+import InfoGuide from './InfoGuide.jsx'
+import { aideActivite } from '../utils/aideActivite.js'
 
 const IconGenerer = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -37,7 +39,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
       <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <EtapeBadge n={1} fait={!!params.activite_type_id} />
-          Paramètres de l'activité
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            Paramètres de l'activité
+            <InfoGuide {...aideActivite('parametres')} />
+          </span>
         </div>
         {!replie && (
           <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
@@ -102,19 +107,19 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             className="mt-0.5"
           />
           <div>
-            <label htmlFor="avec-correction" className="text-sm text-gray-700 cursor-pointer font-medium">
-              Inclure une proposition de correction
-            </label>
-            <p className="text-xs text-gray-400 mt-0.5">
-              aSchool génère une réponse-type après chaque question, que le professeur adapte à sa classe.
-            </p>
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <label htmlFor="avec-correction" className="text-sm text-gray-700 cursor-pointer font-medium">
+                Inclure une proposition de correction
+              </label>
+              <InfoGuide {...aideActivite('correction')} />
+            </span>
           </div>
         </div>
 
         {/* Précision SOUS le Type d'activité (2e rang de la grille) */}
         {activite?.sous_types.length > 0 && (
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Précision</label>
+            <label className="block text-xs text-gray-500 mb-1">Précision<InfoGuide {...aideActivite('precision')} /></label>
             <select
               className="w-full border border-gray-300 rounded p-2 text-sm"
               value={params.sous_type || ''}

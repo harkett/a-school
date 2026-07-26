@@ -2,12 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { formatTime, computeBarLevels } from '../utils/audioViz.js'
-import { GUIDE_CREER } from '../utils/aideCreer.js'
+import InfoGuide from './InfoGuide.jsx'
+import { aideActivite } from '../utils/aideActivite.js'
 import EtapeBadge from './EtapeBadge.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
-
-// La phrase des 6 boutons, lue au catalogue unique — jamais réécrite ici.
-const PHRASE_BOUTONS = GUIDE_CREER.find(e => e.cle === 'boutons')?.phrase || ''
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume
 
@@ -435,20 +433,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         {/* Étape ② du stepper — le numéro passe en ✓ vert dès que du texte est saisi. */}
         <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <EtapeBadge n={2} fait={!!texte.trim()} />
-          Texte source
-        </div>
-        {/* L'espace après le titre explique le CHOIX — la phrase vient du CATALOGUE unique
-            (utils/aideCreer.js, entrée « boutons ») : la bulle de la visite guidée, la
-            fenêtre « Comment ça marche », la fiche d'aide et cette ligne disent le même texte.
-            Masqué quand la carte est repliée (phase résultat). */}
-        {!replie && (
-          <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            {PHRASE_BOUTONS}
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            Texte source
+            <InfoGuide {...aideActivite('texte_source')} />
           </span>
-        )}
+        </div>
         {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport
             sont grisés et inertes d'un coup. « Changer votre demande » lève le verrou.
             Masqués quand la carte est repliée (phase résultat). */}
@@ -670,6 +659,9 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       )}
 
       {/* Jauge IA — même patron que côté admin : montée UNIQUEMENT pendant l'appel IA. */}
+      {exempleLoading && (
+        <JaugeAttente libelle="aSchool prépare un document d'exemple tiré du programme officiel de votre niveau…" />
+      )}
       {ideeLoading && (
         <JaugeAttente libelle="aSchool lit le programme officiel de votre niveau et prépare une idée…" />
       )}
