@@ -1,4 +1,5 @@
 import threading
+import time
 from contextlib import contextmanager
 
 from backend.config import AI_PROVIDER, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
@@ -43,6 +44,17 @@ def _llm_slot():
         release_llm_slot()
 
 
+def _retry_wait(retry_after_raw, wait_max: int) -> float:
+    """Délai (secondes) avant une re-tentative sur 429 : on RESPECTE le `Retry-After` renvoyé par le
+    fournisseur, mais PLAFONNÉ à `wait_max` (réglage admin en base) — un prof n'attend jamais plus.
+    En-tête absent ou illisible -> on attend le plafond (l'hypothèse la plus prudente)."""
+    try:
+        wait = float(retry_after_raw)
+    except (TypeError, ValueError):
+        wait = float(wait_max)
+    return max(0.0, min(wait, float(wait_max)))
+
+
 def generate(
     prompt: str,
     *,
@@ -53,6 +65,8 @@ def generate(
     temperature: float | None = None,
     json_mode: bool = False,
     schema: dict | None = None,
+    retry_max: int = 0,
+    retry_wait_max: int = 10,
 ) -> str:
     """Point d'entrée UNIQUE pour tout appel LLM texte.
 
@@ -70,13 +84,18 @@ def generate(
     `provider` / `model` : résolvés par l'appelant (côté backend, lus en base à chaud).
     `None` ⇒ repli sur AI_PROVIDER / AI_MODEL (config/.env) — rétro-compatible. generate()
     reste pur : il ne lit aucune base, il reçoit les chaînes déjà résolues.
+
+    `retry_max` / `retry_wait_max` : résilience 429 (réglages admin lus en base par l'appelant,
+    passés ici — le moteur reste pur). Sur une limite de débit fournisseur, on re-tente au lieu
+    d'abandonner. Défaut retry_max=0 ⇒ aucun retry (comportement historique). Anthropic re-tente
+    déjà côté SDK ⇒ on ne branche le retry manuel que sur Groq.
     """
     fournisseur = provider or AI_PROVIDER
     if fournisseur not in ("groq", "anthropic"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     with _llm_slot():
         if fournisseur == "groq":
-            return _groq(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
+            return _groq(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, retry_max=retry_max, retry_wait_max=retry_wait_max)
         else:  # anthropic
             return _anthropic(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
 
@@ -90,6 +109,8 @@ def _groq(
     temperature: float | None = None,
     json_mode: bool = False,
     schema: dict | None = None,
+    retry_max: int = 0,
+    retry_wait_max: int = 10,
 ) -> str:
     import requests
     if not cle:
@@ -115,7 +136,14 @@ def _groq(
         }
     elif json_mode:
         body["response_format"] = {"type": "json_object"}
-    response = requests.post(url, headers=headers, json=body, timeout=60)
+    # Résilience 429 : sur une limite de débit fournisseur, on RE-TENTE (jusqu'à retry_max fois) en
+    # respectant le délai `Retry-After` plafonné à retry_wait_max. retry_max=0 -> comportement d'avant.
+    for tentative in range(retry_max + 1):
+        response = requests.post(url, headers=headers, json=body, timeout=60)
+        if response.status_code == 429 and tentative < retry_max:
+            time.sleep(_retry_wait(response.headers.get("Retry-After"), retry_wait_max))
+            continue
+        break
     if response.status_code == 429:
         raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
     if not response.ok:
@@ -245,13 +273,18 @@ def generate_stream(
     max_tokens: int = 2048,
     temperature: float | None = None,
     read_timeout: float = 30.0,
+    retry_max: int = 0,
+    retry_wait_max: int = 10,
 ):
     """Itérateur de morceaux de texte (deltas), au fil de l'écriture par le modèle. Même résolution
     fournisseur/modèle que generate() (chaînes déjà résolues par l'appelant). NE prend PAS le créneau
-    LLM (cf. en-tête). Lève LLMRateLimitError (429 fournisseur) ou RuntimeError (autre échec)."""
+    LLM (cf. en-tête). Lève LLMRateLimitError (429 fournisseur) ou RuntimeError (autre échec).
+
+    `retry_max` / `retry_wait_max` : résilience 429 (réglages admin en base, passés par l'appelant).
+    Le retry n'agit qu'à l'OUVERTURE du flux, avant le 1er mot. Anthropic re-tente déjà côté SDK."""
     fournisseur = provider or AI_PROVIDER
     if fournisseur == "groq":
-        yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, read_timeout=read_timeout)
+        yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max)
     elif fournisseur == "anthropic":
         yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, read_timeout=read_timeout)
     else:
@@ -290,7 +323,7 @@ def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, read_timeout=
         raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
 
 
-def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, read_timeout=30.0):
+def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, read_timeout=30.0, retry_max=0, retry_wait_max=10):
     import json
     import requests
     if not cle:
@@ -306,7 +339,18 @@ def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, 
     if temperature is not None:
         body["temperature"] = temperature
     # (connect, read) : read = silence toléré entre deux morceaux (se réarme à chaque morceau reçu).
-    with requests.post(url, headers=headers, json=body, stream=True, timeout=(10, read_timeout)) as response:
+    # Résilience 429 : la limite de débit arrive dans les EN-TÊTES (avant le 1er mot) -> on peut
+    # RE-TENTER proprement l'ouverture du flux (jusqu'à retry_max fois) tant qu'aucun texte n'est
+    # encore parti à l'écran. Une fois le flux commencé, on ne re-tente JAMAIS. retry_max=0 -> avant.
+    for tentative in range(retry_max + 1):
+        response = requests.post(url, headers=headers, json=body, stream=True, timeout=(10, read_timeout))
+        if response.status_code == 429 and tentative < retry_max:
+            attente = _retry_wait(response.headers.get("Retry-After"), retry_wait_max)
+            response.close()
+            time.sleep(attente)
+            continue
+        break
+    with response:
         if response.status_code == 429:
             raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
         if not response.ok:

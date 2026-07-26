@@ -105,6 +105,15 @@ SETTING_DEFAULTS = {
     # donc ce délai ne borne QUE les silences anormaux, jamais une génération qui progresse.
     # Réglage admin EN BASE (zéro délai en dur), lu à chaud via get_stream_silence_timeout(db).
     "stream_silence_timeout": "30",
+    # Résilience 429 (limite de débit fournisseur) : sur un 429, le back RE-TENTE tout seul au lieu
+    # d'abandonner (le prof ne voit rien). Deux réglages EN BASE (zéro dur), lus à chaud via
+    # get_retry_max / get_retry_wait_max, passés ensuite au moteur LLM (qui reste pur) :
+    #   - ai_retry_max      = nb de re-tentatives sur 429 (0 = aucune). Défaut 2 -> jusqu'à 3 essais.
+    #   - ai_retry_wait_max = plafond d'attente PAR tentative (secondes). On respecte le délai
+    #     `Retry-After` renvoyé par le fournisseur, mais JAMAIS au-delà de ce plafond -> le prof
+    #     n'attend jamais trop longtemps une re-tentative.
+    "ai_retry_max": "2",
+    "ai_retry_wait_max": "10",
 }
 
 
@@ -258,6 +267,38 @@ def get_stream_silence_timeout(db: Session) -> int:
     except (TypeError, ValueError):
         return int(SETTING_DEFAULTS["stream_silence_timeout"])
     return max(STREAM_SILENCE_MIN, min(STREAM_SILENCE_MAX, v))
+
+
+# Bornes de la résilience 429 (retry). retry_max borné pour ne jamais boucler à l'infini ;
+# wait_max borné pour ne jamais laisser un prof attendre trop longtemps une re-tentative.
+RETRY_MAX_MIN = 0
+RETRY_MAX_MAX = 5
+RETRY_WAIT_MIN = 1
+RETRY_WAIT_MAX = 60
+
+
+def get_retry_max(db: Session) -> int:
+    """Nombre de re-tentatives sur un 429 fournisseur, lu en base au moment de l'appel (rechargeable
+    à chaud, même motif que get_stream_silence_timeout). Renvoie un int borné [MIN, MAX] ; valeur
+    corrompue / hors bornes -> défaut code (jamais d'exception)."""
+    raw = get_settings_dict(db)["ai_retry_max"]
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return int(SETTING_DEFAULTS["ai_retry_max"])
+    return max(RETRY_MAX_MIN, min(RETRY_MAX_MAX, v))
+
+
+def get_retry_wait_max(db: Session) -> int:
+    """Plafond d'attente (secondes) PAR re-tentative sur un 429, lu en base au moment de l'appel.
+    Le back attend min(Retry-After fournisseur, ce plafond). Renvoie un int borné [MIN, MAX] ;
+    valeur corrompue / hors bornes -> défaut code (jamais d'exception)."""
+    raw = get_settings_dict(db)["ai_retry_wait_max"]
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return int(SETTING_DEFAULTS["ai_retry_wait_max"])
+    return max(RETRY_WAIT_MIN, min(RETRY_WAIT_MAX, v))
 
 
 def get_max_tokens(db: Session, outil: str) -> int:
@@ -1019,6 +1060,60 @@ def save_stream_timeout(body: StreamTimeoutBody, request: Request, db: Session =
         target_email=None,
         ip=request.client.host if request.client else None,
         details=f"Coupure de silence du flux mise à jour : {body.timeout} s",
+    )
+    return {"status": "ok"}
+
+
+class RetryBody(BaseModel):
+    retry_max: int
+    retry_wait_max: int
+
+
+@router.get("/admin/retry")
+def get_retry_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Résilience 429 courante (nb de re-tentatives + plafond d'attente par tentative) + bornes —
+    alimente le formulaire admin et sa validation. Même moule que GET /admin/stream-timeout."""
+    return {
+        "retry_max": get_retry_max(db),
+        "retry_wait_max": get_retry_wait_max(db),
+        "bounds": {
+            "retry_max": {"min": RETRY_MAX_MIN, "max": RETRY_MAX_MAX},
+            "retry_wait_max": {"min": RETRY_WAIT_MIN, "max": RETRY_WAIT_MAX},
+        },
+    }
+
+
+@router.put("/admin/retry")
+def save_retry(body: RetryBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit la résilience 429 (nb de re-tentatives + plafond d'attente par tentative, en secondes).
+    Endpoint DÉDIÉ. Validation stricte : deux entiers dans leurs bornes, sinon 400 + message humain
+    pour la modale admin, rien n'est écrit."""
+    if not (RETRY_MAX_MIN <= body.retry_max <= RETRY_MAX_MAX):
+        raise HTTPException(
+            400,
+            f"Nombre de re-tentatives hors limites : {body.retry_max}. Il doit être un nombre entier "
+            f"entre {RETRY_MAX_MIN} et {RETRY_MAX_MAX} (0 = aucune re-tentative).",
+        )
+    if not (RETRY_WAIT_MIN <= body.retry_wait_max <= RETRY_WAIT_MAX):
+        raise HTTPException(
+            400,
+            f"Plafond d'attente hors limites : {body.retry_wait_max}. Il doit être un nombre entier "
+            f"de secondes entre {RETRY_WAIT_MIN} et {RETRY_WAIT_MAX}.",
+        )
+    for key, val in (("ai_retry_max", body.retry_max), ("ai_retry_wait_max", body.retry_wait_max)):
+        row = db.query(Setting).filter(Setting.key == key).first()
+        if row:
+            row.value = str(val)
+        else:
+            db.add(Setting(key=key, value=str(val)))
+    db.commit()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="UPDATE_RETRY",
+        target_email=None,
+        ip=request.client.host if request.client else None,
+        details=f"Résilience 429 mise à jour : {body.retry_max} re-tentative(s), plafond {body.retry_wait_max} s",
     )
     return {"status": "ok"}
 

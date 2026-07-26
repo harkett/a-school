@@ -27,7 +27,7 @@ from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_pr
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
-    get_stream_silence_timeout, get_prompt,
+    get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
 )
 
 router = APIRouter()
@@ -260,7 +260,8 @@ def api_proposer_idee(
     prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
-                         max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db))
+                         max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
     except LLMRateLimitError as e:
         log.warning("[proposer-idee] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -373,6 +374,8 @@ def api_generate(
     max_toks = get_max_tokens(db, "activite")
     temp = get_temperature(db)
     silence = get_stream_silence_timeout(db)
+    retry_max = get_retry_max(db)
+    retry_wait_max = get_retry_wait_max(db)
 
     # 7. Créneau LLM pris AVANT le flux : si saturation, message MÉTIER « service très demandé »
     # renvoyé en 429 pré-flux (jamais après le début du flux, où le statut 200 est déjà parti).
@@ -393,6 +396,7 @@ def api_generate(
             for morceau in generate_stream(
                 prompt, cle=cle, provider=provider, model=model,
                 max_tokens=max_toks, temperature=temp, read_timeout=silence,
+                retry_max=retry_max, retry_wait_max=retry_wait_max,
             ):
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"

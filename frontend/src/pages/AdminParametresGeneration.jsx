@@ -1,6 +1,29 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import InfoGuide from '../components/InfoGuide'
+
+// Aide « i » des réglages — même principe que les bulles du profil (survol = court, clic = fiche
+// complète épinglée). Copie d'écran centralisée ici, hors du JSX : ce n'est pas une donnée métier,
+// donc elle vit dans le code (comme utils/aideProfil.js), jamais en base (RÈGLE 25).
+const AIDE = {
+  stream: {
+    titre: 'Coupure du flux',
+    court: 'Temps maximal sans nouveau texte avant d’interrompre une génération jugée bloquée.',
+    long:
+      'Ce paramètre correspond au temps maximal sans nouveau token avant que la génération soit ' +
+      'considérée comme bloquée, et donc interrompue. Dès qu’un nouveau morceau de texte arrive, ' +
+      'le compteur repart à zéro : une génération lente mais régulière n’est jamais coupée.\n\n' +
+      '🎯 Valeur conseillée\n' +
+      '• 30 s : la plus sûre dans 99 % des cas.\n' +
+      '• 60 s : si tu fais souvent des générations longues ou complexes.\n' +
+      '• > 120 s : seulement pour des modèles très lents ou des environnements saturés.\n\n' +
+      '📌 Pourquoi 30 s est le meilleur compromis\n' +
+      '• En dessous de 10–15 s, tu risques de couper des générations normales qui ont juste un petit délai interne.\n' +
+      '• Au-dessus de 60–90 s, tu ne gagnes rien : tu attends inutilement quand un blocage réel survient.\n' +
+      '• 30 s détecte vite les vraies interruptions tout en laissant respirer les modèles.',
+  },
+}
 
 export default function AdminParametresGeneration() {
   const [onglet, setOnglet] = useState('modele')
@@ -34,6 +57,14 @@ export default function AdminParametresGeneration() {
   const [streamBounds, setStreamBounds]   = useState({ min: 5, max: 300 })
   const [savingStream, setSavingStream]   = useState(false)
   const [messageStream, setMessageStream] = useState(null)
+
+  // Résilience — re-tentatives automatiques quand le service d'IA est momentanément saturé (réponse
+  // « trop de demandes »). Deux réglages admin en base : nb d'essais + plafond d'attente par essai.
+  const [retryMax, setRetryMax]         = useState('')
+  const [retryWaitMax, setRetryWaitMax] = useState('')
+  const [retryBounds, setRetryBounds]   = useState({ retry_max: { min: 0, max: 5 }, retry_wait_max: { min: 1, max: 60 } })
+  const [savingRetry, setSavingRetry]   = useState(false)
+  const [messageRetry, setMessageRetry] = useState(null)
 
   // Prompts des outils (administrables en base). Liste depuis le backend ; un éditeur par prompt.
   const [prompts, setPrompts] = useState([])      // [{ key, label, placeholders, current, default, is_default }]
@@ -90,6 +121,15 @@ export default function AdminParametresGeneration() {
       })
       .catch(() => {})
 
+    fetch('/api/admin/retry', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        setRetryMax(String(data.retry_max ?? ''))
+        setRetryWaitMax(String(data.retry_wait_max ?? ''))
+        if (data.bounds) setRetryBounds(data.bounds)
+      })
+      .catch(() => {})
+
     loadPrompts()
   }, [])
 
@@ -105,7 +145,7 @@ export default function AdminParametresGeneration() {
       const actif = list.find(p => p.key === cle)
       setPromptKey(cle)
       setPromptText(actif ? actif.current : '')
-    } catch {}
+    } catch { /* chargement best-effort : en cas d'échec réseau, on laisse la liste en l'état */ }
   }
 
   // Fournisseur & modèle groupés : le modèle DÉPEND du fournisseur (l'endpoint filtre les
@@ -267,6 +307,45 @@ export default function AdminParametresGeneration() {
     }
   }
 
+  // Résilience : deux entiers dans leurs bornes. retry_max = 0 est VALIDE (aucune re-tentative).
+  const retryMaxInvalide = v => {
+    const n = Number(v)
+    return v === '' || !Number.isInteger(n) || n < retryBounds.retry_max.min || n > retryBounds.retry_max.max
+  }
+  const retryWaitInvalide = v => {
+    const n = Number(v)
+    return v === '' || !Number.isInteger(n) || n < retryBounds.retry_wait_max.min || n > retryBounds.retry_wait_max.max
+  }
+  const retryInvalide = retryMaxInvalide(retryMax) || retryWaitInvalide(retryWaitMax)
+
+  async function saveRetry() {
+    if (retryInvalide) {
+      showError(
+        `Le nombre de re-tentatives doit être un entier entre ${retryBounds.retry_max.min} et ${retryBounds.retry_max.max} ` +
+        `(0 = aucune), et l'attente maximale un entier de secondes entre ${retryBounds.retry_wait_max.min} et ${retryBounds.retry_wait_max.max}. ` +
+        `Corrigez les champs en rouge avant d'enregistrer.`
+      )
+      return
+    }
+    setSavingRetry(true)
+    setMessageRetry(null)
+    try {
+      const res = await fetchWithTimeout('/api/admin/retry', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ retry_max: Number(retryMax), retry_wait_max: Number(retryWaitMax) }),
+      }, TIMEOUT_STD)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) setMessageRetry({ type: 'ok', text: 'Résilience enregistrée.' })
+      else showError(data.detail || 'Erreur lors de l\'enregistrement de la résilience.')
+    } catch {
+      showError('Erreur réseau — vérifiez que le backend tourne.')
+    } finally {
+      setSavingRetry(false)
+    }
+  }
+
   // Prompt sélectionné + repères obligatoires manquants (miroir du garde-fou backend).
   // Un repère absent = injection cassée (matière/niveau/contenu non insérés) -> on refuse.
   const promptActif = prompts.find(p => p.key === promptKey)
@@ -384,6 +463,7 @@ export default function AdminParametresGeneration() {
               ['tokens', 'Longueur (tokens)'],
               ['temperature', 'Température'],
               ['stream', 'Coupure du flux'],
+              ['retry', 'Résilience'],
               ['prompts', 'Prompts'],
             ].map(([key, label]) => {
               const active = onglet === key
@@ -607,6 +687,7 @@ export default function AdminParametresGeneration() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Coupure de silence (secondes)
+              <InfoGuide titre={AIDE.stream.titre} court={AIDE.stream.court} long={AIDE.stream.long} />
             </label>
             <input
               type="number"
@@ -643,6 +724,80 @@ export default function AdminParametresGeneration() {
                 borderRadius: 8, padding: '10px 14px', fontSize: 13,
               }}>
                 {messageStream.text}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Onglet Résilience — re-tentatives automatiques quand le service d'IA répond « trop de
+          demandes » (saturation momentanée). Le prof ne voit rien : le back attend le délai conseillé
+          (plafonné) et ré-essaie. Hors bornes -> bord rouge + modale bloquante + bouton désactivé. */}
+      {onglet === 'retry' && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
+          <p className="text-xs text-gray-500">
+            Quand le service d'IA est momentanément saturé et répond « trop de demandes », le moteur
+            ré-essaie tout seul au lieu d'abandonner — l'enseignant ne voit rien. Il respecte le délai
+            conseillé par le service, sans jamais dépasser le plafond ci-dessous.
+            Pris en compte immédiatement, sans redémarrage.
+          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Nombre de re-tentatives
+            </label>
+            <input
+              type="number"
+              min={retryBounds.retry_max.min}
+              max={retryBounds.retry_max.max}
+              value={retryMax}
+              onChange={e => setRetryMax(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+              style={{ borderColor: retryMaxInvalide(retryMax) ? '#dc2626' : '#d1d5db' }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Défaut 2. Mettre 0 désactive les re-tentatives (abandon au premier refus du service).
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Attente maximale par tentative (secondes)
+            </label>
+            <input
+              type="number"
+              min={retryBounds.retry_wait_max.min}
+              max={retryBounds.retry_wait_max.max}
+              value={retryWaitMax}
+              onChange={e => setRetryWaitMax(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+              style={{ borderColor: retryWaitInvalide(retryWaitMax) ? '#dc2626' : '#d1d5db' }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Défaut 10 s. Plafonne l'attente : si le service demande davantage, on n'attend jamais
+              au-delà de cette valeur, pour ne pas faire patienter l'enseignant trop longtemps.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-1">
+            <button
+              onClick={saveRetry}
+              disabled={savingRetry || retryInvalide}
+              title="Enregistrer la résilience"
+              style={{
+                background: '#1F6EEB', color: 'white', border: 'none',
+                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                alignSelf: 'flex-start',
+                cursor: (savingRetry || retryInvalide) ? 'not-allowed' : 'pointer',
+                opacity: (savingRetry || retryInvalide) ? 0.6 : 1,
+              }}
+            >
+              {savingRetry ? 'Enregistrement…' : 'Enregistrer la résilience'}
+            </button>
+            {messageRetry && (
+              <div style={{
+                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+              }}>
+                {messageRetry.text}
               </div>
             )}
           </div>
