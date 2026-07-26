@@ -126,6 +126,7 @@ function MainApp() {
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
   const [entreeDeverrouillee, setEntreeDeverrouillee] = useState(false)  // « Changer votre demande » : rouvre la saisie (sinon verrouillée dès qu'un résultat est là)
   const [erreur, setErreur] = useState(null)
+  const [cahierPresent, setCahierPresent] = useState(false)   // le prof a-t-il déposé un cahier des charges ? (get, zéro copie) — adapte les bulles d'aide de Créer
   // Couple de TRAVAIL — LU du get /auth/me, résolu EN BASE par le serveur (couple de travail
   // s'il est posé, sinon profil). Plus AUCUN état local : l'écran est une fenêtre sur la base
   // (décision du 25/07) — un F5 ou un autre appareil montrent exactement la même vérité.
@@ -311,6 +312,18 @@ function MainApp() {
       })
       .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere, params.niveau])
+
+  // Cahier des charges du prof déposé ? get de l'état (même endpoint que MonProfil) — sert à
+  // ADAPTER les bulles d'aide « i » de l'écran Créer (Texte source, Résultat) quand un cahier
+  // existe. Zéro copie : lu à l'affichage, jamais stocké. Relu quand l'utilisateur change (login,
+  // refreshUser après un dépôt), donc la bulle reste juste.
+  useEffect(() => {
+    if (!user) return
+    apiFetch('/api/user/cahier', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setCahierPresent(!!(d && d.present)))
+      .catch(() => setCahierPresent(false))
+  }, [user])
 
   function isTexteGibberish(t) {
     const words = t.trim().split(/\s+/).filter(w => w.length > 2)
@@ -1048,7 +1061,7 @@ function MainApp() {
                   <div data-guide="texte" ref={texteSourceRef}>
                     {/* Verrouillée dès qu'une génération est lancée ou qu'un résultat est là (mode
                         « Régénérer tel quel ») ; « Changer votre demande » la rouvre (entreeDeverrouillee). */}
-                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} />
+                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} cahierPresent={cahierPresent} />
                   </div>
                 )}
                 {/* Étape 3/4 — Résultat : la jauge pendant la génération, puis l'activité générée.
@@ -1065,6 +1078,7 @@ function MainApp() {
                     onRegenerer={regenerer}
                     onChangerDemande={changerDemande}
                     onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
+                    cahierPresent={cahierPresent}
                   />
                 </div>
               </div>

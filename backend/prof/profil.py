@@ -253,6 +253,15 @@ def _cahier_du_profil(db: Session, user: User) -> CahierProf | None:
     return db.query(CahierProf).filter(CahierProf.user_id == user.id).first()
 
 
+def texte_cahier_du_profil(db: Session, user: User) -> str:
+    """Le TEXTE de travail du cahier des charges du prof (cahiers_prof.texte_epure), lu EN BASE
+    au moment de générer (get, zéro copie). Chaîne VIDE s'il n'a pas déposé de cahier (ou texte
+    non exploitable) : la génération se fait alors sans cahier, à l'identique. Lu par la génération
+    (et, plus tard, exemple / idée) pour appliquer les règles de l'école par-dessus le programme."""
+    cahier = _cahier_du_profil(db, user)
+    return (cahier.texte_epure or "").strip() if cahier else ""
+
+
 def _cahier_pdf_path(user: User) -> Path:
     return UPLOADS_CAHIERS_DIR / str(user.id) / "cahier.pdf"
 
@@ -293,11 +302,19 @@ async def deposer_mon_cahier(file: UploadFile = File(...), aschool_access: str =
     dossier = _cahier_pdf_path(user).parent
     dossier.mkdir(parents=True, exist_ok=True)
     _cahier_pdf_path(user).write_bytes(content)
+    # LE texte de travail du cahier : extrait UNE fois ici (porte unique rag.extraction, comme le
+    # référentiel officiel) et figé en base — c'est LUI que la génération lira (get, zéro copie).
+    try:
+        from backend.rag.extraction import extraire_texte   # import paresseux (pdfplumber)
+        texte_epure = extraire_texte(_cahier_pdf_path(user))
+    except Exception:
+        raise HTTPException(400, "Impossible de lire le contenu de ce PDF — merci d'en déposer un autre.")
     cahier = _cahier_du_profil(db, user)
     if cahier is None:
-        db.add(CahierProf(user_id=user.id, fichier=nom))   # CREATE (aucun cahier encore)
+        db.add(CahierProf(user_id=user.id, fichier=nom, texte_epure=texte_epure))   # CREATE (aucun cahier encore)
     else:
         cahier.fichier = nom                               # UPDATE (re-dépôt = remplacement)
+        cahier.texte_epure = texte_epure                   # le NOUVEAU PDF impose SON texte de travail
     db.commit()
     return {"present": True, "fichier": nom}
 

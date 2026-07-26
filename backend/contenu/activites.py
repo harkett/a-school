@@ -21,9 +21,9 @@ from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerId
 from backend.core.models_db import (
     Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre, User,
 )
-from backend.prof.profil import couple_de_travail
+from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
-from backend.llm.prompts import build_proposer_idee_prompt
+from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_prompt
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k,
@@ -227,7 +227,7 @@ def api_proposer_idee(
     (lu en base, `referentiels.score_min`) → available:false + message honnête. On
     n'invente RIEN hors du programme. Le couple (matière + niveau) est LU EN BASE
     (couple de travail du prof) — l'écran ne l'envoie plus (décision du 25/07)."""
-    _user, _matiere, niveau = _prof_et_couple(db, aschool_access)
+    user, _matiere, niveau = _prof_et_couple(db, aschool_access)
 
     t = (db.query(ActiviteType)
            .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
@@ -255,6 +255,9 @@ def api_proposer_idee(
         return ProposerIdeeResponse(available=False, message=_AUCUN_EXTRAIT_POUR_IDEE)
 
     prompt = build_proposer_idee_prompt(chunks, type_label=t.label, precision=req.sous_type, niveau=niveau)
+    # Cahier des charges de l'établissement (get, zéro copie) ajouté par-dessus le programme officiel —
+    # même geste que générer. Pas de cahier → prompt inchangé.
+    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db))
@@ -349,7 +352,13 @@ def api_generate(
             raise  # placeholder inconnu = bug du prompt → 500, jamais masqué
         raise HTTPException(400, f"Indiquez {_USER_PARAMS[manquant]} pour cette activité.") from e
 
-    # 5 bis. Corrigé : case « Inclure une proposition de correction » cochée → la consigne du
+    # 5 bis. Cahier des charges de l'établissement : s'il en a déposé un, son texte de travail
+    # (cahiers_prof.texte_epure, get — zéro copie) est AJOUTÉ après le programme officiel — aSchool
+    # applique les règles de l'école PAR-DESSUS le programme. Pas de cahier (ou texte vide) → prompt
+    # inchangé (aucune régression). Même geste que « Document d'exemple » et « Propose-moi une idée ».
+    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+
+    # 5 ter. Corrigé : case « Inclure une proposition de correction » cochée → la consigne du
     # corrigé (registre des prompts admin, lue en base à l'appel) s'ajoute à la FIN du prompt
     # du couple — le corrigé sort dans le même document, sous l'activité. Décochée → rien.
     if req.avec_correction:

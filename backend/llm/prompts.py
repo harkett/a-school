@@ -1,3 +1,20 @@
+# En-tête du bloc « cahier des charges de l'établissement » ajouté à un prompt de génération quand
+# le prof en a déposé un : il place les règles de l'établissement PAR-DESSUS le programme officiel.
+_ENTETE_CAHIER = "Cahier des charges de l'établissement (à respecter par-dessus le programme officiel) :"
+
+
+def ajouter_cahier_au_prompt(prompt: str, cahier_txt: str) -> str:
+    """Ajoute le texte du cahier des charges du prof à la FIN d'un prompt de génération, sous un
+    intitulé clair — les règles de l'école s'appliquent PAR-DESSUS le programme officiel. Texte de
+    cahier VIDE (ou pas de cahier) → prompt renvoyé INCHANGÉ, génération strictement identique. UN
+    seul endroit pour ce geste : générer, « Document d'exemple » et « Propose-moi une idée » l'appellent
+    tous. Concaténation (pas de .format) : le cahier est une VALEUR, ses accolades ne sont jamais parsées."""
+    cahier_txt = (cahier_txt or "").strip()
+    if not cahier_txt:
+        return prompt
+    return prompt + "\n\n" + _ENTETE_CAHIER + "\n" + cahier_txt
+
+
 def build_exemple_referentiel_prompt(chunks: list[dict], matiere: str, niveau: str) -> str:
     """Prompt — génère un TEXTE SOURCE ancré sur le référentiel officiel du couple
     matière+niveau, destiné à servir de point de départ d'activité (PAS une liste de

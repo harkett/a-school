@@ -28,16 +28,33 @@ export const GUIDE_ACTIVITE = [
     titre: 'Texte source',
     court: "Le contenu à partir duquel aSchool génère l'activité.",
     long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. La pastille de l'étape passe au vert dès qu'il y a du texte.",
+    // Variante affichée quand ce prof a déposé un cahier des charges : le document d'exemple et
+    // l'idée proposée s'appuient alors aussi dessus (boutons de cette étape). Textes honnêtes.
+    cahier: {
+      court: "La matière première de l'activité — le document d'exemple et l'idée suivent aussi votre cahier des charges.",
+      long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. Le document d'exemple et l'idée proposée s'appuient alors, en plus du programme officiel, sur le cahier des charges de votre établissement (déposé dans votre profil). La pastille de l'étape passe au vert dès qu'il y a du texte.",
+    },
   },
   {
     cle: 'resultat',
     titre: 'Résultat généré',
     court: "L'activité produite par aSchool, prête à récupérer.",
     long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte. Vous pouvez la télécharger (TXT, Word, PDF), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Régénérer » en produit une autre version, « Changer votre demande » rouvre votre texte pour l'ajuster.",
+    // Variante affichée quand ce prof a déposé un cahier des charges : la génération s'appuie
+    // alors sur le programme officiel ET sur son cahier. Texte honnête (règle des deux publics).
+    cahier: {
+      court: "L'activité produite par aSchool à partir du programme officiel et de votre cahier des charges.",
+      long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Régénérer » en produit une autre version, « Changer votre demande » rouvre votre texte pour l'ajuster.",
+    },
   },
 ]
 
-// Accès direct par clé (get) — utilisé par le « i » de chaque titre.
-export function aideActivite(cle) {
-  return GUIDE_ACTIVITE.find(e => e.cle === cle) || null
+// Accès direct par clé (get) — utilisé par le « i » de chaque titre. `opts.cahier` (booléen lu de
+// l'état du prof : a-t-il déposé un cahier des charges ?) sélectionne la variante « avec cahier »
+// quand l'entrée en propose une ; sinon on renvoie les textes de base. Une seule source, deux voix.
+export function aideActivite(cle, opts = {}) {
+  const e = GUIDE_ACTIVITE.find(x => x.cle === cle) || null
+  if (!e) return null
+  if (opts.cahier && e.cahier) return { ...e, court: e.cahier.court, long: e.cahier.long }
+  return e
 }

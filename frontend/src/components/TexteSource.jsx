@@ -55,7 +55,7 @@ const IconIdee = () => (
   </svg>
 )
 
-export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false }) {
+export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false, cahierPresent = false }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
   const [isReady, setIsReady] = useState(false)           // micro prêt après le bip "go"
@@ -435,7 +435,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           <EtapeBadge n={2} fait={!!texte.trim()} />
           <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             Texte source
-            <InfoGuide {...aideActivite('texte_source')} />
+            <InfoGuide {...aideActivite('texte_source', { cahier: cahierPresent })} />
           </span>
         </div>
         {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport

@@ -39,12 +39,17 @@ class CahierProf(Base):
     """Cahier des charges INTERNE d'un prof (PDF déposé par lui, propre à son école/structure).
     UN seul par prof pour l'instant (user_id unique) : re-déposer REMPLACE. Le PDF vit sur disque
     (data/uploads/cahiers/<user_id>/cahier.pdf) ; ici on garde le NOM d'origine (affiché au prof)
-    + la date. Le texte épuré viendra plus tard dans cette table (comme referentiels.texte_epure)."""
+    + la date + le TEXTE ÉPURÉ (le texte de travail lu par la génération)."""
     __tablename__ = "cahiers_prof"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     fichier: Mapped[str] = mapped_column(String(255), nullable=False)   # nom d'origine du PDF déposé (affiché au prof)
+    # Texte ÉPURÉ du cahier — LE texte de travail. Extrait UNE SEULE FOIS au dépôt (porte unique
+    # rag.extraction, comme referentiels.texte_epure) puis FIGÉ ici : la génération le LIT (get,
+    # zéro copie) pour appliquer les règles de l'école par-dessus le programme officiel. NULL =
+    # rien d'exploitable (ancien dépôt / PDF illisible) → la génération se fait sans cahier.
+    texte_epure: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

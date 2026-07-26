@@ -124,7 +124,7 @@ const IconSearch = () => (
   </svg>
 )
 
-export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, onAnalyserAmbiguites }) {
+export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, onAnalyserAmbiguites, cahierPresent = false }) {
   if (!resultat && !loading) return null
 
   return (
@@ -135,7 +135,7 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
             <EtapeBadge n={4} fait={!!resultat} />
             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
               Résultat généré
-              <InfoGuide {...aideActivite('resultat')} />
+              <InfoGuide {...aideActivite('resultat', { cahier: cahierPresent })} />
             </span>
           </div>
           {/* Message + 2 boutons de retour arrière, sur la MÊME ligne que « Résultat généré ».
