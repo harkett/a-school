@@ -311,6 +311,9 @@ def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, 
             raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
         if not response.ok:
             raise RuntimeError(f"Erreur {response.status_code}: {response.text}")
+        # Groq n'annonce pas de charset sur son flux SSE -> requests retombe sur ISO-8859-1 et
+        # decode_unicode=True rendrait les accents UTF-8 en mojibake (« é » -> « Ã© »). On force UTF-8.
+        response.encoding = "utf-8"
         finish_reason = None
         for line in response.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data: "):
