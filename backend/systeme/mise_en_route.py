@@ -15,19 +15,11 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.models_db import (
     Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk,
-    ReferentielActiviteType, EmailEnvoi, ActiviteSauvegardee,
+    ReferentielActiviteType, EmailEnvoi, ActiviteSauvegardee, AiFournisseur,
 )
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model
 
 router = APIRouter()
-
-# Nom de la variable d'environnement qui porte la clé TEXTE de chaque fournisseur
-# (cf. backend/llm/generator.py : _groq lit GROQ_API_KEY, _anthropic CLAUDE_API_KEY_TEXTE).
-# On lit la PRÉSENCE (os.getenv non vide), jamais la valeur.
-_CLE_ENV_FOURNISSEUR = {
-    "groq": "GROQ_API_KEY",
-    "anthropic": "CLAUDE_API_KEY_TEXTE",
-}
 
 
 @router.get("/admin/mise-en-route/etat", dependencies=[Depends(_require_admin)])
@@ -40,7 +32,10 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
     # 1 — Fournisseur + modèle IA + clé du fournisseur présente (préalable à toute analyse IA).
     provider = (get_ai_provider(db) or "").strip()
     model = (get_ai_model(db) or "").strip()
-    env_name = _CLE_ENV_FOURNISSEUR.get(provider)
+    # Nom de la variable d'env de la clé texte : lu EN BASE (ai_fournisseurs.cle_env, source
+    # unique), jamais en dur. On teste la PRÉSENCE (os.getenv non vide), jamais la valeur.
+    f = db.query(AiFournisseur).filter(AiFournisseur.code == provider).first()
+    env_name = f.cle_env if f else ""
     cle_presente = bool(env_name and os.getenv(env_name, "").strip())
     ia_ok = bool(provider and model and cle_presente)
 

@@ -94,16 +94,16 @@ def test_get_ai_provider_a_chaud_sans_redemarrage():
 def test_generate_route_selon_le_provider_passe():
     # provider="groq" explicite -> adaptateur Groq (tape l'URL Groq), meme si AI_PROVIDER differe.
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "anthropic"), patch.object(gen, "GROQ_API_KEY", "cle-test"), patch("requests.post", side_effect=_fake_groq_post(cap)):
-        gen.generate("bonjour", provider="groq")
+    with patch.object(gen, "AI_PROVIDER", "anthropic"), patch("requests.post", side_effect=_fake_groq_post(cap)):
+        gen.generate("bonjour", cle="cle-test", provider="groq")
     assert "api.groq.com" in cap["url"]
 
 
 def test_generate_repli_sur_AI_PROVIDER_si_provider_none():
     # provider=None -> retombe sur AI_PROVIDER (ici force a "groq") -> adaptateur Groq.
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), patch("requests.post", side_effect=_fake_groq_post(cap)):
-        gen.generate("bonjour")
+    with patch.object(gen, "AI_PROVIDER", "groq"), patch("requests.post", side_effect=_fake_groq_post(cap)):
+        gen.generate("bonjour", cle="cle-test")
     assert "api.groq.com" in cap["url"]
 
 
@@ -111,6 +111,6 @@ def test_generate_provider_inconnu_leve():
     # Un provider non gere remonte une erreur claire (jamais un appel silencieux).
     import pytest
     with pytest.raises(ValueError):
-        gen.generate("bonjour", provider="fournisseur-bidon")
+        gen.generate("bonjour", cle="x", provider="fournisseur-bidon")
 
 

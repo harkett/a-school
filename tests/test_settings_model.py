@@ -93,15 +93,15 @@ def test_get_ai_model_a_chaud_sans_redemarrage():
 
 def test_generate_emet_le_modele_passe():
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), \
+    with patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
-        gen.generate("bonjour", model="modele-passe-abc")
+        gen.generate("bonjour", cle="cle-test", model="modele-passe-abc")
     assert cap["body"]["model"] == "modele-passe-abc"
 
 
 def test_generate_repli_sur_AI_MODEL_si_model_none():
     cap = {}
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), \
+    with patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("requests.post", side_effect=_fake_groq_post(cap)):
-        gen.generate("bonjour")
+        gen.generate("bonjour", cle="cle-test")
     assert cap["body"]["model"] == AI_MODEL

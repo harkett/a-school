@@ -90,6 +90,13 @@ _CATALOGUES_SEED = {
         {"code": "traite", "label": "Traité", "modifiable": False, "ordre": 2},
         {"code": "archive", "label": "Archivé", "modifiable": False, "ordre": 3},
     ],
+    # Fournisseurs LLM : catalogue semé par MIGRATION en prod (ai_fournisseurs), donc à re-semer
+    # ici (create_all ne seed pas). cle_env = NOM de la variable d'env de la clé texte, lu en base
+    # par get_cle_texte ; la valeur du secret vient du .env chargé par ce conftest.
+    "ai_fournisseurs": [
+        {"code": "groq", "label": "Groq", "actif": True, "ordre": 1, "cle_env": "GROQ_API_KEY_TEXTE"},
+        {"code": "anthropic", "label": "Anthropic (Claude)", "actif": True, "ordre": 2, "cle_env": "CLAUDE_API_KEY_TEXTE"},
+    ],
 }
 
 
@@ -100,6 +107,14 @@ def _seed_catalogues():
                 text(
                     "INSERT INTO feedback_statuts (code, label, modifiable, ordre) "
                     "VALUES (:code, :label, :modifiable, :ordre) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+        for row in _CATALOGUES_SEED["ai_fournisseurs"]:
+            conn.execute(
+                text(
+                    "INSERT INTO ai_fournisseurs (code, label, actif, ordre, cle_env) "
+                    "VALUES (:code, :label, :actif, :ordre, :cle_env) ON CONFLICT (code) DO NOTHING"
                 ),
                 row,
             )

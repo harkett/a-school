@@ -21,7 +21,7 @@ import re
 from sqlalchemy.orm import Session
 
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_max_tokens, get_prompt, get_settings_dict,
+    get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_prompt, get_settings_dict,
 )
 from backend.llm.generator import generate
 
@@ -105,6 +105,7 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
     prompt = get_prompt(db, _CLE_PROMPT).format(unites=formater_unites(unites))
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_PROMPT),
@@ -162,6 +163,7 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
     prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
     prompt_genere = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
@@ -188,6 +190,7 @@ def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
     p = meta.replace("{prompt}", prompt_genere) if "{prompt}" in meta else f"{meta}\n\nPROMPT À VÉRIFIER :\n{prompt_genere}"
     return generate(
         p,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
@@ -217,6 +220,7 @@ def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, 
     )
     return generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
@@ -234,6 +238,7 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
     p = prompt.replace("{texte}", texte) if "{texte}" in prompt else f"{prompt}\n\nTEXTE BRUT :\n{texte}"
     raw = generate(
         p,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DECOUPE),
@@ -284,6 +289,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
               .replace("{texte}", texte))
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_COUPLE),
@@ -337,6 +343,7 @@ def detecter_matieres(texte: str, *, db: Session) -> list[str]:
               .replace("{texte}", texte))
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_MATIERES),
@@ -393,6 +400,7 @@ def detecter_couple(texte: str, *, db: Session) -> dict:
               .replace("{texte}", texte))
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DETECTER_COUPLE),
@@ -444,6 +452,7 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
               .replace("{texte}", texte))
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_TYPES_ACTIVITE),
@@ -490,6 +499,7 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
     )
     raw = generate(
         prompt,
+        cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=2000,   # marge large : 300 coupait la réponse (JSON tronqué → erreur → 0 précision)

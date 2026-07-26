@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
-from backend.systeme.admin import get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_prompt
+from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_prompt
 from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
@@ -83,7 +83,7 @@ def api_analyser_consigne(
     )
 
     try:
-        raw = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db))
+        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db))
         data = _parse_json(raw)
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne

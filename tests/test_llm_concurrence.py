@@ -48,10 +48,9 @@ def test_le_plafond_agit_sous_charge():
     resultats = []
 
     def _appel():
-        resultats.append(gen.generate("p", provider="groq"))
+        resultats.append(gen.generate("p", cle="cle-de-test-fictive", provider="groq"))
 
     with patch.object(gen, "AI_PROVIDER", "groq"), \
-         patch.object(gen, "GROQ_API_KEY", "cle-de-test-fictive"), \
          patch("requests.post", side_effect=_fake_groq_lent(concurrence, lock)):
         threads = [threading.Thread(target=_appel) for _ in range(8)]
         for t in threads:
@@ -72,7 +71,7 @@ def test_creneau_indisponible_erreur_honnete():
         with patch.object(gen, "AI_PROVIDER", "groq"), \
              patch("requests.post") as post:
             with pytest.raises(RuntimeError, match="simultan"):
-                gen.generate("p", provider="groq")
+                gen.generate("p", cle="x", provider="groq")
             post.assert_not_called()        # aucun appel réseau tenté faute de créneau
     finally:
         gen._llm_semaphore.release()

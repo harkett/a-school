@@ -1,7 +1,7 @@
 import threading
 from contextlib import contextmanager
 
-from backend.config import AI_PROVIDER, GROQ_API_KEY, CLAUDE_API_KEY_TEXTE, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+from backend.config import AI_PROVIDER, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
 
 
 class LLMRateLimitError(RuntimeError):
@@ -46,6 +46,7 @@ def _llm_slot():
 def generate(
     prompt: str,
     *,
+    cle: str,
     provider: str | None = None,
     model: str | None = None,
     max_tokens: int = 2048,
@@ -75,14 +76,15 @@ def generate(
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     with _llm_slot():
         if fournisseur == "groq":
-            return _groq(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
+            return _groq(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
         else:  # anthropic
-            return _anthropic(prompt, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
+            return _anthropic(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
 
 
 def _groq(
     prompt: str,
     *,
+    cle: str,
     model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
@@ -90,14 +92,11 @@ def _groq(
     schema: dict | None = None,
 ) -> str:
     import requests
-    if not GROQ_API_KEY:
-        raise RuntimeError(
-            "Texte Groq non configuré (aucune clé Groq-texte dans le .env). "
-            "Le texte passe par Anthropic — réglez le fournisseur sur « anthropic »."
-        )
+    if not cle:
+        raise RuntimeError("Clé API texte manquante (non résolue en base).")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {cle}",
         "Content-Type": "application/json",
     }
     body = {
@@ -172,6 +171,7 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_k
 def _anthropic(
     prompt: str,
     *,
+    cle: str,
     model: str | None = None,
     max_tokens: int = 2048,
     temperature: float | None = None,
@@ -202,9 +202,9 @@ def _anthropic(
         kwargs["system"] = "Réponds uniquement avec du JSON valide, sans aucun texte avant ni après."
     # timeout=60 s (secondes côté SDK Python) — voie propre du SDK, aligné sur les
     # autres branches LLM (requests timeout=60). Sans ça, le SDK attendrait 10 min.
-    if not CLAUDE_API_KEY_TEXTE:
-        raise RuntimeError("CLAUDE_API_KEY_TEXTE manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY_TEXTE, timeout=60)
+    if not cle:
+        raise RuntimeError("Clé API texte manquante (non résolue en base).")
+    client = anthropic.Anthropic(api_key=cle, timeout=60)
     try:
         message = client.messages.create(**kwargs)
     except anthropic.RateLimitError:
@@ -239,6 +239,7 @@ def _anthropic(
 def generate_stream(
     prompt: str,
     *,
+    cle: str,
     provider: str | None = None,
     model: str | None = None,
     max_tokens: int = 2048,
@@ -250,23 +251,23 @@ def generate_stream(
     LLM (cf. en-tête). Lève LLMRateLimitError (429 fournisseur) ou RuntimeError (autre échec)."""
     fournisseur = provider or AI_PROVIDER
     if fournisseur == "groq":
-        yield from _groq_stream(prompt, model=model, max_tokens=max_tokens, temperature=temperature, read_timeout=read_timeout)
+        yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, read_timeout=read_timeout)
     elif fournisseur == "anthropic":
-        yield from _anthropic_stream(prompt, model=model, max_tokens=max_tokens, read_timeout=read_timeout)
+        yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, read_timeout=read_timeout)
     else:
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")
 
 
-def _anthropic_stream(prompt, *, model=None, max_tokens=2048, read_timeout=30.0):
+def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, read_timeout=30.0):
     import anthropic
     import httpx
-    if not CLAUDE_API_KEY_TEXTE:
-        raise RuntimeError("CLAUDE_API_KEY_TEXTE manquant dans le .env — requis pour le fournisseur Anthropic (texte).")
+    if not cle:
+        raise RuntimeError("Clé API texte manquante (non résolue en base).")
     # temperature : volontairement IGNORÉE (les Claude Opus 4.x la rejettent), comme _anthropic.
     # timeout de LECTURE = coupure de silence (se réarme à chaque morceau) ; connect/write/pool =
     # petits garde-fous de connexion, indépendants de la durée de génération.
     client = anthropic.Anthropic(
-        api_key=CLAUDE_API_KEY_TEXTE,
+        api_key=cle,
         timeout=httpx.Timeout(read_timeout, connect=10.0, write=10.0, pool=10.0),
     )
     kwargs = {
@@ -289,16 +290,13 @@ def _anthropic_stream(prompt, *, model=None, max_tokens=2048, read_timeout=30.0)
         raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
 
 
-def _groq_stream(prompt, *, model=None, max_tokens=2048, temperature=None, read_timeout=30.0):
+def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, read_timeout=30.0):
     import json
     import requests
-    if not GROQ_API_KEY:
-        raise RuntimeError(
-            "Texte Groq non configuré (aucune clé Groq-texte dans le .env). "
-            "Le texte passe par Anthropic — réglez le fournisseur sur « anthropic »."
-        )
+    if not cle:
+        raise RuntimeError("Clé API texte manquante (non résolue en base).")
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {cle}", "Content-Type": "application/json"}
     body = {
         "model": model or AI_MODEL,
         "messages": [{"role": "user", "content": prompt}],

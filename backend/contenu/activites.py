@@ -26,7 +26,7 @@ from backend.llm.generator import generate, generate_stream, acquire_llm_slot, r
 from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_prompt
 from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_max_tokens, get_temperature, get_rag_top_k,
+    get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
     get_stream_silence_timeout, get_prompt,
 )
 
@@ -259,7 +259,7 @@ def api_proposer_idee(
     # même geste que générer. Pas de cahier → prompt inchangé.
     prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
     try:
-        texte = generate(prompt, provider=get_ai_provider(db), model=get_ai_model(db),
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db))
     except LLMRateLimitError as e:
         log.warning("[proposer-idee] service très demandé : %s", e)
@@ -369,6 +369,7 @@ def api_generate(
     # coupure de silence admin en base (zéro délai en dur).
     provider = get_ai_provider(db)
     model = get_ai_model(db)
+    cle = get_cle_texte(db)
     max_toks = get_max_tokens(db, "activite")
     temp = get_temperature(db)
     silence = get_stream_silence_timeout(db)
@@ -390,7 +391,7 @@ def api_generate(
         # piège à ne pas laisser passer.
         try:
             for morceau in generate_stream(
-                prompt, provider=provider, model=model,
+                prompt, cle=cle, provider=provider, model=model,
                 max_tokens=max_toks, temperature=temp, read_timeout=silence,
             ):
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"

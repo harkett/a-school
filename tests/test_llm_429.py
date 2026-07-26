@@ -63,7 +63,7 @@ def _client_prof():
 
 def test_ambiguites_429_amont():
     _reset_sem()
-    with patch.object(gen, "AI_PROVIDER", "groq"), patch.object(gen, "GROQ_API_KEY", "cle-test"), \
+    with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), \
          patch("requests.post", side_effect=_post_429):
         r = _client_prof().post("/api/detect-ambiguites", json={
             "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
@@ -79,7 +79,7 @@ def test_ambiguites_429_saturation():
     gen.AI_SLOT_TIMEOUT = 0.1
     gen._llm_semaphore.acquire()                        # on occupe le seul créneau
     try:
-        with patch.object(gen, "AI_PROVIDER", "groq"), patch("requests.post") as post:
+        with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), patch("requests.post") as post:
             r = _client_prof().post("/api/detect-ambiguites", json={
                 "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
             })

@@ -48,7 +48,7 @@ def _reset():
     db.add_all([
         AiFournisseur(code="anthropic", label="Anthropic (Claude)", actif=True, ordre=2,
                       cle_env="CLAUDE_API_KEY_TEXTE"),
-        AiFournisseur(code="groq", label="Groq", actif=True, ordre=1, cle_env="GROQ_API_KEY"),
+        AiFournisseur(code="groq", label="Groq", actif=True, ordre=1, cle_env="GROQ_API_KEY_TEXTE"),
     ])
     db.flush()                           # fournisseurs visibles avant les modèles (FK)
     db.add_all([

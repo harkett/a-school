@@ -52,18 +52,16 @@ def _client(content):
 def test_anthropic_thinking_puis_text_lit_le_texte():
     # [ThinkingBlock, TextBlock] : le bloc thinking (sans .text) est ignoré, le texte est lu.
     contenu = [_Bloc("thinking", thinking="je réfléchis"), _Bloc("text", text="LE TEXTE")]
-    with patch.object(gen, "CLAUDE_API_KEY_TEXTE", "cle-test"), \
-         patch("anthropic.Anthropic", return_value=_client(contenu)):
-        out = gen._anthropic("prompt")
+    with patch("anthropic.Anthropic", return_value=_client(contenu)):
+        out = gen._anthropic("prompt", cle="cle-test")
     assert out == "LE TEXTE"
 
 
 def test_anthropic_plusieurs_blocs_text_concatenes():
     # Deux blocs de texte -> concaténés dans l'ordre (jamais seulement le premier).
     contenu = [_Bloc("text", text="AB"), _Bloc("text", text="CD")]
-    with patch.object(gen, "CLAUDE_API_KEY_TEXTE", "cle-test"), \
-         patch("anthropic.Anthropic", return_value=_client(contenu)):
-        out = gen._anthropic("prompt")
+    with patch("anthropic.Anthropic", return_value=_client(contenu)):
+        out = gen._anthropic("prompt", cle="cle-test")
     assert out == "ABCD"
 
 
@@ -71,7 +69,6 @@ def test_anthropic_sans_bloc_text_leve_erreur_claire():
     # Réponse composée UNIQUEMENT d'un bloc thinking : aucun texte -> erreur explicite,
     # jamais une chaîne vide rendue en silence.
     contenu = [_Bloc("thinking", thinking="je réfléchis")]
-    with patch.object(gen, "CLAUDE_API_KEY_TEXTE", "cle-test"), \
-         patch("anthropic.Anthropic", return_value=_client(contenu)):
+    with patch("anthropic.Anthropic", return_value=_client(contenu)):
         with pytest.raises(RuntimeError, match="sans bloc de texte"):
-            gen._anthropic("prompt")
+            gen._anthropic("prompt", cle="cle-test")

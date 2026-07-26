@@ -196,6 +196,25 @@ def get_cle_api(db: Session, cle_setting: str) -> str:
     return cle
 
 
+def get_cle_texte(db: Session) -> str:
+    """Résout la clé API TEXTE du fournisseur ACTIF. Le NOM de sa variable d'environnement vit
+    EN BASE (ai_fournisseurs.cle_env), sa VALEUR (le secret) reste dans le .env — jamais en base.
+    On lit le fournisseur actif (get_ai_provider), puis SON cle_env en base, puis os.getenv(nom).
+    Zéro nom de variable en dur : la source unique est la ligne ai_fournisseurs. Erreurs CLAIRES
+    (jamais un vide silencieux). Même moule que get_cle_api (OCR/dictée) ; la clé descend ensuite
+    en paramètre dans generate(), qui reste pur (aucune connaissance de la base)."""
+    provider = get_ai_provider(db)
+    f = db.query(AiFournisseur).filter(AiFournisseur.code == provider).first()
+    if f is None:
+        raise HTTPException(500, f"Configuration manquante : fournisseur « {provider} » absent de la table ai_fournisseurs.")
+    if not f.cle_env:
+        raise HTTPException(500, f"Configuration manquante : « cle_env » vide pour « {provider} » (migration non appliquée ?).")
+    cle = os.getenv(f.cle_env, "")
+    if not cle:
+        raise HTTPException(500, f"Clé API absente du .env : la variable « {f.cle_env} » n'est pas définie.")
+    return cle
+
+
 # Bornes de top_k (nb de chunks ramenés par le RAG). MIN 1 (au moins un extrait) ;
 # MAX = garde-fou coût/pertinence.
 RAG_TOP_K_MIN = 1
