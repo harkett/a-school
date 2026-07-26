@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, User
+from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.systeme.admin import codes_statuts_modifiables
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
@@ -143,8 +144,8 @@ def submit_feedback(
         "email":   email,
         "prenom":  user.prenom  if user else None,
         "nom":     user.nom     if user else None,
-        "subject": user.subject if user else None,
-        "niveau":  user.niveau  if user else None,
+        "subject": matiere_nom_de_id(db, user.subject_id) if user else None,
+        "niveau":  niveau_nom_de_id(db, user.niveau_id)  if user else None,
     }
     try:
         auth_lib.send_feedback_notification(prof, body.message, body.rating, body.category, body.type,
@@ -216,8 +217,8 @@ def update_feedback(
         "email":   email,
         "prenom":  user.prenom  if user else None,
         "nom":     user.nom     if user else None,
-        "subject": user.subject if user else None,
-        "niveau":  user.niveau  if user else None,
+        "subject": matiere_nom_de_id(db, user.subject_id) if user else None,
+        "niveau":  niveau_nom_de_id(db, user.niveau_id)  if user else None,
     }
     try:
         auth_lib.send_feedback_update_notification(prof, body.message, body.category)

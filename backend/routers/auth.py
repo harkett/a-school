@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import ConnexionLog, User
+from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.prof.profil import couple_de_travail
 
 router = APIRouter()
@@ -109,10 +110,10 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     db.commit()
     return {
         "email":     user.email,
-        "subject":   user.subject,
+        "subject":   matiere_nom_de_id(db, user.subject_id),
         "prenom":    user.prenom,
         "nom":       user.nom,
-        "niveau":    user.niveau,
+        "niveau":    niveau_nom_de_id(db, user.niveau_id),
         "langue_lv": user.langue_lv,
     }
 
@@ -194,7 +195,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     except Exception:
         pass
     try:
-        auth_lib.send_admin_new_user_notification(email, user.subject if user else None)
+        auth_lib.send_admin_new_user_notification(email, matiere_nom_de_id(db, user.subject_id) if user else None)
     except Exception:
         pass
     return {"status": "ok", "email": email}
@@ -227,13 +228,13 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     user = db.query(User).filter(User.email == email).first()
     # Couple de TRAVAIL résolu EN BASE (travail si posé, sinon profil) — LA lecture unique :
     # le header et l'écran Créer affichent CE couple, le serveur génère avec CE couple.
-    tm, tn, ajuste = couple_de_travail(user) if user else (None, None, False)
+    tm, tn, ajuste = couple_de_travail(db, user) if user else (None, None, False)
     return {
         "email":     email,
-        "subject":   user.subject   if user else None,
+        "subject":   matiere_nom_de_id(db, user.subject_id) if user else None,
         "prenom":    user.prenom    if user else None,
         "nom":       user.nom       if user else None,
-        "niveau":    user.niveau    if user else None,
+        "niveau":    niveau_nom_de_id(db, user.niveau_id) if user else None,
         "langue_lv": user.langue_lv if user else None,
         "travail_matiere": tm,
         "travail_niveau":  tn,

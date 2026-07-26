@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import CahierProf, Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
-from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
+from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
 
@@ -32,15 +32,15 @@ def _dossier_cle(nom: str) -> str:
     return s or "REFERENTIEL"
 
 
-def couple_de_travail(user: User) -> tuple[str | None, str | None, bool]:
+def couple_de_travail(db: Session, user: User) -> tuple[str | None, str | None, bool]:
     """Le couple sur lequel le prof TRAVAILLE, résolu depuis la base — LA seule règle,
-    à UN seul endroit : le couple de travail s'il est posé (les deux colonnes non NULL),
+    à UN seul endroit : le couple de travail s'il est posé (les deux clés non NULL),
     sinon le couple du profil. Renvoie (matiere, niveau, ajuste) ; ajuste=True quand le
-    prof travaille hors de son profil. Lu par /auth/me (affichage) ET par les actions
-    (génération, idée, exemple) — jamais recopié."""
-    if user.travail_matiere and user.travail_niveau:
-        return user.travail_matiere, user.travail_niveau, True
-    return user.subject, user.niveau, False
+    prof travaille hors de son profil. Le nom se relit par get sur `matieres`/`niveaux`
+    (zéro copie). Lu par /auth/me ET par les actions (génération, idée, exemple)."""
+    if user.travail_matiere_id and user.travail_niveau_id:
+        return matiere_nom_de_id(db, user.travail_matiere_id), niveau_nom_de_id(db, user.travail_niveau_id), True
+    return matiere_nom_de_id(db, user.subject_id), niveau_nom_de_id(db, user.niveau_id), False
 
 
 def _couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
@@ -82,8 +82,8 @@ def get_profile(aschool_access: str = Cookie(default=None), db: Session = Depend
         "email":     user.email,
         "prenom":    user.prenom    or "",
         "nom":       user.nom       or "",
-        "subject":   user.subject   or "",
-        "niveau":    user.niveau    or "",
+        "subject":   matiere_nom_de_id(db, user.subject_id) or "",
+        "niveau":    niveau_nom_de_id(db, user.niveau_id) or "",
         "langue_lv": user.langue_lv or "",
         "mobile":    user.mobile    or "",
     }
@@ -97,9 +97,7 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
         raise HTTPException(404, "Utilisateur introuvable.")
     user.prenom     = body.prenom    or None
     user.nom        = body.nom       or None
-    user.subject    = body.subject   or None
-    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
-    user.niveau     = body.niveau    or None
+    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
     user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
     user.langue_lv  = body.langue_lv or None
     user.mobile     = body.mobile    or None
@@ -129,18 +127,16 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
         raise HTTPException(400, "Choisissez un niveau et une matière avant de valider.")
     if not _couple_est_au_programme(db, matiere, niveau):
         raise HTTPException(400, "Cette matière n'est pas enseignée à ce niveau dans les programmes. Choisissez une matière proposée pour ce niveau.")
-    if matiere == (user.subject or "") and niveau == (user.niveau or ""):
-        user.travail_matiere = None   # même couple que le profil → aucun écart à stocker
-        user.travail_niveau = None
-        user.travail_matiere_id = None
+    profil_matiere = matiere_nom_de_id(db, user.subject_id) or ""
+    profil_niveau = niveau_nom_de_id(db, user.niveau_id) or ""
+    if matiere == profil_matiere and niveau == profil_niveau:
+        user.travail_matiere_id = None   # même couple que le profil → aucun écart à stocker
         user.travail_niveau_id = None
     else:
-        user.travail_matiere = matiere
-        user.travail_niveau = niveau
-        user.travail_matiere_id = matiere_id_du_nom(db, matiere)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
+        user.travail_matiere_id = matiere_id_du_nom(db, matiere)   # RÈGLE 4 : couple de travail rangé UNIQUEMENT par clé (put)
         user.travail_niveau_id = niveau_id_du_nom(db, niveau)
     db.commit()
-    tm, tn, ajuste = couple_de_travail(user)
+    tm, tn, ajuste = couple_de_travail(db, user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
 
 
@@ -167,12 +163,10 @@ def delete_couple_travail(aschool_access: str = Cookie(default=None), db: Sessio
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    user.travail_matiere = None
-    user.travail_niveau = None
     user.travail_matiere_id = None
     user.travail_niveau_id = None
     db.commit()
-    tm, tn, ajuste = couple_de_travail(user)
+    tm, tn, ajuste = couple_de_travail(db, user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
 
 

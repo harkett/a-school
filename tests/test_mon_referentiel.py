@@ -49,7 +49,6 @@ def _prof(niveau=NIVEAU, subject="Langage"):
     # table → id None → « indisponible » (exactement le comportement attendu côté profil).
     with dbmod.SessionLocal() as db:
         db.add(User(email="prof.ref@aschool.fr", password_hash="x", is_verified=True,
-                    subject=subject, niveau=niveau,
                     subject_id=matiere_id_du_nom(db, subject),
                     niveau_id=niveau_id_du_nom(db, niveau)))
         db.commit()

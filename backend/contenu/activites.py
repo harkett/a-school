@@ -176,7 +176,7 @@ def _prof_et_couple(db: Session, aschool_access: str | None) -> tuple[User, str,
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise HTTPException(401, "Non connecté.")
-    matiere, niveau, _ = couple_de_travail(user)
+    matiere, niveau, _ = couple_de_travail(db, user)
     if not matiere or not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau) — c'est lui qui guide la génération.")
     return user, matiere, niveau

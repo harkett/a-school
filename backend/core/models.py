@@ -3,8 +3,8 @@ from typing import Optional
 
 
 # Décision du 25/07 : l'écran n'envoie PLUS matière/niveau — le serveur lit le couple de
-# TRAVAIL du prof EN BASE (users.travail_matiere/travail_niveau, sinon le profil) au moment
-# de chaque action. Une donnée, une place : le couple affiché EST le couple généré.
+# TRAVAIL du prof EN BASE (users.travail_matiere_id/travail_niveau_id, sinon le profil) au
+# moment de chaque action. Une donnée, une place : le couple affiché EST le couple généré.
 class GenerateRequest(BaseModel):
     texte: str
     activite_type_id: int

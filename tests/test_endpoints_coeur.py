@@ -335,7 +335,8 @@ def _client_for(email):
     from backend.core.models_db import User
     with dbmod.SessionLocal() as db:
         if not db.query(User).filter(User.email == email).first():
-            db.add(User(email=email, password_hash="x", is_verified=True,
+            from _profil import user_couple
+            db.add(user_couple(db, email=email, password_hash="x", is_verified=True,
                         subject="SVT", niveau="3e"))
             db.commit()
     c = TestClient(app)
@@ -378,7 +379,8 @@ def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
     from backend.core.models_db import User, ActiviteSauvegardee
     tid = _type_id("Saut")
     with dbmod.SessionLocal() as db:
-        db.add(User(email="fewshot-5@local.test", password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email="fewshot-5@local.test", password_hash="x", is_verified=True,
                     subject="SVT", niveau="3e"))
         db.commit()
         uid = db.query(User.id).filter(User.email == "fewshot-5@local.test").scalar()

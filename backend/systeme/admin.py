@@ -15,7 +15,7 @@ from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
 from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, RefreshToken, Setting, User, UserSession
-from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
+from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
 
@@ -532,8 +532,8 @@ def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
             "email":        u.email,
             "prenom":       u.prenom or "",
             "nom":          u.nom or "",
-            "subject":      u.subject or "",
-            "niveau":       u.niveau or "",
+            "subject":      matiere_nom_de_id(db, u.subject_id) or "",
+            "niveau":       niveau_nom_de_id(db, u.niveau_id) or "",
             "created_at":   u.created_at.strftime("%d/%m/%Y"),
             "last_login":   u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "—",
             "is_active":    u.is_active,
@@ -551,9 +551,7 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
         raise HTTPException(404, "Utilisateur introuvable.")
     user.prenom     = body.prenom or None
     user.nom        = body.nom or None
-    user.subject    = body.subject or None
-    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : la CLÉ posée en plus du texte (double écriture, transition)
-    user.niveau     = body.niveau or None
+    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
     user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
     db.commit()
     return {"status": "ok"}
@@ -1614,22 +1612,23 @@ def get_failed_attempts(db: Session = Depends(get_db), _: None = Depends(_requir
 @router.get("/admin/logs")
 def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     rows = (
-        db.query(ConnexionLog, User.subject)
+        db.query(ConnexionLog, User.subject_id)
         .outerjoin(User, User.id == ConnexionLog.user_id)
         .order_by(ConnexionLog.created_at.desc())
         .limit(200)
         .all()
     )
+    noms = {sid: matiere_nom_de_id(db, sid) for sid in {s for _, s in rows if s}}
     return [
         {
             "id":      l.id,
             "email":   l.email,
-            "subject": subject or "—",
+            "subject": noms.get(subject_id) or "—",
             "action":  l.action,
             "ip":      l.ip,
             "date":    l.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
-        for l, subject in rows
+        for l, subject_id in rows
     ]
 
 
@@ -1640,8 +1639,8 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             User.email,
             User.prenom,
             User.nom,
-            User.subject,
-            User.niveau.label("niveau_profil"),
+            User.subject_id,
+            User.niveau_id.label("niveau_profil_id"),
             ActiviteSauvegardee.matiere.label("activite_matiere"),
             ActiviteSauvegardee.niveau.label("activite_niveau"),
             ActiviteSauvegardee.activite_type_id,
@@ -1659,6 +1658,17 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
         .all()
     )
 
+    _mat_cache: dict = {}
+    def _mat(mid):
+        if mid not in _mat_cache:
+            _mat_cache[mid] = matiere_nom_de_id(db, mid)
+        return _mat_cache[mid]
+    _niv_cache: dict = {}
+    def _niv(nid):
+        if nid not in _niv_cache:
+            _niv_cache[nid] = niveau_nom_de_id(db, nid)
+        return _niv_cache[nid]
+
     profs_dict: dict = {}
     totaux_matiere: dict = {}
     totaux_niveau: dict = {}
@@ -1672,15 +1682,15 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
                 "email": email,
                 "prenom": row.prenom or "",
                 "nom": row.nom or "",
-                "subject": row.subject or "",
-                "niveau_profil": row.niveau_profil or "",
+                "subject": _mat(row.subject_id) or "",
+                "niveau_profil": _niv(row.niveau_profil_id) or "",
                 "total": 0,
                 "par_matiere": {},
             }
         prof = profs_dict[email]
         prof["total"] += row.nb
 
-        mat = row.activite_matiere or row.subject or "—"
+        mat = row.activite_matiere or _mat(row.subject_id) or "—"
         niv = row.activite_niveau or "—"
         typ = row.activite_label or "—"
 

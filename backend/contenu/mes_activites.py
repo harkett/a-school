@@ -79,7 +79,7 @@ def sauvegarder(
         raise HTTPException(401, "Non connecté.")
     # Le couple ENREGISTRÉ = le couple de travail lu EN BASE (celui que la génération vient
     # d'utiliser) — jamais une valeur envoyée par l'écran (zéro copie, décision du 25/07).
-    matiere, niveau, _ = couple_de_travail(user)
+    matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
     activite = ActiviteSauvegardee(

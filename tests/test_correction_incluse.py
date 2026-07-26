@@ -55,7 +55,8 @@ def _couple_avec_type(nom, ordre, prompt):
         db.add(t); db.flush()
         db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
                                        actif=True, source="admin", prompt=prompt, ordre=1))
-        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject=f"CO-Matiere-{nom}", niveau=niv.nom))
         db.commit()
         return niv.nom, t.id

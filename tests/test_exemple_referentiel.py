@@ -54,7 +54,8 @@ def _prof_en_base(subject=MATIERE, niveau=NIVEAU_CRECHE):
     le couple de travail en base (décision du 25/07), plus le corps de la requête."""
     from backend.core.models_db import User
     with dbmod.SessionLocal() as db:
-        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject=subject, niveau=niveau))
         db.commit()
 

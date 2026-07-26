@@ -27,7 +27,8 @@ TOKEN = create_access_token(EMAIL)
 def _client_avec_prof():
     from backend.core.models_db import User
     with dbmod.SessionLocal() as db:
-        db.add(User(email=EMAIL, password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email=EMAIL, password_hash="x", is_verified=True,
                     subject="GU-Matiere", niveau="GU-Niv"))
         db.commit()
     c = TestClient(app)

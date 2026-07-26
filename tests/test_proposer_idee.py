@@ -51,7 +51,8 @@ def _couple(nom, ordre, avec_ref=True):
                                texte_epure="TEXTE"))
         t = ActiviteType(label=f"PI-Manuelle-{nom}", ordre=1, actif=True, origine="systeme")
         db.add(t); db.flush()
-        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject=f"PI-Matiere-{nom}", niveau=niv.nom))
         db.commit()
         return niv.nom, t.id

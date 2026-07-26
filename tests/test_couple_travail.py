@@ -61,7 +61,7 @@ def _programme():
                     MatiereNiveau(matiere_id=mfr.id, niveau_id=n5.id),
                     MatiereNiveau(matiere_id=mhg.id, niveau_id=n5.id)])
         db.add(User(email=EMAIL, password_hash="x", is_verified=True,
-                    subject="CT-Fr", niveau="CT-6e"))
+                    subject_id=mfr.id, niveau_id=n6.id))
         ref5 = Referentiel(niveau_id=n5.id, matiere_id=None, nom_fixe="ct_5e",
                            collection="ct_5e", filtres=None, fichier="doc.pdf",
                            texte_epure="TEXTE")
@@ -77,9 +77,10 @@ def _programme():
 
 def _travail_en_base():
     from backend.core.models_db import User
+    from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
     with dbmod.SessionLocal() as db:
         u = db.query(User).filter(User.email == EMAIL).first()
-        return u.travail_matiere, u.travail_niveau
+        return matiere_nom_de_id(db, u.travail_matiere_id), niveau_nom_de_id(db, u.travail_niveau_id)
 
 
 def test_me_resout_profil_puis_travail_et_couple_ajuste():

@@ -66,8 +66,7 @@ def create_user(db: Session, email: str, password: str, subject: str = "", langu
     user = User(
         email=email,
         password_hash=_hash_password(password),
-        subject=subject or None,
-        subject_id=matiere_id_du_nom(db, subject or None),   # RÈGLE 4 : la CLÉ est posée en plus du texte (double écriture le temps de la transition)
+        subject_id=matiere_id_du_nom(db, subject or None),   # RÈGLE 4 : matière rangée UNIQUEMENT par clé
         langue_lv=langue_lv or None,
     )
     db.add(user)

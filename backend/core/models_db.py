@@ -18,21 +18,16 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    subject: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    subject_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)   # RÈGLE 4 : matière rangée par CLÉ (get), remplace à terme le nom recopié `subject`
+    subject_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)   # RÈGLE 4 : matière rangée UNIQUEMENT par CLÉ (le nom vit dans `matieres`, get)
     prenom: Mapped[str | None] = mapped_column(String(64), nullable=True)
     nom: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    niveau_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=True)   # RÈGLE 4 : niveau rangé par CLÉ (get), remplace à terme le nom recopié `niveau`
+    niveau_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=True)   # RÈGLE 4 : niveau rangé UNIQUEMENT par CLÉ (le nom vit dans `niveaux`, get)
     langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
-    # Couple de TRAVAIL (écran Créer, « Changer niveau et/ou matière ») — NULL = couple du
-    # profil. C'est LA donnée que le serveur lit pour générer ; jamais recopiée côté écran.
-    travail_matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    travail_niveau: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    # RÈGLE 4 : couple de TRAVAIL rangé par CLÉ (get sur matieres/niveaux), remplace à terme les
-    # noms recopiés travail_matiere/travail_niveau ci-dessus.
+    # Couple de TRAVAIL (écran Créer, « Changer niveau et/ou matière ») — NULL = couple du profil.
+    # C'est LA donnée que le serveur lit pour générer ; rangé UNIQUEMENT par CLÉ (get sur
+    # matieres/niveaux pour le nom), jamais recopié côté écran ni en texte.
     travail_matiere_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)
     travail_niveau_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=True)
     # Visite guidée de l'écran Créer déjà montrée ? En base (pas dans le navigateur) :

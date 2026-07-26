@@ -98,7 +98,8 @@ def test_generate_le_texte_reste_la_requete_rag():
     # Le prof existe EN BASE avec ce niveau : la génération lit le couple en base (25/07).
     from backend.core.models_db import User
     with dbmod.SessionLocal() as db:
-        db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+        from _profil import user_couple
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject="BT-Matiere", niveau=niveau))
         db.commit()
     capture = {}

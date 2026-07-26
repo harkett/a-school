@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.models_db import ActiviteSauvegardee, User
+from backend.core.resolution_couple import matiere_nom_de_id
 from backend import auth as auth_lib
 
 router = APIRouter()
@@ -51,7 +52,7 @@ def lister(
             "resultat": a.resultat,
             "apercu": a.texte_source[:60] + ("…" if len(a.texte_source) > 60 else ""),
             "partagee_par": "Anonyme" if a.anonyme else (f"{u.prenom or ''} {u.nom or ''}".strip() or "Anonyme"),
-            "matiere": a.matiere or u.subject or "",
+            "matiere": a.matiere or matiere_nom_de_id(db, u.subject_id) or "",
         }
         for a, u in rows
     ]
