@@ -217,18 +217,6 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
           >
             <IconMail /> E-mail
           </button>
-          {onAnalyserAmbiguites && resultat && (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onAnalyserAmbiguites}
-              disabled={ambigLoading}
-              title="Détecter les ambiguïtés de cette activité"
-            >
-              {ambigLoading ? <Spinner /> : <IconSearch />}
-              {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
-            </button>
-          )}
           {/* Bouton Régénérer déplacé ici : au bout à droite, en face du titre « Résultat généré ».
               Même action et même condition qu'avant (résultat terminé, pas encore validé). */}
           {resultat && !loading && !valide && (

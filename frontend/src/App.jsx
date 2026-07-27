@@ -1174,7 +1174,19 @@ function MainApp() {
                         </div>
                         {/* Contenu de l'onglet actif — coquilles pour l'instant, à compléter ensuite. */}
                         <div style={{ fontSize: 13, color: '#64748b' }}>
-                          {analyseOnglet === 'ambiguite' && <span>Onglet Ambiguïté — contenu à venir.</span>}
+                          {analyseOnglet === 'ambiguite' && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={analyserAmbiguitesActivite}
+                              disabled={ambigLoading}
+                              title="Détecter les ambiguïtés de cette activité"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
+                            >
+                              {ambigLoading && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>}
+                              {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
+                            </button>
+                          )}
                           {analyseOnglet === 'consigne' && <span>Onglet Consigne — contenu à venir.</span>}
                           {analyseOnglet === 'equite'   && <span>Onglet Équité — contenu à venir.</span>}
                         </div>
