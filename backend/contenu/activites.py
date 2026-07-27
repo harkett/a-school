@@ -25,6 +25,7 @@ from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_prompt
 from backend.rag.pgvector_store import retrieve_pg
+from backend.supervision.incidents import creer_incident
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
     get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
@@ -401,9 +402,20 @@ def api_generate(
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
         except Exception as e:
-            # Détail technique = logs (règle 23) ; l'écran ne recevra qu'un `error` neutre.
+            # Détail technique = logs (règle 23) ; l'écran ne reçoit qu'un `error` neutre + une
+            # RÉFÉRENCE d'incident. L'incident (erreur réelle + contexte technique) est enregistré
+            # EN BASE via une session DÉDIÉE (la session de requête étant destinée à se fermer) →
+            # l'admin voit ce qui a planté, le prof ne voit qu'un message humain.
             log.warning("/api/generate — flux interrompu : %s", e)
-            yield "event: error\ndata: {}\n\n"
+            ref = creer_incident(
+                endpoint="/api/generate",
+                error=f"{type(e).__name__}: {e}",
+                provider=provider, model=model,
+                matiere=matiere, niveau=niveau, type_activite=t.label,
+                consigne=req.texte, user_email=user.email,
+            )
+            data = json.dumps({"ref": ref}, ensure_ascii=False) if ref else "{}"
+            yield f"event: error\ndata: {data}\n\n"
         finally:
             release_llm_slot()
 

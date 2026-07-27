@@ -118,6 +118,30 @@ class FeedbackStatut(Base):
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class Incident(Base):
+    """Incident TECHNIQUE de génération (échec côté IA) — capturé automatiquement au plantage, que le
+    prof le signale ou non. L'admin y lit CE QUI a réellement échoué (erreur, endpoint, fournisseur,
+    paramètres tentés), là où l'écran du prof ne montre qu'un message humain (RÈGLE 23). Les champs
+    métier (matiere/niveau/type/consigne) sont un INSTANTANÉ figé de la tentative — journal historique,
+    même logique que feedbacks.contexte, jamais une copie vivante qui divergerait. `feedback_id` relie
+    l'incident au message du prof s'il clique « signaler » (sinon NULL : l'incident existe quand même)."""
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ref: Mapped[str] = mapped_column(String(24), nullable=False, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    endpoint: Mapped[str] = mapped_column(String(120), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error: Mapped[str] = mapped_column(Text, nullable=False)
+    matiere: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    type_activite: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    consigne: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    feedback_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("feedbacks.id"), nullable=True, index=True)
+
+
 class Setting(Base):
     """Table de configuration du projet (paramètres clé / valeur), équivalent-en-base d'un
     fichier de config. Consultée depuis l'écran admin « Paramètres »."""

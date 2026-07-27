@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models_db import Feedback, User
+from backend.core.models_db import Feedback, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.systeme.admin import codes_statuts_modifiables
 
@@ -38,6 +38,9 @@ class FeedbackBody(BaseModel):
     # D'où le prof envoie (« Écran Créer une activité · Français × 6e ») — affiché dans la
     # fenêtre avant envoi, figé à l'envoi, jamais modifiable ensuite.
     contexte: str | None = Field(default=None, max_length=160)
+    # Réf d'incident technique (échec de génération) : présente si le prof a cliqué « signaler » depuis
+    # la modale d'erreur. Sert à RELIER ce feedback à l'incident déjà enregistré en base (une seule place).
+    incident_ref: str | None = Field(default=None, max_length=24)
 
 
 class FeedbackUpdateBody(BaseModel):
@@ -128,7 +131,7 @@ def submit_feedback(
 ):
     email = _get_email(aschool_access)
 
-    db.add(Feedback(
+    fb = Feedback(
         type=body.type,
         user_id=db.query(User.id).filter(User.email == email).scalar(),
         message=body.message,
@@ -136,8 +139,23 @@ def submit_feedback(
         category=body.category,
         attachment_path=body.attachment_path,
         contexte=body.contexte,
-    ))
+    )
+    db.add(fb)
     db.commit()
+
+    # Rattachement de l'incident technique : si le prof a cliqué « signaler » depuis un échec de
+    # génération, la réf d'incident voyage avec le message. On relie l'incident (une seule place :
+    # incidents.feedback_id) → l'admin voit, sur ce feedback, ce qui a techniquement planté.
+    # Best-effort : une réf inconnue ou déjà reliée n'empêche JAMAIS l'enregistrement du feedback.
+    if body.incident_ref:
+        try:
+            db.query(Incident).filter(
+                Incident.ref == body.incident_ref, Incident.feedback_id.is_(None)
+            ).update({"feedback_id": fb.id}, synchronize_session=False)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error("Rattachement incident %s -> feedback %s echoue : %s", body.incident_ref, fb.id, e)
 
     user = db.query(User).filter(User.email == email).first()
     prof = {
