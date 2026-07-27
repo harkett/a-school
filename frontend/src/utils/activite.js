@@ -7,15 +7,16 @@ export function estPageCreer(pageId) {
   return pageId === 'creer-activite'
 }
 
-// Champs du type d'activité remis au DÉFAUT de la matière (1er type de la liste renvoyée
-// par /api/activites). Renvoie l'objet à fusionner dans `params`. Garde-fou : liste vide
-// ou non-tableau → activite_type_id null (pas de crash).
-export function typeParDefaut(activites) {
-  const premier = Array.isArray(activites) ? activites[0] : undefined
+// Champs du type d'activité remis à VIERGE : plus AUCUNE présélection (règle appli — tout
+// combo démarre sur son placeholder gris « Choisissez… », le prof fait le choix). Avant, on
+// reposait ici le 1er type de la matière et sa 1re précision : les deux combos arrivaient
+// remplies et l'étape ① passait au vert sans que le prof ait rien choisi.
+// Renvoie l'objet à fusionner dans `params`.
+export function typeVierge() {
   return {
-    activite_type_id: premier?.id ?? null,   // identité du type = son id
-    sous_type: premier?.sous_types?.[0] || null,
-    nb: premier?.besoins?.includes('nb') ? 5 : null,   // besoin lu du prompt du couple×type
+    activite_type_id: null,   // identité du type = son id ; null = rien de choisi
+    sous_type: null,
+    nb: null,   // posé (à 5) par la carte Paramètres au choix du type, si son prompt le demande
     avec_correction: false,
   }
 }

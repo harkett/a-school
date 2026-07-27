@@ -73,7 +73,7 @@ import JaugeAttente from './components/JaugeAttente.jsx'
 import FriseProgression from './components/FriseProgression.jsx'
 import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_LONG } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
-import { estPageCreer, typeParDefaut } from './utils/activite.js'
+import { estPageCreer, typeVierge } from './utils/activite.js'
 import { libelleEcran } from './utils/ecrans.js'
 import './index.css'
 
@@ -559,7 +559,7 @@ function MainApp() {
   }
 
   // « Créer » ouvre TOUJOURS une activité vierge : on vide tout le contenu de la fois
-  // précédente (texte, objet, résultat, type sélectionné → défaut de la matière) et on
+  // précédente (texte, objet, résultat, type sélectionné → aucun choix) et on
   // revient sur l'onglet de saisie. Le bandeau « exemple » est effacé par TexteSource dès
   // que le texte se vide. Le couple niveau+matière n'est PAS touché (contexte du profil).
   // NB : « réutiliser depuis l'Historique » passe par chargerActivite() qui charge
@@ -573,7 +573,7 @@ function MainApp() {
     setRepriseHistorique(false)
     setEntreeDeverrouillee(false)
     setFenetreGuide(false)
-    setParams(p => ({ ...p, ...typeParDefaut(activites) }))
+    setParams(p => ({ ...p, ...typeVierge() }))
     setPage('creer-activite')
   }
 

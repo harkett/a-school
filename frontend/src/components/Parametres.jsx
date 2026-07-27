@@ -66,10 +66,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
               tant que la carte n'est pas verrouillée (le pliage n'a de sens qu'en phase résultat). */}
           <button
             type="button"
-            disabled={!verrouille}
+            disabled={!params.activite_type_id}
             onClick={() => setReplie(r => !r)}
-            title={!verrouille ? "Pliage disponible une fois le résultat généré" : (replie ? "Déplier les paramètres" : "Replier les paramètres")}
-            style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: verrouille ? 'pointer' : 'not-allowed', opacity: verrouille ? 1 : 0.4, padding: 0, flexShrink: 0 }}
+            title={!params.activite_type_id ? "Choisissez d'abord un type d'activité" : (replie ? "Déplier les paramètres" : "Replier les paramètres")}
+            style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: params.activite_type_id ? 'pointer' : 'not-allowed', opacity: params.activite_type_id ? 1 : 0.4, padding: 0, flexShrink: 0 }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
               <polyline points="6 9 12 15 18 9"/>
@@ -78,9 +78,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
         </div>
         {/* Ligne « feedback » déplacée SOUS la coche correction (27/07) pour dégager l'en-tête. */}
 
-        {/* Récap PLIÉ : quand la carte est repliée (phase résultat), on rappelle les choix EN FACE
-            du titre — type, précision, et « avec correction ». Masqué quand la carte est dépliée
-            (les vrais champs sont alors visibles dessous). */}
+        {/* Récap PLIÉ : dès que la carte est repliée (à la main via le chevron, ou en phase résultat),
+            on rappelle les choix EN FACE du titre, juste après le chevron — type d'activité, précision
+            (si présente), et « avec correction » (si cochée). Masqué quand la carte est dépliée (les
+            vrais champs sont alors visibles dessous). */}
         {replie && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
             {activite?.label && (
@@ -124,8 +125,10 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
               onChange={e => handleActivite(Number(e.target.value))}
               style={{ color: params.activite_type_id ? undefined : '#94a3b8' }}
             >
-              {/* Placeholder gris, non sélectionnable : rien n'est choisi par défaut (règle appli). */}
-              <option value="" disabled hidden>Choisissez un type d'activité</option>
+              {/* Placeholder gris affiché tant que rien n'est choisi (règle appli). PAS de `disabled` :
+                  une option sélectionnée disabled n'est pas affichée par Chrome/Edge, qui retombe alors
+                  sur la 1re activité — c'est ce qui faisait « réapparaître » une valeur par défaut. */}
+              <option value="">Choisissez un type d'activité</option>
               {activites.map(a => (
                 <option key={a.id} value={a.id} style={{ color: '#1e293b' }}>{a.label}</option>
               ))}
@@ -171,8 +174,8 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
                 {!params.activite_type_id
                   ? <option value="">Choisissez d'abord un type d'activité</option>
                   : <>
-                      {/* Placeholder gris : la précision non plus n'est pas présélectionnée (règle appli). */}
-                      <option value="" disabled hidden>Choisissez une précision</option>
+                      {/* Placeholder gris (même raison : pas de `disabled`, sinon Chrome affiche la 1re précision). */}
+                      <option value="">Choisissez une précision</option>
                       {activite.sous_types.map(s => <option key={s} style={{ color: '#1e293b' }}>{s}</option>)}
                     </>}
               </select>
