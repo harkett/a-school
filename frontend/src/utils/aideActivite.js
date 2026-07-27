@@ -53,6 +53,12 @@ export const GUIDE_ACTIVITE = [
       long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Régénérer » en produit une autre version, « Changer votre demande » rouvre votre texte pour l'ajuster.",
     },
   },
+  {
+    cle: 'analyses',
+    titre: 'Analyses',
+    court: "Les analyses que vous pouvez lancer sur l'activité générée.",
+    long: "Cette section réunit les analyses de l'activité générée. Son contenu sera complété prochainement.",
+  },
 ]
 
 // Accès direct par clé (get) — utilisé par le « i » de chaque titre. `opts.cahier` (booléen lu de

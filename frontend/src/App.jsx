@@ -22,6 +22,9 @@ import Accueil from './components/Accueil'
 import SequenceForm from './components/SequenceForm'
 import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
+import AmbiguitesResultat from './components/AmbiguitesResultat.jsx'
+import InfoGuide from './components/InfoGuide.jsx'
+import { aideActivite } from './utils/aideActivite.js'
 import Consigne from './components/Consigne'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
@@ -67,7 +70,7 @@ import ErrorDialog from './components/ErrorDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import JaugeAttente from './components/JaugeAttente.jsx'
 import FriseProgression from './components/FriseProgression.jsx'
-import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
+import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_LONG } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeParDefaut } from './utils/activite.js'
 import { libelleEcran } from './utils/ecrans.js'
@@ -115,12 +118,17 @@ function MainApp() {
   const [prefillSeq, setPrefillSeq] = useState(null)
   const [prefillAmbiguites, setPrefillAmbiguites] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackIncidentRef, setFeedbackIncidentRef] = useState(null)  // réf d'incident jointe au feedback (échec de génération) ; null = feedback ouvert manuellement
   const [showNotation, setShowNotation] = useState(false)
   const [activites, setActivites] = useState([])
   const [texte, setTexte] = useState('')
   const [objet, setObjet] = useState('')
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [ambigResultat, setAmbigResultat] = useState(null)  // rapport d'ambiguïtés de l'activité affichée : LU sur `resultat` (get), affiché non stocké — zéro copie
+  const [ambigLoading, setAmbigLoading]   = useState(false)  // analyse d'ambiguïté en cours : sablier du bouton + jauge de la cartouche
+  const [ambigReplie, setAmbigReplie]     = useState(false)  // repli manuel de la cartouche « Résultat Ambiguïté » (affichage éphémère, jamais en base)
+  const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyses » (affichage éphémère, jamais en base)
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
@@ -148,9 +156,12 @@ function MainApp() {
   const resultatRef = useRef(null)
   const texteSourceRef = useRef(null)   // pour ramener le prof sur la saisie quand il clique « Changer votre demande »
 
-  // « cliquez ici » de la modale d'erreur ouvre le feedback existant (état local showFeedback).
+  // Ouvre le feedback ; `ref` = référence d'incident (échec de génération) jointe au message, ou
+  // null pour un feedback ouvert manuellement (Sidebar / menu).
+  const ouvrirFeedback = (ref = null) => { setFeedbackIncidentRef(ref); setShowFeedback(true) }
+  // « cliquez ici » de la modale d'erreur ouvre le feedback existant et lui transmet la réf d'incident.
   // ErrorDialog est monté ailleurs dans l'arbre : on passe par ce canal enregistré.
-  useEffect(() => { registerFeedbackOpener(() => setShowFeedback(true)) }, [])
+  useEffect(() => { registerFeedbackOpener((ref) => { setFeedbackIncidentRef(ref || null); setShowFeedback(true) }) }, [])
 
   useEffect(() => {
     function arm() {
@@ -360,6 +371,8 @@ function MainApp() {
     }
     setErreur(null)
     setResultat(null)
+    setAmbigResultat(null)          // (ré)générer = nouvelle activité → l'ancien rapport d'ambiguïté ne vaut plus
+    setAmbigLoading(false)
     setValide(false)
     setRepriseHistorique(false)     // (ré)générer = nouveau brouillon PAS en base → Valider/Annuler redeviennent actifs
     setEntreeDeverrouillee(false)   // nouvelle génération → la saisie repart verrouillée dès qu'un résultat arrive
@@ -398,7 +411,7 @@ function MainApp() {
       // Lecture du flux SSE (événements delta / error / done) : on affiche au fil de l'eau.
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let tampon = '', complet = '', erreurFlux = false, termine = false
+      let tampon = '', complet = '', erreurFlux = false, termine = false, refIncident = null
       setResultat('')
       setTimeout(() => resultatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
       for (;;) {
@@ -415,6 +428,7 @@ function MainApp() {
             try { complet += JSON.parse(data).text; setResultat(complet) } catch { /* bloc partiel ignoré */ }
           } else if (evt === 'error') {
             erreurFlux = true
+            try { refIncident = JSON.parse(data).ref || null } catch { /* pas de réf (bloc partiel / ancien format) */ }
           } else if (evt === 'done') {
             termine = true
           }
@@ -426,7 +440,7 @@ function MainApp() {
       // JAMAIS passer pour un succès → message unique.
       if (erreurFlux || !termine || !complet) {
         setResultat(null)
-        showError(MSG_ECHEC_GENERATION, { feedback: true })
+        showError(MSG_ECHEC_GENERATION, { feedback: true, ref: refIncident })
         return
       }
 
@@ -452,6 +466,33 @@ function MainApp() {
   // question du « vous perdez tout » ne se pose pas ici (décision du 25/07).
   function regenerer() {
     generer()
+  }
+
+  // Bouton « Ambiguïtés » de la zone Résultat : LIT (get) le texte de l'activité affichée et l'envoie
+  // au détecteur d'ambiguïtés (même endpoint que le module autonome). Le rapport s'affiche SUR PLACE
+  // dans la cartouche « Résultat Ambiguïté » — on ne quitte pas l'écran, le résultat n'est pas modifié.
+  // Le couple (matière/niveau) suit le couple de travail lu en base (sessionMatiere + params.niveau).
+  async function analyserAmbiguitesActivite() {
+    if (ambigLoading || !resultat || !resultat.trim()) return
+    setAmbigResultat(null)
+    setAmbigLoading(true)
+    try {
+      const res = await apiFetch('/api/detect-ambiguites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ texte: resultat.trim(), matiere: sessionMatiere, niveau: params.niveau }),
+      }, TIMEOUT_LONG)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || `Erreur ${res.status}`)
+      }
+      setAmbigResultat(await res.json())
+    } catch {
+      showError("L'analyse des ambiguïtés n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
+    } finally {
+      setAmbigLoading(false)
+    }
   }
 
   // Valider = put : écrit l'activité AFFICHÉE en base (une ligne dans « Mes activités »), puis on
@@ -506,6 +547,7 @@ function MainApp() {
       avec_correction: act.avec_correction,
     })
     setResultat(act.resultat)
+    setAmbigResultat(null)        // activité reprise de l'historique → pas d'ancien rapport d'ambiguïté à afficher
     setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
     setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
     setEntreeDeverrouillee(false)
@@ -522,6 +564,7 @@ function MainApp() {
     setTexte('')
     setObjet('')
     setResultat(null)
+    setAmbigResultat(null)
     setValide(false)
     setRepriseHistorique(false)
     setEntreeDeverrouillee(false)
@@ -605,7 +648,7 @@ function MainApp() {
         profilNomIncomplet={profilNomIncomplet}
         onLogout={logout}
         onNavigate={naviguer}
-        onFeedback={() => setShowFeedback(true)}
+        onFeedback={() => ouvrirFeedback()}
         sessionMatiere={sessionMatiere}
         coupleAjuste={!!user?.couple_ajuste}
         onValiderCouple={validerCoupleTravail}
@@ -614,7 +657,7 @@ function MainApp() {
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
-        <Sidebar page={page} onNavigate={naviguer} onFeedback={() => setShowFeedback(true)} onNotation={() => setShowNotation(true)} />
+        <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
@@ -1052,7 +1095,7 @@ function MainApp() {
                     loading={loading}
                     hasResultat={!!resultat}
                     canGenerer={!!texte.trim() && !!params.activite_type_id}
-                    onFeedback={() => setShowFeedback(true)}
+                    onFeedback={() => ouvrirFeedback()}
                     verrouille={(loading || !!resultat) && !entreeDeverrouillee}
                   />
                 )}
@@ -1077,10 +1120,68 @@ function MainApp() {
                     email={user?.email}
                     onRegenerer={regenerer}
                     onChangerDemande={changerDemande}
-                    onAnalyserAmbiguites={(t) => { setPrefillAmbiguites(t); setPage('ambiguites') }}
+                    onAnalyserAmbiguites={analyserAmbiguitesActivite}
+                    ambigLoading={ambigLoading}
                     cahierPresent={cahierPresent}
                   />
                 </div>
+
+                {/* Cartouche « Analyses » : sous « Résultat généré ». Coquille pour l'instant
+                    (titre + « i » + chevron, même style que les autres cartouches) ; le contenu
+                    et l'ergonomie viendront ensuite. Repli éphémère, jamais en base. */}
+                {resultat && (
+                  <section className="bg-white rounded border border-gray-200 p-4">
+                    <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        Analyses
+                        <InfoGuide {...aideActivite('analyses')} />
+                      </span>
+                      {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que les autres cartouches). */}
+                      <button
+                        type="button"
+                        onClick={() => setAnalysesReplie(r => !r)}
+                        title={analysesReplie ? "Déplier les analyses" : "Replier les analyses"}
+                        style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: analysesReplie ? 'rotate(-90deg)' : 'none' }}>
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    </div>
+                    {!analysesReplie && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        (Contenu à venir.)
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* Cartouche « Résultat Ambiguïté » : s'ouvre sous « Résultat généré » quand on lance
+                    l'analyse depuis le bouton Ambiguïtés. Jauge pendant l'analyse, puis verdict + cartes
+                    (affichage partagé avec le module autonome). Lecture seule : aucun bouton qui navigue. */}
+                {(ambigLoading || ambigResultat) && (
+                  <section className="bg-white rounded border border-gray-200 p-4">
+                    <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>Résultat Ambiguïté</span>
+                      {/* Chevron plier/déplier — même rond que le « i » (cohérent avec les autres cartouches). */}
+                      {ambigResultat && (
+                        <button
+                          type="button"
+                          onClick={() => setAmbigReplie(r => !r)}
+                          title={ambigReplie ? "Déplier le résultat" : "Replier le résultat"}
+                          style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: ambigReplie ? 'rotate(-90deg)' : 'none' }}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {ambigLoading
+                      ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
+                      : (!ambigReplie && <AmbiguitesResultat resultat={ambigResultat} />)}
+                  </section>
+                )}
               </div>
 
               {/* Visite guidée (bulles sur les vrais éléments) + fenêtre déplaçable « Comment
@@ -1202,7 +1303,7 @@ function MainApp() {
       </div>
 
       <Footer />
-      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} contexte={contexteFeedback} />}
+      {showFeedback && <Feedback onClose={() => setShowFeedback(false)} contexte={contexteFeedback} incidentRef={feedbackIncidentRef} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
 
       {inactivityWarning && (
