@@ -24,6 +24,7 @@ import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
 import AmbiguitesResultat from './components/AmbiguitesResultat.jsx'
 import InfoGuide from './components/InfoGuide.jsx'
+import EtapeBadge from './components/EtapeBadge.jsx'
 import { aideActivite } from './utils/aideActivite.js'
 import Consigne from './components/Consigne'
 import MonProfil from './components/MonProfil'
@@ -1133,6 +1134,7 @@ function MainApp() {
                 {resultat && (
                   <section className="bg-white rounded border border-gray-200 p-4">
                     <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <EtapeBadge n={5} fait={false} />
                       <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                         Analyse et amélioration du résultat
                         <InfoGuide {...aideActivite('analyses')} />
