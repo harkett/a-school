@@ -1019,33 +1019,12 @@ function MainApp() {
                   resultat={resultat}
                 />
                 {/* Barre de commande, pilotée par PHASE (décision du 25/07, modèle brouillon → Valider/Annuler) :
-                    • COMPOSER (pas de résultat) ou génération en cours → le seul bouton Générer ;
+                    • COMPOSER (pas de résultat) ou génération en cours → AUCUN bouton ici : « Générer l'activité »
+                      a été déplacé (27/07) dans la cartouche « Texte source », sur la ligne du titre, tout à droite ;
                     • TRAVAILLER (résultat affiché, pas encore validé) → Régénérer (bleu) · Valider (vert) · Annuler (rouge) ;
                     • REPRISE DE L'HISTORIQUE (résultat DÉJÀ en base) → Régénérer actif, Valider/Annuler GRISÉS (rien à enregistrer, rien à annuler) ;
                     • VALIDÉ → plus aucun bouton de gestion (l'activité est en base, seuls les exports restent). */}
                 <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {(!resultat || loading) && (
-                    <button
-                      className="btn-primary"
-                      data-guide="generer"
-                      onClick={generer}
-                      disabled={loading || !pretAGenerer}
-                      title={loading ? 'Génération en cours…'
-                        : !params.activite_type_id ? "Choisissez d'abord un type d'activité (étape 1)"
-                        : !texte.trim() ? 'Décrivez d\'abord votre demande dans la zone de texte (étape 2)'
-                        : "Lancer la génération de l'activité avec aSchool"}
-                      style={{ flexShrink: 0, opacity: loading || !pretAGenerer ? 0.55 : 1,
-                               cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
-                    >
-                      {loading
-                        ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                        : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
-                                         fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
-                                         justifyContent: 'center', flexShrink: 0 }}>3</span>}
-                      {loading ? 'Génération en cours...' : 'Générer l\'activité'}
-                    </button>
-                  )}
-
                   {resultat && !loading && !valide && (
                     <>
                       <button
@@ -1111,7 +1090,7 @@ function MainApp() {
                   <div data-guide="texte" ref={texteSourceRef}>
                     {/* Verrouillée dès qu'une génération est lancée ou qu'un résultat est là (mode
                         « Régénérer tel quel ») ; « Changer votre demande » la rouvre (entreeDeverrouillee). */}
-                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} cahierPresent={cahierPresent} />
+                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} cahierPresent={cahierPresent} onGenerer={generer} loading={loading} pretAGenerer={pretAGenerer} hasResultat={!!resultat} />
                   </div>
                 )}
                 {/* Étape 3/4 — Résultat : la jauge pendant la génération, puis l'activité générée.

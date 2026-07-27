@@ -55,7 +55,7 @@ const IconIdee = () => (
   </svg>
 )
 
-export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false, cahierPresent = false }) {
+export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false, cahierPresent = false, onGenerer, loading = false, pretAGenerer = false, hasResultat = false }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
   const [isReady, setIsReady] = useState(false)           // micro prêt après le bip "go"
@@ -553,6 +553,33 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           </button>
 
         </div>
+        )}
+
+        {/* Bouton primaire « Générer l'activité » — déplacé ici (choix 27/07) : au niveau du titre,
+            tout à droite, APRÈS les 6 boutons d'apport. Visible en phase COMPOSER et pendant la
+            génération ; en phase résultat c'est « Régénérer » qui prend le relais (barre du haut).
+            marginLeft:auto quand la carte est repliée (les 6 boutons ont disparu) → reste à droite ;
+            sinon 0, il se colle juste après la rangée des 6 boutons (déjà poussée à droite). */}
+        {(!hasResultat || loading) && onGenerer && (
+          <button
+            className="btn-primary"
+            data-guide="generer"
+            onClick={onGenerer}
+            disabled={loading || !pretAGenerer}
+            title={loading ? 'Génération en cours…'
+              : !pretAGenerer ? "Écrivez d'abord votre demande dans la zone de texte"
+              : "Lancer la génération de l'activité avec aSchool"}
+            style={{ flexShrink: 0, marginLeft: replie ? 'auto' : 0,
+                     opacity: loading || !pretAGenerer ? 0.55 : 1,
+                     cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
+          >
+            {loading
+              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+              : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
+                               fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
+                               justifyContent: 'center', flexShrink: 0 }}>3</span>}
+            {loading ? 'Génération en cours...' : 'Générer l\'activité'}
+          </button>
         )}
       </div>
 
