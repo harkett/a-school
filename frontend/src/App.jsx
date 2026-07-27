@@ -1154,7 +1154,7 @@ function MainApp() {
                     {!analysesReplie && (
                       <div>
                         {/* Onglets de la cartouche — même style que MesActivites (souligné bordeaux). */}
-                        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}>
                           {[['ambiguite', 'Ambiguïté'], ['consigne', 'Consigne'], ['equite', 'Équité']].map(([id, label]) => (
                             <button
                               key={id}
@@ -1171,22 +1171,25 @@ function MainApp() {
                               {label}
                             </button>
                           ))}
-                        </div>
-                        {/* Contenu de l'onglet actif — coquilles pour l'instant, à compléter ensuite. */}
-                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                          {/* Bouton d'action de l'onglet Ambiguïté : bleu (btn-primary), tout à droite,
+                              au niveau des titres d'onglets. Même action et même sablier qu'avant. */}
                           {analyseOnglet === 'ambiguite' && (
                             <button
                               type="button"
-                              className="btn-secondary"
+                              className="btn-primary"
                               onClick={analyserAmbiguitesActivite}
                               disabled={ambigLoading}
                               title="Détecter les ambiguïtés de cette activité"
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
+                              style={{ marginLeft: 'auto', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
                             >
                               {ambigLoading && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>}
                               {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
                             </button>
                           )}
+                        </div>
+                        {/* Contenu de l'onglet actif — coquilles pour l'instant, à compléter ensuite. */}
+                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                          {analyseOnglet === 'ambiguite' && <span>Onglet Ambiguïté — contenu à venir.</span>}
                           {analyseOnglet === 'consigne' && <span>Onglet Consigne — contenu à venir.</span>}
                           {analyseOnglet === 'equite'   && <span>Onglet Équité — contenu à venir.</span>}
                         </div>
