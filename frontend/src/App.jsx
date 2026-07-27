@@ -1182,7 +1182,9 @@ function MainApp() {
                               title="Détecter les ambiguïtés de cette activité"
                               style={{ marginLeft: 'auto', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
                             >
-                              {ambigLoading && <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>}
+                              {ambigLoading
+                                ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                                : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
                               {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
                             </button>
                           )}
