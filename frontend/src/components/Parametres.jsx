@@ -84,7 +84,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
       <div className="grid grid-cols-2 gap-4" style={verrouille ? { opacity: 0.5, pointerEvents: 'none' } : undefined}>
 
         <div data-guide="type">
-          <label className="block text-xs text-gray-500 mb-1">Type d'activité</label>
+          <label className="block text-xs text-gray-500 mb-1">Type d'activité<InfoGuide {...aideActivite('type')} /></label>
           <select
             className="w-full border border-gray-300 rounded p-2 text-sm"
             value={params.activite_type_id ?? ''}

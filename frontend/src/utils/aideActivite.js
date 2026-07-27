@@ -12,6 +12,12 @@ export const GUIDE_ACTIVITE = [
     long: "Première étape de la création. Vous choisissez le type d'activité, sa précision quand elle existe, et les options (nombre de questions, correction jointe). Ces réglages, avec votre texte source, décident de ce qu'aSchool produit. La pastille de l'étape passe au vert dès qu'un type est choisi.",
   },
   {
+    cle: 'type',
+    titre: "Type d'activité",
+    court: "La nature de l'activité qu'aSchool va produire.",
+    long: "C'est le premier choix de la création : il décide de la nature de l'activité qu'aSchool produit (dictée, exercice, questionnaire…). Quand le type choisi propose des variantes, le menu « Précision » apparaît juste en dessous. La pastille de l'étape passe au vert dès qu'un type est choisi.",
+  },
+  {
     cle: 'correction',
     titre: 'Inclure une proposition de correction',
     court: 'Une réponse-type est ajoutée après chaque question.',
