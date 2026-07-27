@@ -250,9 +250,11 @@ def _smtp_send(msg):
 
 
 def send_feedback_notification(prof: dict, message: str, rating: int, category: str | None, type: str = "feedback",
-                               contexte: str | None = None):
+                               contexte: str | None = None, incident_ref: str | None = None):
     """Notifie l'admin par email à chaque feedback reçu — SMTP direct, sans A-FEEDBACK.
-    `contexte` = d'où le prof a envoyé (écran + couple), quand le formulaire le fournit."""
+    `contexte` = d'où le prof a envoyé (écran + couple), quand le formulaire le fournit.
+    `incident_ref` = réf de l'incident technique (INC-…) quand le retour vient d'un échec de
+    génération — l'admin la retrouve en base pour voir ce qui a planté."""
     from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
     stars     = "★" * rating + "☆" * (5 - rating)
@@ -296,6 +298,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
         f"Matière      : {matiere}\n"
         f"Niveau       : {niveau}\n"
         + (f"Depuis       : {contexte}\n" if contexte else "")
+        + (f"Incident     : {incident_ref}\n" if incident_ref else "")
         + (f"Note         : {rating}/5  {stars}\n" if type == "notation" else "")
         + (f"Catégorie    : {cat}\n" if type not in ("notation", "idee") else "")
         + f"\nMessage :\n{message}\n"
@@ -305,6 +308,12 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
         <tr>
           <td style="padding:8px 12px;color:#64748b;font-weight:600;">Depuis</td>
           <td style="padding:8px 12px;color:#1e293b;">{contexte}</td>
+        </tr>"""
+
+    row_incident = "" if not incident_ref else f"""
+        <tr>
+          <td style="padding:8px 12px;color:#64748b;font-weight:600;">Incident</td>
+          <td style="padding:8px 12px;color:#b91c1c;font-family:monospace;font-weight:600;">{incident_ref}</td>
         </tr>"""
 
     if type == "notation":
@@ -352,6 +361,7 @@ def send_feedback_notification(prof: dict, message: str, rating: int, category: 
           <td style="padding:8px 12px;color:#1e293b;">{niveau}</td>
         </tr>
         {row_contexte}
+        {row_incident}
         {rows_note_cat}
       </table>
 

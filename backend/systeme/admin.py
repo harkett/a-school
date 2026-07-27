@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, RefreshToken, Setting, User, UserSession
+from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -490,6 +490,19 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
         .limit(200)
         .all()
     )
+    # Incident technique rattaché (Fix 2) : le prof a signalé depuis un échec de génération, l'incident
+    # (erreur brute + contexte) est relié via incidents.feedback_id → l'admin voit ce qui a planté.
+    # Une seule requête pour tous les feedbacks affichés ; un feedback sans incident garde `incident: None`.
+    ids = [f.id for f, _ in rows]
+    incidents_par_feedback = {}
+    if ids:
+        for inc in (
+            db.query(Incident)
+            .filter(Incident.feedback_id.in_(ids))
+            .order_by(Incident.created_at.desc())
+            .all()
+        ):
+            incidents_par_feedback.setdefault(inc.feedback_id, inc)
     return [
         {
             "id":       f.id,
@@ -501,9 +514,28 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "contexte": f.contexte,
             "statut":   f.statut,
             "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
+            "incident": _incident_dict(incidents_par_feedback.get(f.id)),
         }
         for f, email in rows
     ]
+
+
+def _incident_dict(inc):
+    """Vue admin d'un incident technique rattaché à un feedback (None si aucun)."""
+    if inc is None:
+        return None
+    return {
+        "ref":           inc.ref,
+        "date":          inc.created_at.strftime("%d/%m/%Y %H:%M") if inc.created_at else None,
+        "endpoint":      inc.endpoint,
+        "provider":      inc.provider,
+        "model":         inc.model,
+        "error":         inc.error,
+        "matiere":       inc.matiere,
+        "niveau":        inc.niveau,
+        "type_activite": inc.type_activite,
+        "consigne":      inc.consigne,
+    }
 
 
 class StatutBody(BaseModel):

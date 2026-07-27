@@ -7,6 +7,9 @@ Ce que ces tests PROUVENT (comportement réel sur la base de test) :
      feedbacks.id) : l'admin retrouve, sur ce feedback, ce qui a techniquement planté.
   3. Sans `incident_ref` → aucun incident touché ; le feedback s'enregistre normalement.
   4. `incident_ref` inconnue → le feedback s'enregistre QUAND MÊME (200), rien ne casse (best-effort).
+  5. La réf d'incident part dans la notification e-mail de l'admin (`incident_ref=…`).
+  6. L'admin VOIT l'incident sur le feedback : GET /api/admin/feedbacks renvoie le bloc `incident`
+     (réf + erreur brute + contexte technique) sur le feedback relié.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), notification e-mail mockée.
 """
@@ -64,14 +67,34 @@ def test_creer_incident_ecrit_en_base_et_renvoie_ref():
 def test_feedback_avec_ref_relie_l_incident():
     c = _client_avec_prof()
     ref = _creer_incident_en_base()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.auth_lib.send_feedback_notification") as notif:
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Ça a planté chez moi.",
                                           "category": "bug", "incident_ref": ref})
     assert r.status_code == 200, r.text
+    # La réf voyage jusqu'à la notification e-mail de l'admin.
+    assert notif.call_args.kwargs.get("incident_ref") == ref
     with dbmod.SessionLocal() as db:
         fb = db.query(Feedback).first()
         inc = db.query(Incident).filter(Incident.ref == ref).first()
         assert inc.feedback_id == fb.id   # incident RELIÉ au message du prof
+
+
+def test_admin_voit_l_incident_sur_le_feedback():
+    from backend.systeme.admin import _make_admin_token
+    prof = _client_avec_prof()
+    ref = _creer_incident_en_base()
+    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+        prof.post("/api/feedback", json={"type": "feedback", "message": "Ça a planté chez moi.",
+                                         "category": "bug", "incident_ref": ref})
+    admin = TestClient(app)
+    admin.cookies.set("aschool_admin", _make_admin_token())
+    r = admin.get("/api/admin/feedbacks")
+    assert r.status_code == 200, r.text
+    cible = [x for x in r.json() if x.get("incident") and x["incident"]["ref"] == ref]
+    assert cible, "l'incident doit apparaître sur le feedback côté admin"
+    inc = cible[0]["incident"]
+    assert inc["error"].startswith("LLMRateLimitError")
+    assert inc["provider"] == "groq" and inc["type_activite"] == "Exercice"
 
 
 def test_feedback_sans_ref_n_altere_aucun_incident():

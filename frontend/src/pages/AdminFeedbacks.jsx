@@ -256,6 +256,35 @@ export default function AdminFeedbacks() {
                       </div>
                     </div>
                     <p className="text-sm text-gray-700 leading-relaxed mb-3">{f.message}</p>
+                    {f.incident && (
+                      <div style={{
+                        marginBottom: 12, border: '1px solid #fecaca', background: '#fef2f2',
+                        borderRadius: 6, padding: '10px 12px',
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', letterSpacing: 0.3 }}>
+                          INCIDENT TECHNIQUE · {f.incident.ref}
+                        </div>
+                        <div style={{
+                          fontSize: 12, color: '#7f1d1d', marginTop: 4,
+                          fontFamily: 'monospace', whiteSpace: 'pre-wrap',
+                        }}>
+                          {f.incident.error}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                          {[
+                            [f.incident.provider, f.incident.model].filter(Boolean).join(' · '),
+                            f.incident.type_activite,
+                            [f.incident.matiere, f.incident.niveau].filter(Boolean).join(' '),
+                            f.incident.date,
+                          ].filter(Boolean).join('  ·  ')}
+                        </div>
+                        {f.incident.consigne && (
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                            Consigne : {f.incident.consigne}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-gray-400">Changer le statut :</span>
