@@ -437,19 +437,17 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             Texte source
             <InfoGuide {...aideActivite('texte_source', { cahier: cahierPresent })} />
           </span>
-          {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que Résultat généré). */}
-          {verrouille && (
-            <button
-              type="button"
-              onClick={() => setReplie(r => !r)}
-              title={replie ? "Déplier le texte source" : "Replier le texte source"}
-              style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-          )}
+          {/* Chevron plier/déplier — cerclé, à côté du « i ». Toujours visible (même pattern que Résultat généré). */}
+          <button
+            type="button"
+            onClick={() => setReplie(r => !r)}
+            title={replie ? "Déplier le texte source" : "Replier le texte source"}
+            style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
         </div>
         {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport
             sont grisés et inertes d'un coup. « Changer votre demande » lève le verrou.

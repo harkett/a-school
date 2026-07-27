@@ -43,19 +43,17 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             Paramètres de l'activité
             <InfoGuide {...aideActivite('parametres')} />
           </span>
-          {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que Résultat généré). */}
-          {verrouille && (
-            <button
-              type="button"
-              onClick={() => setReplie(r => !r)}
-              title={replie ? "Déplier les paramètres" : "Replier les paramètres"}
-              style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-          )}
+          {/* Chevron plier/déplier — cerclé, à côté du « i ». Toujours visible (même pattern que Résultat généré). */}
+          <button
+            type="button"
+            onClick={() => setReplie(r => !r)}
+            title={replie ? "Déplier les paramètres" : "Replier les paramètres"}
+            style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
         </div>
         {!replie && (
           <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
