@@ -1,22 +1,35 @@
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import FenetrePro from './FenetrePro.jsx'
 
-// Regroupement des explications par CARTOUCHE de l'écran (mêmes numéros et mêmes titres que
-// les cartouches 1→5). On NE duplique pas les textes : on lit `phrase` du catalogue unique
-// aideCreer.js (via `cles`). La cartouche 5 (Analyse) n'a pas encore d'entrée au catalogue —
-// pour ne pas toucher la visite guidée ni le centre d'aide — donc son texte est fourni ici (`local`).
+// Plan du « Comment ça marche » : les mêmes numéros et titres que les cartouches 1→5 de l'écran,
+// avec leurs sous-options (N.M). Les libellés des sous-options sont écrits ici (aideCreer.js n'a
+// pas ce niveau de détail). `cles` = phrase lue dans le catalogue (intro + Générer, pour rester
+// alignés avec la visite guidée) ; `local` = courte intro d'une cartouche ; `sous` = les sous-options
+// numérotées. aideCreer.js n'est PAS modifié : la visite guidée et le centre d'aide restent intacts.
 const CARTOUCHES = [
-  { n: 1, titre: "Paramètres de l'activité",           cles: ['type', 'corrige'] },
-  { n: 2, titre: 'Texte source',                        cles: ['boutons', 'texte'] },
-  { n: 3, titre: 'Générer',                             cles: ['generer'] },
-  { n: 4, titre: 'Résultat généré',                     cles: ['resultat'] },
-  { n: 5, titre: 'Analyse et amélioration du résultat', cles: [],
-    local: "Trois analyses de l'activité générée, chacune dans son onglet :",
-    sous: [
-      { num: '5.1', titre: 'Ambiguïté', desc: "repère les zones d'énoncé ambiguës et propose des reformulations." },
-      { num: '5.2', titre: 'Consigne',  desc: "analyse de la consigne de l'activité (à venir)." },
-      { num: '5.3', titre: 'Équité',    desc: "analyse de l'équité de l'activité (à venir)." },
-    ] },
+  { n: 1, titre: "Paramètres de l'activité", sous: [
+    { num: '1.1', titre: "Type d'activité",                   desc: "ce que vous voulez créer ; la liste dépend de votre matière et de votre niveau." },
+    { num: '1.2', titre: 'Précision',                         desc: "affine le type choisi, quand il le propose (inférence, lexique, mélange…)." },
+    { num: '1.3', titre: 'Nombre de questions',               desc: "quand le type d'activité en demande." },
+    { num: '1.4', titre: 'Proposition de correction',         desc: "cochez pour recevoir le corrigé, regroupé à la fin du document." },
+  ] },
+  { n: 2, titre: 'Texte source', sous: [
+    { num: '2.1', titre: 'La zone de texte',                  desc: "la base de tout : votre demande ou votre document ; elle guide la génération." },
+    { num: '2.2', titre: 'Six façons de la remplir',          desc: "Fichier TXT · Image/Scan · PDF · Document d'exemple · Dicter · Propose-moi une idée." },
+    { num: '2.3', titre: 'Objet',                             desc: "optionnel : le nom sous lequel l'activité apparaît dans « Mes activités »." },
+  ] },
+  { n: 3, titre: 'Générer', cles: ['generer'] },
+  { n: 4, titre: 'Résultat généré', sous: [
+    { num: '4.1', titre: "L'activité générée",                desc: "le texte produit, déjà enregistré tout seul dans « Mes activités »." },
+    { num: '4.2', titre: 'Régénérer / Changer votre demande', desc: "une autre version, ou rouvrir votre texte pour l'ajuster." },
+    { num: '4.3', titre: 'Export',                            desc: ".txt · Word · PDF · Imprimer · E-mail." },
+  ] },
+  { n: 5, titre: 'Analyse et amélioration du résultat',
+    local: "Trois analyses de l'activité générée, chacune dans son onglet :", sous: [
+    { num: '5.1', titre: 'Ambiguïté', desc: "repère les zones d'énoncé ambiguës et propose des reformulations." },
+    { num: '5.2', titre: 'Consigne',  desc: "analyse de la consigne de l'activité (à venir)." },
+    { num: '5.3', titre: 'Équité',    desc: "analyse de l'équité de l'activité (à venir)." },
+  ] },
 ]
 const phraseDe = cle => (GUIDE_CREER.find(e => e.cle === cle) || {}).phrase
 
@@ -40,7 +53,7 @@ export default function FenetreGuide({ onFermer, onRevoirGuide, onOuvrirAide }) 
             dans le catalogue unique aideCreer.js — les mêmes phrases que les bulles de la visite. */}
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {CARTOUCHES.map(c => {
-            const phrases = c.cles.map(phraseDe).filter(Boolean)
+            const phrases = (c.cles || []).map(phraseDe).filter(Boolean)
             if (c.local) phrases.push(c.local)
             return (
               <li key={c.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
