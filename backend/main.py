@@ -38,7 +38,7 @@ from backend.contenu import mes_activites, activites
 from backend.prof import profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
-from backend.analyse import ambiguites, consigne
+from backend.analyse import ambiguites, consigne, verifier_resultat
 from backend.dictee import ocr, transcribe
 from backend.reseau import bibliotheque
 from backend.sequence import sequence, optimiseur
@@ -113,6 +113,7 @@ app.include_router(optimiseur.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(sequence.router, prefix="/api")
 app.include_router(ambiguites.router, prefix="/api")
+app.include_router(verifier_resultat.router, prefix="/api")
 app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")

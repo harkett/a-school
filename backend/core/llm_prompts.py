@@ -49,6 +49,48 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
+PROMPT_VERIFIER_RESULTAT = """Tu es un expert en didactique et en conception d'activités pédagogiques pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
+
+Un enseignant de {matiere}, niveau {niveau}, vient de générer l'activité ci-dessous. Sa demande initiale : type d'activité « {type_activite} », précision « {precision} », corrigé inclus : {correction}.
+
+Activité générée à vérifier :
+{texte}
+
+Ta mission : VÉRIFIER cette activité sur 5 axes et rendre un diagnostic — SANS la réécrire. Pour CHAQUE axe, donne un statut, un constat en une phrase, et l'extrait exact concerné (chaîne vide si rien à montrer).
+
+Les 5 axes, dans cet ordre :
+1. Cohérence interne — L'activité correspond-elle fidèlement à la demande (type demandé, niveau, intention du texte source) ?
+2. Correction ↔ questions — Chaque question a-t-elle une correction exacte, sans manque ni décalage ? (Si aucun corrigé n'est inclus — corrigé inclus : non — statut "non_applicable".)
+3. Conformité au type — Le résultat respecte-t-il le type demandé « {type_activite} » (sa forme, sa nature) ?
+4. Précision — Y a-t-il des formulations floues, ambiguës, à double sens, trop longues ou insuffisamment cadrées (verbe vague, critères de réussite absents, vocabulaire non défini, référence implicite) ?
+5. Mise en forme — La structure est-elle propre : titres, numérotation, lisibilité, cohérence visuelle ?
+
+Statut de chaque axe (obligatoire, UNE valeur parmi) :
+- "ok" — l'axe est respecté, rien à corriger.
+- "info" — point mineur à surveiller, sans gravité.
+- "probleme" — vrai défaut à corriger.
+- "non_applicable" — l'axe ne s'applique pas (ex. corrigé absent pour l'axe Correction).
+
+Format de réponse — JSON strict, rien d'autre autour :
+{{
+  "verdict": "Phrase de synthèse courte sur la qualité globale du résultat.",
+  "axes": [
+    {{
+      "axe": "Cohérence interne",
+      "statut": "ok",
+      "constat": "Constat en une phrase, clair et actionnable.",
+      "extrait": "Fragment exact du résultat concerné, ou chaîne vide."
+    }}
+  ]
+}}
+
+Règles :
+- Retourne TOUJOURS les 5 axes, dans l'ordre ci-dessus, même ceux au statut "ok".
+- Cite des extraits textuels EXACTS (mot pour mot) dans "extrait" ; laisse "" si l'axe est "ok" ou "non_applicable".
+- Adapte ton jugement au niveau {niveau}. Ne signale que de vrais défauts — n'invente rien.
+- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+
+
 PROMPT_CONSIGNE = """Tu es un expert en didactique et en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
 
 Un enseignant de {matiere}, niveau {niveau}, te soumet une consigne isolée à analyser.
@@ -379,6 +421,11 @@ PROMPTS = {
         "label": "Détecteur d'ambiguïtés",
         "placeholders": ["matiere", "niveau", "texte"],
         "default": PROMPT_AMBIGUITES,
+    },
+    "verifier_resultat": {
+        "label": "Vérification du résultat (5 axes)",
+        "placeholders": ["matiere", "niveau", "texte", "type_activite", "precision", "correction"],
+        "default": PROMPT_VERIFIER_RESULTAT,
     },
     "consigne": {
         "label": "Analyse de consigne",
