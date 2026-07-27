@@ -1,6 +1,20 @@
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import FenetrePro from './FenetrePro.jsx'
 
+// Regroupement des explications par CARTOUCHE de l'écran (mêmes numéros et mêmes titres que
+// les cartouches 1→5). On NE duplique pas les textes : on lit `phrase` du catalogue unique
+// aideCreer.js (via `cles`). La cartouche 5 (Analyse) n'a pas encore d'entrée au catalogue —
+// pour ne pas toucher la visite guidée ni le centre d'aide — donc son texte est fourni ici (`local`).
+const CARTOUCHES = [
+  { n: 1, titre: "Paramètres de l'activité",           cles: ['type', 'corrige'] },
+  { n: 2, titre: 'Texte source',                        cles: ['boutons', 'texte'] },
+  { n: 3, titre: 'Générer',                             cles: ['generer'] },
+  { n: 4, titre: 'Résultat généré',                     cles: ['resultat'] },
+  { n: 5, titre: 'Analyse et amélioration du résultat', cles: [],
+    local: "Trois analyses de l'activité générée, chacune dans son onglet : Ambiguïté, Consigne et Équité." },
+]
+const phraseDe = cle => (GUIDE_CREER.find(e => e.cle === cle) || {}).phrase
+
 // « Comment ça marche » (l'idée de l'utilisateur, 25/07) : une fenêtre déplaçable et
 // étirable (coquille FenetrePro), pas un onglet qui remplace l'écran — le prof la pose où
 // il veut et garde le mode d'emploi sous les yeux pendant qu'il remplit le vrai formulaire.
@@ -13,18 +27,30 @@ export default function FenetreGuide({ onFermer, onRevoirGuide, onOuvrirAide }) 
     <FenetrePro titre="Comment ça marche" onFermer={onFermer}>
       <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1, minHeight: 0,
                     display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Les étapes : les MÊMES phrases que les bulles de la visite (catalogue unique). */}
+        {/* Intro : le bandeau classe/matière, au-dessus des cartouches sur l'écran. */}
+        {phraseDe('couple') && (
+          <p style={{ margin: 0, fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>{phraseDe('couple')}</p>
+        )}
+        {/* Les étapes, regroupées par cartouche (mêmes numéros/titres que l'écran). Textes lus
+            dans le catalogue unique aideCreer.js — les mêmes phrases que les bulles de la visite. */}
         <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {GUIDE_CREER.map((e, i) => (
-            <li key={e.cle} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: 'var(--bleu)',
-                             color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex',
-                             alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>{i + 1}</span>
-              <span style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
-                <strong style={{ color: '#1e293b' }}>{e.titre}.</strong> {e.phrase}
-              </span>
-            </li>
-          ))}
+          {CARTOUCHES.map(c => {
+            const phrases = c.cles.map(phraseDe).filter(Boolean)
+            if (c.local) phrases.push(c.local)
+            return (
+              <li key={c.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: 'var(--bleu)',
+                               color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex',
+                               alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>{c.n}</span>
+                <span style={{ fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#1e293b' }}>{c.titre}</strong>
+                  {phrases.map((p, i) => (
+                    <span key={i} style={{ display: 'block', marginTop: 3 }}>{p}</span>
+                  ))}
+                </span>
+              </li>
+            )
+          })}
         </ol>
 
         <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
