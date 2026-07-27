@@ -55,9 +55,9 @@ export const GUIDE_ACTIVITE = [
   },
   {
     cle: 'analyses',
-    titre: 'Analyse et amélioration du résultat',
-    court: "Analysez et améliorez l'activité générée : ambiguïté, consigne, équité.",
-    long: "Cette section réunit trois analyses de l'activité générée, chacune dans son onglet : Ambiguïté, Consigne et Équité. Son contenu sera complété prochainement.",
+    titre: 'Vérifier le résultat',
+    court: "Contrôle l'activité générée et signale ce qui doit être corrigé.",
+    long: "« Vérifier » relit l'activité générée et signale les points à corriger. Le rapport s'affiche en cartes : pour chaque point, l'extrait concerné et une suggestion. Pour l'instant il détecte les ambiguïtés ; d'autres contrôles (cohérence avec votre demande, conformité au type, correction…) s'ajouteront progressivement. L'amélioration du résultat, elle, arrivera dans une étape dédiée.",
   },
 ]
 

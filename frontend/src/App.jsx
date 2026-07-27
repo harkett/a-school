@@ -129,7 +129,6 @@ function MainApp() {
   const [ambigResultat, setAmbigResultat] = useState(null)  // rapport d'ambiguïtés de l'activité affichée : LU sur `resultat` (get), affiché non stocké — zéro copie
   const [ambigLoading, setAmbigLoading]   = useState(false)  // analyse d'ambiguïté en cours : sablier du bouton + jauge de la cartouche
   const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
-  const [analyseOnglet, setAnalyseOnglet] = useState('ambiguite')  // onglet actif de cette cartouche : ambiguite | consigne | equite
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
@@ -1127,106 +1126,53 @@ function MainApp() {
                   />
                 </div>
 
-                {/* Cartouche « Analyses » : sous « Résultat généré ». Coquille pour l'instant
-                    (titre + « i » + chevron, même style que les autres cartouches) ; le contenu
-                    et l'ergonomie viendront ensuite. Repli éphémère, jamais en base. */}
+                {/* Cartouche « Vérifier le résultat » (étape 5), sous « Résultat généré ». Un bouton
+                    « Vérifier » lance les contrôles sur l'activité et affiche un rapport en cartes.
+                    Premier axe branché = l'ambiguïté (analyserAmbiguitesActivite) ; les autres axes
+                    (cohérence, conformité, correction…) s'ajouteront ici, un par un. L'amélioration
+                    du résultat viendra dans une cartouche « Améliorer » séparée (dernière étape).
+                    Repli éphémère, jamais en base. */}
                 {resultat && (
                   <section className="bg-white rounded border border-gray-200 p-4">
                     <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <EtapeBadge n={5} fait={false} />
+                      <EtapeBadge n={5} fait={!!ambigResultat} />
                       <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                        Analyse et amélioration du résultat
+                        Vérifier le résultat
                         <InfoGuide {...aideActivite('analyses')} />
                       </span>
                       {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que les autres cartouches). */}
                       <button
                         type="button"
                         onClick={() => setAnalysesReplie(r => !r)}
-                        title={analysesReplie ? "Déplier les analyses" : "Replier les analyses"}
+                        title={analysesReplie ? "Déplier la vérification" : "Replier la vérification"}
                         style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: analysesReplie ? 'rotate(-90deg)' : 'none' }}>
                           <polyline points="6 9 12 15 18 9"/>
                         </svg>
                       </button>
+                      {/* Bouton « Vérifier » — bleu, à droite. Premier axe branché : l'ambiguïté. */}
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={analyserAmbiguitesActivite}
+                        disabled={ambigLoading}
+                        title="Vérifier le résultat (pour l'instant : détection des ambiguïtés)"
+                        style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
+                      >
+                        {ambigLoading
+                          ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                          : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
+                        {ambigLoading ? 'Vérification en cours…' : 'Vérifier'}
+                      </button>
                     </div>
                     {!analysesReplie && (
-                      <div>
-                        {/* Onglets de la cartouche — même style que MesActivites (souligné bordeaux). */}
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}>
-                          {[['ambiguite', 'Ambiguïté'], ['consigne', 'Consigne'], ['equite', 'Équité']].map(([id, label]) => (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => setAnalyseOnglet(id)}
-                              style={{
-                                background: 'none', border: 'none', cursor: 'pointer',
-                                fontSize: 13, padding: '6px 12px', marginBottom: -1,
-                                color: analyseOnglet === id ? 'var(--bordeaux)' : '#6b7280',
-                                fontWeight: analyseOnglet === id ? 600 : 400,
-                                borderBottom: analyseOnglet === id ? '2px solid var(--bordeaux)' : '2px solid transparent',
-                              }}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                          {/* Bouton d'action de l'onglet Ambiguïté : bleu (btn-primary), tout à droite,
-                              au niveau des titres d'onglets. Même action et même sablier qu'avant. */}
-                          {analyseOnglet === 'ambiguite' && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={analyserAmbiguitesActivite}
-                              disabled={ambigLoading}
-                              title="Détecter les ambiguïtés de cette activité"
-                              style={{ marginLeft: 'auto', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
-                            >
-                              {ambigLoading
-                                ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                                : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
-                              {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
-                            </button>
-                          )}
-                          {/* Bouton de l'onglet Consigne — coquille : action à brancher plus tard. */}
-                          {analyseOnglet === 'consigne' && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={() => {}}
-                              title="Analyser la consigne de l'activité (à venir)"
-                              style={{ marginLeft: 'auto', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                              Consigne
-                            </button>
-                          )}
-                          {/* Bouton de l'onglet Équité — coquille : action à brancher plus tard. */}
-                          {analyseOnglet === 'equite' && (
-                            <button
-                              type="button"
-                              className="btn-primary"
-                              onClick={() => {}}
-                              title="Analyser l'équité de l'activité (à venir)"
-                              style={{ marginLeft: 'auto', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="6" x2="18" y2="6"/><path d="M6 6l-3 6h6z"/><path d="M18 6l-3 6h6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
-                              Équité
-                            </button>
-                          )}
-                        </div>
-                        {/* Contenu de l'onglet actif. Ambiguïté : la jauge pendant l'analyse, puis le
-                            rapport (verdict + cartes) DANS l'onglet. Consigne / Équité : coquilles. */}
-                        <div style={{ fontSize: 13, color: '#64748b' }}>
-                          {analyseOnglet === 'ambiguite' && (
-                            ambigLoading
-                              ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
-                              : ambigResultat
-                                ? <AmbiguitesResultat resultat={ambigResultat} />
-                                : <span>Cliquez sur « Ambiguïtés », en haut à droite, pour analyser l'activité.</span>
-                          )}
-                          {analyseOnglet === 'consigne' && <span>Onglet Consigne — contenu à venir.</span>}
-                          {analyseOnglet === 'equite'   && <span>Onglet Équité — contenu à venir.</span>}
-                        </div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        {ambigLoading
+                          ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
+                          : ambigResultat
+                            ? <AmbiguitesResultat resultat={ambigResultat} />
+                            : <span>Cliquez sur « Vérifier », en haut à droite, pour contrôler le résultat.</span>}
                       </div>
                     )}
                   </section>
