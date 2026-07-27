@@ -128,7 +128,6 @@ function MainApp() {
   const [loading, setLoading] = useState(false)
   const [ambigResultat, setAmbigResultat] = useState(null)  // rapport d'ambiguïtés de l'activité affichée : LU sur `resultat` (get), affiché non stocké — zéro copie
   const [ambigLoading, setAmbigLoading]   = useState(false)  // analyse d'ambiguïté en cours : sablier du bouton + jauge de la cartouche
-  const [ambigReplie, setAmbigReplie]     = useState(false)  // repli manuel de la cartouche « Résultat Ambiguïté » (affichage éphémère, jamais en base)
   const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
   const [analyseOnglet, setAnalyseOnglet] = useState('ambiguite')  // onglet actif de cette cartouche : ambiguite | consigne | equite
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
@@ -1215,41 +1214,21 @@ function MainApp() {
                             </button>
                           )}
                         </div>
-                        {/* Contenu de l'onglet actif — coquilles pour l'instant, à compléter ensuite. */}
+                        {/* Contenu de l'onglet actif. Ambiguïté : la jauge pendant l'analyse, puis le
+                            rapport (verdict + cartes) DANS l'onglet. Consigne / Équité : coquilles. */}
                         <div style={{ fontSize: 13, color: '#64748b' }}>
-                          {analyseOnglet === 'ambiguite' && <span>Onglet Ambiguïté — contenu à venir.</span>}
+                          {analyseOnglet === 'ambiguite' && (
+                            ambigLoading
+                              ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
+                              : ambigResultat
+                                ? <AmbiguitesResultat resultat={ambigResultat} />
+                                : <span>Cliquez sur « Ambiguïtés », en haut à droite, pour analyser l'activité.</span>
+                          )}
                           {analyseOnglet === 'consigne' && <span>Onglet Consigne — contenu à venir.</span>}
                           {analyseOnglet === 'equite'   && <span>Onglet Équité — contenu à venir.</span>}
                         </div>
                       </div>
                     )}
-                  </section>
-                )}
-
-                {/* Cartouche « Résultat Ambiguïté » : s'ouvre sous « Résultat généré » quand on lance
-                    l'analyse depuis le bouton Ambiguïtés. Jauge pendant l'analyse, puis verdict + cartes
-                    (affichage partagé avec le module autonome). Lecture seule : aucun bouton qui navigue. */}
-                {(ambigLoading || ambigResultat) && (
-                  <section className="bg-white rounded border border-gray-200 p-4">
-                    <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span>Résultat Ambiguïté</span>
-                      {/* Chevron plier/déplier — même rond que le « i » (cohérent avec les autres cartouches). */}
-                      {ambigResultat && (
-                        <button
-                          type="button"
-                          onClick={() => setAmbigReplie(r => !r)}
-                          title={ambigReplie ? "Déplier le résultat" : "Replier le résultat"}
-                          style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: ambigReplie ? 'rotate(-90deg)' : 'none' }}>
-                            <polyline points="6 9 12 15 18 9"/>
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                    {ambigLoading
-                      ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
-                      : (!ambigReplie && <AmbiguitesResultat resultat={ambigResultat} />)}
                   </section>
                 )}
               </div>
