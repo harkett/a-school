@@ -437,6 +437,19 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             Texte source
             <InfoGuide {...aideActivite('texte_source', { cahier: cahierPresent })} />
           </span>
+          {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que Résultat généré). */}
+          {verrouille && (
+            <button
+              type="button"
+              onClick={() => setReplie(r => !r)}
+              title={replie ? "Déplier le texte source" : "Replier le texte source"}
+              style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          )}
         </div>
         {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport
             sont grisés et inertes d'un coup. « Changer votre demande » lève le verrou.
@@ -484,7 +497,9 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           <button
             type="button"
             className="btn-action"
-            title="aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
+            title={cahierPresent
+              ? "aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau et du cahier des charges de votre établissement — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
+              : "aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."}
             onClick={handleExemple}
             disabled={exempleLoading}
             style={exempleLoading ? { opacity: 0.6, cursor: 'wait' } : enRetrait}
@@ -524,7 +539,9 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           <button
             type="button"
             className="btn-action"
-            title="aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."
+            title={cahierPresent
+              ? "aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision, le programme officiel et le cahier des charges de votre établissement — vous la retouchez librement, puis Générer."
+              : "aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."}
             onClick={handleIdee}
             disabled={ideeLoading}
             style={ideeLoading ? { opacity: 0.6, cursor: 'wait' } : enRetrait}
@@ -536,19 +553,6 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           </button>
 
         </div>
-        )}
-        {/* Chevron plier/déplier : visible seulement quand la carte est verrouillée (phase résultat). */}
-        {verrouille && (
-          <button
-            type="button"
-            onClick={() => setReplie(r => !r)}
-            title={replie ? "Déplier le texte source" : "Replier le texte source"}
-            style={{ marginLeft: 'auto', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748b', display: 'flex', alignItems: 'center' }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
         )}
       </div>
 
