@@ -1,4 +1,5 @@
-﻿import { Document, Packer, Paragraph, TextRun } from 'docx'
+﻿import { useState } from 'react'
+import { Document, Packer, Paragraph, TextRun } from 'docx'
 import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
@@ -124,7 +125,14 @@ const IconSearch = () => (
   </svg>
 )
 
-export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, onAnalyserAmbiguites, cahierPresent = false }) {
+const Spinner = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+  </svg>
+)
+
+export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, onAnalyserAmbiguites, ambigLoading = false, cahierPresent = false }) {
+  const [replie, setReplie] = useState(false)   // repli manuel de la cartouche (affichage éphémère, jamais en base)
   if (!resultat && !loading) return null
 
   return (
@@ -137,6 +145,19 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
               Résultat généré
               <InfoGuide {...aideActivite('resultat', { cahier: cahierPresent })} />
             </span>
+            {/* Chevron plier/déplier — même pattern que la carte Texte source (TexteSource.jsx). */}
+            {resultat && (
+              <button
+                type="button"
+                onClick={() => setReplie(r => !r)}
+                title={replie ? "Déplier le résultat" : "Replier le résultat"}
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#64748b', display: 'flex', alignItems: 'center' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transition: 'transform 0.2s', transform: replie ? 'rotate(-90deg)' : 'none' }}>
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+            )}
           </div>
           {/* Message + 2 boutons de retour arrière, sur la MÊME ligne que « Résultat généré ».
               Affichés seulement quand le résultat est TERMINÉ (!loading) et pas encore validé. */}
@@ -207,17 +228,20 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
           </button>
           {onAnalyserAmbiguites && resultat && (
             <button
+              type="button"
               className="btn-secondary"
-              disabled
-              title="Analyse des ambiguïtés — bientôt disponible"
-              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+              onClick={onAnalyserAmbiguites}
+              disabled={ambigLoading}
+              title="Détecter les ambiguïtés de cette activité"
             >
-              <IconSearch /> Ambiguïtés
+              {ambigLoading ? <Spinner /> : <IconSearch />}
+              {ambigLoading ? 'Analyse en cours…' : 'Ambiguïtés'}
             </button>
           )}
         </div>
       </div>
 
+      {!replie && (
       <div
         className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed rounded p-4"
         style={{
@@ -229,6 +253,7 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
       >
         {resultat}
       </div>
+      )}
     </section>
   )
 }
