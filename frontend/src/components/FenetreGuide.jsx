@@ -11,7 +11,12 @@ const CARTOUCHES = [
   { n: 3, titre: 'Générer',                             cles: ['generer'] },
   { n: 4, titre: 'Résultat généré',                     cles: ['resultat'] },
   { n: 5, titre: 'Analyse et amélioration du résultat', cles: [],
-    local: "Trois analyses de l'activité générée, chacune dans son onglet : Ambiguïté, Consigne et Équité." },
+    local: "Trois analyses de l'activité générée, chacune dans son onglet :",
+    sous: [
+      { num: '5.1', titre: 'Ambiguïté', desc: "repère les zones d'énoncé ambiguës et propose des reformulations." },
+      { num: '5.2', titre: 'Consigne',  desc: "analyse de la consigne de l'activité (à venir)." },
+      { num: '5.3', titre: 'Équité',    desc: "analyse de l'équité de l'activité (à venir)." },
+    ] },
 ]
 const phraseDe = cle => (GUIDE_CREER.find(e => e.cle === cle) || {}).phrase
 
@@ -46,6 +51,11 @@ export default function FenetreGuide({ onFermer, onRevoirGuide, onOuvrirAide }) 
                   <strong style={{ color: '#1e293b' }}>{c.titre}</strong>
                   {phrases.map((p, i) => (
                     <span key={i} style={{ display: 'block', marginTop: 3 }}>{p}</span>
+                  ))}
+                  {c.sous && c.sous.map(s => (
+                    <span key={s.num} style={{ display: 'block', marginTop: 4, marginLeft: 4 }}>
+                      <strong style={{ color: '#1e293b' }}>{s.num} {s.titre}</strong> — {s.desc}
+                    </span>
                   ))}
                 </span>
               </li>
