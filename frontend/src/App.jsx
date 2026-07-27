@@ -128,7 +128,8 @@ function MainApp() {
   const [ambigResultat, setAmbigResultat] = useState(null)  // rapport d'ambiguïtés de l'activité affichée : LU sur `resultat` (get), affiché non stocké — zéro copie
   const [ambigLoading, setAmbigLoading]   = useState(false)  // analyse d'ambiguïté en cours : sablier du bouton + jauge de la cartouche
   const [ambigReplie, setAmbigReplie]     = useState(false)  // repli manuel de la cartouche « Résultat Ambiguïté » (affichage éphémère, jamais en base)
-  const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyses » (affichage éphémère, jamais en base)
+  const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
+  const [analyseOnglet, setAnalyseOnglet] = useState('ambiguite')  // onglet actif de cette cartouche : ambiguite | consigne | equite
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
@@ -1133,7 +1134,7 @@ function MainApp() {
                   <section className="bg-white rounded border border-gray-200 p-4">
                     <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                        Analyses
+                        Analyse et amélioration du résultat
                         <InfoGuide {...aideActivite('analyses')} />
                       </span>
                       {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que les autres cartouches). */}
@@ -1149,8 +1150,32 @@ function MainApp() {
                       </button>
                     </div>
                     {!analysesReplie && (
-                      <div style={{ fontSize: 13, color: '#64748b' }}>
-                        (Contenu à venir.)
+                      <div>
+                        {/* Onglets de la cartouche — même style que MesActivites (souligné bordeaux). */}
+                        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid #e5e7eb', marginBottom: 12 }}>
+                          {[['ambiguite', 'Ambiguïté'], ['consigne', 'Consigne'], ['equite', 'Équité']].map(([id, label]) => (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setAnalyseOnglet(id)}
+                              style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                fontSize: 13, padding: '6px 12px', marginBottom: -1,
+                                color: analyseOnglet === id ? 'var(--bordeaux)' : '#6b7280',
+                                fontWeight: analyseOnglet === id ? 600 : 400,
+                                borderBottom: analyseOnglet === id ? '2px solid var(--bordeaux)' : '2px solid transparent',
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Contenu de l'onglet actif — coquilles pour l'instant, à compléter ensuite. */}
+                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                          {analyseOnglet === 'ambiguite' && <span>Onglet Ambiguïté — contenu à venir.</span>}
+                          {analyseOnglet === 'consigne' && <span>Onglet Consigne — contenu à venir.</span>}
+                          {analyseOnglet === 'equite'   && <span>Onglet Équité — contenu à venir.</span>}
+                        </div>
                       </div>
                     )}
                   </section>

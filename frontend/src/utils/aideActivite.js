@@ -55,9 +55,9 @@ export const GUIDE_ACTIVITE = [
   },
   {
     cle: 'analyses',
-    titre: 'Analyses',
-    court: "Les analyses que vous pouvez lancer sur l'activité générée.",
-    long: "Cette section réunit les analyses de l'activité générée. Son contenu sera complété prochainement.",
+    titre: 'Analyse et amélioration du résultat',
+    court: "Analysez et améliorez l'activité générée : ambiguïté, consigne, équité.",
+    long: "Cette section réunit trois analyses de l'activité générée, chacune dans son onglet : Ambiguïté, Consigne et Équité. Son contenu sera complété prochainement.",
   },
 ]
 
