@@ -22,7 +22,7 @@ import Accueil from './components/Accueil'
 import SequenceForm from './components/SequenceForm'
 import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
-import AmbiguitesResultat from './components/AmbiguitesResultat.jsx'
+import VerificationResultat from './components/VerificationResultat.jsx'
 import InfoGuide from './components/InfoGuide.jsx'
 import EtapeBadge from './components/EtapeBadge.jsx'
 import { aideActivite } from './utils/aideActivite.js'
@@ -126,8 +126,8 @@ function MainApp() {
   const [objet, setObjet] = useState('')
   const [resultat, setResultat] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [ambigResultat, setAmbigResultat] = useState(null)  // rapport d'ambiguïtés de l'activité affichée : LU sur `resultat` (get), affiché non stocké — zéro copie
-  const [ambigLoading, setAmbigLoading]   = useState(false)  // analyse d'ambiguïté en cours : sablier du bouton + jauge de la cartouche
+  const [verifResultat, setVerifResultat] = useState(null)  // rapport « Vérifier le résultat » : LU sur `resultat` (get), affiché non stocké — zéro copie
+  const [verifLoading, setVerifLoading]   = useState(false)  // vérification en cours : sablier du bouton + jauge de la cartouche
   const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
@@ -371,8 +371,8 @@ function MainApp() {
     }
     setErreur(null)
     setResultat(null)
-    setAmbigResultat(null)          // (ré)générer = nouvelle activité → l'ancien rapport d'ambiguïté ne vaut plus
-    setAmbigLoading(false)
+    setVerifResultat(null)          // (ré)générer = nouvelle activité → l'ancienne vérification ne vaut plus
+    setVerifLoading(false)
     setValide(false)
     setRepriseHistorique(false)     // (ré)générer = nouveau brouillon PAS en base → Valider/Annuler redeviennent actifs
     setEntreeDeverrouillee(false)   // nouvelle génération → la saisie repart verrouillée dès qu'un résultat arrive
@@ -468,30 +468,37 @@ function MainApp() {
     generer()
   }
 
-  // Bouton « Ambiguïtés » de la zone Résultat : LIT (get) le texte de l'activité affichée et l'envoie
-  // au détecteur d'ambiguïtés (même endpoint que le module autonome). Le rapport s'affiche SUR PLACE
-  // dans la cartouche « Résultat Ambiguïté » — on ne quitte pas l'écran, le résultat n'est pas modifié.
-  // Le couple (matière/niveau) suit le couple de travail lu en base (sessionMatiere + params.niveau).
-  async function analyserAmbiguitesActivite() {
-    if (ambigLoading || !resultat || !resultat.trim()) return
-    setAmbigResultat(null)
-    setAmbigLoading(true)
+  // Bouton « Vérifier » de la cartouche : LIT (get) le texte de l'activité affichée + le contexte de
+  // la demande (type, précision, correction) et lance /api/verifier-resultat (5 axes en une passe).
+  // La checklist s'affiche SUR PLACE dans la cartouche — on ne quitte pas l'écran, le résultat n'est
+  // pas modifié. Couple (matière/niveau) = couple de travail (sessionMatiere + params.niveau).
+  async function verifierResultat() {
+    if (verifLoading || !resultat || !resultat.trim()) return
+    setVerifResultat(null)
+    setVerifLoading(true)
     try {
-      const res = await apiFetch('/api/detect-ambiguites', {
+      const res = await apiFetch('/api/verifier-resultat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ texte: resultat.trim(), matiere: sessionMatiere, niveau: params.niveau }),
+        body: JSON.stringify({
+          texte: resultat.trim(),
+          matiere: sessionMatiere,
+          niveau: params.niveau,
+          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
+          precision: params.sous_type || '',
+          correction: !!params.avec_correction,
+        }),
       }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || `Erreur ${res.status}`)
       }
-      setAmbigResultat(await res.json())
+      setVerifResultat(await res.json())
     } catch {
-      showError("L'analyse des ambiguïtés n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
+      showError("La vérification du résultat n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
     } finally {
-      setAmbigLoading(false)
+      setVerifLoading(false)
     }
   }
 
@@ -547,7 +554,7 @@ function MainApp() {
       avec_correction: act.avec_correction,
     })
     setResultat(act.resultat)
-    setAmbigResultat(null)        // activité reprise de l'historique → pas d'ancien rapport d'ambiguïté à afficher
+    setVerifResultat(null)        // activité reprise de l'historique → pas d'ancienne vérification à afficher
     setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
     setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
     setEntreeDeverrouillee(false)
@@ -564,7 +571,7 @@ function MainApp() {
     setTexte('')
     setObjet('')
     setResultat(null)
-    setAmbigResultat(null)
+    setVerifResultat(null)
     setValide(false)
     setRepriseHistorique(false)
     setEntreeDeverrouillee(false)
@@ -1120,22 +1127,19 @@ function MainApp() {
                     email={user?.email}
                     onRegenerer={regenerer}
                     onChangerDemande={changerDemande}
-                    onAnalyserAmbiguites={analyserAmbiguitesActivite}
-                    ambigLoading={ambigLoading}
                     cahierPresent={cahierPresent}
                   />
                 </div>
 
-                {/* Cartouche « Vérifier le résultat » (étape 5), sous « Résultat généré ». Un bouton
-                    « Vérifier » lance les contrôles sur l'activité et affiche un rapport en cartes.
-                    Premier axe branché = l'ambiguïté (analyserAmbiguitesActivite) ; les autres axes
-                    (cohérence, conformité, correction…) s'ajouteront ici, un par un. L'amélioration
-                    du résultat viendra dans une cartouche « Améliorer » séparée (dernière étape).
-                    Repli éphémère, jamais en base. */}
+                {/* Cartouche « Vérifier le résultat » (étape 5), sous « Résultat généré ». Le bouton
+                    « Vérifier » lance /api/verifier-resultat (5 axes : cohérence, correction↔questions,
+                    conformité, précision, mise en forme) en UNE passe → une checklist en cartes.
+                    Diagnostic seul, aucune réécriture. L'amélioration viendra dans une cartouche
+                    « Améliorer » séparée (dernière étape). Repli éphémère, jamais en base. */}
                 {resultat && (
                   <section className="bg-white rounded border border-gray-200 p-4">
                     <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <EtapeBadge n={5} fait={!!ambigResultat} />
+                      <EtapeBadge n={5} fait={!!verifResultat} />
                       <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                         Vérifier le résultat
                         <InfoGuide {...aideActivite('analyses')} />
@@ -1155,23 +1159,23 @@ function MainApp() {
                       <button
                         type="button"
                         className="btn-primary"
-                        onClick={analyserAmbiguitesActivite}
-                        disabled={ambigLoading}
-                        title="Vérifier le résultat (pour l'instant : détection des ambiguïtés)"
-                        style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: ambigLoading ? 0.6 : 1, cursor: ambigLoading ? 'wait' : 'pointer' }}
+                        onClick={verifierResultat}
+                        disabled={verifLoading}
+                        title="Vérifier le résultat sur 5 axes (cohérence, correction, conformité, précision, mise en forme)"
+                        style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: verifLoading ? 0.6 : 1, cursor: verifLoading ? 'wait' : 'pointer' }}
                       >
-                        {ambigLoading
+                        {verifLoading
                           ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
                           : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
-                        {ambigLoading ? 'Vérification en cours…' : 'Vérifier'}
+                        {verifLoading ? 'Vérification en cours…' : 'Vérifier'}
                       </button>
                     </div>
                     {!analysesReplie && (
                       <div style={{ fontSize: 13, color: '#64748b' }}>
-                        {ambigLoading
-                          ? <JaugeAttente libelle="aSchool relit votre activité et repère les zones d'ambiguïté…" />
-                          : ambigResultat
-                            ? <AmbiguitesResultat resultat={ambigResultat} />
+                        {verifLoading
+                          ? <JaugeAttente libelle="aSchool vérifie votre activité sur les 5 axes…" />
+                          : verifResultat
+                            ? <VerificationResultat resultat={verifResultat} />
                             : <span>Cliquez sur « Vérifier », en haut à droite, pour contrôler le résultat.</span>}
                       </div>
                     )}

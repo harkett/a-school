@@ -131,7 +131,7 @@ const Spinner = () => (
   </svg>
 )
 
-export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, onAnalyserAmbiguites, ambigLoading = false, cahierPresent = false }) {
+export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, cahierPresent = false }) {
   const [replie, setReplie] = useState(false)   // repli manuel de la cartouche (affichage éphémère, jamais en base)
   if (!resultat && !loading) return null
 
