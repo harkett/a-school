@@ -130,6 +130,32 @@ def referentiel_disponible(niveau: str, matiere: str | None = None, db: Session 
     return {"disponible": q.first() is not None}
 
 
+@router.get("/programmes/couverture")
+def get_couverture(db: Session = Depends(get_db)):
+    """Vitrine « Programmes couverts » (page À propos du prof) : TOUS les cycles et niveaux qui
+    existent en base, Y COMPRIS ceux sans matière encore rattachée (BTS, BUT, Master, Doctorat…),
+    pour montrer l'ampleur de la couverture. `refDisponible` = DÉRIVÉ (le niveau a un référentiel
+    réellement ingéré, ≥1 chunk), jamais stocké — source unique = les référentiels. Lecture seule,
+    zéro copie. À NE PAS confondre avec /programmes, qui ne renvoie QUE les niveaux utilisables par
+    un prof (filtrés sur la matière) : ici on ne filtre pas, c'est une vitrine, pas un menu."""
+    dispo = {
+        row[0]
+        for row in db.query(Referentiel.niveau_id)
+                     .join(ReferentielChunk, ReferentielChunk.referentiel_id == Referentiel.id)
+                     .distinct().all()
+    }
+    cycles = []
+    for c in db.query(Cycle).order_by(Cycle.ordre).all():
+        nivs = [
+            {"id": n.id, "nom": n.nom, "refDisponible": n.id in dispo}
+            for n in db.query(Niveau).filter(Niveau.cycle_id == c.id)
+                       .order_by(Niveau.ordre).all()
+        ]
+        if nivs:   # un cycle sans aucun niveau n'a rien à montrer
+            cycles.append({"cycle": c.nom, "niveaux": nivs})
+    return {"cycles": cycles}
+
+
 # ───────────────────────────────────────────────────────────────────────────
 # Admin — édition des programmes (garde admin, JAMAIS de DELETE sur une
 # entrée de référence : on bascule `actif`, l'historique reste valide).

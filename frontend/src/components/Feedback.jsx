@@ -12,7 +12,7 @@ const CATEGORIES = [
 // étirable, sans voile — le prof continue de voir l'écran dont il parle). Le feedback
 // emporte tout seul son CONTEXTE (« Depuis : écran … · couple ») : affiché ici en clair,
 // envoyé dans sa propre case en base, jamais mélangé au message du prof.
-export default function Feedback({ onClose, contexte }) {
+export default function Feedback({ onClose, contexte, incidentRef }) {
   const [category, setCategory] = useState('')
   const [message, setMessage]   = useState('')
   const [loading, setLoading]   = useState(false)
@@ -32,7 +32,7 @@ export default function Feedback({ onClose, contexte }) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ type: 'feedback', message: message.trim(), category,
-                               contexte: contexte || null }),
+                               contexte: contexte || null, incident_ref: incidentRef || null }),
       })
       if (!res.ok) throw new Error()
       setDone(true)
@@ -68,6 +68,14 @@ export default function Feedback({ onClose, contexte }) {
                           padding: '7px 12px', fontSize: 12, color: '#64748b', lineHeight: 1.5 }}
                  title="Cette information part avec votre message — vous n'avez pas à décrire où vous êtes.">
               <strong style={{ color: '#475569' }}>Depuis :</strong> {contexte}
+            </div>
+          )}
+
+          {incidentRef && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6,
+                          padding: '7px 12px', fontSize: 12, color: '#b91c1c', lineHeight: 1.5 }}
+                 title="Cette référence part avec votre message — elle nous permet de retrouver l'incident technique exact.">
+              <strong>Incident :</strong> {incidentRef}
             </div>
           )}
 

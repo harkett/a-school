@@ -26,6 +26,24 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
+/* Barre latérale : la zone de navigation défile SEULE (en-tête et pied restent figés, patron
+   des apps pros). Ascenseur FIN, discret, façon overlay : invisible au repos, il n'apparaît
+   qu'au survol de la zone — comme Slack / Notion / VS Code. */
+.sidebar-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;                          /* Firefox : ascenseur fin */
+  scrollbar-color: transparent transparent;       /* invisible au repos */
+  transition: scrollbar-color 0.2s ease;
+  overscroll-behavior: contain;                   /* le scroll ne « fuit » pas sur la page */
+}
+.sidebar-scroll:hover { scrollbar-color: #cbd5e1 transparent; }   /* Firefox : pouce visible au survol */
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #cbd5e1; }        /* gris clair au survol */
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }        /* plus foncé sur le pouce */
+
 /* Écran de connexion admin : carte foncée → texte saisi en BLANC (sinon noir sur noir,
    illisible), y compris quand le navigateur pré-remplit (autofill). */
 .admin-login-input {

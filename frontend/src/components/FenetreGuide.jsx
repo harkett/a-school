@@ -1,7 +1,7 @@
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import FenetrePro from './FenetrePro.jsx'
 
-// Plan du « Comment ça marche » : les mêmes numéros et titres que les cartouches 1→5 de l'écran,
+// Plan du « Comment ça marche » : les mêmes numéros et titres que les cartouches 1→6 de l'écran
 // avec leurs sous-options (N.M). Les libellés des sous-options sont écrits ici (aideCreer.js n'a
 // pas ce niveau de détail). `cles` = phrase lue dans le catalogue (intro + Générer, pour rester
 // alignés avec la visite guidée) ; `local` = courte intro d'une cartouche ; `sous` = les sous-options
@@ -24,12 +24,16 @@ const CARTOUCHES = [
     { num: '4.2', titre: 'Régénérer / Changer votre demande', desc: "une autre version, ou rouvrir votre texte pour l'ajuster." },
     { num: '4.3', titre: 'Export',                            desc: ".txt · Word · PDF · Imprimer · E-mail." },
   ] },
-  { n: 5, titre: 'Analyse et amélioration du résultat',
-    local: "Trois analyses de l'activité générée, chacune dans son onglet :", sous: [
-    { num: '5.1', titre: 'Ambiguïté', desc: "repère les zones d'énoncé ambiguës et propose des reformulations." },
-    { num: '5.2', titre: 'Consigne',  desc: "analyse de la consigne de l'activité (à venir)." },
-    { num: '5.3', titre: 'Équité',    desc: "analyse de l'équité de l'activité (à venir)." },
+  { n: 5, titre: 'Vérifier le résultat',
+    local: "aSchool contrôle l'activité générée sur 5 axes, en une passe, et rend une checklist. C'est un diagnostic seul : il repère, il ne réécrit rien.", sous: [
+    { num: '5.1', titre: 'Cohérence interne',      desc: "l'activité correspond-elle fidèlement à votre demande (type, niveau, intention du texte source) ?" },
+    { num: '5.2', titre: 'Correction ↔ questions', desc: "chaque question a-t-elle sa correction exacte, sans manque ni décalage ? (ignoré si aucun corrigé n'a été demandé)." },
+    { num: '5.3', titre: 'Conformité au type',     desc: "le résultat respecte-t-il le type d'activité demandé, dans sa forme et sa nature ?" },
+    { num: '5.4', titre: 'Précision',              desc: "repère les formulations floues, ambiguës ou insuffisamment cadrées." },
+    { num: '5.5', titre: 'Mise en forme',          desc: "structure propre : titres, numérotation, lisibilité." },
   ] },
+  { n: 6, titre: 'Améliorer  (à venir)',
+    local: "la dernière étape : à partir du diagnostic, retravailler l'activité — simplifier, enrichir ou transformer — pour en produire une nouvelle version. En cours de construction." },
 ]
 const phraseDe = cle => (GUIDE_CREER.find(e => e.cle === cle) || {}).phrase
 

@@ -12,8 +12,8 @@ export function registerFeedbackOpener(fn) {
   _feedbackOpener = fn
 }
 
-export function openFeedbackFromError() {
-  if (_feedbackOpener) _feedbackOpener()
+export function openFeedbackFromError(ref) {
+  if (_feedbackOpener) _feedbackOpener(ref)
 }
 
 // opts.feedback = true → la modale ajoute le lien « cliquez ici » qui ouvre le feedback.

@@ -192,7 +192,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       <button
         onClick={() => setCollapsed(c => !c)}
         title="Réduire ou agrandir le menu"
-        className="flex items-center gap-2 p-4 text-gray-500 hover:bg-gray-50 border-none bg-none cursor-pointer text-sm font-medium"
+        className="shrink-0 flex items-center gap-2 p-4 text-gray-500 hover:bg-gray-50 border-none bg-none cursor-pointer text-sm font-medium"
         style={{ background: 'none', border: 'none' }}
       >
         {collapsed
@@ -210,12 +210,12 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       </button>
 
       {!collapsed && (
-        <div style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
+        <div className="shrink-0" style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
           <img src="/Logo_aSchool.png" alt="aSchool" style={{ width: '100%', height: 'auto', display: 'block' }} />
         </div>
       )}
 
-      <nav className={`flex flex-col gap-1 flex-1 ${collapsed ? '' : 'px-4'}`}>
+      <nav className={`sidebar-scroll flex flex-col gap-1 flex-1 min-h-0 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
 
         {/* Mes outils — section expandable */}
@@ -342,7 +342,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         {navItem('mes-stats', 'Mes stats', IconStats, 'Mes statistiques personnelles et la vitalité de la plateforme')}
       </nav>
 
-      <nav className={`flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
+      <nav className={`shrink-0 flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
         {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
         {navItem('aide', 'Centre d\'aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
@@ -358,7 +358,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       </nav>
 
       {!collapsed && (
-        <div style={{
+        <div className="shrink-0" style={{
           margin: '0 8px 10px',
           padding: '8px 10px',
           borderRadius: '8px',

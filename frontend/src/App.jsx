@@ -312,14 +312,11 @@ function MainApp() {
       .then(data => {
         const list = Array.isArray(data) ? data : []  // garde-fou : toujours un tableau (jamais .find sur autre chose)
         setActivites(list)
-        if (list.length > 0) {
-          setParams(p => ({
-            ...p,
-            activite_type_id: list[0].id ?? null,
-            sous_type: list[0].sous_types[0] || null,
-            nb: (list[0].besoins || []).includes('nb') ? 5 : null,
-          }))
-        }
+        // Règle appli : on ne PRÉSÉLECTIONNE jamais un combo. Le prof choisit lui-même son type
+        // (placeholder gris « Choisissez un type d'activité »). On repart donc de « rien de choisi »,
+        // ce qui efface aussi un choix devenu périmé quand la matière/le niveau change (le type
+        // d'avant peut ne plus exister dans la nouvelle liste).
+        setParams(p => ({ ...p, activite_type_id: null, sous_type: null, nb: null }))
       })
       .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
   }, [sessionMatiere, params.niveau])
@@ -1012,12 +1009,7 @@ function MainApp() {
                     ? `Reprise : ${objet.trim() || activites.find(a => a.id === params.activite_type_id)?.label || "activité de l'historique"}`
                     : 'Nouvelle activité'}
                 </div>
-                <FriseProgression
-                  typeOk={!!params.activite_type_id}
-                  texteOk={!!texte.trim()}
-                  loading={loading}
-                  resultat={resultat}
-                />
+                {/* Frise de progression déplacée en pleine largeur SOUS cette barre (voir plus bas). */}
                 {/* Barre de commande, pilotée par PHASE (décision du 25/07, modèle brouillon → Valider/Annuler) :
                     • COMPOSER (pas de résultat) ou génération en cours → AUCUN bouton ici : « Générer l'activité »
                       a été déplacé (27/07) dans la cartouche « Texte source », sur la ligne du titre, tout à droite ;
@@ -1069,6 +1061,17 @@ function MainApp() {
                     </>
                   )}
                 </div>
+              </div>
+
+              {/* Frise de progression — parcours en 5 étapes libellées, pleine largeur, sous la barre du haut. */}
+              <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+                <FriseProgression
+                  typeOk={!!params.activite_type_id}
+                  texteOk={!!texte.trim()}
+                  loading={loading}
+                  resultat={resultat}
+                  verifOk={!!verifResultat}
+                />
               </div>
 
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>

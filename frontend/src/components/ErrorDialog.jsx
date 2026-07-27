@@ -13,8 +13,8 @@ export default function ErrorDialog() {
   const [dialog, setDialog] = useState(null)
 
   useEffect(() => {
-    registerErrorHandler((text, opts = {}) => setDialog({ text, feedback: !!opts.feedback }))
-    registerServerHealthHandler((degraded) => { if (degraded) setDialog({ text: MSG_SERVEUR_INDISPONIBLE, feedback: false }) })
+    registerErrorHandler((text, opts = {}) => setDialog({ text, feedback: !!opts.feedback, ref: opts.ref || null }))
+    registerServerHealthHandler((degraded) => { if (degraded) setDialog({ text: MSG_SERVEUR_INDISPONIBLE, feedback: false, ref: null }) })
   }, [])
 
   if (!dialog) return null
@@ -40,7 +40,7 @@ export default function ErrorDialog() {
               {avant}
               <button
                 type="button"
-                onClick={() => { fermer(); openFeedbackFromError() }}
+                onClick={() => { fermer(); openFeedbackFromError(dialog.ref) }}
                 style={{ background: 'none', border: 'none', padding: 0, color: '#1F6EEB', textDecoration: 'underline', cursor: 'pointer', font: 'inherit' }}
               >
                 cliquez ici
@@ -49,6 +49,11 @@ export default function ErrorDialog() {
             </>
           ) : dialog.text}
         </div>
+        {dialog.ref && (
+          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '-8px', marginBottom: '20px' }}>
+            Référence : <strong style={{ color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{dialog.ref}</strong>
+          </div>
+        )}
         <button
           onClick={fermer}
           title="Fermer ce message"

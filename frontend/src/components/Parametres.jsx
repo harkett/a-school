@@ -9,8 +9,27 @@ const IconGenerer = () => (
   </svg>
 )
 
+// Icônes de tête posées DANS les combos (à gauche du texte). Type = quatre pavés
+// (les familles d'activités), Précision = curseurs de réglage (on affine le type).
+const IconType = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+    <rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>
+  </svg>
+)
+const IconPrecision = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+  </svg>
+)
+
 export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, verrouille = false }) {
-  const activite = activites.find(a => a.id === params.activite_type_id) || activites[0]
+  // Aucun repli sur activites[0] : tant qu'aucun type n'est CHOISI, `activite` est null (sinon la
+  // carte se croirait remplie et « Nombre de questions » s'afficherait avant tout choix).
+  const activite = activites.find(a => a.id === params.activite_type_id) || null
 
   // Repli automatique : la carte se replie quand elle se verrouille (phase résultat) et se déplie
   // quand elle se déverrouille (« Changer votre demande »). Le prof peut plier/déplier à la main
@@ -27,7 +46,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
     onChange({
       ...params,
       activite_type_id: act?.id ?? null,   // identité du type = son id
-      sous_type: act?.sous_types[0] || null,
+      sous_type: null,   // règle appli : on ne présélectionne pas la précision, le prof la choisit
       nb: (act?.besoins || []).includes('nb') ? 5 : null,  // besoin lu du prompt du couple×type
     })
   }
@@ -39,7 +58,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
       <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <EtapeBadge n={1} fait={!!params.activite_type_id} />
-          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 700 }}>
             Paramètres de l'activité
             <InfoGuide {...aideActivite('parametres')} />
           </span>
@@ -57,22 +76,31 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
             </svg>
           </button>
         </div>
-        {!replie && (
-          <span style={{ flex: 1, minWidth: 240, fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
-            <button
-              type="button"
-              onClick={onFeedback}
-              title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
-              className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
-            >
-              Signalez-la via le Feedback
-            </button>
-            {' '}— nous l'ajouterons pour vous et pour tous les profs.
+        {/* Ligne « feedback » déplacée SOUS la coche correction (27/07) pour dégager l'en-tête. */}
+
+        {/* Récap PLIÉ : quand la carte est repliée (phase résultat), on rappelle les choix EN FACE
+            du titre — type, précision, et « avec correction ». Masqué quand la carte est dépliée
+            (les vrais champs sont alors visibles dessous). */}
+        {replie && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+            {activite?.label && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 600, color: '#334155' }}>
+                <span style={{ color: 'var(--bordeaux)', display: 'inline-flex' }}><IconType /></span>
+                {activite.label}
+              </span>
+            )}
+            {params.sous_type && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 20, padding: '3px 10px', fontSize: 13, color: '#475569' }}>
+                <span style={{ color: 'var(--bordeaux)', display: 'inline-flex' }}><IconPrecision /></span>
+                {params.sous_type}
+              </span>
+            )}
+            {params.avec_correction && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#e8f6ed', border: '1px solid #a7f3d0', borderRadius: 20, padding: '3px 10px', fontSize: 12.5, fontWeight: 600, color: '#166534' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                avec correction
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -85,19 +113,80 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
 
         <div data-guide="type">
           <label className="block text-xs text-gray-500 mb-1">Type d'activité<InfoGuide {...aideActivite('type')} /></label>
-          <select
-            className="w-full border border-gray-300 rounded p-2 text-sm"
-            value={params.activite_type_id ?? ''}
-            disabled={verrouille}
-            onChange={e => handleActivite(Number(e.target.value))}
-          >
-            {activites.map(a => (
-              <option key={a.id} value={a.id}>{a.label}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--bordeaux)' }}>
+              <IconType />
+            </span>
+            <select
+              className="w-full border border-gray-300 rounded p-2 pl-9 text-sm"
+              value={params.activite_type_id ?? ''}
+              disabled={verrouille}
+              onChange={e => handleActivite(Number(e.target.value))}
+              style={{ color: params.activite_type_id ? undefined : '#94a3b8' }}
+            >
+              {/* Placeholder gris, non sélectionnable : rien n'est choisi par défaut (règle appli). */}
+              <option value="" disabled hidden>Choisissez un type d'activité</option>
+              {activites.map(a => (
+                <option key={a.id} value={a.id} style={{ color: '#1e293b' }}>{a.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* À la place de Précision : la coche correction, à droite du Type */}
+        {/* Ligne « feedback » — au niveau du Type d'activité (colonne droite, 1er rang).
+            Déplacée du haut (27/07) pour dégager l'en-tête. */}
+        <div style={{ alignSelf: 'start', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ display: 'inline', verticalAlign: '-2px', marginRight: 5 }}>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Vous ne trouvez pas l'activité dont vous avez besoin ?{' '}
+          <button
+            type="button"
+            onClick={onFeedback}
+            title="Ouvrir le formulaire de feedback pour signaler une activité manquante"
+            className="underline text-gray-600 hover:text-gray-800 cursor-pointer"
+            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+          >
+            Signalez-la via le Feedback
+          </button>
+          {' '}— nous l'ajouterons pour vous et pour tous les profs.
+        </div>
+
+        {/* Précision — colonne gauche, 2e rang. GRISÉE tant qu'aucun type n'est choisi (on entre
+            d'abord par le Type) ; elle revient, avec les valeurs du type, une fois celui-ci choisi. */}
+        {(!params.activite_type_id || activite?.sous_types.length > 0) && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Précision<InfoGuide {...aideActivite('precision')} /></label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--bordeaux)' }}>
+                <IconPrecision />
+              </span>
+              <select
+                className="w-full border border-gray-300 rounded p-2 pl-9 text-sm"
+                value={params.sous_type || ''}
+                disabled={verrouille || !params.activite_type_id}
+                onChange={e => set('sous_type', e.target.value)}
+                style={{ color: params.sous_type ? undefined : '#94a3b8' }}
+              >
+                {!params.activite_type_id
+                  ? <option value="">Choisissez d'abord un type d'activité</option>
+                  : <>
+                      {/* Placeholder gris : la précision non plus n'est pas présélectionnée (règle appli). */}
+                      <option value="" disabled hidden>Choisissez une précision</option>
+                      {activite.sous_types.map(s => <option key={s} style={{ color: '#1e293b' }}>{s}</option>)}
+                    </>}
+              </select>
+            </div>
+            {params.sous_type?.toLowerCase() === 'mélange' && (
+              <p className="text-xs text-gray-400 mt-1">
+                <span className="font-medium text-gray-500">Cette précision comprend un mélange de :</span>{' '}
+                {activite.sous_types.filter(s => s.toLowerCase() !== 'mélange').join(' · ')}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Coche correction — au niveau de « Précision » (colonne droite, 2e rang). */}
         <div data-guide="corrige" className="flex items-start gap-2">
           <input
             type="checkbox" id="avec-correction"
@@ -113,29 +202,11 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
               </label>
               <InfoGuide {...aideActivite('correction')} />
             </span>
+            <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+              aSchool rédige aussi le corrigé, en même temps que l'activité.
+            </p>
           </div>
         </div>
-
-        {/* Précision SOUS le Type d'activité (2e rang de la grille) */}
-        {activite?.sous_types.length > 0 && (
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Précision<InfoGuide {...aideActivite('precision')} /></label>
-            <select
-              className="w-full border border-gray-300 rounded p-2 text-sm"
-              value={params.sous_type || ''}
-              disabled={verrouille}
-              onChange={e => set('sous_type', e.target.value)}
-            >
-              {activite.sous_types.map(s => <option key={s}>{s}</option>)}
-            </select>
-            {params.sous_type?.toLowerCase() === 'mélange' && (
-              <p className="text-xs text-gray-400 mt-1">
-                <span className="font-medium text-gray-500">Cette précision comprend un mélange de :</span>{' '}
-                {activite.sous_types.filter(s => s.toLowerCase() !== 'mélange').join(' · ')}
-              </p>
-            )}
-          </div>
-        )}
 
         {(activite?.besoins || []).includes('nb') && (
           <div>
