@@ -34,7 +34,7 @@ export default function Labo() {
 
   // Quand le couple (matière + niveau) est complet → GET des types d'activité + leurs précisions.
   useEffect(() => {
-    if (!niveau || !matiere) { setActivites([]); setTypeKey(''); return }
+    if (!niveau || !matiere) { setActivites([]); setTypeId(null); return }
     setBusy(true)
     fetchWithTimeout(`/api/activites/${encodeURIComponent(matiere)}?niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
