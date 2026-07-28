@@ -9,6 +9,7 @@ import TexteSource from './components/TexteSource'
 import Parametres from './components/Parametres'
 import VisiteGuidee from './components/VisiteGuidee'
 import FenetreGuide from './components/FenetreGuide'
+import FenetreGuideHistorique from './components/FenetreGuideHistorique'
 import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
@@ -593,6 +594,7 @@ function MainApp() {
   // les autres pages naviguent normalement.
   function naviguer(p) {
     setAideSection(null)   // navigation normale (sidebar) -> l'Aide s'ouvre sur sa section par défaut
+    setFenetreGuide(false) // la fenêtre « Comment ça marche » ne suit pas d'un écran à l'autre
     if (estPageCreer(p)) nouvelleActivite()
     else setPage(p)
   }
@@ -668,7 +670,7 @@ function MainApp() {
         coupleAjuste={!!user?.couple_ajuste}
         onValiderCouple={validerCoupleTravail}
         onRevenirProfil={revenirAuProfil}
-        onOuvrirGuide={page === 'creer-activite' ? () => setFenetreGuide(true) : null}
+        onOuvrirGuide={['creer-activite', 'mes-activites'].includes(page) ? () => setFenetreGuide(true) : null}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
@@ -1255,13 +1257,22 @@ function MainApp() {
           )}
 
           {page === 'mes-activites' && (
-            <MesActivites
-              onCharger={chargerActivite}
-              sessionMatiere={sessionMatiere}
-              sessionNiveau={params.niveau}
-              onNavigate={naviguer}
-              userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
-            />
+            <>
+              <MesActivites
+                onCharger={chargerActivite}
+                sessionMatiere={sessionMatiere}
+                sessionNiveau={params.niveau}
+                onNavigate={naviguer}
+                userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
+              />
+              {/* « Comment ça marche » de cet écran (fenêtre déplaçable, même coquille que Créer). */}
+              {fenetreGuide && (
+                <FenetreGuideHistorique
+                  onFermer={() => setFenetreGuide(false)}
+                  onOuvrirAide={ouvrirAideDepuisGuide}
+                />
+              )}
+            </>
           )}
 
           {page === 'mes-sequences' && (
