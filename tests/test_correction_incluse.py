@@ -5,9 +5,13 @@ génération ne la lisait jamais (« DIFFÉRÉ »). Désormais :
 
 Ce que ces tests PROUVENT :
   1. Case COCHÉE → la consigne du corrigé (registre des prompts admin, clé `correction`)
-     est ajoutée à la FIN du prompt envoyé à l'IA — le corrigé sortira sous l'activité.
-  2. Case DÉCOCHÉE (ou absente) → le prompt est STRICTEMENT le gabarit du couple rempli,
-     sans la consigne — zéro changement pour l'existant.
+     est ajoutée au prompt envoyé à l'IA, AVANT le bloc CONTRÔLE QUALITÉ final — le corrigé
+     sortira sous l'activité, et le contrôle qualité le relit lui aussi.
+  2. Case DÉCOCHÉE (ou absente) → le prompt est le gabarit du couple rempli SANS la consigne
+     du corrigé (le CONTRÔLE QUALITÉ, lui, est TOUJOURS ajouté en dernier).
+
+NB (ordre voulu) : le CONTRÔLE QUALITÉ est la dernière couche du prompt, APRÈS la consigne du
+corrigé — c'est une relecture finale qui couvre l'activité ET son corrigé.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
 """
@@ -28,6 +32,7 @@ from fastapi.testclient import TestClient
 TOKEN = create_access_token("prof.test@aschool.fr")
 
 CONSIGNE_CORRIGE = PROMPTS["correction"]["default"]
+CONTROLE_QUALITE = PROMPTS["controle_qualite"]["default"]   # dernière couche, toujours ajoutée
 
 
 def _client_prof():
@@ -79,19 +84,24 @@ def _generer(niveau, tid, avec_correction):
     return gen.call_args.args[0]   # le prompt réellement envoyé à l'IA
 
 
-def test_case_cochee_la_consigne_du_corrige_est_ajoutee_a_la_fin():
+def test_case_cochee_la_consigne_du_corrige_est_ajoutee():
     niveau, tid = _couple_avec_type("Coche", 88, GABARIT)
     prompt = _generer(niveau, tid, avec_correction=True)
-    # La consigne du corrigé (registre admin) termine le prompt — le corrigé sort sous l'activité.
-    assert prompt.endswith("\n\n" + CONSIGNE_CORRIGE)
-    # Et le gabarit du couple rempli est bien là, intact, AVANT la consigne.
+    # Le gabarit du couple rempli est là, intact, en tête.
     assert prompt.startswith("Texte : Le cycle de l'eau.")
     assert "Extrait officiel." in prompt
+    # La consigne du corrigé (registre admin) est présente — le corrigé sort sous l'activité.
+    assert "\n\n" + CONSIGNE_CORRIGE in prompt
+    # Le CONTRÔLE QUALITÉ termine le prompt (toujours ajouté) et vient APRÈS le corrigé : c'est
+    # la relecture finale, qui couvre l'activité ET son corrigé (ordre voulu).
+    assert prompt.endswith("\n\n" + CONTROLE_QUALITE)
+    assert prompt.index(CONSIGNE_CORRIGE) < prompt.index(CONTROLE_QUALITE)
 
 
-def test_case_decochee_prompt_strictement_identique_a_l_existant():
+def test_case_decochee_pas_de_corrige_dans_le_prompt():
     niveau, tid = _couple_avec_type("Sans", 89, GABARIT)
     prompt = _generer(niveau, tid, avec_correction=False)
+    # Décochée : gabarit du couple rempli + le CONTRÔLE QUALITÉ (toujours là), rien d'autre.
     assert prompt == GABARIT.format(texte="Le cycle de l'eau.", niveau=niveau,
-                                    referentiel="Extrait officiel.")
+                                    referentiel="Extrait officiel.") + "\n\n" + CONTROLE_QUALITE
     assert CONSIGNE_CORRIGE not in prompt

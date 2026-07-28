@@ -20,11 +20,13 @@ sys.path.insert(0, ROOT)
 import backend.core.database as dbmod
 from backend.main import app
 from backend.auth import create_access_token
+from backend.core.llm_prompts import PROMPTS
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("prof.test@aschool.fr")
 
 GABARIT = "Texte : {texte}\nFais des questions pour {niveau}.\n{referentiel}"
+CONTROLE_QUALITE = PROMPTS["controle_qualite"]["default"]   # dernière couche du prompt, toujours ajoutée
 
 
 def _client_prof():
@@ -87,8 +89,9 @@ def test_cahier_present_est_injecte_apres_le_programme_officiel():
 def test_sans_cahier_prompt_strictement_identique():
     niveau, tid = _preparer("Sans", 91, GABARIT, cahier_texte=None)
     prompt = _generer(tid)
+    # Aucun cahier ajouté : le prompt = gabarit du couple rempli + le CONTRÔLE QUALITÉ (toujours là).
     assert prompt == GABARIT.format(texte="Le cycle de l'eau.", niveau=niveau,
-                                    referentiel="Extrait officiel.")
+                                    referentiel="Extrait officiel.") + "\n\n" + CONTROLE_QUALITE
     assert "Cahier des charges de l'établissement" not in prompt
 
 
@@ -97,7 +100,7 @@ def test_cahier_texte_vide_ne_change_rien():
     niveau, tid = _preparer("Vide", 92, GABARIT, cahier_texte="   ")
     prompt = _generer(tid)
     assert prompt == GABARIT.format(texte="Le cycle de l'eau.", niveau=niveau,
-                                    referentiel="Extrait officiel.")
+                                    referentiel="Extrait officiel.") + "\n\n" + CONTROLE_QUALITE
     assert "Cahier des charges de l'établissement" not in prompt
 
 
