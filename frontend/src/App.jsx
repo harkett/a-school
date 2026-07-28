@@ -132,6 +132,7 @@ function MainApp() {
   // États retirés (28/07, ménage) : verifResultat/verifLoading/ameliorerLoading/corrigerLoading/
   // analysesReplie — cartouches Vérifier/Corriger/Améliorer supprimées de l'écran.
   const [genererReplie, setGenererReplie] = useState(false)  // repli manuel de la cartouche ③ « Générer l'activité » (affichage éphémère, jamais en base)
+  const [tonChaseIndex, setTonChaseIndex] = useState(0)  // course d'attention (halo) entre les 2 boutons de ton : 0 = académique, 1 = opérationnel
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
@@ -631,6 +632,16 @@ function MainApp() {
   // s'allume que quand tout est prêt — plus aucun halo qui se promène.
   const pretAGenerer = !!texte.trim() && !!params.activite_type_id
 
+  // Course d'attention entre les DEUX boutons de ton (cartouche ③) : dès que tout est prêt et
+  // qu'aucune activité n'est encore là, un halo passe de l'un à l'autre pour inviter le prof à
+  // CHOISIR son ton (même patron que la course des 6 boutons d'apport). S'arrête à la génération.
+  const tonChaseActif = pretAGenerer && !loading && !genererReplie && (!resultat || entreeDeverrouillee)
+  useEffect(() => {
+    if (!tonChaseActif) { setTonChaseIndex(0); return }
+    const id = setInterval(() => setTonChaseIndex(i => (i + 1) % 2), 800)
+    return () => clearInterval(id)
+  }, [tonChaseActif])
+
   // Contexte emporté par un feedback : l'écran courant + le couple de travail (résolu en
   // base via /auth/me). Affiché en clair dans la fenêtre avant l'envoi — le prof n'a plus
   // à décrire où il se trouve.
@@ -1087,7 +1098,7 @@ function MainApp() {
                       {params.activite_type_id && (
                         <section data-guide="generer" className="bg-white rounded border border-gray-200 p-4">
                           <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <EtapeBadge n={3} fait={!!resultat && !loading} />
+                            <EtapeBadge n={3} fait={!!resultat && !loading} actif={tonChaseActif} />
                             <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 700 }}>
                               Générer l'activité
                               <InfoGuide {...aideActivite('generer', { cahier: cahierPresent })} />
@@ -1139,7 +1150,7 @@ function MainApp() {
                                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                                     <button
                                       type="button"
-                                      className="btn-primary"
+                                      className={`btn-primary${tonChaseActif && tonChaseIndex === 0 ? ' chase-on' : ''}`}
                                       onClick={() => generer('academique')}
                                       disabled={!pretAGenerer}
                                       title={pretAGenerer ? "Générer dans un ton académique : formel, phrases longues, style « documents officiels »." : "Écrivez d'abord votre demande dans la zone de texte"}
@@ -1150,7 +1161,7 @@ function MainApp() {
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn-primary"
+                                      className={`btn-primary${tonChaseActif && tonChaseIndex === 1 ? ' chase-on' : ''}`}
                                       onClick={() => generer('operationnel')}
                                       disabled={!pretAGenerer}
                                       title={pretAGenerer ? "Générer dans un ton opérationnel : clair, phrases courtes, consignes directes, style « prof en classe »." : "Écrivez d'abord votre demande dans la zone de texte"}

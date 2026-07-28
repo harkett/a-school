@@ -2,9 +2,10 @@
 // TOUJOURS affiché ; seule la couleur du rond change : BORDEAUX (couleur de l'appli) tant que
 // l'étape n'est pas faite, VERT dès qu'elle l'est. Écriture blanche dans les deux cas (plus de
 // ✓ qui remplace le numéro).
-export default function EtapeBadge({ n, fait }) {
+export default function EtapeBadge({ n, fait, actif = false }) {
   return (
     <span
+      className={actif ? 'blink3' : undefined}
       title={fait ? `Étape ${n} — faite` : `Étape ${n}`}
       style={{
         width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
