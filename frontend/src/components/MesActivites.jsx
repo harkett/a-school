@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
@@ -111,12 +111,18 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const [deleting, setDeleting]     = useState(null)
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
 
-  useEffect(() => {
-    apiFetch('/api/mes-activites', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => r.json())
-      .then(data => { setActivites(data); setLoading(false) })
-      .catch(() => setLoading(false))
+  // RELECTURE de la base = seule source de vérité de la liste. On la lit au montage ET après
+  // chaque écriture (read-after-write). La liste affichée n'est JAMAIS patchée à la main : elle est
+  // toujours mot pour mot ce que renvoie le GET. (Dépannage : la version marché — cache + refetch
+  // auto, React Query — fera l'objet d'un chantier dédié à l'échelle de l'appli.)
+  const chargerActivites = useCallback(async () => {
+    const r = await apiFetch('/api/mes-activites', { credentials: 'include' }, TIMEOUT_STD)
+    setActivites(await r.json())
   }, [])
+
+  useEffect(() => {
+    chargerActivites().catch(() => {}).finally(() => setLoading(false))
+  }, [chargerActivites])
 
   // Échap ferme l'aperçu HTML.
   useEffect(() => {
@@ -133,9 +139,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         method: 'DELETE',
         credentials: 'include',
       }, TIMEOUT_STD)
-      if (res.ok) {
-        setActivites(prev => prev.filter(a => a.id !== id))
-      }
+      if (res.ok) await chargerActivites()   // relire la base, jamais patcher la liste à la main
     } finally {
       setDeleting(null)
       setDeleteDialog(null)
@@ -151,9 +155,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         credentials: 'include',
         body: JSON.stringify({ partagee: newValue, anonyme }),
       })
-      if (res.ok) {
-        setActivites(prev => prev.map(a => a.id === id ? { ...a, partagee: newValue } : a))
-      }
+      if (res.ok) await chargerActivites()   // relire la base, jamais patcher la liste à la main
     } finally {
       setToggling(null)
     }
