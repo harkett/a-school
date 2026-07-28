@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import FilEchange from '../components/FilEchange'
 
 const ETOILES = r => '★'.repeat(r) + '☆'.repeat(5 - r)
 const COULEUR = { 5: '#16a34a', 4: '#65a30d', 3: '#ca8a04', 2: '#ea580c', 1: '#dc2626' }
@@ -37,12 +38,19 @@ export default function AdminFeedbacks() {
   const [onglet, setOnglet] = useState('notations')
   const [filtre, setFiltre] = useState('tous')
   const [featureVotes, setFeatureVotes] = useState(null)
+  const [brouillons, setBrouillons] = useState({})   // réponse en cours de frappe, par retour
+  const [envoiId, setEnvoiId] = useState(null)       // retour dont la réponse part (sablier)
+  const [avis, setAvis] = useState(null)             // { type: 'ok' | 'err', texte }
+
+  // Read-after-write : après chaque écriture on relit le serveur, jamais de miroir local.
+  async function recharger() {
+    const res = await fetch('/api/admin/feedbacks', { credentials: 'include' })
+    if (!res.ok) throw new Error()
+    setItems(await res.json())
+  }
 
   useEffect(() => {
-    fetch('/api/admin/feedbacks', { credentials: 'include' })
-      .then(r => r.json())
-      .then(setItems)
-      .catch(() => setErreur('Impossible de charger les données.'))
+    recharger().catch(() => setErreur('Impossible de charger les données.'))
     fetch('/api/admin/feature-votes', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(setFeatureVotes)
@@ -66,13 +74,39 @@ export default function AdminFeedbacks() {
       credentials: 'include',
       body: JSON.stringify({ statut }),
     })
-    setItems(prev => prev.map(f => f.id === id ? { ...f, statut } : f))
+    await recharger()
   }
 
   async function supprimerFeedback(id) {
     if (!window.confirm('Supprimer définitivement ce feedback ? Cette action est irréversible.')) return
     await fetchWithTimeout(`/api/admin/feedbacks/${id}`, { method: 'DELETE', credentials: 'include' })
-    setItems(prev => prev.filter(f => f.id !== id))
+    await recharger()
+  }
+
+  async function repondre(id) {
+    const corps = (brouillons[id] || '').trim()
+    if (!corps) return
+    setEnvoiId(id)
+    setAvis(null)
+    try {
+      const res = await fetchWithTimeout(`/api/admin/feedbacks/${id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ corps }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'La réponse n\'a pas pu être enregistrée.')
+      setBrouillons(b => ({ ...b, [id]: '' }))
+      await recharger()
+      setAvis(data.avis_envoye
+        ? { type: 'ok', texte: 'Réponse envoyée. Le professeur a été prévenu par e-mail.' }
+        : { type: 'err', texte: 'Réponse enregistrée : le professeur la verra dans aSchool. En revanche, l\'e-mail qui devait le prévenir n\'est pas parti — vérifiez l\'écran Système › Email.' })
+    } catch (e) {
+      setAvis({ type: 'err', texte: e.message })
+    } finally {
+      setEnvoiId(null)
+    }
   }
 
   const moyenne = notations.length
@@ -224,6 +258,17 @@ export default function AdminFeedbacks() {
             )}
           </div>
 
+          {avis && (
+            <div style={{
+              background: avis.type === 'ok' ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${avis.type === 'ok' ? '#bbf7d0' : '#fecaca'}`,
+              color: avis.type === 'ok' ? '#15803d' : '#b91c1c',
+              borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem',
+            }}>
+              {avis.texte}
+            </div>
+          )}
+
           {feedbacksFiltres.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
               Aucun feedback dans cette catégorie.
@@ -285,7 +330,17 @@ export default function AdminFeedbacks() {
                         )}
                       </div>
                     )}
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {/* Échange avec le prof : ses réponses, les vôtres, et de quoi répondre. */}
+                    <FilEchange
+                      messages={f.messages}
+                      valeur={brouillons[f.id] || ''}
+                      onChange={v => setBrouillons(b => ({ ...b, [f.id]: v }))}
+                      onEnvoyer={() => repondre(f.id)}
+                      envoiEnCours={envoiId === f.id}
+                      placeholder="Répondre au professeur… Il recevra un e-mail l'invitant à lire votre réponse dans aSchool."
+                    />
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-gray-400">Changer le statut :</span>
                         {(TRANSITIONS[f.statut || 'nouveau'] || []).map(targetId => {

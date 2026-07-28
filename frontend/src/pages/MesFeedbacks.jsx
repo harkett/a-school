@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchWithTimeout } from '../utils/api.js'
 import { libelleEcran } from '../utils/ecrans.js'
+import FilEchange from '../components/FilEchange'
 
 const CATEGORIES = [
   { key: 'bug',        label: 'Problème' },
@@ -149,11 +150,19 @@ export default function MesFeedbacks() {
   const [editUploading, setEditUploading] = useState(false)
   const [loading, setLoading]     = useState(false)
 
+  // Échange : la réponse en cours de frappe, par retour
+  const [brouillons, setBrouillons] = useState({})
+  const [envoiId, setEnvoiId]       = useState(null)
+
+  // Read-after-write : après chaque écriture on relit le serveur, jamais de miroir local.
+  async function recharger() {
+    const res = await fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })
+    if (!res.ok) throw new Error()
+    setRetours(await res.json())
+  }
+
   useEffect(() => {
-    fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(setRetours)
-      .catch(() => setErreurGlobal('Impossible de charger vos retours.'))
+    recharger().catch(() => setErreurGlobal('Impossible de charger vos retours.'))
   }, [])
 
   async function uploadFile(file) {
@@ -220,13 +229,36 @@ export default function MesFeedbacks() {
         body: JSON.stringify({ message: message.trim(), category, attachment_path: paths || null }),
       })
       if (!res.ok) throw new Error()
-      setRetours(prev => prev.map(f =>
-        f.id === editId ? { ...f, message: message.trim(), category, updated_at: "aujourd'hui", attachment_path: paths || null } : f
-      ))
+      await recharger()
       setSuccès('Retour modifié.')
       annuler()
     } catch { setErreurGlobal('Erreur lors de la modification.') }
     finally { setLoading(false) }
+  }
+
+  async function repondre(id) {
+    const corps = (brouillons[id] || '').trim()
+    if (!corps) return
+    setEnvoiId(id)
+    setErreurGlobal('')
+    setSuccès('')
+    try {
+      const res = await fetchWithTimeout(`/api/feedback/${id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ corps }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || 'Votre message n\'a pas pu être envoyé.')
+      setBrouillons(b => ({ ...b, [id]: '' }))
+      await recharger()
+      setSuccès('Message envoyé. L\'équipe aSchool vous répondra ici même.')
+    } catch (e) {
+      setErreurGlobal(e.message)
+    } finally {
+      setEnvoiId(null)
+    }
   }
 
   async function handleEnvoyer(e) {
@@ -424,6 +456,17 @@ export default function MesFeedbacks() {
                         </button>
                       </div>
                     )}
+
+                    {/* Échange avec l'équipe aSchool : ses réponses, les vôtres, et de quoi répondre. */}
+                    <FilEchange
+                      messages={fb.messages}
+                      valeur={brouillons[fb.id] || ''}
+                      onChange={v => setBrouillons(b => ({ ...b, [fb.id]: v }))}
+                      onEnvoyer={() => repondre(fb.id)}
+                      envoiEnCours={envoiId === fb.id}
+                      placeholder="Ajouter une précision, ou répondre à l'équipe aSchool…"
+                      libelleBouton="Envoyer"
+                    />
                   </>
                 )}
               </div>

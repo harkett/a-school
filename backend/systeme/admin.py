@@ -503,6 +503,9 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             .all()
         ):
             incidents_par_feedback.setdefault(inc.feedback_id, inc)
+    # L'échange qui suit chaque retour (réponses de l'administration et du prof), en UNE requête.
+    from backend.communication import echange
+    echanges = echange.messages_par_feedback(db, ids)
     return [
         {
             "id":       f.id,
@@ -515,6 +518,8 @@ def get_feedbacks(db: Session = Depends(get_db), _: None = Depends(_require_admi
             "statut":   f.statut,
             "date":     f.created_at.strftime("%d/%m/%Y %H:%M"),
             "incident": _incident_dict(incidents_par_feedback.get(f.id)),
+            "messages": echange.serialiser(echanges.get(f.id, []), vu_par_admin=True,
+                                           email_prof=email),
         }
         for f, email in rows
     ]
@@ -578,6 +583,51 @@ def update_feedback_statut(
     fb.statut = body.statut
     db.commit()
     return {"status": "ok"}
+
+
+class ReponseBody(BaseModel):
+    corps: str
+
+
+@router.post("/admin/feedbacks/{feedback_id}/messages")
+def repondre_au_feedback(
+    feedback_id: int,
+    body: ReponseBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """L'administration répond au prof SUR son retour. La réponse s'écrit en base et se lit
+    dans aSchool ; le prof reçoit un avis par mail qui n'en porte pas le contenu."""
+    from backend.communication import echange
+
+    fb = db.get(Feedback, feedback_id)
+    if not fb:
+        raise HTTPException(404, "Feedback introuvable.")
+
+    try:
+        message, statut_avis, erreur_avis = echange.ajouter_message(
+            db, fb, body.corps, est_admin=True,
+        )
+    except echange.CorpsInvalide as e:
+        raise HTTPException(400, str(e))
+
+    email_prof = db.query(User.email).filter(User.id == fb.user_id).scalar()
+    log_admin_action(
+        db=db,
+        admin_email=_get_admin_email(request),
+        action="REPONSE_FEEDBACK",
+        target_email=email_prof,
+        ip=request.client.host if request.client else None,
+        details=f"Réponse déposée sur le retour #{feedback_id} (avis par mail : {statut_avis})",
+    )
+    return {
+        "status": "ok",
+        "message": echange.serialiser([message], vu_par_admin=True, email_prof=email_prof)[0],
+        # La réponse est enregistrée dans tous les cas ; l'avis, lui, a pu échouer.
+        "avis_envoye": statut_avis == "envoye",
+        "avis_erreur": erreur_avis,
+    }
 
 
 @router.delete("/admin/feedbacks/{feedback_id}")

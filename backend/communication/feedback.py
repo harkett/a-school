@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
+from backend.communication import echange
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
@@ -47,6 +48,11 @@ class FeedbackUpdateBody(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     category: str | None = None
     attachment_path: str | None = None
+
+
+class MessageBody(BaseModel):
+    """Une réponse du prof DANS l'échange (pas une modification de son message d'ouverture)."""
+    corps: str = Field(min_length=1, max_length=echange.CORPS_MAX)
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -189,6 +195,8 @@ def mes_feedbacks(
         .all()
     )
     modifiables = codes_statuts_modifiables(db)  # lu une fois en base, pas par ligne
+    # L'échange des retours affichés, en UNE requête (pas une par carte).
+    echanges = echange.messages_par_feedback(db, [f.id for f in rows])
     return [
         {
             "id":              f.id,
@@ -200,9 +208,42 @@ def mes_feedbacks(
             "updated_at":      f.updated_at.strftime("%d/%m/%Y") if f.updated_at else None,
             "attachment_path": f.attachment_path,
             "modifiable":      (f.statut or "nouveau") in modifiables,
+            "messages":        echange.serialiser(echanges.get(f.id, []), vu_par_admin=False),
         }
         for f in rows
     ]
+
+
+# ── Répondre dans l'échange (côté prof) ────────────────────────────────────────
+
+@router.post("/feedback/{feedback_id}/messages", status_code=200)
+def repondre_feedback(
+    feedback_id: int,
+    body: MessageBody,
+    db: Session = Depends(get_db),
+    aschool_access: str | None = Cookie(default=None),
+):
+    """Le prof poursuit l'échange sur SON retour. Distinct de PATCH /feedback/{id}, qui
+    réécrit son message d'ouverture : ici on ajoute, on n'efface rien."""
+    email = _get_email(aschool_access)
+
+    fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+    if not fb:
+        raise HTTPException(404, "Retour introuvable.")
+    if fb.user_id != db.query(User.id).filter(User.email == email).scalar():
+        raise HTTPException(403, "Ce retour ne vous appartient pas.")
+
+    try:
+        message, statut_avis, _ = echange.ajouter_message(db, fb, body.corps, est_admin=False)
+    except echange.CorpsInvalide as e:
+        raise HTTPException(400, str(e))
+
+    return {
+        "status": "ok",
+        "message": echange.serialiser([message], vu_par_admin=False)[0],
+        # L'avis à l'administration a-t-il pu partir ? Le message, lui, est enregistré.
+        "avis_envoye": statut_avis == "envoye",
+    }
 
 
 # ── Modifier un feedback ───────────────────────────────────────────────────────

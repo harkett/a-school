@@ -118,6 +118,33 @@ class FeedbackStatut(Base):
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+class FeedbackMessage(Base):
+    """Un message de l'ÉCHANGE qui suit un retour — la réponse de l'admin, puis la suite.
+
+    `feedbacks.message` reste le message d'OUVERTURE (celui que le prof écrit et peut encore
+    modifier selon `feedback_statuts.modifiable`) : il n'est pas recopié ici. Cette table ne
+    porte que ce qui vient APRÈS, dans l'ordre de `created_at`.
+
+    `auteur_est_admin` est un booléen et non une clé vers `users` : l'administrateur n'a pas
+    de compte dans l'application (circuit de connexion séparé, aucune ligne dans `users`), et
+    un échange n'a que deux côtés. Le nom affiché — « Vous », « aSchool », l'e-mail du prof —
+    se calcule à la lecture selon qui regarde : c'est de la présentation, pas une donnée à
+    ranger. Le prof est déjà identifié par `feedbacks.user_id` (get, zéro copie).
+    """
+    __tablename__ = "feedback_messages"
+    __table_args__ = (
+        Index("ix_feedback_messages_feedback_id_created_at", "feedback_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    feedback_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("feedbacks.id", ondelete="CASCADE"), nullable=False,
+    )
+    auteur_est_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    corps: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Incident(Base):
     """Incident TECHNIQUE de génération (échec côté IA) — capturé automatiquement au plantage, que le
     prof le signale ou non. L'admin y lit CE QUI a réellement échoué (erreur, endpoint, fournisseur,
