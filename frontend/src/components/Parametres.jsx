@@ -57,7 +57,7 @@ export default function Parametres({ activites, params, onChange, onGenerer, loa
           La ligne feedback vit à CÔTÉ du titre (sa demande du 25/07 : place gagnée). */}
       <div className="mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <EtapeBadge n={1} fait={!!params.activite_type_id} />
+          <EtapeBadge n={1} fait={!!params.activite_type_id} actif={!params.activite_type_id} />
           <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 700 }}>
             Paramètres de l'activité
             <InfoGuide {...aideActivite('parametres')} />

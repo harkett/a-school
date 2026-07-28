@@ -492,7 +492,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       <div className="mb-3" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         {/* Étape ② du stepper — le numéro passe en ✓ vert dès que du texte est saisi. */}
         <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <EtapeBadge n={2} fait={!!texte.trim()} />
+          <EtapeBadge n={2} fait={!!texte.trim()} actif={!texte.trim()} />
           <span style={{ display: 'inline-flex', alignItems: 'center' }}>
             Texte source
             <InfoGuide {...aideActivite('texte_source', { cahier: cahierPresent })} />
