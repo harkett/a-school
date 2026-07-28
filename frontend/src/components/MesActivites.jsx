@@ -5,7 +5,7 @@ import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import SplitPane from './SplitPane.jsx'
 
 const IconTrash = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="3 6 5 6 21 6"/>
     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
     <path d="M10 11v6"/><path d="M14 11v6"/>
@@ -14,7 +14,7 @@ const IconTrash = () => (
 )
 
 const IconShare = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
@@ -99,7 +99,6 @@ const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', line
 const PRE_STYLE    = { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }
 
 export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, onNavigate, userName }) {
-  const isMobile = window.innerWidth < 768
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
@@ -266,22 +265,19 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0"
-          style={{ opacity: (isMobile || hovered === a.id || estSel) ? 1 : 0, transition: 'opacity 0.15s' }}>
-          {/* Partager — icône seule (même gabarit que la corbeille) ; la couleur porte l'état :
-              bleu = partagé, gris = non partagé. « Reprendre » est dans le panneau de détail à droite. */}
+        {/* Actions toujours visibles (fini le fondu au survol, qui donnait un comportement bizarre). */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Partager — icône seule, toujours visible et toujours « allumée » (contour bleu). L'état
+              partagé/non est porté par la pastille « Partagé » de la ligne, pas par la couleur du bouton. */}
           <button
             onClick={() => !a.partagee ? setAnonymeDialog(a.id) : togglePartage(a.id, false)}
             disabled={toggling === a.id}
             title={a.partagee ? 'Partagé — cliquer pour retirer de la bibliothèque partagée' : 'Partager cette activité avec vos collègues'}
             style={{
-              display: 'flex', alignItems: 'center', padding: '5px 8px',
-              background: 'none', border: '1px solid',
-              borderColor: a.partagee ? 'var(--bleu)' : '#e5e7eb',
-              borderRadius: 6,
+              display: 'flex', alignItems: 'center', padding: '7px 10px',
+              background: 'none', border: '1px solid var(--bleu)', borderRadius: 6,
               cursor: toggling === a.id ? 'wait' : 'pointer',
-              color: a.partagee ? 'var(--bleu)' : '#9ca3af',
-              transition: 'color 0.15s, border-color 0.15s',
+              color: 'var(--bleu)',
             }}
           >
             <IconShare />
@@ -290,7 +286,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
           <button
             onClick={() => setDeleteDialog({ id: a.id, label: a.objet || a.activite_label })}
             title="Supprimer définitivement cette activité"
-            style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', background: 'none', border: '1px solid #fca5a5', borderRadius: 6, color: 'var(--bordeaux)', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', background: 'none', border: '1px solid #fca5a5', borderRadius: 6, color: 'var(--bordeaux)', cursor: 'pointer' }}
           >
             <IconTrash />
           </button>
