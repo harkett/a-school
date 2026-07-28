@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { aideHistorique } from '../utils/aideHistorique.js'
 import SplitPane from './SplitPane.jsx'
+import InfoGuide from './InfoGuide.jsx'
 
 const IconTrash = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -69,7 +71,7 @@ function StatsCommunaute({ matiere, niveau }) {
     }}>
       <div style={{ display: 'flex', flex: 1, gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sur la plateforme</span>
+          <span style={{ fontSize: 11, color: '#94a3b8', display: 'block' }}>Sur la plateforme<InfoGuide {...aideHistorique('stats')} /></span>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{stats.total_plateforme}</span>
           <span style={{ fontSize: 11, color: '#64748b' }}> activités · {stats.nb_profs} prof{stats.nb_profs > 1 ? 's' : ''}</span>
         </div>
@@ -389,12 +391,12 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {a.texte_source && a.texte_source.trim().length > 0 && (
             <div>
-              <div style={LABEL_STYLE}>Texte source</div>
+              <div style={LABEL_STYLE}>Texte source<InfoGuide {...aideHistorique('texte_source')} /></div>
               <p style={SOURCE_STYLE}>{a.texte_source}</p>
             </div>
           )}
           <div>
-            <div style={LABEL_STYLE}>Résultat généré</div>
+            <div style={LABEL_STYLE}>Résultat généré<InfoGuide {...aideHistorique('resultat')} /></div>
             <pre style={PRE_STYLE}>{a.resultat}</pre>
           </div>
         </div>
@@ -408,7 +410,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       {/* En-tête — le couple (matière/niveau) n'est PAS répété ici : il est déjà dans la barre du
           haut, et rappelé dans l'infobulle de l'onglet « Niveau en cours ». */}
       <div className="flex items-baseline gap-3" style={{ flexShrink: 0 }}>
-        <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
+        <h2 className="text-base font-semibold text-gray-800">Mes activités<InfoGuide {...aideHistorique('ecran')} /></h2>
         {!loading && headerCount > 0 && (
           <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
             {headerCount} activité{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}
@@ -437,6 +439,9 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
               {label}{id === 'toutes' ? ` (${activites.length})` : ''}
             </button>
           ))}
+          <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 2 }}>
+            <InfoGuide {...aideHistorique('onglets')} />
+          </span>
         </div>
       )}
 
