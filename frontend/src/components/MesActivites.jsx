@@ -98,7 +98,7 @@ const LABEL_STYLE  = { fontSize: 11, fontWeight: 600, color: '#94a3b8', textTran
 const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 14px' }
 const PRE_STYLE    = { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }
 
-export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, onNavigate, userName }) {
+export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, userName }) {
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
@@ -614,18 +614,6 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       )}
 
-      {!loading && vue === 'courant' && (
-        <p className="text-xs text-gray-400 text-center mt-1" style={{ flexShrink: 0 }}>
-          Vous enseignez plusieurs matières ?{' '}
-          <button
-            onClick={() => onNavigate?.('mon-profil')}
-            style={{ color: 'var(--bordeaux)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }}
-          >
-            Changez votre matière dans le profil
-          </button>{' '}
-          pour voir les activités correspondantes.
-        </p>
-      )}
     </div>
   )
 }
