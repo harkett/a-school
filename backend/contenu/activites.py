@@ -366,6 +366,18 @@ def api_generate(
     if req.avec_correction:
         prompt = prompt + "\n\n" + get_prompt(db, "correction")
 
+    # 5 quater. TON de rédaction : choisi PAR LE BOUTON de génération (« Générer — ton académique » /
+    # « … opérationnel »). Deux valeurs seulement ('academique' / 'operationnel') → couche de style
+    # ajoutée au prompt (texte en base, même mécanique que le corrigé). Absent ou valeur inconnue →
+    # aucune couche (rétrocompatible). Placé AVANT le contrôle qualité pour qu'il relise dans le bon ton.
+    if req.ton in ("academique", "operationnel"):
+        prompt = prompt + "\n\n" + get_prompt(db, f"ton_{req.ton}")
+
+    # 5 quinquies. Contrôle qualité INTÉGRÉ (remplace l'ancienne cartouche « Vérifier ») : dernière couche
+    # du prompt, TOUJOURS ajoutée. Le modèle s'auto-relit sur les 5 axes et corrige avant de rendre —
+    # un seul appel, aucun surcoût. Placée après le corrigé et le ton pour qu'elle les couvre. Texte en base.
+    prompt = prompt + "\n\n" + get_prompt(db, "controle_qualite")
+
     # 6. Réglages LLM lus EN BASE, AVANT le flux (get) — passés en valeurs au flux (aucune lecture
     # de base pendant le streaming, la session de requête étant destinée à se fermer). `silence` =
     # coupure de silence admin en base (zéro délai en dur).

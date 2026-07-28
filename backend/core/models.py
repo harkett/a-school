@@ -11,6 +11,9 @@ class GenerateRequest(BaseModel):
     sous_type: Optional[str] = None
     nb: Optional[int] = None
     avec_correction: bool = False
+    # Ton de rédaction choisi PAR LE BOUTON de génération : 'academique' | 'operationnel'.
+    # Absent (None) = aucune couche de style ajoutée (rétrocompatible).
+    ton: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):

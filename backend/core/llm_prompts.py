@@ -91,6 +91,56 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
+PROMPT_CORRIGER_RESULTAT = """Tu es un expert en didactique et en conception d'activités pédagogiques pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
+
+Un enseignant de {matiere}, niveau {niveau}, a généré l'activité ci-dessous (type d'activité « {type_activite} », précision « {precision} »). Une vérification vient d'en relever des défauts précis.
+
+Activité à corriger :
+{texte}
+
+Défauts relevés, à corriger un par un :
+{problemes}
+
+Ta mission : RÉÉCRIS l'activité en corrigeant EXACTEMENT ces défauts — et rien d'autre. Ne change ni la nature, ni le type, ni le sujet, ni le niveau de l'activité. Tout ce qui n'est pas visé par un défaut doit rester tel quel. Si l'activité inclut une correction / un corrigé, mets-le en cohérence avec la version corrigée.
+
+Rends UNIQUEMENT l'activité corrigée, prête à l'emploi : aucun commentaire, aucune explication de tes choix, aucun préambule, pas de balises de code."""
+
+
+PROMPT_AMELIORER_SIMPLIFIER = """Tu es un expert en didactique et en conception d'activités pédagogiques pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
+
+Un enseignant de {matiere}, niveau {niveau}, a généré l'activité ci-dessous (type d'activité « {type_activite} », précision « {precision} »).
+
+Activité à simplifier :
+{texte}
+
+Ta mission : RÉÉCRIS cette activité pour la rendre PLUS ACCESSIBLE, SANS changer sa nature, son type, ni son sujet :
+- phrases plus courtes et directes ; vocabulaire allégé, et expliqué brièvement quand un mot difficile est indispensable ;
+- consignes plus claires, une seule tâche à la fois, critères de réussite explicites ;
+- si l'activité comporte beaucoup de questions ou d'items, tu peux en réduire le nombre en gardant les plus essentielles ;
+- garde le même type d'activité et le niveau visé ({niveau}) — on simplifie l'accès, on ne baisse pas le programme.
+
+Si l'activité inclut une correction / un corrigé, réécris-le en cohérence avec la version simplifiée.
+
+Rends UNIQUEMENT l'activité réécrite, prête à l'emploi : aucun commentaire, aucune explication de tes choix, aucun préambule, pas de balises de code."""
+
+
+PROMPT_AMELIORER_ENRICHIR = """Tu es un expert en didactique et en conception d'activités pédagogiques pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
+
+Un enseignant de {matiere}, niveau {niveau}, a généré l'activité ci-dessous (type d'activité « {type_activite} », précision « {precision} »).
+
+Activité à enrichir :
+{texte}
+
+Ta mission : ENRICHIS cette activité pour l'APPROFONDIR, SANS changer sa nature, son type, ni son sujet :
+- ajoute des questions ou des items pertinents (analyse, application, mise en relation, réflexion), des exemples ou des relances ;
+- monte légèrement la difficulté quand c'est adapté au niveau {niveau}, sans le dépasser ;
+- garde le même type d'activité et un ensemble cohérent, réaliste et faisable en classe.
+
+Si l'activité inclut une correction / un corrigé, complète-le pour couvrir tout ce que tu as ajouté.
+
+Rends UNIQUEMENT l'activité enrichie, prête à l'emploi : aucun commentaire, aucune explication de tes choix, aucun préambule, pas de balises de code."""
+
+
 PROMPT_CONSIGNE = """Tu es un expert en didactique et en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
 
 Un enseignant de {matiere}, niveau {niveau}, te soumet une consigne isolée à analyser.
@@ -393,6 +443,35 @@ PROMPT_CORRECTION = """Ajoute ensuite, après l'activité, une section « Correc
 Ne corrige que ce que l'activité demande : n'ajoute aucun nouvel exercice, aucune variante."""
 
 
+# Contrôle qualité INTÉGRÉ à la génération (ajouté en dernière couche du prompt, comme le corrigé).
+# Remplace l'ancienne cartouche « Vérifier » : au lieu de demander au prof de contrôler après coup
+# (ce qui affichait notre propre doute), le modèle s'auto-relit et corrige AVANT de rendre. Un seul
+# appel, aucun surcoût de latence. Les 5 axes de l'ancien Vérifier, retournés en exigences.
+PROMPT_CONTROLE_QUALITE = """CONTRÔLE QUALITÉ — À APPLIQUER AVANT DE RENDRE
+
+Avant de considérer l'activité comme terminée, relis-la et vérifie qu'elle respecte TOUS les points ci-dessous. Corrige silencieusement le moindre écart, puis rends UNIQUEMENT l'activité finale.
+
+1. Fidélité à la demande — l'activité correspond exactement au type d'activité demandé, au niveau visé et à l'intention du texte source ; rien hors sujet, rien d'oublié.
+2. Corrigé juste — si l'activité comporte un corrigé, chaque question ou exercice y a sa réponse, correcte et complète, sans décalage de numérotation ni oubli.
+3. Conformité au format — la forme respecte réellement le type demandé (un QCM reste un QCM, une dictée reste une dictée, etc.).
+4. Consignes sans flou — aucune consigne ambiguë, vague ou à double sens ; une seule tâche claire à la fois ; critères de réussite explicites ; vocabulaire adapté au niveau et défini quand un mot difficile est indispensable.
+5. Mise en forme propre — titre clair, numérotation cohérente, structure lisible et régulière.
+
+Ne laisse apparaître aucune trace de cette vérification (pas de commentaire, pas de « j'ai vérifié », pas de liste de contrôle) : le professeur ne doit voir que l'activité, prête à l'emploi."""
+
+
+# TON de rédaction — couche de style ajoutée au prompt selon le bouton de génération cliqué
+# (« Générer — ton académique » / « Générer — ton opérationnel »). Deux registres SEULEMENT, pas de
+# défaut : le prof choisit au clic. Placée avant le contrôle qualité pour qu'il relise dans le bon ton.
+PROMPT_TON_ACADEMIQUE = """TON DE RÉDACTION — ACADÉMIQUE
+
+Rédige toute l'activité (titre, consignes, énoncés, et le corrigé s'il y en a un) dans un registre ACADÉMIQUE : formel et institutionnel, à la manière des documents et programmes officiels. Phrases construites et complètes, vocabulaire soutenu et précis, tournures impersonnelles. Reste rigoureux et exact, et garde un niveau réellement adapté aux élèves visés. N'ajoute aucun commentaire sur le ton employé : rends uniquement l'activité."""
+
+PROMPT_TON_OPERATIONNEL = """TON DE RÉDACTION — OPÉRATIONNEL
+
+Rédige toute l'activité (titre, consignes, énoncés, et le corrigé s'il y en a un) dans un registre OPÉRATIONNEL : clair, net et direct, à la manière d'un professeur qui parle à sa classe. Phrases courtes, consignes directes (verbe d'action en tête), vocabulaire simple et concret. Va droit à l'essentiel sans appauvrir le contenu ni sauter d'étape. N'ajoute aucun commentaire sur le ton employé : rends uniquement l'activité."""
+
+
 PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
 
 Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
@@ -426,6 +505,21 @@ PROMPTS = {
         "label": "Vérification du résultat (5 axes)",
         "placeholders": ["matiere", "niveau", "texte", "type_activite", "precision", "correction"],
         "default": PROMPT_VERIFIER_RESULTAT,
+    },
+    "corriger_resultat": {
+        "label": "Correction du résultat (réparer les défauts vérifiés)",
+        "placeholders": ["matiere", "niveau", "texte", "type_activite", "precision", "problemes"],
+        "default": PROMPT_CORRIGER_RESULTAT,
+    },
+    "ameliorer_simplifier": {
+        "label": "Améliorer — Simplifier",
+        "placeholders": ["matiere", "niveau", "texte", "type_activite", "precision"],
+        "default": PROMPT_AMELIORER_SIMPLIFIER,
+    },
+    "ameliorer_enrichir": {
+        "label": "Améliorer — Enrichir",
+        "placeholders": ["matiere", "niveau", "texte", "type_activite", "precision"],
+        "default": PROMPT_AMELIORER_ENRICHIR,
     },
     "consigne": {
         "label": "Analyse de consigne",
@@ -481,5 +575,20 @@ PROMPTS = {
         "label": "Consigne du corrigé (case « Inclure une proposition de correction »)",
         "placeholders": [],
         "default": PROMPT_CORRECTION,
+    },
+    "controle_qualite": {
+        "label": "Contrôle qualité intégré à la génération (auto-relecture du modèle)",
+        "placeholders": [],
+        "default": PROMPT_CONTROLE_QUALITE,
+    },
+    "ton_academique": {
+        "label": "Ton de rédaction — académique (bouton « Générer — ton académique »)",
+        "placeholders": [],
+        "default": PROMPT_TON_ACADEMIQUE,
+    },
+    "ton_operationnel": {
+        "label": "Ton de rédaction — opérationnel (bouton « Générer — ton opérationnel »)",
+        "placeholders": [],
+        "default": PROMPT_TON_OPERATIONNEL,
     },
 }

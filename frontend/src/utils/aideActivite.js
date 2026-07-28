@@ -33,24 +33,37 @@ export const GUIDE_ACTIVITE = [
     cle: 'texte_source',
     titre: 'Texte source',
     court: "Le contenu à partir duquel aSchool génère l'activité.",
-    long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. La pastille de l'étape passe au vert dès qu'il y a du texte.",
-    // Variante affichée quand ce prof a déposé un cahier des charges : le document d'exemple et
-    // l'idée proposée s'appuient alors aussi dessus (boutons de cette étape). Textes honnêtes.
+    long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. Le document d'exemple et l'idée proposés s'appuient sur le référentiel officiel de votre niveau. La pastille de l'étape passe au vert dès qu'il y a du texte.",
+    // Variante affichée quand ce prof a déposé un cahier des charges (choix fait PAR LE CODE selon la
+    // base, pas une tournure « au cas où ») : la provenance mentionne alors le référentiel ET le
+    // cahier des charges. Textes honnêtes (règle des deux publics).
     cahier: {
-      court: "La matière première de l'activité — le document d'exemple et l'idée suivent aussi votre cahier des charges.",
-      long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. Le document d'exemple et l'idée proposée s'appuient alors, en plus du programme officiel, sur le cahier des charges de votre établissement (déposé dans votre profil). La pastille de l'étape passe au vert dès qu'il y a du texte.",
+      court: "La matière première de l'activité — l'exemple et l'idée suivent le référentiel officiel et votre cahier des charges.",
+      long: "C'est la matière première de l'activité : le texte, le document ou la consigne à partir duquel aSchool génère. Vous pouvez le saisir, le coller, l'importer (fichier TXT, image, PDF), le dicter, ou laisser aSchool proposer un document d'exemple ou une idée. Le document d'exemple et l'idée proposés s'appuient sur le référentiel officiel de votre niveau et sur le cahier des charges de votre établissement. La pastille de l'étape passe au vert dès qu'il y a du texte.",
+    },
+  },
+  {
+    cle: 'generer',
+    titre: "Générer l'activité",
+    court: "Deux tons au choix — le clic lance la génération dans ce ton.",
+    long: "Deux boutons, deux tons : vous choisissez en cliquant, et le clic lance la génération. « Ton académique » = formel, phrases longues, style « documents officiels ». « Ton opérationnel » = clair, phrases courtes, consignes directes, style « prof en classe ». Cette activité tiendra compte du référentiel officiel de votre niveau. Le résultat s'affiche à droite ; vous pourrez ensuite basculer l'autre ton avec « Changer votre ton ». La pastille de l'étape passe au vert dès qu'une activité est produite.",
+    // Variante affichée quand ce prof a déposé un cahier des charges (choix fait PAR LE CODE selon la
+    // base) : la génération s'appuie alors AUSSI sur son cahier. Texte honnête (règle des deux publics).
+    cahier: {
+      court: "Deux tons au choix — référentiel officiel ET cahier des charges pris en compte.",
+      long: "Deux boutons, deux tons : vous choisissez en cliquant, et le clic lance la génération. « Ton académique » = formel, phrases longues, style « documents officiels ». « Ton opérationnel » = clair, phrases courtes, consignes directes, style « prof en classe ». Cette activité tiendra compte du référentiel officiel de votre niveau et du cahier des charges de votre établissement. Le résultat s'affiche à droite ; vous pourrez ensuite basculer l'autre ton avec « Changer votre ton ». La pastille de l'étape passe au vert dès qu'une activité est produite.",
     },
   },
   {
     cle: 'resultat',
     titre: 'Résultat généré',
     court: "L'activité produite par aSchool, prête à récupérer.",
-    long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte. Vous pouvez la télécharger (TXT, Word, PDF), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Régénérer » en produit une autre version, « Changer votre demande » rouvre votre texte pour l'ajuster.",
+    long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, dans le ton choisi. Vous pouvez la télécharger (TXT, Word, PDF), en voir la mise en forme (aperçu HTML), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Changer votre texte » rouvre votre texte pour l'ajuster, « Changer votre ton » la régénère dans l'autre ton (académique ↔ opérationnel).",
     // Variante affichée quand ce prof a déposé un cahier des charges : la génération s'appuie
     // alors sur le programme officiel ET sur son cahier. Texte honnête (règle des deux publics).
     cahier: {
       court: "L'activité produite par aSchool à partir du programme officiel et de votre cahier des charges.",
-      long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Régénérer » en produit une autre version, « Changer votre demande » rouvre votre texte pour l'ajuster.",
+      long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, dans le ton choisi, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), en voir la mise en forme (aperçu HTML), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Changer votre texte » rouvre votre texte pour l'ajuster, « Changer votre ton » la régénère dans l'autre ton (académique ↔ opérationnel).",
     },
   },
   {

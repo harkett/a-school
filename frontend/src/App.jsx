@@ -68,9 +68,12 @@ import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
+import ConfirmDialog from './components/ConfirmDialog'
+import { showConfirm } from './confirmDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
 import JaugeAttente from './components/JaugeAttente.jsx'
 import FriseProgression from './components/FriseProgression.jsx'
+import SplitPane from './components/SplitPane.jsx'
 import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_LONG } from './utils/api.js'
 import { sauvegarderActivite } from './utils/activites.js'
 import { estPageCreer, typeVierge } from './utils/activite.js'
@@ -125,10 +128,14 @@ function MainApp() {
   const [texte, setTexte] = useState('')
   const [objet, setObjet] = useState('')
   const [resultat, setResultat] = useState(null)
+  const [tonActuel, setTonActuel] = useState(null)   // ton ayant produit le résultat affiché : 'academique'|'operationnel'|null (repris d'historique / avant tout choix). Suit le résultat ; base plus tard avec l'auto-save.
   const [loading, setLoading] = useState(false)
   const [verifResultat, setVerifResultat] = useState(null)  // rapport « Vérifier le résultat » : LU sur `resultat` (get), affiché non stocké — zéro copie
   const [verifLoading, setVerifLoading]   = useState(false)  // vérification en cours : sablier du bouton + jauge de la cartouche
+  const [ameliorerLoading, setAmeliorerLoading] = useState(null)  // étape 6 « Améliorer » en cours : 'simplifier' | 'enrichir' | null (sablier du bouton + jauge de la cartouche)
+  const [corrigerLoading, setCorrigerLoading] = useState(false)  // correction (bras armé de Vérifier) en cours : sablier du bouton + jauge de la cartouche
   const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
+  const [genererReplie, setGenererReplie] = useState(false)  // repli manuel de la cartouche ③ « Générer l'activité » (affichage éphémère, jamais en base)
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
   const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
@@ -348,7 +355,10 @@ function MainApp() {
     return suspect / words.length > 0.25
   }
 
-  async function generer() {
+  // `ton` : 'academique' | 'operationnel', choisi par le bouton de génération cliqué (cartouche ③)
+  // ou par « Changer votre ton » (bascule l'autre ton). Il part au serveur (couche de style) et est
+  // mémorisé dans `tonActuel` pour que « Changer votre ton » sache proposer l'autre.
+  async function generer(ton) {
     if (!params.activite_type_id) {
       showError('Sélectionnez un type d\'activité avant de générer.')
       return
@@ -368,6 +378,7 @@ function MainApp() {
     }
     setErreur(null)
     setResultat(null)
+    setTonActuel(ton || null)       // le résultat à venir sera dans CE ton (bascule « Changer votre ton » comprise)
     setVerifResultat(null)          // (ré)générer = nouvelle activité → l'ancienne vérification ne vaut plus
     setVerifLoading(false)
     setValide(false)
@@ -376,6 +387,7 @@ function MainApp() {
     setLoading(true)
     try {
       const body = { ...params, texte }
+      if (ton) body.ton = ton
       if (!body.nb) delete body.nb
       if (!body.sous_type) delete body.sous_type
       // Le couple (matière/niveau) et la langue LV ne partent PLUS de l'écran : le serveur
@@ -499,6 +511,85 @@ function MainApp() {
     }
   }
 
+  // Correction — bras armé de « Vérifier » : reprend les axes au statut "probleme" trouvés par la
+  // vérification et demande à aSchool de RÉÉCRIRE l'activité en réparant EXACTEMENT ces points
+  // (/api/corriger-resultat). La version corrigée REMPLACE le résultat affiché et réinitialise la
+  // vérification (elle ne colle plus à la nouvelle version). Empilement des versions = RÈGLE 0, pas
+  // encore codé : en v1 on remplace l'affiché.
+  async function corrigerResultat() {
+    if (corrigerLoading || verifLoading || !!ameliorerLoading || loading || !resultat || !resultat.trim() || !verifResultat) return
+    const problemes = (verifResultat.axes || [])
+      .filter(a => a.statut === 'probleme')
+      .map(a => ({ axe: a.axe || '', constat: a.constat || '', extrait: a.extrait || '' }))
+    if (problemes.length === 0) return
+    setCorrigerLoading(true)
+    try {
+      const res = await apiFetch('/api/corriger-resultat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          texte: resultat.trim(),
+          problemes,
+          matiere: sessionMatiere,
+          niveau: params.niveau,
+          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
+          precision: params.sous_type || '',
+        }),
+      }, TIMEOUT_LONG)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || `Erreur ${res.status}`)
+      }
+      const data = await res.json()
+      if (data.texte && data.texte.trim()) {
+        setResultat(data.texte)     // version corrigée à la place de l'ancienne
+        setVerifResultat(null)      // elle ne colle plus à la nouvelle version → vérif vierge
+      }
+    } catch {
+      showError("La correction n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
+    } finally {
+      setCorrigerLoading(false)
+    }
+  }
+
+  // Étape 6 « Améliorer » (v1 : 'simplifier' | 'enrichir' ; Transformer reporté en v2). Réécrit
+  // l'activité affichée via /api/ameliorer-resultat et REMPLACE le résultat par la nouvelle version
+  // → l'ancienne vérification ne vaut plus (réinitialisée). L'empilement des versions (ne rien
+  // perdre) relève du chantier persistance (RÈGLE 0), pas encore codé : en v1 on remplace l'affiché.
+  async function ameliorer(intention) {
+    if (ameliorerLoading || verifLoading || loading || !resultat || !resultat.trim()) return
+    setAmeliorerLoading(intention)
+    try {
+      const res = await apiFetch('/api/ameliorer-resultat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          texte: resultat.trim(),
+          intention,
+          matiere: sessionMatiere,
+          niveau: params.niveau,
+          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
+          precision: params.sous_type || '',
+        }),
+      }, TIMEOUT_LONG)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || `Erreur ${res.status}`)
+      }
+      const data = await res.json()
+      if (data.texte && data.texte.trim()) {
+        setResultat(data.texte)     // nouvelle version affichée à la place de l'ancienne
+        setVerifResultat(null)      // elle ne colle plus à la version d'avant → on repart d'une vérif vierge
+      }
+    } catch {
+      showError("L'amélioration n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
+    } finally {
+      setAmeliorerLoading(null)
+    }
+  }
+
   // Valider = put : écrit l'activité AFFICHÉE en base (une ligne dans « Mes activités »), puis on
   // passe en phase VALIDÉE (résultat figé, boutons de gestion retirés — seuls les exports restent).
   // Anti double-clic via enValidation. Le couple (matière/niveau) est stampé PAR LE SERVEUR (couple
@@ -551,6 +642,7 @@ function MainApp() {
       avec_correction: act.avec_correction,
     })
     setResultat(act.resultat)
+    setTonActuel(act.ton || null) // ton d'origine si l'activité en base le porte (sinon inconnu → « Changer votre ton » masqué)
     setVerifResultat(null)        // activité reprise de l'historique → pas d'ancienne vérification à afficher
     setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
     setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
@@ -568,6 +660,7 @@ function MainApp() {
     setTexte('')
     setObjet('')
     setResultat(null)
+    setTonActuel(null)
     setVerifResultat(null)
     setValide(false)
     setRepriseHistorique(false)
@@ -586,6 +679,39 @@ function MainApp() {
     setEntreeDeverrouillee(true)
     setRepriseHistorique(false)
     setTimeout(() => texteSourceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+
+  // « Changer votre ton » (bandeau du haut) : reprend le MÊME texte et régénère dans l'AUTRE ton.
+  // Bascule directe (deux tons seulement). Action machine = nouvelle version (RÈGLE 0). Ne change pas
+  // le texte source ; le résultat courant est remplacé par la version dans l'autre ton.
+  function changerTon() {
+    if (!tonActuel) return
+    generer(tonActuel === 'academique' ? 'operationnel' : 'academique')
+  }
+
+  // Libellé lisible d'un ton, pour les messages au prof.
+  const libelleTon = t => (t === 'academique' ? 'académique' : 'opérationnel')
+
+  // Confirmation PRO avant les deux reprises (bandeau du haut) : chacune fera PERDRE l'activité
+  // affichée (elle n'est pas encore rangée toute seule) → on dit clairement CE QUI change et on
+  // rappelle d'exporter d'abord. Le prof confirme à chaque clic ; sinon rien ne bouge.
+  function demanderChangerTexte() {
+    showConfirm({
+      titre: 'Modifier votre texte source ?',
+      message: "Vous allez rouvrir votre texte pour le modifier, puis générer une nouvelle activité. L'activité affichée actuellement sera alors remplacée.\n\nSi vous souhaitez la garder, exportez-la d'abord (Word, PDF ou .txt).",
+      confirmLabel: 'Modifier le texte',
+      onConfirm: changerDemande,
+    })
+  }
+  function demanderChangerTon() {
+    if (!tonActuel) return
+    const autre = tonActuel === 'academique' ? 'operationnel' : 'academique'
+    showConfirm({
+      titre: 'Changer le ton de l’activité ?',
+      message: `Vous allez régénérer cette activité en ton ${libelleTon(autre)}. L'activité affichée (ton ${libelleTon(tonActuel)}) sera remplacée.\n\nSi vous souhaitez la garder, exportez-la d'abord (Word, PDF ou .txt).`,
+      confirmLabel: `Générer en ton ${libelleTon(autre)}`,
+      onConfirm: changerTon,
+    })
   }
 
   // Routeur de navigation : toute arrivée sur « Créer » repart d'une activité vierge ;
@@ -1010,159 +1136,199 @@ function MainApp() {
                     : 'Nouvelle activité'}
                 </div>
                 {/* Frise de progression déplacée en pleine largeur SOUS cette barre (voir plus bas). */}
-                {/* Barre de commande, pilotée par PHASE (décision du 25/07, modèle brouillon → Valider/Annuler) :
-                    • COMPOSER (pas de résultat) ou génération en cours → AUCUN bouton ici : « Générer l'activité »
-                      a été déplacé (27/07) dans la cartouche « Texte source », sur la ligne du titre, tout à droite ;
-                    • TRAVAILLER (résultat affiché, pas encore validé) → Régénérer (bleu) · Valider (vert) · Annuler (rouge) ;
-                    • REPRISE DE L'HISTORIQUE (résultat DÉJÀ en base) → Régénérer actif, Valider/Annuler GRISÉS (rien à enregistrer, rien à annuler) ;
-                    • VALIDÉ → plus aucun bouton de gestion (l'activité est en base, seuls les exports restent). */}
+                {/* Bandeau titre — à droite, une fois la génération TERMINÉE : DEUX boutons bleus, les deux
+                    axes de reprise. « Changer votre texte » (ex-« Changer votre demande ») rouvre la saisie
+                    pour modifier le contenu. « Changer votre ton » reprend le même texte et régénère dans
+                    l'AUTRE ton (masqué si le ton d'origine est inconnu, ex. reprise d'historique). */}
                 <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {resultat && !loading && !valide && (
-                    <>
+                  {resultat && !loading && (
+                    <div data-guide="reprise" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       <button
+                        type="button"
                         className="btn-primary"
-                        onClick={regenerer}
-                        title="Relancer une nouvelle version — le brouillon affiché sera remplacé"
+                        onClick={demanderChangerTexte}
+                        title="Changer votre texte : rouvre votre texte source pour le modifier (réécrire, réimporter un document, redicter…), puis vous régénérez."
                         style={{ flexShrink: 0 }}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.71"/></svg>
-                        Régénérer
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Changer votre texte
                       </button>
-                      <button
-                        className="btn-primary"
-                        onClick={valider}
-                        disabled={enValidation || repriseHistorique}
-                        title={repriseHistorique
-                          ? 'Cette activité est déjà enregistrée dans « Mes activités »'
-                          : 'Enregistrer cette activité dans « Mes activités »'}
-                        style={{ flexShrink: 0, background: '#16a34a', borderColor: '#16a34a',
-                                 opacity: (enValidation || repriseHistorique) ? 0.45 : 1,
-                                 cursor: repriseHistorique ? 'not-allowed' : (enValidation ? 'wait' : 'pointer') }}
-                      >
-                        {enValidation
-                          ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                          : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
-                        {enValidation ? 'Enregistrement…' : 'Valider'}
-                      </button>
-                      <button
-                        className="btn-primary"
-                        onClick={annuler}
-                        disabled={enValidation || repriseHistorique}
-                        title={repriseHistorique
-                          ? 'Cette activité est déjà enregistrée — pour repartir de zéro, cliquez sur « Créer » dans le menu'
-                          : "Tout effacer et repartir de zéro (rien n'est enregistré)"}
-                        style={{ flexShrink: 0, background: '#dc2626', borderColor: '#dc2626',
-                                 opacity: (enValidation || repriseHistorique) ? 0.45 : 1,
-                                 cursor: repriseHistorique ? 'not-allowed' : (enValidation ? 'not-allowed' : 'pointer') }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        Annuler
-                      </button>
-                    </>
+                      {tonActuel && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={demanderChangerTon}
+                          title={`Changer votre ton : reprend le même texte et régénère l'activité en ton ${tonActuel === 'academique' ? 'opérationnel (clair, phrases courtes)' : 'académique (formel, phrases longues)'}.`}
+                          style={{ flexShrink: 0 }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                          Changer votre ton
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Frise de progression — parcours en 5 étapes libellées, pleine largeur, sous la barre du haut. */}
+              {/* Frise de progression — parcours en 4 étapes libellées, pleine largeur, sous la barre du haut. */}
               <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
                 <FriseProgression
                   typeOk={!!params.activite_type_id}
                   texteOk={!!texte.trim()}
                   loading={loading}
                   resultat={resultat}
-                  verifOk={!!verifResultat}
                 />
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {activites.length > 0 && (
-                  <Parametres
-                    activites={activites}
-                    params={params}
-                    onChange={changerParams}
-                    onGenerer={generer}
-                    loading={loading}
-                    hasResultat={!!resultat}
-                    canGenerer={!!texte.trim() && !!params.activite_type_id}
-                    onFeedback={() => ouvrirFeedback()}
-                    verrouille={(loading || !!resultat) && !entreeDeverrouillee}
-                  />
-                )}
-                {/* Étape 2 — Texte source : apparaît dès qu'un type d'activité est choisi (étape 1 faite). */}
-                {params.activite_type_id && (
-                  <div data-guide="texte" ref={texteSourceRef}>
-                    {/* Verrouillée dès qu'une génération est lancée ou qu'un résultat est là (mode
-                        « Régénérer tel quel ») ; « Changer votre demande » la rouvre (entreeDeverrouillee). */}
-                    <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} cahierPresent={cahierPresent} onGenerer={generer} loading={loading} pretAGenerer={pretAGenerer} hasResultat={!!resultat} />
-                  </div>
-                )}
-                {/* Étape 3/4 — Résultat : la jauge pendant la génération, puis l'activité générée.
-                    ZoneResultat s'affiche d'elle-même dès qu'il y a un résultat (ou un chargement). */}
-                {loading && (
-                  <JaugeAttente libelle="aSchool lit le programme officiel et rédige votre activité…" />
-                )}
-                <div ref={resultatRef}>
-                  <ZoneResultat
-                    resultat={resultat}
-                    loading={loading}
-                    valide={valide}
-                    email={user?.email}
-                    onRegenerer={regenerer}
-                    onChangerDemande={changerDemande}
-                    cahierPresent={cahierPresent}
-                  />
-                </div>
-
-                {/* Cartouche « Vérifier le résultat » (étape 5), sous « Résultat généré ». Le bouton
-                    « Vérifier » lance /api/verifier-resultat (5 axes : cohérence, correction↔questions,
-                    conformité, précision, mise en forme) en UNE passe → une checklist en cartes.
-                    Diagnostic seul, aucune réécriture. L'amélioration viendra dans une cartouche
-                    « Améliorer » séparée (dernière étape). Repli éphémère, jamais en base. */}
-                {resultat && (
-                  <section className="bg-white rounded border border-gray-200 p-4">
-                    <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <EtapeBadge n={5} fait={!!verifResultat} />
-                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                        Vérifier le résultat
-                        <InfoGuide {...aideActivite('analyses')} />
-                      </span>
-                      {/* Chevron plier/déplier — cerclé, à côté du « i » (même pattern que les autres cartouches). */}
-                      <button
-                        type="button"
-                        onClick={() => setAnalysesReplie(r => !r)}
-                        title={analysesReplie ? "Déplier la vérification" : "Replier la vérification"}
-                        style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: analysesReplie ? 'rotate(-90deg)' : 'none' }}>
-                          <polyline points="6 9 12 15 18 9"/>
-                        </svg>
-                      </button>
-                      {/* Bouton « Vérifier » — bleu, à droite. Premier axe branché : l'ambiguïté. */}
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={verifierResultat}
-                        disabled={verifLoading}
-                        title="Vérifier le résultat sur 5 axes (cohérence, correction, conformité, précision, mise en forme)"
-                        style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, opacity: verifLoading ? 0.6 : 1, cursor: verifLoading ? 'wait' : 'pointer' }}
-                      >
-                        {verifLoading
-                          ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-                          : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>}
-                        {verifLoading ? 'Vérification en cours…' : 'Vérifier'}
-                      </button>
+              <div className="creer-corps">
+                {(() => {
+                  // Colonne PILOTAGE (Paramètres + Texte source + Vérifier) : seule colonne tant
+                  // qu'il n'y a pas de résultat ; passe à DROITE dès qu'un résultat existe.
+                  const pilotage = (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {activites.length > 0 && (
+                        <Parametres
+                          activites={activites}
+                          params={params}
+                          onChange={changerParams}
+                          onGenerer={generer}
+                          loading={loading}
+                          hasResultat={!!resultat}
+                          canGenerer={!!texte.trim() && !!params.activite_type_id}
+                          onFeedback={() => ouvrirFeedback()}
+                          verrouille={(loading || !!resultat) && !entreeDeverrouillee}
+                        />
+                      )}
+                      {/* Étape 2 — Texte source : apparaît dès qu'un type d'activité est choisi (étape 1 faite). */}
+                      {params.activite_type_id && (
+                        <div data-guide="texte" ref={texteSourceRef}>
+                          {/* Verrouillée dès qu'une génération est lancée ou qu'un résultat est là (mode
+                              « Régénérer tel quel ») ; « Changer votre demande » la rouvre (entreeDeverrouillee). */}
+                          <TexteSource texte={texte} onChange={setTexte} objet={objet} onObjetChange={setObjet} matiere={sessionMatiere} niveau={params.niveau} activiteTypeId={params.activite_type_id} sousType={params.sous_type} verrouille={(loading || !!resultat) && !entreeDeverrouillee} cahierPresent={cahierPresent} loading={loading} hasResultat={!!resultat} />
+                        </div>
+                      )}
+                      {/* Étape 3 — Générer l'activité : cartouche dédiée (badge + titre gras + « i » + chevron),
+                          même habillage que les autres. Le bouton Générer, déplacé ici depuis la carte Texte
+                          source, lance la génération. Apparaît dès qu'un type est choisi (étape 1 faite). */}
+                      {params.activite_type_id && (
+                        <section data-guide="generer" className="bg-white rounded border border-gray-200 p-4">
+                          <div className="section-title" style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <EtapeBadge n={3} fait={!!resultat && !loading} />
+                            <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 700 }}>
+                              Générer l'activité
+                              <InfoGuide {...aideActivite('generer', { cahier: cahierPresent })} />
+                            </span>
+                            {/* Chevron plier/déplier — même pattern cerclé que les autres cartouches. */}
+                            <button
+                              type="button"
+                              onClick={() => setGenererReplie(r => !r)}
+                              title={genererReplie ? "Déplier" : "Replier"}
+                              style={{ marginLeft: 6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transition: 'transform 0.2s', transform: genererReplie ? 'rotate(-90deg)' : 'none' }}>
+                                <polyline points="6 9 12 15 18 9"/>
+                              </svg>
+                            </button>
+                          </div>
+                          {!genererReplie && (
+                            <div style={{ fontSize: 13, color: '#64748b', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {/* Bandeau bleu permanent retiré (28/07) : l'info « référentiel officiel (+ cahier
+                                  des charges si déposé) » est désormais dans le « i » de cette cartouche
+                                  (aideActivite 'generer' / variante cahier), lisible même carte repliée. */}
+                              {/* DEUX boutons = DEUX tons : cliquer choisit le ton ET lance la génération, d'un
+                                  seul geste. Aucun présélectionné (règle combos). Pendant la génération : un
+                                  indicateur unique qui rappelle le ton en cours. Après : ligne verte + le ton. */}
+                              {loading ? (
+                                <span className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: 0.75, cursor: 'wait', alignSelf: 'flex-start' }}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
+                                  {tonActuel === 'academique' ? 'Génération en cours — ton académique…'
+                                    : tonActuel === 'operationnel' ? 'Génération en cours — ton opérationnel…'
+                                    : 'Génération en cours…'}
+                                </span>
+                              ) : (!resultat || entreeDeverrouillee) ? (
+                                <>
+                                  <span style={{ fontSize: 12.5, color: '#64748b' }}>Choisissez le ton — c'est lui qui lance la génération :</span>
+                                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      onClick={() => generer('academique')}
+                                      disabled={!pretAGenerer}
+                                      title={pretAGenerer ? "Générer dans un ton académique : formel, phrases longues, style « documents officiels »." : "Écrivez d'abord votre demande dans la zone de texte"}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: pretAGenerer ? 1 : 0.55, cursor: pretAGenerer ? 'pointer' : 'not-allowed' }}
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                                      Générer — ton académique
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-primary"
+                                      onClick={() => generer('operationnel')}
+                                      disabled={!pretAGenerer}
+                                      title={pretAGenerer ? "Générer dans un ton opérationnel : clair, phrases courtes, consignes directes, style « prof en classe »." : "Écrivez d'abord votre demande dans la zone de texte"}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, opacity: pretAGenerer ? 1 : 0.55, cursor: pretAGenerer ? 'pointer' : 'not-allowed' }}
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                      Générer — ton opérationnel
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#16a34a', fontWeight: 600 }}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                  Activité générée{tonActuel === 'academique' ? ' — ton académique' : tonActuel === 'operationnel' ? ' — ton opérationnel' : ''} — le résultat s'affiche à droite.
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </section>
+                      )}
                     </div>
-                    {!analysesReplie && (
-                      <div style={{ fontSize: 13, color: '#64748b' }}>
-                        {verifLoading
-                          ? <JaugeAttente libelle="aSchool vérifie votre activité sur les 5 axes…" />
-                          : verifResultat
-                            ? <VerificationResultat resultat={verifResultat} />
-                            : <span>Cliquez sur « Vérifier », en haut à droite, pour contrôler le résultat.</span>}
-                      </div>
-                    )}
-                  </section>
-                )}
+                  )
+
+                  // Colonne RÉSULTAT (à DROITE), présente EN PERMANENCE. Avant toute génération : un
+                  // encart grisé « Ici s'affichera votre résultat ». Pendant : la jauge. Après :
+                  // l'activité générée (ZoneResultat s'affiche d'elle-même dès qu'il y a un résultat).
+                  const colonneResultat = (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {loading && (
+                        <JaugeAttente libelle="aSchool lit le programme officiel et rédige votre activité…" />
+                      )}
+                      {!loading && !resultat ? (
+                        <div style={{
+                          border: '1px dashed #cbd5e1', borderRadius: 8, background: '#f8fafc',
+                          color: '#94a3b8', fontSize: 14, textAlign: 'center', minHeight: 340,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center',
+                          justifyContent: 'center', gap: 12, padding: '48px 24px',
+                        }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                          </svg>
+                          <span>Ici s'affichera votre résultat.</span>
+                        </div>
+                      ) : (
+                        <div ref={resultatRef}>
+                          <ZoneResultat
+                            resultat={resultat}
+                            loading={loading}
+                            valide={valide}
+                            email={user?.email}
+                            onRegenerer={regenerer}
+                            onChangerDemande={changerDemande}
+                            cahierPresent={cahierPresent}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+
+                  // Deux colonnes redimensionnables, EN PERMANENCE : pilotage à gauche | résultat à
+                  // droite. Poignée ajustable, largeur mémorisée ; sur écran étroit elles s'empilent
+                  // (pilotage au-dessus). Cf. components/SplitPane.jsx.
+                  return <SplitPane storageKey="creer-split-v2" gauche={pilotage} droite={colonneResultat} />
+                })()}
               </div>
 
               {/* Visite guidée (bulles sur les vrais éléments) + fenêtre déplaçable « Comment
@@ -1347,6 +1513,7 @@ export default function App() {
       <AuthProvider>
         <UpdateBanner />
         <ErrorDialog />
+        <ConfirmDialog />
         <OfflineBanner />
         <IOSInstallBanner />
         <Routes>

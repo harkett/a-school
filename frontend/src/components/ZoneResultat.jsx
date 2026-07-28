@@ -1,6 +1,5 @@
-﻿import { useState } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { Document, Packer, Paragraph, TextRun } from 'docx'
-import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 
@@ -111,6 +110,70 @@ function imprimer(texte) {
   win.print()
 }
 
+// Formateur texte brut → HTML, utilisé par l'APERÇU (modale) du bouton « HTML ». On transforme les
+// titres #, le gras **, les listes numérotées ou à puces en HTML propre. But : voir le formatage
+// SANS quitter aSchool. Aucune dépendance. (Texte échappé + nos seules balises → injection sûre.)
+function _echapperHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+function _enligne(s) {
+  // gras puis italique, sur du texte DÉJÀ échappé (les astérisques ne sont pas échappés)
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+}
+function _corpsHtml(texte) {
+  const lignes = String(texte || '').replace(/\r\n/g, '\n').split('\n')
+  const out = []
+  let liste = null   // 'ul' | 'ol' | null : liste en cours d'ouverture
+  const fermer = () => { if (liste) { out.push(`</${liste}>`); liste = null } }
+  for (const brut of lignes) {
+    const t = brut.trim()
+    if (t === '') { fermer(); continue }
+    if (/^-{3,}$/.test(t)) { fermer(); out.push('<hr>'); continue }
+    let m
+    if ((m = t.match(/^(#{1,3})\s+(.*)$/))) { fermer(); const n = m[1].length; out.push(`<h${n}>${_enligne(_echapperHtml(m[2]))}</h${n}>`); continue }
+    if ((m = t.match(/^\d+[.)]\s+(.*)$/)))  { if (liste !== 'ol') { fermer(); out.push('<ol>'); liste = 'ol' } out.push(`<li>${_enligne(_echapperHtml(m[1]))}</li>`); continue }
+    if ((m = t.match(/^[-*•]\s+(.*)$/)))    { if (liste !== 'ul') { fermer(); out.push('<ul>'); liste = 'ul' } out.push(`<li>${_enligne(_echapperHtml(m[1]))}</li>`); continue }
+    fermer()
+    out.push(`<p>${_enligne(_echapperHtml(t))}</p>`)
+  }
+  fermer()
+  return out.join('\n')
+}
+// Impression de l'APERÇU mis en forme (bouton « Imprimer » de la modale HTML). On écrit le HTML
+// déjà formaté (_corpsHtml) dans une iframe cachée + une feuille de style d'impression, puis on
+// lance l'impression DEPUIS cette iframe : le prof reste sur aSchool (aucun nouvel onglet), et
+// c'est la mise en forme (titres, gras, listes) qui part à l'imprimante, pas le texte brut.
+function imprimerApercu(corpsHtml) {
+  const iframe = document.createElement('iframe')
+  iframe.setAttribute('aria-hidden', 'true')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow.document
+  doc.open()
+  doc.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Activité aSchool</title>
+    <style>
+      @page{margin:18mm}
+      body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.7;font-size:13px;margin:0}
+      h1,h2,h3{color:#0f172a;line-height:1.3;margin:1.3em 0 .35em}
+      h1{font-size:1.5rem}h2{font-size:1.25rem}h3{font-size:1.08rem}
+      p{margin:.55em 0}
+      ul,ol{margin:.55em 0 .55em 1.4em;padding:0}li{margin:.28em 0}
+      hr{border:none;border-top:1px solid #cbd5e1;margin:1.3em 0}
+      strong{color:#0f172a}
+      .pied-aschool{margin-top:2.5em;padding-top:8px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af}
+    </style></head>
+    <body>${corpsHtml}<div class="pied-aschool">Généré avec aSchool — aschool.fr</div></body></html>`)
+  doc.close()
+  const win = iframe.contentWindow
+  const nettoyer = () => setTimeout(() => { try { document.body.removeChild(iframe) } catch (_) {} }, 500)
+  win.onafterprint = nettoyer
+  win.focus()
+  win.print()
+  setTimeout(nettoyer, 60000)   // filet de sécurité si onafterprint ne se déclenche pas
+}
+
 function envoyerMail(texte, email) {
   const sujet = encodeURIComponent(`Activité aSchool — ${new Date().toLocaleDateString('fr-FR')}`)
   const signature = '\n\n---\nGénéré avec aSchool — aschool.fr — Créez votre compte gratuit'
@@ -133,14 +196,29 @@ const Spinner = () => (
 
 export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, cahierPresent = false }) {
   const [replie, setReplie] = useState(false)   // repli manuel de la cartouche (affichage éphémère, jamais en base)
+  const [apercuHtml, setApercuHtml] = useState(null)   // aperçu HTML mis en forme (modale) : chaîne = ouvert, null = fermé ; éphémère, jamais en base
+  // Échap ferme l'aperçu. Hook placé AVANT le return conditionnel ci-dessous (règle des hooks React).
+  useEffect(() => {
+    if (apercuHtml === null) return
+    const onEsc = e => { if (e.key === 'Escape') setApercuHtml(null) }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [apercuHtml])
   if (!resultat && !loading) return null
 
   return (
     <section data-guide="resultat" className="bg-white rounded border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3 gap-3" style={{ flexWrap: 'wrap' }}>
+      {/* Barre d'en-tête (titre + exports + Régénérer) FIXE en haut : sticky dans la colonne qui
+          défile (.split-col). Fond blanc + filet + marges négatives pour couvrir le padding de la
+          cartouche → le texte du résultat défile DESSOUS, la barre ne suit pas l'ascenseur. */}
+      <div className="flex items-center justify-between gap-3" style={{ flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 5, background: '#fff', margin: '-16px -16px 12px', padding: '16px 16px 10px', borderBottom: '1px solid #e2e8f0', borderTopLeftRadius: 6, borderTopRightRadius: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
           <div className="section-title" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <EtapeBadge n={4} fait={!!resultat} />
+            {/* Le résultat n'est PAS une étape (pas de numéro) : c'est la SORTIE de l'étape ③.
+                Pastille à icône « document » — verte dès qu'une activité est là, grise sinon. */}
+            <span style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: resultat ? '#16a34a' : '#e2e8f0', color: resultat ? '#fff' : '#94a3b8' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </span>
             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
               Résultat généré
               <InfoGuide {...aideActivite('resultat', { cahier: cahierPresent })} />
@@ -159,27 +237,8 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
               </button>
             )}
           </div>
-          {/* Message + 2 boutons de retour arrière, sur la MÊME ligne que « Résultat généré ».
-              Affichés seulement quand le résultat est TERMINÉ (!loading) et pas encore validé. */}
-          {resultat && !loading && !valide && onChangerDemande && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#334155' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                Ce résultat ne vous convient pas ? Deux solutions :
-              </span>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={onChangerDemande}
-                title="Changer votre demande : déverrouille votre texte pour le modifier (réécrire, réimporter un document, redicter…), puis vous régénérez avec la nouvelle demande."
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Changer votre demande
-              </button>
-            </div>
-          )}
+          {/* « Changer votre demande » a été déplacé (27/07) dans le bandeau titre, en haut de l'écran
+              (voir App.jsx). Il n'est plus rendu ici. */}
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <button
@@ -205,6 +264,13 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
           </button>
           <button
             className="btn-secondary"
+            onClick={() => setApercuHtml(_corpsHtml(resultat))}
+            title="Voir l'activité mise en forme (aperçu, sans quitter aSchool)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> HTML
+          </button>
+          <button
+            className="btn-secondary"
             onClick={() => imprimer(resultat)}
             title="Imprimer le résultat"
           >
@@ -217,19 +283,12 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
           >
             <IconMail /> E-mail
           </button>
-          {/* Bouton Régénérer déplacé ici : au bout à droite, en face du titre « Résultat généré ».
-              Même action et même condition qu'avant (résultat terminé, pas encore validé). */}
-          {resultat && !loading && !valide && (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onRegenerer}
-              title="Régénérer : aSchool relance une génération avec la MÊME demande et en produit une autre version, proche mais différente. Votre texte n'est pas modifié."
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.71"/></svg>
-              Régénérer
-            </button>
-          )}
+          {/* Bouton « Régénérer » RETIRÉ (28/07) de cette barre : elle ne fait que SORTIR le résultat
+              (télécharger / voir / imprimer / envoyer), telle quelle. Régénérer est l'inverse (il jette
+              le résultat courant pour en refaire un) — sa place n'est pas parmi les exports, et il ferait
+              doublon avec « Changer votre demande » (bandeau du haut), l'unique chemin « refaire » :
+              rouvrir le texte → ajuster (ou non) → régénérer. `onRegenerer` reste passé par App mais n'est
+              plus utilisé ici. */}
         </div>
       </div>
 
@@ -245,6 +304,45 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
       >
         {resultat}
       </div>
+      )}
+      {/* Aperçu « HTML » — MODALE fermable (clic dehors, croix, Échap), pour voir le formatage SANS
+          quitter aSchool. Corps = HTML sûr (texte échappé + nos seules balises h1-3, strong/em,
+          ul/ol/li, p, hr) → dangerouslySetInnerHTML sans risque. */}
+      {apercuHtml !== null && (
+        <div
+          onClick={() => setApercuHtml(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 10, maxWidth: 820, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+              <span style={{ fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Aperçu mis en forme
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {/* Imprimer la version MISE EN FORME (celle affichée dans la modale), pas le texte brut. */}
+                <button type="button" onClick={() => imprimerApercu(apercuHtml)} className="btn-secondary" title="Imprimer cette activité mise en forme">
+                  <IconPrint /> Imprimer
+                </button>
+                <button type="button" onClick={() => setApercuHtml(null)} title="Fermer l'aperçu" style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="apercu-corps" style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 15 }} dangerouslySetInnerHTML={{ __html: apercuHtml }} />
+            <style>{`
+              .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
+              .apercu-corps h1{font-size:1.5rem}.apercu-corps h2{font-size:1.25rem}.apercu-corps h3{font-size:1.08rem}
+              .apercu-corps p{margin:.6em 0}
+              .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
+              .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
+              .apercu-corps strong{color:#0f172a}
+            `}</style>
+          </div>
+        </div>
       )}
     </section>
   )

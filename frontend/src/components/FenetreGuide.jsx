@@ -1,11 +1,12 @@
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import FenetrePro from './FenetrePro.jsx'
 
-// Plan du « Comment ça marche » : les mêmes numéros et titres que les cartouches 1→6 de l'écran
+// Plan du « Comment ça marche » : les mêmes numéros et titres que les cartouches 1→4 de l'écran
 // avec leurs sous-options (N.M). Les libellés des sous-options sont écrits ici (aideCreer.js n'a
 // pas ce niveau de détail). `cles` = phrase lue dans le catalogue (intro + Générer, pour rester
 // alignés avec la visite guidée) ; `local` = courte intro d'une cartouche ; `sous` = les sous-options
-// numérotées. aideCreer.js n'est PAS modifié : la visite guidée et le centre d'aide restent intacts.
+// numérotées. L'écran s'arrête à ④ Résultat (les ex-cartouches 5 « Vérifier » / 6 « Améliorer » ont
+// été retirées le 27-28/07 : le contrôle qualité est désormais intégré à la génération, invisible).
 const CARTOUCHES = [
   { n: 1, titre: "Paramètres de l'activité", sous: [
     { num: '1.1', titre: "Type d'activité",                   desc: "ce que vous voulez créer ; la liste dépend de votre matière et de votre niveau." },
@@ -18,22 +19,15 @@ const CARTOUCHES = [
     { num: '2.2', titre: 'Six façons de la remplir',          desc: "Fichier TXT · Image/Scan · PDF · Document d'exemple · Dicter · Propose-moi une idée." },
     { num: '2.3', titre: 'Objet',                             desc: "optionnel : le nom sous lequel l'activité apparaît dans « Mes activités »." },
   ] },
-  { n: 3, titre: 'Générer', cles: ['generer'] },
+  { n: 3, titre: 'Générer', cles: ['generer'], sous: [
+    { num: '3.1', titre: 'Ton académique',   desc: "formel, phrases longues, style « documents officiels » ; le clic lance la génération dans ce ton." },
+    { num: '3.2', titre: 'Ton opérationnel', desc: "clair, phrases courtes, consignes directes, style « prof en classe » ; le clic lance la génération dans ce ton." },
+  ] },
   { n: 4, titre: 'Résultat généré', sous: [
-    { num: '4.1', titre: "L'activité générée",                desc: "le texte produit, déjà enregistré tout seul dans « Mes activités »." },
-    { num: '4.2', titre: 'Régénérer / Changer votre demande', desc: "une autre version, ou rouvrir votre texte pour l'ajuster." },
-    { num: '4.3', titre: 'Export',                            desc: ".txt · Word · PDF · Imprimer · E-mail." },
+    { num: '4.1', titre: "L'activité générée",              desc: "le texte produit, dans le ton choisi, affiché à droite." },
+    { num: '4.2', titre: 'Changer votre texte / votre ton', desc: "deux boutons bleus en haut : rouvrir votre texte pour l'ajuster, ou régénérer dans l'autre ton." },
+    { num: '4.3', titre: 'Export',                          desc: ".txt · Word · PDF · aperçu HTML · Imprimer · E-mail." },
   ] },
-  { n: 5, titre: 'Vérifier le résultat',
-    local: "aSchool contrôle l'activité générée sur 5 axes, en une passe, et rend une checklist. C'est un diagnostic seul : il repère, il ne réécrit rien.", sous: [
-    { num: '5.1', titre: 'Cohérence interne',      desc: "l'activité correspond-elle fidèlement à votre demande (type, niveau, intention du texte source) ?" },
-    { num: '5.2', titre: 'Correction ↔ questions', desc: "chaque question a-t-elle sa correction exacte, sans manque ni décalage ? (ignoré si aucun corrigé n'a été demandé)." },
-    { num: '5.3', titre: 'Conformité au type',     desc: "le résultat respecte-t-il le type d'activité demandé, dans sa forme et sa nature ?" },
-    { num: '5.4', titre: 'Précision',              desc: "repère les formulations floues, ambiguës ou insuffisamment cadrées." },
-    { num: '5.5', titre: 'Mise en forme',          desc: "structure propre : titres, numérotation, lisibilité." },
-  ] },
-  { n: 6, titre: 'Améliorer  (à venir)',
-    local: "la dernière étape : à partir du diagnostic, retravailler l'activité — simplifier, enrichir ou transformer — pour en produire une nouvelle version. En cours de construction." },
 ]
 const phraseDe = cle => (GUIDE_CREER.find(e => e.cle === cle) || {}).phrase
 

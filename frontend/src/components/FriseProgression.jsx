@@ -1,16 +1,14 @@
-// Frise de progression de l'écran Créer : le parcours en 5 étapes LIBELLÉES, en pleine largeur
+// Frise de progression de l'écran Créer : le parcours en 3 étapes LIBELLÉES, en pleine largeur
 // sous la barre du haut. Les états (fait ✓ vert / en cours bordeaux / à venir gris) sont LUS de
-// la progression réelle (type choisi, texte saisi, généré, vérifié), jamais copiés.
-// « Améliorer » est la dernière étape du parcours (pas encore construite → reste « à venir »).
-export default function FriseProgression({ typeOk, texteOk, loading, resultat, verifOk }) {
+// la progression réelle (type choisi, texte saisi, généré), jamais copiés.
+// « Générer » est la dernière étape : la qualité est désormais vérifiée DANS la génération (plus de cartouche « Vérifier »).
+export default function FriseProgression({ typeOk, texteOk, loading, resultat }) {
   // « Généré » = résultat présent ET génération finie (sinon un résultat partiel basculerait trop tôt).
   const termine = !!resultat && !loading
   const etapes = [
     { n: 1, label: 'Paramètres',   fait: !!typeOk },
     { n: 2, label: 'Texte source', fait: !!texteOk },
     { n: 3, label: 'Générer',      fait: termine },
-    { n: 4, label: 'Vérifier',     fait: !!verifOk },
-    { n: 5, label: 'Améliorer',    fait: false },
   ]
   // Étape « en cours » = la 1re pas encore faite ; pendant la génération c'est « Générer » (index 2).
   const courant = loading ? 2 : etapes.findIndex(e => !e.fait)

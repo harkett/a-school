@@ -110,3 +110,54 @@ select { appearance: auto; cursor: pointer; }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes fadeInSoft { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Bouton d'action « prêt » : halo qui respire (pattern des logiciels pro) pour signaler
+   l'étape suivante à cliquer. Appliqué UNIQUEMENT tant que le bouton attend le clic ;
+   retiré dès la génération. Accessibilité : pas d'animation si l'OS demande à réduire le
+   mouvement → à la place un anneau statique discret. */
+@keyframes pulseReady {
+  0%   { box-shadow: 0 0 0 0 rgba(31, 110, 235, 0.45); }
+  70%  { box-shadow: 0 0 0 9px rgba(31, 110, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(31, 110, 235, 0); }
+}
+.cta-ready { animation: pulseReady 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cta-ready { animation: none; box-shadow: 0 0 0 3px rgba(31, 110, 235, 0.35); }
+}
+
+/* Course d'attention sur les 6 boutons d'apport (zone de texte encore vide) : le JS déplace
+   la classe d'un bouton au suivant, un par un ; chaque bouton « allumé » fait une pulsation.
+   Réduction de mouvement : pas de pulsation, juste un anneau statique qui suit la course. */
+.chase-on { animation: pulseReady 0.8s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .chase-on { animation: none; box-shadow: 0 0 0 3px rgba(31, 110, 235, 0.3); }
+}
+
+/* Le « 3 » du bouton Générer clignote quand le bouton est prêt — repère franc de l'étape à cliquer. */
+@keyframes blink3 { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.blink3 { animation: blink3 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .blink3 { animation: none; } }
+
+/* Deux colonnes redimensionnables de l'écran Créer (résultat | pilotage), séparées par une
+   poignée que l'on tire. Sur écran étroit, elles s'empilent (résultat au-dessus) — pas de
+   défilement horizontal. Voir components/SplitPane.jsx. */
+/* Corps de l'écran Créer : hauteur bornée, il ne défile PAS lui-même — ce sont les colonnes qui
+   défilent (chacune son ascenseur). Sur petit écran (colonnes empilées), on revient au défilement
+   de page classique. */
+.creer-corps { flex: 1; min-height: 0; padding-top: 16px; overflow: hidden; }
+
+.split-pane { display: flex; align-items: stretch; height: 100%; min-height: 0; }
+.split-col { min-width: 0; overflow-y: auto; overflow-x: hidden; }
+.split-col-flex { flex: 1; }
+.split-divider {
+  flex: 0 0 auto; width: 16px; align-self: stretch; cursor: col-resize;
+  display: flex; align-items: center; justify-content: center; touch-action: none;
+}
+.split-grip { width: 3px; height: 46px; border-radius: 3px; background: #cbd5e1; transition: background 0.15s; }
+.split-divider:hover .split-grip, .split-divider:active .split-grip { background: var(--bordeaux); }
+@media (max-width: 900px) {
+  .creer-corps { overflow-y: auto; }
+  .split-pane { flex-direction: column; height: auto; }
+  .split-col { width: auto !important; overflow: visible; }
+  .split-divider { display: none; }
+}

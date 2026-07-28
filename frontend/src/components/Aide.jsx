@@ -478,7 +478,7 @@ const sections = [
         ))}
         <hr className="border-gray-100" />
         <p className="text-xs rounded-md px-3 py-2" style={{ background: '#f8fafc', color: '#64748b', borderLeft: '3px solid #cbd5e1' }}>
-          aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement le ton et la formulation à votre façon d'enseigner — sans rien configurer.
+          aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement sa formulation à votre façon d'enseigner — sans rien configurer.
         </p>
       </div>
     ),

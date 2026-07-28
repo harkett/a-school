@@ -61,21 +61,31 @@ export const GUIDE_CREER = [
   {
     cle: 'generer',
     cible: 'generer',
-    titre: 'Générer',
-    phrase: "Quand le texte est prêt : Générer. aSchool lit le programme officiel de votre classe et rédige l'activité sous vos yeux.",
+    titre: 'Générer : choisissez le ton',
+    phrase: "Deux boutons, deux tons : le clic choisit le ton ET lance la génération. « Ton académique » (formel, phrases longues, style documents officiels) ou « Ton opérationnel » (clair, phrases courtes, consignes directes, style prof en classe).",
     detail: [
-      "Au clic, aSchool lit le programme officiel de votre classe et rédige l'activité en direct. Une jauge accompagne l'attente ; si le corrigé est coché, il arrive en toute fin de document, après toutes les questions.",
+      "Rien n'est présélectionné : vous cliquez « Générer — ton académique » ou « Générer — ton opérationnel », et ce clic lance la production. aSchool lit le programme officiel de votre niveau (et le cahier des charges de votre établissement s'il est déposé) puis rédige l'activité sous vos yeux, dans le ton choisi.",
+      "Académique = registre formel et institutionnel, phrases construites. Opérationnel = registre direct, phrases courtes, consignes en verbe d'action, comme un professeur qui parle à sa classe. Une jauge accompagne l'attente ; si le corrigé est coché, il arrive en toute fin de document.",
     ],
   },
   {
     cle: 'resultat',
     cible: 'resultat',
-    titre: 'Le résultat : déjà sauvegardé, à vous de jouer',
-    phrase: "L'activité est déjà enregistrée toute seule dans « Mes activités ». Elle ne se retouche pas directement ici : pour une autre version, « Régénérer » ; pour corriger un mot vous-même, téléchargez-la en .txt ou Word. Vous pouvez aussi l'imprimer, l'envoyer par e-mail ou analyser ses ambiguïtés.",
+    titre: 'Le résultat : à récupérer',
+    phrase: "L'activité s'affiche à droite, dans le ton choisi. La barre en haut du résultat sert à la SORTIR telle quelle : télécharger, voir la mise en forme, imprimer ou envoyer.",
     detail: [
-      "Dès la fin de la génération, l'activité est enregistrée automatiquement dans « Mes activités » — rien à faire pour la garder, vous la rechargerez en un clic à tout moment.",
-      "Au-dessus du résultat : Télécharger en fichier texte (.txt) ou en Word (.docx), Imprimer, Envoyer par e-mail à un collègue, Analyser les ambiguïtés cognitives de l'activité. « Régénérer » relance une nouvelle version — chaque génération est différente, et l'actuelle est alors remplacée (déjà sauvegardée, elle reste dans « Mes activités »).",
-      "Le texte affiché ne s'édite pas directement sur cette page. Pour changer une question ou corriger une coquille, deux chemins : « Régénérer » pour une autre version, ou télécharger l'activité en .txt / Word et la retoucher dans votre traitement de texte habituel.",
+      "Au-dessus du résultat, la barre d'export : Télécharger en fichier texte (.txt) ou en Word (.docx), en PDF, voir la mise en forme dans un aperçu HTML (une fenêtre qui s'ouvre sans quitter aSchool), Imprimer, ou Envoyer par e-mail à un collègue.",
+      "Le texte affiché ne s'édite pas directement sur cette page. Pour retoucher une question ou corriger une coquille vous-même, téléchargez l'activité en .txt ou Word et modifiez-la dans votre traitement de texte habituel.",
+    ],
+  },
+  {
+    cle: 'reprise',
+    cible: 'reprise',
+    titre: 'Pas satisfait ? Changez le texte ou le ton',
+    phrase: "Une fois l'activité générée, deux boutons bleus apparaissent en haut de l'écran : « Changer votre texte » rouvre votre texte source pour l'ajuster ; « Changer votre ton » régénère la même activité dans l'autre ton.",
+    detail: [
+      "« Changer votre texte » déverrouille votre demande : vous la réécrivez, réimportez un document ou redictez, puis vous relancez la génération.",
+      "« Changer votre ton » reprend le même texte et régénère dans l'autre registre (académique ↔ opérationnel) — pour comparer les deux sans rien retaper. Chaque nouvelle génération remplace le résultat affiché.",
     ],
   },
 ]

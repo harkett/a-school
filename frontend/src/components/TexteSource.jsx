@@ -9,6 +9,25 @@ import JaugeAttente from './JaugeAttente.jsx'
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume
 
+// Bandeau « origine du texte » de la carte Texte source (visible quand la carte est dépliée) :
+// une phrase par façon de remplir la zone. La saisie au clavier n'a pas de note (rien à signaler).
+const NOTES_SOURCE = {
+  idee:    "Idée proposée à partir du programme officiel de votre niveau — modifiez-la librement, puis générez.",
+  exemple: "Exemple généré depuis le référentiel officiel de votre niveau — adaptez-le si besoin.",
+  dictee:  "Texte issu de votre dictée — relisez-le, corrigez si besoin, puis générez.",
+  txt:     "Texte importé depuis votre fichier.",
+  image:   "Texte extrait de votre image.",
+  pdf:     "Texte extrait de votre PDF.",
+}
+
+// Variantes affichées quand ce prof a déposé un cahier des charges : l'idée et l'exemple sont alors
+// générés à partir du programme officiel ET de son cahier — on le DIT (sinon le cahier passe inaperçu).
+// Les autres sources (dictée, fichiers) viennent du prof lui-même → pas de cahier à mentionner.
+const NOTES_SOURCE_CAHIER = {
+  idee:    "Idée proposée à partir du programme officiel de votre niveau ET du cahier des charges de votre établissement — modifiez-la librement, puis générez.",
+  exemple: "Exemple généré depuis le référentiel officiel de votre niveau ET le cahier des charges de votre établissement — adaptez-le si besoin.",
+}
+
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -55,6 +74,25 @@ const IconIdee = () => (
   </svg>
 )
 
+// Icône « saisi au clavier » (crayon) — provenance par défaut quand le prof a tapé/collé son texte.
+const IconClavier = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
+)
+
+// Provenance du texte source → pastille affichée dans l'en-tête quand la carte est REPLIÉE (le corps,
+// donc le bandeau d'origine, est alors masqué). Mêmes libellés/icônes que les boutons d'apport, en
+// plus court. `sourceNote` null + texte présent = saisie/collage au clavier (cas par défaut ci-dessous).
+const PROVENANCE = {
+  idee:    { label: 'Idée proposée',   Icon: IconIdee },
+  exemple: { label: 'Exemple proposé', Icon: IconExemple },
+  dictee:  { label: 'Dictée',          Icon: IconMic },
+  txt:     { label: 'Fichier TXT',     Icon: IconTxt },
+  image:   { label: 'Image / Scan',    Icon: IconImage },
+  pdf:     { label: 'PDF',             Icon: IconPdf },
+}
+
 export default function TexteSource({ texte, onChange, objet, onObjetChange, matiere, niveau, activiteTypeId, sousType, verrouille = false, cahierPresent = false, onGenerer, loading = false, pretAGenerer = false, hasResultat = false }) {
   const [ocrLoading, setOcrLoading] = useState(null) // 'image' | 'pdf' | null
   const [isListening, setIsListening] = useState(false)   // micro ouvert (enregistrement en cours)
@@ -62,9 +100,10 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const [isTranscribing, setIsTranscribing] = useState(false) // POST /api/transcribe en cours
   const [elapsed, setElapsed] = useState(0)               // chrono d'enregistrement (secondes)
   const [exempleLoading, setExempleLoading] = useState(false) // génération d'un exemple ancré en cours
-  const [exempleNote, setExempleNote] = useState(null)        // 'ancre' (exemple injecté) | 'absent' (pas de référentiel pour ce couple)
   const [ideeLoading, setIdeeLoading] = useState(false)       // « Propose-moi une idée » en cours
-  const [ideeNote, setIdeeNote] = useState(false)             // idée injectée dans la zone (bandeau)
+  // Origine du texte courant → bandeau dans la carte (quand elle est dépliée). Une seule note à la
+  // fois : le dernier geste gagne. Effacée dès que la zone est vidée. Clavier = pas de note.
+  const [sourceNote, setSourceNote] = useState(null)          // 'idee'|'exemple'|'dictee'|'txt'|'image'|'pdf'|null
   const [replie, setReplie] = useState(false)                 // carte repliée en phase résultat (verrouillée) ; le prof peut déplier
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
@@ -99,9 +138,28 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     return window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')
   }
 
-  // Les bandeaux « exemple généré » / « idée proposée » sont attachés au texte courant : si le
-  // texte est vidé (ex. « Créer » repart d'une activité vierge), ils n'ont plus de sens → effacés.
-  useEffect(() => { if (!texte) { setExempleNote(null); setIdeeNote(false) } }, [texte])
+  // Course d'attention sur les 6 boutons d'apport : tant que la zone est VIDE (et la carte
+  // active, pas en phase résultat), un halo passe d'un bouton au suivant, un par un, pour
+  // montrer par où commencer. Dès qu'il y a du texte, la course s'arrête et le relais passe
+  // au bouton « Générer » (qui pulse alors). Réduction de mouvement gérée côté CSS.
+  // Un clic sur l'un des 6 boutons lance une action (OCR image/PDF, exemple, idée, dictée,
+  // transcription) : la course s'arrête AUSSITÔT, sans attendre que le texte arrive — sinon elle
+  // tournerait encore pendant la génération. « Fichier TXT » est couvert par zoneRemplie (le texte
+  // arrive tout de suite après le choix du fichier).
+  const actionEnCours = !!ocrLoading || exempleLoading || ideeLoading || isListening || isTranscribing
+  const chaseActif = !zoneRemplie && !verrouille && !actionEnCours
+  const [chaseIndex, setChaseIndex] = useState(0)
+  useEffect(() => {
+    if (!chaseActif) { setChaseIndex(0); return }
+    const id = setInterval(() => setChaseIndex(i => (i + 1) % 6), 800)
+    return () => clearInterval(id)
+  }, [chaseActif])
+  // Classe d'un bouton d'apport selon son rang (0→5) : « allumé » quand la course est sur lui.
+  const btnChase = i => `btn-action${chaseActif && chaseIndex === i ? ' chase-on' : ''}`
+
+  // Le bandeau d'origine est attaché au texte courant : si le texte est vidé (ex. « Créer » repart
+  // d'une activité vierge), il n'a plus de sens → effacé.
+  useEffect(() => { if (!texte) setSourceNote(null) }, [texte])
 
   // Dictée vocale en mode BATCH : enregistrer → stop → POST /api/transcribe (Groq
   // Whisper) → texte inséré à la fin. Le streaming temps réel Deepgram est une
@@ -176,6 +234,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         const prev = texteRef.current || ''
         const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
         onChange(prev + sep + transcrit)
+        setSourceNote('dictee')
       }
     } catch (err) {
       showError(`Transcription impossible.\n\n${messagePourEcran(err)}`)
@@ -256,7 +315,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     if (exempleLoading) return
     if (!confirmerRemplacement()) return
     setExempleLoading(true)
-    setExempleNote(null)
+    setSourceNote(null)
     try {
       // Le couple ne part plus de l'écran : le serveur lit le couple de travail EN BASE
       // (décision du 25/07) — le document d'exemple suit toujours ce que le prof voit.
@@ -269,7 +328,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       const data = await lireReponse(res)
       if (data.available && data.texte) {
         onChange(data.texte)
-        setExempleNote('ancre')
+        setSourceNote('exemple')
       } else if (data.message) {
         // Référentiel présent mais aucun extrait assez pertinent (seuil) : message honnête du backend.
         // Règle absolue : message = modale bloquante (showError), jamais inline.
@@ -297,7 +356,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     }
     if (!confirmerRemplacement()) return
     setIdeeLoading(true)
-    setIdeeNote(false)
+    setSourceNote(null)
     try {
       // Le niveau ne part plus de l'écran : le serveur lit le couple de travail EN BASE.
       const res = await apiFetch('/api/proposer-idee', {
@@ -312,7 +371,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         // L'IA propose aussi un titre court pour le champ « Objet » (ligne « Objet : » détachée
         // par le serveur) — remplacé comme le texte : l'idée arrive complète, le prof ajuste.
         if (data.objet && onObjetChange) onObjetChange(data.objet)
-        setIdeeNote(true)
+        setSourceNote('idee')
       } else if (data.message) {
         // Référentiel présent mais rien d'assez pertinent (seuil) : message honnête du backend.
         showError(data.message)
@@ -331,7 +390,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => onChange(ev.target.result)
+    reader.onload = ev => { onChange(ev.target.result); setSourceNote('txt') }
     reader.readAsText(file, 'utf-8')
     e.target.value = ''
   }
@@ -351,6 +410,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       }, TIMEOUT_LONG)
       const data = await lireReponse(res)
       onChange(data.texte)
+      setSourceNote(type === 'image' ? 'image' : 'pdf')
     } catch (err) {
       const source = type === 'image' ? "l'image" : 'le PDF'
       showError(`Extraction du texte depuis ${source} impossible.\n\n${messagePourEcran(err)}`)
@@ -450,6 +510,21 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </button>
+          {/* Pastille de PROVENANCE — visible seulement quand la carte est repliée (le corps, donc le
+              bandeau d'origine, est masqué). Elle rappelle d'où vient CE texte : dictée, PDF, exemple,
+              idée, fichier, image, ou saisi au clavier. Même rôle que les puces de la cartouche ①. */}
+          {replie && zoneRemplie && (() => {
+            const p = PROVENANCE[sourceNote] || { label: 'Saisi au clavier', Icon: IconClavier }
+            const { Icon } = p
+            return (
+              <span
+                title={`Provenance du texte source : ${p.label}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, flexShrink: 0 }}
+              >
+                <Icon /> {p.label}
+              </span>
+            )
+          })()}
         </div>
         {/* Verrouillée en phase résultat (mode « Régénérer tel quel ») : les 6 boutons d'apport
             sont grisés et inertes d'un coup. « Changer votre demande » lève le verrou.
@@ -458,7 +533,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         <div data-guide="boutons" className="flex flex-wrap gap-2" style={{ justifyContent: 'flex-end', marginLeft: 'auto', opacity: verrouille ? 0.5 : 1, pointerEvents: verrouille ? 'none' : 'auto' }}>
 
           <label
-            className="btn-action"
+            className={btnChase(0)}
             title="Importer un fichier texte .txt"
             style={enRetrait}
           >
@@ -469,7 +544,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           </label>
 
           <label
-            className="btn-action"
+            className={btnChase(1)}
             title="Extraire le texte d'une image (scan, photo de document)"
             style={ocrLoading === 'image' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
           >
@@ -481,7 +556,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
           </label>
 
           <label
-            className="btn-action"
+            className={btnChase(2)}
             title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
             style={ocrLoading === 'pdf' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
           >
@@ -496,7 +571,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
               fabriqué par l'IA depuis le programme officiel — pour essayer sans rien sous la main. */}
           <button
             type="button"
-            className="btn-action"
+            className={btnChase(3)}
             title={cahierPresent
               ? "aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau et du cahier des charges de votre établissement — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."
               : "aSchool fabrique un document d'exemple (un énoncé, une situation, un texte de travail) tiré du programme officiel de votre niveau — comme si vous aviez importé un document, pour essayer sans rien avoir sous la main."}
@@ -512,7 +587,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
           <button
             type="button"
-            className="btn-action"
+            className={btnChase(4)}
             title={
               !isSupported
                 ? "La dictée n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent."
@@ -538,7 +613,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
           <button
             type="button"
-            className="btn-action"
+            className={btnChase(5)}
             title={cahierPresent
               ? "aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision, le programme officiel et le cahier des charges de votre établissement — vous la retouchez librement, puis Générer."
               : "aSchool écrit pour vous votre demande : une idée d'activité tirée de votre type d'activité, votre précision et le programme officiel — vous la retouchez librement, puis Générer."}
@@ -555,48 +630,18 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
         )}
 
-        {/* Bouton primaire « Générer l'activité » — déplacé ici (choix 27/07) : au niveau du titre,
-            tout à droite, APRÈS les 6 boutons d'apport. Visible en phase COMPOSER et pendant la
-            génération ; en phase résultat c'est « Régénérer » qui prend le relais (barre du haut).
-            marginLeft:auto quand la carte est repliée (les 6 boutons ont disparu) → reste à droite ;
-            sinon 0, il se colle juste après la rangée des 6 boutons (déjà poussée à droite). */}
-        {(!hasResultat || loading) && onGenerer && (
-          <button
-            className="btn-primary"
-            data-guide="generer"
-            onClick={onGenerer}
-            disabled={loading || !pretAGenerer}
-            title={loading ? 'Génération en cours…'
-              : !pretAGenerer ? "Écrivez d'abord votre demande dans la zone de texte"
-              : "Lancer la génération de l'activité avec aSchool"}
-            style={{ flexShrink: 0, marginLeft: replie ? 'auto' : 0,
-                     opacity: loading || !pretAGenerer ? 0.55 : 1,
-                     cursor: loading || !pretAGenerer ? 'not-allowed' : 'pointer' }}
-          >
-            {loading
-              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-              : <span style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.85)',
-                               fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center',
-                               justifyContent: 'center', flexShrink: 0 }}>3</span>}
-            {loading ? 'Génération en cours...' : 'Générer l\'activité'}
-          </button>
-        )}
+        {/* Le bouton « Générer l'activité » a été déplacé (28/07) dans sa propre cartouche ③
+            « Générer l'activité » (voir App.jsx), avec le même habillage que les autres cartouches
+            (badge, titre, « i », chevron). Il n'est plus rendu ici. */}
       </div>
 
       {/* Corps de la carte — masqué quand elle est repliée (phase résultat). */}
       {!replie && (<>
 
-      {exempleNote === 'ancre' && (
+      {sourceNote && NOTES_SOURCE[sourceNote] && (
         <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
           borderRadius: 6, fontSize: 12, color: '#1d4ed8', animation: 'fadeInSoft 0.4s ease-out' }}>
-          Exemple généré depuis le référentiel officiel de votre niveau — adaptez-le si besoin.
-        </div>
-      )}
-
-      {ideeNote && (
-        <div style={{ marginBottom: 12, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
-          borderRadius: 6, fontSize: 12, color: '#1d4ed8', animation: 'fadeInSoft 0.4s ease-out' }}>
-          Idée proposée à partir du programme officiel de votre niveau — modifiez-la librement, puis générez.
+          {(cahierPresent && NOTES_SOURCE_CAHIER[sourceNote]) || NOTES_SOURCE[sourceNote]}
         </div>
       )}
 
