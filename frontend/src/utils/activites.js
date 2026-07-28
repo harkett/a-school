@@ -65,13 +65,15 @@ export function grouperParCouple(activites, currentKey = null) {
 }
 
 // Libellé daté d'une activité. Récent → relatif ; au-delà de 7 jours → date complète.
-// Renvoie { court, complet, recent, heure } ; heure = HH:MM de la sauvegarde (created_at).
+// Renvoie { court, complet, numerique, recent, heure } ; heure = HH:MM de la sauvegarde
+// (created_at) ; numerique = JJ/MM/AAAA (ex. « 26/07/2026 »).
 // `now` injectable pour les tests. created_at null/illisible → libellés vides.
 export function formatDateActivite(iso, now = new Date()) {
-  if (!iso) return { court: '', complet: '', recent: false, heure: '' }
+  if (!iso) return { court: '', complet: '', numerique: '', recent: false, heure: '' }
   const d = new Date(iso)
-  if (isNaN(d.getTime())) return { court: '', complet: '', recent: false, heure: '' }
+  if (isNaN(d.getTime())) return { court: '', complet: '', numerique: '', recent: false, heure: '' }
   const complet = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const numerique = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const heure = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   // Différence en jours CALENDAIRES (minuit→minuit) pour que « hier » soit exact.
   const jourD = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -82,7 +84,7 @@ export function formatDateActivite(iso, now = new Date()) {
   else if (diff === 1) { court = 'hier';               recent = true }
   else if (diff <= 7)  { court = `il y a ${diff} jours`; recent = true }
   else                 { court = `le ${complet}`;      recent = false }  // >7 j → date complète, jamais « il y a 247 jours »
-  return { court, complet, recent, heure }
+  return { court, complet, numerique, recent, heure }
 }
 
 // Couleur stable d'un couple matière+niveau (hash déterministe → palette fixe).

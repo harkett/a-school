@@ -2,6 +2,7 @@
 import { Document, Packer, Paragraph, TextRun } from 'docx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
+import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -110,69 +111,8 @@ function imprimer(texte) {
   win.print()
 }
 
-// Formateur texte brut → HTML, utilisé par l'APERÇU (modale) du bouton « HTML ». On transforme les
-// titres #, le gras **, les listes numérotées ou à puces en HTML propre. But : voir le formatage
-// SANS quitter aSchool. Aucune dépendance. (Texte échappé + nos seules balises → injection sûre.)
-function _echapperHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-function _enligne(s) {
-  // gras puis italique, sur du texte DÉJÀ échappé (les astérisques ne sont pas échappés)
-  return s
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-}
-function _corpsHtml(texte) {
-  const lignes = String(texte || '').replace(/\r\n/g, '\n').split('\n')
-  const out = []
-  let liste = null   // 'ul' | 'ol' | null : liste en cours d'ouverture
-  const fermer = () => { if (liste) { out.push(`</${liste}>`); liste = null } }
-  for (const brut of lignes) {
-    const t = brut.trim()
-    if (t === '') { fermer(); continue }
-    if (/^-{3,}$/.test(t)) { fermer(); out.push('<hr>'); continue }
-    let m
-    if ((m = t.match(/^(#{1,3})\s+(.*)$/))) { fermer(); const n = m[1].length; out.push(`<h${n}>${_enligne(_echapperHtml(m[2]))}</h${n}>`); continue }
-    if ((m = t.match(/^\d+[.)]\s+(.*)$/)))  { if (liste !== 'ol') { fermer(); out.push('<ol>'); liste = 'ol' } out.push(`<li>${_enligne(_echapperHtml(m[1]))}</li>`); continue }
-    if ((m = t.match(/^[-*•]\s+(.*)$/)))    { if (liste !== 'ul') { fermer(); out.push('<ul>'); liste = 'ul' } out.push(`<li>${_enligne(_echapperHtml(m[1]))}</li>`); continue }
-    fermer()
-    out.push(`<p>${_enligne(_echapperHtml(t))}</p>`)
-  }
-  fermer()
-  return out.join('\n')
-}
-// Impression de l'APERÇU mis en forme (bouton « Imprimer » de la modale HTML). On écrit le HTML
-// déjà formaté (_corpsHtml) dans une iframe cachée + une feuille de style d'impression, puis on
-// lance l'impression DEPUIS cette iframe : le prof reste sur aSchool (aucun nouvel onglet), et
-// c'est la mise en forme (titres, gras, listes) qui part à l'imprimante, pas le texte brut.
-function imprimerApercu(corpsHtml) {
-  const iframe = document.createElement('iframe')
-  iframe.setAttribute('aria-hidden', 'true')
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
-  document.body.appendChild(iframe)
-  const doc = iframe.contentWindow.document
-  doc.open()
-  doc.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Activité aSchool</title>
-    <style>
-      @page{margin:18mm}
-      body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.7;font-size:13px;margin:0}
-      h1,h2,h3{color:#0f172a;line-height:1.3;margin:1.3em 0 .35em}
-      h1{font-size:1.5rem}h2{font-size:1.25rem}h3{font-size:1.08rem}
-      p{margin:.55em 0}
-      ul,ol{margin:.55em 0 .55em 1.4em;padding:0}li{margin:.28em 0}
-      hr{border:none;border-top:1px solid #cbd5e1;margin:1.3em 0}
-      strong{color:#0f172a}
-      .pied-aschool{margin-top:2.5em;padding-top:8px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af}
-    </style></head>
-    <body>${corpsHtml}<div class="pied-aschool">Généré avec aSchool — aschool.fr</div></body></html>`)
-  doc.close()
-  const win = iframe.contentWindow
-  const nettoyer = () => setTimeout(() => { try { document.body.removeChild(iframe) } catch (_) {} }, 500)
-  win.onafterprint = nettoyer
-  win.focus()
-  win.print()
-  setTimeout(nettoyer, 60000)   // filet de sécurité si onafterprint ne se déclenche pas
-}
+// Aperçu HTML : formateur (corpsHtml) + impression mise en forme (imprimerApercu) sont extraits
+// dans utils/apercuHtml.js et PARTAGÉS avec l'Historique (MesActivites) — un seul formateur, zéro copie.
 
 function envoyerMail(texte, email) {
   const sujet = encodeURIComponent(`Activité aSchool — ${new Date().toLocaleDateString('fr-FR')}`)
@@ -264,7 +204,7 @@ export default function ZoneResultat({ resultat, loading, email, cahierPresent =
           </button>
           <button
             className="btn-secondary"
-            onClick={() => setApercuHtml(_corpsHtml(resultat))}
+            onClick={() => setApercuHtml(corpsHtml(resultat))}
             title="Voir l'activité mise en forme (aperçu, sans quitter aSchool)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> HTML

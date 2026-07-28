@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
+import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import SplitPane from './SplitPane.jsx'
 
 const IconTrash = () => (
@@ -26,6 +27,21 @@ const IconCalendar = () => (
     <line x1="16" y1="2" x2="16" y2="6"/>
     <line x1="8" y1="2" x2="8" y2="6"/>
     <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+)
+
+const IconGlobe = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+  </svg>
+)
+
+const IconPrint = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="6 9 6 2 18 2 18 9"/>
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
   </svg>
 )
 
@@ -89,6 +105,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const [hovered, setHovered]     = useState(null)
   const [toggling, setToggling]         = useState(null)
   const [selected, setSelected]         = useState(null)  // id de l'activité affichée dans le panneau de détail (colonne droite)
+  const [apercuHtml, setApercuHtml]     = useState(null)  // aperçu HTML mis en forme (modale) : chaîne = ouvert, null = fermé ; éphémère
   const [anonymeDialog, setAnonymeDialog] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [profilDialog, setProfilDialog] = useState(null)  // activité hors profil courant → modale "passez sur le profil"
@@ -101,6 +118,14 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       .then(data => { setActivites(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  // Échap ferme l'aperçu HTML.
+  useEffect(() => {
+    if (apercuHtml === null) return
+    const onEsc = e => { if (e.key === 'Escape') setApercuHtml(null) }
+    window.addEventListener('keydown', onEsc)
+    return () => window.removeEventListener('keydown', onEsc)
+  }, [apercuHtml])
 
   async function supprimerActivite(id) {
     setDeleting(id)
@@ -184,7 +209,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       onMouseEnter={() => setHovered(a.id)}
       onMouseLeave={() => setHovered(null)}
       onClick={() => setSelected(a.id)}
-      title="Cliquer pour voir le détail à droite"
+      title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
       style={{
         borderBottom: last ? 'none' : '1px solid #e5e7eb',
         borderLeft: estSel ? '3px solid var(--bordeaux)' : '3px solid transparent',
@@ -206,17 +231,24 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
               </span>
             )}
             {dateLabel && (
-              <span
-                title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
-                style={{
-                  marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 11, fontWeight: 600, borderRadius: 99, padding: '2px 9px', flexShrink: 0,
-                  background: dt.recent ? '#eff6ff' : '#f1f5f9',
-                  color: dt.recent ? '#1d4ed8' : '#475569',
-                }}
-              >
-                <IconCalendar />
-                {dateLabel}
+              <span style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                <span
+                  title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, fontWeight: 600, borderRadius: 99, padding: '2px 9px',
+                    background: dt.recent ? '#eff6ff' : '#f1f5f9',
+                    color: dt.recent ? '#1d4ed8' : '#475569',
+                  }}
+                >
+                  <IconCalendar />
+                  {dateLabel}
+                </span>
+                {dt.numerique && (
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                    {dt.numerique}-{dt.heure}
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -341,11 +373,18 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
               {` · ${a.avec_correction ? 'Avec correction' : 'Sans correction'}`}
             </div>
           </div>
-          <button onClick={() => tenterReprendre(a)}
-            title="Reprendre cette activité dans le formulaire"
-            className="btn-primary shrink-0">
-            Reprendre
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setApercuHtml(corpsHtml(a.resultat))}
+              title="Voir l'activité mise en forme (aperçu, sans quitter aSchool)"
+              className="btn-secondary">
+              <IconGlobe /> HTML
+            </button>
+            <button onClick={() => tenterReprendre(a)}
+              title="Reprendre cette activité dans le formulaire"
+              className="btn-primary">
+              Reprendre
+            </button>
+          </div>
         </div>
 
         {/* Corps scrollable */}
@@ -535,6 +574,44 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
                 OK
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aperçu « HTML » — MODALE fermable (clic dehors, croix, Échap), pour voir le formatage SANS
+          quitter aSchool. Corps = HTML sûr (corpsHtml). Bouton Imprimer = version mise en forme.
+          Même dispositif que « Créer une activité » (ZoneResultat), via le util partagé. */}
+      {apercuHtml !== null && (
+        <div
+          onClick={() => setApercuHtml(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 10, maxWidth: 820, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+              <span style={{ fontWeight: 700, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <IconGlobe /> Aperçu mis en forme
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button type="button" onClick={() => imprimerApercu(apercuHtml)} className="btn-secondary" title="Imprimer cette activité mise en forme">
+                  <IconPrint /> Imprimer
+                </button>
+                <button type="button" onClick={() => setApercuHtml(null)} title="Fermer l'aperçu" style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="apercu-corps" style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 15 }} dangerouslySetInnerHTML={{ __html: apercuHtml }} />
+            <style>{`
+              .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
+              .apercu-corps h1{font-size:1.5rem}.apercu-corps h2{font-size:1.25rem}.apercu-corps h3{font-size:1.08rem}
+              .apercu-corps p{margin:.6em 0}
+              .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
+              .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
+              .apercu-corps strong{color:#0f172a}
+            `}</style>
           </div>
         </div>
       )}
