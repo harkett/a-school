@@ -376,19 +376,13 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full gap-3">
 
-      {/* En-tête */}
-      <div className="flex flex-col gap-1" style={{ flexShrink: 0 }}>
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
-          {!loading && headerCount > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
-              {headerCount} activité{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        {!loading && vue === 'courant' && labelProfil && (
-          <span className="text-xs text-gray-400">
-            {labelProfil}
+      {/* En-tête — le couple (matière/niveau) n'est PAS répété ici : il est déjà dans la barre du
+          haut, et rappelé dans l'infobulle de l'onglet « Niveau en cours ». */}
+      <div className="flex items-baseline gap-3" style={{ flexShrink: 0 }}>
+        <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
+        {!loading && headerCount > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
+            {headerCount} activité{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}
           </span>
         )}
       </div>
@@ -401,7 +395,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
               key={id}
               onClick={() => setVue(id)}
               title={id === 'courant'
-                ? 'Les activités de votre matière et niveau actuels'
+                ? (labelProfil ? `Vos activités en ${labelProfil}` : 'Les activités de votre matière et niveau actuels')
                 : 'Toutes vos activités, regroupées par matière et niveau'}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
