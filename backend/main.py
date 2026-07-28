@@ -26,10 +26,9 @@ APP_VERSION = _pkg.get("version", "0.0.0")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from backend.core.limiter import limiter
+from backend.core.limiter import limiter, plafond_depasse
 from backend.core.middleware import UserSessionMiddleware
 from backend.routers import auth
 from backend.systeme import admin
@@ -80,7 +79,7 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(title="aSchool API", version=APP_VERSION, lifespan=_lifespan)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, plafond_depasse)
 
 app.add_middleware(UserSessionMiddleware)
 

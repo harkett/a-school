@@ -237,12 +237,21 @@ def revoke_all_refresh_tokens(db: Session, email: str):
 # Email sending
 # ---------------------------------------------------------------------------
 
+# Délai d'attente réseau de la connexion SMTP, en secondes. S'applique à CHAQUE opération
+# sur la socket (connexion, STARTTLS, login, envoi), pas à la durée totale. Sans lui,
+# smtplib hérite du délai global de socket — c'est-à-dire AUCUN : un serveur de mail muet
+# bloquait le fil d'exécution indéfiniment, et avec lui la requête HTTP du prof.
+# 10 s laisse largement passer une connexion saine : aSchool n'envoie que du texte et du
+# HTML léger, jamais de pièce jointe. Valeur destinée à passer EN BASE (Lot 2).
+_SMTP_TIMEOUT = 10
+
+
 def _smtp_send(msg):
     host = os.getenv("SMTP_HOST", "")
     port = int(os.getenv("SMTP_PORT", "587"))
     user = os.getenv("SMTP_USERNAME", "")
     pwd = os.getenv("SMTP_PASSWORD", "")
-    with smtplib.SMTP(host, port) as s:
+    with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT) as s:
         s.ehlo()
         s.starttls()
         s.login(user, pwd)

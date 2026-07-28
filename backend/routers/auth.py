@@ -6,6 +6,12 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
+from backend.core.limiter import (
+    PLAFOND_DEMANDE_RESET,
+    PLAFOND_RENVOI_VERIFICATION,
+    PLAFOND_SIGNUP,
+    limiter,
+)
 from backend.core.models_db import ConnexionLog, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.prof.profil import couple_de_travail
@@ -66,6 +72,7 @@ class ResetPasswordBody(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/auth/signup", status_code=201)
+@limiter.limit(PLAFOND_SIGNUP)
 def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
     if body.password != body.password_confirm:
         raise HTTPException(400, "Les mots de passe ne correspondent pas.")
@@ -119,7 +126,8 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
 
 
 @router.post("/auth/resend-verification")
-def resend_verification(body: ResendVerificationBody, db: Session = Depends(get_db)):
+@limiter.limit(PLAFOND_RENVOI_VERIFICATION)
+def resend_verification(body: ResendVerificationBody, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
     # Toujours retourner ok — ne pas révéler si l'email existe
@@ -133,7 +141,8 @@ def resend_verification(body: ResendVerificationBody, db: Session = Depends(get_
 
 
 @router.post("/auth/request-reset")
-def request_reset(body: RequestResetBody, db: Session = Depends(get_db)):
+@limiter.limit(PLAFOND_DEMANDE_RESET)
+def request_reset(body: RequestResetBody, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
     if user and user.is_verified:
