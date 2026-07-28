@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../utils/activites.js'
+import SplitPane from './SplitPane.jsx'
 
 const IconTrash = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -76,13 +77,18 @@ function StatsCommunaute({ matiere, niveau }) {
   )
 }
 
+// Styles partagés du panneau de détail (colonne droite) — repris de l'ancienne modale « Plus de détails ».
+const LABEL_STYLE  = { fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }
+const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 14px' }
+const PRE_STYLE    = { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }
+
 export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau, onNavigate, userName }) {
   const isMobile = window.innerWidth < 768
   const [activites, setActivites] = useState([])
   const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
   const [toggling, setToggling]         = useState(null)
-  const [detailModal, setDetailModal]   = useState(null)
+  const [selected, setSelected]         = useState(null)  // id de l'activité affichée dans le panneau de détail (colonne droite)
   const [anonymeDialog, setAnonymeDialog] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState(null)
   const [profilDialog, setProfilDialog] = useState(null)  // activité hors profil courant → modale "passez sur le profil"
@@ -105,7 +111,6 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       }, TIMEOUT_STD)
       if (res.ok) {
         setActivites(prev => prev.filter(a => a.id !== id))
-        if (detailModal?.id === id) setDetailModal(null)
       }
     } finally {
       setDeleting(null)
@@ -151,11 +156,25 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
   const sections    = grouperParCouple(activites, currentKey)
   const headerCount = vue === 'courant' ? filtered.length : activites.length
 
-  // Ligne-carte d'une activité, réutilisée par les deux onglets.
+  // Liste réellement affichée à gauche (selon l'onglet), dans l'ordre d'affichage.
+  const visibles = vue === 'courant' ? filtered : sections.flatMap(s => s.items)
+
+  // Sélection par défaut + garde-fou : le panneau de détail montre TOUJOURS une activité visible
+  // (au chargement → la plus récente ; après une suppression → la suivante ; changement d'onglet → 1ʳᵉ).
+  useEffect(() => {
+    if (loading) return
+    if (visibles.length === 0) { if (selected !== null) setSelected(null); return }
+    if (!visibles.some(a => a.id === selected)) setSelected(visibles[0].id)
+  }, [loading, vue, activites, sessionMatiere, sessionNiveau])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedActivite = activites.find(a => a.id === selected) || null
+
+  // Ligne-carte d'une activité, réutilisée par les deux onglets. Cliquable → sélectionne (détail à droite).
   const ActiviteRow = (a, last) => {
     const dt = formatDateActivite(a.created_at)
     const couleur = couleurCouple(coupleKey(a.matiere, a.niveau))
     const coupleLbl = [a.matiere, a.niveau].filter(Boolean).join(' — ') || 'Non classé'
+    const estSel = selected === a.id
     // Récent → libellé relatif capitalisé ; ancien → date complète (sans « le »).
     const dateBase = dt.court ? (dt.recent ? dt.court.charAt(0).toUpperCase() + dt.court.slice(1) : dt.complet) : ''
     const dateLabel = dateBase && dt.heure ? `${dateBase} à ${dt.heure}` : dateBase
@@ -164,10 +183,14 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       key={a.id}
       onMouseEnter={() => setHovered(a.id)}
       onMouseLeave={() => setHovered(null)}
+      onClick={() => setSelected(a.id)}
+      title="Cliquer pour voir le détail à droite"
       style={{
         borderBottom: last ? 'none' : '1px solid #e5e7eb',
-        background: hovered === a.id ? '#f3f4f6' : 'white',
+        borderLeft: estSel ? '3px solid var(--bordeaux)' : '3px solid transparent',
+        background: estSel ? '#fdf2f5' : (hovered === a.id ? '#f3f4f6' : 'white'),
         transition: 'background 0.15s',
+        cursor: 'pointer',
       }}
     >
       <div className="flex items-center gap-3 px-5 py-4">
@@ -212,15 +235,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
 
         <div className="flex items-center gap-2 shrink-0"
-          style={{ opacity: (isMobile || hovered === a.id) ? 1 : 0, transition: 'opacity 0.15s' }}>
-          <button
-            onClick={() => setDetailModal(a)}
-            title="Voir le texte source et le résultat complet de l'activité"
-            style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
-          >
-            Plus de détails
-          </button>
-
+          style={{ opacity: (isMobile || hovered === a.id || estSel) ? 1 : 0, transition: 'opacity 0.15s' }}>
           <button
             onClick={() => !a.partagee ? setAnonymeDialog(a.id) : togglePartage(a.id, false)}
             disabled={toggling === a.id}
@@ -261,11 +276,108 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
     )
   }
 
+  // ── Colonne GAUCHE : la liste (onglets, sections) — identique à avant, juste cliquable.
+  const colonneListe = (
+    <div className="flex flex-col gap-4">
+      {/* Onglet « Niveau en cours » — liste filtrée sur le profil */}
+      {vue === 'courant' && filtered.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          {filtered.map((a, i) => ActiviteRow(a, i === filtered.length - 1))}
+        </div>
+      )}
+
+      {vue === 'courant' && filtered.length === 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
+          <p className="text-sm text-gray-500">Aucune activité pour {labelProfil}.</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Vos activités d'un autre niveau ou matière sont dans l'onglet{' '}
+            <button
+              onClick={() => setVue('toutes')}
+              style={{ color: 'var(--bordeaux)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }}
+            >
+              Toutes mes activités
+            </button>.
+          </p>
+        </div>
+      )}
+
+      {/* Onglet « Toutes mes activités » — sections par couple (courant épinglé en haut) */}
+      {vue === 'toutes' && sections.map(sec => (
+        <div key={sec.key} className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 px-1">
+            <span style={{ width: 11, height: 11, borderRadius: '50%', background: couleurCouple(sec.key), flexShrink: 0, display: 'inline-block' }} />
+            <span className="text-sm font-semibold text-gray-700">{sec.label}</span>
+            <span style={{ fontSize: 11, color: '#6b7280', background: '#f1f5f9', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
+              {sec.items.length}
+            </span>
+            {sec.key === currentKey && (
+              <span style={{ fontSize: 11, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
+                en cours
+              </span>
+            )}
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            {sec.items.map((a, i) => ActiviteRow(a, i === sec.items.length - 1))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
+  // ── Colonne DROITE : le détail de l'activité sélectionnée, affiché EN PERMANENCE.
+  const colonneDetail = (() => {
+    if (!selectedActivite) {
+      return (
+        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 24 }}>
+          Cliquez une activité à gauche pour voir son détail.
+        </div>
+      )
+    }
+    const a = selectedActivite
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+        {/* En-tête du détail */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '18px 22px 14px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', marginBottom: 4 }}>
+              {a.objet || a.activite_label}
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+              {a.activite_label} · {a.niveau}
+              {a.sous_type ? ` · ${a.sous_type}` : ''}
+              {a.nb ? ` · ${a.nb} questions` : ''}
+              {` · ${a.avec_correction ? 'Avec correction' : 'Sans correction'}`}
+            </div>
+          </div>
+          <button onClick={() => tenterReprendre(a)}
+            title="Reprendre cette activité dans le formulaire"
+            className="btn-primary shrink-0">
+            Reprendre
+          </button>
+        </div>
+
+        {/* Corps scrollable */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {a.texte_source && a.texte_source.trim().length > 0 && (
+            <div>
+              <div style={LABEL_STYLE}>Texte source</div>
+              <p style={SOURCE_STYLE}>{a.texte_source}</p>
+            </div>
+          )}
+          <div>
+            <div style={LABEL_STYLE}>Résultat généré</div>
+            <pre style={PRE_STYLE}>{a.resultat}</pre>
+          </div>
+        </div>
+      </div>
+    )
+  })()
+
   return (
-    <div className="flex flex-col gap-3 w-full">
+    <div className="flex flex-col flex-1 min-h-0 w-full gap-3">
 
       {/* En-tête */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1" style={{ flexShrink: 0 }}>
         <div className="flex items-baseline gap-3">
           <h2 className="text-base font-semibold text-gray-800">Mes activités</h2>
           {!loading && headerCount > 0 && (
@@ -283,7 +395,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
 
       {/* Onglets — visibles dès qu'il y a au moins une activité */}
       {!loading && activites.length > 0 && (
-        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
           {[['courant', 'Niveau en cours'], ['toutes', 'Toutes mes activités']].map(([id, label]) => (
             <button
               key={id}
@@ -306,7 +418,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       )}
 
       {/* Widget stats communauté — propre au couple courant */}
-      {!loading && vue === 'courant' && <StatsCommunaute matiere={sessionMatiere} niveau={sessionNiveau} />}
+      {!loading && vue === 'courant' && <div style={{ flexShrink: 0 }}><StatsCommunaute matiere={sessionMatiere} niveau={sessionNiveau} /></div>}
 
       {loading && (
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
@@ -319,50 +431,12 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       )}
 
-      {!loading && vue === 'courant' && activites.length > 0 && filtered.length === 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
-          <p className="text-sm text-gray-500">Aucune activité pour {labelProfil}.</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Vos activités d'un autre niveau ou matière sont dans l'onglet{' '}
-            <button
-              onClick={() => setVue('toutes')}
-              style={{ color: 'var(--bordeaux)', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit' }}
-            >
-              Toutes mes activités
-            </button>.
-          </p>
-        </div>
-      )}
-
-      {/* Onglet « Niveau en cours » — liste filtrée sur le profil */}
-      {!loading && vue === 'courant' && filtered.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          {filtered.map((a, i) => ActiviteRow(a, i === filtered.length - 1))}
-        </div>
-      )}
-
-      {/* Onglet « Toutes mes activités » — sections par couple (courant épinglé en haut) */}
-      {!loading && vue === 'toutes' && (
-        <div className="flex flex-col gap-4">
-          {sections.map(sec => (
-            <div key={sec.key} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 px-1">
-                <span style={{ width: 11, height: 11, borderRadius: '50%', background: couleurCouple(sec.key), flexShrink: 0, display: 'inline-block' }} />
-                <span className="text-sm font-semibold text-gray-700">{sec.label}</span>
-                <span style={{ fontSize: 11, color: '#6b7280', background: '#f1f5f9', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
-                  {sec.items.length}
-                </span>
-                {sec.key === currentKey && (
-                  <span style={{ fontSize: 11, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 8px', fontWeight: 600 }}>
-                    en cours
-                  </span>
-                )}
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                {sec.items.map((a, i) => ActiviteRow(a, i === sec.items.length - 1))}
-              </div>
-            </div>
-          ))}
+      {/* Deux colonnes redimensionnables, EN PERMANENCE : liste à gauche | détail à droite.
+          Même composant que « Créer une activité » (poignée ajustable, largeur mémorisée, empilement
+          sur écran étroit). Cf. components/SplitPane.jsx. */}
+      {!loading && activites.length > 0 && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <SplitPane storageKey="historique-split-v1" defautGauche={54} gauche={colonneListe} droite={colonneDetail} />
         </div>
       )}
 
@@ -451,69 +525,6 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
         </div>
       )}
 
-      {/* Modale détail */}
-      {detailModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-          onClick={() => setDetailModal(null)}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: 12, width: '100%', maxWidth: 680, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 48px rgba(0,0,0,0.22)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* En-tête modale */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid #e2e8f0', gap: 12 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', marginBottom: 4 }}>
-                  {detailModal.objet || detailModal.activite_label}
-                </div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                  {detailModal.activite_label} · {detailModal.niveau}
-                  {detailModal.sous_type ? ` · ${detailModal.sous_type}` : ''}
-                  {detailModal.nb ? ` · ${detailModal.nb} questions` : ''}
-                  {` · ${detailModal.avec_correction ? 'Avec correction' : 'Sans correction'}`}
-                </div>
-              </div>
-              <button onClick={() => setDetailModal(null)} title="Fermer"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20, lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>
-                ×
-              </button>
-            </div>
-
-            {/* Corps scrollable */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {detailModal.texte_source && detailModal.texte_source.trim().length > 0 && (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Texte source</div>
-                  <p style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 14px' }}>
-                    {detailModal.texte_source}
-                  </p>
-                </div>
-              )}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Résultat généré</div>
-                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }}>
-                  {detailModal.resultat}
-                </pre>
-              </div>
-            </div>
-
-            {/* Pied modale */}
-            <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={() => setDetailModal(null)}
-                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Fermer
-              </button>
-              <button onClick={() => { setDetailModal(null); tenterReprendre(detailModal) }}
-                title="Reprendre cette activité dans le formulaire"
-                className="btn-primary">
-                Reprendre
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {profilDialog && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -543,7 +554,7 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
       )}
 
       {!loading && vue === 'courant' && (
-        <p className="text-xs text-gray-400 text-center mt-1">
+        <p className="text-xs text-gray-400 text-center mt-1" style={{ flexShrink: 0 }}>
           Vous enseignez plusieurs matières ?{' '}
           <button
             onClick={() => onNavigate?.('mon-profil')}
