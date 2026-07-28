@@ -1229,6 +1229,20 @@ function MainApp() {
                                 <polyline points="6 9 12 15 18 9"/>
                               </svg>
                             </button>
+                            {/* Pastille du TON choisi — visible quand la cartouche est REPLIÉE (le corps, donc
+                                les deux boutons de ton, sont masqués). D'un coup d'œil : dans quel ton l'activité
+                                a été générée. Même rôle/allure que la provenance de la cartouche ② repliée. */}
+                            {genererReplie && tonActuel && (
+                              <span
+                                title={`Ton choisi : ${libelleTon(tonActuel)}`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, flexShrink: 0 }}
+                              >
+                                {tonActuel === 'academique'
+                                  ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                                  : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+                                Ton {libelleTon(tonActuel)}
+                              </span>
+                            )}
                           </div>
                           {!genererReplie && (
                             <div style={{ fontSize: 13, color: '#64748b', display: 'flex', flexDirection: 'column', gap: 10 }}>
