@@ -236,31 +236,23 @@ export default function MesActivites({ onCharger, sessionMatiere, sessionNiveau,
 
         <div className="flex items-center gap-2 shrink-0"
           style={{ opacity: (isMobile || hovered === a.id || estSel) ? 1 : 0, transition: 'opacity 0.15s' }}>
+          {/* Partager — icône seule (même gabarit que la corbeille) ; la couleur porte l'état :
+              bleu = partagé, gris = non partagé. « Reprendre » est dans le panneau de détail à droite. */}
           <button
             onClick={() => !a.partagee ? setAnonymeDialog(a.id) : togglePartage(a.id, false)}
             disabled={toggling === a.id}
-            title={a.partagee ? 'Retirer de la bibliothèque partagée' : 'Partager cette activité avec vos collègues'}
+            title={a.partagee ? 'Partagé — cliquer pour retirer de la bibliothèque partagée' : 'Partager cette activité avec vos collègues'}
             style={{
-              display: 'flex', alignItems: 'center', gap: 4,
+              display: 'flex', alignItems: 'center', padding: '5px 8px',
               background: 'none', border: '1px solid',
               borderColor: a.partagee ? 'var(--bleu)' : '#e5e7eb',
-              borderRadius: 6, padding: '4px 8px',
+              borderRadius: 6,
               cursor: toggling === a.id ? 'wait' : 'pointer',
               color: a.partagee ? 'var(--bleu)' : '#9ca3af',
-              fontSize: 11, fontWeight: a.partagee ? 500 : 400,
               transition: 'color 0.15s, border-color 0.15s',
             }}
           >
             <IconShare />
-            {a.partagee ? 'Partagé' : 'Partager'}
-          </button>
-
-          <button
-            onClick={() => tenterReprendre(a)}
-            title="Reprendre cette activité dans le formulaire"
-            className="btn-primary shrink-0"
-          >
-            Reprendre
           </button>
 
           <button
