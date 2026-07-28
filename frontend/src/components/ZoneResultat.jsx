@@ -194,7 +194,7 @@ const Spinner = () => (
   </svg>
 )
 
-export default function ZoneResultat({ resultat, loading, valide, email, onRegenerer, onChangerDemande, cahierPresent = false }) {
+export default function ZoneResultat({ resultat, loading, email, cahierPresent = false }) {
   const [replie, setReplie] = useState(false)   // repli manuel de la cartouche (affichage éphémère, jamais en base)
   const [apercuHtml, setApercuHtml] = useState(null)   // aperçu HTML mis en forme (modale) : chaîne = ouvert, null = fermé ; éphémère, jamais en base
   // Échap ferme l'aperçu. Hook placé AVANT le return conditionnel ci-dessous (règle des hooks React).
@@ -283,12 +283,9 @@ export default function ZoneResultat({ resultat, loading, valide, email, onRegen
           >
             <IconMail /> E-mail
           </button>
-          {/* Bouton « Régénérer » RETIRÉ (28/07) de cette barre : elle ne fait que SORTIR le résultat
-              (télécharger / voir / imprimer / envoyer), telle quelle. Régénérer est l'inverse (il jette
-              le résultat courant pour en refaire un) — sa place n'est pas parmi les exports, et il ferait
-              doublon avec « Changer votre demande » (bandeau du haut), l'unique chemin « refaire » :
-              rouvrir le texte → ajuster (ou non) → régénérer. `onRegenerer` reste passé par App mais n'est
-              plus utilisé ici. */}
+          {/* Barre d'export uniquement : SORTIR le résultat (télécharger / voir / imprimer / envoyer),
+              tel quel. La reprise (« Changer votre texte » / « Changer votre ton ») vit dans le bandeau
+              du haut. Le « Régénérer » d'origine a été retiré (ménage 28/07). */}
         </div>
       </div>
 

@@ -22,7 +22,6 @@ import Accueil from './components/Accueil'
 import SequenceForm from './components/SequenceForm'
 import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
-import VerificationResultat from './components/VerificationResultat.jsx'
 import InfoGuide from './components/InfoGuide.jsx'
 import EtapeBadge from './components/EtapeBadge.jsx'
 import { aideActivite } from './utils/aideActivite.js'
@@ -130,11 +129,8 @@ function MainApp() {
   const [resultat, setResultat] = useState(null)
   const [tonActuel, setTonActuel] = useState(null)   // ton ayant produit le résultat affiché : 'academique'|'operationnel'|null (repris d'historique / avant tout choix). Suit le résultat ; base plus tard avec l'auto-save.
   const [loading, setLoading] = useState(false)
-  const [verifResultat, setVerifResultat] = useState(null)  // rapport « Vérifier le résultat » : LU sur `resultat` (get), affiché non stocké — zéro copie
-  const [verifLoading, setVerifLoading]   = useState(false)  // vérification en cours : sablier du bouton + jauge de la cartouche
-  const [ameliorerLoading, setAmeliorerLoading] = useState(null)  // étape 6 « Améliorer » en cours : 'simplifier' | 'enrichir' | null (sablier du bouton + jauge de la cartouche)
-  const [corrigerLoading, setCorrigerLoading] = useState(false)  // correction (bras armé de Vérifier) en cours : sablier du bouton + jauge de la cartouche
-  const [analysesReplie, setAnalysesReplie] = useState(false)  // repli manuel de la cartouche « Analyse et amélioration du résultat » (affichage éphémère, jamais en base)
+  // États retirés (28/07, ménage) : verifResultat/verifLoading/ameliorerLoading/corrigerLoading/
+  // analysesReplie — cartouches Vérifier/Corriger/Améliorer supprimées de l'écran.
   const [genererReplie, setGenererReplie] = useState(false)  // repli manuel de la cartouche ③ « Générer l'activité » (affichage éphémère, jamais en base)
   const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
   const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
@@ -379,8 +375,6 @@ function MainApp() {
     setErreur(null)
     setResultat(null)
     setTonActuel(ton || null)       // le résultat à venir sera dans CE ton (bascule « Changer votre ton » comprise)
-    setVerifResultat(null)          // (ré)générer = nouvelle activité → l'ancienne vérification ne vaut plus
-    setVerifLoading(false)
     setValide(false)
     setRepriseHistorique(false)     // (ré)générer = nouveau brouillon PAS en base → Valider/Annuler redeviennent actifs
     setEntreeDeverrouillee(false)   // nouvelle génération → la saisie repart verrouillée dès qu'un résultat arrive
@@ -467,128 +461,10 @@ function MainApp() {
     }
   }
 
-  // Bouton UNIQUE Générer / Régénérer (barre du haut) : tant qu'il n'y a pas de résultat il
-  // GÉNÈRE ; dès qu'un résultat est là il RÉGÉNÈRE (même action `generer`, fusion du 25/07).
-  // AUCUNE confirmation : régénérer ne fait perdre AUCUNE donnée en base. En création pure, rien
-  // n'est encore enregistré (le put n'a lieu qu'au Valider) ; en reprise d'historique, l'originale
-  // reste intacte et régénérer produit une activité SÉPARÉE. Il n'y a donc rien à perdre — la
-  // question du « vous perdez tout » ne se pose pas ici (décision du 25/07).
-  function regenerer() {
-    generer()
-  }
-
-  // Bouton « Vérifier » de la cartouche : LIT (get) le texte de l'activité affichée + le contexte de
-  // la demande (type, précision, correction) et lance /api/verifier-resultat (5 axes en une passe).
-  // La checklist s'affiche SUR PLACE dans la cartouche — on ne quitte pas l'écran, le résultat n'est
-  // pas modifié. Couple (matière/niveau) = couple de travail (sessionMatiere + params.niveau).
-  async function verifierResultat() {
-    if (verifLoading || !resultat || !resultat.trim()) return
-    setVerifResultat(null)
-    setVerifLoading(true)
-    try {
-      const res = await apiFetch('/api/verifier-resultat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          texte: resultat.trim(),
-          matiere: sessionMatiere,
-          niveau: params.niveau,
-          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
-          precision: params.sous_type || '',
-          correction: !!params.avec_correction,
-        }),
-      }, TIMEOUT_LONG)
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Erreur ${res.status}`)
-      }
-      setVerifResultat(await res.json())
-    } catch {
-      showError("La vérification du résultat n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
-    } finally {
-      setVerifLoading(false)
-    }
-  }
-
-  // Correction — bras armé de « Vérifier » : reprend les axes au statut "probleme" trouvés par la
-  // vérification et demande à aSchool de RÉÉCRIRE l'activité en réparant EXACTEMENT ces points
-  // (/api/corriger-resultat). La version corrigée REMPLACE le résultat affiché et réinitialise la
-  // vérification (elle ne colle plus à la nouvelle version). Empilement des versions = RÈGLE 0, pas
-  // encore codé : en v1 on remplace l'affiché.
-  async function corrigerResultat() {
-    if (corrigerLoading || verifLoading || !!ameliorerLoading || loading || !resultat || !resultat.trim() || !verifResultat) return
-    const problemes = (verifResultat.axes || [])
-      .filter(a => a.statut === 'probleme')
-      .map(a => ({ axe: a.axe || '', constat: a.constat || '', extrait: a.extrait || '' }))
-    if (problemes.length === 0) return
-    setCorrigerLoading(true)
-    try {
-      const res = await apiFetch('/api/corriger-resultat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          texte: resultat.trim(),
-          problemes,
-          matiere: sessionMatiere,
-          niveau: params.niveau,
-          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
-          precision: params.sous_type || '',
-        }),
-      }, TIMEOUT_LONG)
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Erreur ${res.status}`)
-      }
-      const data = await res.json()
-      if (data.texte && data.texte.trim()) {
-        setResultat(data.texte)     // version corrigée à la place de l'ancienne
-        setVerifResultat(null)      // elle ne colle plus à la nouvelle version → vérif vierge
-      }
-    } catch {
-      showError("La correction n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
-    } finally {
-      setCorrigerLoading(false)
-    }
-  }
-
-  // Étape 6 « Améliorer » (v1 : 'simplifier' | 'enrichir' ; Transformer reporté en v2). Réécrit
-  // l'activité affichée via /api/ameliorer-resultat et REMPLACE le résultat par la nouvelle version
-  // → l'ancienne vérification ne vaut plus (réinitialisée). L'empilement des versions (ne rien
-  // perdre) relève du chantier persistance (RÈGLE 0), pas encore codé : en v1 on remplace l'affiché.
-  async function ameliorer(intention) {
-    if (ameliorerLoading || verifLoading || loading || !resultat || !resultat.trim()) return
-    setAmeliorerLoading(intention)
-    try {
-      const res = await apiFetch('/api/ameliorer-resultat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          texte: resultat.trim(),
-          intention,
-          matiere: sessionMatiere,
-          niveau: params.niveau,
-          type_activite: activites.find(a => a.id === params.activite_type_id)?.label || '',
-          precision: params.sous_type || '',
-        }),
-      }, TIMEOUT_LONG)
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Erreur ${res.status}`)
-      }
-      const data = await res.json()
-      if (data.texte && data.texte.trim()) {
-        setResultat(data.texte)     // nouvelle version affichée à la place de l'ancienne
-        setVerifResultat(null)      // elle ne colle plus à la version d'avant → on repart d'une vérif vierge
-      }
-    } catch {
-      showError("L'amélioration n'a pas pu aboutir. Votre activité reste affichée — réessayez dans un instant.")
-    } finally {
-      setAmeliorerLoading(null)
-    }
-  }
+  // Ménage (28/07) : fonctions retirées — regenerer / verifierResultat / corrigerResultat /
+  // ameliorer. Les features « Régénérer », « Vérifier », « Corriger » et « Améliorer » ont été
+  // supprimées de l'écran (le contrôle qualité est désormais intégré à la génération). Nettoyage
+  // backend correspondant : endpoints verifier/corriger/ameliorer-resultat + prompts associés.
 
   // Valider = put : écrit l'activité AFFICHÉE en base (une ligne dans « Mes activités »), puis on
   // passe en phase VALIDÉE (résultat figé, boutons de gestion retirés — seuls les exports restent).
@@ -643,7 +519,6 @@ function MainApp() {
     })
     setResultat(act.resultat)
     setTonActuel(act.ton || null) // ton d'origine si l'activité en base le porte (sinon inconnu → « Changer votre ton » masqué)
-    setVerifResultat(null)        // activité reprise de l'historique → pas d'ancienne vérification à afficher
     setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
     setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
     setEntreeDeverrouillee(false)
@@ -661,7 +536,6 @@ function MainApp() {
     setObjet('')
     setResultat(null)
     setTonActuel(null)
-    setVerifResultat(null)
     setValide(false)
     setRepriseHistorique(false)
     setEntreeDeverrouillee(false)
@@ -1327,10 +1201,7 @@ function MainApp() {
                           <ZoneResultat
                             resultat={resultat}
                             loading={loading}
-                            valide={valide}
                             email={user?.email}
-                            onRegenerer={regenerer}
-                            onChangerDemande={changerDemande}
                             cahierPresent={cahierPresent}
                           />
                         </div>

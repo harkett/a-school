@@ -66,12 +66,8 @@ export const GUIDE_ACTIVITE = [
       long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, dans le ton choisi, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), en voir la mise en forme (aperçu HTML), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Changer votre texte » rouvre votre texte pour l'ajuster, « Changer votre ton » la régénère dans l'autre ton (académique ↔ opérationnel).",
     },
   },
-  {
-    cle: 'analyses',
-    titre: 'Vérifier le résultat',
-    court: "Contrôle l'activité générée et signale ce qui doit être corrigé.",
-    long: "« Vérifier » relit l'activité générée et signale les points à corriger. Le rapport s'affiche en cartes : pour chaque point, l'extrait concerné et une suggestion. Pour l'instant il détecte les ambiguïtés ; d'autres contrôles (cohérence avec votre demande, conformité au type, correction…) s'ajouteront progressivement. L'amélioration du résultat, elle, arrivera dans une étape dédiée.",
-  },
+  // Entrée 'analyses' (« Vérifier le résultat ») retirée (28/07, ménage) : cartouche supprimée de
+  // l'écran, le contrôle qualité est intégré à la génération.
 ]
 
 // Accès direct par clé (get) — utilisé par le « i » de chaque titre. `opts.cahier` (booléen lu de
