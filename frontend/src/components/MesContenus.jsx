@@ -290,9 +290,10 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
   )
 
   // ── Colonne DROITE : le résultat de l'activité cliquée, affiché comme à la CRÉATION —
-  // même ZoneResultat (exports .txt / Word / PDF / HTML / Imprimer / E-mail). Rien n'est
-  // sélectionné à l'arrivée : le clic sur une ligne d'activité remplit le panneau.
-  const detail = contenus.find(c => c.type === 'activite' && c.id === detailId) || null
+  // même ZoneResultat (exports .txt / Word / PDF / HTML / Imprimer / E-mail). Le détail ne
+  // s'affiche que si sa ligne est VISIBLE dans l'onglet/la recherche du moment : passer sur
+  // « Séances » le masque, revenir sur « Tout » ou « Activités » le raffiche (sélection retenue).
+  const detail = visibles.find(c => c.type === 'activite' && c.id === detailId) || null
   const colonneDetail = detail ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
