@@ -5,6 +5,7 @@ const ECRANS = {
   'accueil':              'Accueil',
   'mes-contenus':         'Mes contenus',
   'seance':               'Séance (Mes contenus)',
+  'activite':             'Activité (Mes contenus)',
   'mes-outils':           'Mes outils',
   'creer-activite':       'Créer une activité',
   'creer-sequence':       'Créer une séance',

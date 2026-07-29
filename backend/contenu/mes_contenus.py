@@ -1,21 +1,26 @@
-"""« Mes contenus » — la bibliothèque à plat du prof (modèle playlist : séquence ⊃ séances ⊃ activités).
+"""« Mes contenus » — le monde NEUF du prof (modèle playlist : séquence ⊃ séances ⊃ activités).
 
-Brique 1 (socle) : UNE lecture qui mélange les trois niveaux dans une seule liste, avec pour
-chaque ligne son type, son état de rangement (parent ou « non rangée ») et de quoi afficher
-l'aperçu HTML. Les activités viennent de la table EXISTANTE `activites_sauvegardees` (zéro
-copie, zéro doublon — leur lien de rangement arrivera à la brique rattachement) ; séquences et
-séances viennent des tables neuves du socle. Les anciennes « séquences »
-(`sequences_sauvegardees`) n'apparaissent PAS ici : ce sont des séances en réalité, elles
-seront IMPORTÉES à la brique suivante — jamais deux sources pour la même chose.
+DÉCISION utilisateur (29/07) : ce monde est le futur REMPLAÇANT de Mes outils. Il ne lit et
+n'écrit QUE ses tables neuves (`sequences`, `seances`, `seance_phases`, `activites`,
+`activite_versions`). L'ancien monde (`activites_sauvegardees`, `sequences_sauvegardees`)
+ne s'affiche JAMAIS ici — il vit sa vie dans Mes outils jusqu'à sa suppression finale, et
+ne sert que de modèle de code.
+
+L'activité applique la règle 0 NATIVEMENT : écrite en base à la génération même (POST à la
+première, PUT aux suivantes), chaque jalon fige une version restaurable (`activite_versions`)
+— l'historique s'empile, on n'écrase jamais.
 """
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.deps import get_current_user
-from backend.core.models_db import Seance, Sequence, User
+from backend.core.models_db import Activite, ActiviteVersion, Seance, Sequence, User
+from backend.prof.profil import couple_de_travail
 
 router = APIRouter()
 
@@ -29,14 +34,12 @@ def lister(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # DÉCISION utilisateur (29/07) : la bibliothèque ne lit QUE les tables NEUVES du monde
-    # « Mes contenus ». L'ancien monde (activites_sauvegardees, sequences_sauvegardees) ne
-    # s'affiche JAMAIS ici — il vit sa vie dans Mes outils jusqu'à sa suppression finale.
-    # L'onglet Activités attend sa table neuve (prochaine étape du chantier) → compteur à 0.
     sequences = db.query(Sequence).filter(Sequence.user_id == user.id).all()
     seances = db.query(Seance).filter(Seance.user_id == user.id).all()
+    activites = db.query(Activite).filter(Activite.user_id == user.id).all()
 
     titres_sequences = {s.id: s.titre for s in sequences}
+    titres_seances = {s.id: s.titre for s in seances}
     nb_seances_par_sequence: dict[int, int] = {}
     for s in seances:
         if s.sequence_id is not None:
@@ -76,6 +79,34 @@ def lister(
             "created_at": _iso(s.created_at),
             "updated_at": _iso(s.updated_at),
         })
+    for a in activites:
+        parent = None
+        if a.seance_id is not None:
+            parent = {"type": "seance", "id": a.seance_id,
+                      "titre": titres_seances.get(a.seance_id, "")}
+        contenus.append({
+            "type": "activite",
+            "id": a.id,
+            "titre": a.objet or a.activite_label,
+            "matiere": a.matiere,
+            "niveau": a.niveau,
+            "parent": parent,
+            "nb_seances": None,
+            "resultat": a.resultat,
+            # De quoi ROUVRIR l'activité dans son écran (reprise complète) :
+            "activite_type_id": a.activite_type_id,
+            "activite_label": a.activite_label,
+            "sous_type": a.sous_type,
+            "nb": a.nb,
+            "avec_correction": a.avec_correction,
+            "objet": a.objet,
+            "ton": a.ton,
+            "texte_source": a.texte_source,
+            "statut": a.statut,
+            "created_at": _iso(a.created_at),
+            "updated_at": _iso(a.updated_at),
+        })
+
     # Plus récent en haut, tous types mélangés (dernière modification, sinon création).
     contenus.sort(key=lambda c: c["updated_at"] or c["created_at"] or "", reverse=True)
 
@@ -85,6 +116,91 @@ def lister(
             "tout": len(contenus),
             "sequences": len(sequences),
             "seances": len(seances),
-            "activites": 0,     # la table neuve des activités n'existe pas encore
+            "activites": len(activites),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Activités du monde neuf — auto-save règle 0 (POST = 1re génération, PUT = jalons suivants)
+# ---------------------------------------------------------------------------
+
+class ActiviteCorps(BaseModel):
+    activite_type_id: int
+    activite_label: str
+    sous_type: Optional[str] = None
+    nb: Optional[int] = None
+    avec_correction: bool = False
+    objet: Optional[str] = None
+    ton: Optional[str] = None
+    texte_source: str
+    resultat: str
+
+
+def _activite_de(user: User, activite_id: int, db: Session) -> Activite:
+    activite = (
+        db.query(Activite)
+        .filter(Activite.id == activite_id, Activite.user_id == user.id)
+        .first()
+    )
+    if not activite:
+        raise HTTPException(404, "Activité introuvable.")
+    return activite
+
+
+@router.post("/contenus/activites")
+def creer_activite(
+    corps: ActiviteCorps,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Première génération = l'activité NAÎT en base (auto-save, règle 0) + version 'generation'.
+    Le couple matière/niveau est lu EN BASE (couple de travail), jamais envoyé par l'écran."""
+    matiere, niveau, _ = couple_de_travail(db, user)
+    if not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
+    activite = Activite(
+        user_id=user.id,
+        activite_type_id=corps.activite_type_id,
+        activite_label=corps.activite_label,
+        sous_type=corps.sous_type,
+        nb=corps.nb,
+        avec_correction=corps.avec_correction,
+        objet=corps.objet or None,
+        matiere=matiere or None,
+        niveau=niveau,
+        ton=corps.ton,
+        texte_source=corps.texte_source,
+        resultat=corps.resultat,
+    )
+    db.add(activite)
+    db.flush()
+    db.add(ActiviteVersion(activite_id=activite.id, jalon="generation",
+                           ton=corps.ton, resultat=corps.resultat))
+    db.commit()
+    return {"id": activite.id}
+
+
+@router.put("/contenus/activites/{activite_id}")
+def regenerer_activite(
+    activite_id: int,
+    corps: ActiviteCorps,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Jalon suivant (régénération, changement de ton/texte) : l'ÉTAT COURANT est mis à jour
+    et une NOUVELLE version s'empile — on n'écrase jamais une version (règle 0)."""
+    activite = _activite_de(user, activite_id, db)
+    activite.activite_type_id = corps.activite_type_id
+    activite.activite_label = corps.activite_label
+    activite.sous_type = corps.sous_type
+    activite.nb = corps.nb
+    activite.avec_correction = corps.avec_correction
+    activite.objet = corps.objet or None
+    activite.ton = corps.ton
+    activite.texte_source = corps.texte_source
+    activite.resultat = corps.resultat
+    db.add(ActiviteVersion(activite_id=activite.id, jalon="generation",
+                           ton=corps.ton, resultat=corps.resultat))
+    db.commit()
+    return {"ok": True, "id": activite.id}

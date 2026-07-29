@@ -325,6 +325,54 @@ class SeancePhase(Base):
     duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class Activite(Base):
+    """Activité du monde « Mes contenus » — la brique de base du modèle playlist.
+
+    Table NEUVE, règle 0 NATIVE : l'activité est écrite en base à la génération même
+    (auto-save), chaque jalon fige une version dans `activite_versions`. `seance_id`
+    nullable = activité libre (« non rangée ») ; SET NULL si sa séance disparaît.
+    Ne pas confondre avec `activites_sauvegardees` (l'ancien monde, qui vit sa vie
+    dans Mes outils jusqu'à sa suppression finale)."""
+    __tablename__ = "activites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    seance_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("seances.id", ondelete="SET NULL"), nullable=True, index=True)
+    position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Type référencé par son id au catalogue (types_activite) + libellé FIGÉ (instantané).
+    activite_type_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id"), nullable=False, index=True)
+    activite_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    sous_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    nb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    avec_correction: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
+    objet: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    ton: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    texte_source: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")   # ÉTAT COURANT (auto-save)
+    statut: Mapped[str] = mapped_column(String(32), nullable=False, default="brouillon", server_default="brouillon")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class ActiviteVersion(Base):
+    """Version (photo restaurable) d'une activité du monde neuf — un jalon = une version,
+    l'historique S'EMPILE, on n'écrase jamais (règle 0). CASCADE : les versions suivent
+    leur activité."""
+    __tablename__ = "activite_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activite_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("activites.id", ondelete="CASCADE"), nullable=False, index=True)
+    jalon: Mapped[str] = mapped_column(String(32), nullable=False)   # 'generation' (puis 'edition', 'restauration'…)
+    ton: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resultat: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Admin backoffice — Phase 0
 # ---------------------------------------------------------------------------

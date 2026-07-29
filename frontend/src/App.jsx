@@ -17,6 +17,7 @@ import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import MesContenus from './components/MesContenus'
 import SeanceEcran from './components/SeanceEcran'
+import ActiviteEcran from './components/ActiviteEcran'
 import MesSequences from './components/MesSequences'
 import MonReseau from './components/MonReseau'
 import MonReseauSequences from './components/MonReseauSequences'
@@ -513,6 +514,12 @@ function MainApp() {
     setSeanceOuverte(s)
     setPage('seance')
   }
+  // Écran Activité du monde MES CONTENUS : ligne cliquée (reprise) ou null (création).
+  const [activiteContenusOuverte, setActiviteContenusOuverte] = useState(null)
+  function ouvrirActiviteContenus(a) {
+    setActiviteContenusOuverte(a)
+    setPage('activite')
+  }
 
   function chargerSequence(seq) {
     setPrefillSeq(seq)
@@ -686,7 +693,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -1295,7 +1302,18 @@ function MainApp() {
             />
           )}
 
-          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} onOuvrirSeance={ouvrirSeance} />}
+          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} onOuvrirSeance={ouvrirSeance} onOuvrirActivite={ouvrirActiviteContenus} />}
+
+          {page === 'activite' && (
+            <ActiviteEcran
+              key={activiteContenusOuverte?.id ?? 'nouvelle'}
+              activite={activiteContenusOuverte}
+              matiere={sessionMatiere}
+              niveau={params.niveau}
+              email={user?.email}
+              onNavigate={naviguer}
+            />
+          )}
 
           {page === 'seance' && (
             <SeanceEcran

@@ -101,6 +101,54 @@ def test_liste_melangee_compteurs_et_rangement():
     assert libre["parent"] is None
 
 
+def test_activite_regle_0_post_puis_put_avec_versions():
+    """Monde neuf : POST = l'activité naît en base à la génération (+ version) ; PUT = jalon
+    suivant (état courant mis à jour, une NOUVELLE version s'empile — jamais d'écrasement).
+    Le couple matière/niveau est lu EN BASE (profil), jamais envoyé par l'écran."""
+    from backend.core.models_db import Activite, ActiviteVersion
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email=EMAIL, password_hash="x", is_verified=True,
+                           subject="Français", niveau="6e"))
+        db.commit()
+    tid = _type_id()
+    corps = {
+        "activite_type_id": tid, "activite_label": "Compréhension",
+        "sous_type": None, "nb": 5, "avec_correction": True,
+        "objet": "Le récit d'aventure", "ton": "academique",
+        "texte_source": "Un texte source.", "resultat": "# Activité v1",
+    }
+    r = _client().post("/api/contenus/activites", json=corps)
+    assert r.status_code == 200, r.text
+    aid = r.json()["id"]
+
+    r2 = _client().put(f"/api/contenus/activites/{aid}",
+                       json={**corps, "ton": "operationnel", "resultat": "# Activité v2"})
+    assert r2.status_code == 200, r2.text
+
+    with dbmod.SessionLocal() as db:
+        a = db.query(Activite).filter(Activite.id == aid).one()
+        assert a.resultat == "# Activité v2"           # état courant = dernier jalon
+        assert a.ton == "operationnel"
+        assert a.matiere == "Français" and a.niveau == "6e"   # couple lu en base
+        versions = (db.query(ActiviteVersion)
+                    .filter(ActiviteVersion.activite_id == aid)
+                    .order_by(ActiviteVersion.id).all())
+        assert [v.resultat for v in versions] == ["# Activité v1", "# Activité v2"]  # l'historique s'empile
+
+    d = _client().get("/api/mes-contenus").json()
+    assert d["compteurs"]["activites"] == 1
+    ligne = next(c for c in d["contenus"] if c["type"] == "activite")
+    assert ligne["titre"] == "Le récit d'aventure"
+    assert ligne["texte_source"] == "Un texte source."   # de quoi ROUVRIR l'écran en reprise
+    assert ligne["parent"] is None                        # non rangée (rattachement plus tard)
+
+    # Cloisonnement : un autre prof ne peut pas pousser un jalon sur cette activité.
+    _uid("intrus@local.test")
+    assert _client("intrus@local.test").put(
+        f"/api/contenus/activites/{aid}", json=corps).status_code == 404
+
+
 def test_l_ancien_monde_n_apparait_jamais():
     """DÉCISION utilisateur (29/07) : Mes contenus est le futur REMPLAÇANT — il ne lit que
     ses tables neuves. L'ancien monde (`sequences_sauvegardees` ET `activites_sauvegardees`)

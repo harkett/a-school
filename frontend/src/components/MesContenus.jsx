@@ -101,7 +101,7 @@ function BoutonAction({ title, onClick, disabled = false, danger = false, childr
   )
 }
 
-function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
+function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
   const [onglet, setOnglet] = useState('tout')
   const [recherche, setRecherche] = useState('')
   const [menuCreer, setMenuCreer] = useState(false)
@@ -207,12 +207,14 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
               {/* voile invisible : un clic ailleurs referme le menu */}
               <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMenuCreer(false)} />
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 41, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 200, padding: 6, display: 'flex', flexDirection: 'column' }}>
-                {/* Le monde neuf de l'activité (écran + table) est la prochaine étape du
-                    chantier — pas de renvoi vers l'ancien outil depuis ici. */}
-                <span title="Bientôt — l'activité du monde Mes contenus est en construction" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
+                <button
+                  type="button"
+                  onClick={() => { setMenuCreer(false); onOuvrirActivite(null) }}
+                  title="Créer une activité (monde Mes contenus — règle 0, enregistrement automatique)"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}
+                >
                   <IconActiviteType size={15} /> Une activité
-                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
-                </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => { setMenuCreer(false); onOuvrirSeance(null) }}
@@ -252,16 +254,19 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
           const Icone = ICONE_TYPE[c.type]
           const sousTitre = [LIBELLE_TYPE[c.type], [c.matiere, c.niveau].filter(Boolean).join(' · ')].filter(Boolean).join(' — ')
           const dateCreation = c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
-          const ouvrable = c.type === 'seance'   // une séance s'ouvre dans son écran (maquette 29/07)
+          // Une séance et une activité s'ouvrent dans LEUR écran du monde neuf.
+          const ouvrir = c.type === 'seance' ? () => onOuvrirSeance(c)
+            : c.type === 'activite' ? () => onOuvrirActivite(c)
+            : undefined
           return (
             <div
-              key={`${c.type}-${c.source || 'contenus'}-${c.id}`}
-              onClick={ouvrable ? () => onOuvrirSeance(c) : undefined}
-              title={ouvrable ? 'Ouvrir cette séance' : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
+              key={`${c.type}-${c.id}`}
+              onClick={ouvrir}
+              title={ouvrir ? (c.type === 'seance' ? 'Ouvrir cette séance' : 'Ouvrir cette activité') : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
                 borderBottom: i < visibles.length - 1 ? '1px solid #f1f5f9' : 'none',
-                cursor: ouvrable ? 'pointer' : 'default',
+                cursor: ouvrir ? 'pointer' : 'default',
               }}
             >
               <span style={{ flexShrink: 0, display: 'inline-flex' }}><Icone /></span>
@@ -338,10 +343,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
-export default function MesContenus({ onNavigate, onOuvrirSeance }) {
+export default function MesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <EcranMesContenus onNavigate={onNavigate} onOuvrirSeance={onOuvrirSeance} />
+      <EcranMesContenus onNavigate={onNavigate} onOuvrirSeance={onOuvrirSeance} onOuvrirActivite={onOuvrirActivite} />
     </QueryClientProvider>
   )
 }
