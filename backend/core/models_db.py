@@ -306,9 +306,30 @@ class Seance(Base):
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Le FORMULAIRE de l'écran Séance, en entier : chaque champ vit en base (reprise complète).
+    mode: Mapped[str | None] = mapped_column(String(32), nullable=True)        # standard / remediation / approfondissement / autonomie
+    competences: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default="[]")  # liste JSON de chaînes
+    materiel: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    esquisse: Mapped[str] = mapped_column(Text, nullable=False, default="{}", server_default="{}")     # JSON {a, b, c} — l'esquisse A/B/C du prof
+    contraintes: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    style: Mapped[str | None] = mapped_column(String(32), nullable=True)       # classique / ludique / structure / concis
     resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class SeanceVersion(Base):
+    """Version restaurable d'une séance (règle 0, même moule qu'`activite_versions`) : chaque
+    génération EMPILE une photo — on n'écrase jamais. CASCADE : les versions suivent leur séance."""
+    __tablename__ = "seance_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    seance_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("seances.id", ondelete="CASCADE"), nullable=False, index=True)
+    jalon: Mapped[str] = mapped_column(String(32), nullable=False, default="generation", server_default="generation")
+    style: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    resultat: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class SeancePhase(Base):

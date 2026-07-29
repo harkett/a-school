@@ -693,7 +693,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite', 'mes-contenus'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite', 'mes-contenus', 'seance'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -1332,6 +1332,7 @@ function MainApp() {
 
           {page === 'seance' && (
             <SeanceEcran
+              key={seanceOuverte?.id ?? 'nouvelle'}
               seance={seanceOuverte}
               matiere={sessionMatiere}
               niveau={params.niveau}

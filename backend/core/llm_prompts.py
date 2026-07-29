@@ -176,6 +176,112 @@ Règles absolues :
 - Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
 
 
+# ── Séance du monde « Mes contenus » — un prompt PAR MODE (les 4 pastilles de l'écran). ──
+# Le squelette markdown (phases minutées) est commun ; les précisions optionnelles du formulaire
+# (contexte, compétences, matériel, esquisse, contraintes) sont AJOUTÉES au prompt par le code,
+# et le style de production est une COUCHE séparée (seance_style_*), comme le ton de l'activité.
+_FORMAT_SEANCE = """Format de réponse — markdown strict :
+
+# Séance : [titre court reprenant le thème]
+**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
+
+---
+
+## Phase 1 — [Nom] ([X] min)
+**Objectif :** [Ce que les élèves construisent ou réalisent]
+**Déroulement :** [Description concrète — ce que fait le prof, ce que font les élèves]
+**Organisation :** [Individuel / Binôme / Groupe / Collectif]
+
+## Phase 2 — [Nom] ([X] min)
+**Objectif :** ...
+**Déroulement :** ...
+**Organisation :** ...
+
+[…continuer jusqu'à la dernière phase]
+
+---
+
+> *Séance générée par aSchool*
+
+Règles absolues :
+- La somme des durées des phases = exactement {duree} minutes
+- Chaque phase a un rôle clair et distinct dans la progression
+- Le déroulement est concret, précis et directement applicable en classe
+- Le contenu est adapté au niveau {niveau} et à la matière {matiere}
+- Aucune phase sans lien direct avec le thème "{theme}"
+- Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
+
+PROMPT_SEANCE_STANDARD = """Tu es un expert en ingénierie pédagogique.
+
+Un enseignant de {matiere}, niveau {niveau}, prépare une séance de {duree} minutes sur :
+"{theme}"
+
+Génère une séance pédagogique complète, cohérente et directement utilisable en classe.
+
+Structure attendue : 5 à 6 phases couvrant exactement {duree} minutes.
+Progression conseillée : Activation → Exploration/Découverte → Structuration/Formalisation → Entraînement → Ancrage/Consolidation.
+
+""" + _FORMAT_SEANCE
+
+
+PROMPT_SEANCE_REMEDIATION = """Tu es un expert en ingénierie pédagogique.
+
+Un enseignant de {matiere}, niveau {niveau}, doit RETRAVAILLER une notion que sa classe n'a pas comprise lors d'une première présentation : "{theme}". Durée disponible : {duree} minutes.
+
+Génère un scénario de remédiation qui :
+1. Reprend la notion par une approche DIFFÉRENTE de la présentation initiale, plus engageante
+2. Cible précisément les obstacles de compréhension les plus probables à ce niveau
+3. Alterne des phases courtes pour maintenir l'attention
+4. Se termine par une vérification concrète que la notion est cette fois acquise
+
+""" + _FORMAT_SEANCE
+
+
+PROMPT_SEANCE_APPROFONDISSEMENT = """Tu es un expert en ingénierie pédagogique.
+
+Un enseignant de {matiere}, niveau {niveau}, veut ALLER PLUS LOIN sur un thème que sa classe maîtrise déjà : "{theme}". Durée disponible : {duree} minutes.
+
+Génère une séance d'approfondissement qui :
+1. Part des acquis (aucune redite de la découverte initiale) et les met au défi
+2. Propose des situations plus riches ou plus complexes : transfert à un contexte nouveau, croisement de notions, analyse critique, production ambitieuse
+3. Fait monter progressivement l'exigence au fil des phases
+4. Garde chaque élève en réussite : un point d'appui est prévu pour ceux qui bloquent
+
+""" + _FORMAT_SEANCE
+
+
+PROMPT_SEANCE_AUTONOMIE = """Tu es un expert en ingénierie pédagogique.
+
+Un enseignant de {matiere}, niveau {niveau}, prépare une séance en AUTONOMIE GUIDÉE de {duree} minutes sur : "{theme}". Les élèves travaillent SEULS : c'est la séance elle-même qui les guide, le professeur circule et n'intervient qu'en appui.
+
+Génère une séance dont :
+1. Chaque phase dit précisément ce que l'élève FAIT, seul, sans intervention du professeur
+2. Les consignes sont autoportantes : lisibles et exécutables par l'élève sans explication orale
+3. Chaque phase donne à l'élève un moyen de S'AUTO-VÉRIFIER avant de passer à la suivante
+4. Un filet est prévu pour l'élève bloqué (indice, ressource, étape intermédiaire)
+
+""" + _FORMAT_SEANCE
+
+
+# Style de production de la séance — couche ajoutée au prompt selon la pastille choisie
+# (facultative : aucune pastille = aucune couche), même mécanique que le ton de l'activité.
+PROMPT_SEANCE_STYLE_CLASSIQUE = """STYLE DE PRODUCTION — CLASSIQUE
+
+Rédige la séance dans une présentation sobre et traditionnelle, telle qu'on la trouve dans un classeur de préparation : intitulés neutres, formulations posées, aucun effet de style. N'ajoute aucun commentaire sur le style employé : rends uniquement la séance."""
+
+PROMPT_SEANCE_STYLE_LUDIQUE = """STYLE DE PRODUCTION — LUDIQUE
+
+Donne à la séance une approche par le JEU : chaque phase s'appuie sur une mécanique ludique adaptée au niveau (défi, énigme, jeu de rôle, points, coopération…), sans jamais perdre l'objectif d'apprentissage ni le sérieux du contenu. N'ajoute aucun commentaire sur le style employé : rends uniquement la séance."""
+
+PROMPT_SEANCE_STYLE_STRUCTURE = """STYLE DE PRODUCTION — STRUCTURÉ
+
+Rends la séance au découpage TRÈS NET : chaque phase strictement minutée, objectifs et déroulement en listes à puces courtes, transitions explicites entre phases, matériel rappelé phase par phase. N'ajoute aucun commentaire sur le style employé : rends uniquement la séance."""
+
+PROMPT_SEANCE_STYLE_CONCIS = """STYLE DE PRODUCTION — TRÈS CONCIS
+
+Va à l'essentiel : phrases très courtes, format télégraphique lisible en un coup d'œil, aucune phrase superflue — la séance doit tenir sur une page sans rien perdre d'indispensable. N'ajoute aucun commentaire sur le style employé : rends uniquement la séance."""
+
+
 PROMPT_OPTIMISEUR = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
 
 Un enseignant de {matiere}, niveau {niveau}, te soumet une séquence pédagogique existante à optimiser.
@@ -428,6 +534,46 @@ PROMPTS = {
         "label": "Séquence — remédiation",
         "placeholders": ["matiere", "niveau", "duree", "theme", "description_classe"],
         "default": PROMPT_SEQUENCE_REMEDIATION,
+    },
+    "seance_standard": {
+        "label": "Séance (Mes contenus) — mode standard",
+        "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "default": PROMPT_SEANCE_STANDARD,
+    },
+    "seance_remediation": {
+        "label": "Séance (Mes contenus) — mode remédiation",
+        "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "default": PROMPT_SEANCE_REMEDIATION,
+    },
+    "seance_approfondissement": {
+        "label": "Séance (Mes contenus) — mode approfondissement",
+        "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "default": PROMPT_SEANCE_APPROFONDISSEMENT,
+    },
+    "seance_autonomie": {
+        "label": "Séance (Mes contenus) — mode autonomie guidée",
+        "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "default": PROMPT_SEANCE_AUTONOMIE,
+    },
+    "seance_style_classique": {
+        "label": "Séance (Mes contenus) — style de production classique",
+        "placeholders": [],
+        "default": PROMPT_SEANCE_STYLE_CLASSIQUE,
+    },
+    "seance_style_ludique": {
+        "label": "Séance (Mes contenus) — style de production ludique",
+        "placeholders": [],
+        "default": PROMPT_SEANCE_STYLE_LUDIQUE,
+    },
+    "seance_style_structure": {
+        "label": "Séance (Mes contenus) — style de production structuré",
+        "placeholders": [],
+        "default": PROMPT_SEANCE_STYLE_STRUCTURE,
+    },
+    "seance_style_concis": {
+        "label": "Séance (Mes contenus) — style de production très concis",
+        "placeholders": [],
+        "default": PROMPT_SEANCE_STYLE_CONCIS,
     },
     "optimiseur": {
         "label": "Optimiseur de séquences",

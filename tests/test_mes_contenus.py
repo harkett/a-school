@@ -149,6 +149,67 @@ def test_activite_regle_0_post_puis_put_avec_versions():
         f"/api/contenus/activites/{aid}", json=corps).status_code == 404
 
 
+def test_seance_regle_0_post_puis_put_avec_versions():
+    """Monde neuf, séance : POST = la séance naît en base à la génération (+ version) ;
+    PUT = régénération (état courant mis à jour, NOUVELLE version empilée). Le formulaire
+    ENTIER vit en base (mode, compétences, matériel, esquisse, contraintes, style) : la
+    ligne de /api/mes-contenus doit permettre la réouverture préremplie."""
+    from backend.core.models_db import Seance, SeanceVersion
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email=EMAIL, password_hash="x", is_verified=True,
+                           subject="Français", niveau="6e"))
+        db.commit()
+    corps = {
+        "theme": "Le récit d'aventure", "contexte": "Classe agitée l'après-midi",
+        "duree": 55, "mode": "approfondissement",
+        "competences": ["Identifier les personnages", "Rédiger une suite"],
+        "materiel": "Cahiers, extraits imprimés",
+        "esquisse": {"a": "Rappel 5 min", "b": "Écriture guidée", "c": "Lecture croisée"},
+        "contraintes": "Pas de vidéo", "style": "ludique",
+        "resultat": "# Séance v1",
+    }
+    r = _client().post("/api/contenus/seances", json=corps)
+    assert r.status_code == 200, r.text
+    sid = r.json()["id"]
+
+    r2 = _client().put(f"/api/contenus/seances/{sid}",
+                       json={**corps, "style": "concis", "resultat": "# Séance v2"})
+    assert r2.status_code == 200, r2.text
+
+    with dbmod.SessionLocal() as db:
+        s = db.query(Seance).filter(Seance.id == sid).one()
+        assert s.resultat == "# Séance v2"                      # état courant = dernier jalon
+        assert s.mode == "approfondissement" and s.style == "concis"
+        assert s.matiere == "Français" and s.niveau == "6e"     # couple lu en base
+        versions = (db.query(SeanceVersion)
+                    .filter(SeanceVersion.seance_id == sid)
+                    .order_by(SeanceVersion.id).all())
+        assert [v.resultat for v in versions] == ["# Séance v1", "# Séance v2"]  # l'historique s'empile
+
+    d = _client().get("/api/mes-contenus").json()
+    assert d["compteurs"]["seances"] == 1
+    ligne = next(c for c in d["contenus"] if c["type"] == "seance")
+    assert ligne["titre"] == "Le récit d'aventure"
+    assert ligne["mode"] == "approfondissement"
+    assert ligne["competences"] == ["Identifier les personnages", "Rédiger une suite"]
+    assert ligne["esquisse"] == {"a": "Rappel 5 min", "b": "Écriture guidée", "c": "Lecture croisée"}
+    assert ligne["materiel"] == "Cahiers, extraits imprimés"
+    assert ligne["contraintes"] == "Pas de vidéo"
+    assert ligne["style"] == "concis"
+    assert ligne["duree"] == 55
+    assert ligne["contexte"] == "Classe agitée l'après-midi"
+
+    # Cloisonnement : un autre prof ne peut pas pousser un jalon sur cette séance.
+    _uid("intrus@local.test")
+    assert _client("intrus@local.test").put(
+        f"/api/contenus/seances/{sid}", json=corps).status_code == 404
+
+    # Garde-fous métier : mode inconnu et durée invalide sont refusés proprement.
+    assert _client().post("/api/contenus/seances", json={**corps, "mode": "zumba"}).status_code == 400
+    assert _client().post("/api/contenus/seances", json={**corps, "duree": 2}).status_code == 400
+
+
 def test_l_ancien_monde_n_apparait_jamais():
     """DÉCISION utilisateur (29/07) : Mes contenus est le futur REMPLAÇANT — il ne lit que
     ses tables neuves. L'ancien monde (`sequences_sauvegardees` ET `activites_sauvegardees`)
