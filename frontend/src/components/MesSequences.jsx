@@ -91,10 +91,10 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
       {/* En-tête */}
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-base font-semibold text-gray-800">Mes séquences</h2>
+          <h2 className="text-base font-semibold text-gray-800">Mes séances</h2>
           {!loading && filtered.length > 0 && (
             <span style={{ fontSize: 12, color: 'var(--bordeaux)', background: '#fdf2f5', border: '1px solid #f4c4ce', borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
-              {filtered.length} séquence{filtered.length > 1 ? 's' : ''}
+              {filtered.length} séance{filtered.length > 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -107,15 +107,15 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
 
       {!loading && sequences.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
-          <p className="text-sm text-gray-500">Aucune séquence sauvegardée.</p>
-          <p className="text-xs text-gray-400 mt-1">Générez une séquence depuis Mes outils → Séquence pour la retrouver ici.</p>
+          <p className="text-sm text-gray-500">Aucune séance sauvegardée.</p>
+          <p className="text-xs text-gray-400 mt-1">Générez une séance depuis Mes outils → Séance pour la retrouver ici.</p>
         </div>
       )}
 
       {!loading && sequences.length > 0 && filtered.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
-          <p className="text-sm text-gray-500">Aucune séquence pour {labelProfil}.</p>
-          <p className="text-xs text-gray-400 mt-1">Générez votre première séquence depuis Mes outils → Séquence.</p>
+          <p className="text-sm text-gray-500">Aucune séance pour {labelProfil}.</p>
+          <p className="text-xs text-gray-400 mt-1">Générez votre première séance depuis Mes outils → Séance.</p>
         </div>
       )}
 
@@ -165,7 +165,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
                   style={{ opacity: (isMobile || hovered === s.id) ? 1 : 0, transition: 'opacity 0.15s' }}>
                   <button
                     onClick={() => setDetailModal(s)}
-                    title="Voir le contenu complet de la séquence générée"
+                    title="Voir le contenu complet de la séance générée"
                     style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#475569', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     Plus de détails
@@ -174,7 +174,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
                   <button
                     onClick={() => !s.partagee ? setAnonymeDialog(s.id) : togglePartage(s.id, false)}
                     disabled={toggling === s.id}
-                    title={s.partagee ? 'Retirer de la bibliothèque partagée' : 'Partager cette séquence avec vos collègues'}
+                    title={s.partagee ? 'Retirer de la bibliothèque partagée' : 'Partager cette séance avec vos collègues'}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       background: 'none', border: '1px solid',
@@ -192,14 +192,14 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
 
                   <button
                     onClick={() => onCharger(s)}
-                    title="Recharger cette séquence dans le formulaire"
+                    title="Recharger cette séance dans le formulaire"
                     className="btn-primary"
                   >
                     Recharger
                   </button>
                   <button
                     onClick={() => setDeleteDialog({ id: s.id, theme: s.theme })}
-                    title="Supprimer définitivement cette séquence"
+                    title="Supprimer définitivement cette séance"
                     style={{ display: 'flex', alignItems: 'center', padding: '5px 8px', background: 'none', border: '1px solid #fca5a5', borderRadius: 6, color: 'var(--bordeaux)', cursor: 'pointer' }}
                   >
                     <IconTrash />
@@ -226,7 +226,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
               Comment souhaitez-vous apparaître ?
             </div>
             <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px', lineHeight: 1.6 }}>
-              Votre séquence sera visible dans <strong>Mon réseau</strong> par vos collègues.
+              Votre séance sera visible dans <strong>Mon réseau</strong> par vos collègues.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button
@@ -243,7 +243,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
                 style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 16px', cursor: 'pointer', textAlign: 'left' }}
               >
                 <div style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>Rester anonyme</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Votre séquence sera visible mais votre nom n'apparaîtra pas</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Votre séance sera visible mais votre nom n'apparaîtra pas</div>
               </button>
             </div>
             <div style={{ marginTop: 16, textAlign: 'right' }}>
@@ -299,7 +299,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
 
             {/* Corps scrollable */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Séquence générée</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>Séance générée</div>
               <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }}>
                 {detailModal.resultat}
               </pre>
@@ -312,7 +312,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
                 Fermer
               </button>
               <button onClick={() => { onCharger(detailModal); setDetailModal(null) }}
-                title="Recharger cette séquence dans le formulaire"
+                title="Recharger cette séance dans le formulaire"
                 className="btn-primary">
                 Recharger
               </button>
@@ -332,13 +332,13 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Supprimer cette séquence ?
+              Supprimer cette séance ?
             </div>
             <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 6px', lineHeight: 1.6 }}>
               <strong>"{deleteDialog.theme}"</strong>
             </p>
             <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 20px', lineHeight: 1.5 }}>
-              Cette action est irréversible — la séquence sera définitivement supprimée.
+              Cette action est irréversible — la séance sera définitivement supprimée.
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button
@@ -350,7 +350,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
               <button
                 onClick={() => supprimerSequence(deleteDialog.id)}
                 disabled={deleting === deleteDialog.id}
-                title="Confirmer la suppression définitive de cette séquence"
+                title="Confirmer la suppression définitive de cette séance"
                 style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: deleting ? 'wait' : 'pointer' }}
               >
                 {deleting === deleteDialog.id ? 'Suppression…' : 'Supprimer'}
@@ -369,7 +369,7 @@ export default function MesSequences({ onCharger, sessionMatiere, sessionNiveau,
           >
             Changez votre matière dans le profil
           </button>{' '}
-          pour voir les séquences correspondantes.
+          pour voir les séances correspondantes.
         </p>
       )}
     </div>

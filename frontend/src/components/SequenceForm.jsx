@@ -146,7 +146,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         credentials: 'include',
         body: JSON.stringify({
           activite_key: 'sequence',
-          activite_label: 'Séquence pédagogique',
+          activite_label: 'Séance pédagogique',
           matiere, niveau,
           sous_type: mode === 'remediation' ? 'remédiation' : 'standard',
           nb: null, avec_correction: false,
@@ -169,17 +169,17 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center' }}>
         <button
           onClick={() => setSeqTab('creer')}
-          title="Formulaire de création de séquence"
+          title="Formulaire de création de séance"
           style={{ padding: '10px 20px', fontSize: '13px', fontWeight: seqTab === 'creer' ? 700 : 400,
             color: seqTab === 'creer' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none',
             cursor: 'pointer', borderBottom: seqTab === 'creer' ? '2px solid var(--bordeaux)' : '2px solid transparent',
             marginBottom: '-1px' }}
         >
-          Nouvelle séquence
+          Nouvelle séance
         </button>
         <button
           onClick={() => setSeqTab('aide')}
-          title="Comment créer une séquence — guide pas à pas"
+          title="Comment créer une séance — guide pas à pas"
           style={{ padding: '10px 20px', fontSize: '13px', fontWeight: seqTab === 'aide' ? 700 : 400,
             color: seqTab === 'aide' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none',
             cursor: 'pointer', borderBottom: seqTab === 'aide' ? '2px solid var(--bordeaux)' : '2px solid transparent',
@@ -192,11 +192,11 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
             className="btn-primary"
             onClick={generer}
             disabled={loading}
-            title={scoreOptim ? "Relancer la génération avec les optimisations appliquées" : "Lancer la génération de la séquence avec aSchool"}
+            title={scoreOptim ? "Relancer la génération avec les optimisations appliquées" : "Lancer la génération de la séance avec aSchool"}
             style={{ marginLeft: 'auto', marginRight: 8 }}
           >
             {loading ? <Spinner /> : <IconGenerer />}
-            {loading ? 'Génération en cours…' : scoreOptim ? 'Générer la séquence optimisée' : 'Générer la séquence'}
+            {loading ? 'Génération en cours…' : scoreOptim ? 'Générer la séance optimisée' : 'Générer la séance'}
           </button>
         )}
       </div>
@@ -217,7 +217,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
             {fromMesSequences && (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '7px', padding: '10px 14px', fontSize: '13px', color: '#166534', lineHeight: 1.5 }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: '1px' }}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.89"/></svg>
-                <span>Séquence rechargée depuis <strong>Mes séquences</strong> — tous les champs sont pré-remplis, modifiez si besoin avant de regénérer.</span>
+                <span>Séance rechargée depuis <strong>Mes séances</strong> — tous les champs sont pré-remplis, modifiez si besoin avant de regénérer.</span>
                 <button onClick={() => setFromMesSequences(false)} title="Fermer ce message" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: '16px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
               </div>
             )}
@@ -330,9 +330,9 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                 </span>
                 {resultat && (
                   <button onClick={() => { setResultat(null); setSaved(false) }}
-                    title="Effacer le résultat et créer une nouvelle séquence"
+                    title="Effacer le résultat et créer une nouvelle séance"
                     style={{ padding: '5px 12px', fontSize: '12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>
-                    Nouvelle séquence
+                    Nouvelle séance
                   </button>
                 )}
               </div>
@@ -345,7 +345,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {scoreOptim ? 'Séquence optimisée' : 'Séquence générée'}
+                      {scoreOptim ? 'Séance optimisée' : 'Séance générée'}
                     </span>
                     {scoreOptim && (
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: '#f0f7ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
@@ -354,7 +354,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
-                    <button onClick={copier} title="Copier la séquence dans le presse-papier"
+                    <button onClick={copier} title="Copier la séance dans le presse-papier"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
                         background: copied ? '#dcfce7' : '#f1f5f9', color: copied ? '#166534' : '#475569',
                         border: `1px solid ${copied ? '#86efac' : '#cbd5e1'}`, borderRadius: '5px', cursor: 'pointer' }}>
@@ -371,7 +371,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                     <button
                       onClick={() => setConfirmOptim(true)}
                       disabled={optimLoading}
-                      title="Optimiser cette séquence — analyse 6 critères pédagogiques et propose une version améliorée"
+                      title="Optimiser cette séance — analyse 6 critères pédagogiques et propose une version améliorée"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
                         background: optimLoading ? '#f8fafc' : '#f0f7ff',
                         color: optimLoading ? '#94a3b8' : '#1d4ed8',
@@ -398,7 +398,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
 
         {seqTab === 'aide' && (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', flex: 1 }}>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une séquence — tout ce que vous pouvez faire</div>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une séance — tout ce que vous pouvez faire</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <div style={S}>1. Décrivez votre objectif pédagogique</div>
@@ -406,7 +406,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                   <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séance</li>
                   <li>Précisez le contexte si besoin : contraintes de la classe, acquis préalables</li>
                   <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
-                  <li><strong>Depuis Analyse → Ambiguïté</strong> — si vous avez détecté des ambiguïtés sur un énoncé, cliquez sur "Créer une séquence →" depuis une reformulation corrigée : le champ Thème sera pré-rempli automatiquement</li>
+                  <li><strong>Depuis Analyse → Ambiguïté</strong> — si vous avez détecté des ambiguïtés sur un énoncé, cliquez sur "Créer une séance →" depuis une reformulation corrigée : le champ Thème sera pré-rempli automatiquement</li>
                   <li>Le bouton <strong>Tester un exemple</strong> (exemple ancré sur le programme) est en cours de préparation.</li>
                 </ul>
               </div>
@@ -427,12 +427,12 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
               </div>
               <hr style={HR} />
               <div>
-                <div style={S}>3. aSchool génère la séquence complète</div>
+                <div style={S}>3. aSchool génère la séance complète</div>
                 <ul style={UL}>
                   <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
                   <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
                   <li>Ancrage mémoriel intégré : synthèse et bilan prévus dans la structure</li>
-                  <li>Séquence sauvegardable dans "Mes activités" et copiable en un clic</li>
+                  <li>Séance sauvegardable dans "Mes activités" et copiable en un clic</li>
                 </ul>
               </div>
               <hr style={HR} />
@@ -450,14 +450,14 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6 }}>
-              L'optimisation va <strong>remplacer votre séquence actuelle</strong> par une version améliorée.<br/><br/>Continuer ?
+              L'optimisation va <strong>remplacer votre séance actuelle</strong> par une version améliorée.<br/><br/>Continuer ?
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button onClick={() => setConfirmOptim(false)} title="Annuler l'optimisation"
                 style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', cursor: 'pointer' }}>
                 Annuler
               </button>
-              <button onClick={optimiserSequence} title="Lancer l'optimisation de la séquence"
+              <button onClick={optimiserSequence} title="Lancer l'optimisation de la séance"
                 style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
                 Optimiser
               </button>

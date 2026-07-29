@@ -230,7 +230,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
               <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '6px' }}>À quoi ça sert</div>
               <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                Un énoncé mal formulé, et l'élève bute sur la consigne au lieu de l'exercice. Cet outil relit votre énoncé à la loupe : il repère chaque formulation qui prête à confusion et, pour chacune, vous montre l'<strong>extrait</strong> en cause, le <strong>type</strong> de piège, le <strong>risque concret pour l'élève</strong>, et une <strong>reformulation corrigée</strong> prête à copier — le tout précédé d'un <strong>verdict global</strong> sur la clarté. Et si une reformulation vous inspire, elle devient le <strong>thème d'une nouvelle séquence</strong> en un clic.
+                Un énoncé mal formulé, et l'élève bute sur la consigne au lieu de l'exercice. Cet outil relit votre énoncé à la loupe : il repère chaque formulation qui prête à confusion et, pour chacune, vous montre l'<strong>extrait</strong> en cause, le <strong>type</strong> de piège, le <strong>risque concret pour l'élève</strong>, et une <strong>reformulation corrigée</strong> prête à copier — le tout précédé d'un <strong>verdict global</strong> sur la clarté. Et si une reformulation vous inspire, elle devient le <strong>thème d'une nouvelle séance</strong> en un clic.
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -275,7 +275,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
         )}
       </div>
 
-      {/* Dialog confirmation séquence */}
+      {/* Dialog confirmation séance */}
       {confirmDialog && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -286,16 +286,16 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Créer une séquence depuis cette reformulation
+              Créer une séance depuis cette reformulation
             </div>
             <p style={{ fontSize: '13.5px', color: '#475569', margin: '0 0 6px', lineHeight: 1.6 }}>
-              Cette reformulation sera utilisée comme thème de votre nouvelle séquence :
+              Cette reformulation sera utilisée comme thème de votre nouvelle séance :
             </p>
             <div style={{ fontSize: '13px', color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '5px', padding: '8px 12px', marginBottom: '16px', lineHeight: 1.5 }}>
               {confirmDialog.reformulation}
             </div>
             <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 6px', lineHeight: 1.5 }}>
-              Vous basculerez dans le module <strong>Créer une séquence</strong> avec ce thème déjà rempli.
+              Vous basculerez dans le module <strong>Créer une séance</strong> avec ce thème déjà rempli.
             </p>
             <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 20px', lineHeight: 1.5 }}>
               Vous quitterez cette page — l'analyse en cours sera perdue.
@@ -310,9 +310,9 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
               <button
                 onClick={() => { setConfirmDialog(null); onCreateSequence(confirmDialog.reformulation) }}
                 style={{ background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-                title="Naviguer vers Créer une séquence avec ce thème pré-rempli"
+                title="Naviguer vers Créer une séance avec ce thème pré-rempli"
               >
-                Créer la séquence
+                Créer la séance
               </button>
             </div>
           </div>

@@ -749,13 +749,13 @@ function MainApp() {
                     ),
                   },
                   sequence: {
-                    titre: 'Créer une séquence — ce que la fonctionnalité fera',
+                    titre: 'Créer une séance — ce que la fonctionnalité fera',
                     contenu: (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div>
                           <div style={S}>1. Décrivez votre objectif pédagogique</div>
                           <ul style={UL}>
-                            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séquence</li>
+                            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séance</li>
                             <li>Précisez le contexte : nombre de séances, durée totale, contraintes éventuelles</li>
                             <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
                           </ul>
@@ -780,26 +780,26 @@ function MainApp() {
                         </div>
                         <hr style={HR} />
                         <div>
-                          <div style={S}>3. aSchool génère la séquence complète</div>
+                          <div style={S}>3. aSchool génère la séance complète</div>
                           <ul style={UL}>
                             <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
                             <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
                             <li>Ancrage mémoriel intégré : synthèse, révision et bilan prévus dans la structure</li>
-                            <li>Séquence exportable et partageable avec des collègues</li>
+                            <li>Séance exportable et partageable avec des collègues</li>
                           </ul>
                         </div>
                       </div>
                     ),
                   },
                   optimiseur: {
-                    titre: 'Améliorer une séquence — comment ça fonctionne',
+                    titre: 'Améliorer une séance — comment ça fonctionne',
                     contenu: (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div>
-                          <div style={S}>1. Soumettez votre séquence</div>
+                          <div style={S}>1. Soumettez votre séance</div>
                           <ul style={UL}>
-                            <li>Collez une séquence existante — planning de cours, progression rédigée, fichier de préparation</li>
-                            <li>Un bouton "Tester sur un exemple" permet de découvrir la fonctionnalité sans séquence sous la main</li>
+                            <li>Collez une séance existante — planning de cours, progression rédigée, fichier de préparation</li>
+                            <li>Un bouton "Tester sur un exemple" permet de découvrir la fonctionnalité sans séance sous la main</li>
                           </ul>
                         </div>
                         <hr style={HR} />
@@ -820,7 +820,7 @@ function MainApp() {
                           <ul style={UL}>
                             <li>Un score global : Bon · Moyen · À revoir</li>
                             <li>La liste des problèmes détectés avec leur description précise</li>
-                            <li>La séquence réécrite avec toutes les corrections intégrées</li>
+                            <li>La séance réécrite avec toutes les corrections intégrées</li>
                           </ul>
                         </div>
                       </div>
@@ -854,12 +854,12 @@ function MainApp() {
                             </button>
                           </div>
 
-                          {/* SÉQUENCE */}
+                          {/* SÉANCE */}
                           <div>
-                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Séquence</div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Séance</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               {[
-                                { label: 'Créer une séquence', desc: 'Objectif pédagogique → séquence structurée', action: () => setPage('creer-sequence') },
+                                { label: 'Créer une séance', desc: 'Objectif pédagogique → séance structurée', action: () => setPage('creer-sequence') },
                               ].map((t, i) => (
                                 <button key={i} onClick={t.action} title={t.label}
                                   style={{ width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer', textAlign: 'left' }}>
@@ -914,20 +914,20 @@ function MainApp() {
                         </div>
                       </div>
 
-                      {/* ── SÉQUENCE ── */}
+                      {/* ── SÉANCE ── */}
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Séquence</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Séance</div>
                         <div
                           onClick={() => setPage('creer-sequence')}
                           style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une séquence</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une séance</span>
                           <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
-                            Un objectif pédagogique → séquence complète structurée de A à Z
+                            Un objectif pédagogique → séance complète structurée de A à Z
                           </p>
                           <div className="flex justify-end" style={{ marginTop: 'auto' }}>
                             <button className="btn-primary"
                               onClick={e => { e.stopPropagation(); setPage('creer-sequence') }}
-                              title="Commencer à créer une séquence pédagogique">
+                              title="Commencer à créer une séance pédagogique">
                               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                               Commencer
                             </button>
