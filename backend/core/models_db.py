@@ -306,11 +306,7 @@ class Seance(Base):
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="standard", server_default="standard")
     resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    # Ligne d'origine dans `sequences_sauvegardees` si la séance vient de l'IMPORT (l'ancien
-    # outil générait en réalité des séances). Unique → l'import est rejouable sans doublon.
-    import_source_id: Mapped[int | None] = mapped_column(Integer, nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

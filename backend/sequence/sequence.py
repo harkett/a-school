@@ -5,8 +5,7 @@ from typing import Optional
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models_db import Seance, SeancePhase, ToolUsageLog, SequenceSauvegardee, User
-from backend.sequence.phases import decouper_phases
+from backend.core.models_db import ToolUsageLog, SequenceSauvegardee, User
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_prompt
 from backend.llm.generator import generate, LLMRateLimitError
 
@@ -27,7 +26,6 @@ class SequenceRequest(BaseModel):
 
 class SequenceResponse(BaseModel):
     resultat: str
-    seance_id: int
 
 
 # Prompts (standard + remédiation) déplacés dans backend/llm_prompts.py
@@ -60,12 +58,6 @@ def api_generate_sequence(
     if req.mode == "remediation" and not req.description_classe.strip():
         raise HTTPException(400, "La description de la classe est requise pour le mode remédiation.")
 
-    # Le compte est résolu AVANT de générer : la séance est écrite en base à la génération
-    # (auto-save), générer sans pouvoir enregistrer n'aurait aucun sens.
-    user_id = db.query(User.id).filter(User.email == email).scalar()
-    if user_id is None:
-        raise HTTPException(401, "Non connecté.")
-
     try:
         if req.mode == "remediation":
             prompt = get_prompt(db, "sequence_remediation").format(
@@ -91,34 +83,23 @@ def api_generate_sequence(
     except Exception as e:
         raise HTTPException(500, str(e))
 
-    # Auto-save (règle 0) : la séance générée est écrite TOUT DE SUITE en base, dans les
-    # tables du modèle « Mes contenus » (seances + phases structurées). Fin du détour par
-    # sequences_sauvegardees (importée par b4d8f0e2c6a3 ; encore lue par Mon réseau).
-    # Un échec d'écriture DOIT se voir : plus de bouton « Sauvegarder » derrière, une panne
-    # silencieuse = une séance perdue en quittant l'écran.
     try:
-        seance = Seance(
-            user_id=user_id,
-            titre=req.theme.strip()[:300],
+        db.add(SequenceSauvegardee(
+            user_id=db.query(User.id).filter(User.email == email).scalar(),
             matiere=req.matiere,
             niveau=req.niveau,
-            duree_minutes=req.duree,
+            theme=req.theme.strip(),
+            duree=req.duree,
             mode=req.mode,
-            description=req.description_classe.strip(),
+            description_classe=req.description_classe.strip(),
             resultat=resultat,
-        )
-        db.add(seance)
-        db.flush()
-        for ph in decouper_phases(resultat):
-            db.add(SeancePhase(seance_id=seance.id, **ph))
-        db.add(ToolUsageLog(user_id=user_id, tool="sequence"))
+        ))
+        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="sequence"))
         db.commit()
     except Exception:
-        db.rollback()
-        raise HTTPException(500, "La séance a bien été générée mais n'a pas pu être enregistrée. "
-                                 "Réessayez — si le problème persiste, prévenez votre administrateur.")
+        pass
 
-    return SequenceResponse(resultat=resultat, seance_id=seance.id)
+    return SequenceResponse(resultat=resultat)
 
 
 @router.get("/mes-sequences")
