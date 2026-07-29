@@ -107,8 +107,9 @@ def lister(
             "updated_at": _iso(a.updated_at),
         })
 
-    # Plus récent en haut, tous types mélangés (dernière modification, sinon création).
-    contenus.sort(key=lambda c: c["updated_at"] or c["created_at"] or "", reverse=True)
+    # Plus récent en haut, tous types mélangés — sur la date de CRÉATION : c'est elle que la
+    # ligne affiche (badge calendrier), l'ordre à l'écran suit donc ce que le prof lit.
+    contenus.sort(key=lambda c: c["created_at"] or "", reverse=True)
 
     return {
         "contenus": contenus,

@@ -140,6 +140,14 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
   const contenus = data?.contenus || []
   const compteurs = data?.compteurs || { tout: 0, sequences: 0, seances: 0, activites: 0 }
 
+  // Sélection AUTOMATIQUE : dès que la liste arrive, la première activité (la plus récente,
+  // l'ordre vient de la base) est sélectionnée — le panneau de droite n'attend pas un clic.
+  useEffect(() => {
+    if (detailId !== null) return
+    const premiere = contenus.find(c => c.type === 'activite')
+    if (premiere) setDetailId(premiere.id)
+  }, [contenus, detailId])
+
   const visibles = useMemo(() => {
     const q = recherche.trim().toLowerCase()
     return contenus.filter(c => {
