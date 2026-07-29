@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.deps import get_current_user
-from backend.core.models_db import ActiviteSauvegardee, Seance, Sequence, SequenceSauvegardee, User
+from backend.core.models_db import ActiviteSauvegardee, Seance, Sequence, User
 
 router = APIRouter()
 
@@ -32,14 +32,9 @@ def lister(
     sequences = db.query(Sequence).filter(Sequence.user_id == user.id).all()
     seances = db.query(Seance).filter(Seance.user_id == user.id).all()
     activites = db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_id == user.id).all()
-    # Les séances de l'outil existant (table `sequences_sauvegardees` — LECTURE SEULE, l'outil
-    # du menu s'appelle désormais « Séance » et c'est bien ce qu'il génère). `source` distingue
-    # les deux mondes : 'heritage' = table existante, 'contenus' = tables neuves du chantier.
-    seances_heritage = (
-        db.query(SequenceSauvegardee)
-        .filter(SequenceSauvegardee.user_id == user.id)
-        .all()
-    )
+    # DÉCISION utilisateur (29/07) : les séances de la bibliothèque viennent UNIQUEMENT de la
+    # table NEUVE `seances` — jamais de `sequences_sauvegardees` (l'ancien monde reste à part).
+    # L'onglet Séances se remplit par le « Générer » de l'écran Séance, qui écrit dans `seances`.
 
     titres_sequences = {s.id: s.titre for s in sequences}
     nb_seances_par_sequence: dict[int, int] = {}
@@ -51,7 +46,6 @@ def lister(
     for s in sequences:
         contenus.append({
             "type": "sequence",
-            "source": "contenus",
             "id": s.id,
             "titre": s.titre,
             "matiere": s.matiere,
@@ -69,7 +63,6 @@ def lister(
                       "titre": titres_sequences.get(s.sequence_id, "")}
         contenus.append({
             "type": "seance",
-            "source": "contenus",
             "id": s.id,
             "titre": s.titre,
             "matiere": s.matiere,
@@ -83,27 +76,9 @@ def lister(
             "created_at": _iso(s.created_at),
             "updated_at": _iso(s.updated_at),
         })
-    for s in seances_heritage:
-        contenus.append({
-            "type": "seance",
-            "source": "heritage",
-            "id": s.id,
-            "titre": s.theme,
-            "matiere": s.matiere,
-            "niveau": s.niveau,
-            "parent": None,
-            "nb_seances": None,
-            "duree": s.duree,
-            "mode": s.mode,
-            "contexte": s.description_classe,
-            "resultat": s.resultat,
-            "created_at": _iso(s.created_at),
-            "updated_at": None,
-        })
     for a in activites:
         contenus.append({
             "type": "activite",
-            "source": "heritage",
             "id": a.id,
             "titre": a.objet or a.activite_label,
             "matiere": a.matiere,
@@ -123,7 +98,7 @@ def lister(
         "compteurs": {
             "tout": len(contenus),
             "sequences": len(sequences),
-            "seances": len(seances) + len(seances_heritage),
+            "seances": len(seances),
             "activites": len(activites),
         },
     }

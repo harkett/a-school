@@ -300,9 +300,7 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
                   <IconCopy />
                 </BoutonAction>
                 <BoutonAction
-                  title={c.type === 'activite' ? 'Supprimer cette activité'
-                    : c.type === 'seance' && c.source === 'heritage' ? 'Cette séance se gère dans Mes outils → Séance → Historique'
-                    : 'Bientôt — la suppression arrive avec les prochaines briques'}
+                  title={c.type === 'activite' ? 'Supprimer cette activité' : 'Bientôt — la suppression arrive avec les prochaines briques'}
                   disabled={c.type !== 'activite'}
                   danger
                   onClick={() => setSuppression(c)}

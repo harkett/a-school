@@ -110,26 +110,20 @@ def test_liste_melangee_compteurs_et_rangement():
     assert activite["resultat"] == "r"                  # de quoi afficher l'aperçu HTML
 
 
-def test_les_seances_de_l_outil_existant_apparaissent_en_lecture():
-    """Les séances générées par l'outil du menu (table `sequences_sauvegardees`) sont
-    AFFICHÉES dans la bibliothèque — lecture seule, source 'heritage', avec de quoi
-    remplir l'écran Séance (durée, mode, contexte, déroulé)."""
+def test_l_ancien_monde_n_apparait_jamais():
+    """DÉCISION utilisateur (29/07) : Mes contenus est le futur REMPLAÇANT — il ne lit que
+    ses tables neuves. Une « séquence » de l'ancien outil (`sequences_sauvegardees`)
+    n'apparaît JAMAIS dans la bibliothèque."""
     from backend.core.models_db import SequenceSauvegardee
     uid = _uid()
     with dbmod.SessionLocal() as db:
         db.add(SequenceSauvegardee(user_id=uid, matiere="SVT", niveau="3e",
                                    theme="Photosynthèse", duree=55, mode="standard",
-                                   description_classe="Classe curieuse", resultat="# Séance"))
+                                   description_classe="", resultat="# Séance"))
         db.commit()
     d = _client().get("/api/mes-contenus").json()
-    assert d["compteurs"]["seances"] == 1
-    ligne = next(c for c in d["contenus"] if c["type"] == "seance")
-    assert ligne["source"] == "heritage"
-    assert ligne["titre"] == "Photosynthèse"
-    assert ligne["duree"] == 55
-    assert ligne["mode"] == "standard"
-    assert ligne["contexte"] == "Classe curieuse"
-    assert ligne["resultat"] == "# Séance"
+    assert d["compteurs"]["seances"] == 0
+    assert all(c["type"] != "seance" for c in d["contenus"])
 
 
 def test_cloisonnement_entre_profs():
