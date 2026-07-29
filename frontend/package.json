@@ -11,6 +11,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.4",
     "docx": "^9.6.1",
     "jspdf": "^4.2.1",
     "react": "^19.2.5",

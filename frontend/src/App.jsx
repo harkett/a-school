@@ -1286,7 +1286,7 @@ function MainApp() {
             />
           )}
 
-          {page === 'mes-contenus' && <MesContenus />}
+          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} />}
 
           {page === 'mon-reseau-activites' && (
             <MonReseau

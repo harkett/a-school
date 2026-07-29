@@ -266,6 +266,66 @@ class ActiviteSauvegardee(Base):
 
 
 # ---------------------------------------------------------------------------
+# « Mes contenus » — le modèle playlist à 3 niveaux : séquence ⊃ séances ⊃ activités.
+# Tables NEUVES du socle (brique 1). Le parent est TOUJOURS nullable : une séance ou
+# une activité peut vivre seule (« Non rangée »). Le niveau « activité » reste porté
+# par `activites_sauvegardees` (zéro copie) — son lien de rangement arrive en brique 3.
+# `sequences_sauvegardees` (l'ancien outil, qui génère en réalité des séances) sera
+# importé dans `seances` en brique 2, puis éteint.
+# ---------------------------------------------------------------------------
+
+class Sequence(Base):
+    """Séquence — le conteneur du haut. Contient des séances ordonnées (Seance.position)."""
+    __tablename__ = "sequences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    titre: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    objectifs: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    tags: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    duree_totale_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class Seance(Base):
+    """Séance — le niveau du milieu. `sequence_id` nullable = séance libre ; SET NULL à la
+    suppression de la séquence : les séances redeviennent « non rangées », jamais détruites."""
+    __tablename__ = "seances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    sequence_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sequences.id", ondelete="SET NULL"), nullable=True, index=True)
+    position: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ordre dans la séquence
+    titre: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class SeancePhase(Base):
+    """Phase d'une séance (mise en route, travail guidé, …). CASCADE : une phase
+    n'existe pas sans sa séance."""
+    __tablename__ = "seance_phases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    seance_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("seances.id", ondelete="CASCADE"), nullable=False, index=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    titre: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
+    contenu: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+# ---------------------------------------------------------------------------
 # Admin backoffice — Phase 0
 # ---------------------------------------------------------------------------
 

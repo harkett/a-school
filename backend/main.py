@@ -33,7 +33,7 @@ from backend.core.middleware import UserSessionMiddleware
 from backend.routers import auth
 from backend.systeme import admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
-from backend.contenu import mes_activites, activites
+from backend.contenu import mes_activites, activites, mes_contenus
 from backend.prof import profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
@@ -101,6 +101,7 @@ app.include_router(exemple_referentiel.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(activites.router, prefix="/api")
 app.include_router(mes_activites.router, prefix="/api")
+app.include_router(mes_contenus.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
