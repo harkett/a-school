@@ -687,7 +687,7 @@ function MainApp() {
         coupleAjuste={!!user?.couple_ajuste}
         onValiderCouple={validerCoupleTravail}
         onRevenirProfil={revenirAuProfil}
-        onOuvrirGuide={['creer-activite', 'mes-activites'].includes(page) ? () => setFenetreGuide(true) : null}
+        onOuvrirGuide={['creer-activite', 'mes-activites', 'activite'].includes(page) ? () => setFenetreGuide(true) : null}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
@@ -1305,14 +1305,29 @@ function MainApp() {
           {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} onOuvrirSeance={ouvrirSeance} onOuvrirActivite={ouvrirActiviteContenus} email={user?.email} />}
 
           {page === 'activite' && (
-            <ActiviteEcran
-              key={activiteContenusOuverte?.id ?? 'nouvelle'}
-              activite={activiteContenusOuverte}
-              matiere={sessionMatiere}
-              niveau={params.niveau}
-              email={user?.email}
-              onNavigate={naviguer}
-            />
+            <>
+              <ActiviteEcran
+                key={activiteContenusOuverte?.id ?? 'nouvelle'}
+                activite={activiteContenusOuverte}
+                matiere={sessionMatiere}
+                niveau={params.niveau}
+                email={user?.email}
+                onNavigate={naviguer}
+              />
+              {/* « Comment ça marche » récupéré TEL QUEL de l'écran Créer une activité
+                  (même fenêtre, même visite guidée — les ancres data-guide sont les mêmes
+                  composants ; une ancre absente fait juste sauter son étape). */}
+              {guideActif && (
+                <VisiteGuidee onFermer={fermerGuide} onOuvrirAide={ouvrirAideDepuisGuide} />
+              )}
+              {fenetreGuide && (
+                <FenetreGuide
+                  onFermer={() => setFenetreGuide(false)}
+                  onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
+                  onOuvrirAide={ouvrirAideDepuisGuide}
+                />
+              )}
+            </>
           )}
 
           {page === 'seance' && (
