@@ -64,6 +64,13 @@ const IconUser = () => (
     <circle cx="12" cy="7" r="4"/>
   </svg>
 )
+const IconMesContenus = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+    <polyline points="2 17 12 22 22 17"/>
+    <polyline points="2 12 12 17 22 12"/>
+  </svg>
+)
 const IconMesOutils = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="7" height="7"/>
@@ -217,6 +224,9 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
       <nav className={`sidebar-scroll flex flex-col gap-1 flex-1 min-h-0 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
+
+        {/* Mes contenus — la bibliothèque unique (séquences · séances · activités) */}
+        {navItem('mes-contenus', 'Mes contenus', IconMesContenus, 'Mes contenus — toutes vos séquences, séances et activités au même endroit')}
 
         {/* Mes outils — section expandable */}
         {collapsed ? (

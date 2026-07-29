@@ -15,6 +15,7 @@ import Aide from './components/Aide'
 import APropos from './components/APropos'
 import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
+import MesContenus from './components/MesContenus'
 import MesSequences from './components/MesSequences'
 import MonReseau from './components/MonReseau'
 import MonReseauSequences from './components/MonReseauSequences'
@@ -1284,6 +1285,8 @@ function MainApp() {
               userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
             />
           )}
+
+          {page === 'mes-contenus' && <MesContenus />}
 
           {page === 'mon-reseau-activites' && (
             <MonReseau
