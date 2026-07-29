@@ -263,6 +263,21 @@ Génère une séance dont :
 """ + _FORMAT_SEANCE
 
 
+# « Propose-moi un thème » de l'écran Séance — la version séance de « Propose-moi une idée » :
+# aSchool écrit le thème/objectif à la place du prof, ANCRÉ sur le programme officiel du niveau
+# (extraits RAG). Le prof reste le patron : il relit, modifie, puis « Générer la séance ».
+PROMPT_SEANCE_PROPOSER_THEME = """Tu aides un enseignant de {matiere}, niveau {niveau}, à choisir le sujet de sa prochaine séance.
+
+Extraits du programme officiel de ce niveau :
+{referentiel}
+
+Propose UN thème de séance tiré de ces extraits : une à deux phrases qui décrivent le thème et l'objectif visé, prêtes à servir de point de départ. Concret, réalisable en une seule séance, adapté au niveau {niveau}.
+
+Règles :
+- Reste STRICTEMENT dans ce que couvrent les extraits — n'invente rien hors programme.
+- Pas de titre, pas de commentaire, pas de liste : rends UNIQUEMENT le texte du thème (1 à 2 phrases)."""
+
+
 # Style de production de la séance — couche ajoutée au prompt selon la pastille choisie
 # (facultative : aucune pastille = aucune couche), même mécanique que le ton de l'activité.
 PROMPT_SEANCE_STYLE_CLASSIQUE = """STYLE DE PRODUCTION — CLASSIQUE
@@ -554,6 +569,11 @@ PROMPTS = {
         "label": "Séance (Mes contenus) — mode autonomie guidée",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
         "default": PROMPT_SEANCE_AUTONOMIE,
+    },
+    "seance_proposer_theme": {
+        "label": "Séance (Mes contenus) — « Propose-moi un thème » (zone Texte de départ)",
+        "placeholders": ["matiere", "niveau", "referentiel"],
+        "default": PROMPT_SEANCE_PROPOSER_THEME,
     },
     "seance_style_classique": {
         "label": "Séance (Mes contenus) — style de production classique",

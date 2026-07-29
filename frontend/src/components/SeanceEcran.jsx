@@ -14,6 +14,7 @@ import { useRef, useState } from 'react'
 import SplitPane from './SplitPane.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
+import ApportTexte from './contenus/ApportTexte.jsx'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import { apiFetch, lireReponse, refreshSession, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
@@ -333,11 +334,14 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate }) {
               <section style={CARTE}>
                 <TitreGroupe n={1} fait={texteOk} actif={!texteOk && !loading}>Texte de départ</TitreGroupe>
                 <label style={LABEL}>Thème / objectif de la séance</label>
+                {/* Même procédé d'apport que la zone texte de l'activité : TXT / Image / PDF /
+                    Dicter (copiés tels quels) + « Propose-moi un thème » (version séance). */}
+                <ApportTexte texte={theme} onChange={setTheme} disabled={loading} />
                 <textarea
                   value={theme}
                   onChange={e => setTheme(e.target.value)}
-                  placeholder="Décrivez le thème ou l'objectif de la séance…"
-                  rows={2}
+                  placeholder={"Décrivez le thème ou l'objectif de la séance…\n— ou importez un fichier TXT, une image scannée ou un PDF\n— ou dictez avec le micro\n— ou laissez « Propose-moi un thème » l'écrire à votre place"}
+                  rows={4}
                   disabled={loading}
                   style={{ ...CHAMP, resize: 'vertical' }}
                 />

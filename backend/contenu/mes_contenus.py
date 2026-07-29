@@ -22,13 +22,15 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.deps import get_current_user
-from backend.core.models_db import Activite, ActiviteVersion, Seance, SeanceVersion, Sequence, User
-from backend.llm.generator import generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
-from backend.prof.profil import couple_de_travail
+from backend.core.models_db import Activite, ActiviteVersion, Referentiel, Seance, SeanceVersion, Sequence, User
+from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
+from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
+from backend.llm.prompts import ajouter_cahier_au_prompt
+from backend.rag.pgvector_store import retrieve_pg
 from backend.supervision.incidents import creer_incident
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature,
-    get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
+    get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt, get_rag_top_k,
 )
 
 router = APIRouter()
@@ -305,6 +307,62 @@ def _valider_generation(req: SeanceGeneration) -> None:
         raise HTTPException(400, "Choisissez un mode de séance.")
     if req.style is not None and req.style not in STYLES_SEANCE:
         raise HTTPException(400, "Style de production inconnu.")
+
+
+_AUCUN_EXTRAIT_POUR_THEME = (
+    "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez pertinent "
+    "pour proposer un thème fidèle. Décrivez votre thème directement dans la zone de "
+    "texte — ou dictez-le avec le micro."
+)
+
+
+@router.post("/contenus/seances/proposer-theme")
+def proposer_theme_seance(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bouton « Propose-moi un thème » de l'écran Séance — la version séance de
+    « Propose-moi une idée » : aSchool écrit le thème/objectif à la place du prof, ANCRÉ
+    sur le programme officiel du niveau (extraits RAG, seuil du référentiel lu en base).
+    Règle d'or : pas de référentiel → available:false ; rien d'assez pertinent →
+    available:false + message honnête. On n'invente RIEN hors du programme. Le couple est
+    LU EN BASE (couple de travail), jamais envoyé par l'écran."""
+    from backend.contenu.activites import _referentiel_du_niveau  # même résolution que l'activité
+
+    matiere, niveau, _ = couple_de_travail(db, user)
+    if not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
+
+    ref_id = _referentiel_du_niveau(db, niveau)
+    if ref_id is None:
+        return {"available": False}
+
+    ref = (db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
+             .filter(Referentiel.id == ref_id).first())
+    collection, filtres_json, seuil = ref
+    filters = json.loads(filtres_json) if filtres_json else None
+    requete = f"Thème de séance de {matiere or 'la matière du prof'}, niveau {niveau} : notions et objectifs du programme"
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
+    if not chunks:
+        log.info("[proposer-theme] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
+        return {"available": False, "message": _AUCUN_EXTRAIT_POUR_THEME}
+
+    referentiel_txt = "\n\n".join(c["text"] for c in chunks)
+    prompt = get_prompt(db, "seance_proposer_theme").format(
+        matiere=matiere or "", niveau=niveau, referentiel=referentiel_txt,
+    )
+    # Cahier des charges de l'établissement (get, zéro copie) ajouté par-dessus le programme
+    # officiel — même geste que « Propose-moi une idée ».
+    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    try:
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+                         max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+    except LLMRateLimitError as e:
+        log.warning("[proposer-theme] service très demandé : %s", e)
+        raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
+    return {"available": True, "texte": texte.strip()}
 
 
 @router.post("/contenus/seances/generer")
