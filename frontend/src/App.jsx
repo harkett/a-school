@@ -16,6 +16,7 @@ import APropos from './components/APropos'
 import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import MesContenus from './components/MesContenus'
+import SeanceEcran from './components/SeanceEcran'
 import MesSequences from './components/MesSequences'
 import MonReseau from './components/MonReseau'
 import MonReseauSequences from './components/MonReseauSequences'
@@ -503,6 +504,14 @@ function MainApp() {
     if (!window.confirm('Des informations ont été saisies. Si vous annulez, vous perdez tout.')) return
     if (!window.confirm('Tout sera effacé et vous repartez de zéro. Confirmez-vous ?')) return
     nouvelleActivite()
+  }
+
+  // Écran Séance de MES CONTENUS (maquette 29/07) : la ligne cliquée dans la bibliothèque,
+  // ou null pour un formulaire vierge (« + Créer → Une séance »). Additif — rien d'existant ne bouge.
+  const [seanceOuverte, setSeanceOuverte] = useState(null)
+  function ouvrirSeance(s) {
+    setSeanceOuverte(s)
+    setPage('seance')
   }
 
   function chargerSequence(seq) {
@@ -1286,7 +1295,16 @@ function MainApp() {
             />
           )}
 
-          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} />}
+          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} onOuvrirSeance={ouvrirSeance} />}
+
+          {page === 'seance' && (
+            <SeanceEcran
+              seance={seanceOuverte}
+              matiere={sessionMatiere}
+              niveau={params.niveau}
+              onNavigate={naviguer}
+            />
+          )}
 
           {page === 'mon-reseau-activites' && (
             <MonReseau

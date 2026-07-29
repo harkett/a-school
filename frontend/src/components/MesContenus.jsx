@@ -102,7 +102,7 @@ function BoutonAction({ title, onClick, disabled = false, danger = false, childr
   )
 }
 
-function EcranMesContenus({ onNavigate }) {
+function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
   const qc = useQueryClient()
   const [onglet, setOnglet] = useState('tout')
   const [recherche, setRecherche] = useState('')
@@ -227,10 +227,14 @@ function EcranMesContenus({ onNavigate }) {
                 >
                   <IconActiviteType size={15} /> Une activité
                 </button>
-                <span title="Bientôt — l'outil Séance rejoint Mes contenus à la prochaine brique" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
+                <button
+                  type="button"
+                  onClick={() => { setMenuCreer(false); onOuvrirSeance(null) }}
+                  title="Créer une séance (écran Mes contenus — maquette du 29/07)"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}
+                >
                   <IconSeanceType size={15} /> Une séance
-                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
-                </span>
+                </button>
                 <span title="Bientôt — la séquence (conteneur de séances) arrive avec les prochaines briques" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
                   <IconSequenceType size={15} /> Une séquence
                   <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
@@ -262,13 +266,16 @@ function EcranMesContenus({ onNavigate }) {
           const Icone = ICONE_TYPE[c.type]
           const sousTitre = [LIBELLE_TYPE[c.type], [c.matiere, c.niveau].filter(Boolean).join(' · ')].filter(Boolean).join(' — ')
           const dateCreation = c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
+          const ouvrable = c.type === 'seance'   // une séance s'ouvre dans son écran (maquette 29/07)
           return (
             <div
-              key={`${c.type}-${c.id}`}
-              title={dateCreation ? `Créé le ${dateCreation}` : undefined}
+              key={`${c.type}-${c.source || 'contenus'}-${c.id}`}
+              onClick={ouvrable ? () => onOuvrirSeance(c) : undefined}
+              title={ouvrable ? 'Ouvrir cette séance' : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
                 borderBottom: i < visibles.length - 1 ? '1px solid #f1f5f9' : 'none',
+                cursor: ouvrable ? 'pointer' : 'default',
               }}
             >
               <span style={{ flexShrink: 0, display: 'inline-flex' }}><Icone /></span>
@@ -277,7 +284,8 @@ function EcranMesContenus({ onNavigate }) {
                 <div style={{ fontSize: 12, color: '#64748b' }}>{sousTitre}</div>
               </div>
               <span style={{ flexShrink: 0 }}>{etatRangement(c)}</span>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              {/* stopPropagation : un clic sur une action ne doit pas AUSSI ouvrir la ligne */}
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                 <BoutonAction
                   title={c.resultat ? 'Voir l’aperçu mis en forme' : 'Rien à afficher pour ce contenu'}
                   disabled={!c.resultat}
@@ -292,7 +300,9 @@ function EcranMesContenus({ onNavigate }) {
                   <IconCopy />
                 </BoutonAction>
                 <BoutonAction
-                  title={c.type === 'activite' ? 'Supprimer cette activité' : 'Bientôt — la suppression arrive avec les prochaines briques'}
+                  title={c.type === 'activite' ? 'Supprimer cette activité'
+                    : c.type === 'seance' && c.source === 'heritage' ? 'Cette séance se gère dans Mes outils → Séance → Historique'
+                    : 'Bientôt — la suppression arrive avec les prochaines briques'}
                   disabled={c.type !== 'activite'}
                   danger
                   onClick={() => setSuppression(c)}
@@ -389,10 +399,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
-export default function MesContenus({ onNavigate }) {
+export default function MesContenus({ onNavigate, onOuvrirSeance }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <EcranMesContenus onNavigate={onNavigate} />
+      <EcranMesContenus onNavigate={onNavigate} onOuvrirSeance={onOuvrirSeance} />
     </QueryClientProvider>
   )
 }
