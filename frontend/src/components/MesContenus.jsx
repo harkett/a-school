@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { formatDateActivite } from '../utils/activites.js'
 import SplitPane from './SplitPane.jsx'
 import ZoneResultat from './ZoneResultat'
 
@@ -72,6 +73,14 @@ const IconPrint = () => (
 const IconSearch = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+)
+const IconCalendar = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
   </svg>
 )
 
@@ -180,7 +189,11 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
       {visibles.map((c, i) => {
         const Icone = ICONE_TYPE[c.type]
         const sousTitre = [LIBELLE_TYPE[c.type], [c.matiere, c.niveau].filter(Boolean).join(' · ')].filter(Boolean).join(' — ')
-        const dateCreation = c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
+        // Badge de date — même règle que Mes activités : récent → libellé relatif capitalisé,
+        // ancien → date complète ; le numérique compact s'affiche dessous.
+        const dt = formatDateActivite(c.created_at)
+        const dateBase = dt.court ? (dt.recent ? dt.court.charAt(0).toUpperCase() + dt.court.slice(1) : dt.complet) : ''
+        const dateLabel = dateBase && dt.heure ? `${dateBase} à ${dt.heure}` : dateBase
         // Une séance s'ouvre dans son écran ; une activité s'AFFICHE à droite (le crayon = reprise).
         const ouvrir = c.type === 'seance' ? () => onOuvrirSeance(c)
           : c.type === 'activite' ? () => setDetailId(c.id)
@@ -190,7 +203,7 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
           <div
             key={`${c.type}-${c.id}`}
             onClick={ouvrir}
-            title={ouvrir ? (c.type === 'seance' ? 'Ouvrir cette séance' : 'Afficher le résultat de cette activité à droite') : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
+            title={ouvrir ? (c.type === 'seance' ? 'Ouvrir cette séance' : 'Afficher le résultat de cette activité à droite') : (dt.complet ? `Créé le ${dt.complet} à ${dt.heure}` : undefined)}
             style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
               borderBottom: i < visibles.length - 1 ? '1px solid #f1f5f9' : 'none',
@@ -204,6 +217,27 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
               <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titre}</div>
               <div style={{ fontSize: 12, color: '#64748b' }}>{sousTitre}</div>
             </div>
+            {dateLabel && (
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                <span
+                  title={dt.complet ? `Créé le ${dt.complet} à ${dt.heure}` : undefined}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, fontWeight: 600, borderRadius: 99, padding: '2px 9px',
+                    background: dt.recent ? '#eff6ff' : '#f1f5f9',
+                    color: dt.recent ? '#1d4ed8' : '#475569',
+                  }}
+                >
+                  <IconCalendar />
+                  {dateLabel}
+                </span>
+                {dt.numerique && (
+                  <span style={{ fontSize: 10, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                    {dt.numerique}-{dt.heure}
+                  </span>
+                )}
+              </span>
+            )}
             <span style={{ flexShrink: 0 }}>{etatRangement(c)}</span>
             {/* stopPropagation : un clic sur une action ne doit pas AUSSI ouvrir la ligne */}
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
