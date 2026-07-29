@@ -16,7 +16,6 @@ import APropos from './components/APropos'
 import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import MesContenus from './components/MesContenus'
-import MesSequences from './components/MesSequences'
 import MonReseau from './components/MonReseau'
 import MonReseauSequences from './components/MonReseauSequences'
 import BientotDisponible from './components/BientotDisponible'
@@ -749,43 +748,33 @@ function MainApp() {
                     ),
                   },
                   sequence: {
-                    titre: 'Créer une séquence — ce que la fonctionnalité fera',
+                    titre: 'Créer une séance — tout ce que vous pouvez faire',
                     contenu: (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div>
                           <div style={S}>1. Décrivez votre objectif pédagogique</div>
                           <ul style={UL}>
-                            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séquence</li>
-                            <li>Précisez le contexte : nombre de séances, durée totale, contraintes éventuelles</li>
+                            <li>Formulez ce que vos élèves doivent savoir ou savoir-faire à la fin de la séance</li>
+                            <li>Précisez le contexte : contraintes de la classe, acquis préalables</li>
                             <li>Vous pouvez dicter l'objectif à la voix ou le coller depuis un autre document</li>
                           </ul>
                         </div>
                         <hr style={HR} />
                         <div>
-                          <div style={S}>2. Paramétrez la structure</div>
+                          <div style={S}>2. Choisissez le mode et la durée</div>
                           <ul style={UL}>
-                            <li><strong>Nombre de phases ou de séances</strong> — aSchool répartit les apprentissages</li>
-                            <li>
-                              <strong>Types de phases à inclure</strong> :
-                              <ul style={SUB}>
-                                <li>Découverte / mise en situation</li>
-                                <li>Structuration des connaissances</li>
-                                <li>Entraînement / exercices</li>
-                                <li>Synthèse / bilan</li>
-                                <li>Évaluation finale</li>
-                              </ul>
-                            </li>
-                            <li><strong>Avec ou sans corrigé enseignant</strong> pour chaque phase</li>
+                            <li><strong>Séance standard</strong> — nouvelle séance sur le thème, progression classique</li>
+                            <li><strong>Remédiation</strong> — la classe n'a pas compris : aSchool reprend le thème autrement</li>
+                            <li><strong>Durée</strong> — de 30 à 120 minutes selon votre créneau</li>
                           </ul>
                         </div>
                         <hr style={HR} />
                         <div>
-                          <div style={S}>3. aSchool génère la séquence complète</div>
+                          <div style={S}>3. aSchool génère la séance complète</div>
                           <ul style={UL}>
-                            <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
+                            <li>5 à 6 phases détaillées : nom, durée, objectif, déroulement, organisation</li>
                             <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
-                            <li>Ancrage mémoriel intégré : synthèse, révision et bilan prévus dans la structure</li>
-                            <li>Séquence exportable et partageable avec des collègues</li>
+                            <li>Enregistrée automatiquement — retrouvez-la dans « Mes contenus »</li>
                           </ul>
                         </div>
                       </div>
@@ -854,12 +843,12 @@ function MainApp() {
                             </button>
                           </div>
 
-                          {/* SÉQUENCE */}
+                          {/* SÉANCE (l'outil historique « Séquence », sous son vrai nom) */}
                           <div>
-                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Séquence</div>
+                            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '8px' }}>Séance</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               {[
-                                { label: 'Créer une séquence', desc: 'Objectif pédagogique → séquence structurée', action: () => setPage('creer-sequence') },
+                                { label: 'Créer une séance', desc: 'Objectif pédagogique → séance structurée en phases', action: () => setPage('creer-sequence') },
                               ].map((t, i) => (
                                 <button key={i} onClick={t.action} title={t.label}
                                   style={{ width: '100%', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer', textAlign: 'left' }}>
@@ -914,20 +903,20 @@ function MainApp() {
                         </div>
                       </div>
 
-                      {/* ── SÉQUENCE ── */}
+                      {/* ── SÉANCE (l'outil historique « Séquence », sous son vrai nom) ── */}
                       <div>
-                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Séquence</div>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>Séance</div>
                         <div
                           onClick={() => setPage('creer-sequence')}
                           style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '13px 15px', display: 'flex', flexDirection: 'column', gap: '8px', cursor: 'pointer' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une séquence</span>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Créer une séance</span>
                           <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.5 }}>
-                            Un objectif pédagogique → séquence complète structurée de A à Z
+                            Un objectif pédagogique → séance complète structurée en phases
                           </p>
                           <div className="flex justify-end" style={{ marginTop: 'auto' }}>
                             <button className="btn-primary"
                               onClick={e => { e.stopPropagation(); setPage('creer-sequence') }}
-                              title="Commencer à créer une séquence pédagogique">
+                              title="Commencer à créer une séance pédagogique">
                               <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                               Commencer
                             </button>
@@ -1274,16 +1263,6 @@ function MainApp() {
                 />
               )}
             </>
-          )}
-
-          {page === 'mes-sequences' && (
-            <MesSequences
-              onCharger={chargerSequence}
-              sessionMatiere={sessionMatiere}
-              sessionNiveau={params.niveau}
-              onNavigate={naviguer}
-              userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
-            />
           )}
 
           {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} />}

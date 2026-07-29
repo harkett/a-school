@@ -140,9 +140,9 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
             </button>
           </div>
 
-          {/* Séquence */}
+          {/* Séance (l'outil historique « Séquence », sous son vrai nom) */}
           <div>
-            <div style={SUB_LABEL}>Séquence</div>
+            <div style={SUB_LABEL}>Séance</div>
             {derniereSequence ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                 <div style={{ minWidth: 0 }}>
@@ -155,18 +155,18 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
                 </div>
                 <button
                   onClick={() => onChargerSequence(derniereSequence)}
-                  title="Recharger cette séquence dans Mes outils"
+                  title="Recharger cette séance dans Mes outils"
                   style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'none', border: '1px solid #7c3aed', borderRadius: 5, color: '#7c3aed', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   Recharger →
                 </button>
               </div>
             ) : (
-              <div style={EMPTY_MSG}>Aucune séquence sauvegardée pour l'instant.</div>
+              <div style={EMPTY_MSG}>Aucune séance enregistrée pour l'instant.</div>
             )}
-            <button onClick={() => onNavigate('mes-sequences')} title="Voir toutes mes séquences sauvegardées"
+            <button onClick={() => onNavigate('mes-contenus')} title="Ouvrir Mes contenus — toutes vos séances au même endroit"
               style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
-              Voir toutes mes séquences →
+              Voir toutes mes séances →
             </button>
           </div>
 

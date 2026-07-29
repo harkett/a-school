@@ -106,7 +106,7 @@ const IconStats = () => (
   </svg>
 )
 
-const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'creer-sequence', 'mes-sequences', 'optimiseur', 'ambiguites', 'consigne', 'equite']
+const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'equite']
 const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
@@ -230,7 +230,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
 
         {/* Mes outils — section expandable */}
         {collapsed ? (
-          navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séquence, améliorer')
+          navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séance, analyser')
         ) : (
           <div>
             <button
@@ -262,10 +262,11 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
                 {subNavItem('creer-activite', 'Créer', 'Créer une activité pédagogique')}
                 {subNavItem('mes-activites', 'Historique', 'Retrouver et recharger mes activités générées')}
 
-                {subSectionLabel('Séquence')}
-                {subNavItem('creer-sequence', 'Créer', 'Créer une séquence pédagogique')}
-                {subNavItem('mes-sequences', 'Historique', 'Retrouver et recharger mes séquences générées')}
-                {subNavItem('optimiseur', 'Optimiser', 'Bientôt disponible — optimiser une séquence existante', { disabled: true })}
+                {/* L'outil historique « Séquence » sous son vrai nom : il génère une séance.
+                    L'historique vit dans « Mes contenus » (la bibliothèque unique). */}
+                {subSectionLabel('Séance')}
+                {subNavItem('creer-sequence', 'Créer', 'Créer une séance pédagogique structurée en phases')}
+                {subNavItem('optimiseur', 'Optimiser', 'Bientôt disponible — optimiser une séance existante', { disabled: true })}
 
                 {subSectionLabel('Analyse')}
                 {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}

@@ -116,11 +116,12 @@ function EcranMesContenus({ onNavigate }) {
     queryFn: async () => lireReponse(await apiFetch('/api/mes-contenus', {}, TIMEOUT_STD)),
   })
 
-  // Suppression d'une ACTIVITÉ (seul type présent en brique 1) : l'endpoint existant, puis
-  // invalidation → React Query relit la base.
+  // Suppression : l'endpoint dépend du type (activité = l'existant ; séance = Mes contenus).
+  // Invalidation → React Query relit la base, jamais de liste patchée à la main.
+  const URL_SUPPRESSION = { activite: id => `/api/mes-activites/${id}`, seance: id => `/api/seances/${id}` }
   const supprimer = useMutation({
     mutationFn: async (ligne) =>
-      lireReponse(await apiFetch(`/api/mes-activites/${ligne.id}`, { method: 'DELETE' }, TIMEOUT_STD)),
+      lireReponse(await apiFetch(URL_SUPPRESSION[ligne.type](ligne.id), { method: 'DELETE' }, TIMEOUT_STD)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['mes-contenus'] }),
     onError: (err) => showError(messagePourEcran(err)),
     onSettled: () => setSuppression(null),
@@ -227,10 +228,14 @@ function EcranMesContenus({ onNavigate }) {
                 >
                   <IconActiviteType size={15} /> Une activité
                 </button>
-                <span title="Bientôt — l'outil Séance rejoint Mes contenus à la prochaine brique" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
+                <button
+                  type="button"
+                  onClick={() => { setMenuCreer(false); onNavigate('creer-sequence') }}
+                  title="Créer une séance structurée en phases (l'outil Séance)"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}
+                >
                   <IconSeanceType size={15} /> Une séance
-                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
-                </span>
+                </button>
                 <span title="Bientôt — la séquence (conteneur de séances) arrive avec les prochaines briques" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
                   <IconSequenceType size={15} /> Une séquence
                   <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
@@ -292,8 +297,9 @@ function EcranMesContenus({ onNavigate }) {
                   <IconCopy />
                 </BoutonAction>
                 <BoutonAction
-                  title={c.type === 'activite' ? 'Supprimer cette activité' : 'Bientôt — la suppression arrive avec les prochaines briques'}
-                  disabled={c.type !== 'activite'}
+                  title={c.type === 'sequence' ? 'Bientôt — la suppression des séquences arrive avec la brique rattachement'
+                    : c.type === 'seance' ? 'Supprimer cette séance' : 'Supprimer cette activité'}
+                  disabled={c.type === 'sequence'}
                   danger
                   onClick={() => setSuppression(c)}
                 >
@@ -316,13 +322,15 @@ function EcranMesContenus({ onNavigate }) {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Supprimer cette activité ?
+              {suppression.type === 'seance' ? 'Supprimer cette séance ?' : 'Supprimer cette activité ?'}
             </div>
             <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 6px', lineHeight: 1.6 }}>
               <strong>"{suppression.titre}"</strong>
             </p>
             <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 20px', lineHeight: 1.5 }}>
-              Cette action est irréversible — l'activité sera définitivement supprimée.
+              {suppression.type === 'seance'
+                ? 'Cette action est irréversible — la séance et ses phases seront définitivement supprimées.'
+                : "Cette action est irréversible — l'activité sera définitivement supprimée."}
             </p>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button

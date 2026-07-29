@@ -10,7 +10,7 @@ seront IMPORTÉES à la brique suivante — jamais deux sources pour la même ch
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -96,3 +96,23 @@ def lister(
             "activites": len(activites),
         },
     }
+
+
+@router.delete("/seances/{seance_id}")
+def supprimer_seance(
+    seance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Suppression d'une séance depuis la bibliothèque. Ses phases suivent (CASCADE) ;
+    ses activités rangées, elles, redeviendront « non rangées » (brique rattachement)."""
+    seance = (
+        db.query(Seance)
+        .filter(Seance.id == seance_id, Seance.user_id == user.id)
+        .first()
+    )
+    if not seance:
+        raise HTTPException(404, "Séance introuvable.")
+    db.delete(seance)
+    db.commit()
+    return {"ok": True}

@@ -20,11 +20,9 @@ const IconCopy = () => (
     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
   </svg>
 )
-const IconSave = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-    <polyline points="17 21 17 13 7 13 7 21"/>
-    <polyline points="7 3 7 8 15 8"/>
+const IconCheck = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <polyline points="20 6 9 17 4 12"/>
   </svg>
 )
 
@@ -63,7 +61,6 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
 
   const [resultat, setResultat]     = useState(null)
   const [copied, setCopied]         = useState(false)
-  const [saved, setSaved]           = useState(false)
   const [optimLoading, setOptimLoading] = useState(false)
   const [confirmOptim, setConfirmOptim] = useState(false)
   const [scoreOptim, setScoreOptim]     = useState(null)
@@ -79,7 +76,6 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       return
     }
     setResultat(null)
-    setSaved(false)
     setScoreOptim(null)
     setLoading(true)
     try {
@@ -129,7 +125,6 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       setTheme(data.sequence_optimisee)
       setResultat(null)
       setScoreOptim(null)
-      setSaved(false)
     } catch (e) {
       showError(`Erreur optimisation : ${e.message}`)
     } finally {
@@ -137,30 +132,9 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
     }
   }
 
-  async function sauvegarder() {
-    if (!resultat) return
-    try {
-      await apiFetch('/api/mes-activites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          activite_key: 'sequence',
-          activite_label: 'Séquence pédagogique',
-          matiere, niveau,
-          sous_type: mode === 'remediation' ? 'remédiation' : 'standard',
-          nb: null, avec_correction: false,
-          objet: theme.trim().substring(0, 150),
-          texte_source: mode === 'remediation' ? descClasse.trim() : theme.trim(),
-          resultat,
-        }),
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch {
-      showError('Erreur lors de la sauvegarde.')
-    }
-  }
+  // Plus de bouton « Sauvegarder » : la séance est écrite EN BASE à la génération même
+  // (règle 0 — auto-save), dans les tables « Mes contenus ». L'ancien bouton créait un
+  // doublon dans Mes activités (et était cassé depuis le refactor clé→id).
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -169,17 +143,17 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center' }}>
         <button
           onClick={() => setSeqTab('creer')}
-          title="Formulaire de création de séquence"
+          title="Formulaire de création de séance"
           style={{ padding: '10px 20px', fontSize: '13px', fontWeight: seqTab === 'creer' ? 700 : 400,
             color: seqTab === 'creer' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none',
             cursor: 'pointer', borderBottom: seqTab === 'creer' ? '2px solid var(--bordeaux)' : '2px solid transparent',
             marginBottom: '-1px' }}
         >
-          Nouvelle séquence
+          Nouvelle séance
         </button>
         <button
           onClick={() => setSeqTab('aide')}
-          title="Comment créer une séquence — guide pas à pas"
+          title="Comment créer une séance — guide pas à pas"
           style={{ padding: '10px 20px', fontSize: '13px', fontWeight: seqTab === 'aide' ? 700 : 400,
             color: seqTab === 'aide' ? 'var(--bordeaux)' : '#6b7280', border: 'none', background: 'none',
             cursor: 'pointer', borderBottom: seqTab === 'aide' ? '2px solid var(--bordeaux)' : '2px solid transparent',
@@ -192,11 +166,11 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
             className="btn-primary"
             onClick={generer}
             disabled={loading}
-            title={scoreOptim ? "Relancer la génération avec les optimisations appliquées" : "Lancer la génération de la séquence avec aSchool"}
+            title={scoreOptim ? "Relancer la génération avec les optimisations appliquées" : "Lancer la génération de la séance avec aSchool"}
             style={{ marginLeft: 'auto', marginRight: 8 }}
           >
             {loading ? <Spinner /> : <IconGenerer />}
-            {loading ? 'Génération en cours…' : scoreOptim ? 'Générer la séquence optimisée' : 'Générer la séquence'}
+            {loading ? 'Génération en cours…' : scoreOptim ? 'Générer la séance optimisée' : 'Générer la séance'}
           </button>
         )}
       </div>
@@ -217,7 +191,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
             {fromMesSequences && (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '7px', padding: '10px 14px', fontSize: '13px', color: '#166534', lineHeight: 1.5 }}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ flexShrink: 0, marginTop: '1px' }}><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.89"/></svg>
-                <span>Séquence rechargée depuis <strong>Mes séquences</strong> — tous les champs sont pré-remplis, modifiez si besoin avant de regénérer.</span>
+                <span>Séance rechargée depuis <strong>votre bibliothèque</strong> — tous les champs sont pré-remplis, modifiez si besoin avant de regénérer.</span>
                 <button onClick={() => setFromMesSequences(false)} title="Fermer ce message" style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontSize: '16px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
               </div>
             )}
@@ -329,10 +303,10 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                   </button>
                 </span>
                 {resultat && (
-                  <button onClick={() => { setResultat(null); setSaved(false) }}
-                    title="Effacer le résultat et créer une nouvelle séquence"
+                  <button onClick={() => setResultat(null)}
+                    title="Effacer le résultat et créer une nouvelle séance"
                     style={{ padding: '5px 12px', fontSize: '12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer' }}>
-                    Nouvelle séquence
+                    Nouvelle séance
                   </button>
                 )}
               </div>
@@ -345,7 +319,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      {scoreOptim ? 'Séquence optimisée' : 'Séquence générée'}
+                      {scoreOptim ? 'Séance optimisée' : 'Séance générée'}
                     </span>
                     {scoreOptim && (
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: '#f0f7ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
@@ -354,24 +328,28 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
-                    <button onClick={copier} title="Copier la séquence dans le presse-papier"
+                    <button onClick={copier} title="Copier la séance dans le presse-papier"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
                         background: copied ? '#dcfce7' : '#f1f5f9', color: copied ? '#166534' : '#475569',
                         border: `1px solid ${copied ? '#86efac' : '#cbd5e1'}`, borderRadius: '5px', cursor: 'pointer' }}>
                       <IconCopy />
                       {copied ? 'Copié' : 'Copier'}
                     </button>
-                    <button onClick={sauvegarder} title="Sauvegarder dans Mes activités"
+                    <span title="Votre séance est écrite en base dès la génération — rien à sauvegarder"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
-                        background: saved ? '#dcfce7' : '#fff0f0', color: saved ? '#166534' : 'var(--bordeaux)',
-                        border: `1px solid ${saved ? '#86efac' : '#fca5a5'}`, borderRadius: '5px', cursor: 'pointer', fontWeight: 600 }}>
-                      <IconSave />
-                      {saved ? 'Sauvegardé' : 'Sauvegarder'}
-                    </button>
+                        background: '#dcfce7', color: '#166534', border: '1px solid #86efac', borderRadius: '5px', fontWeight: 600 }}>
+                      <IconCheck />
+                      Enregistrée
+                      <button onClick={() => onNavigate?.('mes-contenus')}
+                        title="Ouvrir Mes contenus — votre bibliothèque"
+                        style={{ background: 'none', border: 'none', padding: 0, color: '#166534', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline', fontWeight: 600 }}>
+                        Mes contenus →
+                      </button>
+                    </span>
                     <button
                       onClick={() => setConfirmOptim(true)}
                       disabled={optimLoading}
-                      title="Optimiser cette séquence — analyse 6 critères pédagogiques et propose une version améliorée"
+                      title="Optimiser cette séance — analyse 6 critères pédagogiques et propose une version améliorée"
                       style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '12px',
                         background: optimLoading ? '#f8fafc' : '#f0f7ff',
                         color: optimLoading ? '#94a3b8' : '#1d4ed8',
@@ -398,7 +376,7 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
 
         {seqTab === 'aide' && (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '24px', flex: 1 }}>
-            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une séquence — tout ce que vous pouvez faire</div>
+            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '13px', marginBottom: '16px' }}>Créer une séance — tout ce que vous pouvez faire</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <div style={S}>1. Décrivez votre objectif pédagogique</div>
@@ -427,12 +405,12 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
               </div>
               <hr style={HR} />
               <div>
-                <div style={S}>3. aSchool génère la séquence complète</div>
+                <div style={S}>3. aSchool génère la séance complète</div>
                 <ul style={UL}>
                   <li>Chaque phase est détaillée : nom, durée, objectif, consignes élèves, matériel</li>
                   <li>Progression garantie : pas de rupture conceptuelle, charge cognitive maîtrisée</li>
                   <li>Ancrage mémoriel intégré : synthèse et bilan prévus dans la structure</li>
-                  <li>Séquence sauvegardable dans "Mes activités" et copiable en un clic</li>
+                  <li>Séance enregistrée automatiquement — retrouvez-la dans « Mes contenus », copiable en un clic</li>
                 </ul>
               </div>
               <hr style={HR} />
@@ -450,14 +428,14 @@ export default function SequenceForm({ matiere, niveau, onNavigate, prefillTheme
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '380px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6 }}>
-              L'optimisation va <strong>remplacer votre séquence actuelle</strong> par une version améliorée.<br/><br/>Continuer ?
+              L'optimisation va <strong>remplacer votre séance actuelle</strong> par une version améliorée.<br/><br/>Continuer ?
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button onClick={() => setConfirmOptim(false)} title="Annuler l'optimisation"
                 style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', cursor: 'pointer' }}>
                 Annuler
               </button>
-              <button onClick={optimiserSequence} title="Lancer l'optimisation de la séquence"
+              <button onClick={optimiserSequence} title="Lancer l'optimisation de la séance"
                 style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
                 Optimiser
               </button>

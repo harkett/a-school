@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.database import get_db
-from backend.core.models_db import ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.models_db import ActiviteSauvegardee, ConnexionLog, Seance, ToolUsageLog, User
 from backend import auth as auth_lib
 from backend.systeme.admin import _require_admin
 
@@ -88,10 +88,12 @@ def get_dashboard(
         .all()
     )
 
+    # Dernière SÉANCE (modèle « Mes contenus ») — les clés gardent leur nom historique
+    # (theme, duree, description_classe) : c'est le contrat du « Recharger » de l'Accueil.
     derniere_seq = (
-        db.query(SequenceSauvegardee)
-        .filter(SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
-        .order_by(SequenceSauvegardee.id.desc())
+        db.query(Seance)
+        .filter(Seance.user_id == db.query(User.id).filter(User.email == email).scalar())
+        .order_by(Seance.id.desc())
         .first()
     )
 
@@ -102,12 +104,12 @@ def get_dashboard(
         "communaute_profs": communaute_profs,
         "derniere_sequence": {
             "id": derniere_seq.id,
-            "theme": derniere_seq.theme,
+            "theme": derniere_seq.titre,
             "matiere": derniere_seq.matiere,
             "niveau": derniere_seq.niveau,
-            "duree": derniere_seq.duree,
+            "duree": derniere_seq.duree_minutes,
             "mode": derniere_seq.mode,
-            "description_classe": derniere_seq.description_classe,
+            "description_classe": derniere_seq.description,
             "resultat": derniere_seq.resultat,
         } if derniere_seq else None,
         "recentes": [
@@ -284,8 +286,9 @@ def admin_communaute_stats(
 def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
     email = _get_email(aschool_access)
 
-    total_sequences = db.query(func.count(SequenceSauvegardee.id)).filter(
-        SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
+    # Compte les SÉANCES (table du modèle « Mes contenus » — l'import y a versé l'historique).
+    total_sequences = db.query(func.count(Seance.id)).filter(
+        Seance.user_id == db.query(User.id).filter(User.email == email).scalar()
     ).scalar() or 0
 
     type_row = (
@@ -396,7 +399,7 @@ def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin
         ActiviteSauvegardee.partagee == True
     ).scalar() or 0
 
-    sequences_total = db.query(func.count(SequenceSauvegardee.id)).scalar() or 0
+    sequences_total = db.query(func.count(Seance.id)).scalar() or 0
 
     return {
         "profs_actifs_aujourd_hui": profs_actifs_aujourd_hui,

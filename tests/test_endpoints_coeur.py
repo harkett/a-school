@@ -51,12 +51,23 @@ CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée"
 # ===================== HAPPY PATH (200 + sortie cohérente) =====================
 
 def test_generate_sequence_happy():
+    # Depuis la brique 2 « Mes contenus », la génération ÉCRIT la séance en base (auto-save,
+    # tables seances/seance_phases) : le prof de test doit exister, comme en réel.
+    from backend.core.models_db import User, Seance, SeancePhase
+    with dbmod.SessionLocal() as db:
+        db.add(User(email="filet-test@local.test", password_hash="x", is_verified=True))
+        db.commit()
     with patch("backend.sequence.sequence.generate", return_value=SEQ_MD):
         r = authed().post("/api/generate-sequence", json={
             "theme": "Photosynthèse", "matiere": "SVT", "niveau": "3e",
             "duree": 55, "mode": "standard", "description_classe": ""})
     assert r.status_code == 200, r.text
     assert "Phase 1" in r.json()["resultat"]
+    # L'auto-save a bien posé la séance et sa phase (SEQ_MD contient « Phase 1 »).
+    with dbmod.SessionLocal() as db:
+        seance = db.query(Seance).filter(Seance.id == r.json()["seance_id"]).one()
+        assert seance.titre == "Photosynthèse"
+        assert db.query(SeancePhase).filter(SeancePhase.seance_id == seance.id).count() == 1
 
 
 def test_optimize_happy():
