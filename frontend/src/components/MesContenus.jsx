@@ -2,6 +2,9 @@
 // séquence ⊃ séances ⊃ activités, parent toujours facultatif).
 // Brique 1 (socle) : liste à plat de TOUS les contenus mélangés, onglets avec compteurs,
 // recherche, « + Créer », état de rangement par ligne, aperçu HTML et suppression.
+// Deux colonnes EN PERMANENCE (même principe et même SplitPane que Mes activités) : la
+// bibliothèque à gauche ; pour une ACTIVITÉ cliquée, son résultat à droite — affiché comme
+// à la création (même ZoneResultat, exports compris). Le crayon rouvre l'écran en reprise.
 //
 // État serveur : React Query, LOCAL à ce sous-ensemble (décision de chantier — le reste de
 // l'appli migrera dans un chantier dédié). La liste n'est JAMAIS patchée à la main : toute
@@ -10,6 +13,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import SplitPane from './SplitPane.jsx'
+import ZoneResultat from './ZoneResultat'
 
 // ---------------------------------------------------------------------------
 // Icônes (traits sobres de l'appli, une couleur par niveau du modèle)
@@ -101,11 +106,12 @@ function BoutonAction({ title, onClick, disabled = false, danger = false, childr
   )
 }
 
-function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
+function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email }) {
   const [onglet, setOnglet] = useState('tout')
   const [recherche, setRecherche] = useState('')
   const [menuCreer, setMenuCreer] = useState(false)
   const [apercu, setApercu] = useState(null)        // { titre, html } | null
+  const [detailId, setDetailId] = useState(null)    // id de l'ACTIVITÉ affichée dans la colonne de droite
 
   // LA source de vérité : la base, relue par React Query (jamais de liste patchée à la main).
   // Ne lit QUE les tables neuves du monde Mes contenus — jamais l'ancien monde.
@@ -151,11 +157,117 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
     return <span style={{ fontSize: 12.5, color: '#94a3b8' }}>Non rangée</span>
   }
 
+  // ── Colonne GAUCHE : la bibliothèque. Cliquer une ligne d'ACTIVITÉ la sélectionne (son
+  // résultat s'affiche à droite) ; son crayon rouvre l'écran Activité en reprise. Une séance
+  // s'ouvre dans SON écran, comme avant.
+  const colonneListe = (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+      {isLoading && (
+        <p style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '28px 16px', margin: 0 }}>Chargement de vos contenus…</p>
+      )}
+      {isError && (
+        <p style={{ fontSize: 13, color: '#dc2626', textAlign: 'center', padding: '28px 16px', margin: 0, whiteSpace: 'pre-wrap' }}>{messagePourEcran(error)}</p>
+      )}
+      {!isLoading && !isError && contenus.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+          <p style={{ fontSize: 13.5, color: '#475569', margin: '0 0 4px', fontWeight: 600 }}>Votre bibliothèque est vide pour l'instant.</p>
+          <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Vos activités, séances et séquences apparaîtront ici.</p>
+        </div>
+      )}
+      {!isLoading && !isError && contenus.length > 0 && visibles.length === 0 && (
+        <p style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '28px 16px', margin: 0 }}>Aucun contenu ne correspond à votre recherche.</p>
+      )}
+      {visibles.map((c, i) => {
+        const Icone = ICONE_TYPE[c.type]
+        const sousTitre = [LIBELLE_TYPE[c.type], [c.matiere, c.niveau].filter(Boolean).join(' · ')].filter(Boolean).join(' — ')
+        const dateCreation = c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
+        // Une séance s'ouvre dans son écran ; une activité s'AFFICHE à droite (le crayon = reprise).
+        const ouvrir = c.type === 'seance' ? () => onOuvrirSeance(c)
+          : c.type === 'activite' ? () => setDetailId(c.id)
+          : undefined
+        const estSel = c.type === 'activite' && c.id === detailId
+        return (
+          <div
+            key={`${c.type}-${c.id}`}
+            onClick={ouvrir}
+            title={ouvrir ? (c.type === 'seance' ? 'Ouvrir cette séance' : 'Afficher le résultat de cette activité à droite') : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+              borderBottom: i < visibles.length - 1 ? '1px solid #f1f5f9' : 'none',
+              borderLeft: estSel ? '3px solid var(--bordeaux)' : '3px solid transparent',
+              background: estSel ? '#fdf2f5' : '#fff',
+              cursor: ouvrir ? 'pointer' : 'default',
+            }}
+          >
+            <span style={{ flexShrink: 0, display: 'inline-flex' }}><Icone /></span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titre}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{sousTitre}</div>
+            </div>
+            <span style={{ flexShrink: 0 }}>{etatRangement(c)}</span>
+            {/* stopPropagation : un clic sur une action ne doit pas AUSSI ouvrir la ligne */}
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+              <BoutonAction
+                title={c.resultat ? 'Voir l’aperçu mis en forme' : 'Rien à afficher pour ce contenu'}
+                disabled={!c.resultat}
+                onClick={() => setApercu({ titre: c.titre, html: corpsHtml(c.resultat) })}
+              >
+                <IconEye />
+              </BoutonAction>
+              {c.type === 'activite' ? (
+                <BoutonAction title="Reprendre cette activité dans l'écran Activité (modifier, régénérer)" onClick={() => onOuvrirActivite(c)}>
+                  <IconPencil />
+                </BoutonAction>
+              ) : (
+                <BoutonAction title="Bientôt — la modification arrive avec les prochaines briques" disabled>
+                  <IconPencil />
+                </BoutonAction>
+              )}
+              <BoutonAction title="Bientôt — la duplication arrive avec les prochaines briques" disabled>
+                <IconCopy />
+              </BoutonAction>
+              <BoutonAction title="Bientôt — la suppression arrive avec les prochaines briques" disabled danger>
+                <IconTrash />
+              </BoutonAction>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  // ── Colonne DROITE : le résultat de l'activité cliquée, affiché comme à la CRÉATION —
+  // même ZoneResultat (exports .txt / Word / PDF / HTML / Imprimer / E-mail). Rien n'est
+  // sélectionné à l'arrivée : le clic sur une ligne d'activité remplit le panneau.
+  const detail = contenus.find(c => c.type === 'activite' && c.id === detailId) || null
+  const colonneDetail = detail ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b' }}>{detail.titre}</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+          {[
+            detail.activite_label,
+            [detail.matiere, detail.niveau].filter(Boolean).join(' · ') || null,
+            detail.sous_type,
+            detail.nb ? `${detail.nb} questions` : null,
+            detail.avec_correction ? 'Avec correction' : 'Sans correction',
+            detail.ton === 'academique' ? 'Ton académique' : detail.ton === 'operationnel' ? 'Ton opérationnel' : null,
+          ].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+      <ZoneResultat resultat={detail.resultat} loading={false} email={email} />
+    </div>
+  ) : (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 24 }}>
+      Cliquez une activité à gauche pour afficher son résultat ici.
+    </div>
+  )
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
       {/* En-tête : titre + recherche */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, color: '#1e293b', margin: 0 }}>Mes contenus</h2>
         <div style={{ position: 'relative' }}>
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'inline-flex' }}><IconSearch /></span>
@@ -171,7 +283,7 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
       </div>
 
       {/* Onglets avec compteurs + « Créer » */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
         <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
           {ONGLETS.map(([id, label, cle], i) => (
             <button
@@ -233,70 +345,10 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
         </div>
       </div>
 
-      {/* La liste à plat */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        {isLoading && (
-          <p style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '28px 16px', margin: 0 }}>Chargement de vos contenus…</p>
-        )}
-        {isError && (
-          <p style={{ fontSize: 13, color: '#dc2626', textAlign: 'center', padding: '28px 16px', margin: 0, whiteSpace: 'pre-wrap' }}>{messagePourEcran(error)}</p>
-        )}
-        {!isLoading && !isError && contenus.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-            <p style={{ fontSize: 13.5, color: '#475569', margin: '0 0 4px', fontWeight: 600 }}>Votre bibliothèque est vide pour l'instant.</p>
-            <p style={{ fontSize: 12.5, color: '#94a3b8', margin: 0 }}>Vos activités, séances et séquences apparaîtront ici.</p>
-          </div>
-        )}
-        {!isLoading && !isError && contenus.length > 0 && visibles.length === 0 && (
-          <p style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '28px 16px', margin: 0 }}>Aucun contenu ne correspond à votre recherche.</p>
-        )}
-        {visibles.map((c, i) => {
-          const Icone = ICONE_TYPE[c.type]
-          const sousTitre = [LIBELLE_TYPE[c.type], [c.matiere, c.niveau].filter(Boolean).join(' · ')].filter(Boolean).join(' — ')
-          const dateCreation = c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null
-          // Une séance et une activité s'ouvrent dans LEUR écran du monde neuf.
-          const ouvrir = c.type === 'seance' ? () => onOuvrirSeance(c)
-            : c.type === 'activite' ? () => onOuvrirActivite(c)
-            : undefined
-          return (
-            <div
-              key={`${c.type}-${c.id}`}
-              onClick={ouvrir}
-              title={ouvrir ? (c.type === 'seance' ? 'Ouvrir cette séance' : 'Ouvrir cette activité') : (dateCreation ? `Créé le ${dateCreation}` : undefined)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                borderBottom: i < visibles.length - 1 ? '1px solid #f1f5f9' : 'none',
-                cursor: ouvrir ? 'pointer' : 'default',
-              }}
-            >
-              <span style={{ flexShrink: 0, display: 'inline-flex' }}><Icone /></span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titre}</div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>{sousTitre}</div>
-              </div>
-              <span style={{ flexShrink: 0 }}>{etatRangement(c)}</span>
-              {/* stopPropagation : un clic sur une action ne doit pas AUSSI ouvrir la ligne */}
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                <BoutonAction
-                  title={c.resultat ? 'Voir l’aperçu mis en forme' : 'Rien à afficher pour ce contenu'}
-                  disabled={!c.resultat}
-                  onClick={() => setApercu({ titre: c.titre, html: corpsHtml(c.resultat) })}
-                >
-                  <IconEye />
-                </BoutonAction>
-                <BoutonAction title="Bientôt — la modification arrive avec les prochaines briques" disabled>
-                  <IconPencil />
-                </BoutonAction>
-                <BoutonAction title="Bientôt — la duplication arrive avec les prochaines briques" disabled>
-                  <IconCopy />
-                </BoutonAction>
-                <BoutonAction title="Bientôt — la suppression arrive avec les prochaines briques" disabled danger>
-                  <IconTrash />
-                </BoutonAction>
-              </div>
-            </div>
-          )
-        })}
+      {/* Deux colonnes redimensionnables, EN PERMANENCE : bibliothèque à gauche | résultat de
+          l'activité cliquée à droite — même principe et même SplitPane que Mes activités. */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <SplitPane storageKey="contenus-split-v1" defautGauche={54} gauche={colonneListe} droite={colonneDetail} />
       </div>
 
       {/* Aperçu « HTML » — même dispositif que l'Historique (corpsHtml + imprimerApercu partagés). */}
@@ -343,10 +395,10 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
-export default function MesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite }) {
+export default function MesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <EcranMesContenus onNavigate={onNavigate} onOuvrirSeance={onOuvrirSeance} onOuvrirActivite={onOuvrirActivite} />
+      <EcranMesContenus onNavigate={onNavigate} onOuvrirSeance={onOuvrirSeance} onOuvrirActivite={onOuvrirActivite} email={email} />
     </QueryClientProvider>
   )
 }
