@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.deps import get_current_user
-from backend.core.models_db import ActiviteSauvegardee, Seance, Sequence, User
+from backend.core.models_db import Seance, Sequence, User
 
 router = APIRouter()
 
@@ -29,12 +29,12 @@ def lister(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # DÉCISION utilisateur (29/07) : la bibliothèque ne lit QUE les tables NEUVES du monde
+    # « Mes contenus ». L'ancien monde (activites_sauvegardees, sequences_sauvegardees) ne
+    # s'affiche JAMAIS ici — il vit sa vie dans Mes outils jusqu'à sa suppression finale.
+    # L'onglet Activités attend sa table neuve (prochaine étape du chantier) → compteur à 0.
     sequences = db.query(Sequence).filter(Sequence.user_id == user.id).all()
     seances = db.query(Seance).filter(Seance.user_id == user.id).all()
-    activites = db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_id == user.id).all()
-    # DÉCISION utilisateur (29/07) : les séances de la bibliothèque viennent UNIQUEMENT de la
-    # table NEUVE `seances` — jamais de `sequences_sauvegardees` (l'ancien monde reste à part).
-    # L'onglet Séances se remplit par le « Générer » de l'écran Séance, qui écrit dans `seances`.
 
     titres_sequences = {s.id: s.titre for s in sequences}
     nb_seances_par_sequence: dict[int, int] = {}
@@ -76,20 +76,6 @@ def lister(
             "created_at": _iso(s.created_at),
             "updated_at": _iso(s.updated_at),
         })
-    for a in activites:
-        contenus.append({
-            "type": "activite",
-            "id": a.id,
-            "titre": a.objet or a.activite_label,
-            "matiere": a.matiere,
-            "niveau": a.niveau,
-            "parent": None,                       # lien de rangement : brique rattachement
-            "nb_seances": None,
-            "resultat": a.resultat,
-            "created_at": _iso(a.created_at),
-            "updated_at": None,
-        })
-
     # Plus récent en haut, tous types mélangés (dernière modification, sinon création).
     contenus.sort(key=lambda c: c["updated_at"] or c["created_at"] or "", reverse=True)
 
@@ -99,6 +85,6 @@ def lister(
             "tout": len(contenus),
             "sequences": len(sequences),
             "seances": len(seances),
-            "activites": len(activites),
+            "activites": 0,     # la table neuve des activités n'existe pas encore
         },
     }

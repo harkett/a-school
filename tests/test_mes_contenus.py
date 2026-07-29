@@ -74,9 +74,8 @@ def test_bibliotheque_vide():
 
 
 def test_liste_melangee_compteurs_et_rangement():
-    from backend.core.models_db import ActiviteSauvegardee, Seance, Sequence
+    from backend.core.models_db import Seance, Sequence
     uid = _uid()
-    tid = _type_id()
     with dbmod.SessionLocal() as db:
         seq = Sequence(user_id=uid, titre="Le récit d'aventure", matiere="Français", niveau="6e")
         db.add(seq)
@@ -86,13 +85,10 @@ def test_liste_melangee_compteurs_et_rangement():
                       titre="Séance 1 : Introduction", matiere="Français", niveau="6e",
                       resultat="# Séance\ncontenu"))
         db.add(Seance(user_id=uid, titre="Séance libre", matiere="Français", niveau="6e"))
-        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
-                                   niveau="6e", matiere="Français", objet="Écrire une histoire",
-                                   avec_correction=False, texte_source="t", resultat="r"))
         db.commit()
 
     d = _client().get("/api/mes-contenus").json()
-    assert d["compteurs"] == {"tout": 4, "sequences": 1, "seances": 2, "activites": 1}
+    assert d["compteurs"] == {"tout": 3, "sequences": 1, "seances": 2, "activites": 0}
 
     par_type = {}
     for c in d["contenus"]:
@@ -104,26 +100,25 @@ def test_liste_melangee_compteurs_et_rangement():
     assert rangee["parent"] == {"type": "sequence", "id": seq_id, "titre": "Le récit d'aventure"}
     assert libre["parent"] is None
 
-    activite = par_type["activite"][0]
-    assert activite["titre"] == "Écrire une histoire"   # `objet` prioritaire sur le label
-    assert activite["parent"] is None
-    assert activite["resultat"] == "r"                  # de quoi afficher l'aperçu HTML
-
 
 def test_l_ancien_monde_n_apparait_jamais():
     """DÉCISION utilisateur (29/07) : Mes contenus est le futur REMPLAÇANT — il ne lit que
-    ses tables neuves. Une « séquence » de l'ancien outil (`sequences_sauvegardees`)
+    ses tables neuves. L'ancien monde (`sequences_sauvegardees` ET `activites_sauvegardees`)
     n'apparaît JAMAIS dans la bibliothèque."""
-    from backend.core.models_db import SequenceSauvegardee
+    from backend.core.models_db import ActiviteSauvegardee, SequenceSauvegardee
     uid = _uid()
+    tid = _type_id()
     with dbmod.SessionLocal() as db:
         db.add(SequenceSauvegardee(user_id=uid, matiere="SVT", niveau="3e",
                                    theme="Photosynthèse", duree=55, mode="standard",
                                    description_classe="", resultat="# Séance"))
+        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                                   niveau="3e", matiere="SVT", objet="Vieille activité",
+                                   avec_correction=False, texte_source="t", resultat="r"))
         db.commit()
     d = _client().get("/api/mes-contenus").json()
-    assert d["compteurs"]["seances"] == 0
-    assert all(c["type"] != "seance" for c in d["contenus"])
+    assert d["compteurs"] == {"tout": 0, "sequences": 0, "seances": 0, "activites": 0}
+    assert d["contenus"] == []
 
 
 def test_cloisonnement_entre_profs():

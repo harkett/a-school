@@ -7,10 +7,9 @@
 // l'appli migrera dans un chantier dédié). La liste n'est JAMAIS patchée à la main : toute
 // écriture invalide la requête et la base est relue.
 import { useEffect, useMemo, useState } from 'react'
-import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
-import { showError } from '../errorDialog'
 
 // ---------------------------------------------------------------------------
 // Icônes (traits sobres de l'appli, une couleur par niveau du modèle)
@@ -103,27 +102,16 @@ function BoutonAction({ title, onClick, disabled = false, danger = false, childr
 }
 
 function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
-  const qc = useQueryClient()
   const [onglet, setOnglet] = useState('tout')
   const [recherche, setRecherche] = useState('')
   const [menuCreer, setMenuCreer] = useState(false)
   const [apercu, setApercu] = useState(null)        // { titre, html } | null
-  const [suppression, setSuppression] = useState(null)  // ligne à supprimer (confirmation) | null
 
   // LA source de vérité : la base, relue par React Query (jamais de liste patchée à la main).
+  // Ne lit QUE les tables neuves du monde Mes contenus — jamais l'ancien monde.
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['mes-contenus'],
     queryFn: async () => lireReponse(await apiFetch('/api/mes-contenus', {}, TIMEOUT_STD)),
-  })
-
-  // Suppression d'une ACTIVITÉ (seul type présent en brique 1) : l'endpoint existant, puis
-  // invalidation → React Query relit la base.
-  const supprimer = useMutation({
-    mutationFn: async (ligne) =>
-      lireReponse(await apiFetch(`/api/mes-activites/${ligne.id}`, { method: 'DELETE' }, TIMEOUT_STD)),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['mes-contenus'] }),
-    onError: (err) => showError(messagePourEcran(err)),
-    onSettled: () => setSuppression(null),
   })
 
   // Échap ferme l'aperçu HTML (même réflexe que l'Historique).
@@ -219,14 +207,12 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
               {/* voile invisible : un clic ailleurs referme le menu */}
               <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setMenuCreer(false)} />
               <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 41, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', minWidth: 200, padding: 6, display: 'flex', flexDirection: 'column' }}>
-                <button
-                  type="button"
-                  onClick={() => { setMenuCreer(false); onNavigate('creer-activite') }}
-                  title="Créer une activité (l'outil existant)"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#1e293b', background: 'none', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}
-                >
+                {/* Le monde neuf de l'activité (écran + table) est la prochaine étape du
+                    chantier — pas de renvoi vers l'ancien outil depuis ici. */}
+                <span title="Bientôt — l'activité du monde Mes contenus est en construction" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', fontSize: 13, color: '#b4bac3', cursor: 'not-allowed' }}>
                   <IconActiviteType size={15} /> Une activité
-                </button>
+                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, color: '#94a3b8', background: '#f1f5f9', borderRadius: 99, padding: '1px 6px' }}>bientôt</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => { setMenuCreer(false); onOuvrirSeance(null) }}
@@ -299,12 +285,7 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
                 <BoutonAction title="Bientôt — la duplication arrive avec les prochaines briques" disabled>
                   <IconCopy />
                 </BoutonAction>
-                <BoutonAction
-                  title={c.type === 'activite' ? 'Supprimer cette activité' : 'Bientôt — la suppression arrive avec les prochaines briques'}
-                  disabled={c.type !== 'activite'}
-                  danger
-                  onClick={() => setSuppression(c)}
-                >
+                <BoutonAction title="Bientôt — la suppression arrive avec les prochaines briques" disabled danger>
                   <IconTrash />
                 </BoutonAction>
               </div>
@@ -312,46 +293,6 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance }) {
           )
         })}
       </div>
-
-      {/* Confirmation de suppression — règle maison : jamais de suppression au clic direct. */}
-      {suppression && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => { if (!supprimer.isPending) setSuppression(null) }}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Supprimer cette activité ?
-            </div>
-            <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 6px', lineHeight: 1.6 }}>
-              <strong>"{suppression.titre}"</strong>
-            </p>
-            <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 20px', lineHeight: 1.5 }}>
-              Cette action est irréversible — l'activité sera définitivement supprimée.
-            </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setSuppression(null)}
-                disabled={supprimer.isPending}
-                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => supprimer.mutate(suppression)}
-                disabled={supprimer.isPending}
-                title="Confirmer la suppression définitive"
-                style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: supprimer.isPending ? 'wait' : 'pointer' }}
-              >
-                {supprimer.isPending ? 'Suppression…' : 'Supprimer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Aperçu « HTML » — même dispositif que l'Historique (corpsHtml + imprimerApercu partagés). */}
       {apercu !== null && (
