@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import { formatDateActivite } from '../utils/activites.js'
 import SplitPane from './SplitPane.jsx'
@@ -124,10 +125,16 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
 
   // LA source de vérité : la base, relue par React Query (jamais de liste patchée à la main).
   // Ne lit QUE les tables neuves du monde Mes contenus — jamais l'ancien monde.
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['mes-contenus'],
     queryFn: async () => lireReponse(await apiFetch('/api/mes-contenus', {}, TIMEOUT_STD)),
   })
+
+  // RÈGLE MAISON : tout message d'erreur passe par la BOÎTE DE DIALOGUE (showError), jamais
+  // en texte posé dans l'écran. La colonne ne garde qu'un bouton « Réessayer ».
+  useEffect(() => {
+    if (isError) showError(messagePourEcran(error))
+  }, [isError, error])
 
   // Échap ferme l'aperçu HTML (même réflexe que l'Historique).
   useEffect(() => {
@@ -183,7 +190,11 @@ function EcranMesContenus({ onNavigate, onOuvrirSeance, onOuvrirActivite, email 
         <p style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: '28px 16px', margin: 0 }}>Chargement de vos contenus…</p>
       )}
       {isError && (
-        <p style={{ fontSize: 13, color: '#dc2626', textAlign: 'center', padding: '28px 16px', margin: 0, whiteSpace: 'pre-wrap' }}>{messagePourEcran(error)}</p>
+        <div style={{ textAlign: 'center', padding: '28px 16px' }}>
+          <button type="button" className="btn-secondary" onClick={() => refetch()} title="Recharger vos contenus">
+            Réessayer
+          </button>
+        </div>
       )}
       {!isLoading && !isError && contenus.length === 0 && (
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
