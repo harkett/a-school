@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
 const IconHome = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -71,7 +72,7 @@ const IconMesContenus = () => (
     <polyline points="2 12 12 17 22 12"/>
   </svg>
 )
-const IconMesOutils = () => (
+const IconMesAnalyses = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="7" height="7"/>
     <rect x="14" y="3" width="7" height="7"/>
@@ -106,17 +107,25 @@ const IconStats = () => (
   </svg>
 )
 
-const MES_OUTILS_PAGES = ['mes-outils', 'creer-activite', 'mes-activites', 'creer-sequence', 'mes-sequences', 'optimiseur', 'ambiguites', 'consigne', 'equite']
+// « Mes analyses » — ex-section « Analyse » de Mes outils, sortie au premier niveau le 30/07
+// (décision utilisateur). « Mes outils » est SUPPRIMÉ du menu : les routes mes-outils /
+// creer-activite / mes-activites / creer-sequence / mes-sequences / optimiseur et leur code
+// restent en place.
+const MES_ANALYSES_PAGES = ['ambiguites', 'consigne', 'equite']
+// Le monde NEUF « Mes contenus » : une sous-option PAR TYPE (décision utilisateur du 30/07 —
+// fini le mélange des trois dans un seul écran). Les écrans seance/activite en font partie.
+const MES_CONTENUS_PAGES = ['mes-contenus', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'seance', 'activite']
 const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
-  const [outilsOpen, setOutilsOpen] = useState(() => MES_OUTILS_PAGES.includes(page))
+  const [analysesOpen, setAnalysesOpen] = useState(() => MES_ANALYSES_PAGES.includes(page))
+  const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
   const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
   const [evalOpen, setEvalOpen] = useState(false)
 
   useEffect(() => {
-    if (MES_OUTILS_PAGES.includes(page)) setOutilsOpen(true)
+    if (MES_ANALYSES_PAGES.includes(page)) setAnalysesOpen(true)
     if (MON_RESEAU_PAGES.includes(page)) setBiblioOpen(true)
   }, [page])
 
@@ -140,7 +149,9 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   )
 
   const subNavItem = (pageId, label, title, opts = {}) => {
-    const { disabled = false } = opts
+    // couleur = identité de TYPE (utils/typesContenus.js) : le point devant le libellé la
+    // porte en permanence, et l'entrée active s'allume dans cette couleur au lieu du bordeaux.
+    const { disabled = false, couleur = null } = opts
     if (disabled) {
       // Outil pas encore prêt : visible, grisé, NON cliquable (span sans handler — clic réellement bloqué).
       return (
@@ -171,25 +182,19 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
           padding: '3px 4px 3px 6px',
           display: 'flex', alignItems: 'center', gap: '8px',
           fontSize: '12px', lineHeight: 1.4,
-          color: isActive ? 'var(--bordeaux)' : '#6b7280',
+          color: isActive ? (couleur || 'var(--bordeaux)') : '#6b7280',
           fontWeight: isActive ? 600 : 400,
           textDecoration: 'none', borderRadius: '4px',
           transition: 'color 0.15s',
         }}
       >
-        <span style={{ width: 4, height: 4, borderRadius: '50%', background: isActive ? 'var(--bordeaux)' : '#d1d5db', flexShrink: 0 }} />
+        <span style={{ width: couleur ? 5 : 4, height: couleur ? 5 : 4, borderRadius: '50%', background: couleur || (isActive ? 'var(--bordeaux)' : '#d1d5db'), flexShrink: 0 }} />
         <span>{label}</span>
       </a>
     )
   }
 
-  const subSectionLabel = (label) => (
-    <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '8px 0 3px 4px' }}>
-      {label}
-    </div>
-  )
-
-  const outilsActive = MES_OUTILS_PAGES.includes(page)
+  const analysesActive = MES_ANALYSES_PAGES.includes(page)
 
   return (
     <aside
@@ -225,55 +230,75 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
       <nav className={`sidebar-scroll flex flex-col gap-1 flex-1 min-h-0 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
 
-        {/* Mes contenus — la bibliothèque unique (séquences · séances · activités) */}
-        {navItem('mes-contenus', 'Mes contenus', IconMesContenus, 'Mes contenus — toutes vos séquences, séances et activités au même endroit')}
-
-        {/* Mes outils — section expandable */}
+        {/* Mes contenus — section à 3 sous-options, UNE PAR TYPE (décision 30/07 : fini le
+            mélange des trois mondes dans un seul écran à onglets). */}
         {collapsed ? (
-          navItem('mes-outils', 'Mes outils', IconMesOutils, 'Mes outils pédagogiques — créer une activité, une séance, améliorer')
+          navItem('contenus-activites', 'Mes contenus', IconMesContenus, 'Mes contenus — vos séquences, séances et activités')
         ) : (
           <div>
             <button
-              onClick={() => setOutilsOpen(o => !o)}
-              title="Mes outils pédagogiques — développer ou réduire le menu"
+              onClick={() => setContenusOpen(o => !o)}
+              title="Mes contenus — développer ou réduire le menu"
               className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
-                color: outilsActive ? 'var(--bordeaux)' : '#6b7280',
-                fontWeight: outilsActive ? 600 : 400,
+                color: MES_CONTENUS_PAGES.includes(page) ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: MES_CONTENUS_PAGES.includes(page) ? 600 : 400,
               }}
             >
-              <IconMesOutils />
-              <span>Mes outils</span>
+              <IconMesContenus />
+              <span>Mes contenus</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" strokeWidth="2.5"
-                style={{ marginLeft: 'auto', flexShrink: 0, transform: outilsOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: contenusOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
               >
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
 
-            {outilsOpen && (
+            {contenusOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
+                {subNavItem('contenus-sequences', 'Séquences', 'Vos séquences — les conteneurs de séances', { couleur: TYPES_CONTENUS.sequence.accent })}
+                {subNavItem('contenus-seances', 'Séances', 'Vos séances — créées et enregistrées automatiquement', { couleur: TYPES_CONTENUS.seance.accent })}
+                {subNavItem('contenus-activites', 'Activités', 'Vos activités — créées et enregistrées automatiquement', { couleur: TYPES_CONTENUS.activite.accent })}
+              </div>
+            )}
+          </div>
+        )}
 
-                {/* Par levier : chaque outil = sa section, avec Créer + Historique groupés dedans */}
-                {subSectionLabel('Activité')}
-                {subNavItem('creer-activite', 'Créer', 'Créer une activité pédagogique')}
-                {subNavItem('mes-activites', 'Historique', 'Retrouver et recharger mes activités générées')}
+        {/* Mes analyses — ex-section « Analyse » de Mes outils, sortie au premier niveau
+            le 30/07 (« Mes outils » supprimé du menu, routes et code en place). */}
+        {collapsed ? (
+          navItem('ambiguites', 'Mes analyses', IconMesAnalyses, 'Mes analyses — ambiguïtés, consignes, équité')
+        ) : (
+          <div>
+            <button
+              onClick={() => setAnalysesOpen(o => !o)}
+              title="Mes analyses — développer ou réduire le menu"
+              className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+                color: analysesActive ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: analysesActive ? 600 : 400,
+              }}
+            >
+              <IconMesAnalyses />
+              <span>Mes analyses</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: analysesOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
 
-                {/* Renommage du 29/07 (libellés SEULS) : cet outil génère une séance — la
-                    route `creer-sequence` et la table `sequences_sauvegardees` ne bougent pas. */}
-                {subSectionLabel('Séance')}
-                {subNavItem('creer-sequence', 'Créer', 'Créer une séance pédagogique')}
-                {subNavItem('mes-sequences', 'Historique', 'Retrouver et recharger mes séances générées')}
-                {subNavItem('optimiseur', 'Optimiser', 'Bientôt disponible — optimiser une séance existante', { disabled: true })}
-
-                {subSectionLabel('Analyse')}
+            {analysesOpen && (
+              <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
                 {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
                 {subNavItem('consigne', 'Consignes', "Bientôt disponible — analyser la qualité d'une consigne", { disabled: true })}
                 {subNavItem('equite', 'Équité', "Bientôt disponible — auditer l'équité d'une évaluation", { disabled: true })}
-
               </div>
             )}
           </div>
@@ -300,7 +325,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
               }}
             >
               <IconMesEvaluations />
-              <span>Mes évaluations</span>
+              <span>Mes évals</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
                 fill="none" stroke="currentColor" strokeWidth="2.5"

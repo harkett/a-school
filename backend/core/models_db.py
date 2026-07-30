@@ -275,16 +275,23 @@ class ActiviteSauvegardee(Base):
 # ---------------------------------------------------------------------------
 
 class Sequence(Base):
-    """Séquence — le conteneur du haut. Contient des séances ordonnées (Seance.position)."""
+    """Séquence — le conteneur du haut. Contient des séances ordonnées (Seance.position).
+    Le « résultat » d'une séquence N'EST PAS un texte : c'est SES SÉANCES (le plan généré
+    devient des lignes `seances` rattachées) — donc pas de colonne resultat ni de table de
+    versions. Rien de dérivable n'est stocké : la durée totale se calcule depuis les
+    séances, leur nombre se compte (zéro copie)."""
     __tablename__ = "sequences"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    titre: Mapped[str] = mapped_column(String(300), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    objectifs: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    tags: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    duree_totale_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Titre = l'OBJECTIF GÉNÉRAL saisi par le prof (zone d'apport complète, comme le thème
+    # de la séance) → Text, jamais borné (leçon du bug de troncature des titres de séance).
+    titre: Mapped[str] = mapped_column(Text, nullable=False)
+    # Le FORMULAIRE de l'écran Séquence, en entier : chaque champ vit en base (reprise
+    # complète, même moule que Seance).
+    contexte: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    ampleur: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")      # ampleur souhaitée, libre : « une dizaine de séances », « sur deux ans »…
+    competences: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default="[]")  # liste JSON de chaînes
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -301,7 +308,9 @@ class Seance(Base):
     sequence_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("sequences.id", ondelete="SET NULL"), nullable=True, index=True)
     position: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ordre dans la séquence
-    titre: Mapped[str] = mapped_column(String(300), nullable=False)
+    # Titre = le THÈME saisi par le prof (zone libre : dictée, import, « Propose-moi un
+    # thème »…) → Text, jamais borné (un thème réel dépasse facilement 300 caractères).
+    titre: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)

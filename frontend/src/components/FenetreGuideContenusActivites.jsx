@@ -13,7 +13,7 @@ const ETAPES = [
   { n: 3, titre: '« Sur la plateforme »',
     desc: "Le petit encart de l'onglet Niveau en cours : combien d'activités et de profs sur la plateforme pour votre couple, et les types d'activités les plus utilisés." },
   { n: 4, titre: 'Le détail (colonne de droite)',
-    desc: "Le texte source et le résultat généré de l'activité choisie. « HTML » ouvre l'aperçu mis en forme (avec Imprimer) ; « Reprendre » rouvre l'activité dans son écran pour la modifier ou la régénérer — une activité d'un autre couple demande d'abord de passer sur le profil correspondant. Le bouton sous « Nouvelle activité » cache ou réaffiche cette colonne : cachée, la liste prend toute la largeur." },
+    desc: "Le texte source et le résultat généré de l'activité choisie. « HTML » ouvre l'aperçu mis en forme (avec Imprimer) ; « Reprendre » rouvre l'activité dans son écran pour la modifier ou la régénérer — une activité d'un autre couple demande d'abord de passer sur le profil correspondant. Le bouton « Cacher le détail », à droite des onglets, cache ou réaffiche cette colonne : cachée, la liste prend toute la largeur." },
   { n: 5, titre: '« Nouvelle activité »',
     desc: "Le bouton bleu en haut à droite : l'écran Activité s'ouvre vierge. L'activité générée s'enregistre automatiquement et revient dans cette liste." },
   { n: 6, titre: 'Partager / Supprimer',
@@ -22,11 +22,11 @@ const ETAPES = [
 
 export default function FenetreGuideContenusActivites({ onFermer, onOuvrirAide }) {
   return (
-    <FenetrePro titre="Comment ça marche" onFermer={onFermer}>
+    <FenetrePro titre="Activités — comment ça marche" onFermer={onFermer}>
       <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1, minHeight: 0,
                     display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ margin: 0, fontSize: 12.5, color: '#374151', lineHeight: 1.5 }}>
-          <strong style={{ color: '#1e293b' }}>« Mes contenus → Activités »</strong> réunit toutes vos activités :
+          <strong style={{ color: '#1e293b' }}>« Activités »</strong> réunit toutes vos activités :
           chaque activité générée s'y enregistre automatiquement. La liste est à gauche, le détail de
           l'activité choisie à droite.
         </p>

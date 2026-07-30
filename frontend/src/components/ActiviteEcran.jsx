@@ -41,7 +41,10 @@ function isTexteGibberish(t) {
 
 const libelleTon = t => (t === 'academique' ? 'académique' : t === 'operationnel' ? 'opérationnel' : '')
 
-export default function ActiviteEcran({ activite, matiere, niveau, email, onNavigate }) {
+// `seanceParente` : id de la séance depuis laquelle « Créer une activité ici » a été cliqué
+// (écran Séance) — l'activité NAÎTRA rattachée à cette séance, et l'écran REVIENT tout seul
+// à la séance dès la génération enregistrée (onRetourSeance). Null = création libre.
+export default function ActiviteEcran({ activite, seanceParente = null, onRetourSeance, matiere, niveau, email, onNavigate }) {
   // ── État miroir de l'écran modèle (types, params, texte, résultat…) ──
   const [typesActivite, setTypesActivite] = useState([])
   const [params, setParams] = useState(() => ({
@@ -98,6 +101,9 @@ export default function ActiviteEcran({ activite, matiere, niveau, email, onNavi
       ton: ton || null,
       texte_source: texte,
       resultat: complet,
+      // Rattachement à la naissance seulement : le serveur l'écrit au POST (création) et
+      // l'ignore au PUT (une régénération ne déplace jamais l'activité).
+      seance_id: seanceParente || null,
     }
     try {
       if (activiteId) {
@@ -111,10 +117,12 @@ export default function ActiviteEcran({ activite, matiere, niveau, email, onNavi
         setActiviteId(d.id)
       }
       setEnregistrement('ok')
+      return true
     } catch {
       // Un échec d'auto-save DOIT se voir (règle 0 : rien n'attend en mémoire « pour plus tard »).
       setEnregistrement('echec')
       showError("Votre activité est affichée mais n'a pas pu être enregistrée.\n\nCliquez sur « Réessayer l'enregistrement » en haut de l'écran.")
+      return false
     }
   }
 
@@ -197,7 +205,10 @@ export default function ActiviteEcran({ activite, matiere, niveau, email, onNavi
       }
 
       // RÈGLE 0 : la génération réussie s'écrit TOUT DE SUITE en base (tables neuves).
-      await sauver(complet, ton)
+      const sauve = await sauver(complet, ton)
+      // Créée DEPUIS une séance : retour automatique à la séance dès l'enregistrement réussi
+      // (demande 30/07) — l'activité reste à un clic dans sa cartouche ⑤ (« Ouvrir »).
+      if (sauve && seanceParente && onRetourSeance) onRetourSeance()
     } catch (e) {
       console.error('génération activité (Mes contenus) :', e)
       setResultat(null)
@@ -218,11 +229,11 @@ export default function ActiviteEcran({ activite, matiere, niveau, email, onNavi
       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center', gap: 8 }}>
         <button
           type="button"
-          onClick={() => onNavigate('mes-contenus')}
-          title="Revenir à Mes contenus"
+          onClick={() => (seanceParente && onRetourSeance ? onRetourSeance() : onNavigate('mes-contenus'))}
+          title={seanceParente ? 'Revenir à la séance qui a créé cette activité' : 'Revenir à Mes contenus'}
           style={{ margin: '0 0 0 8px', fontSize: 12, color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}
         >
-          ← Mes contenus
+          {seanceParente ? '← Retour à la séance' : '← Mes contenus'}
         </button>
         <div style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 700, color: 'var(--bordeaux)', borderBottom: '2px solid var(--bordeaux)', marginBottom: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {titreBarre}

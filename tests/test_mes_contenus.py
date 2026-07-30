@@ -263,3 +263,75 @@ def test_supprimer_une_sequence_ne_detruit_pas_ses_seances():
     d = _client().get("/api/mes-contenus").json()
     assert d["compteurs"] == {"tout": 1, "sequences": 0, "seances": 1, "activites": 0}
     assert d["contenus"][0]["parent"] is None
+
+
+def test_sequence_plan_une_transaction_sequence_plus_seances():
+    """Monde neuf, séquence (étape 3 du chantier, 30/07) : la fin du flux écrit TOUT en UNE
+    transaction — la séquence ET ses séances (règle 0). Chaque ligne du plan = une vraie
+    ligne `seances` : rattachée (sequence_id), ordonnée (position 1..n), titre pré-rempli,
+    déroulé VIDE (« à générer »). Les puces/numérotations résiduelles du modèle sont
+    nettoyées, les lignes vides ignorées. Le couple est lu EN BASE, jamais envoyé."""
+    from backend.core.models_db import Seance, Sequence
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email=EMAIL, password_hash="x", is_verified=True,
+                           subject="Français", niveau="6e"))
+        db.commit()
+    corps = {
+        "objectif": "Maîtriser le récit d'aventure",
+        "contexte": "Classe hétérogène",
+        "ampleur": "une petite séquence",
+        "competences": ["Lire un récit long"],
+        "seances": ["1. Découvrir le genre", "- Le héros et ses épreuves", "Écrire sa propre aventure", "   "],
+    }
+    r = _client().post("/api/contenus/sequences", json=corps)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    qid = d["id"]
+    assert [s["titre"] for s in d["seances"]] == [
+        "Découvrir le genre", "Le héros et ses épreuves", "Écrire sa propre aventure"]
+    assert [s["position"] for s in d["seances"]] == [1, 2, 3]
+
+    with dbmod.SessionLocal() as db:
+        seq = db.query(Sequence).filter(Sequence.id == qid).one()
+        assert seq.titre == "Maîtriser le récit d'aventure"       # l'objectif EST le titre
+        assert seq.ampleur == "une petite séquence"
+        assert seq.contexte == "Classe hétérogène"
+        assert seq.matiere == "Français" and seq.niveau == "6e"   # couple lu en base
+        seances = (db.query(Seance).filter(Seance.sequence_id == qid)
+                   .order_by(Seance.position).all())
+        assert [s.titre for s in seances] == [
+            "Découvrir le genre", "Le héros et ses épreuves", "Écrire sa propre aventure"]
+        assert all(s.resultat == "" for s in seances)             # « à générer »
+        assert all(s.user_id == seq.user_id for s in seances)
+
+    # La bibliothèque compte les séances de la séquence (calculé, jamais stocké — zéro copie)
+    # et la ligne porte de quoi ROUVRIR l'écran Séquence (reprise complète).
+    d2 = _client().get("/api/mes-contenus").json()
+    assert d2["compteurs"] == {"tout": 4, "sequences": 1, "seances": 3, "activites": 0}
+    ligne = next(c for c in d2["contenus"] if c["type"] == "sequence")
+    assert ligne["nb_seances"] == 3
+    assert ligne["contexte"] == "Classe hétérogène"
+    assert ligne["ampleur"] == "une petite séquence"
+    assert ligne["competences"] == ["Lire un récit long"]
+
+    # Le plan de la séquence (GET dédié) : l'ordre du plan, l'état « à générer », et le
+    # cloisonnement (la séquence d'un autre prof = 404).
+    plan = _client().get(f"/api/contenus/sequences/{qid}/seances")
+    assert plan.status_code == 200, plan.text
+    lignes_plan = plan.json()["seances"]
+    assert [s["position"] for s in lignes_plan] == [1, 2, 3]
+    assert [s["titre"] for s in lignes_plan] == [
+        "Découvrir le genre", "Le héros et ses épreuves", "Écrire sa propre aventure"]
+    assert all(s["resultat"] == "" for s in lignes_plan)
+    _uid("intrus@local.test")
+    assert _client("intrus@local.test").get(f"/api/contenus/sequences/{qid}/seances").status_code == 404
+    rangees = [c for c in d2["contenus"] if c["type"] == "seance"]
+    assert all(c["parent"] == {"type": "sequence", "id": qid, "titre": "Maîtriser le récit d'aventure"}
+               for c in rangees)
+
+    # Garde-fous métier : plan vide et objectif manquant refusés proprement, rien d'écrit.
+    assert _client().post("/api/contenus/sequences", json={**corps, "seances": ["  ", "-"]}).status_code == 400
+    assert _client().post("/api/contenus/sequences", json={**corps, "objectif": " "}).status_code == 400
+    with dbmod.SessionLocal() as db:
+        assert db.query(Sequence).count() == 1

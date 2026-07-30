@@ -1,25 +1,31 @@
 // Rangée d'APPORT de texte de l'écran Séance — COPIE du procédé de la cartouche « Texte
-// source » de l'activité (TexteSource.jsx), adaptée à la zone « Thème / objectif » :
-// Fichier TXT · Image/Scan · PDF · Dicter (mêmes appels serveur /api/ocr et /api/transcribe,
-// mêmes bips, même visualiseur de volume) + « Propose-moi un thème » (la version séance de
-// « Propose-moi une idée » : POST /api/contenus/seances/proposer-theme, thème tiré du
-// programme officiel). Le composant ne rend QUE la rangée de boutons + les bandeaux d'état :
-// la zone de texte reste dans l'écran, remplie via onChange.
+// source » de l'activité (TexteSource.jsx) : Fichier TXT · Image/Scan · PDF · Dicter (mêmes
+// appels serveur /api/ocr et /api/transcribe, mêmes bips, même visualiseur de volume) +
+// UN bouton « Propose-moi… » CONFIGURABLE par zone (prop `proposer`) — principe maison :
+// aSchool propose tout, le prof décide et corrige. La même rangée sert ainsi à la zone
+// Thème (« Propose-moi un thème ») ET à la zone Compétences (« Propose-moi des
+// compétences »). Le composant ne rend QUE la rangée de boutons + les bandeaux d'état :
+// la zone de texte reste dans l'écran, remplie via onChange. L'ORIGINE du texte (fichier,
+// image, PDF, dictée, proposition) est signalée au parent via onSourceNote : c'est l'écran
+// qui l'affiche (pastille sur la ligne du titre, visible cartouche repliée comme dépliée).
+//
+// `proposer` = { label, title, jauge, note, avant?, action } :
+//  - label/title : le bouton ; jauge : le libellé de la JaugeAttente (règle IA) ;
+//  - note : la clé d'origine posée via onSourceNote quand la proposition aboutit ;
+//  - avant() : garde métier AVANT la confirmation de remplacement (false = stop) ;
+//  - action() : l'appel serveur ; rend le TEXTE à poser dans la zone, ou null (échec déjà
+//    montré en boîte de dialogue par l'action elle-même).
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
 import { formatTime, computeBarLevels } from '../../utils/audioViz.js'
+import JaugeAttente from '../JaugeAttente.jsx'
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume (comme TexteSource)
 
-// Bandeau « origine du texte » — une phrase par façon de remplir la zone (clavier = rien).
-const NOTES_SOURCE = {
-  theme:  'Thème proposé à partir du programme officiel de votre niveau — modifiez-le librement, puis générez.',
-  dictee: 'Texte issu de votre dictée — relisez-le, corrigez si besoin, puis générez.',
-  txt:    'Texte importé depuis votre fichier.',
-  image:  'Texte extrait de votre image.',
-  pdf:    'Texte extrait de votre PDF.',
-}
+// Boutons un chouïa plus petits que ceux de l'activité (demande utilisateur du 30/07) —
+// la rangée vit dans l'en-tête de la cartouche, face au titre, elle doit rester discrète.
+const PETIT = { fontSize: '0.75rem', padding: '0.32rem 0.65rem' }
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,14 +63,13 @@ const IconIdee = () => (
   </svg>
 )
 
-export default function ApportTexte({ texte, onChange, disabled = false }) {
+export default function ApportTexte({ texte, onChange, onSourceNote, proposer, disabled = false }) {
   const [ocrLoading, setOcrLoading] = useState(null)          // 'image' | 'pdf' | null
-  const [themeLoading, setThemeLoading] = useState(false)     // « Propose-moi un thème » en cours
+  const [propLoading, setPropLoading] = useState(false)       // bouton « Propose-moi… » en cours
   const [isListening, setIsListening] = useState(false)
   const [isReady, setIsReady] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const [sourceNote, setSourceNote] = useState(null)
 
   const audioCtxRef = useRef(null)
   const texteRef = useRef(texte)
@@ -81,7 +86,8 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
   const barsRef = useRef([])
 
   useEffect(() => { texteRef.current = texte }, [texte])
-  useEffect(() => { if (!texte) setSourceNote(null) }, [texte])
+  // Zone vidée = plus d'origine à afficher (le dernier geste gagne, effacé si vide).
+  useEffect(() => { if (!texte) onSourceNote(null) }, [texte, onSourceNote])
 
   // Zone déjà remplie = tout geste qui REMPLACERAIT le texte demande d'abord confirmation.
   const zoneRemplie = !!(texte || '').trim()
@@ -92,7 +98,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
 
   // Course d'attention sur les 5 boutons tant que la zone est vide (même dispositif que
   // l'activité — classes btn-action / chase-on du CSS global).
-  const actionEnCours = !!ocrLoading || themeLoading || isListening || isTranscribing
+  const actionEnCours = !!ocrLoading || propLoading || isListening || isTranscribing
   const chaseActif = !zoneRemplie && !disabled && !actionEnCours
   const [chaseIndex, setChaseIndex] = useState(0)
   useEffect(() => {
@@ -168,7 +174,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
         const prev = texteRef.current || ''
         const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
         onChange(prev + sep + transcrit)
-        setSourceNote('dictee')
+        onSourceNote('dictee')
       }
     } catch (err) {
       showError(`Transcription impossible.\n\n${messagePourEcran(err)}`)
@@ -303,7 +309,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => { onChange(ev.target.result); setSourceNote('txt') }
+    reader.onload = ev => { onChange(ev.target.result); onSourceNote('txt') }
     reader.readAsText(file, 'utf-8')
     e.target.value = ''
   }
@@ -323,7 +329,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
       }, TIMEOUT_LONG)
       const data = await lireReponse(res)
       onChange(data.texte)
-      setSourceNote(type === 'image' ? 'image' : 'pdf')
+      onSourceNote(type === 'image' ? 'image' : 'pdf')
     } catch (err) {
       const source = type === 'image' ? "l'image" : 'le PDF'
       showError(`Extraction du texte depuis ${source} impossible.\n\n${messagePourEcran(err)}`)
@@ -332,42 +338,34 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
     }
   }
 
-  // ── « Propose-moi un thème » — la version séance de « Propose-moi une idée » :
-  // thème tiré du programme officiel du niveau (couple lu EN BASE par le serveur). ──
-  async function handleTheme() {
-    if (themeLoading) return
+  // ── Bouton « Propose-moi… » — l'appel serveur vit chez le PARENT (prop `proposer.action`) ;
+  // ici on garde les gestes communs : garde métier, confirmation de remplacement, sablier +
+  // jauge, pose du texte et de son origine. ──
+  async function handleProposer() {
+    if (propLoading) return
+    if (proposer.avant && !proposer.avant()) return
     if (!confirmerRemplacement()) return
-    setThemeLoading(true)
-    setSourceNote(null)
+    setPropLoading(true)
+    onSourceNote(null)
     try {
-      const res = await apiFetch('/api/contenus/seances/proposer-theme', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      }, TIMEOUT_LONG)
-      const data = await lireReponse(res)
-      if (data.available && data.texte) {
-        onChange(data.texte)
-        setSourceNote('theme')
-      } else if (data.message) {
-        showError(data.message)
-      } else {
-        showError('Pas de proposition possible pour le moment (programme officiel pas encore chargé pour votre niveau).\n\nDécrivez votre thème dans la zone de texte — ou dictez-le avec le micro.')
+      const texteRecu = await proposer.action()
+      if (texteRecu) {
+        onChange(texteRecu)
+        onSourceNote(proposer.note)
       }
-    } catch (err) {
-      showError(`Proposition de thème impossible.\n\n${messagePourEcran(err)}`)
     } finally {
-      setThemeLoading(false)
+      setPropLoading(false)
     }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {/* La rangée des 5 boutons — grisée d'un coup quand l'écran est occupé (génération). */}
-      <div className="flex flex-wrap gap-2" style={{ opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
+      {/* La rangée des 5 boutons — alignée à DROITE, face au titre de la cartouche (même
+          placement que l'activité) ; grisée d'un coup quand l'écran est occupé. L'origine du
+          texte n'est plus affichée ici : l'écran la porte en pastille sur la ligne du titre. */}
+      <div className="flex flex-wrap gap-2" style={{ justifyContent: 'flex-end', opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
 
-        <label className={btnChase(0)} title="Importer un fichier texte .txt">
+        <label className={btnChase(0)} title="Importer un fichier texte .txt" style={PETIT}>
           <IconTxt />
           Fichier TXT
           <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt}
@@ -377,7 +375,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
         <label
           className={btnChase(1)}
           title="Extraire le texte d'une image (scan, photo de document)"
-          style={ocrLoading === 'image' ? { opacity: 0.6, pointerEvents: 'none' } : {}}
+          style={ocrLoading === 'image' ? { ...PETIT, opacity: 0.6, pointerEvents: 'none' } : PETIT}
         >
           <IconImage />
           {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
@@ -389,7 +387,7 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
         <label
           className={btnChase(2)}
           title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
-          style={ocrLoading === 'pdf' ? { opacity: 0.6, pointerEvents: 'none' } : {}}
+          style={ocrLoading === 'pdf' ? { ...PETIT, opacity: 0.6, pointerEvents: 'none' } : PETIT}
         >
           <IconPdf />
           {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
@@ -414,10 +412,10 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
           disabled={!isSupported || isTranscribing}
           style={
             !isSupported || isTranscribing
-              ? { opacity: 0.5, cursor: isTranscribing ? 'wait' : 'not-allowed' }
+              ? { ...PETIT, opacity: 0.5, cursor: isTranscribing ? 'wait' : 'not-allowed' }
               : isListening
-                ? { background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
-                : {}
+                ? { ...PETIT, background: '#fff1f2', borderColor: '#fca5a5', color: '#dc2626' }
+                : PETIT
           }
         >
           <IconMic active={isListening} />
@@ -427,25 +425,17 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
         <button
           type="button"
           className={btnChase(4)}
-          title="aSchool écrit pour vous un thème de séance tiré du programme officiel de votre niveau — vous le retouchez librement, puis Générer."
-          onClick={handleTheme}
-          disabled={themeLoading}
-          style={themeLoading ? { opacity: 0.6, cursor: 'wait' } : {}}
+          title={proposer.title}
+          onClick={handleProposer}
+          disabled={propLoading}
+          style={propLoading ? { ...PETIT, opacity: 0.6, cursor: 'wait' } : PETIT}
         >
-          {themeLoading
+          {propLoading
             ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
             : <IconIdee />}
-          {themeLoading ? 'Génération…' : 'Propose-moi un thème'}
+          {propLoading ? 'Génération…' : proposer.label}
         </button>
       </div>
-
-      {/* Bandeau d'origine du texte courant (le dernier geste gagne, effacé si la zone se vide). */}
-      {sourceNote && NOTES_SOURCE[sourceNote] && (
-        <div style={{ padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe',
-          borderRadius: 6, fontSize: 12, color: '#1d4ed8' }}>
-          {NOTES_SOURCE[sourceNote]}
-        </div>
-      )}
 
       {/* Bandeaux de dictée : préparation du micro, puis enregistrement (barres + chrono). */}
       {isListening && !isReady && (
@@ -479,6 +469,11 @@ export default function ApportTexte({ texte, onChange, disabled = false }) {
           </svg>
           <span>Transcription de votre dictée…</span>
         </div>
+      )}
+      {/* Jauge du bouton « Propose-moi… » — règle IA (sablier ET jauge), même geste que
+          « Propose-moi une idée » de l'activité (TexteSource). Libellé propre à la zone. */}
+      {propLoading && (
+        <JaugeAttente libelle={proposer.jauge} />
       )}
     </div>
   )

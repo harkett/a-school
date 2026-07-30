@@ -10,6 +10,11 @@ import Parametres from './components/Parametres'
 import VisiteGuidee from './components/VisiteGuidee'
 import FenetreGuide from './components/FenetreGuide'
 import FenetreGuideHistorique from './components/FenetreGuideHistorique'
+import FenetreGuideSeance from './components/FenetreGuideSeance'
+import FenetreGuideSequence from './components/FenetreGuideSequence'
+import FenetreGuideContenusActivites from './components/FenetreGuideContenusActivites'
+import FenetreGuideContenusSeances from './components/FenetreGuideContenusSeances'
+import FenetreGuideContenusSequences from './components/FenetreGuideContenusSequences'
 import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
@@ -17,6 +22,7 @@ import Feedback from './components/Feedback'
 import MesActivites from './components/MesActivites'
 import MesContenus from './components/MesContenus'
 import SeanceEcran from './components/SeanceEcran'
+import SequenceEcran from './components/SequenceEcran'
 import ActiviteEcran from './components/ActiviteEcran'
 import MesSequences from './components/MesSequences'
 import MonReseau from './components/MonReseau'
@@ -512,13 +518,68 @@ function MainApp() {
   const [seanceOuverte, setSeanceOuverte] = useState(null)
   function ouvrirSeance(s) {
     setSeanceOuverte(s)
+    setSequenceRetour(null)     // ouverture depuis une liste : pas de séquence d'origine
     setPage('seance')
+  }
+  // Écran Séquence de MES CONTENUS (étapes 3-5 du chantier, 30/07) : la ligne cliquée dans
+  // la page Séquences (reprise complète), ou null pour un formulaire vierge.
+  const [sequenceOuverte, setSequenceOuverte] = useState(null)
+  function ouvrirSequence(s) {
+    setSequenceOuverte(s)
+    setPage('sequence')
+  }
+  // LA BOUCLE (demande utilisateur 30/07) : depuis l'écran Séquence, une séance du plan
+  // s'ouvre pré-remplie ; « ← Retour à la séquence » ramène au cockpit — même circuit que
+  // activité↔séance, un étage au-dessus. `sequenceRetour` = l'id de la séquence d'origine,
+  // PRÉSERVÉ pendant le détour séance→activité→séance.
+  const [sequenceRetour, setSequenceRetour] = useState(null)
+  function ouvrirSeanceDepuisSequence(seanceRow, sequenceId) {
+    setSeanceOuverte(seanceRow)
+    setSequenceRetour(sequenceId)
+    setPage('seance')
+  }
+  // Retour vers la séquence d'origine : RELUE depuis la base (règle 0 : tout y est déjà)
+  // puis rouverte — badges « à générer / générée » à jour. Échec → la liste, jamais le vide.
+  async function retournerALaSequence() {
+    const id = sequenceRetour
+    setSequenceRetour(null)
+    if (!id) return
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      const row = (d.contenus || []).find(c => c.type === 'sequence' && c.id === id)
+      if (row) { ouvrirSequence(row); return }
+    } catch { /* relecture impossible : on retombe sur la liste */ }
+    naviguer('contenus-sequences')
   }
   // Écran Activité du monde MES CONTENUS : ligne cliquée (reprise) ou null (création).
   const [activiteContenusOuverte, setActiviteContenusOuverte] = useState(null)
+  // Séance PARENTE d'une création d'activité (bouton « Créer une activité ici » de l'écran
+  // Séance) : l'activité naîtra rattachée à cette séance. Null = création libre.
+  const [seancePourActivite, setSeancePourActivite] = useState(null)
   function ouvrirActiviteContenus(a) {
     setActiviteContenusOuverte(a)
+    setSeancePourActivite(null)
     setPage('activite')
+  }
+  function creerActiviteDansSeance(seanceId) {
+    setActiviteContenusOuverte(null)
+    setSeancePourActivite(seanceId)
+    setPage('activite')
+  }
+  // Retour vers la séance d'origine (création d'activité DEPUIS une séance) : la séance est
+  // RELUE depuis la base (règle 0 : tout y est déjà) puis rouverte — cartouche ⑤ à jour.
+  // Si la relecture échoue, on retombe sur la liste des séances, jamais dans le vide.
+  async function retournerALaSeance() {
+    const id = seancePourActivite
+    if (!id) return
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      const row = (d.contenus || []).find(c => c.type === 'seance' && c.id === id)
+      // Réouverture DIRECTE (pas ouvrirSeance) : le détour séance→activité→séance ne doit
+      // pas effacer la séquence d'origine — la boucle séquence→séance→activités survit.
+      if (row) { setSeanceOuverte(row); setPage('seance'); return }
+    } catch { /* relecture impossible : on retombe sur la liste */ }
+    naviguer('contenus-seances')
   }
 
   function chargerSequence(seq) {
@@ -667,6 +728,51 @@ function MainApp() {
   const contexteFeedback = `Écran ${libelleEcran(page)}`
     + (matiereLabel && user?.travail_niveau ? ` · ${matiereLabel} × ${user.travail_niveau}` : '')
 
+  // « Comment ça marche » — LE registre unique page → fenêtre de guide (règle maison : un
+  // guide par écran, tenu à jour avec l'écran). Le bouton du header ET le rendu de la
+  // fenêtre (en bas de <main>) se branchent TOUS LES DEUX ici : une nouvelle page = UNE
+  // entrée à ajouter, le bouton apparaît tout seul — fini la liste à part qu'on oubliait
+  // à chaque écran créé (bug du 30/07 : les pages Mes contenus n'avaient pas le bouton).
+  const guidesParPage = {
+    'creer-activite': () => (
+      <FenetreGuide
+        onFermer={() => setFenetreGuide(false)}
+        onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
+        onOuvrirAide={ouvrirAideDepuisGuide}
+      />
+    ),
+    // L'écran Activité de Mes contenus réutilise TEL QUEL le guide de l'écran Créer.
+    'activite': () => (
+      <FenetreGuide
+        onFermer={() => setFenetreGuide(false)}
+        onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
+        onOuvrirAide={ouvrirAideDepuisGuide}
+      />
+    ),
+    'mes-activites': () => (
+      <FenetreGuideHistorique onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    'seance': () => (
+      <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    'contenus-activites': () => (
+      <FenetreGuideContenusActivites onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    // Alias historique de la page Activités de Mes contenus (liens/retours existants).
+    'mes-contenus': () => (
+      <FenetreGuideContenusActivites onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    'contenus-seances': () => (
+      <FenetreGuideContenusSeances onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    'sequence': () => (
+      <FenetreGuideSequence onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+    'contenus-sequences': () => (
+      <FenetreGuideContenusSequences onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
 
@@ -687,13 +793,13 @@ function MainApp() {
         coupleAjuste={!!user?.couple_ajuste}
         onValiderCouple={validerCoupleTravail}
         onRevenirProfil={revenirAuProfil}
-        onOuvrirGuide={['creer-activite', 'mes-activites', 'activite'].includes(page) ? () => setFenetreGuide(true) : null}
+        onOuvrirGuide={guidesParPage[page] ? () => setFenetreGuide(true) : null}
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite', 'mes-contenus', 'seance'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -1246,17 +1352,11 @@ function MainApp() {
                 })()}
               </div>
 
-              {/* Visite guidée (bulles sur les vrais éléments) + fenêtre déplaçable « Comment
-                  ça marche » — les deux lisent le catalogue unique utils/aideCreer.js. */}
+              {/* Visite guidée (bulles sur les vrais éléments) — lit le catalogue unique
+                  utils/aideCreer.js. La fenêtre « Comment ça marche », elle, est rendue UNE
+                  seule fois en bas de <main>, pilotée par le registre guidesParPage. */}
               {guideActif && (
                 <VisiteGuidee onFermer={fermerGuide} onOuvrirAide={ouvrirAideDepuisGuide} />
-              )}
-              {fenetreGuide && (
-                <FenetreGuide
-                  onFermer={() => setFenetreGuide(false)}
-                  onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
-                  onOuvrirAide={ouvrirAideDepuisGuide}
-                />
               )}
             </div>
           )}
@@ -1282,13 +1382,6 @@ function MainApp() {
                 onNavigate={naviguer}
                 userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
               />
-              {/* « Comment ça marche » de cet écran (fenêtre déplaçable, même coquille que Créer). */}
-              {fenetreGuide && (
-                <FenetreGuideHistorique
-                  onFermer={() => setFenetreGuide(false)}
-                  onOuvrirAide={ouvrirAideDepuisGuide}
-                />
-              )}
             </>
           )}
 
@@ -1302,13 +1395,51 @@ function MainApp() {
             />
           )}
 
-          {page === 'mes-contenus' && <MesContenus onNavigate={naviguer} onOuvrirSeance={ouvrirSeance} onOuvrirActivite={ouvrirActiviteContenus} email={user?.email} />}
+          {/* Mes contenus — une page PAR TYPE (3 sous-options du menu). L'ancienne route
+              mes-contenus reste un alias vers Activités (liens/retours existants). */}
+          {page === 'contenus-sequences' && (
+            <MesContenus
+              type="sequence"
+              onNavigate={naviguer}
+              onOuvrirSeance={ouvrirSeance}
+              onOuvrirActivite={ouvrirActiviteContenus}
+              onOuvrirSequence={ouvrirSequence}
+              email={user?.email}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+            />
+          )}
+          {page === 'contenus-seances' && (
+            <MesContenus
+              type="seance"
+              onNavigate={naviguer}
+              onOuvrirSeance={ouvrirSeance}
+              onOuvrirActivite={ouvrirActiviteContenus}
+              email={user?.email}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+            />
+          )}
+          {(page === 'contenus-activites' || page === 'mes-contenus') && (
+            <MesContenus
+              type="activite"
+              onNavigate={naviguer}
+              onOuvrirSeance={ouvrirSeance}
+              onOuvrirActivite={ouvrirActiviteContenus}
+              email={user?.email}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+              userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
+            />
+          )}
 
           {page === 'activite' && (
             <>
               <ActiviteEcran
                 key={activiteContenusOuverte?.id ?? 'nouvelle'}
                 activite={activiteContenusOuverte}
+                seanceParente={seancePourActivite}
+                onRetourSeance={retournerALaSeance}
                 matiere={sessionMatiere}
                 niveau={params.niveau}
                 email={user?.email}
@@ -1320,23 +1451,32 @@ function MainApp() {
               {guideActif && (
                 <VisiteGuidee onFermer={fermerGuide} onOuvrirAide={ouvrirAideDepuisGuide} />
               )}
-              {fenetreGuide && (
-                <FenetreGuide
-                  onFermer={() => setFenetreGuide(false)}
-                  onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
-                  onOuvrirAide={ouvrirAideDepuisGuide}
-                />
-              )}
             </>
           )}
 
           {page === 'seance' && (
-            <SeanceEcran
-              key={seanceOuverte?.id ?? 'nouvelle'}
-              seance={seanceOuverte}
+            <>
+              <SeanceEcran
+                key={seanceOuverte?.id ?? 'nouvelle'}
+                seance={seanceOuverte}
+                matiere={sessionMatiere}
+                niveau={params.niveau}
+                onNavigate={naviguer}
+                onCreerActivite={creerActiviteDansSeance}
+                onOuvrirActivite={ouvrirActiviteContenus}
+                onRetourSequence={sequenceRetour ? retournerALaSequence : null}
+              />
+            </>
+          )}
+
+          {page === 'sequence' && (
+            <SequenceEcran
+              key={sequenceOuverte?.id ?? 'nouvelle'}
+              sequence={sequenceOuverte}
               matiere={sessionMatiere}
               niveau={params.niveau}
               onNavigate={naviguer}
+              onOuvrirSeance={ouvrirSeanceDepuisSequence}
             />
           )}
 
@@ -1408,6 +1548,11 @@ function MainApp() {
           {page === 'mes-stats' && <MesStats user={user} />}
 
           {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject} />}
+
+          {/* « Comment ça marche » de la page courante — rendu UNE seule fois, piloté par le
+              registre guidesParPage (fenêtre déplaçable FenetrePro, par-dessus l'écran).
+              Une page absente du registre n'a pas de guide → le header cache son bouton. */}
+          {fenetreGuide && guidesParPage[page] && guidesParPage[page]()}
         </main>
       </div>
 

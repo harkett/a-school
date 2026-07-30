@@ -278,6 +278,56 @@ Règles :
 - Pas de titre, pas de commentaire, pas de liste : rends UNIQUEMENT le texte du thème (1 à 2 phrases)."""
 
 
+PROMPT_SEANCE_PROPOSER_COMPETENCES = """Tu aides un enseignant de {matiere}, niveau {niveau}, à identifier les compétences que sa prochaine séance doit travailler.
+
+Thème de la séance choisi par l'enseignant :
+{theme}
+
+Extraits du programme officiel de ce niveau :
+{referentiel}
+
+Propose de 3 à 5 compétences ou attendus du programme que cette séance peut travailler : des formulations courtes (une ligne chacune), directement tirées des extraits, en lien avec le thème donné et adaptées au niveau {niveau}.
+
+Règles :
+- Reste STRICTEMENT dans ce que couvrent les extraits — n'invente aucune compétence hors programme.
+- Ne garde que ce qui a un vrai lien avec le thème : mieux vaut 3 compétences justes que 5 tirées par les cheveux.
+- Une compétence par ligne, sans numérotation, sans puces, sans titre, sans commentaire : rends UNIQUEMENT les lignes de compétences."""
+
+
+PROMPT_SEANCE_PROPOSER_MATERIEL = """Tu aides un enseignant de {matiere}, niveau {niveau}, à préparer une séance.
+
+{seance}
+
+Propose le MATÉRIEL nécessaire pour mener cette séance en classe.
+
+Règles :
+- Du matériel réaliste pour une salle de classe ordinaire — rien de coûteux ni d'exotique.
+- Rends UNE SEULE ligne : une énumération courte séparée par des virgules (5 à 10 éléments maximum), sans phrase d'introduction, sans commentaire."""
+
+
+PROMPT_SEANCE_PROPOSER_CONTRAINTES = """Tu aides un enseignant de {matiere}, niveau {niveau}, à préparer une séance.
+
+{seance}
+
+Propose des CONTRAINTES ou consignes spéciales utiles pour cette séance : les points de vigilance concrets qu'un enseignant expérimenté poserait (gestion du temps, organisation des groupes, différenciation, moments sensibles…).
+
+Règles :
+- Concret et réaliste, adapté au niveau {niveau} — pas de généralités creuses.
+- Rends UNE SEULE ligne courte : une à trois consignes séparées par des points-virgules, sans phrase d'introduction, sans commentaire."""
+
+
+PROMPT_SEANCE_PROPOSER_ESQUISSE = """Tu aides un enseignant de {matiere}, niveau {niveau}, à esquisser le déroulé de sa séance.
+
+{seance}
+
+Propose le contenu de la phase « {phase} » : ce que l'enseignant et les élèves y font, concrètement.
+
+Règles :
+- Concret, réalisable en classe, adapté au niveau {niveau}.
+- Cohérent avec les autres phases déjà esquissées quand il y en a — tu complètes un déroulé, tu ne repars pas de zéro.
+- Rends 1 à 3 phrases courtes, sans titre, sans liste, sans commentaire : UNIQUEMENT le contenu de la phase."""
+
+
 # Style de production de la séance — couche ajoutée au prompt selon la pastille choisie
 # (facultative : aucune pastille = aucune couche), même mécanique que le ton de l'activité.
 PROMPT_SEANCE_STYLE_CLASSIQUE = """STYLE DE PRODUCTION — CLASSIQUE
@@ -295,6 +345,58 @@ Rends la séance au découpage TRÈS NET : chaque phase strictement minutée, ob
 PROMPT_SEANCE_STYLE_CONCIS = """STYLE DE PRODUCTION — TRÈS CONCIS
 
 Va à l'essentiel : phrases très courtes, format télégraphique lisible en un coup d'œil, aucune phrase superflue — la séance doit tenir sur une page sans rien perdre d'indispensable. N'ajoute aucun commentaire sur le style employé : rends uniquement la séance."""
+
+
+# ---------------------------------------------------------------------------
+# SÉQUENCE du monde « Mes contenus » (playlist : séquence ⊃ séances ⊃ activités).
+# Famille NEUVE, sans collision avec les prompts sequence_standard/sequence_remediation
+# de l'ANCIEN outil (qui génère en réalité une séance). Le plan généré n'est jamais un
+# texte stocké : chaque ligne devient une vraie ligne `seances` (rattachée, ordonnée).
+# ---------------------------------------------------------------------------
+
+PROMPT_SEQUENCE_GENERER_PLAN = """Tu es un expert en ingénierie pédagogique.
+
+Un enseignant de {matiere}, niveau {niveau}, construit une séquence pédagogique — une suite ordonnée de séances qui mène sa classe vers un objectif, quelle que soit sa durée (quelques séances comme un projet au long cours).
+
+Objectif général de la séquence :
+"{objectif}"
+
+Construis le PLAN de cette séquence : la liste ordonnée des séances qui y mènent.
+
+Règles :
+- Chaque ligne = UNE séance : son titre, concret et autoporteur (on doit comprendre ce que la séance travaille en lisant son seul titre).
+- L'ordre des lignes = l'ordre des séances : une progression logique, de la première à la dernière.
+- Le NOMBRE de séances découle de l'objectif et des précisions de l'enseignant — pas de remplissage, pas de séance artificielle.
+- Adapté au niveau {niveau}.
+- Rends UNIQUEMENT les lignes de titres : une séance par ligne, sans numérotation, sans puces, sans titre de section, sans commentaire."""
+
+
+PROMPT_SEQUENCE_PROPOSER_OBJECTIF = """Tu aides un enseignant de {matiere}, niveau {niveau}, à formuler l'objectif général de sa prochaine séquence — une suite ordonnée de séances vers un même but.
+
+Extraits du programme officiel de ce niveau :
+{referentiel}
+
+Propose UN objectif de séquence tiré de ces extraits : une à deux phrases qui décrivent le but à atteindre au fil des séances, prêtes à servir de point de départ. Assez ample pour porter plusieurs séances, adapté au niveau {niveau}.
+
+Règles :
+- Reste STRICTEMENT dans ce que couvrent les extraits — n'invente rien hors programme.
+- Pas de titre, pas de commentaire, pas de liste : rends UNIQUEMENT le texte de l'objectif (1 à 2 phrases)."""
+
+
+PROMPT_SEQUENCE_PROPOSER_COMPETENCES = """Tu aides un enseignant de {matiere}, niveau {niveau}, à identifier les compétences que sa prochaine séquence doit travailler.
+
+Objectif général de la séquence choisi par l'enseignant :
+{objectif}
+
+Extraits du programme officiel de ce niveau :
+{referentiel}
+
+Propose de 3 à 6 compétences ou attendus du programme que cette séquence peut travailler au fil de ses séances : des formulations courtes (une ligne chacune), directement tirées des extraits, en lien avec l'objectif donné et adaptées au niveau {niveau}.
+
+Règles :
+- Reste STRICTEMENT dans ce que couvrent les extraits — n'invente aucune compétence hors programme.
+- Ne garde que ce qui a un vrai lien avec l'objectif : mieux vaut 3 compétences justes que 6 tirées par les cheveux.
+- Une compétence par ligne, sans numérotation, sans puces, sans titre, sans commentaire : rends UNIQUEMENT les lignes de compétences."""
 
 
 PROMPT_OPTIMISEUR = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
@@ -575,6 +677,26 @@ PROMPTS = {
         "placeholders": ["matiere", "niveau", "referentiel"],
         "default": PROMPT_SEANCE_PROPOSER_THEME,
     },
+    "seance_proposer_competences": {
+        "label": "Séance (Mes contenus) — « Propose-moi des compétences » (cartouche Contenu pédagogique)",
+        "placeholders": ["matiere", "niveau", "theme", "referentiel"],
+        "default": PROMPT_SEANCE_PROPOSER_COMPETENCES,
+    },
+    "seance_proposer_materiel": {
+        "label": "Séance (Mes contenus) — « Propose-moi du matériel nécessaire » (cartouche Contenu pédagogique)",
+        "placeholders": ["matiere", "niveau", "seance"],
+        "default": PROMPT_SEANCE_PROPOSER_MATERIEL,
+    },
+    "seance_proposer_contraintes": {
+        "label": "Séance (Mes contenus) — « Propose-moi des contraintes spéciales » (cartouche Contenu pédagogique)",
+        "placeholders": ["matiere", "niveau", "seance"],
+        "default": PROMPT_SEANCE_PROPOSER_CONTRAINTES,
+    },
+    "seance_proposer_esquisse": {
+        "label": "Séance (Mes contenus) — « Propose-moi cette phase » (esquisse A/B/C du Déroulé souhaité)",
+        "placeholders": ["matiere", "niveau", "seance", "phase"],
+        "default": PROMPT_SEANCE_PROPOSER_ESQUISSE,
+    },
     "seance_style_classique": {
         "label": "Séance (Mes contenus) — style de production classique",
         "placeholders": [],
@@ -594,6 +716,21 @@ PROMPTS = {
         "label": "Séance (Mes contenus) — style de production très concis",
         "placeholders": [],
         "default": PROMPT_SEANCE_STYLE_CONCIS,
+    },
+    "sequence_generer_plan": {
+        "label": "Séquence (Mes contenus) — génération du PLAN (une ligne = une séance)",
+        "placeholders": ["matiere", "niveau", "objectif"],
+        "default": PROMPT_SEQUENCE_GENERER_PLAN,
+    },
+    "sequence_proposer_objectif": {
+        "label": "Séquence (Mes contenus) — « Propose-moi un objectif » (zone Objectif général)",
+        "placeholders": ["matiere", "niveau", "referentiel"],
+        "default": PROMPT_SEQUENCE_PROPOSER_OBJECTIF,
+    },
+    "sequence_proposer_competences": {
+        "label": "Séquence (Mes contenus) — « Propose-moi des compétences » (cartouche Précisions)",
+        "placeholders": ["matiere", "niveau", "objectif", "referentiel"],
+        "default": PROMPT_SEQUENCE_PROPOSER_COMPETENCES,
     },
     "optimiseur": {
         "label": "Optimiseur de séquences",
