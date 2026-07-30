@@ -464,13 +464,31 @@ class AdminAlert(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class FeatureVotable(Base):
+    """Catalogue des fonctionnalités votables de l'écran « Bientôt disponible » (donnée de
+    référence, EN BASE). Source unique : l'écran, le serveur et l'admin lisent CETTE table —
+    plus aucune liste en dur. `actif=false` retire la carte de l'écran sans perdre les votes.
+    `icone` = nom d'un pictogramme du mapping front (le dessin SVG reste de l'affichage).
+    `feature_votes.feature_key` a une FK vers `code` : la base est l'autorité."""
+    __tablename__ = "features_votables"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    categorie: Mapped[str] = mapped_column(String(32), nullable=False)
+    icone: Mapped[str] = mapped_column(String(32), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class FeatureVote(Base):
     __tablename__ = "feature_votes"
     __table_args__ = (Index("ix_feature_votes_unique", "user_id", "feature_key", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    feature_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_key: Mapped[str] = mapped_column(String(64), ForeignKey("features_votables.code"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 

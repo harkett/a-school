@@ -97,6 +97,17 @@ _CATALOGUES_SEED = {
         {"code": "groq", "label": "Groq", "actif": True, "ordre": 1, "cle_env": "GROQ_API_KEY_TEXTE"},
         {"code": "anthropic", "label": "Anthropic (Claude)", "actif": True, "ordre": 2, "cle_env": "CLAUDE_API_KEY_TEXTE"},
     ],
+    # Fonctionnalités votables (écran « Bientôt disponible ») : catalogue semé par MIGRATION
+    # en prod (features_votables). Sous-ensemble représentatif : deux actives + une inactive
+    # (les votes d'une carte retirée restent comptés côté admin, mais la carte quitte l'écran).
+    "features_votables": [
+        {"code": "analyser-consigne", "label": "Analyser une consigne", "description": "Analyse d'une consigne.",
+         "categorie": "Outils pédagogiques", "icone": "loupe", "ordre": 0, "actif": True},
+        {"code": "quiz-interactif", "label": "Quiz interactif élèves", "description": "Quiz partagé aux élèves.",
+         "categorie": "Autre", "icone": "horloge", "ordre": 1, "actif": True},
+        {"code": "outil-retire", "label": "Outil retiré", "description": "Carte retirée de l'écran.",
+         "categorie": "Autre", "icone": "fusee", "ordre": 2, "actif": False},
+    ],
 }
 
 
@@ -115,6 +126,15 @@ def _seed_catalogues():
                 text(
                     "INSERT INTO ai_fournisseurs (code, label, actif, ordre, cle_env) "
                     "VALUES (:code, :label, :actif, :ordre, :cle_env) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+        for row in _CATALOGUES_SEED["features_votables"]:
+            conn.execute(
+                text(
+                    "INSERT INTO features_votables (code, label, description, categorie, icone, ordre, actif) "
+                    "VALUES (:code, :label, :description, :categorie, :icone, :ordre, :actif) "
+                    "ON CONFLICT (code) DO NOTHING"
                 ),
                 row,
             )
