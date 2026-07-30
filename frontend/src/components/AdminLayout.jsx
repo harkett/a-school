@@ -133,7 +133,8 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/base', label: 'Réel', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
+      { to: '/admin/base',       label: 'Réelle', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
+      { to: '/admin/base/demos', label: 'Démos',  aide: 'Les bases de démonstration — chantier à venir, rien n\'est branché pour l\'instant.' },
     ],
   },
   // — Système —

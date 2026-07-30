@@ -66,6 +66,7 @@ import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminBase from './pages/AdminBase'
+import AdminBaseDemos from './pages/AdminBaseDemos'
 import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
 import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
@@ -1666,6 +1667,7 @@ export default function App() {
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
             <Route path="base"          element={<AdminBase />} />
+            <Route path="base/demos"    element={<AdminBaseDemos />} />
             <Route path="analytique">
               <Route index element={<Navigate to="/admin/analytique/general" replace />} />
               <Route path="general"    element={<AdminAnalytiqueGeneral />} />
