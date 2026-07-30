@@ -257,3 +257,50 @@ def creer_niveau(body: CreerNiveauBody, db: Session = Depends(get_db)):
     n = Niveau(cycle_id=cycle.id, nom=nom, ordre=(maxo or 0) + 1)
     db.add(n); db.commit(); db.refresh(n)
     return {"id": n.id, "nom": n.nom, "cycle_id": n.cycle_id}
+
+
+# ── La maison des matières : création directe + activer/désactiver. Jusqu'ici une matière
+# ne naissait qu'au dépôt de référentiel (get-or-create de referentiels_admin) et, une fois
+# inactive, plus personne ne pouvait la réactiver nulle part. Même moule que cycles/niveaux :
+# Create encadré, bascule `actif`, JAMAIS de DELETE (l'historique et les paires restent).
+
+class CreerMatiereBody(BaseModel):
+    nom: str
+
+
+@router.post("/admin/matieres", dependencies=[Depends(_require_admin)])
+def creer_matiere(body: CreerMatiereBody, db: Session = Depends(get_db)):
+    """Crée une matière (Create encadré : nom non vide, borné par la colonne, unique insensible
+    à la casse). `ordre` = max+1, active d'emblée. Une matière déjà en base mais inactive ne se
+    recrée pas : on la réactive par PATCH /admin/matieres/actif."""
+    nom = (body.nom or "").strip()
+    if not nom:
+        raise HTTPException(400, "Le nom de la matière est requis.")
+    max_nom = Matiere.__table__.c.nom.type.length
+    if len(nom) > max_nom:
+        raise HTTPException(422, f"Le nom de matière est trop long ({len(nom)} caractères, "
+                                 f"maximum {max_nom}). Raccourcissez-le.")
+    if db.query(Matiere).filter(func.lower(Matiere.nom) == nom.lower()).first():
+        raise HTTPException(409, f"La matière « {nom} » existe déjà.")
+    maxo = db.query(func.max(Matiere.ordre)).scalar()
+    m = Matiere(nom=nom, ordre=(maxo or 0) + 1, actif=True)
+    db.add(m); db.commit(); db.refresh(m)
+    return {"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif}
+
+
+class MatiereActifBody(BaseModel):
+    matiere_id: int
+    actif: bool
+
+
+@router.patch("/admin/matieres/actif", dependencies=[Depends(_require_admin)])
+def admin_toggle_matiere(body: MatiereActifBody, db: Session = Depends(get_db)):
+    """Active/désactive une matière — JAMAIS de DELETE. Désactivée : elle disparaît des menus
+    prof (les GET publics filtrent sur `actif`) mais garde ses paires et son historique ;
+    la réactiver la remet telle quelle."""
+    m = db.get(Matiere, body.matiere_id)
+    if not m:
+        raise HTTPException(404, "Matière inconnue.")
+    m.actif = body.actif
+    db.commit()
+    return {"id": m.id, "nom": m.nom, "actif": m.actif}

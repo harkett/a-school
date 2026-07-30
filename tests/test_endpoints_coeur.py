@@ -284,6 +284,35 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
                     json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
 
 
+def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
+    # La maison des matières : POST création directe (garde nom vide / doublon insensible à la
+    # casse) + PATCH actif (bascule, ligne CONSERVEE — jamais de DELETE).
+    from backend.core.models_db import Matiere
+    cl = admin_client()
+
+    assert noauth().post("/api/admin/matieres", json={"nom": "MatMaison"}).status_code == 401
+    assert cl.post("/api/admin/matieres", json={"nom": "   "}).status_code == 400
+
+    r = cl.post("/api/admin/matieres", json={"nom": "MatMaison"})
+    assert r.status_code == 200
+    mid = r.json()["id"]
+    assert r.json()["actif"] is True
+    assert cl.post("/api/admin/matieres", json={"nom": "matmaison"}).status_code == 409  # doublon (casse)
+
+    assert cl.patch("/api/admin/matieres/actif",
+                    json={"matiere_id": mid, "actif": False}).status_code == 200
+
+    db = dbmod.SessionLocal()
+    m = db.get(Matiere, mid)
+    presente, actif = m is not None, (m.actif if m else None)
+    db.close()
+    assert (presente, actif) == (True, False)  # ligne CONSERVEE, inactive (pas de DELETE)
+
+    assert cl.patch("/api/admin/matieres/actif",
+                    json={"matiere_id": mid, "actif": True}).json()["actif"] is True  # réactivable
+    assert cl.patch("/api/admin/matieres/actif",
+                    json={"matiere_id": 999999, "actif": True}).status_code == 404
+
 
 # ===================== /api/matieres — matières dérivées de la base =====================
 # GET /api/matieres dérive les matières de la BASE par jointure matieres⋈matiere_niveaux
