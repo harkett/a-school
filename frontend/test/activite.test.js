@@ -1,17 +1,10 @@
-// Preuve — la logique pure de l'écran « Créer » (utils/activite.js) :
-//   1. `estPageCreer` ne déclenche la remise à zéro QUE pour 'creer-activite'.
-//   2. `typeVierge` ne présélectionne RIEN (règle appli : combos sur placeholder gris).
+// Preuve — la logique pure de l'écran Activité (utils/activite.js) :
+//   `typeVierge` ne présélectionne RIEN (règle appli : combos sur placeholder gris).
+//   (estPageCreer a été démolie le 30/07 avec l'ancien écran Créer.)
 // Lancer : npm test  (ou  node --test test/activite.test.js)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { estPageCreer, typeVierge } from '../src/utils/activite.js'
-
-test('estPageCreer : vrai seulement pour creer-activite', () => {
-  assert.equal(estPageCreer('creer-activite'), true)
-  assert.equal(estPageCreer('mes-activites'), false)
-  assert.equal(estPageCreer('accueil'), false)
-  assert.equal(estPageCreer('creer-sequence'), false)
-})
+import { typeVierge } from '../src/utils/activite.js'
 
 test('typeVierge : aucun type ni précision présélectionné', () => {
   assert.deepEqual(typeVierge(), {

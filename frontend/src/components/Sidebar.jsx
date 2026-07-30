@@ -162,7 +162,7 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         </span>
       )
     }
-    const isActive = page === pageId && pageId !== 'mes-outils'
+    const isActive = page === pageId
     return (
       <a
         key={pageId + label}

@@ -400,14 +400,7 @@ function MainApp() {
   // entrée à ajouter, le bouton apparaît tout seul — fini la liste à part qu'on oubliait
   // à chaque écran créé (bug du 30/07 : les pages Mes contenus n'avaient pas le bouton).
   const guidesParPage = {
-    'creer-activite': () => (
-      <FenetreGuide
-        onFermer={() => setFenetreGuide(false)}
-        onRevoirGuide={() => { setFenetreGuide(false); setGuideActif(true) }}
-        onOuvrirAide={ouvrirAideDepuisGuide}
-      />
-    ),
-    // L'écran Activité de Mes contenus réutilise TEL QUEL le guide de l'écran Créer.
+    // L'écran Activité de Mes contenus réutilise TEL QUEL le guide de l'ex-écran Créer.
     'activite': () => (
       <FenetreGuide
         onFermer={() => setFenetreGuide(false)}
@@ -462,7 +455,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'optimiseur', 'ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}

@@ -1,11 +1,6 @@
-// Logique pure de l'écran « Créer » — extraite du composant pour être testable
-// sans harnais React (runner `node --test`).
-
-// Vrai si la navigation vise l'écran « Créer une activité » : toute arrivée sur cette
-// page doit repartir d'une activité VIERGE (le routeur `naviguer` s'appuie là-dessus).
-export function estPageCreer(pageId) {
-  return pageId === 'creer-activite'
-}
+// Logique pure de l'écran Activité (Mes contenus) — extraite pour être testable
+// sans harnais React (runner `node --test`). estPageCreer a été démolie le 30/07
+// avec l'ancien écran Créer.
 
 // Champs du type d'activité remis à VIERGE : plus AUCUNE présélection (règle appli — tout
 // combo démarre sur son placeholder gris « Choisissez… », le prof fait le choix). Avant, on
