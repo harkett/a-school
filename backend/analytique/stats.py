@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.database import get_db
-from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, Seance, SequenceSauvegardee, ToolUsageLog, User
 from backend import auth as auth_lib
 from backend.systeme.admin import _require_admin
 
@@ -69,66 +69,43 @@ def get_dashboard(
     aschool_access: str = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
+    """Accueil du prof, compté sur le monde NEUF (tables `activites` / `seances` — décision
+    30/07 : l'ancien monde disparaît, on ne le lit plus). L'écran rouvre les dernières
+    créations via /api/mes-contenus (relecture en base, règle 0) : ici on ne renvoie que
+    l'identité et de quoi afficher la carte, jamais le contenu complet."""
     email = _get_email(aschool_access)
+    uid = db.query(User.id).filter(User.email == email).scalar()
 
-    mes_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
-    ).scalar() or 0
+    mes_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
 
-    mes_partages = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
-        ActiviteSauvegardee.partagee == True,
-    ).scalar() or 0
-
-    communaute_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-    communaute_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).scalar() or 0
-
-    recentes = (
-        db.query(ActiviteSauvegardee)
-        .filter(ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
-        .order_by(ActiviteSauvegardee.id.desc())
-        .limit(3)
-        .all()
+    derniere_act = (
+        db.query(Activite)
+        .filter(Activite.user_id == uid)
+        .order_by(Activite.id.desc())
+        .first()
     )
-
-    derniere_seq = (
-        db.query(SequenceSauvegardee)
-        .filter(SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
-        .order_by(SequenceSauvegardee.id.desc())
+    derniere_sea = (
+        db.query(Seance)
+        .filter(Seance.user_id == uid)
+        .order_by(Seance.id.desc())
         .first()
     )
 
     return {
         "mes_activites": mes_activites,
-        "mes_partages": mes_partages,
-        "communaute_total": communaute_total,
-        "communaute_profs": communaute_profs,
-        "derniere_sequence": {
-            "id": derniere_seq.id,
-            "theme": derniere_seq.theme,
-            "matiere": derniere_seq.matiere,
-            "niveau": derniere_seq.niveau,
-            "duree": derniere_seq.duree,
-            "mode": derniere_seq.mode,
-            "description_classe": derniere_seq.description_classe,
-            "resultat": derniere_seq.resultat,
-        } if derniere_seq else None,
-        "recentes": [
-            {
-                "id": a.id,
-                "activite_type_id": a.activite_type_id,
-                "activite_label": a.activite_label,
-                "matiere": a.matiere,
-                "niveau": a.niveau,
-                "sous_type": a.sous_type,
-                "nb": a.nb,
-                "avec_correction": a.avec_correction,
-                "objet": a.objet,
-                "texte_source": a.texte_source,
-                "resultat": a.resultat,
-            }
-            for a in recentes
-        ],
+        "derniere_activite": {
+            "id": derniere_act.id,
+            "titre": derniere_act.objet or derniere_act.activite_label,
+            "matiere": derniere_act.matiere,
+            "niveau": derniere_act.niveau,
+        } if derniere_act else None,
+        "derniere_seance": {
+            "id": derniere_sea.id,
+            "titre": derniere_sea.titre,
+            "matiere": derniere_sea.matiere,
+            "niveau": derniere_sea.niveau,
+            "duree_minutes": derniere_sea.duree_minutes,
+        } if derniere_sea else None,
     }
 
 

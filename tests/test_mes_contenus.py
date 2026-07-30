@@ -256,6 +256,34 @@ def test_stats_matiere_ne_compte_jamais_l_ancien_monde():
     assert {t["label"] for t in d["top_types"]} == {"Compréhension", "Dictée"}
 
 
+def test_dashboard_compte_le_monde_neuf():
+    """L'Accueil (/api/dashboard) est compté sur le monde NEUF : les vieilles lignes
+    activites_sauvegardees / sequences_sauvegardees ne comptent pas, et les « dernières
+    créations » viennent des tables neuves (l'écran les rouvre dans Mes contenus)."""
+    from backend.core.models_db import Activite, ActiviteSauvegardee, Seance, SequenceSauvegardee
+    uid = _uid()
+    tid = _type_id()
+    with dbmod.SessionLocal() as db:
+        # Ancien monde : présent en base, INVISIBLE à l'Accueil.
+        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                                   niveau="3e", matiere="SVT", objet="Vieille activité",
+                                   avec_correction=False, texte_source="t", resultat="r"))
+        db.add(SequenceSauvegardee(user_id=uid, matiere="SVT", niveau="3e",
+                                   theme="Vieille séquence", duree=55, mode="standard",
+                                   description_classe="", resultat="# Séance"))
+        # Monde neuf : c'est LUI que l'Accueil raconte.
+        db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                        matiere="SVT", niveau="3e", objet="Volcans", texte_source="t", resultat="r"))
+        db.add(Seance(user_id=uid, titre="Séance photosynthèse", matiere="SVT",
+                      niveau="3e", duree_minutes=55))
+        db.commit()
+    d = _client().get("/api/dashboard").json()
+    assert d["mes_activites"] == 1
+    assert d["derniere_activite"]["titre"] == "Volcans"
+    assert d["derniere_seance"]["titre"] == "Séance photosynthèse"
+    assert d["derniere_seance"]["duree_minutes"] == 55
+
+
 def test_cloisonnement_entre_profs():
     from backend.core.models_db import Sequence
     autre = _uid("voisin@local.test")

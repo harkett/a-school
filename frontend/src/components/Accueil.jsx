@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 const TIPS = [
   {
@@ -14,21 +16,21 @@ const TIPS = [
     },
   },
   {
-    texte: 'aSchool apprend votre style : plus vous sauvegardez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
+    texte: 'aSchool apprend votre style : plus vous créez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
     lien: { label: 'En savoir plus' },
     modal: {
       titre: 'Comment aSchool apprend votre style ?',
       lignes: [
-        'À chaque sauvegarde, aSchool conserve votre activité comme exemple.',
-        'À partir de la 3ème sauvegarde d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
+        'Chaque activité que vous créez est enregistrée automatiquement — elle sert d\'exemple à aSchool.',
+        'À partir de la 3ème activité d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
         'Cela fonctionne par type d\'activité : vos exemples de résumés n\'influencent pas vos analyses, et inversement.',
-        'Plus vous sauvegardez, plus les activités générées vous ressemblent.',
+        'Plus vous créez, plus les activités générées vous ressemblent.',
       ],
     },
   },
   { texte: 'Votre niveau par défaut est mémorisé d\'une session à l\'autre — vous n\'avez pas à le resélectionner à chaque connexion.' },
   { texte: 'L\'option « Avec correction » génère automatiquement un corrigé complet sous l\'activité.' },
-  { texte: 'Depuis « Mes activités », rechargez une activité précédente et régénérez-la avec un nouveau texte source.' },
+  { texte: 'Depuis « Mes contenus », rouvrez n\'importe quelle activité : tout est enregistré automatiquement, vous la retrouvez telle quelle et pouvez changer son texte de départ.' },
   { texte: 'Complétez votre profil (matière, niveau par défaut) pour que aSchool s\'adapte à votre contexte dès la connexion.' },
   { texte: 'La précision « Mélange » demande à aSchool de combiner tous les types disponibles pour cette activité. Le détail des types s\'affiche sous le sélecteur.' },
   { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez dans aSchool.' },
@@ -37,7 +39,7 @@ const TIPS = [
 
 function getPhrase(count) {
   if (count === 0) return 'Votre premier cours personnalisé est à portée de clic.'
-  if (count < 3)  return 'Bon début ! Sauvegardez vos activités — aSchool apprend à vous connaître.'
+  if (count < 3)  return 'Bon début ! Continuez à créer — aSchool apprend à vous connaître.'
   if (count < 10) return `${count} activités créées. aSchool commence à reconnaître votre style.`
   if (count < 30) return `${count} activités créées. aSchool reconnaît maintenant votre façon d'enseigner.`
   return `${count} activités créées — vous faites partie des profs les plus actifs de la plateforme.`
@@ -46,20 +48,27 @@ function getPhrase(count) {
 const SUB_LABEL = { fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }
 const EMPTY_MSG = { fontSize: 12, color: '#cbd5e1', fontStyle: 'italic' }
 
-export default function Accueil({ user, matiereLabel, niveau, onNavigate, onCharger, onChargerSequence }) {
+export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvrir }) {
   const [data,     setData]     = useState(null)
+  const [chargementRate, setChargementRate] = useState(false)
   const [tipModal, setTipModal] = useState(null)
   const [tipIndex, setTipIndex] = useState(
     () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
   )
   const isMobile = window.innerWidth < 768
 
-  useEffect(() => {
-    fetch('/api/dashboard', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setData(d) })
-      .catch(() => {})
-  }, [])
+  async function charger() {
+    setChargementRate(false)
+    try {
+      const r = await fetchWithTimeout('/api/dashboard', { credentials: 'include' }, TIMEOUT_STD)
+      setData(await lireReponse(r))
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
+  }
+
+  useEffect(() => { charger() }, [])
 
   function goTip(dir) {
     setTipIndex(i => {
@@ -74,8 +83,8 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
   const prenom   = user?.prenom || ''
   const phrase   = data !== null ? getPhrase(data.mes_activites) : ''
   const tip      = TIPS[tipIndex]
-  const derniereActivite  = data?.recentes?.[0] ?? null
-  const derniereSequence  = data?.derniere_sequence ?? null
+  const derniereActivite = data?.derniere_activite ?? null
+  const derniereSeance   = data?.derniere_seance ?? null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -106,9 +115,16 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
       {/* ── Contenu principal ── */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 210px', gap: 12, alignItems: 'start' }}>
 
-        {/* ── Mes dernières créations ── */}
+        {/* ── Mes dernières créations — MONDE NEUF : les cartes rouvrent dans Mes contenus ── */}
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Mes dernières créations</div>
+
+          {chargementRate && (
+            <button onClick={charger} className="btn-primary" style={{ alignSelf: 'flex-start' }}
+              title="Recharger le tableau de bord">
+              Réessayer
+            </button>
+          )}
 
           {/* Activité */}
           <div>
@@ -117,24 +133,24 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {derniereActivite.activite_label}
+                    {derniereActivite.titre}
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                    {derniereActivite.matiere} · {derniereActivite.niveau}{derniereActivite.objet ? ` · ${derniereActivite.objet.substring(0, 28)}${derniereActivite.objet.length > 28 ? '…' : ''}` : ''}
+                    {[derniereActivite.matiere, derniereActivite.niveau].filter(Boolean).join(' · ')}
                   </div>
                 </div>
                 <button
-                  onClick={() => onCharger(derniereActivite)}
-                  title="Recharger cette activité dans Mes outils"
+                  onClick={() => onOuvrir('activite', derniereActivite.id)}
+                  title="Rouvrir cette activité dans Mes contenus"
                   style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'none', border: '1px solid var(--bordeaux)', borderRadius: 5, color: 'var(--bordeaux)', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
-                  Recharger →
+                  Ouvrir →
                 </button>
               </div>
             ) : (
-              <div style={EMPTY_MSG}>Aucune activité sauvegardée pour l'instant.</div>
+              <div style={EMPTY_MSG}>Aucune activité pour l'instant.</div>
             )}
-            <button onClick={() => onNavigate('mes-activites')} title="Voir toutes mes activités sauvegardées"
+            <button onClick={() => onNavigate('contenus-activites')} title="Voir toutes mes activités dans Mes contenus"
               style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
               Voir toutes mes activités →
             </button>
@@ -143,28 +159,30 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
           {/* Séance */}
           <div>
             <div style={SUB_LABEL}>Séance</div>
-            {derniereSequence ? (
+            {derniereSeance ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {derniereSequence.theme}
+                    {derniereSeance.titre}
                   </div>
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                    {derniereSequence.matiere} · {derniereSequence.niveau} · {derniereSequence.duree} min
+                    {[derniereSeance.matiere, derniereSeance.niveau,
+                      derniereSeance.duree_minutes ? `${derniereSeance.duree_minutes} min` : null]
+                      .filter(Boolean).join(' · ')}
                   </div>
                 </div>
                 <button
-                  onClick={() => onChargerSequence(derniereSequence)}
-                  title="Recharger cette séance dans Mes outils"
+                  onClick={() => onOuvrir('seance', derniereSeance.id)}
+                  title="Rouvrir cette séance dans Mes contenus"
                   style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'none', border: '1px solid #7c3aed', borderRadius: 5, color: '#7c3aed', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
-                  Recharger →
+                  Ouvrir →
                 </button>
               </div>
             ) : (
-              <div style={EMPTY_MSG}>Aucune séance sauvegardée pour l'instant.</div>
+              <div style={EMPTY_MSG}>Aucune séance pour l'instant.</div>
             )}
-            <button onClick={() => onNavigate('mes-sequences')} title="Voir toutes mes séances sauvegardées"
+            <button onClick={() => onNavigate('contenus-seances')} title="Voir toutes mes séances dans Mes contenus"
               style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
               Voir toutes mes séances →
             </button>
@@ -196,15 +214,15 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onChar
         {/* ── Colonne droite ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* CTA */}
+          {/* CTA — l'entrée de création = Mes contenus (le monde neuf) */}
           <div style={{ background: 'var(--bordeaux)', borderRadius: 10, padding: '18px 14px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>Prêt à créer ?</div>
             <button
-              onClick={() => onNavigate('mes-outils')}
-              title="Aller dans Mes outils"
+              onClick={() => onNavigate('contenus-activites')}
+              title="Aller dans Mes contenus pour créer une activité, une séance ou une séquence"
               style={{ background: '#fff', border: 'none', borderRadius: 7, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: 'var(--bordeaux)', cursor: 'pointer' }}
             >
-              Mes outils →
+              Mes contenus →
             </button>
           </div>
 

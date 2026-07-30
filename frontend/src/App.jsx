@@ -583,6 +583,22 @@ function MainApp() {
     naviguer('contenus-seances')
   }
 
+  // Accueil « monde neuf » : rouvrir la dernière création — la ligne est RELUE depuis la
+  // base (règle 0 : tout y est déjà) puis ouverte dans son écran Mes contenus ; relecture
+  // impossible ou ligne disparue → la liste du type, jamais le vide.
+  async function ouvrirContenuAccueil(type, id) {
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      const row = (d.contenus || []).find(c => c.type === type && c.id === id)
+      if (row) {
+        if (type === 'activite') ouvrirActiviteContenus(row)
+        else ouvrirSeance(row)
+        return
+      }
+    } catch { /* relecture impossible : on retombe sur la liste */ }
+    naviguer(type === 'activite' ? 'contenus-activites' : 'contenus-seances')
+  }
+
   function chargerSequence(seq) {
     setPrefillSeq(seq)
     setPage('creer-sequence')
@@ -807,8 +823,7 @@ function MainApp() {
               matiereLabel={matiereLabel}
               niveau={user?.travail_niveau}
               onNavigate={naviguer}
-              onCharger={chargerActivite}
-              onChargerSequence={chargerSequence}
+              onOuvrir={ouvrirContenuAccueil}
             />
           )}
 
