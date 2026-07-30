@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.database import get_db
-from backend.core.models_db import ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, SequenceSauvegardee, ToolUsageLog, User
 from backend import auth as auth_lib
 from backend.systeme.admin import _require_admin
 
@@ -28,27 +28,30 @@ def get_stats_matiere(
     aschool_access: str = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
+    """Bandeau communauté de l'onglet Activités de Mes contenus. Compté sur la table NEUVE
+    `activites` (monde neuf UNIQUEMENT — décision 30/07 : l'ancien monde disparaît, on ne
+    l'additionne jamais)."""
     _get_email(aschool_access)
 
     def _filter(q):
         if matiere:
-            q = q.filter(ActiviteSauvegardee.matiere == matiere)
+            q = q.filter(Activite.matiere == matiere)
         if niveau:
-            q = q.filter(ActiviteSauvegardee.niveau == niveau)
+            q = q.filter(Activite.niveau == niveau)
         return q
 
-    total = _filter(db.query(func.count(ActiviteSauvegardee.id))).scalar() or 0
+    total = _filter(db.query(func.count(Activite.id))).scalar() or 0
 
     nb_profs = (
-        _filter(db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))))
+        _filter(db.query(func.count(func.distinct(Activite.user_id))))
         .scalar() or 0
     )
 
     top_types = (
         _filter(
-            db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
+            db.query(Activite.activite_label, func.count().label("nb"))
         )
-        .group_by(ActiviteSauvegardee.activite_label)
+        .group_by(Activite.activite_label)
         .order_by(func.count().desc())
         .limit(3)
         .all()

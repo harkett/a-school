@@ -230,6 +230,32 @@ def test_l_ancien_monde_n_apparait_jamais():
     assert d["contenus"] == []
 
 
+def test_stats_matiere_ne_compte_jamais_l_ancien_monde():
+    """Même verrou pour le BANDEAU communauté de l'onglet Activités (/api/stats/matiere) :
+    compté sur la table NEUVE `activites` uniquement — une vieille ligne
+    `activites_sauvegardees` ne gonfle jamais le chiffre (accroc du check-up 30/07)."""
+    from backend.core.models_db import Activite, ActiviteSauvegardee
+    uid = _uid()
+    tid = _type_id()
+    with dbmod.SessionLocal() as db:
+        # Une ligne de l'ANCIEN monde (même matière/niveau) : elle ne doit PAS compter.
+        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                                   niveau="3e", matiere="SVT", objet="Vieille activité",
+                                   avec_correction=False, texte_source="t", resultat="r"))
+        # Deux activités du monde NEUF sur le couple, une hors couple : le bandeau dit 2.
+        db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                        matiere="SVT", niveau="3e", texte_source="t", resultat="r"))
+        db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Dictée",
+                        matiere="SVT", niveau="3e", texte_source="t", resultat="r"))
+        db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
+                        matiere="Maths", niveau="6e", texte_source="t", resultat="r"))
+        db.commit()
+    d = _client().get("/api/stats/matiere?matiere=SVT&niveau=3e").json()
+    assert d["total_plateforme"] == 2
+    assert d["nb_profs"] == 1
+    assert {t["label"] for t in d["top_types"]} == {"Compréhension", "Dictée"}
+
+
 def test_cloisonnement_entre_profs():
     from backend.core.models_db import Sequence
     autre = _uid("voisin@local.test")
