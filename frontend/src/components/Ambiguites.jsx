@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 import AmbiguitesResultat from './AmbiguitesResultat.jsx'
+import JaugeAttente from './JaugeAttente.jsx'
 
 function Spinner() {
   return (
@@ -81,15 +82,11 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
         credentials: 'include',
         body: JSON.stringify({ texte: texte.trim() }),   // le couple se résout EN BASE côté serveur
       }, TIMEOUT_LONG)
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || `Erreur ${res.status}`)
-      }
-      const data = await res.json()
+      const data = await lireReponse(res)   // message humain, jamais un détail technique brut
       setResultat(data)
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (e) {
-      showError(`Erreur : ${e.message}`)
+      showError(messagePourEcran(e))
     } finally {
       setLoading(false)
     }
@@ -210,6 +207,10 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
               </div>
             </div>
 
+            {/* Règle « sablier ET jauge » : l'appel IA montre la jauge, jamais un écran figé. */}
+            {loading && (
+              <JaugeAttente libelle="aSchool relit votre énoncé à la recherche des ambiguïtés…" />
+            )}
 
             {/* Résultats — affichage partagé (verdict + cartes) avec la cartouche de Créer une activité */}
             {resultat && (

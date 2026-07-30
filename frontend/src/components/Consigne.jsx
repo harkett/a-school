@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
-import { apiFetch, TIMEOUT_LONG } from '../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+import JaugeAttente from './JaugeAttente.jsx'
 
 const AXE_COLOR = {
   'Clarté linguistique':       { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
@@ -93,15 +94,11 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
         credentials: 'include',
         body: JSON.stringify({ consigne: consigne.trim() }),   // le couple se résout EN BASE côté serveur
       }, TIMEOUT_LONG)
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || `Erreur ${res.status}`)
-      }
-      const data = await res.json()
+      const data = await lireReponse(res)   // message humain, jamais un détail technique brut
       setResultat(data)
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     } catch (e) {
-      showError(`Erreur : ${e.message}`)
+      showError(messagePourEcran(e))
     } finally {
       setLoading(false)
     }
@@ -222,6 +219,10 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
               </div>
             </div>
 
+            {/* Règle « sablier ET jauge » : l'appel IA montre la jauge, jamais un écran figé. */}
+            {loading && (
+              <JaugeAttente libelle="aSchool analyse votre consigne axe par axe…" />
+            )}
 
             {/* Résultats */}
             {resultat && (
