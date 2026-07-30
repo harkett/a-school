@@ -119,11 +119,12 @@ const NAV_ITEMS = [
       { to: '/admin/analytique/communaute', label: 'Communauté',    aide: 'Activités partagées — contributeurs et top types.' },
     ],
   },
-  // — Base de données — entrée de premier niveau (au même niveau que « Système »), au-dessus.
+  // — Base de données — rubrique à sous-options (même niveau que « Système ») : « Réel » =
+  // l'écran garde-fou existant sur la base réellement branchée ; d'autres bases s'ajouteront ici.
   {
-    to:    '/admin/base',
+    group: true,
     label: 'Base de données',
-    aide:  'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.',
+    aide:  'Les bases de données de la plateforme.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <ellipse cx="12" cy="5" rx="9" ry="3"/>
@@ -131,6 +132,9 @@ const NAV_ITEMS = [
         <path d="M3 12a9 3 0 0 0 18 0"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/base', label: 'Réel', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
+    ],
   },
   // — Système —
   {
