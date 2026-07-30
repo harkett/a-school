@@ -93,8 +93,8 @@ export default function AdminServeur() {
               { value: vitalite.profs_actifs_aujourd_hui, label: "Profs actifs\naujourd'hui", color: '#1e40af' },
               { value: vitalite.profs_actifs_semaine,     label: 'Actifs\ncette semaine',    color: '#7c3aed' },
               { value: vitalite.activites_total,          label: 'Activités\ntotales',        color: '#A63045' },
-              { value: vitalite.sequences_total,          label: 'Séquences\ngénérées',       color: '#0891b2' },
-              { value: vitalite.partages_total,           label: 'Partages\nentre collègues', color: '#059669' },
+              { value: vitalite.seances_total,            label: 'Séances\ntotales',          color: '#059669' },
+              { value: vitalite.sequences_total,          label: 'Séquences\ntotales',        color: '#0891b2' },
             ].map((s, i, arr) => (
               <div key={s.label} style={{
                 textAlign: 'center', padding: '16px 8px',

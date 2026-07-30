@@ -113,10 +113,8 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/analytique/general',    label: 'Vue générale',  aide: 'KPIs globaux : activités, outils, communauté.' },
+      { to: '/admin/analytique/general',    label: 'Vue générale',  aide: 'KPIs globaux des activités du monde neuf.' },
       { to: '/admin/analytique/activites',  label: 'Activités',     aide: 'Détail par prof, matière, niveau et type.' },
-      { to: '/admin/analytique/outils',     label: 'Outils',        aide: 'Utilisation de Séquence et Optimiseur.' },
-      { to: '/admin/analytique/communaute', label: 'Communauté',    aide: 'Activités partagées — contributeurs et top types.' },
     ],
   },
   // — Base de données — rubrique à sous-options (même niveau que « Système ») : « Réel » =

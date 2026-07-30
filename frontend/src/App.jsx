@@ -56,8 +56,6 @@ import AdminBase from './pages/AdminBase'
 import AdminBaseDemos from './pages/AdminBaseDemos'
 import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
-import AdminAnalytiqueOutils from './pages/AdminAnalytiqueOutils'
-import AdminAnalytiqueCommunaute from './pages/AdminAnalytiqueCommunaute'
 import MesFeedbacks from './pages/MesFeedbacks'
 import MesStats from './components/MesStats'
 import AdminProgrammes from './pages/AdminProgrammes'
@@ -692,8 +690,6 @@ export default function App() {
               <Route index element={<Navigate to="/admin/analytique/general" replace />} />
               <Route path="general"    element={<AdminAnalytiqueGeneral />} />
               <Route path="activites"  element={<AdminAnalytique />} />
-              <Route path="outils"     element={<AdminAnalytiqueOutils />} />
-              <Route path="communaute" element={<AdminAnalytiqueCommunaute />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

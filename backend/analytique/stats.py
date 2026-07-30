@@ -118,35 +118,24 @@ def admin_stats_general(
     db: Session = Depends(get_db),
     _=Depends(_require_admin),
 ):
-    total_activites = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).scalar() or 0
+    """Vue générale admin, comptée sur le monde NEUF (table activites — décision 30/07).
+    Les sections « outils » (Séquence/Optimiseur, démolis) et « communauté » (partages,
+    ancien monde) ont disparu avec l'ancien monde."""
+    total_activites = db.query(func.count(Activite.id)).scalar() or 0
+    nb_profs = db.query(func.count(func.distinct(Activite.user_id))).scalar() or 0
     top_mat = (
-        db.query(ActiviteSauvegardee.matiere, func.count().label("nb"))
-        .filter(ActiviteSauvegardee.matiere.isnot(None))
-        .group_by(ActiviteSauvegardee.matiere)
+        db.query(Activite.matiere, func.count().label("nb"))
+        .filter(Activite.matiere.isnot(None))
+        .group_by(Activite.matiere)
         .order_by(func.count().desc())
         .first()
     )
     top_type = (
-        db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
-        .group_by(ActiviteSauvegardee.activite_label)
+        db.query(Activite.activite_label, func.count().label("nb"))
+        .group_by(Activite.activite_label)
         .order_by(func.count().desc())
         .first()
     )
-
-    seq_total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == "sequence").scalar() or 0
-    seq_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == "sequence").scalar() or 0
-    opt_total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == "optimiseur").scalar() or 0
-    opt_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == "optimiseur").scalar() or 0
-    opt_scores = (
-        db.query(ToolUsageLog.score_label, func.count().label("nb"))
-        .filter(ToolUsageLog.tool == "optimiseur", ToolUsageLog.score_label.isnot(None))
-        .group_by(ToolUsageLog.score_label)
-        .all()
-    )
-
-    total_partages = db.query(func.count(ActiviteSauvegardee.id)).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
-    nb_contributeurs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
 
     return {
         "activites": {
@@ -157,18 +146,6 @@ def admin_stats_general(
             "top_type": top_type[0] if top_type else "—",
             "top_type_nb": top_type[1] if top_type else 0,
         },
-        "outils": {
-            "sequence": {"total": seq_total, "nb_profs": seq_profs},
-            "optimiseur": {
-                "total": opt_total,
-                "nb_profs": opt_profs,
-                "scores": {row[0]: row[1] for row in opt_scores},
-            },
-        },
-        "communaute": {
-            "total_partages": total_partages,
-            "nb_contributeurs": nb_contributeurs,
-        },
     }
 
 
@@ -176,84 +153,17 @@ def admin_stats_general(
 # Admin — Outils (Séquence + Optimiseur)
 # ---------------------------------------------------------------------------
 
-@router.get("/admin/tool-usage")
-def admin_tool_usage(
-    db: Session = Depends(get_db),
-    _=Depends(_require_admin),
-):
-    depuis_30j = datetime.utcnow() - timedelta(days=30)
-
-    def _stats(tool_name: str) -> dict:
-        total = db.query(func.count(ToolUsageLog.id)).filter(ToolUsageLog.tool == tool_name).scalar() or 0
-        nb_profs = db.query(func.count(func.distinct(ToolUsageLog.user_id))).filter(ToolUsageLog.tool == tool_name).scalar() or 0
-        derniers_30j = db.query(func.count(ToolUsageLog.id)).filter(
-            ToolUsageLog.tool == tool_name,
-            ToolUsageLog.created_at >= depuis_30j,
-        ).scalar() or 0
-        return {"total": total, "nb_profs": nb_profs, "derniers_30j": derniers_30j}
-
-    seq_stats = _stats("sequence")
-    opt_stats = _stats("optimiseur")
-
-    opt_scores = (
-        db.query(ToolUsageLog.score_label, func.count().label("nb"))
-        .filter(ToolUsageLog.tool == "optimiseur", ToolUsageLog.score_label.isnot(None))
-        .group_by(ToolUsageLog.score_label)
-        .all()
-    )
-    opt_stats["scores"] = {row[0]: row[1] for row in opt_scores}
-
-    return {"sequence": seq_stats, "optimiseur": opt_stats}
+# (/admin/tool-usage supprimé le 30/07 : il ne comptait que Séquence et Optimiseur,
+# deux outils démolis avec l'ancien monde. La table tool_usage_logs reste — les analyses
+# Ambiguïtés/Consigne y écrivent toujours.)
 
 
 # ---------------------------------------------------------------------------
 # Admin — Communauté
 # ---------------------------------------------------------------------------
 
-@router.get("/admin/communaute-stats")
-def admin_communaute_stats(
-    db: Session = Depends(get_db),
-    _=Depends(_require_admin),
-):
-    total = db.query(func.count(ActiviteSauvegardee.id)).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
-    nb_profs = db.query(func.count(func.distinct(ActiviteSauvegardee.user_id))).filter(ActiviteSauvegardee.partagee == True).scalar() or 0
-
-    par_matiere = (
-        db.query(ActiviteSauvegardee.matiere, func.count().label("nb"))
-        .filter(ActiviteSauvegardee.partagee == True, ActiviteSauvegardee.matiere.isnot(None))
-        .group_by(ActiviteSauvegardee.matiere)
-        .order_by(func.count().desc())
-        .all()
-    )
-    par_type = (
-        db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
-        .filter(ActiviteSauvegardee.partagee == True)
-        .group_by(ActiviteSauvegardee.activite_label)
-        .order_by(func.count().desc())
-        .limit(10)
-        .all()
-    )
-    contributeurs_raw = (
-        db.query(User.email, User.prenom, User.nom, func.count().label("nb"))
-        .join(ActiviteSauvegardee, ActiviteSauvegardee.user_id == User.id)
-        .filter(ActiviteSauvegardee.partagee == True)
-        .group_by(ActiviteSauvegardee.user_id)
-        .order_by(func.count().desc())
-        .all()
-    )
-
-    contributeurs = []
-    for email, prenom, nom, nb in contributeurs_raw:
-        nom_complet = " ".join(filter(None, [prenom, nom]))
-        contributeurs.append({"email": email, "nom": nom_complet or email, "nb": nb})
-
-    return {
-        "total_partages": total,
-        "nb_contributeurs": nb_profs,
-        "par_matiere": [{"matiere": r[0], "nb": r[1]} for r in par_matiere],
-        "par_type": [{"label": r[0], "nb": r[1]} for r in par_type],
-        "contributeurs": contributeurs,
-    }
+# (/admin/communaute-stats supprimé le 30/07 : les partages étaient l'ancien monde ;
+# le partage du monde neuf sera conçu avec le nouveau Mon réseau.)
 
 
 # ---------------------------------------------------------------------------
@@ -356,18 +266,15 @@ def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin
         ConnexionLog.created_at >= depuis_7j
     ).scalar() or 0
 
-    activites_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-
-    partages_total = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.partagee == True
-    ).scalar() or 0
-
-    sequences_total = db.query(func.count(SequenceSauvegardee.id)).scalar() or 0
+    # Monde NEUF (décision 30/07) ; plus de partages_total — le partage neuf n'existe pas encore.
+    activites_total = db.query(func.count(Activite.id)).scalar() or 0
+    seances_total = db.query(func.count(Seance.id)).scalar() or 0
+    sequences_total = db.query(func.count(Sequence.id)).scalar() or 0
 
     return {
         "profs_actifs_aujourd_hui": profs_actifs_aujourd_hui,
         "profs_actifs_semaine": profs_actifs_semaine,
         "activites_total": activites_total,
-        "partages_total": partages_total,
+        "seances_total": seances_total,
         "sequences_total": sequences_total,
     }

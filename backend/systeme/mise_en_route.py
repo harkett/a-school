@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.models_db import (
     Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk,
-    ReferentielActiviteType, EmailEnvoi, ActiviteSauvegardee, AiFournisseur,
+    ReferentielActiviteType, EmailEnvoi, Activite, AiFournisseur,
 )
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model
 
@@ -68,8 +68,8 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
     email_ok = (db.query(EmailEnvoi)
                   .filter(EmailEnvoi.statut == "envoye").first() is not None)
 
-    # 8 — Au moins une activité générée et sauvegardée (preuve bout-en-bout).
-    bout_ok = db.query(ActiviteSauvegardee).count() > 0
+    # 8 — Au moins une activité générée (preuve bout-en-bout) — monde NEUF (table activites).
+    bout_ok = db.query(Activite).count() > 0
 
     etapes = [
         {"num": 1, "cle": "ia", "fait": ia_ok, "ecran": "/admin/parametres/generation",

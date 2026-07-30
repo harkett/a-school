@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Setting, User, UserSession
+from backend.core.models_db import Activite, ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -689,9 +689,10 @@ class UpdateUserBody(BaseModel):
 @router.get("/admin/users")
 def get_users(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     users = db.query(User).order_by(User.created_at.desc()).all()
+    # Compté sur le monde NEUF (table activites) — décision 30/07, l'ancien monde disparaît.
     counts = dict(
-        db.query(ActiviteSauvegardee.user_id, func.count(ActiviteSauvegardee.id))
-        .group_by(ActiviteSauvegardee.user_id)
+        db.query(Activite.user_id, func.count(Activite.id))
+        .group_by(Activite.user_id)
         .all()
     )
     return [
@@ -732,6 +733,11 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     db.query(EmailToken).filter(EmailToken.email == email).delete()
     db.query(RefreshToken).filter(RefreshToken.user_id == user.id).delete()
     db.query(UserSession).filter(UserSession.user_id == user.id).delete()
+    # Contenus du monde NEUF (trou repéré au check-up 30/07 : la purge n'effaçait que
+    # l'ancien monde). Les versions d'activités suivent par CASCADE (FK).
+    db.query(Activite).filter(Activite.user_id == user.id).delete()
+    db.query(Seance).filter(Seance.user_id == user.id).delete()
+    db.query(Sequence).filter(Sequence.user_id == user.id).delete()
     db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_id == user.id).delete()
     db.query(ConnexionLog).filter(ConnexionLog.user_id == user.id).delete()
     db.query(Feedback).filter(Feedback.user_id == user.id).delete()
@@ -1855,6 +1861,7 @@ def get_logs(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
 
 @router.get("/admin/stats/analytique")
 def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Analytique par prof, comptée sur le monde NEUF (table activites — décision 30/07)."""
     rows = (
         db.query(
             User.email,
@@ -1862,19 +1869,19 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             User.nom,
             User.subject_id,
             User.niveau_id.label("niveau_profil_id"),
-            ActiviteSauvegardee.matiere.label("activite_matiere"),
-            ActiviteSauvegardee.niveau.label("activite_niveau"),
-            ActiviteSauvegardee.activite_type_id,
-            ActiviteSauvegardee.activite_label,
-            func.count(ActiviteSauvegardee.id).label("nb"),
+            Activite.matiere.label("activite_matiere"),
+            Activite.niveau.label("activite_niveau"),
+            Activite.activite_type_id,
+            Activite.activite_label,
+            func.count(Activite.id).label("nb"),
         )
-        .join(User, User.id == ActiviteSauvegardee.user_id, isouter=True)
+        .join(User, User.id == Activite.user_id, isouter=True)
         .group_by(
-            ActiviteSauvegardee.user_id,
-            ActiviteSauvegardee.matiere,
-            ActiviteSauvegardee.niveau,
-            ActiviteSauvegardee.activite_type_id,
-            ActiviteSauvegardee.activite_label,
+            Activite.user_id,
+            Activite.matiere,
+            Activite.niveau,
+            Activite.activite_type_id,
+            Activite.activite_label,
         )
         .all()
     )
