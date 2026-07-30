@@ -1,13 +1,14 @@
-"""Filet de test — les 5 endpoints cœur d'aSchool (Phase 1 du plan de reprise).
+"""Filet de test — les endpoints cœur d'aSchool.
 
 Lance avec :  pytest   (suite pytest — convention unique du projet)
 
-Couverture (choix (b) : happy path + cas d'erreur connus) :
-  - generate, generate-sequence, optimize-sequence, detect-ambiguites, analyser-consigne
+Couverture (happy path + cas d'erreur connus) — generate-sequence et optimize-sequence
+ont été DÉMOLIS le 30/07 avec l'ancien monde :
+  - detect-ambiguites, analyser-consigne
   - happy path : 200 + sortie cohérente (Groq MOCKÉ — aucun appel réseau)
   - auth      : 401 sans cookie / token invalide
-  - validation: 400 (entrée vide / invalide) et 422 (champ requis manquant)
-  - résilience : panne LLM amont -> 502 (/api/generate) / 500 (outils via generate())
+  - validation: 400 (entrée vide / invalide)
+  - résilience : panne LLM amont -> 500 (outils via generate())
 
 Garde-fous : BDD de test PostgreSQL dédiée (aschool_test, via conftest.py — jamais la base dev),
 user de test fictif, JWT signé via create_access_token (secret jamais exposé).
@@ -52,31 +53,12 @@ def noauth():
 
 
 # ----- Sorties Groq canned (valides) pour le happy path -----
-SEQ_MD = "# Séance : Test\n**Matière :** SVT | **Niveau :** 3e | **Durée :** 55 min\n\n## Phase 1 — Intro (55 min)\n**Objectif :** découvrir\n"
-OPT_JSON = '{"problemes": [{"type": "Surcharge cognitive", "detail": "trop de notions"}], "sequence_optimisee": "# Séance optimisée", "score": "À revoir — 1 problème(s) détecté(s)"}'
+# (SEQ_MD / OPT_JSON supprimés le 30/07 avec l'outil Séquence et l'Optimiseur — ancien monde.)
 AMB_JSON = '{"ambiguites": [{"extrait": "analysez", "type": "Consigne vague", "risque": "flou", "reformulation": "Identifiez X"}], "verdict": "Énoncé à clarifier."}'
 CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée", "extrait": "expliquez", "probleme": "vague", "conseil": "précisez"}], "verdict": "À clarifier.", "version_optimisee": "Consigne réécrite."}'
 
 
 # ===================== HAPPY PATH (200 + sortie cohérente) =====================
-
-def test_generate_sequence_happy():
-    with patch("backend.sequence.sequence.generate", return_value=SEQ_MD):
-        r = authed().post("/api/generate-sequence", json={
-            "theme": "Photosynthèse", "matiere": "SVT", "niveau": "3e",
-            "duree": 55, "mode": "standard", "description_classe": ""})
-    assert r.status_code == 200, r.text
-    assert "Phase 1" in r.json()["resultat"]
-
-
-def test_optimize_happy():
-    with patch("backend.sequence.optimiseur.generate", return_value=OPT_JSON):
-        r = authed().post("/api/optimize-sequence", json={
-            "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
-    assert r.status_code == 200, r.text
-    d = r.json()
-    assert d["score"] and len(d["problemes"]) == 1
-
 
 def test_ambiguites_happy():
     _prof_filet()
@@ -101,10 +83,8 @@ def test_consigne_happy():
 def test_401_sans_cookie():
     c = noauth()
     cases = [
-        ("/api/generate-sequence", {"theme": "x", "matiere": "SVT", "niveau": "3e", "duree": 55}),
-        ("/api/optimize-sequence", {"sequence": "x", "matiere": "SVT", "niveau": "3e"}),
-        ("/api/detect-ambiguites", {"texte": "x", "matiere": "SVT", "niveau": "3e"}),
-        ("/api/analyser-consigne", {"consigne": "x", "matiere": "SVT", "niveau": "3e"}),
+        ("/api/detect-ambiguites", {"texte": "x"}),
+        ("/api/analyser-consigne", {"consigne": "x"}),
     ]
     for path, body in cases:
         r = c.post(path, json=body)
@@ -122,28 +102,21 @@ def test_401_token_invalide():
 
 def test_400_entrees_vides_ou_invalides():
     c = authed()
-    # generate-sequence : thème vide, durée invalide, mode invalide, remédiation sans description
-    assert c.post("/api/generate-sequence", json={"theme": "  ", "matiere": "SVT", "niveau": "3e", "duree": 55}).status_code == 400
-    assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 999}).status_code == 400
-    assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 55, "mode": "n_importe_quoi"}).status_code == 400
-    assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 55, "mode": "remediation", "description_classe": ""}).status_code == 400
-    # optimize / ambiguites / consigne : entrée vide (le prof du filet existe avec son couple)
+    # ambiguites / consigne : entrée vide (le prof du filet existe avec son couple)
     _prof_filet()
-    assert c.post("/api/optimize-sequence", json={"sequence": "   ", "matiere": "SVT", "niveau": "3e"}).status_code == 400
     assert c.post("/api/detect-ambiguites", json={"texte": "   "}).status_code == 400
     assert c.post("/api/analyser-consigne", json={"consigne": "   "}).status_code == 400
 
 
 # ===================== RÉSILIENCE — panne LLM amont =====================
-# Les 4 outils (ambiguites/consigne/optimiseur/sequence) passent par generate().
-# Une panne LLM (generate lève RuntimeError) -> 500 côté outil (Tâche 2 : unification
-# sur 500 ; chaîne de repli abandonnée, plus de 502 « externe » Groq).
+# Les outils d'analyse passent par generate(). Une panne LLM (generate lève RuntimeError)
+# -> 500 côté outil (unification sur 500, plus de 502 « externe » Groq).
 
 def test_endpoint_outil_llm_down_500():
-    """Si le LLM est down (generate lève RuntimeError), l'optimiseur renvoie 500."""
-    with patch("backend.sequence.optimiseur.generate", side_effect=RuntimeError("LLM down")):
-        r = authed().post("/api/optimize-sequence", json={
-            "sequence": "# Séance\n## Phase 1 (55 min)", "matiere": "SVT", "niveau": "3e"})
+    """Si le LLM est down (generate lève RuntimeError), l'analyse renvoie 500."""
+    _prof_filet()
+    with patch("backend.analyse.ambiguites.generate", side_effect=RuntimeError("LLM down")):
+        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document."})
     assert r.status_code == 500, r.text
 
 
@@ -310,101 +283,6 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
     assert cl.patch("/api/admin/programmes/paire",
                     json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
 
-
-# ===================== P4.7 — jalon few-shot « aSchool vous reconnaît » =====================
-# Le toast est piloté par le backend : few_shot_just_reached=True UNE seule fois, au
-# franchissement réel du seuil de SAUVEGARDES (_FEW_SHOT_MIN), par couple (prof, type).
-# Robustesse exigée : jamais raté, jamais rejoué (au-delà du seuil, ni après suppression).
-
-def _type_id(label="Compréhension"):
-    """Get-or-create d'un type au CATALOGUE (types_activite) — la route save exige
-    `activite_type_id` (FK, identité par id depuis aecf0d1). Session en `with` :
-    refermée même si le test plante (plus jamais de transaction fantôme qui bloque
-    le TRUNCATE inter-tests)."""
-    from backend.core.models_db import ActiviteType
-    with dbmod.SessionLocal() as db:
-        t = db.query(ActiviteType).filter(ActiviteType.label == label).first()
-        if not t:
-            t = ActiviteType(label=label)
-            db.add(t)
-            db.commit()
-        return t.id
-
-
-def _save_payload(type_id):
-    # Plus de matière/niveau dans le corps : le couple est STAMPÉ PAR LE SERVEUR
-    # (couple de travail lu en base — décision du 25/07).
-    return {
-        "activite_type_id": type_id, "activite_label": "Compréhension",
-        "texte_source": "La photosynthèse.", "resultat": "1. ? 2. ?",
-    }
-
-
-def _client_for(email):
-    """Client authentifié pour un prof réel en base (la route save lit user_id depuis users,
-    et STAMPE le couple depuis son profil — il lui faut donc matière + niveau)."""
-    from backend.core.models_db import User
-    with dbmod.SessionLocal() as db:
-        if not db.query(User).filter(User.email == email).first():
-            from _profil import user_couple
-            db.add(user_couple(db, email=email, password_hash="x", is_verified=True,
-                        subject="SVT", niveau="3e"))
-            db.commit()
-    c = TestClient(app)
-    c.cookies.set("aschool_access", create_access_token(email))
-    return c
-
-
-def _reached(client, type_id):
-    return client.post("/api/mes-activites", json=_save_payload(type_id)).json()["few_shot_just_reached"]
-
-
-def test_few_shot_franchi_une_seule_fois_au_seuil():
-    c = _client_for("fewshot-1@local.test")
-    tid = _type_id()
-    assert [_reached(c, tid) for _ in range(3)] == [False, False, True]   # vrai à la 3e seulement
-    assert _reached(c, tid) is False                                      # 4e -> plus jamais
-
-
-def test_few_shot_pas_rejoue_apres_suppression():
-    c = _client_for("fewshot-2@local.test")
-    tid = _type_id()
-    ids = [c.post("/api/mes-activites", json=_save_payload(tid)).json()["id"] for _ in range(3)]
-    assert c.delete(f"/api/mes-activites/{ids[0]}").status_code == 200   # compte 3 -> 2
-    assert _reached(c, tid) is False                                     # repasse par 3 -> pas de rejeu
-
-
-def test_few_shot_etanche_par_type_et_par_prof():
-    c = _client_for("fewshot-3@local.test")
-    tA, tB = _type_id("TypeA"), _type_id("TypeB")
-    assert [_reached(c, tA) for _ in range(3)] == [False, False, True]
-    assert _reached(c, tB) is False                      # autre type, MÊME prof -> compteur indépendant
-    c2 = _client_for("fewshot-4@local.test")
-    assert _reached(c2, tA) is False                     # autre prof, même type -> indépendant aussi
-
-
-def test_few_shot_pas_rate_si_le_compte_saute_le_seuil():
-    """Le compte atteint directement 4 sans que la logique jalon n'ait jamais vu 3
-    (ex. sauvegardes concurrentes) : le >= garantit qu'on ne rate PAS le franchissement
-    -> few_shot_just_reached = True une seule fois, jamais ensuite."""
-    from backend.core.models_db import User, ActiviteSauvegardee
-    tid = _type_id("Saut")
-    with dbmod.SessionLocal() as db:
-        from _profil import user_couple
-        db.add(user_couple(db, email="fewshot-5@local.test", password_hash="x", is_verified=True,
-                    subject="SVT", niveau="3e"))
-        db.commit()
-        uid = db.query(User.id).filter(User.email == "fewshot-5@local.test").scalar()
-        # 3 sauvegardes posées DIRECTEMENT en base : la route n'a jamais évalué le jalon à 3
-        for _ in range(3):
-            db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="X",
-                                       niveau="3e", avec_correction=False, texte_source="t", resultat="r"))
-        db.commit()
-
-    c = TestClient(app)
-    c.cookies.set("aschool_access", create_access_token("fewshot-5@local.test"))
-    assert _reached(c, tid) is True     # 1er POST -> compte passe à 4 -> franchissement quand même
-    assert _reached(c, tid) is False    # ensuite -> jalon déjà posé -> plus jamais
 
 
 # ===================== /api/matieres — matières dérivées de la base =====================

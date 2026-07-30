@@ -13,8 +13,6 @@ Ce que ces tests PROUVENT :
   4. DELETE (« Revenir à mon profil ») → écart effacé, /auth/me repasse au profil.
   5. LA PREUVE MAÎTRESSE : la génération utilise le couple de travail EN BASE — profil sur
      le niveau A, travail posé sur le niveau B → le RAG interroge la collection de B.
-  6. /api/mes-activites : le couple enregistré est STAMPÉ PAR LE SERVEUR (travail en base),
-     jamais pris dans le corps de la requête.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
 """
@@ -155,19 +153,6 @@ def test_generation_utilise_le_couple_de_travail_en_base():
     assert "Niveau CT-5e." in gen.call_args.args[0]    # le prompt porte le niveau de TRAVAIL
 
 
-def test_sauvegarde_stampe_le_couple_du_serveur():
-    """/api/mes-activites n'accepte plus le couple du corps : la ligne enregistrée porte
-    le couple de travail lu EN BASE au moment de la sauvegarde."""
-    from backend.core.models_db import ActiviteSauvegardee
-    tid = _programme()
-    c = _client()
-    c.put("/api/user/couple-travail", json={"matiere": "CT-HG", "niveau": "CT-5e"})
-    r = c.post("/api/mes-activites", json={
-        "activite_type_id": tid, "activite_label": "CT-Type",
-        "texte_source": "t", "resultat": "r",
-        "matiere": "TRICHE", "niveau": "TRICHE",   # champs étrangers : IGNORÉS par le serveur
-    })
-    assert r.status_code == 200, r.text
-    with dbmod.SessionLocal() as db:
-        a = db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.id == r.json()["id"]).first()
-        assert (a.matiere, a.niveau) == ("CT-HG", "CT-5e")
+# (test_sauvegarde_stampe_le_couple_du_serveur supprimé le 30/07 : POST /api/mes-activites
+# a été démoli avec l'ancien monde ; le stampage serveur du couple reste prouvé sur
+# /api/generate ci-dessus et par les écritures du monde neuf.)

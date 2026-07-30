@@ -33,14 +33,12 @@ from backend.core.middleware import UserSessionMiddleware
 from backend.routers import auth
 from backend.systeme import admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
-from backend.contenu import mes_activites, activites, mes_contenus
+from backend.contenu import activites, mes_contenus
 from backend.prof import profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
 from backend.analyse import ambiguites, consigne
 from backend.dictee import ocr, transcribe
-from backend.reseau import bibliotheque
-from backend.sequence import sequence, optimiseur
 from backend.systeme import maintenance, mise_en_route
 
 # Schéma géré par Alembic (`alembic upgrade head`) — plus de create_all au démarrage (Pas 9).
@@ -100,18 +98,14 @@ app.add_middleware(
 app.include_router(exemple_referentiel.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(activites.router, prefix="/api")
-app.include_router(mes_activites.router, prefix="/api")
 app.include_router(mes_contenus.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
 app.include_router(ocr.router, prefix="/api")
-app.include_router(bibliotheque.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
-app.include_router(optimiseur.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
-app.include_router(sequence.router, prefix="/api")
 app.include_router(ambiguites.router, prefix="/api")
 app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
