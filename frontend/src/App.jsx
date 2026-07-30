@@ -5,8 +5,6 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
-import TexteSource from './components/TexteSource'
-import Parametres from './components/Parametres'
 import VisiteGuidee from './components/VisiteGuidee'
 import FenetreGuide from './components/FenetreGuide'
 import FenetreGuideSeance from './components/FenetreGuideSeance'
@@ -14,7 +12,6 @@ import FenetreGuideSequence from './components/FenetreGuideSequence'
 import FenetreGuideContenusActivites from './components/FenetreGuideContenusActivites'
 import FenetreGuideContenusSeances from './components/FenetreGuideContenusSeances'
 import FenetreGuideContenusSequences from './components/FenetreGuideContenusSequences'
-import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
 import Feedback from './components/Feedback'
@@ -24,11 +21,7 @@ import SequenceEcran from './components/SequenceEcran'
 import ActiviteEcran from './components/ActiviteEcran'
 import BientotDisponible from './components/BientotDisponible'
 import Accueil from './components/Accueil'
-import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
-import InfoGuide from './components/InfoGuide.jsx'
-import EtapeBadge from './components/EtapeBadge.jsx'
-import { aideActivite } from './utils/aideActivite.js'
 import Consigne from './components/Consigne'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
@@ -73,23 +66,10 @@ import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
 import ConfirmDialog from './components/ConfirmDialog'
-import { showConfirm } from './confirmDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
-import JaugeAttente from './components/JaugeAttente.jsx'
-import FriseProgression from './components/FriseProgression.jsx'
-import SplitPane from './components/SplitPane.jsx'
-import { fetchWithTimeout, apiFetch, refreshSession, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD, TIMEOUT_LONG } from './utils/api.js'
-import { sauvegarderActivite } from './utils/activites.js'
-import { estPageCreer, typeVierge } from './utils/activite.js'
+import { fetchWithTimeout, apiFetch, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
 import { libelleEcran } from './utils/ecrans.js'
 import './index.css'
-
-// Message UNIQUE de tout échec TECHNIQUE de génération (règle 23). « cliquez ici » ouvre le
-// feedback existant (opts.feedback). Les échecs MÉTIER (référentiel absent, RAG vide, service
-// très demandé) gardent leur propre message, renvoyé par le backend.
-const MSG_ECHEC_GENERATION =
-  'La génération de votre activité n\'a pas pu aboutir. Merci de réessayer.\n' +
-  'Si le problème persiste, cliquez ici pour nous le signaler.'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -126,22 +106,8 @@ function MainApp() {
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackIncidentRef, setFeedbackIncidentRef] = useState(null)  // réf d'incident jointe au feedback (échec de génération) ; null = feedback ouvert manuellement
   const [showNotation, setShowNotation] = useState(false)
-  const [activites, setActivites] = useState([])
-  const [texte, setTexte] = useState('')
-  const [objet, setObjet] = useState('')
-  const [resultat, setResultat] = useState(null)
-  const [tonActuel, setTonActuel] = useState(null)   // ton ayant produit le résultat affiché : 'academique'|'operationnel'|null (repris d'historique / avant tout choix). Suit le résultat ; base plus tard avec l'auto-save.
-  const [loading, setLoading] = useState(false)
-  // États retirés (28/07, ménage) : verifResultat/verifLoading/ameliorerLoading/corrigerLoading/
-  // analysesReplie — cartouches Vérifier/Corriger/Améliorer supprimées de l'écran.
-  const [genererReplie, setGenererReplie] = useState(false)  // repli manuel de la cartouche ③ « Générer l'activité » (affichage éphémère, jamais en base)
-  const [tonChaseIndex, setTonChaseIndex] = useState(0)  // course d'attention (halo) entre les 2 boutons de ton : 0 = académique, 1 = opérationnel
-  const [valide, setValide] = useState(false)          // résultat VALIDÉ (écrit en base) : phase « activité enregistrée », boutons de gestion retirés
-  const [repriseHistorique, setRepriseHistorique] = useState(false)  // résultat repris de l'historique = DÉJÀ en base : Valider/Annuler grisés (rien à enregistrer, rien à annuler), Régénérer/Changer votre demande restent actifs. Repasse à false dès qu'on régénère (nouveau brouillon).
-  const [enValidation, setEnValidation] = useState(false)  // put /api/mes-activites en cours (anti double-clic sur Valider)
-  const [entreeDeverrouillee, setEntreeDeverrouillee] = useState(false)  // « Changer votre demande » : rouvre la saisie (sinon verrouillée dès qu'un résultat est là)
-  const [erreur, setErreur] = useState(null)
-  const [cahierPresent, setCahierPresent] = useState(false)   // le prof a-t-il déposé un cahier des charges ? (get, zéro copie) — adapte les bulles d'aide de Créer
+  // La machinerie de l'ancien écran Créer (texte/objet/resultat/ton/valider…) a été
+  // démolie le 30/07 avec lui — la création vit dans les écrans de Mes contenus.
   // Couple de TRAVAIL — LU du get /auth/me, résolu EN BASE par le serveur (couple de travail
   // s'il est posé, sinon profil). Plus AUCUN état local : l'écran est une fenêtre sur la base
   // (décision du 25/07) — un F5 ou un autre appareil montrent exactement la même vérité.
@@ -150,18 +116,14 @@ function MainApp() {
   const matiereLabel = sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv
     ? `LV - ${user.langue_lv}`
     : sessionMatiere
-  const [fewShotModal, setFewShotModal] = useState(false)  // « aSchool vous reconnaît » : modale au franchissement du seuil
   const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
   const [guideActif, setGuideActif] = useState(false)      // visite guidée de l'écran Créer en cours
   const [fenetreGuide, setFenetreGuide] = useState(false)  // fenêtre déplaçable « Comment ça marche » ouverte
-  const [selectedCard, setSelectedCard] = useState('sequence')
   const [inactivityWarning, setInactivityWarning] = useState(false)
   const [countdown, setCountdown] = useState(WARNING_SECS)
   const timerRef   = useRef(null)
   const cdRef      = useRef(null)
   const warningRef = useRef(false)
-  const resultatRef = useRef(null)
-  const texteSourceRef = useRef(null)   // pour ramener le prof sur la saisie quand il clique « Changer votre demande »
 
   // Ouvre le feedback ; `ref` = référence d'incident (échec de génération) jointe au message, ou
   // null pour un feedback ouvert manuellement (Sidebar / menu).
@@ -312,200 +274,6 @@ function MainApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.travail_niveau])
-
-  useEffect(() => {
-    fetchWithTimeout(`/api/activites/${encodeURIComponent(sessionMatiere)}?niveau=${encodeURIComponent(params.niveau || '')}`, {}, TIMEOUT_STD)
-      .then(r => r.json())
-      .then(data => {
-        const list = Array.isArray(data) ? data : []  // garde-fou : toujours un tableau (jamais .find sur autre chose)
-        setActivites(list)
-        // Règle appli : on ne PRÉSÉLECTIONNE jamais un combo. Le prof choisit lui-même son type
-        // (placeholder gris « Choisissez un type d'activité »). On repart donc de « rien de choisi »,
-        // ce qui efface aussi un choix devenu périmé quand la matière/le niveau change (le type
-        // d'avant peut ne plus exister dans la nouvelle liste).
-        setParams(p => ({ ...p, activite_type_id: null, sous_type: null, nb: null }))
-      })
-      .catch(() => showError('Impossible de charger les activités — vérifiez que le backend tourne.'))
-  }, [sessionMatiere, params.niveau])
-
-  // Cahier des charges du prof déposé ? get de l'état (même endpoint que MonProfil) — sert à
-  // ADAPTER les bulles d'aide « i » de l'écran Créer (Texte source, Résultat) quand un cahier
-  // existe. Zéro copie : lu à l'affichage, jamais stocké. Relu quand l'utilisateur change (login,
-  // refreshUser après un dépôt), donc la bulle reste juste.
-  useEffect(() => {
-    if (!user) return
-    apiFetch('/api/user/cahier', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setCahierPresent(!!(d && d.present)))
-      .catch(() => setCahierPresent(false))
-  }, [user])
-
-  function isTexteGibberish(t) {
-    const words = t.trim().split(/\s+/).filter(w => w.length > 2)
-    if (words.length < 2) return false
-    const vowels = /[aeiouyàâäéèêëîïôöùûüæœAEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜÆŒ]/
-    let suspect = 0
-    for (const word of words) {
-      const alpha = word.replace(/[^a-zA-ZÀ-ÿ]/g, '')
-      if (alpha.length > 8) {
-        const vRatio = alpha.split('').filter(c => vowels.test(c)).length / alpha.length
-        if (vRatio < 0.15) suspect++
-      }
-    }
-    return suspect / words.length > 0.25
-  }
-
-  // `ton` : 'academique' | 'operationnel', choisi par le bouton de génération cliqué (cartouche ③)
-  // ou par « Changer votre ton » (bascule l'autre ton). Il part au serveur (couche de style) et est
-  // mémorisé dans `tonActuel` pour que « Changer votre ton » sache proposer l'autre.
-  async function generer(ton) {
-    if (!params.activite_type_id) {
-      showError('Sélectionnez un type d\'activité avant de générer.')
-      return
-    }
-    // La zone texte est LA BASE DE TOUT : la demande de l'utilisateur (tapée, dictée, scannée)
-    // mène la génération et ancre la recherche au programme. Elle est TOUJOURS exigée.
-    if (!texte.trim()) {
-      showError(
-        'Saisissez un texte source avant de générer — collez un extrait, dictez ou importez un fichier.' +
-        (!params.avec_correction ? '\n\nSaviez-vous que vous pouvez inclure un corrigé complet ? Cochez « Avec correction » dans les paramètres.' : '')
-      )
-      return
-    }
-    if (isTexteGibberish(texte)) {
-      showError('Le texte saisi ne ressemble pas à un contenu pédagogique exploitable.\n\nCollez un extrait de cours ou d\'article, dictez à la voix, ou importez un fichier.')
-      return
-    }
-    setErreur(null)
-    setResultat(null)
-    setTonActuel(ton || null)       // le résultat à venir sera dans CE ton (bascule « Changer votre ton » comprise)
-    setValide(false)
-    setRepriseHistorique(false)     // (ré)générer = nouveau brouillon PAS en base → Valider/Annuler redeviennent actifs
-    setEntreeDeverrouillee(false)   // nouvelle génération → la saisie repart verrouillée dès qu'un résultat arrive
-    setLoading(true)
-    try {
-      const body = { ...params, texte }
-      if (ton) body.ton = ton
-      if (!body.nb) delete body.nb
-      if (!body.sous_type) delete body.sous_type
-      // Le couple (matière/niveau) et la langue LV ne partent PLUS de l'écran : le serveur
-      // lit le couple de travail EN BASE au moment de générer (décision du 25/07).
-      delete body.niveau
-
-      // Génération EN STREAMING : PAS de fetchWithTimeout — son abort à 45 s coupait le flux en
-      // plein travail (LE bug du 23/07). L'autorité de coupure est le serveur (silence lu en base).
-      // On garde le réflexe 401 (renouvellement partagé + rejeu UNE fois), sans aucun délai dur.
-      const opts = {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      }
-      let res = await fetch('/api/generate', opts)
-      if (res.status === 401 && await refreshSession()) {
-        res = await fetch('/api/generate', opts)
-      }
-
-      // Échec AVANT le flux : le backend a répondu en JSON. Message MÉTIER (`detail`) tel quel ;
-      // sinon (pas de detail, pas de flux) = échec technique → message unique + lien feedback.
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({}))
-        if (err.detail) showError(err.detail)
-        else showError(MSG_ECHEC_GENERATION, { feedback: true })
-        return
-      }
-
-      // Lecture du flux SSE (événements delta / error / done) : on affiche au fil de l'eau.
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let tampon = '', complet = '', erreurFlux = false, termine = false, refIncident = null
-      setResultat('')
-      setTimeout(() => resultatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        tampon += decoder.decode(value, { stream: true })
-        let sep
-        while ((sep = tampon.indexOf('\n\n')) >= 0) {
-          const bloc = tampon.slice(0, sep)
-          tampon = tampon.slice(sep + 2)
-          const evt  = (bloc.split('\n').find(l => l.startsWith('event:')) || '').slice(6).trim()
-          const data = (bloc.split('\n').find(l => l.startsWith('data:'))  || '').slice(5).trim()
-          if (evt === 'delta') {
-            try { complet += JSON.parse(data).text; setResultat(complet) } catch { /* bloc partiel ignoré */ }
-          } else if (evt === 'error') {
-            erreurFlux = true
-            try { refIncident = JSON.parse(data).ref || null } catch { /* pas de réf (bloc partiel / ancien format) */ }
-          } else if (evt === 'done') {
-            termine = true
-          }
-        }
-      }
-
-      // Succès = UNIQUEMENT un flux terminé proprement (`done`), sans `error`, avec du texte. Ceinture
-      // de sécurité : un flux qui meurt en route SANS `done` (serveur tombé, connexion coupée) ne doit
-      // JAMAIS passer pour un succès → message unique.
-      if (erreurFlux || !termine || !complet) {
-        setResultat(null)
-        showError(MSG_ECHEC_GENERATION, { feedback: true, ref: refIncident })
-        return
-      }
-
-      // Succès : le résultat reste AFFICHÉ, c'est un BROUILLON de travail — NON enregistré. L'écriture
-      // en base (put /api/mes-activites) n'est plus automatique « au coup par coup » : elle est
-      // déclenchée par le bouton Valider (modèle brouillon → Valider/Annuler, décision du 25/07,
-      // ta RÈGLE 4 : get pour lire/générer, put SEULEMENT sur action explicite du prof).
-    } catch (e) {
-      // Coupure réseau / flux interrompu côté navigateur → message unique (règle 23), détail en console.
-      console.error('génération activité :', e)
-      setResultat(null)
-      showError(MSG_ECHEC_GENERATION, { feedback: true })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Ménage (28/07) : fonctions retirées — regenerer / verifierResultat / corrigerResultat /
-  // ameliorer. Les features « Régénérer », « Vérifier », « Corriger » et « Améliorer » ont été
-  // supprimées de l'écran (le contrôle qualité est désormais intégré à la génération). Nettoyage
-  // backend correspondant : endpoints verifier/corriger/ameliorer-resultat + prompts associés.
-
-  // Valider = put : écrit l'activité AFFICHÉE en base (une ligne dans « Mes activités »), puis on
-  // passe en phase VALIDÉE (résultat figé, boutons de gestion retirés — seuls les exports restent).
-  // Anti double-clic via enValidation. Le couple (matière/niveau) est stampé PAR LE SERVEUR (couple
-  // de travail lu en base au moment de la sauvegarde). La modale « aSchool vous reconnaît » suit le seuil.
-  async function valider() {
-    if (enValidation || valide || !resultat || repriseHistorique) return  // repriseHistorique = déjà en base : re-valider créerait un doublon (RÈGLE 4, unicité)
-    setEnValidation(true)
-    try {
-      const res = await sauvegarderActivite({
-        activite_type_id: params.activite_type_id,
-        activite_label: activites.find(a => a.id === params.activite_type_id)?.label || '',
-        sous_type: params.sous_type || null,
-        nb: params.nb || null,
-        avec_correction: params.avec_correction,
-        objet: objet.trim() || null,
-        texte_source: texte,
-        resultat,
-      })
-      setValide(true)
-      if (res?.few_shot_just_reached) setFewShotModal(true)
-    } catch {
-      showError("Enregistrement impossible pour le moment. Votre activité reste affichée — réessayez, ou exportez-la en attendant.")
-    } finally {
-      setEnValidation(false)
-    }
-  }
-
-  // Annuler = RIEN en base : deux confirmations en cascade (vu l'importance de la tâche), puis retour
-  // à zéro via nouvelleActivite (vide texte / objet / résultat, type au défaut). La 1re confirmation
-  // est exactement le message de Régénérer, déclinée pour « annuler ».
-  function annuler() {
-    if (!window.confirm('Des informations ont été saisies. Si vous annulez, vous perdez tout.')) return
-    if (!window.confirm('Tout sera effacé et vous repartez de zéro. Confirmez-vous ?')) return
-    nouvelleActivite()
-  }
-
   // Écran Séance de MES CONTENUS (maquette 29/07) : la ligne cliquée dans la bibliothèque,
   // ou null pour un formulaire vierge (« + Créer → Une séance »). Additif — rien d'existant ne bouge.
   const [seanceOuverte, setSeanceOuverte] = useState(null)
@@ -591,83 +359,12 @@ function MainApp() {
     naviguer(type === 'activite' ? 'contenus-activites' : 'contenus-seances')
   }
 
-  // « Créer » ouvre TOUJOURS une activité vierge : on vide tout le contenu de la fois
-  // précédente (texte, objet, résultat, type sélectionné → aucun choix) et on
-  // revient sur l'onglet de saisie. Le bandeau « exemple » est effacé par TexteSource dès
-  // que le texte se vide. Le couple niveau+matière n'est PAS touché (contexte du profil).
-  function nouvelleActivite() {
-    setTexte('')
-    setObjet('')
-    setResultat(null)
-    setTonActuel(null)
-    setValide(false)
-    setRepriseHistorique(false)
-    setEntreeDeverrouillee(false)
-    setFenetreGuide(false)
-    setParams(p => ({ ...p, ...typeVierge() }))
-    setPage('creer-activite')
-  }
-
-  // « Changer votre demande » (encart du résultat) : rouvre la saisie (les 6 boutons + la zone
-  // + l'Objet redeviennent actifs) et ramène le prof sur la carte Texte source pour qu'il édite.
-  // En reprise d'historique : dès qu'on décide de changer la demande, on ne travaille plus sur
-  // l'original « tel quel » → on quitte l'état « déjà en base » pour que Valider/Annuler
-  // redeviennent actifs (on s'apprête à produire une version à soi).
-  function changerDemande() {
-    setEntreeDeverrouillee(true)
-    setRepriseHistorique(false)
-    setTimeout(() => texteSourceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-  }
-
-  // « Changer votre ton » (bandeau du haut) : reprend le MÊME texte et régénère dans l'AUTRE ton.
-  // Bascule directe (deux tons seulement). Action machine = nouvelle version (RÈGLE 0). Ne change pas
-  // le texte source ; le résultat courant est remplacé par la version dans l'autre ton.
-  function changerTon() {
-    if (!tonActuel) return
-    generer(tonActuel === 'academique' ? 'operationnel' : 'academique')
-  }
-
-  // Libellé lisible d'un ton, pour les messages au prof.
-  const libelleTon = t => (t === 'academique' ? 'académique' : 'opérationnel')
-
-  // Confirmation PRO avant les deux reprises (bandeau du haut) : chacune fera PERDRE l'activité
-  // affichée (elle n'est pas encore rangée toute seule) → on dit clairement CE QUI change et on
-  // rappelle d'exporter d'abord. Le prof confirme à chaque clic ; sinon rien ne bouge.
-  function demanderChangerTexte() {
-    showConfirm({
-      titre: 'Modifier votre texte source ?',
-      message: "Vous allez rouvrir votre texte pour le modifier, puis générer une nouvelle activité. L'activité affichée actuellement sera alors remplacée.\n\nSi vous souhaitez la garder, exportez-la d'abord (Word, PDF ou .txt).",
-      confirmLabel: 'Modifier le texte',
-      onConfirm: changerDemande,
-    })
-  }
-  function demanderChangerTon() {
-    if (!tonActuel) return
-    const autre = tonActuel === 'academique' ? 'operationnel' : 'academique'
-    showConfirm({
-      titre: 'Changer le ton de l’activité ?',
-      message: `Vous allez régénérer cette activité en ton ${libelleTon(autre)}. L'activité affichée (ton ${libelleTon(tonActuel)}) sera remplacée.\n\nSi vous souhaitez la garder, exportez-la d'abord (Word, PDF ou .txt).`,
-      confirmLabel: `Générer en ton ${libelleTon(autre)}`,
-      onConfirm: changerTon,
-    })
-  }
-
-  // Routeur de navigation : toute arrivée sur « Créer » repart d'une activité vierge ;
-  // les autres pages naviguent normalement.
+  // Routeur de navigation.
   function naviguer(p) {
     setAideSection(null)   // navigation normale (sidebar) -> l'Aide s'ouvre sur sa section par défaut
     setFenetreGuide(false) // la fenêtre « Comment ça marche » ne suit pas d'un écran à l'autre
-    if (estPageCreer(p)) nouvelleActivite()
-    else setPage(p)
+    setPage(p)
   }
-
-  // Première visite de l'écran Créer : la visite guidée se lance toute seule. Le « déjà
-  // vu » est lu EN BASE (get /auth/me → guide_creer_vu) — jamais un stockage navigateur :
-  // un autre appareil sait aussi que le guide a été montré.
-  useEffect(() => {
-    if (page === 'creer-activite' && user && user.guide_creer_vu === false) setGuideActif(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, user?.guide_creer_vu])
 
   // Fin de visite (Terminer, Passer ou Échap) : on note le « vu » EN BASE (put) puis on
   // relit /auth/me. Échec silencieux : au pire le guide se relancera, sans gravité.
@@ -690,21 +387,6 @@ function MainApp() {
     setAideSection('comment')
     setPage('aide')
   }
-
-  // Guidage de l'écran Créer (patron « stepper », décision du 25/07) : les cartouches
-  // portent leurs numéros ①②③, l'état réel coche ce qui est fait, et le bouton Générer ne
-  // s'allume que quand tout est prêt — plus aucun halo qui se promène.
-  const pretAGenerer = !!texte.trim() && !!params.activite_type_id
-
-  // Course d'attention entre les DEUX boutons de ton (cartouche ③) : dès que tout est prêt et
-  // qu'aucune activité n'est encore là, un halo passe de l'un à l'autre pour inviter le prof à
-  // CHOISIR son ton (même patron que la course des 6 boutons d'apport). S'arrête à la génération.
-  const tonChaseActif = pretAGenerer && !loading && !genererReplie && (!resultat || entreeDeverrouillee)
-  useEffect(() => {
-    if (!tonChaseActif) { setTonChaseIndex(0); return }
-    const id = setInterval(() => setTonChaseIndex(i => (i + 1) % 2), 800)
-    return () => clearInterval(id)
-  }, [tonChaseActif])
 
   // Contexte emporté par un feedback : l'écran courant + le couple de travail (résolu en
   // base via /auth/me). Affiché en clair dans la fenêtre avant l'envoi — le prof n'a plus
@@ -956,34 +638,6 @@ function MainApp() {
       )}
 
 
-      {fewShotModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontWeight: 700, fontSize: '15px', color: '#1e293b', marginBottom: '10px' }}>
-              aSchool reconnaît votre façon de travailler
-            </div>
-            <p style={{ fontSize: '13.5px', color: '#374151', lineHeight: 1.6, margin: '0 0 20px' }}>
-              À partir de 3 activités de ce type d'activité enregistrées, aSchool s'inspire de vos exemples pour générer dans votre style — automatiquement, sans rien régler.
-            </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setFewShotModal(false)}
-                title="Fermer ce message"
-                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Fermer
-              </button>
-              <button
-                onClick={() => { setAideSection('apprentissage'); setPage('aide'); setFewShotModal(false) }}
-                title="Ouvrir l'aide : comment aSchool apprend votre style"
-                style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Plus de détails
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
