@@ -91,7 +91,7 @@ export default function Consigne({ matiere, niveau, onNavigate }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ consigne: consigne.trim(), matiere: mat, niveau: niv }),
+        body: JSON.stringify({ consigne: consigne.trim() }),   // le couple se résout EN BASE côté serveur
       }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()

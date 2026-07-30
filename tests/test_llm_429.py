@@ -38,6 +38,16 @@ from fastapi.testclient import TestClient
 TOKEN = create_access_token("prof.test@aschool.fr")
 
 
+def _prof_avec_couple():
+    """L'endpoint ambiguites résout désormais le couple EN BASE (couple_de_travail) :
+    il faut un prof avec profil complet pour ATTEINDRE l'appel LLM que l'on fait échouer."""
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x",
+                           is_verified=True, subject="L429-Fr", niveau="L429-6e"))
+        db.commit()
+
+
 def _reset_sem():
     """Sémaphore large + délai normal : les tests « amont » prennent un créneau sans souci."""
     gen._llm_semaphore = threading.BoundedSemaphore(8)
@@ -63,11 +73,10 @@ def _client_prof():
 
 def test_ambiguites_429_amont():
     _reset_sem()
+    _prof_avec_couple()
     with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), \
          patch("requests.post", side_effect=_post_429):
-        r = _client_prof().post("/api/detect-ambiguites", json={
-            "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
-        })
+        r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce."})
     assert r.status_code == 429, r.text                 # avant : 500
     assert "instant" in r.json()["detail"].lower()
 
@@ -75,14 +84,13 @@ def test_ambiguites_429_amont():
 # ===================== 2. Saturation locale -> 429 =====================
 
 def test_ambiguites_429_saturation():
+    _prof_avec_couple()
     gen._llm_semaphore = threading.BoundedSemaphore(1)
     gen.AI_SLOT_TIMEOUT = 0.1
     gen._llm_semaphore.acquire()                        # on occupe le seul créneau
     try:
         with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), patch("requests.post") as post:
-            r = _client_prof().post("/api/detect-ambiguites", json={
-                "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
-            })
+            r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce."})
             assert r.status_code == 429, r.text
             post.assert_not_called()                    # aucun appel réseau : pas de créneau
     finally:

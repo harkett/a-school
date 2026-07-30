@@ -79,7 +79,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ texte: texte.trim(), matiere: mat, niveau: niv }),
+        body: JSON.stringify({ texte: texte.trim() }),   // le couple se résout EN BASE côté serveur
       }, TIMEOUT_LONG)
       if (!res.ok) {
         const err = await res.json()

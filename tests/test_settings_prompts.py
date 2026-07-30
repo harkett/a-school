@@ -143,15 +143,20 @@ def test_cle_inconnue_refuse():
 # ============ Chaine complete via /api/detect-ambiguites (cablage routeur prouve) ============
 
 def _call_ambiguites(cap):
+    # L'endpoint résout le couple EN BASE (couple_de_travail) : le prof porte
+    # Mathematiques × 4e dans son PROFIL, l'écran n'envoie plus que le texte.
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x",
+                           is_verified=True, subject="Mathematiques", niveau="4e"))
+        db.commit()
     c = TestClient(app)
     c.cookies.set("aschool_access", TOKEN)
     contenu_llm = '{"ambiguites": [], "verdict": "ok"}'
     with patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), \
          patch("requests.post", side_effect=_fake_groq_post(cap, contenu_llm)):
-        return c.post("/api/detect-ambiguites", json={
-            "texte": "Un enonce.", "matiere": "Mathematiques", "niveau": "4e",
-        })
+        return c.post("/api/detect-ambiguites", json={"texte": "Un enonce."})
 
 
 def test_chaine_utilise_la_surcharge():

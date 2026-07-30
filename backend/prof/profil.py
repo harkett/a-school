@@ -95,10 +95,16 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
+    # Contrôle métier AVANT d'écrire — même règle que « Changer niveau et/ou matière » :
+    # une paire complète doit exister au programme officiel, le front seul ne suffit pas.
+    # Un profil encore incomplet (matière OU niveau vide) reste enregistrable tel quel.
+    matiere, niveau = (body.subject or "").strip(), (body.niveau or "").strip()
+    if matiere and niveau and not _couple_est_au_programme(db, matiere, niveau):
+        raise HTTPException(400, "Cette matière n'est pas enseignée à ce niveau dans les programmes. Choisissez une matière proposée pour ce niveau.")
     user.prenom     = body.prenom    or None
     user.nom        = body.nom       or None
-    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
-    user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
+    user.subject_id = matiere_id_du_nom(db, matiere or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
+    user.niveau_id  = niveau_id_du_nom(db, niveau or None)
     user.langue_lv  = body.langue_lv or None
     user.mobile     = body.mobile    or None
     db.commit()

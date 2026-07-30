@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
+from backend.prof.profil import couple_de_travail
 from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_prompt
 from backend.llm.generator import generate, LLMRateLimitError
 
@@ -16,8 +17,6 @@ router = APIRouter()
 
 class ConsigneRequest(BaseModel):
     consigne: str
-    matiere: str
-    niveau: str
 
 
 class AxeAnalyse(BaseModel):
@@ -73,12 +72,21 @@ def api_analyser_consigne(
     db: Session = Depends(get_db),
 ):
     email = _get_email(aschool_access)
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(404, "Utilisateur introuvable.")
     if not req.consigne.strip():
         raise HTTPException(400, "La consigne ne peut pas être vide.")
 
+    # Couple résolu EN BASE (couple_de_travail, décision 25/07) — l'écran n'envoie plus
+    # matière/niveau, le serveur ne fait plus confiance au corps de la requête.
+    matiere, niveau, _ajuste = couple_de_travail(db, user)
+    if not matiere or not niveau:
+        raise HTTPException(400, "Votre profil n'a pas encore de matière et de niveau — complétez Mon profil avant de lancer l'analyse.")
+
     prompt = get_prompt(db, "consigne").format(
-        matiere=req.matiere,
-        niveau=req.niveau,
+        matiere=matiere,
+        niveau=niveau,
         consigne=req.consigne.strip(),
     )
 
@@ -95,7 +103,7 @@ def api_analyser_consigne(
     nb = len(data.get("analyses", []))
 
     try:
-        db.add(ToolUsageLog(user_id=db.query(User.id).filter(User.email == email).scalar(), tool="consigne", score_label=str(nb)))
+        db.add(ToolUsageLog(user_id=user.id, tool="consigne", score_label=str(nb)))
         db.commit()
     except Exception:
         pass

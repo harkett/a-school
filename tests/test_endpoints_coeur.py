@@ -37,6 +37,16 @@ def authed():
     return c
 
 
+def _prof_filet():
+    """Ambiguïtés et Consigne résolvent le couple EN BASE (couple_de_travail) : le prof
+    du filet doit exister avec un profil complet (SVT × 3e, comme les anciens corps)."""
+    from _profil import user_couple
+    with dbmod.SessionLocal() as db:
+        db.add(user_couple(db, email="filet-test@local.test", password_hash="x",
+                           is_verified=True, subject="SVT", niveau="3e"))
+        db.commit()
+
+
 def noauth():
     return TestClient(app)
 
@@ -69,18 +79,18 @@ def test_optimize_happy():
 
 
 def test_ambiguites_happy():
+    _prof_filet()
     with patch("backend.analyse.ambiguites.generate", return_value=AMB_JSON):
-        r = authed().post("/api/detect-ambiguites", json={
-            "texte": "Analysez le document.", "matiere": "SVT", "niveau": "3e"})
+        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document."})
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["verdict"] and len(d["ambiguites"]) == 1
 
 
 def test_consigne_happy():
+    _prof_filet()
     with patch("backend.analyse.consigne.generate", return_value=CON_JSON):
-        r = authed().post("/api/analyser-consigne", json={
-            "consigne": "Expliquez la photosynthèse.", "matiere": "SVT", "niveau": "3e"})
+        r = authed().post("/api/analyser-consigne", json={"consigne": "Expliquez la photosynthèse."})
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["version_optimisee"] and len(d["analyses"]) == 1
@@ -117,10 +127,11 @@ def test_400_entrees_vides_ou_invalides():
     assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 999}).status_code == 400
     assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 55, "mode": "n_importe_quoi"}).status_code == 400
     assert c.post("/api/generate-sequence", json={"theme": "X", "matiere": "SVT", "niveau": "3e", "duree": 55, "mode": "remediation", "description_classe": ""}).status_code == 400
-    # optimize / ambiguites / consigne : entrée vide
+    # optimize / ambiguites / consigne : entrée vide (le prof du filet existe avec son couple)
+    _prof_filet()
     assert c.post("/api/optimize-sequence", json={"sequence": "   ", "matiere": "SVT", "niveau": "3e"}).status_code == 400
-    assert c.post("/api/detect-ambiguites", json={"texte": "   ", "matiere": "SVT", "niveau": "3e"}).status_code == 400
-    assert c.post("/api/analyser-consigne", json={"consigne": "   ", "matiere": "SVT", "niveau": "3e"}).status_code == 400
+    assert c.post("/api/detect-ambiguites", json={"texte": "   "}).status_code == 400
+    assert c.post("/api/analyser-consigne", json={"consigne": "   "}).status_code == 400
 
 
 # ===================== RÉSILIENCE — panne LLM amont =====================
