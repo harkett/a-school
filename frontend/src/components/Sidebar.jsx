@@ -221,12 +221,6 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
         )}
       </button>
 
-      {!collapsed && (
-        <div className="shrink-0" style={{ padding: '4px 16px 12px', borderBottom: '1px solid #f1f5f9' }}>
-          <img src="/Logo_aSchool.png" alt="aSchool" style={{ width: '100%', height: 'auto', display: 'block' }} />
-        </div>
-      )}
-
       <nav className={`sidebar-scroll flex flex-col gap-1 flex-1 min-h-0 ${collapsed ? '' : 'px-4'}`}>
         {navItem('accueil', 'Accueil', IconHome, 'Tableau de bord — vue d\'ensemble')}
 

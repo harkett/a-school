@@ -18,6 +18,12 @@ import { aideActivite } from '../utils/aideActivite.js'
 import { typeVierge } from '../utils/activite.js'
 import { apiFetch, lireReponse, refreshSession, TIMEOUT_STD } from '../utils/api.js'
 import { showError, openFeedbackFromError } from '../errorDialog'
+import { TYPES_CONTENUS } from '../utils/typesContenus.js'
+
+// Identités de type (fichier commun) : le retour standard porte l'ambre activité ; le
+// retour vers la séance mère porte le vert séance — on voit vers quel étage on remonte.
+const TYPE_ACT = TYPES_CONTENUS.activite
+const TYPE_SEA = TYPES_CONTENUS.seance
 
 const MSG_ECHEC_GENERATION =
   'La génération de votre activité n\'a pas pu aboutir. Merci de réessayer.\n' +
@@ -227,22 +233,35 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
 
       {/* ── Barre du haut : retour + titre + état d'enregistrement + reprises ── */}
       <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', flexShrink: 0, alignItems: 'center', gap: 8 }}>
+        {/* Retour : flèche SVG grande et pleine. Standard = « Mes activités » en ambre
+            activité ; depuis une séance = vert séance (demande utilisateur 30/07). */}
         <button
           type="button"
-          onClick={() => (seanceParente && onRetourSeance ? onRetourSeance() : onNavigate('mes-contenus'))}
-          title={seanceParente ? 'Revenir à la séance qui a créé cette activité' : 'Revenir à Mes contenus'}
-          style={{ margin: '0 0 0 8px', fontSize: 12, color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}
+          onClick={() => (seanceParente && onRetourSeance ? onRetourSeance() : onNavigate('contenus-activites'))}
+          title={seanceParente ? 'Revenir à la séance qui a créé cette activité' : 'Revenir à la page Activités'}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, margin: '0 0 0 8px', fontSize: 13, fontWeight: 600,
+                   color: seanceParente ? TYPE_SEA.accent : TYPE_ACT.accent,
+                   background: seanceParente ? TYPE_SEA.fond : TYPE_ACT.fond,
+                   border: `1px solid ${seanceParente ? TYPE_SEA.bord : TYPE_ACT.bord}`,
+                   borderRadius: 6, padding: '5px 12px', cursor: 'pointer', flexShrink: 0 }}
         >
-          {seanceParente ? '← Retour à la séance' : '← Mes contenus'}
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"/>
+            <polyline points="12 19 5 12 12 5"/>
+          </svg>
+          {seanceParente ? 'Retour à la séance' : 'Mes activités'}
         </button>
-        <div style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 700, color: 'var(--bordeaux)', borderBottom: '2px solid var(--bordeaux)', marginBottom: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {titreBarre}
+        {/* Titre CENTRÉ au milieu de la barre (demande 30/07) — le filet bordeaux suit le texte. */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center' }}>
+          <span style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 700, color: 'var(--bordeaux)', borderBottom: '2px solid var(--bordeaux)', marginBottom: '-1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+            {titreBarre}
+          </span>
         </div>
 
         {/* Règle 0 rendue VISIBLE : l'état d'enregistrement en base, jamais un bouton Sauvegarder. */}
         {enregistrement === 'ok' && (
           <span title="Votre activité est écrite en base — retrouvez-la dans Mes contenus"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 99, padding: '3px 10px', flexShrink: 0 }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#166534', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 99, padding: '3px 10px', flexShrink: 0, marginRight: 8 }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             Enregistrée
           </span>
@@ -252,51 +271,50 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
             type="button"
             onClick={() => resultat && sauver(resultat, tonActuel)}
             title="L'enregistrement automatique a échoué — cliquez pour réessayer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 99, padding: '3px 10px', cursor: 'pointer', flexShrink: 0 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 99, padding: '3px 10px', cursor: 'pointer', flexShrink: 0, marginRight: 8 }}
           >
             Réessayer l'enregistrement
           </button>
         )}
-
-        {/* Reprises (génération terminée) : mêmes deux axes que l'écran modèle. */}
-        <div style={{ marginLeft: 'auto', marginRight: 8, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {resultat && !loading && (
-            <>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => setEntreeDeverrouillee(true)}
-                title="Changer votre texte : rouvre votre texte source pour le modifier (réécrire, réimporter un document, redicter…), puis vous régénérez."
-                style={{ flexShrink: 0 }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Changer votre texte
-              </button>
-              {tonActuel && (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => generer(tonActuel === 'academique' ? 'operationnel' : 'academique')}
-                  title={`Changer votre ton : reprend le même texte et régénère l'activité en ton ${tonActuel === 'academique' ? 'opérationnel (clair, phrases courtes)' : 'académique (formel, phrases longues)'}. L'ancienne version reste dans l'historique.`}
-                  style={{ flexShrink: 0 }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                  Changer votre ton
-                </button>
-              )}
-            </>
-          )}
-        </div>
       </div>
 
-      {/* ── Frise de progression — le même composant que l'écran modèle. ── */}
-      <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
-        <FriseProgression
-          typeOk={!!params.activite_type_id}
-          texteOk={!!texte.trim()}
-          loading={loading}
-          resultat={resultat}
-        />
+      {/* ── Frise de progression + reprises « Changer votre texte / ton » (descendues de la
+          barre du haut le 30/07 : en gris, à droite de la frise — la barre respire). ── */}
+      <div style={{ padding: '14px 20px 12px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <FriseProgression
+            typeOk={!!params.activite_type_id}
+            texteOk={!!texte.trim()}
+            loading={loading}
+            resultat={resultat}
+          />
+        </div>
+        {resultat && !loading && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setEntreeDeverrouillee(true)}
+              title="Changer votre texte : rouvre votre texte source pour le modifier (réécrire, réimporter un document, redicter…), puis vous régénérez."
+              style={{ flexShrink: 0 }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Changer votre texte
+            </button>
+            {tonActuel && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => generer(tonActuel === 'academique' ? 'operationnel' : 'academique')}
+                title={`Changer votre ton : reprend le même texte et régénère l'activité en ton ${tonActuel === 'academique' ? 'opérationnel (clair, phrases courtes)' : 'académique (formel, phrases longues)'}. L'ancienne version reste dans l'historique.`}
+                style={{ flexShrink: 0 }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                Changer votre ton
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="creer-corps">
