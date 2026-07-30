@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 // LA page « Contenu » : tout le contenu pédagogique dans UN SEUL tableau qui se déroule —
 // cycle → niveau (le couple) → référentiel, matières, types d'activité (et leurs précisions).
@@ -45,16 +47,30 @@ const CHEVRON = (ouvert) => (
 export default function AdminContenu() {
   const [cycles, setCycles] = useState([])
   const [loading, setLoading] = useState(true)
+  const [panne, setPanne] = useState(false)                          // lecture échouée (réseau/serveur)
   const [nivOuverts, setNivOuverts] = useState(() => new Set())      // niveaux dépliés
   const [typesOuverts, setTypesOuverts] = useState(() => new Set())  // `${niveauId}|${typeId}` → précisions dépliées
   const navigate = useNavigate()
 
-  useEffect(() => {
-    fetch('/api/admin/contenu', { credentials: 'include' })
-      .then(r => { if (r.status === 401) { navigate('/admin/login'); return null } return r.json() })
-      .then(data => { if (data) setCycles(data.cycles || []) })
-      .finally(() => setLoading(false))
-  }, [navigate])
+  // Lecture de l'arbre. Une panne (réseau, serveur) n'affiche JAMAIS le faux « Aucun cycle en
+  // base. » : erreur en modale (règle maison) et l'écran ne garde qu'un bouton « Réessayer ».
+  async function charger() {
+    setLoading(true)
+    setPanne(false)
+    try {
+      const r = await fetchWithTimeout('/api/admin/contenu', { credentials: 'include' }, TIMEOUT_STD)
+      if (r.status === 401) { navigate('/admin/login'); return }
+      const data = await lireReponse(r)
+      setCycles(data.cycles || [])
+    } catch (err) {
+      setPanne(true)
+      showError(messagePourEcran(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { charger() }, [navigate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   function basculerNiveau(id) {
     setNivOuverts(prev => {
@@ -72,6 +88,21 @@ export default function AdminContenu() {
   }
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
+
+  // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
+  if (panne) return (
+    <div style={{ textAlign: 'center', padding: '3rem' }}>
+      <button
+        type="button"
+        onClick={charger}
+        title="Relancer la lecture du contenu pédagogique"
+        style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
+                 background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >
+        Réessayer
+      </button>
+    </div>
+  )
 
   const nbNiveaux = cycles.reduce((n, c) => n + c.niveaux.length, 0)
 
