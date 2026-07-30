@@ -25,7 +25,7 @@ function messageNiveauIndisponible(niveau) {
 }
 
 export default function MonProfil({ onNavigate }) {
-  const { user, setUser } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [form, setForm] = useState({
     prenom:    user?.prenom    || '',
     nom:       user?.nom       || '',
@@ -178,7 +178,9 @@ export default function MonProfil({ onNavigate }) {
         body: JSON.stringify(form),
       })
       if (!res.ok) throw new Error('Erreur lors de la sauvegarde.')
-      setUser({ ...user, ...form })
+      // Relecture /auth/me après le put (jamais un recollage local) : le serveur renvoie
+      // travail_matiere/travail_niveau résolus — le header et les gardes de profil suivent.
+      await refreshUser()
       onNavigate('accueil')
     } catch (e) {
       setErreur(e.message)
