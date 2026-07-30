@@ -568,6 +568,16 @@ def codes_statuts_modifiables(db: Session) -> set[str]:
     return {code for code, modifiable in rows if modifiable}
 
 
+def labels_statuts(db: Session) -> dict[str, str]:
+    """Libellé de chaque statut de feedback (code -> label), lu EN BASE. L'écran prof affiche
+    CE libellé — plus de copie « Nouveau »/« Traité » côté front. Table vide = migration non
+    appliquée -> on lève (même contrôle que codes_statuts_assignables)."""
+    rows = db.query(FeedbackStatut.code, FeedbackStatut.label).all()
+    if not rows:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return dict(rows)
+
+
 @router.patch("/admin/feedbacks/{feedback_id}/statut")
 def update_feedback_statut(
     feedback_id: int,

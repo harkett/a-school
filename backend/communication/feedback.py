@@ -12,7 +12,7 @@ from backend.communication import echange
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.systeme.admin import codes_statuts_modifiables
+from backend.systeme.admin import codes_statuts_modifiables, labels_statuts
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
 router = APIRouter()
@@ -195,6 +195,7 @@ def mes_feedbacks(
         .all()
     )
     modifiables = codes_statuts_modifiables(db)  # lu une fois en base, pas par ligne
+    labels = labels_statuts(db)                  # idem : le libellé affiché vient de la base
     # L'échange des retours affichés, en UNE requête (pas une par carte).
     echanges = echange.messages_par_feedback(db, [f.id for f in rows])
     return [
@@ -204,6 +205,7 @@ def mes_feedbacks(
             "message":         f.message,
             "contexte":        f.contexte,
             "statut":          f.statut or "nouveau",
+            "statut_label":    labels.get(f.statut or "nouveau", f.statut or "nouveau"),
             "created_at":      f.created_at.strftime("%d/%m/%Y") if f.created_at else "—",
             "updated_at":      f.updated_at.strftime("%d/%m/%Y") if f.updated_at else None,
             "attachment_path": f.attachment_path,

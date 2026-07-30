@@ -9,13 +9,16 @@ const CATEGORIES = [
   { key: 'question',   label: 'Question' },
 ]
 
-const STATUTS = {
-  nouveau:  { label: 'Nouveau',  bg: '#dbeafe', color: '#1d4ed8' },
-  en_cours: { label: 'En cours', bg: '#ffedd5', color: '#c2410c' },
-  traite:   { label: 'Traité',   bg: '#dcfce7', color: '#15803d' },
-  archive:  { label: 'Archivé',  bg: '#f3f4f6', color: '#6b7280' },
+// Le LIBELLÉ du statut et le droit de modifier viennent du serveur (table feedback_statuts —
+// statut_label + modifiable par retour). Ne reste ici que la COULEUR de la pastille par code,
+// gris neutre pour un code inconnu — de l'affichage pur, comme les pictogrammes des votes.
+const COULEURS_STATUT = {
+  nouveau:  { bg: '#dbeafe', color: '#1d4ed8' },
+  en_cours: { bg: '#ffedd5', color: '#c2410c' },
+  traite:   { bg: '#dcfce7', color: '#15803d' },
+  archive:  { bg: '#f3f4f6', color: '#6b7280' },
 }
-const STATUTS_MODIFIABLES = ['nouveau', 'en_cours']
+const COULEUR_DEFAUT = { bg: '#f3f4f6', color: '#6b7280' }
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'application/pdf', 'text/plain']
 const MAX_SIZE     = 5 * 1024 * 1024
 const MAX_FILES    = 5
@@ -378,7 +381,7 @@ export default function MesFeedbacks() {
             </div>
           )}
           {retours && retours.map(fb => {
-            const st = STATUTS[fb.statut] || STATUTS.nouveau
+            const st = COULEURS_STATUT[fb.statut] || COULEUR_DEFAUT
             const isEdit = editId === fb.id
             const attachPaths = fb.attachment_path ? fb.attachment_path.split(',').filter(Boolean) : []
             return (
@@ -386,7 +389,7 @@ export default function MesFeedbacks() {
                 <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                   <div className="flex items-center gap-2 flex-wrap">
                     {fb.category && <span style={{ fontSize: '0.72rem', background: '#eff6ff', color: '#1d4ed8', borderRadius: 4, padding: '2px 8px' }}>{fb.category}</span>}
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, borderRadius: 4, padding: '2px 8px', background: st.bg, color: st.color }}>{st.label}</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, borderRadius: 4, padding: '2px 8px', background: st.bg, color: st.color }}>{fb.statut_label}</span>
                     {fb.contexte && <span title="D'où ce retour a été envoyé" style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#64748b', borderRadius: 4, padding: '2px 8px' }}>{fb.contexte}</span>}
                   </div>
                   <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
@@ -448,7 +451,7 @@ export default function MesFeedbacks() {
                       </div>
                     )}
 
-                    {STATUTS_MODIFIABLES.includes(fb.statut) && (
+                    {fb.modifiable && (
                       <div className="flex justify-end mt-3">
                         <button onClick={() => handleModifier(fb)} title="Modifier ce feedback"
                           style={{ padding: '5px 16px', fontSize: '0.82rem', borderRadius: 6, border: '1px solid #d1d5db', background: 'white', color: '#374151', cursor: 'pointer' }}>
