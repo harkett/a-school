@@ -9,7 +9,6 @@ import TexteSource from './components/TexteSource'
 import Parametres from './components/Parametres'
 import VisiteGuidee from './components/VisiteGuidee'
 import FenetreGuide from './components/FenetreGuide'
-import FenetreGuideHistorique from './components/FenetreGuideHistorique'
 import FenetreGuideSeance from './components/FenetreGuideSeance'
 import FenetreGuideSequence from './components/FenetreGuideSequence'
 import FenetreGuideContenusActivites from './components/FenetreGuideContenusActivites'
@@ -19,17 +18,12 @@ import ZoneResultat from './components/ZoneResultat'
 import Aide from './components/Aide'
 import APropos from './components/APropos'
 import Feedback from './components/Feedback'
-import MesActivites from './components/MesActivites'
 import MesContenus from './components/MesContenus'
 import SeanceEcran from './components/SeanceEcran'
 import SequenceEcran from './components/SequenceEcran'
 import ActiviteEcran from './components/ActiviteEcran'
-import MesSequences from './components/MesSequences'
-import MonReseau from './components/MonReseau'
-import MonReseauSequences from './components/MonReseauSequences'
 import BientotDisponible from './components/BientotDisponible'
 import Accueil from './components/Accueil'
-import SequenceForm from './components/SequenceForm'
 import Optimiseur from './components/Optimiseur'
 import Ambiguites from './components/Ambiguites'
 import InfoGuide from './components/InfoGuide.jsx'
@@ -128,8 +122,6 @@ function MainApp() {
 
   const isMobile = window.innerWidth < 768
   const [page, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
-  const [prefillTheme, setPrefillTheme] = useState('')
-  const [prefillSeq, setPrefillSeq] = useState(null)
   const [prefillAmbiguites, setPrefillAmbiguites] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackIncidentRef, setFeedbackIncidentRef] = useState(null)  // réf d'incident jointe au feedback (échec de génération) ; null = feedback ouvert manuellement
@@ -599,35 +591,10 @@ function MainApp() {
     naviguer(type === 'activite' ? 'contenus-activites' : 'contenus-seances')
   }
 
-  function chargerSequence(seq) {
-    setPrefillSeq(seq)
-    setPage('creer-sequence')
-  }
-
-  function chargerActivite(act) {
-    setTexte(act.texte_source)
-    setObjet(act.objet || '')
-    setParamsWithSave({
-      activite_type_id: act.activite_type_id ?? null,   // l'id du type est renvoyé par la liste sauvegardée
-      niveau: act.niveau,
-      sous_type: act.sous_type || null,
-      nb: act.nb || 5,
-      avec_correction: act.avec_correction,
-    })
-    setResultat(act.resultat)
-    setTonActuel(act.ton || null) // ton d'origine si l'activité en base le porte (sinon inconnu → « Changer votre ton » masqué)
-    setValide(false)              // pas la phase VALIDÉ (qui retire tous les boutons) : on garde Régénérer + Changer votre demande
-    setRepriseHistorique(true)    // …mais l'activité est DÉJÀ en base → Valider/Annuler grisés
-    setEntreeDeverrouillee(false)
-    setPage('creer-activite')
-  }
-
   // « Créer » ouvre TOUJOURS une activité vierge : on vide tout le contenu de la fois
   // précédente (texte, objet, résultat, type sélectionné → aucun choix) et on
   // revient sur l'onglet de saisie. Le bandeau « exemple » est effacé par TexteSource dès
   // que le texte se vide. Le couple niveau+matière n'est PAS touché (contexte du profil).
-  // NB : « réutiliser depuis l'Historique » passe par chargerActivite() qui charge
-  // volontairement — il garde son setPage direct et ne subit donc pas cette remise à zéro.
   function nouvelleActivite() {
     setTexte('')
     setObjet('')
@@ -766,9 +733,6 @@ function MainApp() {
         onOuvrirAide={ouvrirAideDepuisGuide}
       />
     ),
-    'mes-activites': () => (
-      <FenetreGuideHistorique onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
-    ),
     'seance': () => (
       <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
     ),
@@ -816,7 +780,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
         <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'creer-sequence', 'optimiseur', 'ambiguites', 'consigne', 'mes-activites', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['creer-activite', 'optimiseur', 'ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -1377,40 +1341,6 @@ function MainApp() {
             </div>
           )}
 
-          {page === 'creer-sequence' && (
-            <SequenceForm
-              matiere={sessionMatiere}
-              niveau={params.niveau}
-              onNavigate={naviguer}
-              prefillTheme={prefillTheme}
-              onPrefillUsed={() => setPrefillTheme('')}
-              prefillSeq={prefillSeq}
-              onPrefillSeqUsed={() => setPrefillSeq(null)}
-            />
-          )}
-
-          {page === 'mes-activites' && (
-            <>
-              <MesActivites
-                onCharger={chargerActivite}
-                sessionMatiere={sessionMatiere}
-                sessionNiveau={params.niveau}
-                onNavigate={naviguer}
-                userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
-              />
-            </>
-          )}
-
-          {page === 'mes-sequences' && (
-            <MesSequences
-              onCharger={chargerSequence}
-              sessionMatiere={sessionMatiere}
-              sessionNiveau={params.niveau}
-              onNavigate={naviguer}
-              userName={`${user?.prenom || ''} ${user?.nom || ''}`.trim()}
-            />
-          )}
-
           {/* Mes contenus — une page PAR TYPE (3 sous-options du menu). L'ancienne route
               mes-contenus reste un alias vers Activités (liens/retours existants). */}
           {page === 'contenus-sequences' && (
@@ -1496,22 +1426,6 @@ function MainApp() {
             />
           )}
 
-          {page === 'mon-reseau-activites' && (
-            <MonReseau
-              onCharger={chargerActivite}
-              sessionMatiere={sessionMatiere}
-              sessionNiveau={params.niveau}
-            />
-          )}
-
-          {page === 'mon-reseau-sequences' && (
-            <MonReseauSequences
-              onCharger={chargerSequence}
-              sessionMatiere={sessionMatiere}
-              sessionNiveau={params.niveau}
-            />
-          )}
-
           {page === 'optimiseur' && (
             <Optimiseur
               defaultMatiere={sessionMatiere}
@@ -1520,12 +1434,13 @@ function MainApp() {
             />
           )}
 
+          {/* La passerelle « créer une séance depuis une reformulation » visait l'ancien
+              outil Séquence (démoli) — elle renaîtra sur la séance du monde neuf. */}
           {page === 'ambiguites' && (
             <Ambiguites
               matiere={sessionMatiere}
               niveau={params.niveau}
               onNavigate={naviguer}
-              onCreateSequence={(reformulation) => { setPrefillTheme(reformulation); setPage('creer-sequence') }}
               prefillTexte={prefillAmbiguites}
               onPrefillUsed={() => setPrefillAmbiguites('')}
             />
@@ -1545,9 +1460,9 @@ function MainApp() {
               <p style={{ fontSize: '13px', color: '#64748b', margin: 0, maxWidth: '400px', lineHeight: 1.6 }}>
                 Outil en cours de développement.
               </p>
-              <button onClick={() => setPage('mes-outils')} title="Retour au menu Mes outils"
+              <button onClick={() => naviguer('accueil')} title="Revenir à l'accueil"
                 style={{ fontSize: '12px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '5px 14px', cursor: 'pointer' }}>
-                ← Retour aux outils
+                ← Retour à l'accueil
               </button>
             </div>
           )}

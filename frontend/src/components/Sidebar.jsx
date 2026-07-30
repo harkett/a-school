@@ -45,12 +45,6 @@ const IconSequences = () => (
     <line x1="3" y1="18" x2="3.01" y2="18"/>
   </svg>
 )
-const IconMonReseau = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-  </svg>
-)
 const IconRocket = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2-.2-2.8-.9-.9-2.1-.9-2.8-.2z"/>
@@ -108,25 +102,22 @@ const IconStats = () => (
 )
 
 // « Mes analyses » — ex-section « Analyse » de Mes outils, sortie au premier niveau le 30/07
-// (décision utilisateur). « Mes outils » est SUPPRIMÉ du menu : les routes mes-outils /
-// creer-activite / mes-activites / creer-sequence / mes-sequences / optimiseur et leur code
-// restent en place.
+// (décision utilisateur). L'ancien monde se DÉMOLIT (décision 30/07) : mes-activites /
+// mes-sequences / creer-sequence / mon-reseau sont supprimés ; mes-outils / creer-activite /
+// optimiseur (inaccessibles depuis le menu) tombent au palier suivant.
 const MES_ANALYSES_PAGES = ['ambiguites', 'consigne', 'equite']
 // Le monde NEUF « Mes contenus » : une sous-option PAR TYPE (décision utilisateur du 30/07 —
 // fini le mélange des trois dans un seul écran). Les écrans seance/activite en font partie.
 const MES_CONTENUS_PAGES = ['mes-contenus', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'seance', 'activite']
-const MON_RESEAU_PAGES = ['mon-reseau-activites', 'mon-reseau-sequences']
 
 export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
   const [analysesOpen, setAnalysesOpen] = useState(() => MES_ANALYSES_PAGES.includes(page))
   const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
-  const [biblioOpen, setBiblioOpen] = useState(() => MON_RESEAU_PAGES.includes(page))
   const [evalOpen, setEvalOpen] = useState(false)
 
   useEffect(() => {
     if (MES_ANALYSES_PAGES.includes(page)) setAnalysesOpen(true)
-    if (MON_RESEAU_PAGES.includes(page)) setBiblioOpen(true)
   }, [page])
 
   const navItem = (id, label, Icon, title) => (
@@ -336,38 +327,8 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
           </div>
         )}
 
-        {collapsed ? (
-          navItem('mon-reseau-activites', 'Mon réseau', IconMonReseau, 'Mon réseau — activités et séquences partagées par vos collègues')
-        ) : (
-          <div>
-            <button
-              onClick={() => setBiblioOpen(o => !o)}
-              title="Mon réseau — activités et séquences partagées par vos collègues"
-              className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
-                color: MON_RESEAU_PAGES.includes(page) ? 'var(--bordeaux)' : '#6b7280',
-                fontWeight: MON_RESEAU_PAGES.includes(page) ? 600 : 400,
-              }}
-            >
-              <IconMonReseau />
-              <span>Mon réseau</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2.5"
-                style={{ marginLeft: 'auto', flexShrink: 0, transform: biblioOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
-              >
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-            {biblioOpen && (
-              <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
-                {subNavItem('mon-reseau-activites', 'Activités', 'Activités partagées par vos collègues')}
-                {subNavItem('mon-reseau-sequences', 'Séquences', 'Séquences partagées par vos collègues')}
-              </div>
-            )}
-          </div>
-        )}
+        {/* « Mon réseau » (partages de l'ancien monde) a été démoli le 30/07 — il renaîtra
+            sur le partage du monde neuf, conçu sur les tables neuves. */}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
         {navItem('mes-feedbacks', 'Mes feedbacks', IconFeedback, 'Consulter vos retours envoyés et leur statut')}
         {navItem('mes-stats', 'Mes stats', IconStats, 'Mes statistiques personnelles et la vitalité de la plateforme')}
