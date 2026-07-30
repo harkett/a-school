@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 function KpiCard({ label, value, sub, color }) {
   return (
@@ -13,25 +15,42 @@ function KpiCard({ label, value, sub, color }) {
 export default function MesStats() {
   const [perso,     setPerso]     = useState(null)
   const [commu,     setCommu]     = useState(null)
-  const [dashboard, setDashboard] = useState(null)
+  const [chargementRate, setChargementRate] = useState(false)
   const isMobile = window.innerWidth < 768
 
-  useEffect(() => {
-    const opts = { credentials: 'include' }
-    fetch('/api/stats/perso', opts)
-      .then(r => r.ok ? r.json() : null).then(d => { if (d) setPerso(d) }).catch(() => {})
-    fetch('/api/stats/communaute', opts)
-      .then(r => r.ok ? r.json() : null).then(d => { if (d) setCommu(d) }).catch(() => {})
-    fetch('/api/dashboard', opts)
-      .then(r => r.ok ? r.json() : null).then(d => { if (d) setDashboard(d) }).catch(() => {})
-  }, [])
+  // Monde NEUF uniquement : perso + communauté (l'appel au dashboard a disparu avec la
+  // tuile « Partagées » — le partage n'existe pas encore dans le monde neuf).
+  async function charger() {
+    setChargementRate(false)
+    try {
+      const opts = { credentials: 'include' }
+      const [p, c] = await Promise.all([
+        fetchWithTimeout('/api/stats/perso', opts, TIMEOUT_STD).then(lireReponse),
+        fetchWithTimeout('/api/stats/communaute', opts, TIMEOUT_STD).then(lireReponse),
+      ])
+      setPerso(p)
+      setCommu(c)
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
+  }
+
+  useEffect(() => { charger() }, [])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>Mes statistiques</div>
 
-      {/* ── Votre activité ── */}
+      {chargementRate && (
+        <button onClick={charger} className="btn-primary" style={{ alignSelf: 'flex-start' }}
+          title="Recharger les statistiques">
+          Réessayer
+        </button>
+      )}
+
+      {/* ── Votre activité — le trio du monde neuf, aux couleurs des trois types ── */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
           Votre activité
@@ -44,16 +63,16 @@ export default function MesStats() {
             sub={perso?.heures_gagnees > 0 ? `~${perso.heures_gagnees}h gagnées` : null}
           />
           <KpiCard
+            label="Mes séances"
+            value={perso?.seances ?? '—'}
+            color="#059669"
+            sub="préparées"
+          />
+          <KpiCard
             label="Mes séquences"
             value={perso?.sequences ?? '—'}
             color="#7c3aed"
             sub="orchestrations"
-          />
-          <KpiCard
-            label="Partagées"
-            value={dashboard?.mes_partages ?? '—'}
-            color="#059669"
-            sub="avec vos collègues"
           />
         </div>
       </div>
@@ -102,7 +121,7 @@ export default function MesStats() {
             </div>
             <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 5 }}>
               {perso.score_adaptation === 0
-                ? 'Sauvegardez 3 activités du même type pour l\'activer'
+                ? 'Créez 3 activités du même type pour l\'activer'
                 : perso.score_adaptation < 100
                   ? 'En cours d\'adaptation à votre style'
                   : 'Style reconnu — les activités vous ressemblent'}
@@ -124,13 +143,12 @@ export default function MesStats() {
             borderRadius: 10,
             padding: '14px 6px',
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
+            gridTemplateColumns: 'repeat(3, 1fr)',
           }}>
             {[
               { value: commu.profs_actifs_aujourd_hui, label: "profs actifs\naujourd'hui", color: '#1e40af' },
               { value: commu.profs_actifs_semaine,     label: 'actifs\ncette semaine',     color: '#7c3aed' },
               { value: commu.activites_total,           label: 'activités\nsur aSchool',    color: 'var(--bordeaux)' },
-              { value: commu.partages_total,            label: 'partages\nentre collègues', color: '#059669' },
             ].map((s, i, arr) => (
               <div key={s.label} style={{
                 textAlign: 'center',

@@ -90,6 +90,10 @@ SETTING_DEFAULTS = {
     # Nb de chunks que le RAG ramène (top_k) pour ancrer une génération. Réglage admin en
     # base, sûr à changer à chaud (aucun ré-index). Défaut 4. Lu via get_rag_top_k(db).
     "rag_top_k": "4",
+    # Minutes « gagnées » comptées par activité créée (KPI de Mes stats). Sortie du code en
+    # dur (check-up 30/07) : réglage en base, même moule hybride que max_tokens. Lu via
+    # get_minutes_par_activite(db).
+    "stats_minutes_par_activite": "15",
     # Modèle OCR (Groq vision) — administrable en base, même patron que ai_model. Défaut = valeur
     # historique. Lu via get_ocr_model(db), passé à transcribe_image (src reste pur, aucun modèle
     # en dur). Le fournisseur OCR reste Groq (seul moteur vision, pas d'alternative) : seul le
@@ -335,6 +339,17 @@ def get_temperature(db: Session):
     except (TypeError, ValueError):
         return None
     return v if TEMPERATURE_MIN <= v <= TEMPERATURE_MAX else None
+
+
+def get_minutes_par_activite(db: Session) -> int:
+    """Minutes « gagnées » comptées par activité créée (KPI Mes stats), lues en base au
+    moment de l'appel (surcharge `stats_minutes_par_activite`, défaut code) — même moule
+    hybride que get_max_tokens. Valeur corrompue -> défaut, jamais d'exception."""
+    raw = get_settings_dict(db)["stats_minutes_par_activite"]
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return int(SETTING_DEFAULTS["stats_minutes_par_activite"])
 
 
 def get_prompt(db: Session, key: str) -> str:

@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.database import get_db
-from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, Seance, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, Seance, Sequence, SequenceSauvegardee, ToolUsageLog, User
 from backend import auth as auth_lib
-from backend.systeme.admin import _require_admin
+from backend.systeme.admin import _require_admin, get_minutes_par_activite
 
 router = APIRouter()
 
@@ -262,16 +262,19 @@ def admin_communaute_stats(
 
 @router.get("/stats/perso")
 def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Mes stats du prof, comptées sur le monde NEUF (activites / seances / sequences —
+    décision 30/07). Minutes gagnées par activité : réglage EN BASE
+    (stats_minutes_par_activite), plus de « 15 » en dur."""
     email = _get_email(aschool_access)
+    uid = db.query(User.id).filter(User.email == email).scalar()
 
-    total_sequences = db.query(func.count(SequenceSauvegardee.id)).filter(
-        SequenceSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
-    ).scalar() or 0
+    total_sequences = db.query(func.count(Sequence.id)).filter(Sequence.user_id == uid).scalar() or 0
+    total_seances = db.query(func.count(Seance.id)).filter(Seance.user_id == uid).scalar() or 0
 
     type_row = (
-        db.query(ActiviteSauvegardee.activite_label, func.count().label("nb"))
-        .filter(ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar())
-        .group_by(ActiviteSauvegardee.activite_label)
+        db.query(Activite.activite_label, func.count().label("nb"))
+        .filter(Activite.user_id == uid)
+        .group_by(Activite.activite_label)
         .order_by(func.count().desc())
         .first()
     )
@@ -279,35 +282,18 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     max_par_type = type_row[1] if type_row else 0
     score_adaptation = 0 if max_par_type == 0 else min(100, int(max_par_type / 3 * 100))
 
-    total_activites = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar()
-    ).scalar() or 0
-    heures_gagnees = (total_activites * 15) // 60
+    total_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
+    heures_gagnees = (total_activites * get_minutes_par_activite(db)) // 60
 
     debut_mois = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    activites_ce_mois = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.user_id == db.query(User.id).filter(User.email == email).scalar(),
-        ActiviteSauvegardee.created_at >= debut_mois,
+    activites_ce_mois = db.query(func.count(Activite.id)).filter(
+        Activite.user_id == uid,
+        Activite.created_at >= debut_mois,
     ).scalar() or 0
-
-    login_dates_raw = (
-        db.query(func.date(ConnexionLog.created_at).label("day"))
-        .filter(ConnexionLog.user_id == db.query(User.id).filter(User.email == email).scalar(), ConnexionLog.action == "login")
-        .distinct()
-        .all()
-    )
-    login_dates = {str(r.day) for r in login_dates_raw}
-    streak = 0
-    check = datetime.utcnow().date()
-    for _ in range(365):
-        if str(check) in login_dates:
-            streak += 1
-            check -= timedelta(days=1)
-        else:
-            break
 
     return {
         "sequences": total_sequences,
+        "seances": total_seances,
         "activites_total": total_activites,
         "activites_ce_mois": activites_ce_mois,
         "type_favori": type_favori,
@@ -322,14 +308,19 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
 
 @router.get("/stats/communaute")
 def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
+    """Jauge communauté du prof, comptée sur le monde NEUF. Le partage n'existe pas (encore)
+    dans le monde neuf : la tuile a quitté l'écran, on n'envoie pas un faux zéro d'ancien
+    monde."""
     _get_email(aschool_access)
 
     today = datetime.utcnow().date()
     depuis_7j = datetime.utcnow() - timedelta(days=7)
 
+    # Comparaison sur l'objet date (jamais str) : « date = varchar » est refusé par
+    # PostgreSQL — ce 500 silencieux cachait la section communauté depuis l'origine.
     profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
-        func.date(ConnexionLog.created_at) == str(today)
+        func.date(ConnexionLog.created_at) == today
     ).scalar() or 0
 
     profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
@@ -337,17 +328,12 @@ def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = D
         ConnexionLog.created_at >= depuis_7j
     ).scalar() or 0
 
-    activites_total = db.query(func.count(ActiviteSauvegardee.id)).scalar() or 0
-
-    partages_total = db.query(func.count(ActiviteSauvegardee.id)).filter(
-        ActiviteSauvegardee.partagee == True
-    ).scalar() or 0
+    activites_total = db.query(func.count(Activite.id)).scalar() or 0
 
     return {
         "profs_actifs_aujourd_hui": profs_actifs_aujourd_hui,
         "profs_actifs_semaine": profs_actifs_semaine,
         "activites_total": activites_total,
-        "partages_total": partages_total,
     }
 
 
@@ -362,7 +348,7 @@ def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin
 
     profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
-        func.date(ConnexionLog.created_at) == str(today)
+        func.date(ConnexionLog.created_at) == today   # objet date, jamais str (500 sinon)
     ).scalar() or 0
 
     profs_actifs_semaine = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
