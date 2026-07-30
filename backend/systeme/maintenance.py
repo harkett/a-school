@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb
 from backend.core.models_db import (
-    ActiviteSauvegardee, AdminAlert, AdminAuditLog, ConnexionLog,
+    Activite, AdminAlert, AdminAuditLog, ConnexionLog,
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
-    User, UserSession,
+    Seance, Sequence, User, UserSession,
 )
 from backend.systeme.admin import _require_admin, _get_admin_email
 
@@ -84,7 +84,9 @@ def get_maintenance_stats(db: Session = Depends(get_db), _: None = Depends(_requ
 
     tables = {
         "Utilisateurs":         db.query(User).count(),
-        "Activités sauvegardées": db.query(ActiviteSauvegardee).count(),
+        "Activités":            db.query(Activite).count(),
+        "Séances":              db.query(Seance).count(),
+        "Séquences":            db.query(Sequence).count(),
         "Tokens email":         db.query(EmailToken).count(),
         "Refresh tokens":       db.query(RefreshToken).count(),
         "Sessions":             db.query(UserSession).count(),

@@ -1,10 +1,8 @@
 """« Mes contenus » — le monde NEUF du prof (modèle playlist : séquence ⊃ séances ⊃ activités).
 
-DÉCISION utilisateur (29/07) : ce monde est le futur REMPLAÇANT de Mes outils. Il ne lit et
+DÉCISION utilisateur (29/07, aboutie le 30/07) : ce monde EST le produit. Il ne lit et
 n'écrit QUE ses tables neuves (`sequences`, `seances`, `seance_phases`, `activites`,
-`activite_versions`). L'ancien monde (`activites_sauvegardees`, `sequences_sauvegardees`)
-ne s'affiche JAMAIS ici — il vit sa vie dans Mes outils jusqu'à sa suppression finale, et
-ne sert que de modèle de code.
+`activite_versions`). L'ancien monde a été démoli puis droppé le 30/07.
 
 L'activité applique la règle 0 NATIVEMENT : écrite en base à la génération même (POST à la
 première, PUT aux suivantes), chaque jalon fige une version restaurable (`activite_versions`)

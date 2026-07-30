@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, ActiviteSauvegardee, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -738,7 +738,6 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     db.query(Activite).filter(Activite.user_id == user.id).delete()
     db.query(Seance).filter(Seance.user_id == user.id).delete()
     db.query(Sequence).filter(Sequence.user_id == user.id).delete()
-    db.query(ActiviteSauvegardee).filter(ActiviteSauvegardee.user_id == user.id).delete()
     db.query(ConnexionLog).filter(ConnexionLog.user_id == user.id).delete()
     db.query(Feedback).filter(Feedback.user_id == user.id).delete()
     db.delete(user)

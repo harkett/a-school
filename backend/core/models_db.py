@@ -216,62 +216,15 @@ class EmailEnvoi(Base):
     envoye_le: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
-class SequenceSauvegardee(Base):
-    __tablename__ = "sequences_sauvegardees"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    matiere: Mapped[str] = mapped_column(String(64), nullable=False)
-    niveau: Mapped[str] = mapped_column(String(32), nullable=False)
-    theme: Mapped[str] = mapped_column(String(300), nullable=False)
-    duree: Mapped[int] = mapped_column(Integer, nullable=False)
-    mode: Mapped[str] = mapped_column(String(32), nullable=False, default="standard")
-    description_classe: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    resultat: Mapped[str] = mapped_column(Text, nullable=False)
-    partagee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
-    anonyme: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-class ActiviteSauvegardee(Base):
-    """Activité générée et sauvegardée — INSTANTANÉ FIGÉ (snapshot).
-
-    À la génération, `niveau` et `matiere` sont RECOPIÉS depuis l'état effectif
-    (profil par défaut, ou valeur ajustée via « Ajuster pour cette activité »,
-    Parametres.jsx) dans les colonnes de cette table. L'affichage relit CES
-    colonnes (MesActivites.jsx), jamais le profil.
-    Chaîne : référentiel (cycles/niveaux/matieres) -> profil -> [ajustable à la
-    génération] -> activité (immuable). Conséquence : modifier le profil ne
-    réécrit AUCUNE activité passée.
-    """
-    __tablename__ = "activites_sauvegardees"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    # Type d'activité référencé par sa CLÉ ÉTRANGÈRE (l'id), jamais par une chaîne recopiée (règle 4).
-    activite_type_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("types_activite.id"), nullable=False, index=True)
-    activite_label: Mapped[str] = mapped_column(String(128), nullable=False)  # libellé FIGÉ (instantané d'historique)
-    niveau: Mapped[str] = mapped_column(String(32), nullable=False)
-    sous_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    nb: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    avec_correction: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    objet: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    partagee: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
-    anonyme: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
-    texte_source: Mapped[str] = mapped_column(Text, nullable=False)
-    resultat: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow, nullable=True)
+# (ActiviteSauvegardee et SequenceSauvegardee — l'ancien monde — ont été DROPPÉES le
+# 30/07/2026, migration du démantèlement : Mes contenus est LE produit, comptage et
+# affichage vivent sur les tables neuves ci-dessous.)
 
 
 # ---------------------------------------------------------------------------
 # « Mes contenus » — le modèle playlist à 3 niveaux : séquence ⊃ séances ⊃ activités.
-# Tables NEUVES du socle (brique 1). Le parent est TOUJOURS nullable : une séance ou
-# une activité peut vivre seule (« Non rangée »). Le niveau « activité » reste porté
-# par `activites_sauvegardees` (zéro copie) — son lien de rangement arrive en brique 3.
-# `sequences_sauvegardees` (l'ancien outil, qui génère en réalité des séances) sera
-# importé dans `seances` en brique 2, puis éteint.
+# Le parent est TOUJOURS nullable : une séance ou une activité peut vivre seule
+# (« Non rangée »).
 # ---------------------------------------------------------------------------
 
 class Sequence(Base):

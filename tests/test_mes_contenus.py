@@ -1,9 +1,8 @@
 """« Mes contenus » — la bibliothèque à plat (brique 1 du chantier playlist).
 
 GET /api/mes-contenus mélange les trois niveaux (séquences, séances, activités) dans UNE
-liste : type, état de rangement (parent ou null), compteurs par type. Les activités viennent
-de la table EXISTANTE `activites_sauvegardees` (zéro copie) ; séquences et séances des tables
-neuves du socle. Vérifié ici :
+liste : type, état de rangement (parent ou null), compteurs par type — le tout sur les
+tables neuves (l'ancien monde a été droppé le 30/07). Vérifié ici :
   - auth : 401 sans cookie ;
   - bibliothèque vide = liste vide + compteurs à zéro (pas d'erreur, pas de repli) ;
   - mélange des types + compteurs + parent (« Rangée dans ») + titre d'activité (objet
@@ -210,39 +209,18 @@ def test_seance_regle_0_post_puis_put_avec_versions():
     assert _client().post("/api/contenus/seances", json={**corps, "duree": 2}).status_code == 400
 
 
-def test_l_ancien_monde_n_apparait_jamais():
-    """DÉCISION utilisateur (29/07) : Mes contenus est le futur REMPLAÇANT — il ne lit que
-    ses tables neuves. L'ancien monde (`sequences_sauvegardees` ET `activites_sauvegardees`)
-    n'apparaît JAMAIS dans la bibliothèque."""
-    from backend.core.models_db import ActiviteSauvegardee, SequenceSauvegardee
+# (test_l_ancien_monde_n_apparait_jamais supprimé le 30/07 : les tables de l'ancien monde
+# ont été DROPPÉES par la migration du démantèlement — l'isolation n'a plus d'objet.)
+
+
+def test_stats_matiere_compte_le_couple_du_monde_neuf():
+    """BANDEAU communauté de l'onglet Activités (/api/stats/matiere) : compté sur la table
+    `activites`, filtré par couple."""
+    from backend.core.models_db import Activite
     uid = _uid()
     tid = _type_id()
     with dbmod.SessionLocal() as db:
-        db.add(SequenceSauvegardee(user_id=uid, matiere="SVT", niveau="3e",
-                                   theme="Photosynthèse", duree=55, mode="standard",
-                                   description_classe="", resultat="# Séance"))
-        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
-                                   niveau="3e", matiere="SVT", objet="Vieille activité",
-                                   avec_correction=False, texte_source="t", resultat="r"))
-        db.commit()
-    d = _client().get("/api/mes-contenus").json()
-    assert d["compteurs"] == {"tout": 0, "sequences": 0, "seances": 0, "activites": 0}
-    assert d["contenus"] == []
-
-
-def test_stats_matiere_ne_compte_jamais_l_ancien_monde():
-    """Même verrou pour le BANDEAU communauté de l'onglet Activités (/api/stats/matiere) :
-    compté sur la table NEUVE `activites` uniquement — une vieille ligne
-    `activites_sauvegardees` ne gonfle jamais le chiffre (accroc du check-up 30/07)."""
-    from backend.core.models_db import Activite, ActiviteSauvegardee
-    uid = _uid()
-    tid = _type_id()
-    with dbmod.SessionLocal() as db:
-        # Une ligne de l'ANCIEN monde (même matière/niveau) : elle ne doit PAS compter.
-        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
-                                   niveau="3e", matiere="SVT", objet="Vieille activité",
-                                   avec_correction=False, texte_source="t", resultat="r"))
-        # Deux activités du monde NEUF sur le couple, une hors couple : le bandeau dit 2.
+        # Deux activités du couple, une hors couple : le bandeau dit 2.
         db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
                         matiere="SVT", niveau="3e", texte_source="t", resultat="r"))
         db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Dictée",
@@ -257,21 +235,12 @@ def test_stats_matiere_ne_compte_jamais_l_ancien_monde():
 
 
 def test_dashboard_compte_le_monde_neuf():
-    """L'Accueil (/api/dashboard) est compté sur le monde NEUF : les vieilles lignes
-    activites_sauvegardees / sequences_sauvegardees ne comptent pas, et les « dernières
-    créations » viennent des tables neuves (l'écran les rouvre dans Mes contenus)."""
-    from backend.core.models_db import Activite, ActiviteSauvegardee, Seance, SequenceSauvegardee
+    """L'Accueil (/api/dashboard) : compteur et « dernières créations » viennent des tables
+    neuves (l'écran les rouvre dans Mes contenus)."""
+    from backend.core.models_db import Activite, Seance
     uid = _uid()
     tid = _type_id()
     with dbmod.SessionLocal() as db:
-        # Ancien monde : présent en base, INVISIBLE à l'Accueil.
-        db.add(ActiviteSauvegardee(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
-                                   niveau="3e", matiere="SVT", objet="Vieille activité",
-                                   avec_correction=False, texte_source="t", resultat="r"))
-        db.add(SequenceSauvegardee(user_id=uid, matiere="SVT", niveau="3e",
-                                   theme="Vieille séquence", duree=55, mode="standard",
-                                   description_classe="", resultat="# Séance"))
-        # Monde neuf : c'est LUI que l'Accueil raconte.
         db.add(Activite(user_id=uid, activite_type_id=tid, activite_label="Compréhension",
                         matiere="SVT", niveau="3e", objet="Volcans", texte_source="t", resultat="r"))
         db.add(Seance(user_id=uid, titre="Séance photosynthèse", matiere="SVT",

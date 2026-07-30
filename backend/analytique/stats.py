@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from backend.core.database import get_db
-from backend.core.models_db import Activite, ActiviteSauvegardee, ConnexionLog, Seance, Sequence, SequenceSauvegardee, ToolUsageLog, User
+from backend.core.models_db import Activite, ConnexionLog, Seance, Sequence, User
 from backend import auth as auth_lib
 from backend.systeme.admin import _require_admin, get_minutes_par_activite
 
