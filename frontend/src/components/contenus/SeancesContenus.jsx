@@ -69,13 +69,8 @@ const IconPrint = () => (
   </svg>
 )
 
-// Libellés des modes — mêmes que l'écran Séance (SeanceEcran.jsx), pour la sous-ligne.
-const MODE_LABELS = {
-  standard: 'Séance standard',
-  remediation: 'Remédiation',
-  approfondissement: 'Approfondissement',
-  autonomie: 'Autonomie guidée',
-}
+// Les libellés des modes étaient recopiés ici, à l'identique de l'écran Séance. Ils sont
+// maintenant LUS EN BASE (catalogue `seance_modes`), à la même source que l'écran Séance.
 
 // Styles partagés du panneau de détail (colonne droite) — repris du motif Activités.
 const LABEL_STYLE  = { fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }
@@ -97,16 +92,23 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
   // Une panne ne se déguise jamais en « Aucune séance » (motif de l'Accueil).
   const [chargementRate, setChargementRate] = useState(false)
   const [aSupprimer, setASupprimer] = useState(null)   // séance en attente de confirmation
+  const [modeLabels, setModeLabels] = useState({})     // code -> libellé, LU EN BASE avec la liste
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
   // les lignes « seance » de /api/mes-contenus (jamais l'ancien monde).
   const chargerSeances = useCallback(async () => {
     setChargementRate(false)
     try {
-      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      // Les séances ET le catalogue des modes (pour écrire « Remédiation » plutôt que
+      // « remediation » sous le titre) : les deux lectures partagent le même sort.
+      const [d, cat] = await Promise.all([
+        lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD)),
+        lireReponse(await apiFetch('/api/contenus/seances/formulaire', { credentials: 'include' }, TIMEOUT_STD)),
+      ])
       const lignes = (d.contenus || []).filter(c => c.type === 'seance')
       // Même forme de ligne que le motif Activités : l'aperçu (quand pas de titre) vient du contexte.
       setSeances(lignes.map(c => ({ ...c, apercu: (c.contexte || '').slice(0, 120) })))
+      setModeLabels(Object.fromEntries((cat.modes || []).map(m => [m.code, m.label])))
     } catch (e) {
       setChargementRate(true)
       showError(messagePourEcran(e))
@@ -174,7 +176,7 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
 
   // Sous-ligne descriptive d'une séance (mode · niveau · durée) — équivalent de la ligne
   // « type · niveau · nb questions » du motif Activités.
-  const sousLigne = s => [MODE_LABELS[s.mode] || s.mode, s.niveau, s.duree ? `${s.duree} min` : null].filter(Boolean)
+  const sousLigne = s => [modeLabels[s.mode] || s.mode, s.niveau, s.duree ? `${s.duree} min` : null].filter(Boolean)
 
   // Ligne-carte d'une séance, réutilisée par les deux onglets. Cliquable → sélectionne (détail à droite).
   const SeanceRow = (s, last) => {

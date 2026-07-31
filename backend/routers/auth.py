@@ -14,7 +14,7 @@ from backend.core.limiter import (
 )
 from backend.core.models_db import ConnexionLog, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.prof.profil import couple_de_travail
+from backend.prof.profil import couple_de_travail, matiere_demande_langue
 
 router = APIRouter()
 
@@ -248,6 +248,10 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
         "travail_matiere": tm,
         "travail_niveau":  tn,
         "couple_ajuste":   ajuste,
+        # La matière de travail porte-t-elle une langue ? Lu sur `matieres.demande_langue` —
+        # l'écran n'a plus à reconnaître « Langues Vivantes (LV) » à son libellé pour décorer
+        # le couple affiché dans le header.
+        "travail_demande_langue": matiere_demande_langue(db, user) if user else False,
         # True = ne plus lancer la visite guidée de l'écran Créer (compte inconnu → True :
         # on ne guide pas un compte cassé). L'écran lit CE drapeau, jamais un stockage local.
         "guide_creer_vu":  bool(user.guide_creer_vu) if user else True,

@@ -13,7 +13,7 @@
 //   « généré », pour ne jamais confondre avec le « Déroulé généré » de la colonne de droite.
 // ④ Générer la séance : SA cartouche en bas, avec le bouton uniquement (retouche 30/07).
 // Les cartouches facultatives passent au vert quand elles sont remplies, mais ne clignotent jamais.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import SplitPane from './SplitPane.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
@@ -35,21 +35,9 @@ const MSG_ECHEC_GENERATION =
   'La génération de votre séance n\'a pas pu aboutir. Merci de réessayer.\n' +
   'Si le problème persiste, cliquez ici pour nous le signaler.'
 
-const MODES = [
-  { id: 'standard', label: 'Séance standard', desc: 'Nouvelle séance sur le thème' },
-  { id: 'remediation', label: 'Remédiation', desc: "La classe n'a pas compris, on recommence autrement" },
-  { id: 'approfondissement', label: 'Approfondissement', desc: 'Aller plus loin sur un thème déjà acquis' },
-  { id: 'autonomie', label: 'Autonomie guidée', desc: 'Les élèves travaillent seuls, la séance les guide' },
-]
-
-// Les 4 styles de production — les descriptions collent aux prompts réels (textes honnêtes) :
-// même séance, même contenu pédagogique, c'est la RÉDACTION du document qui change.
-const STYLES = [
-  { id: 'classique', label: 'Classique',   desc: 'Une fiche de préparation traditionnelle : présentation sobre, intitulés neutres — comme dans un classeur de prép.' },
-  { id: 'ludique',   label: 'Ludique',     desc: "La séance passe par le jeu : défis, énigmes, jeux de rôle… chaque phase a sa mécanique ludique, sans perdre l'objectif d'apprentissage." },
-  { id: 'structure', label: 'Structuré',   desc: 'Un découpage très net : phases minutées, objectifs en listes à puces, transitions explicites, matériel rappelé phase par phase.' },
-  { id: 'concis',    label: 'Très concis', desc: 'Le format télégraphique : phrases très courtes, rien de superflu — la séance tient sur une page.' },
-]
+// Les modes de séance et les styles de production ne sont plus écrits ici : ils sont LUS EN
+// BASE (catalogues `seance_modes` / `seance_styles`, servis par /contenus/seances/formulaire).
+// Le serveur valide sur les mêmes lignes que celles affichées ici — une seule vérité.
 
 // Origine du texte de départ (étape ①) — pastille sur la LIGNE DU TITRE, toujours visible,
 // cartouche repliée comme dépliée (demande utilisateur du 30/07). Une entrée par façon de
@@ -247,6 +235,11 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   const [contLoading, setContLoading] = useState(false)      // « Propose-moi des contraintes » en cours (sablier + jauge)
   const [esqLoading, setEsqLoading] = useState(null)         // phase de l'esquisse en cours de proposition ('a'|'b'|'c'|null)
   const [esqNotes, setEsqNotes] = useState({ a: false, b: false, c: false })  // zone proposée par aSchool → pastille
+  // Catalogues du formulaire, LUS EN BASE (aucune liste en dur ici). Tant qu'ils ne sont pas
+  // arrivés, les choix ne s'affichent pas : l'écran ne montre jamais une liste inventée.
+  const [modes, setModes] = useState([])
+  const [styles, setStyles] = useState([])
+  const [catalogueRate, setCatalogueRate] = useState(false)
   const [seanceId, setSeanceId] = useState(seance?.id || null)
   const [historiqueOuvert, setHistoriqueOuvert] = useState(false)   // fenêtre « Historique des versions »
   const [enregistrement, setEnregistrement] = useState(seance ? 'ok' : null)   // null | 'ok' | 'echec'
@@ -355,6 +348,22 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       setEsqLoading(null)
     }
   }
+
+  // ── Modes et styles : lus au serveur, qui les lit en base. Une panne ne fait pas semblant
+  // d'une liste vide — les choix disparaissent et un « Réessayer » prend leur place. ──
+  const chargerCatalogues = useCallback(async () => {
+    setCatalogueRate(false)
+    try {
+      const d = await lireReponse(await apiFetch('/api/contenus/seances/formulaire', { credentials: 'include' }, TIMEOUT_STD))
+      setModes(d.modes || [])
+      setStyles(d.styles || [])
+    } catch (err) {
+      setCatalogueRate(true)
+      showError(messagePourEcran(err))
+    }
+  }, [])
+
+  useEffect(() => { chargerCatalogues() }, [chargerCatalogues])
 
   // ── Activités de la séance : lecture + rattacher + détacher (jamais supprimer). ──
   async function chargerActivitesLiees(id) {
@@ -720,10 +729,10 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                         sur la ligne du titre, cartouche repliée comme dépliée. */}
                     {mode && (
                       <span
-                        title={`Mode choisi : ${(MODES.find(m => m.id === mode) || {}).label}`}
+                        title={`Mode choisi : ${(modes.find(m => m.code === mode) || {}).label || mode}`}
                         style={{ fontSize: 12, fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 99, padding: '2px 10px', flexShrink: 0 }}
                       >
-                        {(MODES.find(m => m.id === mode) || {}).label}
+                        {(modes.find(m => m.code === mode) || {}).label || mode}
                       </span>
                     )}
                     {duree > 0 && (
@@ -782,10 +791,12 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <label style={LABEL}>Mode de séance</label>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {MODES.map(m => (
-                        <Pastille key={m.id} actif={mode === m.id} label={m.label} title={m.desc}
-                          onClick={() => setMode(m.id)} disabled={loading} />
-                      ))}
+                      {catalogueRate
+                        ? <button type="button" onClick={chargerCatalogues} className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>Réessayer</button>
+                        : modes.map(m => (
+                            <Pastille key={m.code} actif={mode === m.code} label={m.label} title={m.description}
+                              onClick={() => setMode(m.code)} disabled={loading} />
+                          ))}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -977,7 +988,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                     )}
                     {style && (
                       <span title="Style de production choisi" style={PASTILLE_RESUME}>
-                        {(STYLES.find(s => s.id === style) || {}).label}
+                        {(styles.find(s => s.code === style) || {}).label || style}
                       </span>
                     )}
                     {!derouleFait && (
@@ -1047,10 +1058,12 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                     onClick={() => setStyle(null)}
                     disabled={loading}
                   />
-                  {STYLES.map(s => (
-                    <Pastille key={s.id} actif={style === s.id} label={s.label} title={s.desc}
-                      onClick={() => setStyle(style === s.id ? null : s.id)} disabled={loading} />
-                  ))}
+                  {catalogueRate
+                    ? <button type="button" onClick={chargerCatalogues} className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px' }}>Réessayer</button>
+                    : styles.map(s => (
+                        <Pastille key={s.code} actif={style === s.code} label={s.label} title={s.description}
+                          onClick={() => setStyle(style === s.code ? null : s.code)} disabled={loading} />
+                      ))}
                 </div>
                 </>)}
               </section>

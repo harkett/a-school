@@ -2,8 +2,8 @@
 // Lance avec :  node --test src/utils/profil.test.js   (depuis frontend/)
 //
 // Vérifie : (1) la matière est filtrée sur le NIVEAU (le programme du diplôme), dans
-// l'ordre fourni par le référentiel ; (2) le libellé « Langues Vivantes (LV) » reste celui
-// qui déclenchera le sous-menu langue ; (3) la détection d'incohérence niveau↔matière et
+// l'ordre fourni par le référentiel ; (2) le sous-menu langue se déclenche sur l'indicateur
+// `demande_langue` de la matière, plus sur son libellé ; (3) la détection d'incohérence niveau↔matière et
 // le blocage de « Valider » ; (4) un profil EXISTANT cohérent n'est pas dérangé.
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -20,11 +20,11 @@ const PAR_NIVEAU = [
   ] },
   { niveau: '3e', matieres: [
     { id: 10, nom: 'Français' },
-    { id: 11, nom: 'Langues Vivantes (LV)' },
+    // Le nom RÉEL en base de dev — et le drapeau qui décide, lui, du sous-menu langue.
+    { id: 11, nom: 'Langue vivante', demande_langue: true },
   ] },
 ]
 
-const TRIGGER_SOUS_MENU_LANGUE = 'Langues Vivantes (LV)'
 
 test('matieresDuNiveau : matières du niveau, dans l\'ordre fourni (référentiel)', () => {
   const noms = matieresDuNiveau(PAR_NIVEAU, 'BTS CIEL option A').map(m => m.nom)
@@ -65,15 +65,23 @@ test('profilPretAValider : niveau ET matière valides obligatoires', () => {
   assert.equal(profilPretAValider(PAR_NIVEAU, 'BTS CIEL option A', 'Informatique'), true)  // cohérent → OK
 })
 
-test('REGRESSION sous-menu langue : la 3e propose EXACTEMENT la valeur déclencheuse', () => {
+// Le sous-menu « Langue enseignée » se déclenchait sur le LIBELLÉ exact « Langues Vivantes
+// (LV) ». La matière réelle s'appelant « Langue vivante », il ne s'est jamais ouvert. Le
+// déclencheur est maintenant l'indicateur `demande_langue` porté par la ligne matière : ce
+// test garde la NOUVELLE garantie — le libellé peut être n'importe quoi, seul le drapeau
+// compte, et il voyage bien jusqu'à l'écran.
+test('sous-menu langue : déclenché par demande_langue, jamais par le libellé', () => {
   const liste = matieresDuNiveau(PAR_NIVEAU, '3e')
-  assert.ok(liste.some(m => m.nom === TRIGGER_SOUS_MENU_LANGUE),
-    'le niveau 3e doit contenir le libellé exact « Langues Vivantes (LV) »')
+  const lv    = liste.find(m => m.demande_langue)
+  assert.ok(lv, 'la matière qui porte une langue doit être reconnaissable à son drapeau')
+  assert.equal(lv.nom, 'Langue vivante')   // libellé quelconque : renommer ne casse rien
+  assert.ok(liste.every(m => m.nom !== 'Langues Vivantes (LV)'),
+    'plus aucun libellé en dur ne sert de déclencheur')
 })
 
 test('PROFIL EXISTANT cohérent : niveau + matière valides → rien à signaler', () => {
   const liste = matieresDuNiveau(PAR_NIVEAU, '3e')
-  assert.equal(matiereConnue(liste, 'Langues Vivantes (LV)'), true)
+  assert.equal(matiereConnue(liste, 'Langue vivante'), true)
 })
 
 // Côté PROF : les niveaux non disponibles sont CACHÉS (filtrés), pas grisés.

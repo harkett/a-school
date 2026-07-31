@@ -10,17 +10,34 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk
+from backend.core.models_db import Cycle, LangueLv, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()
+
+
+def _matiere(m: Matiere) -> dict:
+    """La matière telle que les écrans la reçoivent. `demande_langue` accompagne chaque matière :
+    c'est LUI qui décide d'afficher le choix de la langue au profil — plus une comparaison de
+    libellé côté écran, qu'un renommage de matière casserait en silence."""
+    return {"id": m.id, "nom": m.nom, "demande_langue": m.demande_langue}
+
+
+def _langues_lv(db: Session) -> list[LangueLv]:
+    """Catalogue des langues vivantes, lu EN BASE. Valeurs initiales SEMÉES par migration :
+    table vide = erreur explicite, jamais un repli silencieux sur une liste en dur."""
+    lignes = (db.query(LangueLv).filter(LangueLv.actif.is_(True))
+                .order_by(LangueLv.ordre, LangueLv.id).all())
+    if not lignes:
+        raise HTTPException(500, "Catalogue « langues vivantes » vide en base (migration non appliquée ?).")
+    return lignes
 
 
 @router.get("/programmes")
 def get_programmes(db: Session = Depends(get_db)):
     matiere_objs = (db.query(Matiere).filter(Matiere.actif == True)
                       .order_by(Matiere.ordre).all())
-    matieres = [{"id": m.id, "nom": m.nom} for m in matiere_objs]
+    matieres = [_matiere(m) for m in matiere_objs]
     matiere_ids_actifs = {m.id for m in matiere_objs}
 
     niveau_ids_utiles = {
@@ -62,7 +79,7 @@ def get_programmes(db: Session = Depends(get_db)):
             niveaux_par_cycle.append({"cycle": c.nom, "niveaux": nivs})
 
         ids = cycle_matiere_ids.get(c.id, set())
-        mats = [{"id": m.id, "nom": m.nom} for m in matiere_objs if m.id in ids]
+        mats = [_matiere(m) for m in matiere_objs if m.id in ids]
         if mats:
             matieres_par_cycle.append({"cycle": c.nom, "matieres": mats})
 
@@ -73,14 +90,14 @@ def get_programmes(db: Session = Depends(get_db)):
     # paire n'est jamais supprimée (désactivation seulement). Clé = nom du niveau (unique
     # dans le référentiel actuel).
     par_niveau = {}
-    for niv_nom, mid, mnom in (
-        db.query(Niveau.nom, Matiere.id, Matiere.nom)
+    for niv_nom, m in (
+        db.query(Niveau.nom, Matiere)
           .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
           .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
           .filter(MatiereNiveau.actif == True, Matiere.actif == True)
           .order_by(MatiereNiveau.id).all()
     ):
-        par_niveau.setdefault(niv_nom, []).append({"id": mid, "nom": mnom})
+        par_niveau.setdefault(niv_nom, []).append(_matiere(m))
     matieres_par_niveau = [{"niveau": k, "matieres": v} for k, v in par_niveau.items()]
 
     return {
@@ -88,6 +105,9 @@ def get_programmes(db: Session = Depends(get_db)):
         "niveaux_par_cycle": niveaux_par_cycle,
         "matieres_par_cycle": matieres_par_cycle,
         "matieres_par_niveau": matieres_par_niveau,
+        # Les langues offertes au prof dont la matière porte une langue : catalogue EN BASE
+        # (`langues_lv`), plus de liste écrite dans l'écran du profil.
+        "langues_lv": [l.label for l in _langues_lv(db)],
     }
 
 
@@ -304,3 +324,22 @@ def admin_toggle_matiere(body: MatiereActifBody, db: Session = Depends(get_db)):
     m.actif = body.actif
     db.commit()
     return {"id": m.id, "nom": m.nom, "actif": m.actif}
+
+
+class MatiereLangueBody(BaseModel):
+    matiere_id: int
+    demande_langue: bool
+
+
+@router.patch("/admin/matieres/demande-langue", dependencies=[Depends(_require_admin)])
+def admin_matiere_demande_langue(body: MatiereLangueBody, db: Session = Depends(get_db)):
+    """« Cette matière porte une langue » — l'indicateur qui décide si le prof choisit une langue
+    à son profil et si la génération l'injecte dans le prompt. Il vit sur la ligne matière : la
+    migration l'a posé au mieux sur les intitulés connus, l'admin corrige ici (une matière créée
+    au dépôt d'un référentiel arrive forcément à false)."""
+    m = db.get(Matiere, body.matiere_id)
+    if not m:
+        raise HTTPException(404, "Matière inconnue.")
+    m.demande_langue = body.demande_langue
+    db.commit()
+    return {"id": m.id, "nom": m.nom, "demande_langue": m.demande_langue}

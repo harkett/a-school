@@ -6,7 +6,6 @@ import { showError } from '../errorDialog.js'
 import InfoGuide from './InfoGuide.jsx'
 import { aideProfil } from '../utils/aideProfil.js'
 
-const LANGUES_LV = ['Anglais', 'Espagnol', 'Allemand', 'Italien', 'Portugais', 'Arabe', 'Chinois', 'Autre']
 
 // Message de la modale bloquante quand niveau et matière ne vont pas ensemble.
 // Langage prof : dit le PROBLÈME puis l'ACTION attendue. `cas` distingue l'ouverture
@@ -38,6 +37,7 @@ export default function MonProfil({ onNavigate }) {
   const [niveauxParCycle, setNiveauxParCycle]     = useState([])
   const [matieresParCycle, setMatieresParCycle]   = useState([])   // repli « tout groupé » sans niveau
   const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
+  const [languesLv, setLanguesLv]                 = useState([])   // catalogue des langues, LU EN BASE (/api/programmes)
   const [refOfficiel, setRefOfficiel] = useState(null)             // { disponible, fichier } — programme officiel du niveau (lecture seule)
   const [cahier, setCahier] = useState(null)                       // { present, fichier } — cahier des charges déposé par le prof
   const [cahierBusy, setCahierBusy] = useState(false)              // dépôt en cours (sablier sur le bouton)
@@ -126,6 +126,7 @@ export default function MonProfil({ onNavigate }) {
       setNiveauxParCycle(niveaux)
       setMatieresParCycle(data.matieres_par_cycle || [])
       setMatieresParNiveau(parNiveau)
+      setLanguesLv(data.langues_lv || [])
       const { niveau, subject } = formRef.current
       // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non disponible,
       // donc caché — ex. Master) → on vide niveau + matière, le prof doit tout re-choisir.
@@ -152,6 +153,10 @@ export default function MonProfil({ onNavigate }) {
   // null = pas de niveau / niveau inconnu → on montre tout, groupé par cycle (repli).
   const matieresNiveau    = matieresDuNiveau(matieresParNiveau, form.niveau)
   const matieresAffichees = matieresNiveau ?? matieresParCycle.flatMap(g => g.matieres)
+  // La matière RÉELLEMENT choisie, prise dans la liste servie par la base — c'est elle qui
+  // porte `demande_langue`. Tant que les programmes ne sont pas chargés, elle est absente :
+  // le champ « Langue enseignée » ne s'affiche pas, il ne s'affiche pas à tort non plus.
+  const matiereChoisie    = matieresAffichees.find(m => m.nom === form.subject)
   const peutValider       = profilPretAValider(matieresParNiveau, form.niveau, form.subject)
   // Brouillon (Règle 0) : Valider/Annuler ne s'activent QUE si le formulaire diffère de ce qui
   // est enregistré (l'objet `user`). Rien touché = rien à valider ni à annuler → boutons grisés.
@@ -302,7 +307,10 @@ export default function MonProfil({ onNavigate }) {
           </select>
         </div>
 
-        {form.subject === 'Langues Vivantes (LV)' && (
+        {/* Langue enseignée : affichée quand la matière choisie PORTE une langue (drapeau
+            `demande_langue` de la matière, envoyé par le serveur) — plus une comparaison avec
+            un libellé écrit ici, que le moindre renommage de matière rendait faux. */}
+        {matiereChoisie?.demande_langue && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Langue enseignée</label>
             <select
@@ -311,7 +319,7 @@ export default function MonProfil({ onNavigate }) {
               onChange={e => set('langue_lv', e.target.value)}
             >
               <option value="">— Précisez la langue —</option>
-              {LANGUES_LV.map(l => <option key={l} value={l}>{l}</option>)}
+              {languesLv.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
         )}

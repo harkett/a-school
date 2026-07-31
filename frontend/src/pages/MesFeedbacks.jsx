@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
+import { couleurStatut } from '../utils/statutsFeedback.js'
 import FilEchange from '../components/FilEchange'
 
 const CATEGORIES = [
@@ -10,16 +11,6 @@ const CATEGORIES = [
   { key: 'question',   label: 'Question' },
 ]
 
-// Le LIBELLÉ du statut et le droit de modifier viennent du serveur (table feedback_statuts —
-// statut_label + modifiable par retour). Ne reste ici que la COULEUR de la pastille par code,
-// gris neutre pour un code inconnu — de l'affichage pur, comme les pictogrammes des votes.
-const COULEURS_STATUT = {
-  nouveau:  { bg: '#dbeafe', color: '#1d4ed8' },
-  en_cours: { bg: '#ffedd5', color: '#c2410c' },
-  traite:   { bg: '#dcfce7', color: '#15803d' },
-  archive:  { bg: '#f3f4f6', color: '#6b7280' },
-}
-const COULEUR_DEFAUT = { bg: '#f3f4f6', color: '#6b7280' }
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'application/pdf', 'text/plain']
 const MAX_SIZE     = 5 * 1024 * 1024
 const MAX_FILES    = 5
@@ -379,7 +370,7 @@ export default function MesFeedbacks() {
             </div>
           )}
           {retours && retours.map(fb => {
-            const st = COULEURS_STATUT[fb.statut] || COULEUR_DEFAUT
+            const st = couleurStatut(fb.statut)
             const isEdit = editId === fb.id
             const attachPaths = fb.attachment_path ? fb.attachment_path.split(',').filter(Boolean) : []
             return (

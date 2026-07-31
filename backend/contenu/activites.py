@@ -22,7 +22,7 @@ from backend.core.models_db import (
     Activite, Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision,
     TypeParametre, User,
 )
-from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
+from backend.prof.profil import couple_de_travail, matiere_demande_langue, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_prompt
 from backend.rag.pgvector_store import retrieve_pg
@@ -396,9 +396,11 @@ def api_generate(
         kwargs["sous_type"] = req.sous_type
     if req.nb:
         kwargs["nb"] = req.nb
-    # LV : la langue vient de la BASE (matière de travail LV + langue du profil) — plus
-    # aucune valeur envoyée par l'écran.
-    if matiere == "Langues Vivantes (LV)" and user.langue_lv:
+    # LV : la langue vient de la BASE (matière de travail qui PORTE une langue + langue du
+    # profil) — plus aucune valeur envoyée par l'écran. La reconnaissance se fait sur
+    # l'indicateur `matieres.demande_langue`, plus sur le libellé exact de la matière : celui-ci
+    # se renomme (constaté : la matière réelle s'appelle « Langue vivante »), la clé ne bouge pas.
+    if matiere_demande_langue(db, user) and user.langue_lv:
         kwargs["langue"] = user.langue_lv
     try:
         prompt = modele.format(texte=req.texte, **kwargs)

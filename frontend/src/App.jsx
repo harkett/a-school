@@ -111,9 +111,11 @@ function MainApp() {
   // s'il est posé, sinon profil). Plus AUCUN état local : l'écran est une fenêtre sur la base
   // (décision du 25/07) — un F5 ou un autre appareil montrent exactement la même vérité.
   const sessionMatiere = user?.travail_matiere || ''
-  // Libellé affiché (header, Accueil) = ce même couple de travail — jamais un mélange.
-  const matiereLabel = sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv
-    ? `LV - ${user.langue_lv}`
+  // Libellé affiché (header, Accueil) = ce même couple de travail — jamais un mélange. Une
+  // matière qui PORTE une langue affiche la langue du prof à côté de son nom : le drapeau vient
+  // du serveur (matieres.demande_langue), l'écran ne reconnaît plus la matière à son libellé.
+  const matiereLabel = user?.travail_demande_langue && user?.langue_lv
+    ? `${sessionMatiere} - ${user.langue_lv}`
     : sessionMatiere
   // Contenu de l'Accueil qu'on refuse d'ouvrir parce qu'il n'est pas du couple de travail
   // (même garde-fou que « Reprendre » des pages listes) → dialogue partagé.

@@ -21,7 +21,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.deps import get_current_user
-from backend.core.models_db import Activite, ActiviteVersion, Referentiel, Seance, SeanceVersion, Sequence, User
+from backend.core.models_db import (
+    Activite, ActiviteVersion, Referentiel, Seance, SeanceMode, SeanceStyle, SeanceVersion,
+    Sequence, User,
+)
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.llm.prompts import ajouter_cahier_au_prompt
@@ -588,8 +591,38 @@ def rattacher_activite_seance(
 # (même mécanique que l'activité : le flux d'abord, l'écran enregistre à la réussite)
 # ---------------------------------------------------------------------------
 
-MODES_SEANCE = {"standard", "remediation", "approfondissement", "autonomie"}
-STYLES_SEANCE = {"classique", "ludique", "structure", "concis"}
+def _catalogue(db: Session, modele, quoi: str) -> list:
+    """Un catalogue de référence, lu EN BASE — jamais une liste en dur. Les valeurs initiales
+    sont SEMÉES par migration : une table vide n'est pas un cas à rattraper en douce, c'est
+    une erreur qu'on dit (même geste que `_reglage_entier`)."""
+    lignes = db.query(modele).filter(modele.actif.is_(True)).order_by(modele.ordre, modele.id).all()
+    if not lignes:
+        raise HTTPException(500, f"Catalogue « {quoi} » vide en base (migration non appliquée ?).")
+    return lignes
+
+
+def modes_seance(db: Session) -> list[SeanceMode]:
+    return _catalogue(db, SeanceMode, "modes de séance")
+
+
+def styles_seance(db: Session) -> list[SeanceStyle]:
+    return _catalogue(db, SeanceStyle, "styles de production")
+
+
+@router.get("/contenus/seances/formulaire")
+def formulaire_seance(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Les listes de référence dont l'écran Séance a besoin pour se dessiner : modes et styles
+    de production, avec leur libellé et la phrase qui les explique. L'écran ne connaît plus
+    aucune de ces valeurs — il les lit ici."""
+    return {
+        "modes": [{"code": m.code, "label": m.label, "description": m.description}
+                  for m in modes_seance(db)],
+        "styles": [{"code": s.code, "label": s.label, "description": s.description}
+                   for s in styles_seance(db)],
+    }
 
 
 class SeanceGeneration(BaseModel):
@@ -639,14 +672,17 @@ def _bloc_precisions(req: SeanceGeneration) -> str:
     return "PRÉCISIONS DE L'ENSEIGNANT — à intégrer à la séance :\n" + "\n".join(lignes)
 
 
-def _valider_generation(req: SeanceGeneration) -> None:
+def _valider_generation(req: SeanceGeneration, db: Session) -> None:
+    """Contrôles serveur du formulaire de séance. Mode et style sont vérifiés CONTRE LA BASE
+    (catalogues `seance_modes` / `seance_styles`) : la liste des valeurs acceptées n'existe
+    qu'à un seul endroit, et c'est celui que l'écran affiche."""
     if not req.theme.strip():
         raise HTTPException(400, "Décrivez d'abord le thème ou l'objectif de la séance.")
     if not (5 <= req.duree <= 300):
         raise HTTPException(400, "Indiquez une durée entre 5 et 300 minutes.")
-    if req.mode not in MODES_SEANCE:
+    if req.mode not in {m.code for m in modes_seance(db)}:
         raise HTTPException(400, "Choisissez un mode de séance.")
-    if req.style is not None and req.style not in STYLES_SEANCE:
+    if req.style is not None and req.style not in {s.code for s in styles_seance(db)}:
         raise HTTPException(400, "Style de production inconnu.")
 
 
@@ -914,7 +950,7 @@ def generer_seance(
     /api/generate : prompt du MODE lu en base (registre des prompts), précisions du formulaire
     ajoutées, couche de STYLE facultative, créneau LLM pris avant le flux, incident en base
     si le flux casse. L'ÉCRITURE (règle 0) suit côté écran : POST/PUT /contenus/seances."""
-    _valider_generation(req)
+    _valider_generation(req, db)
     matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
@@ -1009,7 +1045,7 @@ def creer_seance(
     db: Session = Depends(get_db),
 ):
     """Première génération réussie = la séance NAÎT en base (auto-save, règle 0) + version."""
-    _valider_generation(corps)
+    _valider_generation(corps, db)
     matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
@@ -1033,7 +1069,7 @@ def regenerer_seance(
     """Régénération : l'état courant est mis à jour, une NOUVELLE version s'empile (règle 0).
     Le CLOISONNEMENT passe en premier : une séance qui n'est pas à soi = 404, avant tout."""
     seance = _seance_de(user, seance_id, db)
-    _valider_generation(corps)
+    _valider_generation(corps, db)
     matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")

@@ -77,6 +77,12 @@ from backend.core.llm_prompts import PROMPTS as _PROMPTS  # noqa: E402
 
 with _test_engine.begin() as _conn:
     _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+# drop_all AVANT create_all : `create_all` crée les tables MANQUANTES mais n'ajoute jamais une
+# colonne à une table déjà là. Sans ce nettoyage, une base de test montée hier reste figée sur
+# le schéma d'hier et la suite entière tombe sur une colonne inconnue — un faux échec, qui ne
+# dit rien du code. Le schéma de test est donc reconstruit à neuf à chaque session (les deux
+# verrous ci-dessus garantissent qu'on ne peut viser que `aschool_test`).
+models_db.Base.metadata.drop_all(bind=_test_engine)
 models_db.Base.metadata.create_all(bind=_test_engine)
 
 
@@ -86,10 +92,34 @@ models_db.Base.metadata.create_all(bind=_test_engine)
 # Une entrée par table-catalogue : les tâches suivantes (features, durées) l'étendront ici.
 _CATALOGUES_SEED = {
     "feedback_statuts": [
-        {"code": "nouveau", "label": "Nouveau", "modifiable": True, "ordre": 0},
-        {"code": "en_cours", "label": "En cours", "modifiable": True, "ordre": 1},
-        {"code": "traite", "label": "Traité", "modifiable": False, "ordre": 2},
-        {"code": "archive", "label": "Archivé", "modifiable": False, "ordre": 3},
+        {"code": "nouveau", "label": "Nouveau", "modifiable": True, "ordre": 0, "description": "Reçu, pas encore traité."},
+        {"code": "en_cours", "label": "En cours", "modifiable": True, "ordre": 1, "description": "Pris en charge par l'équipe."},
+        {"code": "traite", "label": "Traité", "modifiable": False, "ordre": 2, "description": "Résolu ou intégré."},
+        {"code": "archive", "label": "Archivé", "modifiable": False, "ordre": 3, "description": "Clôturé."},
+    ],
+    # Catalogues du formulaire de séance : le serveur valide le mode et le style CONTRE ces
+    # tables (plus de liste en dur), donc sans elles toute génération de séance est refusée.
+    "seance_modes": [
+        {"code": "standard", "label": "Séance standard", "description": "Nouvelle séance sur le thème", "ordre": 0, "actif": True},
+        {"code": "remediation", "label": "Remédiation", "description": "La classe n'a pas compris, on recommence autrement", "ordre": 1, "actif": True},
+        {"code": "approfondissement", "label": "Approfondissement", "description": "Aller plus loin sur un thème déjà acquis", "ordre": 2, "actif": True},
+        {"code": "autonomie", "label": "Autonomie guidée", "description": "Les élèves travaillent seuls, la séance les guide", "ordre": 3, "actif": True},
+    ],
+    "seance_styles": [
+        {"code": "classique", "label": "Classique", "description": "Fiche de préparation traditionnelle.", "ordre": 0, "actif": True},
+        {"code": "ludique", "label": "Ludique", "description": "La séance passe par le jeu.", "ordre": 1, "actif": True},
+        {"code": "structure", "label": "Structuré", "description": "Un découpage très net.", "ordre": 2, "actif": True},
+        {"code": "concis", "label": "Très concis", "description": "Le format télégraphique.", "ordre": 3, "actif": True},
+    ],
+    "langues_lv": [
+        {"code": "anglais", "label": "Anglais", "ordre": 0, "actif": True},
+        {"code": "espagnol", "label": "Espagnol", "ordre": 1, "actif": True},
+        {"code": "allemand", "label": "Allemand", "ordre": 2, "actif": True},
+        {"code": "italien", "label": "Italien", "ordre": 3, "actif": True},
+        {"code": "portugais", "label": "Portugais", "ordre": 4, "actif": True},
+        {"code": "arabe", "label": "Arabe", "ordre": 5, "actif": True},
+        {"code": "chinois", "label": "Chinois", "ordre": 6, "actif": True},
+        {"code": "autre", "label": "Autre", "ordre": 7, "actif": True},
     ],
     # Fournisseurs LLM : catalogue semé par MIGRATION en prod (ai_fournisseurs), donc à re-semer
     # ici (create_all ne seed pas). cle_env = NOM de la variable d'env de la clé texte, lu en base
@@ -125,8 +155,25 @@ def _seed_catalogues():
         for row in _CATALOGUES_SEED["feedback_statuts"]:
             conn.execute(
                 text(
-                    "INSERT INTO feedback_statuts (code, label, modifiable, ordre) "
-                    "VALUES (:code, :label, :modifiable, :ordre) ON CONFLICT (code) DO NOTHING"
+                    "INSERT INTO feedback_statuts (code, label, modifiable, ordre, description) "
+                    "VALUES (:code, :label, :modifiable, :ordre, :description) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+        for table in ("seance_modes", "seance_styles"):
+            for row in _CATALOGUES_SEED[table]:
+                conn.execute(
+                    text(
+                        f"INSERT INTO {table} (code, label, description, ordre, actif) "
+                        "VALUES (:code, :label, :description, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
+                    ),
+                    row,
+                )
+        for row in _CATALOGUES_SEED["langues_lv"]:
+            conn.execute(
+                text(
+                    "INSERT INTO langues_lv (code, label, ordre, actif) "
+                    "VALUES (:code, :label, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
                 ),
                 row,
             )

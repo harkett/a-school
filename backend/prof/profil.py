@@ -37,6 +37,17 @@ def couple_de_travail(db: Session, user: User) -> tuple[str | None, str | None, 
     return matiere_nom_de_id(db, user.subject_id), niveau_nom_de_id(db, user.niveau_id), False
 
 
+def matiere_demande_langue(db: Session, user: User) -> bool:
+    """La matière du COUPLE DE TRAVAIL porte-t-elle une langue (→ le prof choisit sa langue au
+    profil, la génération l'injecte dans le prompt) ? Lu sur l'INDICATEUR `matieres.demande_langue`,
+    jamais sur le libellé : la matière est déjà rangée par clé (`subject_id`), il n'y a aucune
+    raison de la reconnaître à son nom — un nom, ça se renomme."""
+    matiere_id = user.travail_matiere_id if (user.travail_matiere_id and user.travail_niveau_id) else user.subject_id
+    if not matiere_id:
+        return False
+    return bool(db.query(Matiere.demande_langue).filter(Matiere.id == matiere_id).scalar())
+
+
 def _couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
     """La paire (matière, niveau) existe-t-elle dans le programme officiel ? Lue sur
     `matiere_niveaux` (paires actives, matière active) par les NOMS — la même convention

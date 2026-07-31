@@ -1,6 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
 import { GUIDE_CREER } from '../utils/aideCreer.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
+import { couleurStatut } from '../utils/statutsFeedback.js'
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -208,6 +211,46 @@ function telechargerProcedure(titre, html) {
     <script>window.onload = () => window.print()</script>
   </body></html>`)
   w.document.close()
+}
+
+// Les quatre statuts de retour, LUS EN BASE (/api/feedback/statuts) — libellé et explication
+// viennent de la table `feedback_statuts`, la même que lit l'écran « Mes retours » et la même
+// que l'admin fait évoluer. Ils étaient recopiés ici, mot pour mot : ajouter un statut en base
+// laissait cette page mentir. La couleur reste de l'affichage (utils/statutsFeedback.js).
+// Panne de lecture : la liste ne s'affiche pas et propose « Réessayer » — jamais une liste
+// inventée, jamais un pavé rouge dans la page (règle maison).
+const StatutsFeedback = () => {
+  const [statuts, setStatuts] = useState(null)
+  const [rate, setRate] = useState(false)
+
+  const charger = useCallback(async () => {
+    setRate(false)
+    try {
+      setStatuts(await lireReponse(await apiFetch('/api/feedback/statuts', { credentials: 'include' }, TIMEOUT_STD)))
+    } catch (e) {
+      setRate(true)
+      showError(messagePourEcran(e))
+    }
+  }, [])
+
+  useEffect(() => { charger() }, [charger])
+
+  if (rate) {
+    return <button type="button" onClick={charger} className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px', alignSelf: 'flex-start' }}>Réessayer</button>
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {(statuts || []).map(s => {
+        const c = couleurStatut(s.code)
+        return (
+          <div key={s.code} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 4, padding: '2px 9px', background: c.bg, color: c.color, flexShrink: 0 }}>{s.label}</span>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>{s.description}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 const sections = [
@@ -732,19 +775,7 @@ const sections = [
         <div>
           <p className="font-semibold text-gray-700 mb-2">Onglet "Mes retours"</p>
           <p style={{ marginBottom: 8 }}>Retrouvez tous vos feedbacks avec leur statut en temps réel :</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              { label: 'Nouveau', bg: '#dbeafe', color: '#1d4ed8', desc: 'Reçu, pas encore traité.' },
-              { label: 'En cours', bg: '#ffedd5', color: '#c2410c', desc: 'Pris en charge par l\'équipe.' },
-              { label: 'Traité', bg: '#dcfce7', color: '#15803d', desc: 'Résolu ou intégré.' },
-              { label: 'Archivé', bg: '#f3f4f6', color: '#6b7280', desc: 'Clôturé.' },
-            ].map(s => (
-              <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 4, padding: '2px 9px', background: s.bg, color: s.color, flexShrink: 0 }}>{s.label}</span>
-                <span style={{ fontSize: 12, color: '#6b7280' }}>{s.desc}</span>
-              </div>
-            ))}
-          </div>
+          <StatutsFeedback />
         </div>
 
         <div style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1', borderRadius: 4, padding: '8px 12px', fontSize: 12, color: '#64748b' }}>

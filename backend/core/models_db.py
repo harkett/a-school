@@ -116,6 +116,9 @@ class FeedbackStatut(Base):
     label: Mapped[str] = mapped_column(String(64), nullable=False)
     modifiable: Mapped[bool] = mapped_column(Boolean, nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # La phrase qui explique le statut au prof (écran d'aide) : elle appartient au statut,
+    # pas à l'écran — sinon elle se recopie et diverge.
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
 
 
 class FeedbackMessage(Base):
@@ -253,6 +256,49 @@ class Sequence(Base):
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class SeanceMode(Base):
+    """Les modes de séance offerts au prof (donnée de référence, EN BASE). Source unique : le
+    serveur valide sur cette table, l'écran Séance affiche ces lignes, la liste « Mes séances »
+    y lit ses libellés — plus de troisième copie qui diverge.
+
+    `code` EST la clé du prompt (`seance_<code>` dans le registre) : renommer le `label` ne
+    touche à rien. `description` = la phrase affichée sous le libellé, dans le choix du mode."""
+    __tablename__ = "seance_modes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+
+
+class SeanceStyle(Base):
+    """Les styles de production d'une séance (même moule que SeanceMode). `code` EST la clé du
+    prompt de la couche de style (`seance_style_<code>`)."""
+    __tablename__ = "seance_styles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+
+
+class LangueLv(Base):
+    """Les langues vivantes proposées au prof dont la matière `demande_langue`. `label` est ce
+    qui s'écrit dans `users.langue_lv` (colonne texte) : le catalogue sert des libellés, aucune
+    donnée existante n'est à réécrire. `code` est là pour la clé étrangère du jour où."""
+    __tablename__ = "langues_lv"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
 
 
 class Seance(Base):
@@ -523,6 +569,11 @@ class Matiere(Base):
     nom: Mapped[str] = mapped_column(String(255), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = retirée du programme (historique conservé)
+    # « Cette matière porte une langue » : le prof choisit sa langue dans son profil, et la
+    # génération l'injecte dans le prompt ({langue}). Un INDICATEUR, pas un libellé : jusqu'ici
+    # le code comparait le nom à « Langues Vivantes (LV) » — la matière réelle s'appelant
+    # « Langue vivante », le test était faux en silence. Renommer la matière ne casse plus rien.
+    demande_langue: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0', nullable=False)
 
 
 class MatiereNiveau(Base):

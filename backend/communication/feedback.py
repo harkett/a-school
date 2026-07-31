@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.communication import echange
 from backend.core.database import get_db
-from backend.core.models_db import Feedback, Incident, User
+from backend.core.models_db import Feedback, FeedbackStatut, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.systeme.admin import codes_statuts_modifiables, labels_statuts
 
@@ -62,6 +62,18 @@ def _get_email(aschool_access: str | None) -> str:
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email
+
+
+@router.get("/feedback/statuts", status_code=200)
+def lister_statuts(db: Session = Depends(get_db)):
+    """Le catalogue des statuts tel que le PROF le voit : le libellé de la pastille et la phrase
+    qui l'explique, lus EN BASE (`feedback_statuts`). L'écran d'aide les recopiait — il les lit.
+    Le pendant admin est /admin/feedback-statuts : même table, même autorité."""
+    rows = (db.query(FeedbackStatut.code, FeedbackStatut.label, FeedbackStatut.description)
+              .order_by(FeedbackStatut.ordre, FeedbackStatut.id).all())
+    if not rows:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return [{"code": c, "label": l, "description": d} for c, l, d in rows]
 
 
 # ── Upload fichier joint ──────────────────────────────────────────────────────
