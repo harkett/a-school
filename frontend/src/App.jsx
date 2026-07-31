@@ -58,7 +58,6 @@ import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
 import MesFeedbacks from './pages/MesFeedbacks'
 import MesStats from './components/MesStats'
-import AdminProgrammes from './pages/AdminProgrammes'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
 import UpdateBanner from './components/UpdateBanner'
@@ -670,7 +669,6 @@ export default function App() {
             <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
-            <Route path="programmes" element={<AdminProgrammes />} />
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />

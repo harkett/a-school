@@ -7,8 +7,8 @@ const SEP = { separator: true }
 
 // Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
 // Règle (CLAUDE.md) : toute nouvelle page se range sous une famille existante,
-// jamais une entrée à plat de plus. « Contenu »
-// = les données brutes de référence (référentiels sources + tables).
+// jamais une entrée à plat de plus. « Programmes & contenu » = l'arbre du contenu
+// pédagogique ET les actions du programme officiel (fusion de l'ex-écran Programmes, 30/07).
 const NAV_ITEMS = [
   // — Mise en route (assistant de première configuration) —
   {
@@ -35,28 +35,15 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Programmes (entrée directe, ex-groupe « Pédagogie » à entrée unique) —
+  // — Programmes & contenu (l'arbre déroulant + les actions du programme officiel) —
   {
-    to:    '/admin/programmes',
-    label: 'Programmes',
-    aide:  'Programme officiel : cocher les paires matière × niveau, ajouter des niveaux (Supérieur, Crèche). Désactivation, jamais de suppression.',
+    to:    '/admin/contenu',
+    label: 'Programmes & contenu',
+    aide:  'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d\'activité. Le programme officiel se règle sur place : cocher les matières du niveau, ajouter cycles et niveaux, gérer le catalogue des matières. Désactivation, jamais de suppression.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-      </svg>
-    ),
-  },
-  // — Contenu (tout le contenu pédagogique en un seul tableau déroulant) —
-  {
-    to:    '/admin/contenu',
-    label: 'Contenu',
-    aide:  'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d\'activité. Lecture seule, lu en direct dans la base.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <ellipse cx="12" cy="5" rx="9" ry="3"/>
-        <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
-        <path d="M3 12a9 3 0 0 0 18 0"/>
       </svg>
     ),
   },

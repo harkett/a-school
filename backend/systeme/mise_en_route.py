@@ -76,7 +76,7 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
          "titre": "Choisir le fournisseur d'IA et son modèle",
          "message": "Choisissez votre fournisseur d'IA, son modèle, et vérifiez que sa clé est en "
                     "place. Sans ça, aucune analyse automatique ne peut fonctionner."},
-        {"num": 2, "cle": "programme", "fait": prog_ok, "ecran": "/admin/programmes",
+        {"num": 2, "cle": "programme", "fait": prog_ok, "ecran": "/admin/contenu",
          "titre": "Vérifier le programme officiel",
          "message": "Le programme officiel (cycles, niveaux, matières) est déjà en place. Rien à "
                     "faire, sauf si vous souhaitez le compléter."},
