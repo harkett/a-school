@@ -52,15 +52,13 @@ def _prof(email=EMAIL):
 
 
 def _type_id():
-    from backend.core.models_db import ActiviteType
+    """Un type utilisable pour le niveau du prof (référentiel + liaison cochée) : depuis
+    l'étape 8, l'écriture exige les mêmes contrôles que la génération."""
+    from _profil import type_pret
     with dbmod.SessionLocal() as db:
-        t = db.query(ActiviteType).filter(ActiviteType.label == "Compréhension").first()
-        if not t:
-            t = ActiviteType(label="Compréhension")
-            db.add(t)
-            db.commit()
-            db.refresh(t)
-        return t.id
+        tid = type_pret(db, "6e")
+        db.commit()
+        return tid
 
 
 def _activite_a_trois_jalons():

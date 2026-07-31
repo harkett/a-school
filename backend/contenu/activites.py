@@ -47,6 +47,44 @@ _USER_PARAMS = {
 }
 
 
+def type_du_couple_verifie(db: Session, niveau: str, activite_type_id: int):
+    """LA porte unique de la question « ce type est-il utilisable pour ce couple ? ».
+
+    Trois contrôles, dans l'ordre où ils comptent pour le prof :
+      1. le NIVEAU a un référentiel officiel (sans lui, aucun prompt de couple n'existe) ;
+      2. le TYPE existe au catalogue ET y est actif ;
+      3. le type est COCHÉ pour ce référentiel, avec un prompt non vide (`referentiel_types_activite`).
+
+    Renvoie (ref_id, type, prompt du couple). Lève un 400 au message écrit pour le prof sinon.
+
+    Écrite une fois, appelée par les DEUX portes : la génération (/api/generate) et l'écriture
+    en base (POST/PUT /contenus/activites). Deux copies auraient fini par dire des choses
+    différentes — et c'est l'écriture qui décide de ce que « Mes stats » comptera.
+    """
+    ref_id = _referentiel_du_niveau(db, niveau)
+    if ref_id is None:
+        raise HTTPException(400, "Ce niveau n'a pas encore de référentiel officiel. La génération n'est pas encore possible ici.")
+
+    t = (db.query(ActiviteType)
+           .filter(ActiviteType.id == activite_type_id, ActiviteType.actif.is_(True))
+           .first())
+    if t is None:
+        raise HTTPException(400, "Type d'activité inconnu.")
+
+    # Le PROMPT du COUPLE × type, LU EN BASE sur la liaison (coché + non vide). Une seule source
+    # par donnée, zéro prompt en dur, zéro repli sur un prompt global : le prompt est propre au couple.
+    lien = (db.query(ReferentielActiviteType)
+              .filter(ReferentielActiviteType.referentiel_id == ref_id,
+                      ReferentielActiviteType.activite_type_id == t.id,
+                      ReferentielActiviteType.actif.is_(True))
+              .first())
+    modele = lien.prompt if (lien and lien.prompt and lien.prompt.strip()) else None
+    if modele is None:
+        raise HTTPException(400, "Ce type d'activité n'est pas encore prêt pour ce niveau.")
+
+    return ref_id, t, modele
+
+
 def few_shot_du_prof(db: Session, user: User, activite_type_id: int,
                      matiere: str | None, niveau: str) -> str:
     """Le style du prof, tiré de SES activités précédentes — le « aSchool vous reconnaît » que
@@ -335,28 +373,8 @@ def api_generate(
     couple_de_travail) — l'écran ne l'envoie plus (décision du 25/07)."""
     user, matiere, niveau = _prof_et_couple(db, aschool_access)
 
-    # 1. Le COUPLE : le référentiel du niveau. Sans référentiel, aucun prompt de couple → rien à générer.
-    ref_id = _referentiel_du_niveau(db, niveau)
-    if ref_id is None:
-        raise HTTPException(400, "Ce niveau n'a pas encore de référentiel officiel. La génération n'est pas encore possible ici.")
-
-    # 2. Le type choisi (catalogue), retrouvé par son id — sert à retrouver la ligne de liaison.
-    t = (db.query(ActiviteType)
-           .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
-           .first())
-    if t is None:
-        raise HTTPException(400, "Type d'activité inconnu.")
-
-    # 3. Le PROMPT du COUPLE × type, LU EN BASE sur la liaison (coché + non vide). Une seule source
-    # par donnée, zéro prompt en dur, zéro repli sur un prompt global : le prompt est propre au couple.
-    lien = (db.query(ReferentielActiviteType)
-              .filter(ReferentielActiviteType.referentiel_id == ref_id,
-                      ReferentielActiviteType.activite_type_id == t.id,
-                      ReferentielActiviteType.actif.is_(True))
-              .first())
-    modele = lien.prompt if (lien and lien.prompt and lien.prompt.strip()) else None
-    if modele is None:
-        raise HTTPException(400, "Ce type d'activité n'est pas encore prêt pour ce niveau.")
+    # 1 à 3. Le couple, le type et son prompt — LA porte unique (voir type_du_couple_verifie).
+    ref_id, t, modele = type_du_couple_verifie(db, niveau, req.activite_type_id)
 
     # 4. Le {referentiel} : extraits du programme officiel du couple les plus proches de l'idée du prof
     # (RAG pgvector), filtrés au SEUIL du référentiel (lu en base). Rien d'assez pertinent → on n'invente

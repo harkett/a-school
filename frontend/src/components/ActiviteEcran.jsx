@@ -111,7 +111,8 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   async function sauver(complet, ton) {
     const corps = {
       activite_type_id: params.activite_type_id,
-      activite_label: typesActivite.find(a => a.id === params.activite_type_id)?.label || '',
+      // Pas d'`activite_label` : le serveur le relit en base depuis le type (il alimente
+      // « Mes stats », donc l'instantané est pris par lui, pas par l'écran).
       sous_type: params.sous_type || null,
       nb: params.nb || null,
       avec_correction: !!params.avec_correction,

@@ -166,7 +166,11 @@ def lister(
 
 class ActiviteCorps(BaseModel):
     activite_type_id: int
-    activite_label: str
+    # `activite_label` N'EST PLUS reçu : le serveur le relit en base depuis `activite_type_id`
+    # (voir _controler_type_et_label). C'est un instantané, et un instantané se prend par celui
+    # qui sait — pas par l'écran. Il alimente « Mes stats » : un client qui l'invente fausserait
+    # les statistiques du prof sans que rien ne le signale. Le champ envoyé par l'écran est
+    # simplement ignoré (Pydantic laisse tomber les champs inconnus).
     sous_type: Optional[str] = None
     nb: Optional[int] = None
     avec_correction: bool = False
@@ -177,6 +181,21 @@ class ActiviteCorps(BaseModel):
     # Rattachement OPTIONNEL à une séance : posé à la NAISSANCE seulement (création depuis
     # l'écran Séance). Le PUT de régénération ne touche jamais au rattachement.
     seance_id: Optional[int] = None
+
+
+def _controler_type_et_label(db: Session, niveau: str, activite_type_id: int) -> str:
+    """Les MÊMES contrôles qu'à la génération, rejoués à l'ÉCRITURE, et le libellé relu en base.
+
+    Ils étaient faits à la génération seulement (activites.py) : le POST/PUT écrivait donc
+    `activite_type_id` et `activite_label` tels que l'écran les envoyait, sans rien vérifier.
+    On appelle LA fonction de la génération — pas une seconde version qui finirait par diverger.
+
+    Renvoie le libellé FIGÉ à écrire (types_activite.label), lu en base : l'instantané est pris
+    par le serveur, jamais fourni par le client, parce qu'il alimente « Mes stats ».
+    """
+    from backend.contenu.activites import type_du_couple_verifie   # import local : pas de cycle
+    _, type_actif, _ = type_du_couple_verifie(db, niveau, activite_type_id)
+    return type_actif.label
 
 
 def _activite_de(user: User, activite_id: int, db: Session) -> Activite:
@@ -201,6 +220,9 @@ def creer_activite(
     matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
+    # Le type est CONTRÔLÉ pour ce couple (mêmes contrôles qu'à la génération) et son libellé
+    # relu en base — on n'écrit rien tant que ce n'est pas vrai.
+    label = _controler_type_et_label(db, niveau, corps.activite_type_id)
     # Rattachement à la naissance (création depuis l'écran Séance) : la séance doit
     # appartenir au prof connecté — sinon 404, on n'écrit rien.
     if corps.seance_id is not None:
@@ -209,7 +231,7 @@ def creer_activite(
         user_id=user.id,
         seance_id=corps.seance_id,
         activite_type_id=corps.activite_type_id,
-        activite_label=corps.activite_label,
+        activite_label=label,
         sous_type=corps.sous_type,
         nb=corps.nb,
         avec_correction=corps.avec_correction,
@@ -238,8 +260,12 @@ def regenerer_activite(
     """Jalon suivant (régénération, changement de ton/texte) : l'ÉTAT COURANT est mis à jour
     et une NOUVELLE version s'empile — on n'écrase jamais une version (règle 0)."""
     activite = _activite_de(user, activite_id, db)
+    _, niveau, _ = couple_de_travail(db, user)
+    if not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
+    label = _controler_type_et_label(db, niveau, corps.activite_type_id)
     activite.activite_type_id = corps.activite_type_id
-    activite.activite_label = corps.activite_label
+    activite.activite_label = label
     activite.sous_type = corps.sous_type
     activite.nb = corps.nb
     activite.avec_correction = corps.avec_correction
