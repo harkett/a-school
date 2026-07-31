@@ -3,6 +3,7 @@ import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
 import SplitPane from '../components/SplitPane.jsx'
+import { buildSearchIndex, searchSections } from '../utils/aideSearch.js'
 
 // Écran « Prompts » — sorti de Système → Génération LLM (31/07) : un prompt n'est pas de la
 // plomberie (clés, modèles, délais) mais le texte qui décide de ce que le prof reçoit.
@@ -38,6 +39,7 @@ export default function AdminPrompts({ categorie }) {
   const [savingPrompt, setSavingPrompt] = useState(false)
   const [messagePrompt, setMessagePrompt] = useState(null)
   const [detailCache, setDetailCache] = useState(false)
+  const [recherche, setRecherche] = useState('')
 
   const meta = CATEGORIES[categorie] || CATEGORIES.autres
 
@@ -59,11 +61,24 @@ export default function AdminPrompts({ categorie }) {
   }
 
   // Seuls les prompts de CETTE sous-option. La catégorie vient du registre serveur (llm_prompts).
-  const liste = prompts.filter(p => p.categorie === categorie)
+  const listeCategorie = prompts.filter(p => p.categorie === categorie)
+
+  // Recherche au fil de la frappe, sur le libellé ET la clé technique. On réutilise l'outil de
+  // la page Aide (aideSearch) : accents et majuscules ignorés, filtre ET sur tous les mots
+  // tapés, et les lignes dont le LIBELLÉ correspond remontent avant celles qui ne matchent que
+  // par la clé. `titre` = le libellé, `nav` = la clé : c'est ce que searchSections privilégie.
+  const liste = recherche.trim() === ''
+    ? listeCategorie
+    : searchSections(
+        buildSearchIndex(listeCategorie.map(p => ({ ...p, titre: p.label, nav: p.key, contenu: null }))),
+        recherche
+      )
 
   // Prompt sélectionné + repères obligatoires manquants (miroir du garde-fou backend).
   // Un repère absent = injection cassée (matière/niveau/contenu non insérés) -> on refuse.
-  const promptActif = liste.find(p => p.key === promptKey)
+  // Cherché dans la liste de la CATÉGORIE, pas dans la liste filtrée : continuer à taper dans
+  // la recherche ne doit pas refermer le prompt ouvert (ni perdre une retouche en cours).
+  const promptActif = listeCategorie.find(p => p.key === promptKey)
   const reperesManquants = promptActif
     ? promptActif.placeholders.filter(ph => !promptText.includes('{' + ph + '}'))
     : []
@@ -72,7 +87,7 @@ export default function AdminPrompts({ categorie }) {
 
   function choisirPrompt(key) {
     setPromptKey(key)
-    const actif = liste.find(p => p.key === key)
+    const actif = listeCategorie.find(p => p.key === key)
     setPromptText(actif ? actif.current : '')
     setMessagePrompt(null)
     setDetailCache(false)   // cliquer une ligne veut dire « montre-moi le détail »
@@ -143,12 +158,41 @@ export default function AdminPrompts({ categorie }) {
     }
   }
 
-  // ── Colonne gauche : la liste. Une ligne = un prompt, avec son étiquette d'état. ──
+  // ── Colonne gauche : le champ de recherche, puis la liste. Une ligne = un prompt, avec son
+  //    étiquette d'état. Le champ reste en haut, ce sont les lignes qui défilent. ──
   const colonneListe = (
-    <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
-      {liste.length === 0 && (
+    <div
+      className="bg-white rounded-lg border border-gray-200"
+      style={{ overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0, position: 'relative' }}>
+        <input
+          type="search"
+          value={recherche}
+          onChange={e => setRecherche(e.target.value)}
+          placeholder="Rechercher un prompt…"
+          title="Filtre la liste au fil de la frappe — cherche dans le libellé et dans la clé technique, sans tenir compte des accents ni des majuscules"
+          className="w-full border border-gray-300 rounded text-sm"
+          style={{ padding: '7px 10px 7px 30px' }}
+        />
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+        >
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      {listeCategorie.length === 0 && (
         <p className="text-sm text-gray-400" style={{ padding: '24px 16px', textAlign: 'center' }}>
           Aucun prompt dans cette catégorie.
+        </p>
+      )}
+      {listeCategorie.length > 0 && liste.length === 0 && (
+        <p className="text-sm text-gray-400" style={{ padding: '24px 16px', textAlign: 'center' }}>
+          Aucun prompt ne correspond à « {recherche.trim()} ».
         </p>
       )}
       {liste.map(p => {
@@ -189,6 +233,7 @@ export default function AdminPrompts({ categorie }) {
           </button>
         )
       })}
+      </div>
     </div>
   )
 
@@ -206,15 +251,21 @@ export default function AdminPrompts({ categorie }) {
       </p>
     </div>
   ) : (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
-      <div>
+    // Colonne pleine hauteur : les repères restent en haut, les boutons ancrés en bas, et la zone
+    // de texte prend tout ce qui reste — un prompt court ne laisse plus de vide, un prompt long
+    // n'oblige plus à défiler dans une petite fenêtre.
+    <div
+      className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5"
+      style={{ height: '100%', minHeight: 420 }}
+    >
+      <div style={{ flexShrink: 0 }}>
         <h3 className="text-sm font-semibold text-gray-700">{promptActif.label}</h3>
         <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
           {promptActif.key}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap" style={{ flexShrink: 0 }}>
         <span className="text-xs font-medium text-gray-600">Repères obligatoires :</span>
         {promptActif.placeholders.length === 0 && (
           <span className="text-xs text-gray-400">aucun pour ce prompt</span>
@@ -246,27 +297,29 @@ export default function AdminPrompts({ categorie }) {
         </span>
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Prompt</label>
+      {/* La zone de texte s'étire jusqu'en bas : c'est elle qui absorbe la hauteur restante
+          (flex: 1 + min-height: 0), le libellé et la note gardant leur taille. */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <label className="block text-xs font-medium text-gray-600 mb-1" style={{ flexShrink: 0 }}>Prompt</label>
         <textarea
           value={promptText}
           onChange={e => setPromptText(e.target.value)}
-          rows={18}
           spellCheck={false}
           className="w-full border rounded px-3 py-2"
           style={{
+            flex: 1, minHeight: 160,
             borderColor: promptInvalide ? '#dc2626' : '#d1d5db',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            fontSize: 12, lineHeight: 1.5, resize: 'vertical',
+            fontSize: 12, lineHeight: 1.5, resize: 'none',
           }}
         />
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-gray-400 mt-1" style={{ flexShrink: 0 }}>
           Dans un exemple JSON, doublez les accolades : <code>{'{{ }}'}</code> — sinon le repère
           serait interprété et le prompt refusé.
         </p>
       </div>
 
-      <div className="flex items-center gap-3 pt-1 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap" style={{ flexShrink: 0 }}>
         <button
           onClick={savePrompt}
           disabled={savingPrompt || promptInvalide || !promptModifie}
@@ -348,15 +401,19 @@ export default function AdminPrompts({ categorie }) {
       </div>
 
       {/* Deux colonnes redimensionnables : liste à gauche | détail à droite. Détail caché :
-          la liste prend toute la largeur (le même SplitPane que les pages listes du prof). */}
-      {detailCache
-        ? <div className="split-pane"><div className="split-col split-col-flex">{colonneListe}</div></div>
-        : <SplitPane
-            storageKey={`admin-prompts-${categorie}-split-v1`}
-            defautGauche={38}
-            gauche={colonneListe}
-            droite={colonneDetail}
-          />}
+          la liste prend toute la largeur (le même SplitPane que les pages listes du prof).
+          La hauteur est bornée à la fenêtre (.admin-prompts-corps) : chaque colonne a son
+          ascenseur, et la zone de texte du prompt peut s'étirer jusqu'en bas. */}
+      <div className="admin-prompts-corps">
+        {detailCache
+          ? <div className="split-pane"><div className="split-col split-col-flex">{colonneListe}</div></div>
+          : <SplitPane
+              storageKey={`admin-prompts-${categorie}-split-v1`}
+              defautGauche={38}
+              gauche={colonneListe}
+              droite={colonneDetail}
+            />}
+      </div>
     </div>
   )
 }

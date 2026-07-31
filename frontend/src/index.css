@@ -155,9 +155,15 @@ select { appearance: auto; cursor: pointer; }
 }
 .split-grip { width: 3px; height: 46px; border-radius: 3px; background: #cbd5e1; transition: background 0.15s; }
 .split-divider:hover .split-grip, .split-divider:active .split-grip { background: var(--bordeaux); }
+/* Corps de l'écran admin « Prompts » : hauteur bornée à la fenêtre (en retirant l'en-tête et le
+   pied du back-office, plus le titre de la page) pour que la zone de texte du prompt puisse
+   s'étirer jusqu'en bas. Sur petit écran les colonnes s'empilent : on rend la hauteur au contenu. */
+.admin-prompts-corps { height: calc(100vh - 250px); min-height: 420px; }
+
 @media (max-width: 900px) {
   .creer-corps { overflow-y: auto; }
   .split-pane { flex-direction: column; height: auto; }
   .split-col { width: auto !important; overflow: visible; }
   .split-divider { display: none; }
+  .admin-prompts-corps { height: auto; }
 }
