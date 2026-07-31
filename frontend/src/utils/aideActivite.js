@@ -66,6 +66,12 @@ export const GUIDE_ACTIVITE = [
       long: "C'est l'activité générée par aSchool à partir de vos réglages et de votre texte, dans le ton choisi, en s'appuyant sur le programme officiel de votre niveau ET sur le cahier des charges de votre établissement (déposé dans votre profil). Vous pouvez la télécharger (TXT, Word, PDF), en voir la mise en forme (aperçu HTML), l'imprimer ou l'envoyer par e-mail. Si elle ne vous convient pas : « Changer votre texte » rouvre votre texte pour l'ajuster, « Changer votre ton » la régénère dans l'autre ton (académique ↔ opérationnel).",
     },
   },
+  {
+    cle: 'historique',
+    titre: 'Historique des versions',
+    court: 'Toutes les versions précédentes, relisibles et restaurables.',
+    long: "Chaque génération fige une version de votre activité : l'historique s'empile, rien n'est jamais écrasé. Vous ouvrez une version pour la relire en entier, et « Revenir à cette version » la remet en place. Ce retour ne supprime rien non plus : la version que vous quittez reste dans la liste, vous pouvez donc revenir en arrière d'un retour en arrière.",
+  },
   // Entrée 'analyses' (« Vérifier le résultat ») retirée (28/07, ménage) : cartouche supprimée de
   // l'écran, le contrôle qualité est intégré à la génération.
 ]

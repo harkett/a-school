@@ -19,6 +19,8 @@ import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
 import ApportTexte from './contenus/ApportTexte.jsx'
 import InfoGuide from './InfoGuide.jsx'
+import HistoriqueVersions from './HistoriqueVersions.jsx'
+import { aideSeances } from '../utils/aideSeances.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
@@ -246,6 +248,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   const [esqLoading, setEsqLoading] = useState(null)         // phase de l'esquisse en cours de proposition ('a'|'b'|'c'|null)
   const [esqNotes, setEsqNotes] = useState({ a: false, b: false, c: false })  // zone proposée par aSchool → pastille
   const [seanceId, setSeanceId] = useState(seance?.id || null)
+  const [historiqueOuvert, setHistoriqueOuvert] = useState(false)   // fenêtre « Historique des versions »
   const [enregistrement, setEnregistrement] = useState(seance ? 'ok' : null)   // null | 'ok' | 'echec'
   const resultatRef = useRef(null)
 
@@ -626,7 +629,33 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
           </svg>
           {derouleCache ? 'Afficher le déroulé' : 'Cacher le déroulé'}
         </button>
+        {/* L'historique promis par l'infobulle de génération, enfin lisible : chaque jalon a
+            figé une version, celle-ci s'ouvre et se restaure (règle 0). Disponible dès que la
+            séance existe en base. */}
+        {seanceId && (
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setHistoriqueOuvert(true)}
+            title="Historique : relire les versions précédentes de cette séance et revenir à l'une d'elles. Rien n'est jamais supprimé."
+            style={{ flexShrink: 0 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 14"/></svg>
+            Historique
+          </button>
+        )}
       </div>
+
+      {historiqueOuvert && seanceId && (
+        <HistoriqueVersions
+          base={`/api/contenus/seances/${seanceId}`}
+          variante="style"
+          titre={theme.trim() || 'Votre séance'}
+          aide={aideSeances('historique')}
+          onFermer={() => setHistoriqueOuvert(false)}
+          onRestaure={d => { setResultat(d.resultat); setStyle(d.style); setEnregistrement('ok') }}
+        />
+      )}
 
       <div className="creer-corps">
         {(() => {

@@ -14,6 +14,7 @@ import JaugeAttente from './JaugeAttente.jsx'
 import FriseProgression from './FriseProgression.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
+import HistoriqueVersions from './HistoriqueVersions.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { typeVierge } from '../utils/activite.js'
 import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD } from '../utils/api.js'
@@ -75,6 +76,7 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   // Règle 0 : l'identité EN BASE de l'activité de ce plan de travail (null = pas encore née).
   const [activiteId, setActiviteId] = useState(activite?.id || null)
   const [enregistrement, setEnregistrement] = useState(activite ? 'ok' : null)   // null | 'ok' | 'echec'
+  const [historiqueOuvert, setHistoriqueOuvert] = useState(false)   // fenêtre « Historique des versions »
   const resultatRef = useRef(null)
 
   // Catalogue des types (même endpoint que l'écran modèle — un référentiel partagé, en lecture).
@@ -323,9 +325,35 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                 Changer votre ton
               </button>
             )}
+            {/* L'historique promis par les infobulles, enfin lisible : chaque jalon a figé une
+                version, celle-ci s'ouvre et se restaure (règle 0). Disponible dès que l'activité
+                existe en base — avant, il n'y a rien à relire. */}
+            {activiteId && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setHistoriqueOuvert(true)}
+                title="Historique : relire les versions précédentes de cette activité et revenir à l'une d'elles. Rien n'est jamais supprimé."
+                style={{ flexShrink: 0 }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 14"/></svg>
+                Historique
+              </button>
+            )}
           </div>
         )}
       </div>
+
+      {historiqueOuvert && activiteId && (
+        <HistoriqueVersions
+          base={`/api/contenus/activites/${activiteId}`}
+          variante="ton"
+          titre={objet.trim() || 'Votre activité'}
+          aide={aideActivite('historique')}
+          onFermer={() => setHistoriqueOuvert(false)}
+          onRestaure={d => { setResultat(d.resultat); setTonActuel(d.ton); setEnregistrement('ok') }}
+        />
+      )}
 
       <div className="creer-corps">
         {(() => {

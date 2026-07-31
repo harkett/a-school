@@ -29,6 +29,12 @@ export const GUIDE_SEANCES = [
     long: "C'est le déroulé produit par aSchool à partir de votre thème, du cadre et de vos choix. C'est ce que vous consultez ici (aperçu HTML, impression) ou que vous reprenez dans le formulaire pour le régénérer ou le faire évoluer.",
   },
   {
+    cle: 'historique',
+    titre: 'Historique des versions',
+    court: 'Toutes les versions précédentes, relisibles et restaurables.',
+    long: "Chaque génération fige une version de votre séance : l'historique s'empile, rien n'est jamais écrasé. Vous ouvrez une version pour relire son déroulé en entier, et « Revenir à cette version » la remet en place. Ce retour ne supprime rien non plus : la version que vous quittez reste dans la liste, vous pouvez donc revenir en arrière d'un retour en arrière.",
+  },
+  {
     cle: 'activites',
     titre: 'Activités de cette séance',
     court: "Les activités rattachées à la séance sélectionnée.",

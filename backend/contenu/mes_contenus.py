@@ -252,6 +252,187 @@ def regenerer_activite(
     return {"ok": True, "id": activite.id}
 
 
+# ---------------------------------------------------------------------------
+# Historique des versions — la moitié LECTURE de la règle 0
+# ---------------------------------------------------------------------------
+# Les jalons empilent des versions depuis le premier jour ; voici de quoi les RELIRE et en
+# RESTAURER une. Restaurer n'écrase JAMAIS : la version choisie redevient l'état courant et
+# s'empile aussitôt comme une nouvelle version (jalon 'restauration') — on peut donc revenir
+# en arrière d'un retour en arrière. Même moule pour les activités et les séances.
+
+# Ce qui a créé la version, en français, pour l'écran (le code reste la vérité en base).
+JALON_LABELS = {
+    "generation": "Génération",
+    "restauration": "Retour à une version précédente",
+    "edition": "Modification à la main",
+}
+
+
+def _label_jalon(jalon: str) -> str:
+    return JALON_LABELS.get(jalon, "Version")
+
+
+def _extrait(resultat: str | None, taille: int = 160) -> str:
+    """Début du contenu, pour reconnaître une version dans la liste sans la charger entière."""
+    texte = " ".join((resultat or "").split())
+    return texte[:taille]
+
+
+@router.get("/contenus/activites/{activite_id}/versions")
+def lister_versions_activite(
+    activite_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """L'historique d'une activité, la plus récente en tête. Liste LÉGÈRE (pas le texte
+    complet) : l'écran ne charge le contenu que de la version qu'on lui demande d'ouvrir."""
+    _activite_de(user, activite_id, db)
+    versions = (
+        db.query(ActiviteVersion)
+        .filter(ActiviteVersion.activite_id == activite_id)
+        .order_by(ActiviteVersion.id.desc())
+        .all()
+    )
+    return {"versions": [{
+        "id": v.id,
+        "jalon": v.jalon,
+        "jalon_label": _label_jalon(v.jalon),
+        "ton": v.ton,
+        "created_at": _iso(v.created_at),
+        "extrait": _extrait(v.resultat),
+        # La plus récente EST l'état courant : l'écran la marque au lieu de proposer
+        # de restaurer ce qui est déjà affiché.
+        "courante": v.id == versions[0].id,
+    } for v in versions]}
+
+
+@router.get("/contenus/activites/{activite_id}/versions/{version_id}")
+def lire_version_activite(
+    activite_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Le contenu COMPLET d'une version, pour la lire avant de décider de la restaurer."""
+    _activite_de(user, activite_id, db)
+    version = (
+        db.query(ActiviteVersion)
+        .filter(ActiviteVersion.id == version_id, ActiviteVersion.activite_id == activite_id)
+        .first()
+    )
+    if not version:
+        raise HTTPException(404, "Version introuvable.")
+    return {
+        "id": version.id,
+        "jalon": version.jalon,
+        "jalon_label": _label_jalon(version.jalon),
+        "ton": version.ton,
+        "created_at": _iso(version.created_at),
+        "resultat": version.resultat,
+    }
+
+
+@router.post("/contenus/activites/{activite_id}/versions/{version_id}/restaurer")
+def restaurer_version_activite(
+    activite_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revenir en arrière = RESTAURER une version (règle 0). La version choisie redevient
+    l'état courant de l'activité ET s'empile comme une nouvelle version : rien n'est perdu,
+    ni ce qu'on quitte, ni ce vers quoi on revient."""
+    activite = _activite_de(user, activite_id, db)
+    version = (
+        db.query(ActiviteVersion)
+        .filter(ActiviteVersion.id == version_id, ActiviteVersion.activite_id == activite_id)
+        .first()
+    )
+    if not version:
+        raise HTTPException(404, "Version introuvable.")
+    activite.resultat = version.resultat
+    activite.ton = version.ton
+    db.add(ActiviteVersion(activite_id=activite.id, jalon="restauration",
+                           ton=version.ton, resultat=version.resultat))
+    db.commit()
+    return {"ok": True, "id": activite.id, "resultat": activite.resultat, "ton": activite.ton}
+
+
+@router.get("/contenus/seances/{seance_id}/versions")
+def lister_versions_seance(
+    seance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """L'historique d'une séance — même moule que celui des activités (`style` au lieu de `ton`)."""
+    _seance_de(user, seance_id, db)
+    versions = (
+        db.query(SeanceVersion)
+        .filter(SeanceVersion.seance_id == seance_id)
+        .order_by(SeanceVersion.id.desc())
+        .all()
+    )
+    return {"versions": [{
+        "id": v.id,
+        "jalon": v.jalon,
+        "jalon_label": _label_jalon(v.jalon),
+        "style": v.style,
+        "created_at": _iso(v.created_at),
+        "extrait": _extrait(v.resultat),
+        "courante": v.id == versions[0].id,
+    } for v in versions]}
+
+
+@router.get("/contenus/seances/{seance_id}/versions/{version_id}")
+def lire_version_seance(
+    seance_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _seance_de(user, seance_id, db)
+    version = (
+        db.query(SeanceVersion)
+        .filter(SeanceVersion.id == version_id, SeanceVersion.seance_id == seance_id)
+        .first()
+    )
+    if not version:
+        raise HTTPException(404, "Version introuvable.")
+    return {
+        "id": version.id,
+        "jalon": version.jalon,
+        "jalon_label": _label_jalon(version.jalon),
+        "style": version.style,
+        "created_at": _iso(version.created_at),
+        "resultat": version.resultat,
+    }
+
+
+@router.post("/contenus/seances/{seance_id}/versions/{version_id}/restaurer")
+def restaurer_version_seance(
+    seance_id: int,
+    version_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Restauration d'une séance — mêmes règles que pour une activité : jamais d'écrasement,
+    la restauration est elle-même un jalon."""
+    seance = _seance_de(user, seance_id, db)
+    version = (
+        db.query(SeanceVersion)
+        .filter(SeanceVersion.id == version_id, SeanceVersion.seance_id == seance_id)
+        .first()
+    )
+    if not version:
+        raise HTTPException(404, "Version introuvable.")
+    seance.resultat = version.resultat
+    seance.style = version.style
+    db.add(SeanceVersion(seance_id=seance.id, jalon="restauration",
+                         style=version.style, resultat=version.resultat))
+    db.commit()
+    return {"ok": True, "id": seance.id, "resultat": seance.resultat, "style": seance.style}
+
+
 class RattacherSeanceCorps(BaseModel):
     seance_id: Optional[int] = None   # null = détacher
 
