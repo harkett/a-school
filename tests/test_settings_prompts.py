@@ -35,6 +35,8 @@ from backend.core.models_db import Setting
 from backend.systeme.admin import get_prompt, valider_prompt, _make_admin_token
 from backend.core.llm_prompts import PROMPTS
 import backend.llm.generator as gen
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("prof.test@aschool.fr")
@@ -80,37 +82,63 @@ def _fake_groq_post(capture, content):
 
 # ===================== get_prompt : resolution =====================
 
-def test_pas_de_surcharge_renvoie_defaut():
-    db = _fresh_db()
-    assert get_prompt(db, "ambiguites") == PROMPTS["ambiguites"]["default"]
-    db.close()
+# NOUVEAU CONTRAT (etape 9 lot C) : get_prompt LIT LA BASE, sans repli sur le defaut code.
+# Les trois tests ci-dessous encodaient l'ancien contrat (« pas de ligne -> defaut code »). Ce
+# n'est pas une regression : c'est le contrat qui a change, et c'etait tout l'objet du lot.
+# Ils utilisent `with` : depuis que get_prompt LEVE, un `db.close()` place apres l'assertion
+# n'est plus atteint — la session reste « idle in transaction », le TRUNCATE de conftest
+# l'attend, et la suite entiere se bloque sans un mot. C'est exactement ce qui s'est produit.
+
+def test_prompt_absent_en_base_erreur_claire_jamais_un_repli():
+    with dbmod.SessionLocal() as db:
+        db.query(Setting).delete()
+        db.commit()
+        with pytest.raises(HTTPException) as e:
+            get_prompt(db, "ambiguites")
+        assert e.value.status_code == 500
+        assert "absent en base" in e.value.detail
+        assert "ambiguites" in e.value.detail   # le message DIT laquelle manque
 
 
-def test_surcharge_non_vide_prioritaire():
-    db = _fresh_db()
-    db.add(Setting(key="prompt_consigne", value="MON PROMPT {matiere} {niveau} {consigne}"))
-    db.commit()
-    assert get_prompt(db, "consigne") == "MON PROMPT {matiere} {niveau} {consigne}"
-    db.close()
+def test_prompt_inconnu_du_registre_le_dit_autrement():
+    """Deux pannes differentes, deux messages differents : une cle qu'aucun outil ne declare
+    n'est pas une migration oubliee, c'est une faute d'appel."""
+    with dbmod.SessionLocal() as db:
+        db.query(Setting).delete()
+        db.commit()
+        with pytest.raises(HTTPException) as e:
+            get_prompt(db, "cle_qui_n_existe_pas")
+        assert "inconnu" in e.value.detail
 
 
-def test_surcharge_vide_repli_sur_defaut():
-    db = _fresh_db()
-    db.add(Setting(key="prompt_consigne", value="   "))  # vide/espaces -> ignore
-    db.commit()
-    assert get_prompt(db, "consigne") == PROMPTS["consigne"]["default"]
-    db.close()
+def test_la_ligne_en_base_est_ce_qui_sert():
+    with dbmod.SessionLocal() as db:
+        db.query(Setting).delete()
+        db.add(Setting(key="prompt_consigne", value="MON PROMPT {matiere} {niveau} {consigne}"))
+        db.commit()
+        assert get_prompt(db, "consigne") == "MON PROMPT {matiere} {niveau} {consigne}"
+
+
+def test_ligne_vide_vaut_absence_et_le_dit():
+    """Une ligne blanche n'est pas un prompt : avant elle faisait retomber sur le defaut code,
+    en silence. Maintenant elle est traitee comme absente — et signalee."""
+    with dbmod.SessionLocal() as db:
+        db.query(Setting).delete()
+        db.add(Setting(key="prompt_consigne", value="   "))
+        db.commit()
+        with pytest.raises(HTTPException):
+            get_prompt(db, "consigne")
 
 
 def test_a_chaud_sans_redemarrage():
-    db = _fresh_db()
-    db.add(Setting(key="prompt_ambiguites", value="V1 {matiere} {niveau} {texte}"))
-    db.commit()
-    assert get_prompt(db, "ambiguites") == "V1 {matiere} {niveau} {texte}"
-    db.query(Setting).filter(Setting.key == "prompt_ambiguites").update({"value": "V2 {matiere} {niveau} {texte}"})
-    db.commit()
-    assert get_prompt(db, "ambiguites") == "V2 {matiere} {niveau} {texte}"  # pris direct, meme process
-    db.close()
+    with dbmod.SessionLocal() as db:
+        db.query(Setting).delete()
+        db.add(Setting(key="prompt_ambiguites", value="V1 {matiere} {niveau} {texte}"))
+        db.commit()
+        assert get_prompt(db, "ambiguites") == "V1 {matiere} {niveau} {texte}"
+        db.query(Setting).filter(Setting.key == "prompt_ambiguites").update({"value": "V2 {matiere} {niveau} {texte}"})
+        db.commit()
+        assert get_prompt(db, "ambiguites") == "V2 {matiere} {niveau} {texte}"  # pris direct, meme process
 
 
 # ===================== valider_prompt : garde-fou d'ecriture =====================
@@ -173,13 +201,32 @@ def test_chaine_utilise_la_surcharge():
     assert "Mathematiques" in envoye and "Un enonce." in envoye  # repères substitues
 
 
-def test_chaine_defaut_quand_pas_de_surcharge():
+def test_chaine_le_prompt_de_la_base_est_celui_qui_part_au_llm():
+    """La chaine complete, avec le prompt SEME (celui que la migration ecrit) : c'est bien le
+    contenu de la base qui arrive au modele, pas un texte du code."""
     _reset_settings()
+    with dbmod.SessionLocal() as db:
+        db.add(Setting(key="prompt_ambiguites", value=PROMPTS["ambiguites"]["default"]))
+        db.commit()
     cap = {}
     r = _call_ambiguites(cap)
     assert r.status_code == 200, r.text
     envoye = cap["body"]["messages"][0]["content"]
-    assert '"ambiguites":' in envoye  # fragment ASCII unique du prompt PAR DEFAUT (cle JSON attendue)
+    assert '"ambiguites":' in envoye              # fragment ASCII unique du prompt
+    assert "Mathematiques" in envoye and "Un enonce." in envoye   # reperes substitues
+
+
+def test_chaine_prompt_absent_le_dit_au_lieu_de_generer_avec_du_code():
+    """ANCIEN CONTRAT INVERSE. Sans ligne en base, la chaine retombait sur le defaut code et
+    generait quand meme : tout marchait, donc rien ne disait que la base n'etait pas la source.
+    Maintenant elle s'arrete et NOMME le prompt manquant — et surtout elle n'appelle pas le
+    modele, donc on ne facture pas une generation faite avec un texte fantome."""
+    _reset_settings()
+    cap = {}
+    r = _call_ambiguites(cap)
+    assert r.status_code == 500
+    assert "ambiguites" in r.json()["detail"] and "absent en base" in r.json()["detail"]
+    assert "body" not in cap, "le LLM ne doit pas être appelé quand le prompt manque"
 
 
 # ============ GET / PUT / DELETE /admin/prompts ============

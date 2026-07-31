@@ -410,14 +410,24 @@ def get_few_shot_extrait_max(db: Session) -> int:
 
 
 def get_prompt(db: Session, key: str) -> str:
-    """Prompt courant d'un outil : surcharge base `prompt_<key>` si présente et non vide,
-    sinon défaut code (llm_prompts.PROMPTS). Lu par requête -> rechargeable à chaud. Le contenu
-    en base est validé À L'ÉCRITURE (repères obligatoires présents + .format() sans casse),
-    donc sûr ici."""
+    """Prompt courant d'un outil, LU EN BASE (`prompt_<key>`). Lu par requête -> rechargeable à
+    chaud. Le contenu en base est validé À L'ÉCRITURE (repères obligatoires présents + .format()
+    sans casse), donc sûr ici.
+
+    PLUS DE REPLI SUR LE DÉFAUT CODE (étape 9 lot C). Il rendait la base facultative : 32 des 35
+    prompts n'y étaient pas et tout marchait, donc rien ne le disait. Ce que la base contient
+    n'était pas la vérité, c'était un cache partiel. Ligne absente -> erreur explicite, comme
+    `_reglage_entier` (règle maison : une base vide se dit, elle ne se rattrape pas en douce).
+    Les textes de `llm_prompts.PROMPTS` restent la RÉFÉRENCE : ils alimentent la migration de
+    seed et le bouton « revenir au défaut » de l'écran admin — le runtime, lui, ne les lit plus.
+
+    Le chemin de réparation est /admin/prompts, qui dit quelle clé manque sans jamais lever."""
     base = get_settings_dict(db).get(f"prompt_{key}", "")
     if base and base.strip():
         return base
-    return PROMPTS[key]["default"]
+    if key not in PROMPTS:
+        raise HTTPException(500, f"Prompt « {key} » inconnu : aucun outil ne le déclare.")
+    raise HTTPException(500, f"Prompt « {key} » absent en base (migration non appliquée ?).")
 
 
 def valider_prompt(key: str, template: str) -> str | None:

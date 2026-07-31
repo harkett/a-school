@@ -51,7 +51,18 @@ if _u.database != "aschool_test":
 # DATABASE_URL = test AVANT tout import de backend.core.database (sinon défaut SQLite de prod).
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-_test_engine = _real_create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
+# `lock_timeout` : un test qui laisse sa session ouverte (une exception levée avant son
+# `db.close()`, par exemple) garde une transaction en cours ; le TRUNCATE de nettoyage l'attend
+# alors INDÉFINIMENT et la suite entière se fige sans afficher une seule ligne — impossible à
+# diagnostiquer, et chaque relance se met en file derrière la première. Avec ce plafond, le
+# blocage devient une erreur immédiate qui NOMME la table : on sait quoi réparer.
+# `idle_in_transaction_session_timeout` coupe la session fautive elle-même, pour que la relance
+# suivante reparte sur une base saine.
+_test_engine = _real_create_engine(
+    TEST_DATABASE_URL,
+    pool_pre_ping=True,
+    connect_args={"options": "-c lock_timeout=15s -c idle_in_transaction_session_timeout=60s"},
+)
 _TestSession = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 
 import backend.core.database as _dbmod  # noqa: E402
