@@ -8,7 +8,27 @@ import psutil
 from backend.core.database import SessionLocal
 from backend.core.models_db import AdminAlert, FailedLoginAttempt
 
-_COOLDOWN_HOURS = 2
+def seuils_alertes(db) -> dict:
+    """Seuils de surveillance LUS EN BASE (réglages `alerte_*`), relus à chaque contrôle — donc
+    modifiables sans redéploiement. Ils étaient écrits en dur ici alors que ce sont des choix de
+    configuration. Une valeur illisible (saisie fautive) retombe sur le défaut du registre plutôt
+    que de faire sauter la surveillance : couper les alertes serait pire que garder l'ancien seuil.
+    """
+    from backend.systeme.admin import SETTING_DEFAULTS, get_settings_dict   # import local : pas de cycle
+    s = get_settings_dict(db)
+
+    def nombre(cle):
+        try:
+            return float(s.get(cle, SETTING_DEFAULTS[cle]))
+        except (TypeError, ValueError):
+            return float(SETTING_DEFAULTS[cle])
+
+    return {
+        "cpu_pct":       nombre("alerte_cpu_pct"),
+        "disque_pct":    nombre("alerte_disque_pct"),
+        "tentatives_1h": nombre("alerte_tentatives_1h"),
+        "anti_flood_h":  nombre("alerte_anti_flood_h"),
+    }
 
 
 def _ou_mesure() -> str:
@@ -20,8 +40,8 @@ def _ou_mesure() -> str:
 
 
 def _already_alerted(db, title: str) -> bool:
-    """Évite le flood : une seule alerte du même titre toutes les 2h."""
-    since = datetime.utcnow() - timedelta(hours=_COOLDOWN_HOURS)
+    """Évite le flood : une seule alerte du même titre par fenêtre `alerte_anti_flood_h` (base)."""
+    since = datetime.utcnow() - timedelta(hours=seuils_alertes(db)["anti_flood_h"])
     return db.query(AdminAlert).filter(
         AdminAlert.title == title,
         AdminAlert.created_at >= since,
@@ -87,18 +107,28 @@ def check_cpu_alert():
     # le nombre de cœurs, 100 % = tous les cœurs pleinement occupés en continu sur 5 min.
     cores = psutil.cpu_count() or 1
     charge_pct = round(psutil.getloadavg()[1] / cores * 100, 1)
-    if charge_pct > 90:
+    db = SessionLocal()
+    try:
+        seuil = seuils_alertes(db)["cpu_pct"]
+    finally:
+        db.close()
+    if charge_pct > seuil:
         create_alert(
             "critical",
             f"CPU critique : {charge_pct}%",
-            f"Le processeur dépasse 90 % en moyenne sur 5 minutes {_ou_mesure()}. "
+            f"Le processeur dépasse {seuil:g} % en moyenne sur 5 minutes {_ou_mesure()}. "
             f"Vérifier les processus actifs.",
         )
 
 
 def check_disk_alert():
     disk = psutil.disk_usage('/')
-    if disk.percent > 85:
+    db = SessionLocal()
+    try:
+        seuil = seuils_alertes(db)["disque_pct"]
+    finally:
+        db.close()
+    if disk.percent > seuil:
         libre = round((disk.total - disk.used) / 1024**3, 1)
         create_alert("warning", f"Disque faible : {disk.percent}% utilisé",
                      f"Il reste {libre} Go libres {_ou_mesure()}.")
@@ -107,11 +137,12 @@ def check_disk_alert():
 def check_brute_force_alert():
     db = SessionLocal()
     try:
+        seuil = seuils_alertes(db)["tentatives_1h"]
         since = datetime.utcnow() - timedelta(hours=1)
         count = db.query(FailedLoginAttempt).filter(
             FailedLoginAttempt.attempt_at >= since,
         ).count()
-        if count >= 10:
+        if count >= seuil:
             create_alert(
                 "critical",
                 f"Tentatives d'intrusion : {count} en 1h",

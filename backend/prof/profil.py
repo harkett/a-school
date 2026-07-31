@@ -1,4 +1,3 @@
-import re
 import unicodedata
 from pathlib import Path
 from urllib.parse import quote
@@ -11,25 +10,20 @@ from sqlalchemy.orm import Session
 from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import CahierProf, Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
+from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
 
 # Dossier des référentiels déposés — même convention de rangement que le dépôt admin
-# (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf). `_dossier_cle` réplique la règle de nommage
-# (accents ôtés, MAJUSCULES) — identique à referentiels_admin/pgvector_store, gardée LOCALE ici
-# pour ne pas coupler le routeur du profil au module RAG (même choix que pgvector_store).
+# (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf). La règle de nommage vient de
+# `backend.core.nommage` : module neutre (aucune dépendance), donc l'importer ne couple
+# toujours pas le routeur du profil au module RAG — et la règle n'a plus qu'une seule source.
 _ROOT = Path(__file__).resolve().parents[2]
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 # Cahier des charges depose par le PROF (1 PDF/prof) : hors depot (data/ est gitignore), persiste
 # sur le serveur. Nom de disque fixe (cahier.pdf) par dossier prop, comme le referentiel admin.
 UPLOADS_CAHIERS_DIR = _ROOT / "data" / "uploads" / "cahiers"
-
-
-def _dossier_cle(nom: str) -> str:
-    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
-    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
-    return s or "REFERENTIEL"
 
 
 def couple_de_travail(db: Session, user: User) -> tuple[str | None, str | None, bool]:

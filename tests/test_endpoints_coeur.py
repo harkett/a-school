@@ -348,6 +348,51 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
     assert survivant == (True, None)
 
 
+def test_admin_feedback_statuts_lus_en_base():
+    """L'écran admin n'a plus de copie en dur des statuts : il lit le catalogue en base
+    (libellés + ordre), comme l'écran prof. Le conftest sème les 4 statuts de référence."""
+    assert noauth().get("/api/admin/feedback-statuts").status_code == 401   # garde admin
+    d = admin_client().get("/api/admin/feedback-statuts").json()
+    assert [s["code"] for s in d] == ["nouveau", "en_cours", "traite", "archive"]  # ordre de la base
+    assert {s["label"] for s in d} == {"Nouveau", "En cours", "Traité", "Archivé"}
+
+
+def test_admin_update_user_refuse_un_couple_hors_programme():
+    """PATCH /admin/user rangeait matière et niveau par clés SANS vérifier que le couple
+    existe au programme : l'admin pouvait poser « Français en Crèche ». Désormais refusé."""
+    from backend.core.models_db import MatiereNiveau, User
+    from _profil import user_couple
+
+    with dbmod.SessionLocal() as db:
+        u = user_couple(db, email="couple-prog@local.test", password_hash="x",
+                        is_verified=True, subject="P900-Maths", niveau="P900-6e")
+        db.add(u); db.flush()
+        # Deuxième niveau, SANS paire avec la matière : c'est le couple interdit.
+        autre = user_couple(db, email="couple-prog2@local.test", password_hash="x",
+                            subject="P900-Maths", niveau="P900-Creche")
+        db.add(autre)
+        db.add(MatiereNiveau(matiere_id=u.subject_id, niveau_id=u.niveau_id, actif=True))
+        db.commit()
+
+    cl = admin_client()
+    hors = cl.patch("/api/admin/user/couple-prog@local.test",
+                    json={"prenom": "A", "nom": "B", "subject": "P900-Maths", "niveau": "P900-Creche"})
+    assert hors.status_code == 400
+    assert "programme" in hors.json()["detail"]
+
+    ok = cl.patch("/api/admin/user/couple-prog@local.test",
+                  json={"prenom": "A", "nom": "B", "subject": "P900-Maths", "niveau": "P900-6e"})
+    assert ok.status_code == 200                      # le couple au programme passe
+
+    # Profil incomplet (niveau seul) : toujours permis — état normal d'un compte qui vient de naître.
+    assert cl.patch("/api/admin/user/couple-prog@local.test",
+                    json={"prenom": "A", "nom": "B", "subject": "", "niveau": "P900-6e"}).status_code == 200
+
+    with dbmod.SessionLocal() as d:
+        reste = d.query(User).filter(User.email == "couple-prog@local.test").first()
+        assert reste.subject_id is None               # l'écriture refusée n'a rien laissé derrière
+
+
 def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
     # La maison des matières : POST création directe (garde nom vide / doublon insensible à la
     # casse) + PATCH actif (bascule, ligne CONSERVEE — jamais de DELETE).

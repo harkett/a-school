@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, MatiereNiveau, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -118,6 +118,37 @@ SETTING_DEFAULTS = {
     #     n'attend jamais trop longtemps une re-tentative.
     "ai_retry_max": "2",
     "ai_retry_wait_max": "10",
+    # Plafond de TAILLE accepté au dépôt d'un référentiel (Mo). Sorti du code en dur (check-up
+    # 31/07) : ses deux voisins du même geste (depot_max_pages, staging_ttl_heures) étaient déjà
+    # lus en base, pas lui. Lu au dépôt via get_settings_dict, coercé float.
+    "depot_max_mo": "30",
+    # Durée de vie d'un PDF en attente (staging) avant purge, en heures. La clé était LUE en base
+    # mais n'avait aucun défaut ici : son 24 vivait en repli dans le code. Défaut semé au bon endroit.
+    "staging_ttl_heures": "24",
+    # Seuils de SURVEILLANCE (écran Alertes) — sortis du code en dur (check-up 31/07) : ce sont des
+    # choix de configuration, ils se règlent en base comme les autres. Lus à chaud à chaque contrôle
+    # (toutes les 5 min) via seuils_alertes(), donc modifiables sans redéploiement.
+    #   - alerte_cpu_pct        : charge CPU moyenne sur 5 min au-delà de laquelle on alerte.
+    #   - alerte_disque_pct     : taux d'occupation du disque au-delà duquel on alerte.
+    #   - alerte_tentatives_1h  : nb de connexions admin échouées en 1 h valant alerte d'intrusion.
+    #   - alerte_anti_flood_h   : délai avant de ré-alerter sur un MÊME titre (anti-répétition).
+    "alerte_cpu_pct": "90",
+    "alerte_disque_pct": "85",
+    "alerte_tentatives_1h": "10",
+    "alerte_anti_flood_h": "2",
+    # GABARIT du prompt posé automatiquement quand l'admin coche un type d'activité sur un couple.
+    # Sorti du code en dur (check-up 31/07) : tous les autres prompts du produit sont administrables,
+    # celui-là demandait un redéploiement. {label} et {niveau} sont remplis au coche ; {texte} et
+    # {referentiel} sont laissés INTACTS — ce sont les emplacements de la génération.
+    "prompt_gabarit_type": (
+        "Tu es un enseignant expérimenté.\n"
+        "Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.\n\n"
+        "Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :\n"
+        "{texte}\n\n"
+        "Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activité, sans t'en écarter :\n"
+        "{referentiel}\n\n"
+        "Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."
+    ),
 }
 
 
@@ -479,10 +510,21 @@ def admin_base_carte(_: None = Depends(_require_admin)):
     """Lance le script LOCAL `outils_bdd/carte_base/carte.py` : il régénère la carte visuelle
     de la base (structure réelle lue dans information_schema) et l'ouvre dans Edge. Outil de
     DÉVELOPPEMENT local : lecture seule de la base, aucune écriture. Fire-and-forget — on ne
-    bloque pas la requête pendant que le script tourne et qu'Edge s'ouvre."""
+    bloque pas la requête pendant que le script tourne et qu'Edge s'ouvre.
+
+    Cette route ne peut PAS tenir sa promesse ailleurs que sur un poste Windows : le script
+    termine par `cmd /c start msedge`. Ailleurs (serveur Linux, conteneur), l'ancien code
+    lançait quand même le processus, qui mourait en silence — et répondait « ok » : un échec
+    déguisé en succès, le pire des deux mondes (check-up 31/07). On refuse donc franchement."""
     import subprocess
     import sys
     from pathlib import Path
+    if not sys.platform.startswith("win"):
+        raise HTTPException(
+            400,
+            "La carte de la base est un outil de développement local : elle a besoin d'un poste "
+            "Windows pour s'ouvrir dans Edge. Depuis ce serveur, elle ne peut pas être lancée."
+        )
     root = Path(__file__).resolve().parents[2]          # backend/systeme -> racine du dépôt
     script = root / "outils_bdd" / "carte_base" / "carte.py"
     if not script.exists():
@@ -591,6 +633,20 @@ def labels_statuts(db: Session) -> dict[str, str]:
     if not rows:
         raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
     return dict(rows)
+
+
+@router.get("/admin/feedback-statuts", dependencies=[Depends(_require_admin)])
+def lister_feedback_statuts(db: Session = Depends(get_db)):
+    """Catalogue des statuts de feedback, LU EN BASE — l'écran admin n'en garde plus de copie
+    (libellés, filtres et ordre sortaient d'une liste en dur : un statut ajouté en base se
+    serait affiché « Nouveau »). Même source que l'écran prof. Table vide = migration non
+    appliquée -> erreur claire, jamais de repli en dur."""
+    rows = (db.query(FeedbackStatut)
+              .order_by(FeedbackStatut.ordre, FeedbackStatut.code).all())
+    if not rows:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return [{"code": s.code, "label": s.label, "ordre": s.ordre, "modifiable": s.modifiable}
+            for s in rows]
 
 
 @router.patch("/admin/feedbacks/{feedback_id}/statut")
@@ -717,10 +773,30 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
+    subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
+    niveau_id  = niveau_id_du_nom(db, body.niveau or None)
+
+    # Le couple doit être AU PROGRAMME (paire active en base). Sans ce contrôle, l'admin
+    # pouvait ranger un prof sur « Français en Crèche » : un couple qui n'existe nulle part,
+    # que les écrans du prof ne savent pas servir. Un profil incomplet (un seul des deux, ou
+    # aucun) reste permis — c'est l'état normal d'un compte qui vient de naître.
+    if subject_id and niveau_id:
+        paire = (db.query(MatiereNiveau.id)
+                   .filter(MatiereNiveau.matiere_id == subject_id,
+                           MatiereNiveau.niveau_id == niveau_id,
+                           MatiereNiveau.actif == True)  # noqa: E712
+                   .first())
+        if not paire:
+            raise HTTPException(
+                400,
+                f"« {body.subject} » n'est pas au programme de « {body.niveau} ». "
+                "Cochez d'abord ce couple dans Programmes & contenu, ou choisissez-en un autre."
+            )
+
     user.prenom     = body.prenom or None
     user.nom        = body.nom or None
-    user.subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
-    user.niveau_id  = niveau_id_du_nom(db, body.niveau or None)
+    user.subject_id = subject_id
+    user.niveau_id  = niveau_id
     db.commit()
     return {"status": "ok"}
 

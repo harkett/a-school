@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import unicodedata
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +22,9 @@ from sqlalchemy import select, delete, func
 
 from backend.core.database import SessionLocal
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+# Règle de nommage des dossiers, à UNE seule source : elle était recopiée à l'identique ici,
+# dans referentiels_admin et dans profil.py.
+from backend.core.nommage import dossier_cle as _dossier_cle
 from .embeddings import embed_texts, EMBEDDING_MODEL  # voie directe (pas ChromaDB)
 
 logger = logging.getLogger(__name__)
@@ -34,14 +35,6 @@ REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 # Dossier des sauvegardes horodatées, filet AVANT toute suppression de chunks.
 # Convention projet *.bak-* (jamais commitée, cf. .gitignore).
 BACKUP_DIR = Path(__file__).parent / "backups"
-
-
-def _dossier_cle(nom: str) -> str:
-    """Nom de cycle/niveau → nom de dossier-clé : accents enlevés, MAJUSCULES, non-alphanum → « _ ».
-    Ex. « Moyens (1-2 ans) » → « MOYENS_1_2_ANS ». Même règle que referentiels_admin._dossier_cle."""
-    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
-    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
-    return s or "REFERENTIEL"
 
 
 def _pdf_path_for(db, ref: Referentiel) -> Path:

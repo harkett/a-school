@@ -5,35 +5,25 @@ import FilEchange from '../components/FilEchange'
 const ETOILES = r => '★'.repeat(r) + '☆'.repeat(5 - r)
 const COULEUR = { 5: '#16a34a', 4: '#65a30d', 3: '#ca8a04', 2: '#ea580c', 1: '#dc2626' }
 
-const STATUTS = [
-  { id: 'nouveau',  label: 'Nouveau',   bg: '#dbeafe', color: '#1d4ed8' },
-  { id: 'en_cours', label: 'En cours',  bg: '#ffedd5', color: '#c2410c' },
-  { id: 'traite',   label: 'Traité',    bg: '#dcfce7', color: '#15803d' },
-  { id: 'archive',  label: 'Archivé',   bg: '#f3f4f6', color: '#6b7280' },
+// Les statuts (codes, libellés, ordre) sont LUS EN BASE — plus aucune copie ici. Seules les
+// COULEURS restent à l'écran : c'est de la présentation, pas une donnée. Elles se prennent
+// dans cette palette PAR RANG, si bien qu'un statut ajouté en base est habillé lui aussi,
+// sans retoucher ce fichier (l'ordre actuel redonne exactement les couleurs d'avant).
+const PALETTE_STATUTS = [
+  { bg: '#dbeafe', color: '#1d4ed8' },
+  { bg: '#ffedd5', color: '#c2410c' },
+  { bg: '#dcfce7', color: '#15803d' },
+  { bg: '#f3f4f6', color: '#6b7280' },
+  { bg: '#f5f3ff', color: '#6d28d9' },
 ]
 
-function statutInfo(id) {
-  return STATUTS.find(s => s.id === id) || STATUTS[0]
-}
-
-const TRANSITIONS = {
-  nouveau:  ['en_cours'],
-  en_cours: ['traite'],
-  traite:   ['en_cours', 'archive'],
-  archive:  ['traite'],
-}
-
-function labelTransition(current, target) {
-  if (current === 'archive' && target === 'traite') return 'Désarchiver'
-  if (target === 'archive') return 'Archiver'
-  return statutInfo(target).label
-}
-
-const FILTRES_FB = ['tous', ...STATUTS.map(s => s.id)]
-const FILTRES_LABELS = { tous: 'Tous', nouveau: 'Nouveau', en_cours: 'En cours', traite: 'Traité', archive: 'Archivé' }
+// L'ancien tableau TRANSITIONS (« archivé ne revient qu'à traité ») a été RETIRÉ : cette règle
+// n'existait qu'ici, le serveur accepte n'importe quel statut du catalogue. L'écran propose
+// donc tous les statuts sauf celui en cours — ce qu'il montre est ce que le serveur fait.
 
 export default function AdminFeedbacks() {
   const [items, setItems]   = useState(null)
+  const [statuts, setStatuts] = useState(null)   // catalogue lu en base (code, label, ordre)
   const [erreur, setErreur] = useState(null)
   const [onglet, setOnglet] = useState('notations')
   const [filtre, setFiltre] = useState('tous')
@@ -51,6 +41,11 @@ export default function AdminFeedbacks() {
 
   useEffect(() => {
     recharger().catch(() => setErreur('Impossible de charger les données.'))
+    // Catalogue des statuts : lu en base, il fabrique les filtres, les pastilles et les boutons.
+    fetch('/api/admin/feedback-statuts', { credentials: 'include' })
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then(setStatuts)
+      .catch(() => setErreur('Impossible de charger les statuts de feedback.'))
     fetch('/api/admin/feature-votes', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(setFeatureVotes)
@@ -58,14 +53,26 @@ export default function AdminFeedbacks() {
   }, [])
 
   if (erreur) return <p className="text-red-600 text-sm">{erreur}</p>
-  if (!items)  return <p className="text-gray-400 text-sm">Chargement…</p>
+  if (!items || !statuts) return <p className="text-gray-400 text-sm">Chargement…</p>
+
+  // Habillage d'un statut : libellé LU EN BASE, couleur prise par rang dans la palette.
+  function statutInfo(code) {
+    const i = statuts.findIndex(s => s.code === code)
+    const s = i >= 0 ? statuts[i] : null
+    const teinte = PALETTE_STATUTS[(i >= 0 ? i : statuts.length) % PALETTE_STATUTS.length]
+    return { code, label: s ? s.label : code, ...teinte }
+  }
+
+  const statutParDefaut = statuts[0]?.code || 'nouveau'
+  const FILTRES_FB = ['tous', ...statuts.map(s => s.code)]
+  const libelleFiltre = f => (f === 'tous' ? 'Tous' : statutInfo(f).label)
 
   const notations = items.filter(f => f.type === 'notation' && f.rating > 0)
   const feedbacks = items.filter(f => f.type !== 'notation')
 
   const feedbacksFiltres = filtre === 'tous'
     ? feedbacks
-    : feedbacks.filter(f => (f.statut || 'nouveau') === filtre)
+    : feedbacks.filter(f => (f.statut || statutParDefaut) === filtre)
 
   async function changerStatut(id, statut) {
     await fetchWithTimeout(`/api/admin/feedbacks/${id}/statut`, {
@@ -240,13 +247,13 @@ export default function AdminFeedbacks() {
               <button
                 key={f}
                 onClick={() => setFiltre(f)}
-                title={`Filtrer : ${FILTRES_LABELS[f]}`}
+                title={`Filtrer : ${libelleFiltre(f)}`}
                 style={filtreStyle(filtre === f)}
               >
-                {FILTRES_LABELS[f]}
+                {libelleFiltre(f)}
                 {f !== 'tous' && (
                   <span style={{ marginLeft: 6, opacity: 0.7 }}>
-                    ({feedbacks.filter(fb => (fb.statut || 'nouveau') === f).length})
+                    ({feedbacks.filter(fb => (fb.statut || statutParDefaut) === f).length})
                   </span>
                 )}
               </button>
@@ -276,7 +283,7 @@ export default function AdminFeedbacks() {
           ) : (
             <div className="flex flex-col gap-3">
               {feedbacksFiltres.map(f => {
-                const st = statutInfo(f.statut || 'nouveau')
+                const st = statutInfo(f.statut || statutParDefaut)
                 return (
                   <div key={f.id} className="bg-white rounded-xl border border-gray-200 p-5">
                     <div className="flex items-start justify-between gap-4 mb-2">
@@ -343,24 +350,25 @@ export default function AdminFeedbacks() {
                     <div className="flex items-center justify-between gap-2 flex-wrap mt-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-gray-400">Changer le statut :</span>
-                        {(TRANSITIONS[f.statut || 'nouveau'] || []).map(targetId => {
-                          const s = statutInfo(targetId)
-                          const label = labelTransition(f.statut || 'nouveau', targetId)
-                          return (
-                            <button
-                              key={targetId}
-                              onClick={() => changerStatut(f.id, targetId)}
-                              title={label}
-                              style={{
-                                padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
-                                border: `1px solid ${s.color}`, cursor: 'pointer',
-                                background: '#fff', color: s.color,
-                              }}
-                            >
-                              {label}
-                            </button>
-                          )
-                        })}
+                        {statuts
+                          .filter(s => s.code !== (f.statut || statutParDefaut))
+                          .map(s => {
+                            const teinte = statutInfo(s.code)
+                            return (
+                              <button
+                                key={s.code}
+                                onClick={() => changerStatut(f.id, s.code)}
+                                title={`Passer ce retour en « ${s.label} »`}
+                                style={{
+                                  padding: '2px 10px', fontSize: '11px', borderRadius: '4px',
+                                  border: `1px solid ${teinte.color}`, cursor: 'pointer',
+                                  background: '#fff', color: teinte.color,
+                                }}
+                              >
+                                {s.label}
+                              </button>
+                            )
+                          })}
                       </div>
                       <button
                         onClick={() => supprimerFeedback(f.id)}

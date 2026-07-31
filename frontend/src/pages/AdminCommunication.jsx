@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { useMatieres } from '../utils/useMatieres.js'
+import { VARIABLES_EMAIL } from '../utils/variablesEmail.js'
 
 export default function AdminCommunication() {
   const { matieres, chargement: matieresChargement } = useMatieres()
@@ -139,8 +140,9 @@ export default function AdminCommunication() {
             />
             <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
               Variables :{' '}
-              <code style={{ background: '#f1f5f9', borderRadius: 3, padding: '1px 4px' }}>{'{prenom}'}</code>{' '}
-              <code style={{ background: '#f1f5f9', borderRadius: 3, padding: '1px 4px' }}>{'{email}'}</code>
+              {VARIABLES_EMAIL.map(v => (
+                <code key={v} style={{ background: '#f1f5f9', borderRadius: 3, padding: '1px 4px', marginRight: 4 }}>{v}</code>
+              ))}
             </p>
           </div>
         </div>

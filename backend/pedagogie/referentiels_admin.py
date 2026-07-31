@@ -10,11 +10,9 @@ On reçoit un PDF que l'admin fournit, on le lui montre, on le range et on trace
 """
 import json
 import logging
-import re
 import shutil
 import threading
 import time
-import unicodedata
 import uuid
 from pathlib import Path
 
@@ -26,8 +24,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
+# Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
+# elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
+from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
-from backend.systeme.admin import _require_admin, get_settings_dict
+from backend.systeme.admin import _require_admin, get_settings_dict, SETTING_DEFAULTS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,17 +38,10 @@ REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 STAGING_DIR = _ROOT / "data" / "referentiels_staging"       # PDF récupéré, en attente de validation
 STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_PDF_BYTES = 30 * 1024 * 1024   # 30 Mo : un référentiel officiel peut être lourd (BTS CIEL = 88 p.)
 APERCU_LIGNES = 25                 # lignes de texte montrées à l'admin pour le contrôle
 
 
-def _dossier_cle(nom: str) -> str:
-    """Nom de niveau → nom de dossier-clé lisible : accents enlevés, MAJUSCULES, tout
-    caractère non alphanumérique remplacé par « _ ». Ex. « Bébés (0-1 an) » →
-    « BEBES_0_1_AN ». L'identifiant interne (nom_fixe) en est la version minuscule."""
-    s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
-    s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
-    return s or "REFERENTIEL"
+# (L'identifiant interne `nom_fixe` est la version minuscule de `_dossier_cle`.)
 
 
 def _lire_candidates(db: Session, niveau_id: int) -> list[str]:
@@ -113,8 +107,14 @@ def _nettoyer_staging(db: Session) -> None:
 def _stage(content: bytes, filename: str, db: Session) -> dict:
     """Valide que c'est un PDF, le range en zone d'attente, renvoie l'aperçu pour le contrôle."""
     _nettoyer_staging(db)   # zone transitoire : chaque dépôt balaie les aperçus abandonnés
-    if len(content) > MAX_PDF_BYTES:
-        raise HTTPException(400, "PDF trop volumineux (maximum 30 Mo).")
+    # Plafond de TAILLE (réglage EN BASE `depot_max_mo`, défaut 30) — il était en dur alors que
+    # ses deux voisins du même geste (pages, TTL) se réglaient déjà en base.
+    try:
+        max_mo = float(get_settings_dict(db).get("depot_max_mo", 30))
+    except (TypeError, ValueError):
+        max_mo = 30.0
+    if len(content) > max_mo * 1024 * 1024:
+        raise HTTPException(400, f"PDF trop volumineux (maximum {max_mo:g} Mo).")
     if content[:5] != b"%PDF-":
         raise HTTPException(400, "Le document récupéré n'est pas un PDF valide.")
     token = uuid.uuid4().hex
@@ -1171,20 +1171,22 @@ def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db
     return {"catalogue": catalogue, "coches": coches}
 
 
-def _generer_prompt_type(label: str, niveau: str) -> str:
+def _generer_prompt_type(db: Session, label: str, niveau: str) -> str:
     """Prompt de génération d'un type d'activité POUR CE couple, produit AUTOMATIQUEMENT au coche.
-    Deux emplacements laissés à remplir à la génération : {texte} (l'idée du prof, elle mène) et
-    {referentiel} (le programme officiel, pour cadrer et enrichir). {niveau} est fixé ici (le niveau
-    du couple). Résultat stocké sur la ligne de liaison ; l'admin peut le relire/corriger via ✎ Prompt."""
-    return (
-        "Tu es un enseignant expérimenté.\n"
-        f"Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.\n\n"
-        "Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :\n"
-        "{texte}\n\n"
-        "Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activité, sans t'en écarter :\n"
-        "{referentiel}\n\n"
-        "Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."
-    )
+
+    Le GABARIT vit EN BASE (réglage `prompt_gabarit_type`) — il était écrit en dur ici alors que
+    tous les autres prompts du produit sont administrables (méta-prompt de découpe en Setting,
+    prompt du couple en colonne) : le retoucher demandait un redéploiement. Deux emplacements
+    sont remplis ici, {label} et {niveau} (le type et le niveau du couple) ; deux autres sont
+    laissés INTACTS pour la génération : {texte} (l'idée du prof, elle mène) et {referentiel}
+    (le programme officiel). D'où le remplacement ciblé plutôt qu'un format() global, qui
+    consommerait aussi les emplacements de la génération.
+
+    Le résultat, lui, est stocké sur la ligne de liaison ; l'admin peut le relire et le corriger
+    via ✎ Prompt — retoucher le gabarit ne réécrit donc jamais les prompts déjà posés."""
+    gabarit = (get_settings_dict(db).get("prompt_gabarit_type") or "").strip() \
+        or SETTING_DEFAULTS["prompt_gabarit_type"]
+    return gabarit.replace("{label}", label).replace("{niveau}", niveau)
 
 
 class BasculerTypeBody(BaseModel):
@@ -1220,9 +1222,9 @@ def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)
             # Génération AUTO du prompt de ce type POUR CE couple, dès la création du lien (zéro copie).
             db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=body.activite_type_id,
                                            actif=True, source=t.origine,
-                                           prompt=_generer_prompt_type(t.label, body.niveau)))
+                                           prompt=_generer_prompt_type(db, t.label, body.niveau)))
         elif not (l.prompt or "").strip():   # lien déjà là mais sans prompt (ancien) → on le pose
-            l.prompt = _generer_prompt_type(t.label, body.niveau)
+            l.prompt = _generer_prompt_type(db, t.label, body.niveau)
     elif l is not None:
         db.delete(l)                         # retirer = SUPPRIMER le lien (précisions en cascade)
     db.commit()
@@ -1420,7 +1422,7 @@ def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends
             if l is None:
                 db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
                                                actif=True, source=origine,
-                                               prompt=_generer_prompt_type(t.label, body.niveau)))
+                                               prompt=_generer_prompt_type(db, t.label, body.niveau)))
                 coche = True
             db.commit()
 
@@ -1484,7 +1486,7 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
         # tout de suite, jamais « prompt vide ».
         db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
                                        actif=True, source="ia",
-                                       prompt=_generer_prompt_type(t.label, body.niveau)))
+                                       prompt=_generer_prompt_type(db, t.label, body.niveau)))
         coches_ia.append({"id": t.id, "label": t.label})
     db.commit()
     return {"detectes": detectes, "coches_ia": coches_ia,

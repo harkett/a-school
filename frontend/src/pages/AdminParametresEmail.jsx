@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
-
-const VARIABLES = ['{prenom}', '{email}']
+import { VARIABLES_EMAIL, apercuVariables } from '../utils/variablesEmail.js'
 
 export default function AdminParametresEmail() {
   const [templates, setTemplates] = useState([])
@@ -334,7 +333,7 @@ export default function AdminParametresEmail() {
                 />
                 <p className="text-xs text-gray-400 mt-1">
                   Variables disponibles :{' '}
-                  {VARIABLES.map(v => (
+                  {VARIABLES_EMAIL.map(v => (
                     <code key={v} style={{ background: '#f1f5f9', borderRadius: 4, padding: '1px 5px', marginRight: 4, fontSize: 11 }}>{v}</code>
                   ))}
                   — remplacées automatiquement à l'envoi.
@@ -346,9 +345,7 @@ export default function AdminParametresEmail() {
                 <p className="text-xs font-medium text-gray-500 mb-2">Aperçu rendu</p>
                 <p className="text-xs text-gray-400 mb-1"><strong>Objet :</strong> {form.objet || '—'}</p>
                 <pre className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed" style={{ fontFamily: 'inherit' }}>
-                  {(form.corps || '')
-                    .replace('{prenom}', 'Marie')
-                    .replace('{email}', 'marie@college.fr')}
+                  {apercuVariables(form.corps)}
                 </pre>
               </div>
 
