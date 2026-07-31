@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
+import DialogueAutreCouple from './DialogueAutreCouple.jsx'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { aideSequences } from '../../utils/aideSequences.js'
 import { TYPES_CONTENUS } from '../../utils/typesContenus.js'
@@ -475,31 +476,13 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
       )}
 
       {profilDialog && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setProfilDialog(null)}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '440px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Séquence d'un autre profil
-            </div>
-            <p style={{ fontSize: '13.5px', color: '#374151', margin: '0 0 18px', lineHeight: 1.6 }}>
-              Cette séquence est en <strong>{profilDialog.matiere || '—'} / {profilDialog.niveau || '—'}</strong>, différente de votre profil courant (<strong>{sessionMatiere || '—'} / {sessionNiveau || '—'}</strong>). Pour la reprendre, passez d'abord sur le profil correspondant.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setProfilDialog(null)}
-                title="Fermer"
-                style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
+        <DialogueAutreCouple
+          contenu={profilDialog}
+          type="sequence"
+          sessionMatiere={sessionMatiere}
+          sessionNiveau={sessionNiveau}
+          onFermer={() => setProfilDialog(null)}
+        />
       )}
 
     </div>

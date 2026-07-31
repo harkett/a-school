@@ -64,6 +64,8 @@ import UpdateBanner from './components/UpdateBanner'
 import ErrorDialog from './components/ErrorDialog'
 import ConfirmDialog from './components/ConfirmDialog'
 import IOSInstallBanner from './components/IOSInstallBanner'
+import DialogueAutreCouple from './components/contenus/DialogueAutreCouple.jsx'
+import { correspondProfil } from './utils/activites.js'
 import { fetchWithTimeout, apiFetch, lireReponse, messagePourEcran, TIMEOUT_AUTH, TIMEOUT_STD } from './utils/api.js'
 import { libelleEcran } from './utils/ecrans.js'
 import './index.css'
@@ -113,6 +115,9 @@ function MainApp() {
   const matiereLabel = sessionMatiere === 'Langues Vivantes (LV)' && user?.langue_lv
     ? `LV - ${user.langue_lv}`
     : sessionMatiere
+  // Contenu de l'Accueil qu'on refuse d'ouvrir parce qu'il n'est pas du couple de travail
+  // (même garde-fou que « Reprendre » des pages listes) → dialogue partagé.
+  const [contenuAutreCouple, setContenuAutreCouple] = useState(null)
   const [aideSection, setAideSection] = useState(null)     // section ciblée à l'ouverture de l'Aide (lien profond)
   const [guideActif, setGuideActif] = useState(false)      // visite guidée de l'écran Créer en cours
   const [fenetreGuide, setFenetreGuide] = useState(false)  // fenêtre déplaçable « Comment ça marche » ouverte
@@ -343,11 +348,22 @@ function MainApp() {
   // Accueil « monde neuf » : rouvrir la dernière création — la ligne est RELUE depuis la
   // base (règle 0 : tout y est déjà) puis ouverte dans son écran Mes contenus ; relecture
   // impossible ou ligne disparue → la liste du type, jamais le vide.
+  //
+  // MÊME GARDE-FOU QUE LES PAGES LISTES (posé le 31/07) : la carte « dernière création » n'est
+  // pas filtrée par le couple de travail — elle peut donc montrer une activité de 3e à un prof
+  // qui travaille en 6e. Ce chemin ouvrait sans rien vérifier, là où « Reprendre » refuse et
+  // explique. Depuis que le serveur contrôle le type à l'écriture, le prof allait jusqu'à
+  // régénérer pour s'entendre répondre « pas prêt pour ce niveau » — en parlant de son niveau
+  // COURANT pendant que sa carte affichait l'autre. On arrête le geste avant, avec le même mot.
   async function ouvrirContenuAccueil(type, id) {
     try {
       const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
       const row = (d.contenus || []).find(c => c.type === type && c.id === id)
       if (row) {
+        if (!correspondProfil(row, sessionMatiere, params.niveau)) {
+          setContenuAutreCouple({ ...row, type })
+          return
+        }
         if (type === 'activite') ouvrirActiviteContenus(row)
         else ouvrirSeance(row)
         return
@@ -605,6 +621,18 @@ function MainApp() {
       <Footer />
       {showFeedback && <Feedback onClose={() => setShowFeedback(false)} contexte={contexteFeedback} incidentRef={feedbackIncidentRef} />}
       {showNotation && <Notation onClose={() => setShowNotation(false)} />}
+
+      {/* Contenu de l'Accueil hors couple de travail : LE MÊME dialogue que « Reprendre »
+          des pages listes (un seul fichier, donc un seul mot pour la même situation). */}
+      {contenuAutreCouple && (
+        <DialogueAutreCouple
+          contenu={contenuAutreCouple}
+          type={contenuAutreCouple.type}
+          sessionMatiere={sessionMatiere}
+          sessionNiveau={params.niveau}
+          onFermer={() => setContenuAutreCouple(null)}
+        />
+      )}
 
       {inactivityWarning && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
