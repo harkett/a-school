@@ -166,7 +166,11 @@ class Incident(Base):
     type_activite: Mapped[str | None] = mapped_column(String(120), nullable=True)
     consigne: Mapped[str | None] = mapped_column(Text, nullable=True)
     user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    feedback_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("feedbacks.id"), nullable=True, index=True)
+    # SET NULL : l'incident TECHNIQUE survit à la disparition du feedback (et donc du compte) —
+    # il perd son lien, pas son existence. Sans ça, supprimer un prof dont un feedback porte un
+    # incident échouait en violation de clé étrangère.
+    feedback_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("feedbacks.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class Setting(Base):
@@ -440,7 +444,9 @@ class FeatureVote(Base):
     __table_args__ = (Index("ix_feature_votes_unique", "user_id", "feature_key", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # CASCADE : un vote n'a aucune vie sans son prof (voir migration e4b8c2d6a1f7).
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     feature_key: Mapped[str] = mapped_column(String(64), ForeignKey("features_votables.code"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -462,8 +468,10 @@ class ToolUsageLog(Base):
     __tablename__ = "tool_usage_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    tool: Mapped[str] = mapped_column(String(32), nullable=False)  # sequence | optimiseur
+    # CASCADE : le journal d'usage disparaît avec son prof (voir migration e4b8c2d6a1f7).
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    tool: Mapped[str] = mapped_column(String(32), nullable=False)  # consigne | ambiguites
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -477,7 +485,9 @@ class FewShotMilestone(Base):
     __table_args__ = (Index("ix_few_shot_milestones_unique", "user_id", "activite_type_id", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # CASCADE : le jalon n'a aucune vie sans son prof (voir migration e4b8c2d6a1f7).
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     activite_type_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("types_activite.id"), nullable=False)
     reached_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
@@ -588,7 +598,9 @@ class UserEnseignement(Base):
     """Ce que CE prof enseigne : un sous-ensemble du programme (paire valide)."""
     __tablename__ = "user_enseignements"
 
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
+    # CASCADE : ce que le prof enseigne disparaît avec lui (voir migration e4b8c2d6a1f7).
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     matiere_niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("matiere_niveaux.id"), primary_key=True)
 
 

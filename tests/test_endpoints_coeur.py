@@ -284,6 +284,70 @@ def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
                     json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
 
 
+def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
+    """Bug bloquant du check-up 31/07 : supprimer un prof qui a VOTÉ une fonctionnalité ou
+    UTILISÉ un outil levait une violation de clé étrangère (500, compte non supprimé), et un
+    incident rattaché à son feedback bloquait la purge des feedbacks. Le nettoyage est
+    désormais garanti par la BASE (ON DELETE, migration e4b8c2d6a1f7) : ce test crée un prof
+    avec TOUT ce qui peut pendre à un compte, le supprime, et vérifie qu'il ne reste rien —
+    sauf l'incident technique, qui survit en perdant son lien."""
+    from backend.core.models_db import (Activite, ActiviteType, FeatureVote, Feedback,
+                                        FewShotMilestone, Incident, MatiereNiveau, Seance,
+                                        Sequence, ToolUsageLog, User, UserEnseignement)
+    from _profil import user_couple
+
+    # `with` obligatoire : une session laissée ouverte bloque le TRUNCATE de fin de test
+    # (transaction idle) et gèle toute la suite de la suite.
+    with dbmod.SessionLocal() as db:
+        u = user_couple(db, email="suppr-total@local.test", password_hash="x",
+                        is_verified=True, subject="SVT", niveau="3e")
+        db.add(u); db.flush()
+        uid = u.id
+
+        typ = db.query(ActiviteType).first()
+        if not typ:
+            typ = ActiviteType(label="Test suppression", ordre=900)
+            db.add(typ); db.flush()
+        paire = MatiereNiveau(matiere_id=u.subject_id, niveau_id=u.niveau_id, actif=True)
+        db.add(paire); db.flush()
+
+        # Tout ce qui peut pendre à un compte, dont les 5 liens qui cassaient la suppression.
+        db.add(FeatureVote(user_id=uid, feature_key="quiz-interactif"))       # cassait (FK)
+        db.add(ToolUsageLog(user_id=uid, tool="consigne", score_label="3"))   # cassait (FK)
+        db.add(FewShotMilestone(user_id=uid, activite_type_id=typ.id))        # cassait (FK)
+        db.add(UserEnseignement(user_id=uid, matiere_niveau_id=paire.id))     # cassait (FK)
+        db.add(Sequence(user_id=uid, titre="Séq"))
+        db.add(Seance(user_id=uid, titre="Séance"))
+        db.add(Activite(user_id=uid, activite_type_id=typ.id, activite_label="Act"))
+        fb = Feedback(user_id=uid, message="Bravo", rating=5, statut="nouveau")
+        db.add(fb); db.flush()
+        db.add(Incident(ref="INC-SUPPR-1", endpoint="/api/x", error="boom",
+                        feedback_id=fb.id))                                  # cassait la purge feedbacks
+        db.commit()
+
+    r = admin_client().delete("/api/admin/user/suppr-total@local.test")
+    assert r.status_code == 200, r.text   # avant la réparation : 500 (IntegrityError)
+
+    with dbmod.SessionLocal() as d:
+        restes = {
+            "user":          d.query(User).filter(User.id == uid).count(),
+            "votes":         d.query(FeatureVote).filter(FeatureVote.user_id == uid).count(),
+            "usages":        d.query(ToolUsageLog).filter(ToolUsageLog.user_id == uid).count(),
+            "jalons":        d.query(FewShotMilestone).filter(FewShotMilestone.user_id == uid).count(),
+            "enseignements": d.query(UserEnseignement).filter(UserEnseignement.user_id == uid).count(),
+            "activites":     d.query(Activite).filter(Activite.user_id == uid).count(),
+            "seances":       d.query(Seance).filter(Seance.user_id == uid).count(),
+            "sequences":     d.query(Sequence).filter(Sequence.user_id == uid).count(),
+            "feedbacks":     d.query(Feedback).filter(Feedback.user_id == uid).count(),
+        }
+        # L'incident TECHNIQUE survit, orphelin de son feedback (journal, pas donnée du prof).
+        inc_restant = d.query(Incident).filter(Incident.ref == "INC-SUPPR-1").first()
+        survivant = (inc_restant is not None, inc_restant.feedback_id if inc_restant else "absent")
+
+    assert restes == dict.fromkeys(restes, 0), f"reste des lignes après suppression : {restes}"
+    assert survivant == (True, None)
+
+
 def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
     # La maison des matières : POST création directe (garde nom vide / doublon insensible à la
     # casse) + PATCH actif (bascule, ligne CONSERVEE — jamais de DELETE).

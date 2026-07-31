@@ -730,6 +730,12 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
+    # CE QUI EST PURGÉ ICI : les tables reliées au compte SANS cascade en base (email_tokens et
+    # connexion_logs n'ont même pas de clé étrangère : ce sont des journaux à l'email).
+    # CE QUI PART TOUT SEUL : les tables dont la clé étrangère porte ON DELETE (migration
+    # e4b8c2d6a1f7) — cahiers_prof, feature_votes, tool_usage_logs, few_shot_milestones,
+    # user_enseignements en CASCADE, incidents.feedback_id en SET NULL (l'incident technique
+    # survit). Ne PAS les rajouter à la main ici : la base est la garantie, pas cette liste.
     db.query(EmailToken).filter(EmailToken.email == email).delete()
     db.query(RefreshToken).filter(RefreshToken.user_id == user.id).delete()
     db.query(UserSession).filter(UserSession.user_id == user.id).delete()
