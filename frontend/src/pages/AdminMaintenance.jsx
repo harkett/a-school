@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
+import { showConfirm } from '../confirmDialog'
 
 const LABELS = {
   tokens_email_expires:    { label: 'Tokens email expirés',              detail: 'Liens de vérification et reset MDP périmés.',                  color: '#d97706' },
@@ -24,33 +26,71 @@ function ProgressBar({ value, max, color }) {
 export default function AdminMaintenance() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
+  const [panne, setPanne]     = useState(false)   // lecture échouée (réseau/serveur)
   const [purging, setPurging] = useState(null)
   const [results, setResults] = useState({})
   const navigate = useNavigate()
 
-  const load = useCallback(() => {
+  // Lecture des compteurs. Une panne ne laisse JAMAIS l'écran vide en silence (l'ancien code
+  // rendait `null` : écran blanc, aucun message) : erreur en modale + bouton « Réessayer ».
+  const load = useCallback(async () => {
     setLoading(true)
-    fetch('/api/admin/maintenance/stats', { credentials: 'include' })
-      .then(r => { if (r.status === 401) { navigate('/admin/login'); return null } return r.json() })
-      .then(d => { if (d) setData(d) })
-      .finally(() => setLoading(false))
+    try {
+      const r = await fetchWithTimeout('/api/admin/maintenance/stats', { credentials: 'include' }, TIMEOUT_STD)
+      if (r.status === 401) { navigate('/admin/login'); return }
+      setData(await lireReponse(r))
+      setPanne(false)
+    } catch (err) {
+      setPanne(true)
+      showError(messagePourEcran(err))
+    } finally {
+      setLoading(false)
+    }
   }, [navigate])
 
   useEffect(() => { load() }, [load])
 
-  async function purge(category) {
-    if (!window.confirm(`Purger "${LABELS[category]?.label}" ?\n\nCette action est irréversible.`)) return
-    setPurging(category)
-    try {
-      const res = await fetchWithTimeout(`/api/admin/maintenance/purge/${category}`, { method: 'POST', credentials: 'include' }, TIMEOUT_LONG)
-      const json = await res.json()
-      setResults(r => ({ ...r, [category]: json.purged }))
-      load()
-    } finally { setPurging(null) }
+  // Purge = suppression IRRÉVERSIBLE : confirmation dans la vraie boîte de dialogue (rouge),
+  // puis compte rendu honnête — un échec se dit, il ne s'affiche pas comme « ✓ purgés ».
+  function purge(category) {
+    const meta = LABELS[category] || { label: category }
+    showConfirm({
+      titre: `Purger « ${meta.label} » ?`,
+      message: `${meta.detail || ''}\n\nCes enregistrements seront DÉFINITIVEMENT supprimés de la base. Cette action est irréversible.`.trim(),
+      confirmLabel: 'Purger définitivement',
+      danger: true,
+      onConfirm: async () => {
+        setPurging(category)
+        try {
+          const res = await fetchWithTimeout(`/api/admin/maintenance/purge/${category}`, { method: 'POST', credentials: 'include' }, TIMEOUT_LONG)
+          const json = await lireReponse(res)
+          setResults(r => ({ ...r, [category]: json.purged }))
+        } catch (err) {
+          showError(messagePourEcran(err))
+        } finally {
+          setPurging(null)
+          load()   // relecture : les compteurs affichés viennent toujours de la base
+        }
+      },
+    })
   }
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
-  if (!data)   return null
+
+  // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
+  if (panne || !data) return (
+    <div style={{ textAlign: 'center', padding: '3rem' }}>
+      <button
+        type="button"
+        onClick={load}
+        title="Relancer la lecture des compteurs de la base"
+        style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
+                 background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >
+        Réessayer
+      </button>
+    </div>
+  )
 
   const totalRecords = Object.values(data.tables).reduce((s, v) => s + v, 0)
   const totalOrphans = Object.values(data.orphans).reduce((s, v) => s + v, 0)

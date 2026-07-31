@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 import { useMatieres } from '../utils/useMatieres.js'
 
 export default function AdminCommunication() {
@@ -17,15 +18,21 @@ export default function AdminCommunication() {
   const [result, setResult]             = useState(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    fetch('/api/admin/users', { credentials: 'include' })
-      .then(r => {
-        if (r.status === 401) { navigate('/admin/login'); return null }
-        return r.json()
-      })
-      .then(data => { if (data) setUsers(data) })
-      .finally(() => setLoading(false))
-  }, [navigate])
+  const [panne, setPanne] = useState(false)   // lecture de la liste échouée
+
+  async function chargerUsers() {
+    try {
+      const r = await fetchWithTimeout('/api/admin/users', { credentials: 'include' }, TIMEOUT_STD)
+      if (r.status === 401) { navigate('/admin/login'); return }
+      setUsers(await lireReponse(r))
+      setPanne(false)
+    } catch (err) {
+      setPanne(true)
+      showError(messagePourEcran(err))
+    }
+  }
+
+  useEffect(() => { chargerUsers().finally(() => setLoading(false)) }, [navigate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = users.filter(u => {
     const text = filterText.toLowerCase()
@@ -59,6 +66,10 @@ export default function AdminCommunication() {
     })
   }
 
+  // Envoi groupé : TIMEOUT_LONG (un envoi à 40 profs dépasse largement les 10 s par défaut —
+  // l'écran doit attendre le serveur). Le compte rendu n'est posé QUE sur une vraie réussite :
+  // avant, une réponse d'erreur était affichée telle quelle et le rendu plantait sur
+  // `result.errors.length` (écran blanc).
   async function send() {
     if (!subject.trim() || !body.trim() || selected.size === 0) return
     setSending(true)
@@ -69,15 +80,31 @@ export default function AdminCommunication() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ emails: [...selected], subject, body }),
-      })
-      const data = await res.json()
-      setResult(data)
+      }, TIMEOUT_LONG)
+      setResult(await lireReponse(res))
+    } catch (err) {
+      showError(messagePourEcran(err))
     } finally {
       setSending(false)
     }
   }
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
+
+  // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
+  if (panne) return (
+    <div style={{ textAlign: 'center', padding: '3rem' }}>
+      <button
+        type="button"
+        onClick={() => { setLoading(true); chargerUsers().finally(() => setLoading(false)) }}
+        title="Relancer la lecture de la liste des profs"
+        style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
+                 background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >
+        Réessayer
+      </button>
+    </div>
+  )
 
   const canSend = selected.size > 0 && subject.trim() && body.trim()
 
@@ -144,17 +171,21 @@ export default function AdminCommunication() {
           </button>
         </div>
 
-        {result && (
-          <div style={{
-            marginBottom: 16, padding: '10px 14px', borderRadius: 7,
-            background: result.errors.length === 0 ? '#f0fdf4' : '#fff7ed',
-            border: `1px solid ${result.errors.length === 0 ? '#bbf7d0' : '#fed7aa'}`,
-            fontSize: 13, color: result.errors.length === 0 ? '#15803d' : '#c2410c',
-          }}>
-            {result.sent} email{result.sent > 1 ? 's' : ''} envoyé{result.sent > 1 ? 's' : ''} sur {result.total}.
-            {result.errors.length > 0 && ` ${result.errors.length} erreur(s) : ${result.errors.join(', ')}`}
-          </div>
-        )}
+        {result && (() => {
+          const erreurs = result.errors || []   // le compte rendu ne suppose plus la forme de la réponse
+          const toutOk = erreurs.length === 0
+          return (
+            <div style={{
+              marginBottom: 16, padding: '10px 14px', borderRadius: 7,
+              background: toutOk ? '#f0fdf4' : '#fff7ed',
+              border: `1px solid ${toutOk ? '#bbf7d0' : '#fed7aa'}`,
+              fontSize: 13, color: toutOk ? '#15803d' : '#c2410c',
+            }}>
+              {result.sent} email{result.sent > 1 ? 's' : ''} envoyé{result.sent > 1 ? 's' : ''} sur {result.total}.
+              {erreurs.length > 0 && ` ${erreurs.length} erreur(s) : ${erreurs.join(', ')}`}
+            </div>
+          )
+        })()}
 
         <div className="flex gap-2 mb-3 flex-wrap">
           <input

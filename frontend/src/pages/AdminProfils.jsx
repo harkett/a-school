@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
+import { showConfirm } from '../confirmDialog'
 import { useMatieres } from '../utils/useMatieres.js'
 
 const IconMail  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -28,6 +30,7 @@ export default function AdminProfils() {
   const { matieres, chargement: matieresChargement } = useMatieres()
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
+  const [panne, setPanne]           = useState(false)   // lecture de la liste échouée
   const [filterText, setFilterText] = useState('')
   const [filterMatiere, setFilterMatiere] = useState('')
   const [filterStatut, setFilterStatut]   = useState('tous')
@@ -53,15 +56,21 @@ export default function AdminProfils() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    fetch('/api/admin/users', { credentials: 'include' })
-      .then(r => {
-        if (r.status === 401) { navigate('/admin/login'); return null }
-        return r.json()
-      })
-      .then(data => { if (data) setUsers(data) })
-      .finally(() => setLoading(false))
-  }, [navigate])
+  // Lecture de la liste des profs. C'est la SEULE source de vérité de l'écran : après chaque
+  // écriture on la rejoue (read-after-write), jamais de mise à jour locale « optimiste » qui
+  // afficherait un changement que le serveur a refusé.
+  async function chargerUsers({ silencieux = false } = {}) {
+    try {
+      const r = await fetchWithTimeout('/api/admin/users', { credentials: 'include' }, TIMEOUT_STD)
+      if (r.status === 401) { navigate('/admin/login'); return }
+      setUsers(await lireReponse(r))
+      setPanne(false)
+    } catch (err) {
+      if (!silencieux) { setPanne(true); showError(messagePourEcran(err)) }
+    }
+  }
+
+  useEffect(() => { chargerUsers().finally(() => setLoading(false)) }, [navigate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -101,70 +110,118 @@ export default function AdminProfils() {
     setEditForm({ prenom: u.prenom, nom: u.nom, subject: u.subject, niveau: u.niveau })
   }
 
-  async function openEmailModal(u) {
-    const res = await fetchWithTimeout('/api/admin/settings', { credentials: 'include' })
-    const settings = await res.json()
-    setEmailForm({ subject: settings.welcome_email_subject || '', body: settings.welcome_email_body || '' })
-    setEmailModal({ email: u.email, prenom: u.prenom })
+  // Enveloppe commune des écritures : un échec se DIT (modale), puis on relit le serveur —
+  // la liste affichée sort toujours de la base, jamais d'une supposition de l'écran.
+  async function ecrire(action, setBusy, cle = true) {
+    setBusy(cle)
+    try {
+      await action()
+      await chargerUsers({ silencieux: true })
+    } catch (err) {
+      showError(messagePourEcran(err))
+      await chargerUsers({ silencieux: true })   // remet à l'écran ce que le serveur dit vraiment
+    } finally {
+      setBusy(null)
+    }
   }
 
-  async function sendEmail() {
-    setSending(true)
+  async function openEmailModal(u) {
     try {
-      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(emailModal.email)}/send-email`, {
+      const res = await fetchWithTimeout('/api/admin/settings', { credentials: 'include' }, TIMEOUT_STD)
+      const settings = await lireReponse(res)
+      setEmailForm({ subject: settings.welcome_email_subject || '', body: settings.welcome_email_body || '' })
+      setEmailModal({ email: u.email, prenom: u.prenom })
+    } catch (err) {
+      showError(messagePourEcran(err))   // sans ça, la modale ne s'ouvrait pas et rien ne le disait
+    }
+  }
+
+  function sendEmail() {
+    const destinataire = emailModal.email
+    return ecrire(async () => {
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(destinataire)}/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(emailForm),
-      })
-      if (res.ok) setEmailModal(null)
-    } finally { setSending(false) }
+      }, TIMEOUT_STD)
+      await lireReponse(res)
+      setEmailModal(null)
+    }, setSending)
   }
 
-  async function saveEdit(email) {
-    setSaving(true)
-    try {
+  function saveEdit(email) {
+    return ecrire(async () => {
       const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify(editForm),
-      })
-      if (res.ok) { setUsers(users.map(u => u.email === email ? { ...u, ...editForm } : u)); setEditing(null) }
-    } finally { setSaving(false) }
+      }, TIMEOUT_STD)
+      await lireReponse(res)
+      setEditing(null)
+    }, setSaving)
   }
 
-  async function deleteUser(email) {
-    if (!window.confirm(`Supprimer définitivement le compte de ${email} ?\n\nToutes ses données (activités, feedbacks, tokens) seront effacées.`)) return
-    setDeleting(email)
-    try {
-      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}`, { method: 'DELETE', credentials: 'include' })
-      if (res.ok) setUsers(users.filter(u => u.email !== email))
-    } finally { setDeleting(null) }
+  function deleteUser(email) {
+    showConfirm({
+      titre: 'Supprimer définitivement ce compte ?',
+      message: `Le compte de ${email} et TOUTES ses données seront effacés : ses activités, séances et séquences, ses feedbacks, ses votes et son historique d'usage.\n\nCette action est irréversible.`,
+      confirmLabel: 'Supprimer définitivement',
+      danger: true,
+      onConfirm: () => ecrire(async () => {
+        const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}`, {
+          method: 'DELETE', credentials: 'include',
+        }, TIMEOUT_STD)
+        await lireReponse(res)
+      }, setDeleting, email),
+    })
   }
 
-  async function resetPassword(email) {
-    if (!window.confirm(`Envoyer un lien de réinitialisation de mot de passe à ${email} ?`)) return
-    setResetting(email)
-    try {
-      await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/reset-password`, { method: 'POST', credentials: 'include' })
-    } finally { setResetting(null) }
+  function resetPassword(email) {
+    showConfirm({
+      titre: 'Réinitialiser le mot de passe ?',
+      message: `Un lien de réinitialisation sera envoyé à ${email}. Son mot de passe actuel reste valable tant qu'il n'a pas cliqué.`,
+      confirmLabel: 'Envoyer le lien',
+      onConfirm: () => ecrire(async () => {
+        const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/reset-password`, {
+          method: 'POST', credentials: 'include',
+        }, TIMEOUT_STD)
+        await lireReponse(res)   // l'envoi était lancé sans même regarder la réponse
+      }, setResetting, email),
+    })
   }
 
-  async function verifyUser(email) {
-    setVerifying(email)
-    try {
-      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/verify`, { method: 'POST', credentials: 'include' })
-      if (res.ok) setUsers(users.map(u => u.email === email ? { ...u, is_verified: true, is_active: true } : u))
-    } finally { setVerifying(null) }
+  function verifyUser(email) {
+    return ecrire(async () => {
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/verify`, {
+        method: 'POST', credentials: 'include',
+      }, TIMEOUT_STD)
+      await lireReponse(res)
+    }, setVerifying, email)
   }
 
-  async function toggleActive(email) {
-    setToggling(email)
-    try {
-      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/toggle-active`, { method: 'PATCH', credentials: 'include' })
-      const data = await res.json()
-      if (res.ok) setUsers(users.map(u => u.email === email ? { ...u, is_active: data.is_active } : u))
-    } finally { setToggling(null) }
+  function toggleActive(email) {
+    return ecrire(async () => {
+      const res = await fetchWithTimeout(`/api/admin/user/${encodeURIComponent(email)}/toggle-active`, {
+        method: 'PATCH', credentials: 'include',
+      }, TIMEOUT_STD)
+      await lireReponse(res)
+    }, setToggling, email)
   }
 
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
+
+  // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
+  if (panne) return (
+    <div style={{ textAlign: 'center', padding: '3rem' }}>
+      <button
+        type="button"
+        onClick={() => { setLoading(true); chargerUsers().finally(() => setLoading(false)) }}
+        title="Relancer la lecture de la liste des profs"
+        style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
+                 background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+      >
+        Réessayer
+      </button>
+    </div>
+  )
 
   const nbInactifs    = users.filter(u => u.is_verified && !u.is_active).length
   const nbNonVerifies = users.filter(u => !u.is_verified).length
