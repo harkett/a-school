@@ -78,14 +78,14 @@ export default function MonProfil({ onNavigate }) {
     setCahierBusy(true)
     const form = new FormData()
     form.append('file', file)
+    // La réponse passe par lireReponse comme partout ailleurs : le message du serveur remonte
+    // s'il est écrit pour le prof, sinon c'est le message serveur générique. Lue à la main,
+    // elle laissait fuiter « Failed to fetch » (réseau coupé) ou « [object Object] » (un 422
+    // renvoie un tableau) — le défaut même que corrige l'étape 6.
     apiFetch('/api/user/cahier', { method: 'POST', credentials: 'include', body: form }, TIMEOUT_STD)
-      .then(async r => {
-        const d = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(d.detail || '')
-        return d
-      })
+      .then(lireReponse)
       .then(d => setCahier(d))
-      .catch(err => showError(`Dépôt impossible.\n\n${err.message || 'Vérifiez que le fichier est bien un PDF (20 Mo maximum) et réessayez.'}`))
+      .catch(err => showError(`Le dépôt de votre cahier des charges n'a pas abouti.\n\n${messagePourEcran(err)}`))
       .finally(() => setCahierBusy(false))
   }
 
