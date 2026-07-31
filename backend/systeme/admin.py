@@ -1373,6 +1373,9 @@ def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_requi
             "key": key,
             "label": meta["label"],
             "placeholders": meta["placeholders"],
+            # À qui sert le texte : « prof », « admin » ou « autres ». Range la ligne sous la
+            # bonne sous-option de l'écran admin « Prompts » (registre, pas de table).
+            "categorie": meta["categorie"],
             # `current` = ce que le serveur utilisera VRAIMENT. Absent en base = plus rien à
             # utiliser : on montre le texte de référence, mais `en_base` dit la vérité.
             "current": en_base if present else meta["default"],

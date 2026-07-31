@@ -690,180 +690,223 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 
 
+# Registre des prompts administrables. `categorie` dit À QUI sert le texte, et donc sous quelle
+# sous-option de l'écran admin « Prompts » il se range :
+#   - "prof"   : ce que l'enseignant déclenche (séances, séquences, propositions, tons, corrections) ;
+#   - "admin"  : le traitement d'un référentiel au dépôt du PDF (découpe, analyse, détections) ;
+#   - "autres" : le filet — ce qui n'entre dans aucune des deux. Aujourd'hui les restes de
+#     l'ancien monde démoli (sequence_standard, sequence_remediation, optimiseur) : plus aucun
+#     `get_prompt` ne les demande. On les RANGE, on ne les supprime pas : décision à part.
+# C'est de la même nature que `label` et `placeholders` — donc ici, pas en base : aucune migration.
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
         "placeholders": ["matiere", "niveau", "texte"],
+        "categorie": "prof",
         "default": PROMPT_AMBIGUITES,
     },
     "consigne": {
         "label": "Analyse de consigne",
         "placeholders": ["matiere", "niveau", "consigne"],
+        "categorie": "prof",
         "default": PROMPT_CONSIGNE,
     },
     "sequence_standard": {
         "label": "Séquence — standard",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "categorie": "autres",
         "default": PROMPT_SEQUENCE_STANDARD,
     },
     "sequence_remediation": {
         "label": "Séquence — remédiation",
         "placeholders": ["matiere", "niveau", "duree", "theme", "description_classe"],
+        "categorie": "autres",
         "default": PROMPT_SEQUENCE_REMEDIATION,
     },
     "seance_standard": {
         "label": "Séance (Mes contenus) — mode standard",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_STANDARD,
     },
     "seance_remediation": {
         "label": "Séance (Mes contenus) — mode remédiation",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_REMEDIATION,
     },
     "seance_approfondissement": {
         "label": "Séance (Mes contenus) — mode approfondissement",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_APPROFONDISSEMENT,
     },
     "seance_autonomie": {
         "label": "Séance (Mes contenus) — mode autonomie guidée",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_AUTONOMIE,
     },
     "seance_proposer_theme": {
         "label": "Séance (Mes contenus) — « Propose-moi un thème » (zone Texte de départ)",
         "placeholders": ["matiere", "niveau", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_PROPOSER_THEME,
     },
     "seance_proposer_competences": {
         "label": "Séance (Mes contenus) — « Propose-moi des compétences » (cartouche Contenu pédagogique)",
         "placeholders": ["matiere", "niveau", "theme", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_PROPOSER_COMPETENCES,
     },
     "seance_proposer_materiel": {
         "label": "Séance (Mes contenus) — « Propose-moi du matériel nécessaire » (cartouche Contenu pédagogique)",
         "placeholders": ["matiere", "niveau", "seance"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_PROPOSER_MATERIEL,
     },
     "seance_proposer_contraintes": {
         "label": "Séance (Mes contenus) — « Propose-moi des contraintes spéciales » (cartouche Contenu pédagogique)",
         "placeholders": ["matiere", "niveau", "seance"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_PROPOSER_CONTRAINTES,
     },
     "seance_proposer_esquisse": {
         "label": "Séance (Mes contenus) — « Propose-moi cette phase » (esquisse A/B/C du Déroulé souhaité)",
         "placeholders": ["matiere", "niveau", "seance", "phase"],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_PROPOSER_ESQUISSE,
     },
     "seance_style_classique": {
         "label": "Séance (Mes contenus) — style de production classique",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_STYLE_CLASSIQUE,
     },
     "seance_style_ludique": {
         "label": "Séance (Mes contenus) — style de production ludique",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_STYLE_LUDIQUE,
     },
     "seance_style_structure": {
         "label": "Séance (Mes contenus) — style de production structuré",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_STYLE_STRUCTURE,
     },
     "seance_style_concis": {
         "label": "Séance (Mes contenus) — style de production très concis",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_SEANCE_STYLE_CONCIS,
     },
     "sequence_generer_plan": {
         "label": "Séquence (Mes contenus) — génération du PLAN (une ligne = une séance)",
         "placeholders": ["matiere", "niveau", "objectif"],
+        "categorie": "prof",
         "default": PROMPT_SEQUENCE_GENERER_PLAN,
     },
     "sequence_proposer_objectif": {
         "label": "Séquence (Mes contenus) — « Propose-moi un objectif » (zone Objectif général)",
         "placeholders": ["matiere", "niveau", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_SEQUENCE_PROPOSER_OBJECTIF,
     },
     "sequence_proposer_competences": {
         "label": "Séquence (Mes contenus) — « Propose-moi des compétences » (cartouche Précisions)",
         "placeholders": ["matiere", "niveau", "objectif", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_SEQUENCE_PROPOSER_COMPETENCES,
     },
     "optimiseur": {
         "label": "Optimiseur de séquences",
         "placeholders": ["matiere", "niveau", "sequence"],
+        "categorie": "autres",
         "default": PROMPT_OPTIMISEUR,
     },
     "analyse_amont": {
         "label": "Analyse amont d'un référentiel (détection des cas ambigus)",
         "placeholders": ["unites"],
+        "categorie": "admin",
         "default": PROMPT_ANALYSE_AMONT,
     },
     "decoupe_amont": {
         "label": "Découpe d'un référentiel en unités (par l'IA, au dépôt du PDF)",
         "placeholders": ["texte"],
+        "categorie": "admin",
         "default": PROMPT_DECOUPE_AMONT,
     },
     "verifier_couple": {
         "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
         "placeholders": ["cycle", "niveau", "texte"],
+        "categorie": "admin",
         "default": PROMPT_VERIFIER_COUPLE,
     },
     "detecter_matieres": {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",
         "placeholders": ["matieres_existantes", "texte"],
+        "categorie": "admin",
         "default": PROMPT_DETECTER_MATIERES,
     },
     "detecter_types_activite": {
         "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
         "placeholders": ["types_existants", "texte"],
+        "categorie": "admin",
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
     },
     "detecter_couple": {
         "label": "Détection du cycle et du niveau depuis le document (dépôt « PDF d'abord »)",
         "placeholders": ["cycles_existants", "texte"],
+        "categorie": "admin",
         "default": PROMPT_DETECTER_COUPLE,
     },
     "correction": {
         "label": "Consigne du corrigé (case « Inclure une proposition de correction »)",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_CORRECTION,
     },
     "controle_qualite": {
         "label": "Contrôle qualité intégré à la génération (auto-relecture du modèle)",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_CONTROLE_QUALITE,
     },
     "ton_academique": {
         "label": "Ton de rédaction — académique (bouton « Générer — ton académique »)",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_TON_ACADEMIQUE,
     },
     "ton_operationnel": {
         "label": "Ton de rédaction — opérationnel (bouton « Générer — ton opérationnel »)",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_TON_OPERATIONNEL,
     },
     "few_shot": {
         "label": "Few-shot « aSchool vous reconnaît » (activités précédentes du prof en exemple)",
         "placeholders": ["exemples"],
+        "categorie": "prof",
         "default": PROMPT_FEW_SHOT,
     },
     "exemple_referentiel": {
         "label": "Document d'exemple (texte source tiré du programme officiel)",
         "placeholders": ["matiere", "niveau", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_EXEMPLE_REFERENTIEL,
     },
     "proposer_idee": {
         "label": "« Propose-moi une idée » (demande d'activité écrite à la place du prof)",
         "placeholders": ["quoi", "niveau", "referentiel"],
+        "categorie": "prof",
         "default": PROMPT_PROPOSER_IDEE,
     },
     "entete_cahier": {
         "label": "Intitulé du cahier des charges de l'établissement (ajouté aux générations)",
         "placeholders": [],
+        "categorie": "prof",
         "default": PROMPT_ENTETE_CAHIER,
     },
 }

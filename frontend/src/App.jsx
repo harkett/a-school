@@ -700,7 +700,15 @@ export default function App() {
             <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
-            <Route path="prompts" element={<AdminPrompts />} />{/* contenu pédagogique, pas plomberie : sorti de Système → Génération LLM */}
+            {/* Prompts — contenu pédagogique, pas plomberie : sorti de Système → Génération LLM.
+                Trois sous-options : à qui sert le texte. Le `key` force le remontage en changeant
+                de sous-option, donc chaque vue repart sur SON état (rien ne traîne d'avant). */}
+            <Route path="prompts">
+              <Route index element={<Navigate to="/admin/prompts/prof" replace />} />
+              <Route path="prof"   element={<AdminPrompts key="prof"   categorie="prof" />} />
+              <Route path="admin"  element={<AdminPrompts key="admin"  categorie="admin" />} />
+              <Route path="autres" element={<AdminPrompts key="autres" categorie="autres" />} />
+            </Route>
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />

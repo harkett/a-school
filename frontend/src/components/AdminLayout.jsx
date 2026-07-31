@@ -49,10 +49,14 @@ const NAV_ITEMS = [
   },
   // — Prompts (sortis de Système → Génération LLM le 31/07) : un prompt n'est pas de la plomberie,
   //   c'est le texte qui décide de ce que le prof reçoit — sa place est près du contenu pédagogique.
+  //   Rubrique à sous-options (même mécanique que « Base de données ») : un prompt sert soit au
+  //   prof, soit à l'admin — ce ne sont ni les mêmes textes ni les mêmes moments ; « Autres » est
+  //   le filet pour ce qui n'entre dans aucune des deux.
   {
-    to:    '/admin/prompts',
-    label: 'Prompts',
-    aide:  'Les textes d’instruction envoyés à l’IA, un par outil : choisir l’outil, modifier son prompt, ou revenir au prompt par défaut. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.',
+    group:  true,
+    label:  'Prompts',
+    prefix: '/admin/prompts',
+    aide:   'Les textes d’instruction envoyés à l’IA, un par outil. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 7V4h16v3"/>
@@ -60,6 +64,11 @@ const NAV_ITEMS = [
         <path d="M12 4v16"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/prompts/prof',   label: 'Prof',   aide: 'Les textes qui servent à l\'enseignant : séances et séquences, propositions, tons de rédaction, correction et contrôle qualité.' },
+      { to: '/admin/prompts/admin',  label: 'Admin',  aide: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.' },
+      { to: '/admin/prompts/autres', label: 'Autres', aide: 'Le filet : ce qui ne sert ni au prof ni à l\'admin — aujourd\'hui des restes de l\'ancien monde démoli, rangés en attendant une décision.' },
+    ],
   },
   // — Profs & communication —
   {
