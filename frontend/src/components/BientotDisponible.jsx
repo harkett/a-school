@@ -110,18 +110,24 @@ export default function BientotDisponible() {
     return () => clearTimeout(t)
   }, [sent])
 
+  // « Merci » seulement si le serveur a VRAIMENT enregistré : la réponse est lue (lireReponse
+  // lève sur !ok) et l'échec part en boîte de dialogue. L'idée reste dans le champ pour que
+  // le prof la renvoie — on ne la perd pas derrière un faux succès.
   async function submitIdee() {
     if (!idee.trim()) { setErreur(true); return }
     setSending(true)
     try {
-      await fetchWithTimeout('/api/feedback', {
+      const r = await fetchWithTimeout('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ message: idee.trim(), type: 'idee', rating: 0 }),
       })
+      await lireReponse(r)
       setSent(true)
       setIdee('')
+    } catch (e) {
+      showError(messagePourEcran(e))
     } finally {
       setSending(false)
     }
