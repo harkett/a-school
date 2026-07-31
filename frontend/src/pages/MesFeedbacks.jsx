@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchWithTimeout, lireReponse, messagePourEcran } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
 import FilEchange from '../components/FilEchange'
@@ -30,35 +30,36 @@ function formatBytes(b) {
 }
 
 // ── Pièces jointes — bouton + drag & drop ────────────────────────────────────
-function ZoneFichier({ files, onAdd, onRemove, uploading, error, onError }) {
+// Les refus de pièce jointe passent par la boîte de dialogue comme tout le reste (règle
+// maison) — cette zone n'a plus son propre bandeau rouge posé dans l'écran.
+function ZoneFichier({ files, onAdd, onRemove, uploading }) {
   const fileRef = useRef()
   const [drag, setDrag] = useState(false)
 
   function validate(file) {
     if (!ALLOWED_MIME.includes(file.type)) {
-      onError(`"${file.name}" : format non accepté. Seuls PNG, JPEG, PDF et TXT sont autorisés.`)
+      showError(`"${file.name}" : format non accepté.\n\nSeuls les fichiers PNG, JPEG, PDF et TXT sont acceptés.`)
       return false
     }
     if (file.size > MAX_SIZE) {
-      onError(`"${file.name}" : fichier trop volumineux (${formatBytes(file.size)}). Limite : 5 Mo.`)
+      showError(`"${file.name}" : fichier trop volumineux (${formatBytes(file.size)}).\n\nLa limite est de 5 Mo par fichier.`)
       return false
     }
     if (files.length >= MAX_FILES) {
-      onError(`Maximum ${MAX_FILES} fichiers.`)
+      showError(`Vous ne pouvez pas joindre plus de ${MAX_FILES} fichiers à un retour.\n\nRetirez-en un pour en ajouter un autre.`)
       return false
     }
     return true
   }
 
   function handleChange(e) {
-    onError('')
     const file = e.target.files[0]
     e.target.value = ''
     if (file && validate(file)) onAdd(file)
   }
 
   function onDrop(e) {
-    e.preventDefault(); setDrag(false); onError('')
+    e.preventDefault(); setDrag(false)
     const file = e.dataTransfer.files[0]
     if (file && validate(file)) onAdd(file)
   }
@@ -104,7 +105,7 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, error, onError }) {
           <span style={{ fontSize: '0.82rem', color: drag ? 'var(--bleu)' : '#6b7280' }}>
             {uploading ? 'Envoi en cours…' : 'Glissez un fichier ici'}
           </span>
-          <button type="button" onClick={() => { onError(''); fileRef.current.click() }} disabled={uploading}
+          <button type="button" onClick={() => fileRef.current.click()} disabled={uploading}
             title="Parcourir et sélectionner un fichier (PNG, JPEG ou PDF)"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 6, border: '1px solid #d1d5db', background: 'white', color: '#374151', cursor: uploading ? 'default' : 'pointer', fontSize: '0.82rem', flexShrink: 0 }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -114,12 +115,6 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, error, onError }) {
             </svg>
             Parcourir…
           </button>
-        </div>
-      )}
-
-      {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '7px 12px', fontSize: '0.82rem', color: '#dc2626', marginTop: 8 }}>
-          {error}
         </div>
       )}
 
@@ -133,17 +128,17 @@ export default function MesFeedbacks() {
   const [onglet, setOnglet] = useState('envoyer')
   const [retours, setRetours] = useState(null)
   const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « aucun retour »
-  const [erreurGlobal, setErreurGlobal] = useState('')
+
   const [succès, setSuccès] = useState('')
 
   // Onglet envoyer
   const [newCategory, setNewCategory] = useState('')
   const [newMessage, setNewMessage]   = useState('')
   const [newFiles, setNewFiles]       = useState([])
-  const [newFileError, setNewFileError] = useState('')
+
   const [sending, setSending]         = useState(false)
   const [sent, setSent]               = useState(false)
-  const [sendError, setSendError]     = useState('')
+
   const [uploading, setUploading]     = useState(false)
 
   // Modification
@@ -151,7 +146,7 @@ export default function MesFeedbacks() {
   const [category, setCategory]   = useState('')
   const [message, setMessage]     = useState('')
   const [editFiles, setEditFiles] = useState([])
-  const [editFileError, setEditFileError] = useState('')
+
   const [editUploading, setEditUploading] = useState(false)
   const [loading, setLoading]     = useState(false)
 
@@ -174,26 +169,24 @@ export default function MesFeedbacks() {
 
   useEffect(() => { chargerRetours() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // L'envoi du fichier passe par lireReponse : le message du serveur remonte s'il est écrit
+  // pour le prof, sinon c'est le message serveur générique — jamais un « Failed to fetch ».
   async function uploadFile(file) {
     const form = new FormData()
     form.append('file', file)
-    const res = await fetch('/api/feedback/upload', { method: 'POST', credentials: 'include', body: form })
-    if (!res.ok) {
-      const detail = await res.json().catch(() => ({}))
-      throw new Error(detail?.detail || 'Erreur lors de l\'envoi.')
-    }
-    const { path } = await res.json()
+    const res = await fetchWithTimeout(
+      '/api/feedback/upload', { method: 'POST', credentials: 'include', body: form }, TIMEOUT_LONG)
+    const { path } = await lireReponse(res)
     return { path, name: file.name, size: file.size }
   }
 
   async function handleAddNewFile(file) {
     setUploading(true)
-    setNewFileError('')
     try {
       const uploaded = await uploadFile(file)
       setNewFiles(prev => [...prev, uploaded])
     } catch (e) {
-      setNewFileError(`"${file.name}" — ${e.message}`)
+      showError(`« ${file.name} » n'a pas pu être joint.\n\n${messagePourEcran(e)}`)
     } finally {
       setUploading(false)
     }
@@ -201,12 +194,11 @@ export default function MesFeedbacks() {
 
   async function handleAddEditFile(file) {
     setEditUploading(true)
-    setEditFileError('')
     try {
       const uploaded = await uploadFile(file)
       setEditFiles(prev => [...prev, uploaded])
     } catch (e) {
-      setEditFileError(`"${file.name}" — ${e.message}`)
+      showError(`« ${file.name} » n'a pas pu être joint.\n\n${messagePourEcran(e)}`)
     } finally {
       setEditUploading(false)
     }
@@ -222,10 +214,9 @@ export default function MesFeedbacks() {
     const paths = fb.attachment_path ? fb.attachment_path.split(',').filter(Boolean) : []
     setEditFiles(paths.map(p => ({ path: p, name: p, size: 0 })))
     setSuccès('')
-    setEditFileError('')
   }
 
-  function annuler() { setEditId(null); setCategory(''); setMessage(''); setEditFiles([]); setEditFileError('') }
+  function annuler() { setEditId(null); setCategory(''); setMessage(''); setEditFiles([]) }
 
   async function handleEnregistrer(e) {
     e.preventDefault()
@@ -237,19 +228,19 @@ export default function MesFeedbacks() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ message: message.trim(), category, attachment_path: paths || null }),
       })
-      if (!res.ok) throw new Error()
+      await lireReponse(res)
       await recharger()
       setSuccès('Retour modifié.')
       annuler()
-    } catch { setErreurGlobal('Erreur lors de la modification.') }
-    finally { setLoading(false) }
+    } catch (e) {
+      showError(messagePourEcran(e))
+    } finally { setLoading(false) }
   }
 
   async function repondre(id) {
     const corps = (brouillons[id] || '').trim()
     if (!corps) return
     setEnvoiId(id)
-    setErreurGlobal('')
     setSuccès('')
     try {
       const res = await fetchWithTimeout(`/api/feedback/${id}/messages`, {
@@ -258,13 +249,12 @@ export default function MesFeedbacks() {
         credentials: 'include',
         body: JSON.stringify({ corps }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Votre message n\'a pas pu être envoyé.')
+      await lireReponse(res)   // le message du serveur passe tel quel, filtré du technique
       setBrouillons(b => ({ ...b, [id]: '' }))
       await recharger()
       setSuccès('Message envoyé. L\'équipe aSchool vous répondra ici même.')
     } catch (e) {
-      setErreurGlobal(e.message)
+      showError(messagePourEcran(e))
     } finally {
       setEnvoiId(null)
     }
@@ -273,7 +263,7 @@ export default function MesFeedbacks() {
   async function handleEnvoyer(e) {
     e.preventDefault()
     if (!newCategory || newMessage.trim().length < 5) return
-    setSending(true); setSendError('')
+    setSending(true)
     try {
       const paths = newFiles.map(f => f.path).join(',')
       const res = await fetchWithTimeout('/api/feedback', {
@@ -281,14 +271,15 @@ export default function MesFeedbacks() {
         body: JSON.stringify({ type: 'feedback', message: newMessage.trim(), category: newCategory, attachment_path: paths || null,
                                contexte: `Écran ${libelleEcran('mes-feedbacks')}` }),
       })
-      if (!res.ok) throw new Error()
+      await lireReponse(res)
       setSent(true)
       chargerRetours()   // read-after-write : la relecture dit elle-même si elle échoue
-    } catch { setSendError('Une erreur est survenue. Réessayez.') }
-    finally { setSending(false) }
+    } catch (e) {
+      showError(messagePourEcran(e))   // le retour RESTE dans le formulaire, prêt à repartir
+    } finally { setSending(false) }
   }
 
-  function recommencer() { setSent(false); setNewCategory(''); setNewMessage(''); setNewFiles([]); setSendError(''); setNewFileError(''); setOnglet('retours') }
+  function recommencer() { setSent(false); setNewCategory(''); setNewMessage(''); setNewFiles([]); setOnglet('retours') }
 
   const ongletStyle = active => ({
     padding: '12px 28px', fontSize: '0.95rem', fontWeight: active ? 600 : 400,
@@ -351,11 +342,7 @@ export default function MesFeedbacks() {
                 onAdd={handleAddNewFile}
                 onRemove={removeNewFile}
                 uploading={uploading}
-                error={newFileError}
-                onError={setNewFileError}
               />
-
-              {sendError && <p className="text-sm text-red-500">{sendError}</p>}
 
               <div className="flex justify-end">
                 <button type="submit" className="btn-primary"
@@ -374,7 +361,6 @@ export default function MesFeedbacks() {
       {onglet === 'retours' && (
         <div className="flex flex-col gap-3">
           {succès && <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem', color: '#15803d' }}>{succès}</div>}
-          {erreurGlobal && <p className="text-sm text-red-500">{erreurGlobal}</p>}
           {!retours && !chargementRate && <p className="text-sm text-gray-400">Chargement…</p>}
           {!retours && chargementRate && (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
@@ -430,8 +416,6 @@ export default function MesFeedbacks() {
                       onAdd={handleAddEditFile}
                       onRemove={removeEditFile}
                       uploading={editUploading}
-                      error={editFileError}
-                      onError={setEditFileError}
                     />
                     <div className="flex justify-end gap-2">
                       <button type="button" onClick={annuler} style={{ padding: '6px 16px', fontSize: '0.85rem', borderRadius: 6, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', color: '#6b7280' }}>Annuler</button>

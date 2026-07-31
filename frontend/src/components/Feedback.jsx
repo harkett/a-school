@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { fetchWithTimeout } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran } from '../utils/api.js'
+import { showError } from '../errorDialog'
 import FenetrePro from './FenetrePro.jsx'
 
 const CATEGORIES = [
@@ -17,7 +18,6 @@ export default function Feedback({ onClose, contexte, incidentRef }) {
   const [message, setMessage]   = useState('')
   const [loading, setLoading]   = useState(false)
   const [done, setDone]         = useState(false)
-  const [error, setError]       = useState('')
 
   const canSubmit = category && message.trim().length >= 5
 
@@ -25,7 +25,6 @@ export default function Feedback({ onClose, contexte, incidentRef }) {
     e.preventDefault()
     if (!canSubmit) return
     setLoading(true)
-    setError('')
     try {
       const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST',
@@ -34,10 +33,11 @@ export default function Feedback({ onClose, contexte, incidentRef }) {
         body: JSON.stringify({ type: 'feedback', message: message.trim(), category,
                                contexte: contexte || null, incident_ref: incidentRef || null }),
       })
-      if (!res.ok) throw new Error()
+      await lireReponse(res)
       setDone(true)
-    } catch {
-      setError('Une erreur est survenue. Réessayez.')
+    } catch (e) {
+      // Le retour reste dans la fenêtre, prêt à repartir — on ne l'efface jamais sur un échec.
+      showError(messagePourEcran(e))
     } finally {
       setLoading(false)
     }
@@ -114,8 +114,6 @@ export default function Feedback({ onClose, contexte, incidentRef }) {
             />
             <p className="text-xs text-gray-400 text-right mt-0.5">{message.length}/2000</p>
           </div>
-
-          {error && <p className="text-sm text-red-500" style={{ margin: 0 }}>{error}</p>}
 
           <div className="flex justify-end gap-2" style={{ flexShrink: 0 }}>
             <button

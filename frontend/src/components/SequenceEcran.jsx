@@ -24,7 +24,7 @@ import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
 import ApportTexte from './contenus/ApportTexte.jsx'
 import InfoGuide from './InfoGuide.jsx'
-import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
+import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
@@ -321,7 +321,8 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
       }
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}))
-        if (err.detail) showError(err.detail)
+        const message = detailPourEcran(err)   // un 422 renvoie un tableau : filtré, jamais affiché
+        if (message) showError(message)
         else showError(MSG_ECHEC_PLAN, { feedback: true })
         return
       }

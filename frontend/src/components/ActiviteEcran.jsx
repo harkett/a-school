@@ -17,7 +17,7 @@ import InfoGuide from './InfoGuide.jsx'
 import HistoriqueVersions from './HistoriqueVersions.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { typeVierge } from '../utils/activite.js'
-import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD } from '../utils/api.js'
+import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD } from '../utils/api.js'
 import { showError, openFeedbackFromError } from '../errorDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
@@ -185,7 +185,8 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
       }
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}))
-        if (err.detail) showError(err.detail)
+        const message = detailPourEcran(err)   // un 422 renvoie un tableau : filtré, jamais affiché
+        if (message) showError(message)
         else showError(MSG_ECHEC_GENERATION, { feedback: true })
         return
       }

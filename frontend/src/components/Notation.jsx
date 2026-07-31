@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 const STARS = [1, 2, 3, 4, 5]
 const LABELS = { 1: 'Décevant', 2: 'Passable', 3: 'Correct', 4: 'Bien', 5: 'Excellent !' }
@@ -10,13 +11,11 @@ export default function Notation({ onClose }) {
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(false)
   const [done, setDone]       = useState(false)
-  const [error, setError]     = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!rating) return
     setLoading(true)
-    setError('')
     try {
       const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST',
@@ -28,11 +27,12 @@ export default function Notation({ onClose }) {
           message: comment.trim() || '—',
           category: null,
         }),
-      })
-      if (!res.ok) throw new Error()
+      }, TIMEOUT_STD)   // délai standard (la constante était importée sans être passée)
+      await lireReponse(res)
       setDone(true)
-    } catch {
-      setError('Une erreur est survenue. Réessayez.')
+    } catch (e) {
+      // La note et le commentaire restent dans la fenêtre, prêts à repartir.
+      showError(messagePourEcran(e))
     } finally {
       setLoading(false)
     }
@@ -114,8 +114,6 @@ export default function Notation({ onClose }) {
                 className="w-full border border-gray-200 rounded px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400"
               />
             </div>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button

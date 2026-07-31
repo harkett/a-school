@@ -1,14 +1,14 @@
 ﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
-import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_AUTH } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 export default function Signup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [loading, setLoading] = useState(false)
-  const [erreur, setErreur] = useState(null)
   const [done, setDone] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -17,11 +17,10 @@ export default function Signup() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (password !== passwordConfirm) {
-      setErreur('Les mots de passe ne correspondent pas.')
+      showError('Les deux mots de passe ne sont pas identiques.\n\nRessaisissez-les à l\'identique pour créer votre compte.')
       return
     }
     setLoading(true)
-    setErreur(null)
     try {
       const res = await fetchWithTimeout('/api/auth/signup', {
         method: 'POST',
@@ -31,13 +30,13 @@ export default function Signup() {
           password,
           password_confirm: passwordConfirm,
         }),
-      })
-      let data = {}
-      try { data = await res.json() } catch { /* corps vide */ }
-      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`)
+      }, TIMEOUT_AUTH)   // délai d'auth (le constante était importée sans être passée)
+      // Le message du serveur (« cette adresse est déjà utilisée »…) remonte tel quel s'il est
+      // écrit pour un humain ; sinon c'est le message serveur générique — jamais « Erreur 500 ».
+      await lireReponse(res)
       setDone(true)
     } catch (e) {
-      setErreur(e.message)
+      showError(messagePourEcran(e))
     } finally {
       setLoading(false)
     }
@@ -62,12 +61,6 @@ export default function Signup() {
               <p className="text-sm text-gray-500 mb-6">
                 Un email de confirmation vous sera envoyé.
               </p>
-
-              {erreur && (
-                <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">
-                  {erreur}
-                </div>
-              )}
 
               <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col gap-4">
                 <div>

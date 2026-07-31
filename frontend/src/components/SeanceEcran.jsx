@@ -22,7 +22,7 @@ import InfoGuide from './InfoGuide.jsx'
 import HistoriqueVersions from './HistoriqueVersions.jsx'
 import { aideSeances } from '../utils/aideSeances.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
-import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
+import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
@@ -505,7 +505,8 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       }
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({}))
-        if (err.detail) showError(err.detail)
+        const message = detailPourEcran(err)   // un 422 renvoie un tableau : filtré, jamais affiché
+        if (message) showError(message)
         else showError(MSG_ECHEC_GENERATION, { feedback: true })
         return
       }

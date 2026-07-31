@@ -35,7 +35,6 @@ export default function MonProfil({ onNavigate }) {
     mobile:    user?.mobile    || '',
   })
   const [saving, setSaving] = useState(false)
-  const [erreur, setErreur] = useState(null)
   const [niveauxParCycle, setNiveauxParCycle]     = useState([])
   const [matieresParCycle, setMatieresParCycle]   = useState([])   // repli « tout groupé » sans niveau
   const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
@@ -180,7 +179,6 @@ export default function MonProfil({ onNavigate }) {
   async function handleValider(e) {
     e.preventDefault()
     setSaving(true)
-    setErreur(null)
     try {
       const res = await apiFetch('/api/user/profile', {
         method: 'PATCH',
@@ -188,13 +186,16 @@ export default function MonProfil({ onNavigate }) {
         credentials: 'include',
         body: JSON.stringify(form),
       })
-      if (!res.ok) throw new Error('Erreur lors de la sauvegarde.')
+      // lireReponse rend le message DU SERVEUR quand il est écrit pour le prof : le contrôle
+      // « cette matière n'est pas enseignée à ce niveau » (profil.py) l'atteint enfin, au lieu
+      // d'être remplacé par un « Erreur lors de la sauvegarde » qui n'apprend rien.
+      await lireReponse(res)
       // Relecture /auth/me après le put (jamais un recollage local) : le serveur renvoie
       // travail_matiere/travail_niveau résolus — le header et les gardes de profil suivent.
       await refreshUser()
       onNavigate('accueil')
     } catch (e) {
-      setErreur(e.message)
+      showError(messagePourEcran(e))
       setSaving(false)
     }
   }
@@ -207,10 +208,6 @@ export default function MonProfil({ onNavigate }) {
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
     <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480, flexShrink: 0 }}>
       <div className="section-title mb-5">Mon profil<InfoGuide {...aideProfil('profil')} /></div>
-
-      {erreur && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">{erreur}</div>
-      )}
 
       {/* Lecture ratée : les menus niveau/matière sont vides parce qu'on n'a pas pu les lire,
           pas parce qu'il n'y a rien. Le message est déjà en boîte de dialogue — ici, le bouton. */}

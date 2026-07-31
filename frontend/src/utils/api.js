@@ -26,6 +26,16 @@ export function messagePourEcran(err) {
   return err && err.pourEcran ? err.message : MSG_SERVEUR
 }
 
+// Le `detail` d'un corps d'erreur déjà lu, filtré EXACTEMENT comme le fait lireReponse :
+// on ne rend que ce qui est un vrai message texte (nos messages backend sont écrits pour le
+// prof). Un 422 FastAPI renvoie un TABLEAU d'objets : le passer à showError casserait le
+// rendu React (« Objects are not valid as a React child »). Renvoie null quand il n'y a rien
+// de montrable — l'appelant affiche alors son propre message.
+// À utiliser partout où la réponse est lue à la main (flux SSE, corps déjà consommé).
+export function detailPourEcran(data) {
+  return data && typeof data.detail === 'string' && data.detail.trim() ? data.detail : null
+}
+
 // Lit le corps JSON d'une réponse sans JAMAIS laisser fuiter un message technique :
 //  - réponse OK → l'objet JSON (ou {} si le corps est vide) ;
 //  - réponse en erreur → lève le `detail` du backend SEULEMENT si c'est un vrai message texte

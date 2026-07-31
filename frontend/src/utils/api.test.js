@@ -6,7 +6,7 @@ import test, { beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   apiFetch, refreshSession, setSessionExpiredHandler, _resetForTests,
-  lireReponse, messagePourEcran, MSG_SERVEUR,
+  lireReponse, messagePourEcran, detailPourEcran, MSG_SERVEUR,
 } from './api.js'
 
 const ok200 = () => ({ ok: true,  status: 200, json: async () => ({}) })
@@ -140,7 +140,22 @@ test('10. lireReponse : detail NON-texte (tableau de validation 422) → MSG_SER
   )
 })
 
-test('11. messagePourEcran : erreur marquée pourEcran → son message ; technique → MSG_SERVEUR', () => {
+// detailPourEcran : le même filtre que lireReponse, pour les corps lus À LA MAIN (flux SSE des
+// trois écrans de génération). Sans lui, un 422 partait tel quel dans showError et React levait
+// « Objects are not valid as a React child » — l'écran cassait au lieu d'expliquer.
+test('11. detailPourEcran : detail TEXTE → le message ; tout le reste → null', () => {
+  assert.equal(detailPourEcran({ detail: 'Ce niveau n’a pas encore de référentiel.' }),
+               'Ce niveau n’a pas encore de référentiel.')
+  // 422 FastAPI : un TABLEAU d'objets — jamais rendu à l'écran.
+  assert.equal(detailPourEcran({ detail: [{ loc: ['body', 'texte'], msg: 'field required' }] }), null)
+  assert.equal(detailPourEcran({ detail: { msg: 'objet' } }), null)
+  assert.equal(detailPourEcran({ detail: '   ' }), null)   // vide = rien à dire
+  assert.equal(detailPourEcran({}), null)
+  assert.equal(detailPourEcran(null), null)
+  assert.equal(detailPourEcran(undefined), null)
+})
+
+test('12. messagePourEcran : erreur marquée pourEcran → son message ; technique → MSG_SERVEUR', () => {
   const humaine = new Error('Message écrit pour le prof.')
   humaine.pourEcran = true
   assert.equal(messagePourEcran(humaine), 'Message écrit pour le prof.')
