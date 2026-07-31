@@ -4,9 +4,13 @@ import FenetrePro from './FenetrePro.jsx'
 // Séance qui a le sien — FenetreGuideSeance). Même dispositif que les autres écrans :
 // fenêtre déplaçable et étirable (coquille FenetrePro). Contenu = liste numérotée décrivant
 // la page RÉELLE (règle des deux publics) — à tenir À JOUR à chaque évolution de la page.
+//
+// RÈGLE D'ÉCRITURE (31/07) : ne JAMAIS réciter ici ce qui vit EN BASE (la liste des modes, par
+// exemple). Un texte d'aide qui récite un catalogue finit toujours par mentir : on décrit le
+// geste, la page affiche les valeurs. Voir la même note dans FenetreGuideSeance.jsx.
 const ETAPES = [
   { n: 1, titre: 'La liste (colonne de gauche)',
-    desc: "Une ligne par séance : la pastille de couleur de son couple matière-niveau, le thème en titre, puis le mode (Séance standard, Remédiation, Approfondissement, Autonomie guidée), le niveau et la durée. Le badge date est bleu quand la séance est récente. Cliquez une ligne : son détail s'affiche à droite." },
+    desc: "Une ligne par séance : la pastille de couleur de son couple matière-niveau, le thème en titre, puis le mode choisi à la génération, le niveau et la durée. Le badge date est bleu quand la séance est récente. Cliquez une ligne : son détail s'affiche à droite." },
   { n: 2, titre: 'Les deux onglets',
     desc: "« Niveau en cours » ne montre que les séances de votre matière et niveau actuels. « Toutes mes séances » montre tout, regroupé par matière-niveau, votre couple courant épinglé en haut avec la marque « en cours »." },
   { n: 3, titre: 'Le détail (colonne de droite)',

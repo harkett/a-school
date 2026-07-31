@@ -6,11 +6,19 @@ import FenetrePro from './FenetrePro.jsx'
 // remplit le vrai formulaire. Contenu = liste numérotée décrivant l'écran RÉEL (règle des
 // deux publics : on ne décrit que ce que l'écran fait vraiment) — à tenir À JOUR à chaque
 // évolution de l'écran Séance (demande utilisateur du 30/07 : rempli au fur et à mesure).
+//
+// RÈGLE D'ÉCRITURE (31/07) : ne JAMAIS réciter ici ce qui vit EN BASE — la liste des modes,
+// celle des styles, les bornes de durée. Ce texte-là ne peut pas suivre : le jour où l'admin
+// ajoute un mode ou change la durée maximale, l'écran dit vrai et son aide dit faux. On décrit
+// le geste (« choisir un mode parmi ceux proposés »), l'écran montre les valeurs — il les a
+// justement sous les yeux, cette fenêtre étant posée À CÔTÉ du formulaire.
+// En revanche on continue de décrire ce qui est FIXÉ DANS L'ÉCRAN (les cinq façons de remplir
+// une zone, les boutons, l'ordre des cartouches) : ça, ça ne dérive pas tout seul.
 const ETAPES = [
   { n: 1, titre: 'Infos de base — tout l\'obligatoire', sous: [
     { num: '1.1', titre: 'Thème / objectif',        desc: "le point de départ de la séance, c'est lui qui guide toute la génération. Cinq façons de remplir : Fichier TXT · Image/Scan · PDF · Dicter · Propose-moi un thème (aSchool l'écrit depuis le programme officiel de votre niveau). Une pastille bleue sur la ligne du titre rappelle d'où vient le texte." },
     { num: '1.2', titre: 'Contexte rapide',         desc: "optionnel : votre classe en une phrase (effectif, ambiance, ce qui a bloqué…) ; c'est lui qui donne tout son sens au mode Remédiation. La ligne du titre affiche en permanence « avec » ou « sans contexte rapide »." },
-    { num: '1.3', titre: 'Mode et durée',           desc: "Séance standard · Remédiation · Approfondissement · Autonomie guidée (rien n'est pré-coché), et la durée en minutes (5 à 300) sur la même ligne. Les choix faits s'affichent en pastilles face au titre, cartouche repliée comme dépliée." },
+    { num: '1.3', titre: 'Mode et durée',           desc: "le mode de séance, à choisir parmi ceux que propose l'écran (rien n'est pré-coché — survolez un mode pour lire ce qu'il fait), et la durée en minutes sur la même ligne, dans les bornes rappelées par le champ. Les choix faits s'affichent en pastilles face au titre, cartouche repliée comme dépliée." },
   ] },
   { n: 2, titre: 'Contenu pédagogique (facultatif)', sous: [
     { num: '2.1', titre: 'Compétences / attendus',  desc: "ce que les élèves doivent savoir faire à la fin (le thème, lui, dit de quoi parle la séance). Une zone de texte, une compétence par ligne — même grammaire que le thème : cinq façons de remplir (TXT · Image/Scan · PDF · Dicter · Propose-moi des compétences)." },
@@ -21,7 +29,7 @@ const ETAPES = [
     desc: "La séance générée a toujours un début, un milieu et une fin — c'est aSchool qui l'écrit. Cette cartouche sert à imposer VOTRE volonté sur ces moments, si vous en avez une. Rien n'est obligatoire : une zone vide n'est jamais une erreur, c'est « aSchool décide pour ce moment-là ».",
     sous: [
     { num: '3.1', titre: 'Esquisse A / B / C',      desc: "A, B, C = les trois moments successifs de la MÊME séance (mise en route, activité principale, retour / trace écrite) — pas trois options à départager. Remplissez zéro, une, deux ou trois zones : par exemple seulement C, « terminer par un exercice sur ardoise » — aSchool invente le reste, mais la fin sera la vôtre. « Propose-moi cette phase » écrit dans une zone à votre place, en cohérence avec les autres." },
-    { num: '3.2', titre: 'Style de production (optionnel)', desc: "la FAÇON dont le document final est rédigé — même séance, même contenu, présentation différente. Classique : une fiche de préparation traditionnelle, sobre. Ludique : chaque phase passe par un jeu (défi, énigme, jeu de rôle…). Structuré : phases minutées, listes à puces, transitions explicites. Très concis : télégraphique, la séance tient sur une page. « Aucun style » (le défaut) : aSchool rédige à sa façon habituelle, et un clic dessus retire un style choisi par erreur." },
+    { num: '3.2', titre: 'Style de production (optionnel)', desc: "la FAÇON dont le document final est rédigé — même séance, même contenu, présentation différente. Les styles proposés sont affichés en pastilles : survolez-en un pour lire, en une phrase, comment il rédige. « Aucun style » (le défaut) : aSchool rédige à sa façon habituelle, et un clic dessus retire un style choisi par erreur." },
   ] },
   { n: 4, titre: 'Générer la séance',
     desc: "La cartouche ④, en bas de la colonne : son bouton s'active dès que les Infos de base sont complètes (thème + mode + durée — les cartouches 2 et 3 restent facultatives). Le déroulé s'écrit en direct dans la colonne de droite, phase par phase. Ensuite « Régénérer » relance avec vos réglages du moment." },
