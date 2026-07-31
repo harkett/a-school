@@ -8,7 +8,7 @@ export const GUIDE_HISTORIQUE = [
     cle: 'ecran',
     titre: 'Mes activités',
     court: "Toutes vos activités générées et enregistrées.",
-    long: "Cet écran réunit toutes les activités que vous avez générées et enregistrées. Retrouvez-les, ouvrez leur détail, reprenez-en une dans le formulaire pour la faire évoluer, ou partagez-la avec vos collègues. La liste est à gauche, le détail de l'activité choisie à droite.",
+    long: "Cet écran réunit toutes les activités que vous avez générées et enregistrées. Retrouvez-les, ouvrez leur détail, reprenez-en une dans le formulaire pour la faire évoluer, ou partagez-la avec vos collègues. La liste est à gauche, le détail de l'activité choisie à droite.\n\nSUPPRIMER : la corbeille, à droite de chaque ligne, retire définitivement l'activité — et avec elle tout son historique de versions. La fenêtre de confirmation vous dit d'abord, en clair, combien de versions partent avec elle : rien n'est supprimé sans que vous sachiez ce que vous perdez.",
   },
   {
     cle: 'onglets',

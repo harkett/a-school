@@ -8,7 +8,7 @@ export const GUIDE_SEANCES = [
     cle: 'ecran',
     titre: 'Mes séances',
     court: "Toutes vos séances générées et enregistrées.",
-    long: "Cette page réunit toutes les séances que vous avez générées et enregistrées. Retrouvez-les, ouvrez leur détail, ou reprenez-en une dans le formulaire pour la faire évoluer. La liste est à gauche, le détail de la séance choisie à droite.",
+    long: "Cette page réunit toutes les séances que vous avez générées et enregistrées. Retrouvez-les, ouvrez leur détail, ou reprenez-en une dans le formulaire pour la faire évoluer. La liste est à gauche, le détail de la séance choisie à droite.\n\nSUPPRIMER : la corbeille, à droite de chaque ligne, retire définitivement la séance et son historique de versions — mais JAMAIS ses activités. Celles-ci restent dans vos contenus : elles repassent simplement en « non rangées », comme si vous les aviez détachées. La fenêtre de confirmation vous dit ce qui part et ce qui reste, avec les nombres exacts.",
   },
   {
     cle: 'onglets',

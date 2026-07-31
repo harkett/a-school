@@ -503,7 +503,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   <InfoGuide
                     titre="Objectif de la séquence"
                     court="Le but à atteindre au fil des séances — écrivez-le comme vous le diriez."
-                    long={"Écrivez l'objectif comme vous le diriez : « maîtriser le récit d'aventure », « préparer le concours », « monter la pièce de fin d'année »…\n\nRemplissez la zone comme vous voulez : au clavier, en important un fichier TXT / une image / un PDF, en dictant au micro — ou laissez « Propose-moi un objectif » l'écrire depuis le programme officiel de votre niveau."}
+                    long={"Écrivez l'objectif comme vous le diriez : « maîtriser le récit d'aventure », « préparer le concours », « monter la pièce de fin d'année »…\n\nRemplissez la zone comme vous voulez : au clavier, en important un fichier TXT / une image / un PDF, en dictant au micro — ou laissez « Propose-moi un objectif » l'écrire depuis le programme officiel de votre niveau.\n\nUne fois la séquence créée, cet objectif reste modifiable : corrigez-le quand vous voulez, vos retouches s'enregistrent toutes seules (le badge « Enregistrée » le confirme). Le plan déjà généré n'est pas retouché pour autant — les séances gardent leur déroulé."}
                   />
                 </label>
                 <textarea

@@ -8,7 +8,7 @@ export const GUIDE_SEQUENCES = [
     cle: 'ecran',
     titre: 'Mes séquences',
     court: "Toutes vos séquences — chacune avec ses séances, dans l'ordre du plan.",
-    long: "Cette page réunit toutes les séquences que vous avez créées. Une séquence = un objectif + la suite ordonnée des séances qui y mènent. La liste est à gauche, le détail de la séquence choisie à droite : son contexte, ses précisions et ses séances avec leur état. « Reprendre » rouvre la séquence dans son écran pour travailler ses séances une à une.",
+    long: "Cette page réunit toutes les séquences que vous avez créées. Une séquence = un objectif + la suite ordonnée des séances qui y mènent. La liste est à gauche, le détail de la séquence choisie à droite : son contexte, ses précisions et ses séances avec leur état. « Reprendre » rouvre la séquence dans son écran pour travailler ses séances une à une.\n\nCORRIGER : une séquence n'est plus figée une fois créée. En la reprenant, vous retouchez librement son objectif, son contexte, son ampleur et ses compétences ; vos modifications s'enregistrent toutes seules, sans bouton à cliquer. Le plan, lui, n'est pas retouché : les séances existent déjà avec leur déroulé, vous les travaillez une à une.\n\nSUPPRIMER : la corbeille, à droite de chaque ligne, retire définitivement la séquence — mais JAMAIS ses séances. Celles-ci restent dans vos contenus : elles repassent simplement en « non rangées ». La fenêtre de confirmation vous dit combien de séances sont concernées avant que vous validiez.",
   },
   {
     cle: 'onglets',
