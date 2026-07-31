@@ -146,6 +146,13 @@ _CATALOGUES_SEED = {
         {"key": "few_shot_seuil", "value": "3"},
         {"key": "few_shot_extrait_max", "value": "3000"},
         {"key": "prompt_few_shot", "value": _PROMPTS["few_shot"]["default"]},
+        # Seuils métier sortis du code (étape 9 lot B) : sans eux, joindre un fichier, générer
+        # une séance ou déposer un cahier répondraient 500 dans les tests — à juste titre.
+        {"key": "feedback_piece_jointe_max_mo", "value": "5"},
+        {"key": "feedback_pieces_jointes_max", "value": "5"},
+        {"key": "seance_duree_min", "value": "5"},
+        {"key": "seance_duree_max", "value": "300"},
+        {"key": "cahier_max_mo", "value": "20"},
     ],
 }
 

@@ -3,6 +3,8 @@ import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG } from '.
 import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
 import { couleurStatut } from '../utils/statutsFeedback.js'
+import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
+import { listeFormats } from '../utils/piecesJointes.js'
 import FilEchange from '../components/FilEchange'
 
 const CATEGORIES = [
@@ -10,10 +12,6 @@ const CATEGORIES = [
   { key: 'suggestion', label: 'Suggestion' },
   { key: 'question',   label: 'Question' },
 ]
-
-const ALLOWED_MIME = ['image/png', 'image/jpeg', 'application/pdf', 'text/plain']
-const MAX_SIZE     = 5 * 1024 * 1024
-const MAX_FILES    = 5
 
 function formatBytes(b) {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} Ko`
@@ -23,21 +21,25 @@ function formatBytes(b) {
 // ── Pièces jointes — bouton + drag & drop ────────────────────────────────────
 // Les refus de pièce jointe passent par la boîte de dialogue comme tout le reste (règle
 // maison) — cette zone n'a plus son propre bandeau rouge posé dans l'écran.
-function ZoneFichier({ files, onAdd, onRemove, uploading }) {
+// Taille, nombre et formats acceptés viennent du SERVEUR (`limites`) : cet écran ne les
+// connaît plus. Tant qu'ils ne sont pas arrivés, il n'accepte aucun fichier plutôt que
+// d'en accepter selon une limite devinée.
+function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
   const fileRef = useRef()
   const [drag, setDrag] = useState(false)
 
   function validate(file) {
-    if (!ALLOWED_MIME.includes(file.type)) {
-      showError(`"${file.name}" : format non accepté.\n\nSeuls les fichiers PNG, JPEG, PDF et TXT sont acceptés.`)
+    if (!limites) return false
+    if (!limites.mime_acceptes.includes(file.type)) {
+      showError(`"${file.name}" : format non accepté.\n\nSeuls les fichiers ${listeFormats(limites, 'et')} sont acceptés.`)
       return false
     }
-    if (file.size > MAX_SIZE) {
-      showError(`"${file.name}" : fichier trop volumineux (${formatBytes(file.size)}).\n\nLa limite est de 5 Mo par fichier.`)
+    if (file.size > limites.taille_max_mo * 1024 * 1024) {
+      showError(`"${file.name}" : fichier trop volumineux (${formatBytes(file.size)}).\n\nLa limite est de ${limites.taille_max_mo} Mo par fichier.`)
       return false
     }
-    if (files.length >= MAX_FILES) {
-      showError(`Vous ne pouvez pas joindre plus de ${MAX_FILES} fichiers à un retour.\n\nRetirez-en un pour en ajouter un autre.`)
+    if (files.length >= limites.nombre_max) {
+      showError(`Vous ne pouvez pas joindre plus de ${limites.nombre_max} fichiers à un retour.\n\nRetirez-en un pour en ajouter un autre.`)
       return false
     }
     return true
@@ -58,7 +60,11 @@ function ZoneFichier({ files, onAdd, onRemove, uploading }) {
   return (
     <div>
       <label style={{ display: 'block', fontSize: '0.85rem', color: '#6b7280', marginBottom: 4 }}>
-        Pièces jointes <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optionnel — PNG, JPEG, PDF ou TXT, max 5 Mo)</span>
+        Pièces jointes {limites && (
+          <span style={{ fontWeight: 400, color: '#9ca3af' }}>
+            (optionnel — {listeFormats(limites)}, max {limites.taille_max_mo} Mo)
+          </span>
+        )}
       </label>
       <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: 8 }}>
         Pour joindre une capture d'écran, utilisez <kbd style={{ background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: '0.78rem' }}>Win+Maj+S</kbd>, enregistrez l'image, puis cliquez sur Parcourir.
@@ -81,7 +87,7 @@ function ZoneFichier({ files, onAdd, onRemove, uploading }) {
         </ul>
       )}
 
-      {files.length < MAX_FILES && (
+      {limites && files.length < limites.nombre_max && (
         <div
           onDragOver={e => { e.preventDefault(); setDrag(true) }}
           onDragLeave={() => setDrag(false)}
@@ -97,7 +103,7 @@ function ZoneFichier({ files, onAdd, onRemove, uploading }) {
             {uploading ? 'Envoi en cours…' : 'Glissez un fichier ici'}
           </span>
           <button type="button" onClick={() => fileRef.current.click()} disabled={uploading}
-            title="Parcourir et sélectionner un fichier (PNG, JPEG ou PDF)"
+            title={`Parcourir et sélectionner un fichier (${listeFormats(limites)})`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 6, border: '1px solid #d1d5db', background: 'white', color: '#374151', cursor: uploading ? 'default' : 'pointer', fontSize: '0.82rem', flexShrink: 0 }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -109,7 +115,10 @@ function ZoneFichier({ files, onAdd, onRemove, uploading }) {
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept=".png,.jpg,.jpeg,.pdf,.txt" style={{ display: 'none' }} onChange={handleChange} />
+      {/* Le filtre du sélecteur de fichiers vient AUSSI du serveur : c'était une sixième
+          copie de la liste des formats, à tenir à jour à la main comme les autres. */}
+      <input ref={fileRef} type="file" accept={(limites?.mime_acceptes || []).join(',')}
+        style={{ display: 'none' }} onChange={handleChange} />
     </div>
   )
 }
@@ -119,6 +128,9 @@ export default function MesFeedbacks() {
   const [onglet, setOnglet] = useState('envoyer')
   const [retours, setRetours] = useState(null)
   const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « aucun retour »
+  // Taille, nombre et formats des pièces jointes : LUS EN BASE via le serveur (crochet partagé
+  // avec l'Aide, qui annonce les mêmes chiffres). Cet écran ne les connaît plus.
+  const { limites } = useLimitesPiecesJointes()
 
   const [succès, setSuccès] = useState('')
 
@@ -333,6 +345,7 @@ export default function MesFeedbacks() {
                 onAdd={handleAddNewFile}
                 onRemove={removeNewFile}
                 uploading={uploading}
+                limites={limites}
               />
 
               <div className="flex justify-end">
@@ -407,6 +420,7 @@ export default function MesFeedbacks() {
                       onAdd={handleAddEditFile}
                       onRemove={removeEditFile}
                       uploading={editUploading}
+                      limites={limites}
                     />
                     <div className="flex justify-end gap-2">
                       <button type="button" onClick={annuler} style={{ padding: '6px 16px', fontSize: '0.85rem', borderRadius: 6, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', color: '#6b7280' }}>Annuler</button>

@@ -239,6 +239,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   // arrivés, les choix ne s'affichent pas : l'écran ne montre jamais une liste inventée.
   const [modes, setModes] = useState([])
   const [styles, setStyles] = useState([])
+  const [bornesDuree, setBornesDuree] = useState(null)   // { min, max } — réglages lus en base
   const [catalogueRate, setCatalogueRate] = useState(false)
   const [seanceId, setSeanceId] = useState(seance?.id || null)
   const [historiqueOuvert, setHistoriqueOuvert] = useState(false)   // fenêtre « Historique des versions »
@@ -255,9 +256,13 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   const [voirToutes, setVoirToutes] = useState(false)   // lever le filtre couple courant dans la fenêtre
 
   // Durée = UN champ libre en minutes (la combo de durées courantes a été supprimée le 30/07).
+  // Les bornes viennent du SERVEUR (réglages en base) : cet écran ne décide plus tout seul de
+  // ce qu'il accepte — il applique exactement ce que le serveur appliquera. Tant qu'elles ne
+  // sont pas arrivées, la génération n'est pas offerte : on ne valide pas au jugé.
   const duree = parseInt(dureeSaisie, 10) || 0
+  const dureeOk = !!bornesDuree && duree >= bornesDuree.min && duree <= bornesDuree.max
   const texteOk = !!theme.trim()
-  const cadreOk = !!mode && duree >= 5 && duree <= 300
+  const cadreOk = !!mode && dureeOk
   const pretAGenerer = texteOk && cadreOk
   // Remplissage des cartouches FACULTATIVES ② et ③ — pilote leur pastille verte et l'étape
   // « Affinage » de la frise ; ne conditionne jamais la génération.
@@ -357,6 +362,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       const d = await lireReponse(await apiFetch('/api/contenus/seances/formulaire', { credentials: 'include' }, TIMEOUT_STD))
       setModes(d.modes || [])
       setStyles(d.styles || [])
+      setBornesDuree({ min: d.duree_min, max: d.duree_max })
     } catch (err) {
       setCatalogueRate(true)
       showError(messagePourEcran(err))
@@ -494,8 +500,10 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       showError('Choisissez un mode de séance avant de générer.')
       return
     }
-    if (!(duree >= 5 && duree <= 300)) {
-      showError('Indiquez une durée entre 5 et 300 minutes.')
+    if (!dureeOk) {
+      showError(bornesDuree
+        ? `Indiquez une durée entre ${bornesDuree.min} et ${bornesDuree.max} minutes.`
+        : "Les réglages de l'écran n'ont pas pu être chargés. Réessayez de charger la page.")
       return
     }
     setResultat(null)
@@ -686,7 +694,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                     <InfoGuide
                       titre="Infos de base"
                       court="L'obligatoire pour générer : le thème, le mode et la durée — plus le contexte de votre classe si vous voulez."
-                      long={"Décrivez le THÈME ou l'objectif de la séance : c'est lui qui guide toute la génération. Remplissez la zone comme vous voulez : au clavier, en important un fichier TXT / une image / un PDF, en dictant au micro — ou laissez « Propose-moi un thème » l'écrire depuis le programme officiel de votre niveau.\n\nLe CONTEXTE RAPIDE (optionnel) décrit votre classe : effectif, ambiance, ce qui a bloqué la dernière fois… Il affine la séance, et c'est lui qui donne tout son sens au mode Remédiation.\n\nChoisissez ensuite le MODE (rien n'est pré-coché) et indiquez la DURÉE en minutes (5 à 300). Thème, mode et durée sont les trois champs nécessaires pour générer : la cartouche passe au vert quand ils sont là."}
+                      long={"Décrivez le THÈME ou l'objectif de la séance : c'est lui qui guide toute la génération. Remplissez la zone comme vous voulez : au clavier, en important un fichier TXT / une image / un PDF, en dictant au micro — ou laissez « Propose-moi un thème » l'écrire depuis le programme officiel de votre niveau.\n\nLe CONTEXTE RAPIDE (optionnel) décrit votre classe : effectif, ambiance, ce qui a bloqué la dernière fois… Il affine la séance, et c'est lui qui donne tout son sens au mode Remédiation.\n\nChoisissez ensuite le MODE (rien n'est pré-coché) et indiquez la DURÉE en minutes" + (bornesDuree ? ` (${bornesDuree.min} à ${bornesDuree.max})` : "") + ". Thème, mode et durée sont les trois champs nécessaires pour générer : la cartouche passe au vert quand ils sont là."}
                     />
                     <button
                       type="button"
@@ -806,13 +814,15 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                           padding 5px, bordure 1.5px, rayon 5) — même hauteur de ligne. */}
                       <input
                         type="number"
-                        min="5"
-                        max="300"
+                        min={bornesDuree?.min}
+                        max={bornesDuree?.max}
                         value={dureeSaisie}
                         onChange={e => setDureeSaisie(e.target.value)}
                         placeholder="minutes"
-                        disabled={loading}
-                        title="Durée de la séance en minutes — entre 5 et 300"
+                        disabled={loading || !bornesDuree}
+                        title={bornesDuree
+                          ? `Durée de la séance en minutes — entre ${bornesDuree.min} et ${bornesDuree.max}`
+                          : 'Durée de la séance en minutes'}
                         style={{ width: 90, padding: '5px 10px', fontSize: 12, color: '#1e293b',
                                  border: '1.5px solid #e2e8f0', borderRadius: 5, background: '#fff',
                                  fontFamily: 'inherit', boxSizing: 'border-box' }}

@@ -4,6 +4,8 @@ import { GUIDE_CREER } from '../utils/aideCreer.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { couleurStatut } from '../utils/statutsFeedback.js'
+import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
+import { listeFormats } from '../utils/piecesJointes.js'
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -250,6 +252,19 @@ const StatutsFeedback = () => {
         )
       })}
     </div>
+  )
+}
+
+// Ce que l'aide ANNONCE sur les pièces jointes doit être ce que le serveur fait respecter :
+// la phrase se construit sur les valeurs lues en base (mêmes que celles de « Mes retours »).
+// Elle promettait « max 5 Mo, 5 fichiers » depuis un texte figé — une limite changée en base
+// aurait laissé cette page mentir au prof. Tant que la lecture n'a pas répondu, la phrase ne
+// s'affiche pas : mieux vaut ne rien annoncer qu'annoncer un chiffre inventé.
+const LimitesPiecesJointes = () => {
+  const { limites } = useLimitesPiecesJointes()
+  if (!limites) return null
+  return (
+    <>Formats acceptés : {listeFormats(limites)} — max {limites.taille_max_mo} Mo, {limites.nombre_max} fichiers.</>
   )
 }
 
@@ -769,7 +784,7 @@ const sections = [
         <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1e40af' }}>
           <strong>Joindre une capture d'écran</strong> — Pour illustrer un problème, utilisez le raccourci Windows{' '}
           <kbd style={{ background: '#dbeafe', border: '1px solid #bfdbfe', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace' }}>Win+Maj+S</kbd>{' '}
-          pour capturer une zone de votre écran, enregistrez l'image sur votre bureau, puis joignez-la via <strong>Parcourir</strong>. Formats acceptés : PNG, JPEG, PDF, TXT — max 5 Mo, 5 fichiers.
+          pour capturer une zone de votre écran, enregistrez l'image sur votre bureau, puis joignez-la via <strong>Parcourir</strong>. <LimitesPiecesJointes />
         </div>
 
         <div>

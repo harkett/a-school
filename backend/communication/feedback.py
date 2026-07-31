@@ -12,7 +12,7 @@ from backend.communication import echange
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, FeedbackStatut, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.systeme.admin import codes_statuts_modifiables, labels_statuts
+from backend.systeme.admin import _reglage_entier, codes_statuts_modifiables, labels_statuts
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
 router = APIRouter()
@@ -21,13 +21,40 @@ logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path("data/uploads/feedbacks")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Formats acceptés : type MIME -> extension. Reste du code (et non en base) parce que ce
+# n'est pas un choix de gestion mais une capacité technique — ce sont les formats que la
+# chaîne sait réellement recevoir et servir. L'écran ne les recopie plus : il les LIT ici,
+# par /feedback/limites.
 ALLOWED_TYPES = {
     "image/png":        ".png",
     "image/jpeg":       ".jpg",
     "application/pdf":  ".pdf",
     "text/plain":       ".txt",
 }
-MAX_SIZE = 5 * 1024 * 1024  # 5 Mo
+# Libellés des formats tels qu'on les annonce au prof (« PNG, JPEG, PDF, TXT ») — dérivés des
+# extensions ci-dessus, jamais réécrits à la main.
+FORMATS_LISIBLES = [e.lstrip(".").upper().replace("JPG", "JPEG") for e in ALLOWED_TYPES.values()]
+
+
+def _limites_pieces_jointes(db: Session) -> tuple[int, int]:
+    """(taille max en Mo, nombre max de fichiers) — SEMÉS PAR MIGRATION, lus en base.
+    Ces deux nombres étaient écrits dans le code du serveur ET recopiés dans l'écran."""
+    return (_reglage_entier(db, "feedback_piece_jointe_max_mo", 1),
+            _reglage_entier(db, "feedback_pieces_jointes_max", 1))
+
+
+@router.get("/feedback/limites", status_code=200)
+def limites_pieces_jointes(db: Session = Depends(get_db)):
+    """Ce que l'écran a le droit de joindre : taille, nombre, formats. L'écran LIT ces valeurs
+    au lieu de les connaître — sinon changer la limite en base n'aurait changé que la moitié de
+    l'application, et le prof lirait « max 5 Mo » en se faisant refuser à 4."""
+    taille_mo, nombre = _limites_pieces_jointes(db)
+    return {
+        "taille_max_mo": taille_mo,
+        "nombre_max": nombre,
+        "mime_acceptes": list(ALLOWED_TYPES.keys()),
+        "formats_lisibles": FORMATS_LISIBLES,
+    }
 
 
 class FeedbackBody(BaseModel):
@@ -82,15 +109,17 @@ def lister_statuts(db: Session = Depends(get_db)):
 async def upload_attachment(
     file: UploadFile = File(...),
     aschool_access: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
 ):
     _get_email(aschool_access)  # auth uniquement
 
     if file.content_type not in ALLOWED_TYPES:
-        raise HTTPException(400, "Format non accepté. Seuls PNG, JPEG, PDF et TXT sont autorisés.")
+        raise HTTPException(400, f"Format non accepté. Seuls {', '.join(FORMATS_LISIBLES)} sont autorisés.")
 
+    taille_mo, _ = _limites_pieces_jointes(db)
     content = await file.read()
-    if len(content) > MAX_SIZE:
-        raise HTTPException(400, "Fichier trop volumineux. Maximum 5 Mo.")
+    if len(content) > taille_mo * 1024 * 1024:
+        raise HTTPException(400, f"Fichier trop volumineux. Maximum {taille_mo} Mo.")
 
     ext = ALLOWED_TYPES[file.content_type]
     filename = f"{uuid.uuid4().hex}{ext}"
@@ -139,6 +168,17 @@ def get_attachment(
     return FileResponse(str(path))
 
 
+def _controler_nombre_pieces(db: Session, chemins: str | None) -> None:
+    """Le nombre de pièces jointes était contrôlé UNIQUEMENT par le navigateur : une limite que
+    seul l'écran fait respecter n'est pas une limite. Le serveur la fait respecter aussi, sur la
+    même valeur en base — le prof, lui, ne voit aucune différence (l'écran l'arrête avant)."""
+    if not chemins:
+        return
+    _, nombre_max = _limites_pieces_jointes(db)
+    if len([c for c in chemins.split(",") if c.strip()]) > nombre_max:
+        raise HTTPException(400, f"Vous ne pouvez pas joindre plus de {nombre_max} fichiers à un retour.")
+
+
 # ── Soumettre un feedback ──────────────────────────────────────────────────────
 
 @router.post("/feedback", status_code=200)
@@ -148,6 +188,7 @@ def submit_feedback(
     aschool_access: str | None = Cookie(default=None),
 ):
     email = _get_email(aschool_access)
+    _controler_nombre_pieces(db, body.attachment_path)
 
     fb = Feedback(
         type=body.type,
@@ -278,6 +319,7 @@ def update_feedback(
         raise HTTPException(403, "Ce feedback ne vous appartient pas.")
     if (fb.statut or "nouveau") not in codes_statuts_modifiables(db):
         raise HTTPException(400, "Ce feedback ne peut plus être modifié.")
+    _controler_nombre_pieces(db, body.attachment_path)
 
     fb.message         = body.message
     fb.category        = body.category

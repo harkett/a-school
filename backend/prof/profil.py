@@ -11,6 +11,7 @@ from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models_db import CahierProf, Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
 from backend.core.nommage import dossier_cle as _dossier_cle
+from backend.systeme.admin import _reglage_entier
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -308,8 +309,11 @@ async def deposer_mon_cahier(file: UploadFile = File(...), aschool_access: str =
         raise HTTPException(422, "Le fichier est vide.")
     if not content[:4] == b"%PDF":
         raise HTTPException(422, "Ce fichier n'est pas un vrai PDF.")
-    if len(content) > 20 * 1024 * 1024:
-        raise HTTPException(413, "Le PDF dépasse 20 Mo — merci d'en déposer un plus léger.")
+    # Plafond de taille du cahier des charges : réglage EN BASE (semé par migration), plus un
+    # nombre écrit ici. Le prof ne voit ce plafond que dans ce message — d'où le libellé calculé.
+    max_mo = _reglage_entier(db, "cahier_max_mo", 1)
+    if len(content) > max_mo * 1024 * 1024:
+        raise HTTPException(413, f"Le PDF dépasse {max_mo} Mo — merci d'en déposer un plus léger.")
     dossier = _cahier_pdf_path(user).parent
     dossier.mkdir(parents=True, exist_ok=True)
     _cahier_pdf_path(user).write_bytes(content)

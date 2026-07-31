@@ -31,8 +31,9 @@ from backend.llm.prompts import ajouter_cahier_au_prompt
 from backend.rag.pgvector_store import retrieve_pg
 from backend.supervision.incidents import creer_incident
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature,
-    get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt, get_rag_top_k,
+    _reglage_entier, get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+    get_temperature, get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
+    get_rag_top_k,
 )
 
 router = APIRouter()
@@ -609,19 +610,29 @@ def styles_seance(db: Session) -> list[SeanceStyle]:
     return _catalogue(db, SeanceStyle, "styles de production")
 
 
+def bornes_duree_seance(db: Session) -> tuple[int, int]:
+    """(durée mini, durée maxi) d'une séance, en minutes — SEMÉES PAR MIGRATION, lues en base.
+    Ces deux nombres étaient écrits dans le serveur ET à trois endroits de l'écran Séance."""
+    return (_reglage_entier(db, "seance_duree_min", 1),
+            _reglage_entier(db, "seance_duree_max", 1))
+
+
 @router.get("/contenus/seances/formulaire")
 def formulaire_seance(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Les listes de référence dont l'écran Séance a besoin pour se dessiner : modes et styles
-    de production, avec leur libellé et la phrase qui les explique. L'écran ne connaît plus
-    aucune de ces valeurs — il les lit ici."""
+    """Tout ce dont l'écran Séance a besoin pour se dessiner ET pour contrôler la saisie : les
+    modes, les styles, et les bornes de durée. L'écran ne connaît plus aucune de ces valeurs —
+    il les lit ici, à la même source que celle sur laquelle le serveur refusera ou acceptera."""
+    duree_min, duree_max = bornes_duree_seance(db)
     return {
         "modes": [{"code": m.code, "label": m.label, "description": m.description}
                   for m in modes_seance(db)],
         "styles": [{"code": s.code, "label": s.label, "description": s.description}
                    for s in styles_seance(db)],
+        "duree_min": duree_min,
+        "duree_max": duree_max,
     }
 
 
@@ -678,8 +689,9 @@ def _valider_generation(req: SeanceGeneration, db: Session) -> None:
     qu'à un seul endroit, et c'est celui que l'écran affiche."""
     if not req.theme.strip():
         raise HTTPException(400, "Décrivez d'abord le thème ou l'objectif de la séance.")
-    if not (5 <= req.duree <= 300):
-        raise HTTPException(400, "Indiquez une durée entre 5 et 300 minutes.")
+    duree_min, duree_max = bornes_duree_seance(db)
+    if not (duree_min <= req.duree <= duree_max):
+        raise HTTPException(400, f"Indiquez une durée entre {duree_min} et {duree_max} minutes.")
     if req.mode not in {m.code for m in modes_seance(db)}:
         raise HTTPException(400, "Choisissez un mode de séance.")
     if req.style is not None and req.style not in {s.code for s in styles_seance(db)}:
