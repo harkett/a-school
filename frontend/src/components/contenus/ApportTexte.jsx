@@ -27,6 +27,14 @@ const NB_BARS = 12  // nombre de barres du visualiseur de volume (comme TexteSou
 // la rangée vit dans l'en-tête de la cartouche, face au titre, elle doit rester discrète.
 const PETIT = { fontSize: '0.75rem', padding: '0.32rem 0.65rem' }
 
+// Le SABLIER de la règle maison (« tout appel IA montre le sablier ET la jauge ») : le bouton
+// qui tourne. Une seule définition ici — il était recopié inline à chaque endroit.
+const IconSablier = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+  </svg>
+)
+
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -377,7 +385,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           title="Extraire le texte d'une image (scan, photo de document)"
           style={ocrLoading === 'image' ? { ...PETIT, opacity: 0.6, pointerEvents: 'none' } : PETIT}
         >
-          <IconImage />
+          {ocrLoading === 'image' ? <IconSablier /> : <IconImage />}
           {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
           <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
             onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
@@ -389,7 +397,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
           style={ocrLoading === 'pdf' ? { ...PETIT, opacity: 0.6, pointerEvents: 'none' } : PETIT}
         >
-          <IconPdf />
+          {ocrLoading === 'pdf' ? <IconSablier /> : <IconPdf />}
           {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
           <input type="file" accept="application/pdf,.pdf" className="hidden"
             onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
@@ -418,7 +426,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
                 : PETIT
           }
         >
-          <IconMic active={isListening} />
+          {isTranscribing ? <IconSablier /> : <IconMic active={isListening} />}
           {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
         </button>
 
@@ -430,9 +438,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           disabled={propLoading}
           style={propLoading ? { ...PETIT, opacity: 0.6, cursor: 'wait' } : PETIT}
         >
-          {propLoading
-            ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-            : <IconIdee />}
+          {propLoading ? <IconSablier /> : <IconIdee />}
           {propLoading ? 'Génération…' : proposer.label}
         </button>
       </div>
@@ -462,18 +468,21 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           <span>Enregistrement en cours — cliquez « Arrêter » quand vous avez terminé.</span>
         </div>
       )}
-      {isTranscribing && (
-        <div style={{ padding: '7px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: 12, color: '#475569', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-          </svg>
-          <span>Transcription de votre dictée…</span>
-        </div>
-      )}
-      {/* Jauge du bouton « Propose-moi… » — règle IA (sablier ET jauge), même geste que
-          « Propose-moi une idée » de l'activité (TexteSource). Libellé propre à la zone. */}
+      {/* Jauges IA — règle maison (sablier ET jauge) : TOUS les appels IA de cette zone
+          l'ont, « Propose-moi… » comme les deux OCR et la transcription de la dictée.
+          La préparation du micro et l'enregistrement, eux, ne sont pas des appels IA :
+          ils gardent leurs bandeaux (barres de volume, chrono). */}
       {propLoading && (
         <JaugeAttente libelle={proposer.jauge} />
+      )}
+      {ocrLoading === 'image' && (
+        <JaugeAttente libelle="aSchool lit votre image et en extrait le texte…" />
+      )}
+      {ocrLoading === 'pdf' && (
+        <JaugeAttente libelle="aSchool lit votre PDF et en extrait le texte…" />
+      )}
+      {isTranscribing && (
+        <JaugeAttente libelle="aSchool transcrit votre dictée — le texte s'insérera à la fin…" />
       )}
     </div>
   )

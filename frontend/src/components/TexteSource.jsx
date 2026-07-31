@@ -28,6 +28,14 @@ const NOTES_SOURCE_CAHIER = {
   exemple: "Exemple généré depuis le référentiel officiel de votre niveau ET le cahier des charges de votre établissement — adaptez-le si besoin.",
 }
 
+// Le SABLIER de la règle maison (« tout appel IA montre le sablier ET la jauge ») : le bouton
+// qui tourne. Une seule définition ici — il était recopié inline à chaque endroit.
+const IconSablier = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
+    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+  </svg>
+)
+
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -548,7 +556,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             title="Extraire le texte d'une image (scan, photo de document)"
             style={ocrLoading === 'image' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
           >
-            <IconImage />
+            {ocrLoading === 'image' ? <IconSablier /> : <IconImage />}
             {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
             <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
               onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
@@ -560,7 +568,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             title="Extraire le texte d'un PDF (PDF numérique uniquement — pas les PDF scannés)"
             style={ocrLoading === 'pdf' ? { opacity: 0.6, pointerEvents: 'none' } : enRetrait}
           >
-            <IconPdf />
+            {ocrLoading === 'pdf' ? <IconSablier /> : <IconPdf />}
             {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
             <input type="file" accept="application/pdf,.pdf" className="hidden"
               onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
@@ -579,9 +587,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             disabled={exempleLoading}
             style={exempleLoading ? { opacity: 0.6, cursor: 'wait' } : enRetrait}
           >
-            {exempleLoading
-              ? <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/></svg>
-              : <IconExemple />}
+            {exempleLoading ? <IconSablier /> : <IconExemple />}
             {exempleLoading ? 'Génération…' : "Document d'exemple"}
           </button>
 
@@ -607,7 +613,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
                   : {}
             }
           >
-            <IconMic active={isListening} />
+            {isTranscribing ? <IconSablier /> : <IconMic active={isListening} />}
             {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
           </button>
 
@@ -734,32 +740,23 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         </div>
       )}
 
-      {/* Jauge IA — même patron que côté admin : montée UNIQUEMENT pendant l'appel IA. */}
+      {/* Jauge IA — même patron que côté admin : montée UNIQUEMENT pendant l'appel IA.
+          TOUS les appels IA de cette carte l'ont désormais : exemple, idée, les deux OCR et
+          la transcription de la dictée (règle maison : sablier ET jauge, jamais un écran figé). */}
       {exempleLoading && (
         <JaugeAttente libelle="aSchool prépare un document d'exemple tiré du programme officiel de votre niveau…" />
       )}
       {ideeLoading && (
         <JaugeAttente libelle="aSchool lit le programme officiel de votre niveau et prépare une idée…" />
       )}
-
+      {ocrLoading === 'image' && (
+        <JaugeAttente libelle="aSchool lit votre image et en extrait le texte…" />
+      )}
+      {ocrLoading === 'pdf' && (
+        <JaugeAttente libelle="aSchool lit votre PDF et en extrait le texte…" />
+      )}
       {isTranscribing && (
-        <div style={{
-          marginTop: 6,
-          padding: '7px 12px',
-          background: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: 6,
-          fontSize: 12,
-          color: '#1d4ed8',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-          </svg>
-          <span>Transcription en cours… le texte va s'insérer à la fin.</span>
-        </div>
+        <JaugeAttente libelle="aSchool transcrit votre dictée — le texte s'insérera à la fin…" />
       )}
 
       </>)}
