@@ -90,7 +90,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PROJECT_DIR:-/d/A-SCHOOL}/.claude/rappel-faire-completement.txt\" 2>/dev/null || true"
+            "command": "cat \"$CLAUDE_PROJECT_DIR/.claude/rappel-faire-completement.txt\""
           }
         ]
       }
