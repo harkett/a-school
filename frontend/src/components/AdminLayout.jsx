@@ -47,6 +47,20 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  // — Prompts (sortis de Système → Génération LLM le 31/07) : un prompt n'est pas de la plomberie,
+  //   c'est le texte qui décide de ce que le prof reçoit — sa place est près du contenu pédagogique.
+  {
+    to:    '/admin/prompts',
+    label: 'Prompts',
+    aide:  'Les textes d’instruction envoyés à l’IA, un par outil : choisir l’outil, modifier son prompt, ou revenir au prompt par défaut. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 7V4h16v3"/>
+        <path d="M9 20h6"/>
+        <path d="M12 4v16"/>
+      </svg>
+    ),
+  },
   // — Profs & communication —
   {
     group:  true,

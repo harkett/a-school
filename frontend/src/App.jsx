@@ -36,6 +36,7 @@ import AdminLogs from './pages/AdminLogs'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
+import AdminPrompts from './pages/AdminPrompts'
 import AdminParametresEmail from './pages/AdminParametresEmail'
 import AdminParametres from './pages/AdminParametres'
 import AdminSessions from './pages/AdminSessions'
@@ -699,6 +700,7 @@ export default function App() {
             <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
+            <Route path="prompts" element={<AdminPrompts />} />{/* contenu pédagogique, pas plomberie : sorti de Système → Génération LLM */}
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />
             <Route path="alertes"    element={<AdminAlertes />} />
