@@ -477,7 +477,7 @@ const sections = [
         ))}
         <hr className="border-gray-100" />
         <p className="text-xs rounded-md px-3 py-2" style={{ background: '#f8fafc', color: '#64748b', borderLeft: '3px solid #cbd5e1' }}>
-          aSchool apprend votre style : à partir de la 3e sauvegarde d'un même type, il adapte automatiquement sa formulation à votre façon d'enseigner — sans rien configurer.
+          aSchool apprend votre style : à partir de la 3e activité d'un même type et d'un même niveau, il adapte automatiquement sa formulation à votre façon d'enseigner — sans rien configurer.
         </p>
       </div>
     ),
@@ -603,9 +603,9 @@ const sections = [
     contenu: (
       <div className="flex flex-col gap-4 text-sm text-gray-600">
         <p>
-          Chaque activité que vous sauvegardez est un exemple que aSchool retient.
-          À partir du <strong>3e exemple du même type</strong>, il reconnaît votre façon
-          de travailler et génère un résultat dans votre style.
+          Chaque activité que vous créez est un exemple que aSchool retient.
+          À partir du <strong>3e exemple du même type et du même niveau</strong>, il reconnaît
+          votre façon de travailler et génère un résultat dans votre style.
         </p>
         <p className="text-xs text-gray-400 italic">Rien à configurer — cela se fait automatiquement.</p>
         <div className="rounded-lg overflow-hidden border border-gray-200">

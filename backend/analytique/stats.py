@@ -7,7 +7,7 @@ from sqlalchemy import func
 from backend.core.database import get_db
 from backend.core.models_db import Activite, ConnexionLog, Seance, Sequence, User
 from backend import auth as auth_lib
-from backend.systeme.admin import _require_admin, get_minutes_par_activite
+from backend.systeme.admin import _require_admin, get_minutes_par_activite, get_few_shot_seuil
 
 router = APIRouter()
 
@@ -189,8 +189,21 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
         .first()
     )
     type_favori = type_row[0] if type_row else None
-    max_par_type = type_row[1] if type_row else 0
-    score_adaptation = 0 if max_par_type == 0 else min(100, int(max_par_type / 3 * 100))
+
+    # « aSchool vous connaît à X% » : la jauge suit EXACTEMENT ce qui déclenche le few-shot à
+    # la génération (activites.few_shot_du_prof), c'est-à-dire le meilleur groupe type × couple
+    # — et non le type toutes classes confondues. Sinon la jauge annoncerait « style reconnu »
+    # alors que rien ne s'appliquerait. Le seuil est EN BASE (few_shot_seuil), plus de « 3 » en dur.
+    seuil = get_few_shot_seuil(db)
+    meilleur_groupe = (
+        db.query(func.count().label("nb"))
+        .filter(Activite.user_id == uid, Activite.resultat != "")
+        .group_by(Activite.activite_type_id, Activite.matiere, Activite.niveau)
+        .order_by(func.count().desc())
+        .first()
+    )
+    max_par_type = meilleur_groupe[0] if meilleur_groupe else 0
+    score_adaptation = min(100, int(max_par_type / seuil * 100))
 
     total_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
     heures_gagnees = (total_activites * get_minutes_par_activite(db)) // 60
@@ -209,6 +222,9 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
         "type_favori": type_favori,
         "heures_gagnees": heures_gagnees,
         "score_adaptation": score_adaptation,
+        # Le seuil part à l'écran : la phrase sous la jauge (« Créez N activités du même
+        # type… ») le lit au lieu de le recopier en dur.
+        "few_shot_seuil": seuil,
     }
 
 

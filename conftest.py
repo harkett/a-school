@@ -73,6 +73,7 @@ _assert_test_engine()
 
 # --- Schéma sur aschool_test (l'extension vector existe déjà ; create_all fait le reste) ---
 from backend.core import models_db  # noqa: E402
+from backend.core.llm_prompts import PROMPTS as _PROMPTS  # noqa: E402
 
 with _test_engine.begin() as _conn:
     _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -108,6 +109,14 @@ _CATALOGUES_SEED = {
         {"code": "outil-retire", "label": "Outil retiré", "description": "Carte retirée de l'écran.",
          "categorie": "Autre", "icone": "fusee", "ordre": 2, "actif": False},
     ],
+    # Réglages de `settings` SEMÉS PAR MIGRATION, que le code lit SANS défaut (get_few_shot_seuil
+    # lève une erreur claire si la ligne manque — règle maison : base vide = erreur, pas repli).
+    # Sans eux ici, la génération et Mes stats répondraient 500 dans les tests, à juste titre.
+    "settings": [
+        {"key": "few_shot_seuil", "value": "3"},
+        {"key": "few_shot_extrait_max", "value": "3000"},
+        {"key": "prompt_few_shot", "value": _PROMPTS["few_shot"]["default"]},
+    ],
 }
 
 
@@ -127,6 +136,12 @@ def _seed_catalogues():
                     "INSERT INTO ai_fournisseurs (code, label, actif, ordre, cle_env) "
                     "VALUES (:code, :label, :actif, :ordre, :cle_env) ON CONFLICT (code) DO NOTHING"
                 ),
+                row,
+            )
+        for row in _CATALOGUES_SEED["settings"]:
+            conn.execute(
+                text("INSERT INTO settings (key, value) VALUES (:key, :value) "
+                     "ON CONFLICT (key) DO NOTHING"),
                 row,
             )
         for row in _CATALOGUES_SEED["features_votables"]:

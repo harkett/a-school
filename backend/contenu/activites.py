@@ -19,7 +19,8 @@ from backend import auth as auth_lib
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
-    Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision, TypeParametre, User,
+    Activite, Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision,
+    TypeParametre, User,
 )
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
@@ -29,6 +30,7 @@ from backend.supervision.incidents import creer_incident
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
     get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
+    get_few_shot_seuil, get_few_shot_extrait_max,
 )
 
 router = APIRouter()
@@ -43,6 +45,40 @@ _USER_PARAMS = {
     "sous_type": "le type d'exercice",
     "langue": "la langue vivante",
 }
+
+
+def few_shot_du_prof(db: Session, user: User, activite_type_id: int,
+                     matiere: str | None, niveau: str) -> str:
+    """Le style du prof, tiré de SES activités précédentes — le « aSchool vous reconnaît » que
+    l'application promet (astuce de l'Accueil, jauge de Mes stats).
+
+    On ne prend que les activités du MÊME type et du MÊME couple (matière + niveau) : ses
+    résumés n'influencent pas ses analyses, et son français de 6e n'influence pas sa 3e. En
+    dessous du seuil (`few_shot_seuil`, en base — 3 aujourd'hui), on ne renvoie RIEN : deux
+    exemples ne font pas un style, et le prof n'a encore rien vu se déclencher dans Mes stats.
+
+    Renvoie la couche de prompt prête à coller, ou une chaîne vide (aucune couche ajoutée).
+    """
+    seuil = get_few_shot_seuil(db)
+    precedentes = (
+        db.query(Activite.resultat, Activite.activite_label)
+        .filter(Activite.user_id == user.id,
+                Activite.activite_type_id == activite_type_id,
+                Activite.matiere == matiere,
+                Activite.niveau == niveau,
+                Activite.resultat != "")
+        .order_by(Activite.created_at.desc())
+        .limit(seuil)
+        .all()
+    )
+    if len(precedentes) < seuil:
+        return ""
+    taille = get_few_shot_extrait_max(db)
+    exemples = "\n\n".join(
+        f"--- Exemple {i} ({label}) ---\n{(resultat or '')[:taille]}"
+        for i, (resultat, label) in enumerate(precedentes, start=1)
+    )
+    return get_prompt(db, "few_shot").format(exemples=exemples)
 
 
 def _trous_du_prompt(modele: str | None) -> list[str]:
@@ -359,6 +395,15 @@ def api_generate(
     # applique les règles de l'école PAR-DESSUS le programme. Pas de cahier (ou texte vide) → prompt
     # inchangé (aucune régression). Même geste que « Document d'exemple » et « Propose-moi une idée ».
     prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+
+    # 5 bis 2. FEW-SHOT « aSchool vous reconnaît » : à partir de `few_shot_seuil` activités du
+    # même type ET du même couple, les précédentes sont données en exemple de SA manière (ton,
+    # formulation, mise en page). En dessous du seuil, aucune couche — c'est exactement ce que
+    # la jauge de Mes stats et l'astuce de l'Accueil annoncent au prof. Placé après le cahier
+    # (le style s'applique par-dessus le fond) et avant le corrigé, le ton et le contrôle qualité.
+    few_shot = few_shot_du_prof(db, user, t.id, matiere, niveau)
+    if few_shot:
+        prompt = prompt + "\n\n" + few_shot
 
     # 5 ter. Corrigé : case « Inclure une proposition de correction » cochée → la consigne du
     # corrigé (registre des prompts admin, lue en base à l'appel) s'ajoute à la FIN du prompt

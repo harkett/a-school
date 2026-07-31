@@ -383,6 +383,32 @@ def get_minutes_par_activite(db: Session) -> int:
         return int(SETTING_DEFAULTS["stats_minutes_par_activite"])
 
 
+def _reglage_entier(db: Session, cle: str, minimum: int) -> int:
+    """Réglage NUMÉRIQUE dont la valeur initiale est SEMÉE par migration — pas de défaut code
+    (règle maison : la base est la source unique, une base vide est une erreur qu'on dit, pas
+    un cas qu'on rattrape en douce). Ligne absente ou valeur inexploitable -> 500 explicite."""
+    row = db.query(Setting).filter(Setting.key == cle).first()
+    try:
+        valeur = int((row.value or "").strip())
+    except (AttributeError, TypeError, ValueError):
+        raise HTTPException(500, f"Réglage « {cle} » absent ou illisible en base (migration non appliquée ?).")
+    if valeur < minimum:
+        raise HTTPException(500, f"Réglage « {cle} » invalide en base (attendu : au moins {minimum}).")
+    return valeur
+
+
+def get_few_shot_seuil(db: Session) -> int:
+    """Nombre d'activités du même type ET du même couple à partir duquel la génération
+    s'inspire du style du prof (few-shot). Semé à 3 par migration — c'est ce que l'astuce
+    de l'Accueil promet au prof, et ce que Mes stats affiche."""
+    return _reglage_entier(db, "few_shot_seuil", minimum=1)
+
+
+def get_few_shot_extrait_max(db: Session) -> int:
+    """Nombre de caractères gardés par activité donnée en exemple au few-shot."""
+    return _reglage_entier(db, "few_shot_extrait_max", minimum=200)
+
+
 def get_prompt(db: Session, key: str) -> str:
     """Prompt courant d'un outil : surcharge base `prompt_<key>` si présente et non vide,
     sinon défaut code (llm_prompts.PROMPTS). Lu par requête -> rechargeable à chaud. Le contenu

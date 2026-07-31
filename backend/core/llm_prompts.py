@@ -608,6 +608,19 @@ PROMPT_TON_OPERATIONNEL = """TON DE RÉDACTION — OPÉRATIONNEL
 Rédige toute l'activité (titre, consignes, énoncés, et le corrigé s'il y en a un) dans un registre OPÉRATIONNEL : clair, net et direct, à la manière d'un professeur qui parle à sa classe. Phrases courtes, consignes directes (verbe d'action en tête), vocabulaire simple et concret. Va droit à l'essentiel sans appauvrir le contenu ni sauter d'étape. N'ajoute aucun commentaire sur le ton employé : rends uniquement l'activité."""
 
 
+# Few-shot « aSchool vous reconnaît » : couche ajoutée à la génération quand ce prof a déjà
+# produit assez d'activités DU MÊME TYPE pour le MÊME couple (seuil `few_shot_seuil`, en base).
+# Les exemples montrent SA manière ; ils ne doivent jamais déteindre sur le contenu demandé,
+# d'où la consigne explicite de ne rien recopier.
+PROMPT_FEW_SHOT = """LA MANIÈRE DE CE PROFESSEUR
+
+Voici des activités que ce professeur a déjà produites et gardées. Elles montrent SA façon de faire : ton employé, formulation des consignes, longueur des énoncés, mise en page, niveau de langue, habitudes de présentation.
+
+{exemples}
+
+Inspire-toi de ces exemples pour la MANIÈRE, jamais pour le CONTENU. L'activité à produire porte sur le texte source donné plus haut, et sur lui seul : ne reprends aucune question, aucun énoncé, aucun extrait de ces exemples. N'ajoute aucun commentaire sur ces exemples : rends uniquement l'activité demandée."""
+
+
 PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
 
 Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
@@ -786,5 +799,10 @@ PROMPTS = {
         "label": "Ton de rédaction — opérationnel (bouton « Générer — ton opérationnel »)",
         "placeholders": [],
         "default": PROMPT_TON_OPERATIONNEL,
+    },
+    "few_shot": {
+        "label": "Few-shot « aSchool vous reconnaît » (activités précédentes du prof en exemple)",
+        "placeholders": ["exemples"],
+        "default": PROMPT_FEW_SHOT,
     },
 }

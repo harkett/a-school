@@ -22,8 +22,8 @@ const TIPS = [
       titre: 'Comment aSchool apprend votre style ?',
       lignes: [
         'Chaque activité que vous créez est enregistrée automatiquement — elle sert d\'exemple à aSchool.',
-        'À partir de la 3ème activité d\'un même type, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
-        'Cela fonctionne par type d\'activité : vos exemples de résumés n\'influencent pas vos analyses, et inversement.',
+        'À partir de la 3ème activité d\'un même type et d\'un même niveau, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
+        'Cela fonctionne par type d\'activité ET par classe : vos exemples de résumés n\'influencent pas vos analyses, et votre 6e n\'influence pas votre 3e.',
         'Plus vous créez, plus les activités générées vous ressemblent.',
       ],
     },

@@ -121,7 +121,7 @@ export default function MesStats() {
             </div>
             <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 5 }}>
               {perso.score_adaptation === 0
-                ? 'Créez 3 activités du même type pour l\'activer'
+                ? `Créez ${perso.few_shot_seuil} activités du même type, au même niveau, pour l'activer`
                 : perso.score_adaptation < 100
                   ? 'En cours d\'adaptation à votre style'
                   : 'Style reconnu — les activités vous ressemblent'}
