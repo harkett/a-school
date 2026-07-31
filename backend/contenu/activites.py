@@ -329,10 +329,10 @@ def api_proposer_idee(
         log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
         return ProposerIdeeResponse(available=False, message=_AUCUN_EXTRAIT_POUR_IDEE)
 
-    prompt = build_proposer_idee_prompt(chunks, type_label=t.label, precision=req.sous_type, niveau=niveau)
+    prompt = build_proposer_idee_prompt(db, chunks, type_label=t.label, precision=req.sous_type, niveau=niveau)
     # Cahier des charges de l'établissement (get, zéro copie) ajouté par-dessus le programme officiel —
     # même geste que générer. Pas de cahier → prompt inchangé.
-    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
@@ -414,7 +414,7 @@ def api_generate(
     # (cahiers_prof.texte_epure, get — zéro copie) est AJOUTÉ après le programme officiel — aSchool
     # applique les règles de l'école PAR-DESSUS le programme. Pas de cahier (ou texte vide) → prompt
     # inchangé (aucune régression). Même geste que « Document d'exemple » et « Propose-moi une idée ».
-    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
 
     # 5 bis 2. FEW-SHOT « aSchool vous reconnaît » : à partir de `few_shot_seuil` activités du
     # même type ET du même couple, les précédentes sont données en exemple de SA manière (ton,

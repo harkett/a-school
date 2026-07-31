@@ -1345,23 +1345,32 @@ class PromptBody(BaseModel):
 
 @router.get("/admin/prompts")
 def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Liste des prompts d'outils administrables : libellé, repères obligatoires, texte courant
-    (surcharge base ou défaut), et drapeau is_default + texte par défaut (pour « revenir au
-    défaut »). Les activités (catalogue) ne sont PAS ici."""
+    """Liste des prompts d'outils administrables : libellé, repères obligatoires, texte EN BASE,
+    et le texte de référence du registre (pour « revenir au défaut »). Les activités (catalogue)
+    ne sont PAS ici.
+
+    CET ÉCRAN EST LE DIAGNOSTIC. Depuis que `get_prompt` n'a plus de repli, un prompt absent de
+    la base fait tomber l'outil qui l'utilise : il faut donc pouvoir voir LEQUEL manque. D'où
+    `en_base` par ligne — et surtout, cet endpoint ne lève JAMAIS sur une clé absente. S'il
+    tombait en bloc, on perdrait l'écran par lequel on répare, exactement quand on en a besoin.
+    C'est la raison pour laquelle il lit `settings` directement au lieu d'appeler `get_prompt`."""
     s = get_settings_dict(db)
     out = []
     for key, meta in PROMPTS.items():
-        override = s.get(f"prompt_{key}", "")
-        actif = override if (override and override.strip()) else meta["default"]
+        en_base = s.get(f"prompt_{key}", "")
+        present = bool(en_base and en_base.strip())
         out.append({
             "key": key,
             "label": meta["label"],
             "placeholders": meta["placeholders"],
-            "current": actif,
+            # `current` = ce que le serveur utilisera VRAIMENT. Absent en base = plus rien à
+            # utiliser : on montre le texte de référence, mais `en_base` dit la vérité.
+            "current": en_base if present else meta["default"],
             "default": meta["default"],
-            "is_default": not (override and override.strip()),
+            "is_default": not present or en_base == meta["default"],
+            "en_base": present,
         })
-    return {"prompts": out}
+    return {"prompts": out, "manquants": [p["key"] for p in out if not p["en_base"]]}
 
 
 @router.put("/admin/prompts")

@@ -145,7 +145,13 @@ _CATALOGUES_SEED = {
     "settings": [
         {"key": "few_shot_seuil", "value": "3"},
         {"key": "few_shot_extrait_max", "value": "3000"},
-        {"key": "prompt_few_shot", "value": _PROMPTS["few_shot"]["default"]},
+        # TOUS les prompts du registre (étape 9 lot C) : `get_prompt` n'a plus de repli code,
+        # donc une clé non semée fait tomber l'outil qui l'utilise — ici comme en production.
+        # Semés depuis le registre : ce fichier monte le schéma par create_all, pas par
+        # migrations. Ce n'est PAS ce qui prouve la cohérence — la preuve, c'est
+        # tests/test_prompts_en_base.py, qui compare le registre à la liste GELÉE de la
+        # migration, pas à ce seed.
+        *({"key": f"prompt_{cle}", "value": meta["default"]} for cle, meta in _PROMPTS.items()),
         # Seuils métier sortis du code (étape 9 lot B) : sans eux, joindre un fichier, générer
         # une séance ou déposer un cahier répondraient 500 dans les tests — à juste titre.
         {"key": "feedback_piece_jointe_max_mo", "value": "5"},

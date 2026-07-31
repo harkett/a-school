@@ -621,6 +621,52 @@ Voici des activités que ce professeur a déjà produites et gardées. Elles mon
 Inspire-toi de ces exemples pour la MANIÈRE, jamais pour le CONTENU. L'activité à produire porte sur le texte source donné plus haut, et sur lui seul : ne reprends aucune question, aucun énoncé, aucun extrait de ces exemples. N'ajoute aucun commentaire sur ces exemples : rends uniquement l'activité demandée."""
 
 
+# ── Les trois textes qui vivaient HORS du registre (étape 9 lot C) ────────────────────────
+# `build_exemple_referentiel_prompt` et `build_proposer_idee_prompt` (llm/prompts.py) étaient
+# deux fonctions Python qui assemblaient leur prompt en f-string : deux boutons visibles du prof
+# — « Document d'exemple » et « Propose-moi une idée » — pilotés par un texte que l'admin ne
+# pouvait ni lire ni corriger, alors qu'il corrige les autres. Ils entrent au registre, donc en
+# base, donc dans l'écran d'administration des prompts.
+# La MISE EN FORME des extraits (l'entête « [Référentiel …, p.N] ») reste du code : ce n'est pas
+# de la consigne rédigée, c'est l'assemblage de ce que le RAG a ramené.
+
+PROMPT_EXEMPLE_REFERENTIEL = """Tu es enseignant·e en {matiere} pour le niveau « {niveau} ».
+
+À partir des EXTRAITS du référentiel officiel ci-dessous, rédige un TEXTE SOURCE court et concret (énoncé, situation professionnelle, document de travail) directement exploitable comme point de départ d'une activité pour ce niveau.
+Contraintes : reste dans le périmètre du référentiel ; ne recopie PAS la liste de compétences ; produis un vrai contenu (contexte, données, consigne), pas un sommaire.
+
+## Extraits du référentiel officiel — {matiere}, {niveau}
+
+{referentiel}
+
+## Texte source à rédiger
+"""
+
+
+# {quoi} = le type d'activité choisi, avec sa précision s'il y en a une (« Compréhension écrite
+# (précision : sur un texte documentaire) »). Composé côté serveur parce qu'il est CONDITIONNEL :
+# un gabarit ne sait pas dire « seulement si le prof a rempli ce champ ».
+PROMPT_PROPOSER_IDEE = """Tu es enseignant·e pour le niveau « {niveau} ».
+
+Un professeur a choisi le type d'activité {quoi} et cherche une idée de départ.
+À partir des EXTRAITS du référentiel officiel ci-dessous, propose UNE idée d'activité pour ce type d'activité, écrite comme la demande que le professeur taperait lui-même : 2 à 4 phrases concrètes (thème, support ou matériel, intention pédagogique), à la première personne ou à l'infinitif.
+Présentation : commence par UNE première ligne « Objet : » suivie d'un titre très court (3 à 8 mots) pour retrouver l'activité facilement, puis une ligne vide, puis la demande aérée en 2 ou 3 petits paragraphes séparés par une ligne vide — d'abord le matériel ou le support, puis le déroulement, puis l'objectif pédagogique.
+Contraintes : reste dans le périmètre du référentiel ; ne rédige PAS l'activité complète ; AUCUN titre, AUCUNE liste, AUCUNE autre mise en forme que ces lignes vides — uniquement le texte de la demande.
+
+## Extraits du référentiel officiel — {niveau}
+
+{referentiel}
+
+## Idée d'activité à proposer
+"""
+
+
+# L'intitulé sous lequel le cahier des charges de l'établissement est ajouté à un prompt de
+# génération. Une seule ligne, mais elle porte une DÉCISION pédagogique : la priorité entre les
+# règles de l'école et le programme officiel. Elle n'a rien à faire dans une constante Python.
+PROMPT_ENTETE_CAHIER = """Cahier des charges de l'établissement (à respecter par-dessus le programme officiel) :"""
+
+
 PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
 
 Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
@@ -804,5 +850,20 @@ PROMPTS = {
         "label": "Few-shot « aSchool vous reconnaît » (activités précédentes du prof en exemple)",
         "placeholders": ["exemples"],
         "default": PROMPT_FEW_SHOT,
+    },
+    "exemple_referentiel": {
+        "label": "Document d'exemple (texte source tiré du programme officiel)",
+        "placeholders": ["matiere", "niveau", "referentiel"],
+        "default": PROMPT_EXEMPLE_REFERENTIEL,
+    },
+    "proposer_idee": {
+        "label": "« Propose-moi une idée » (demande d'activité écrite à la place du prof)",
+        "placeholders": ["quoi", "niveau", "referentiel"],
+        "default": PROMPT_PROPOSER_IDEE,
+    },
+    "entete_cahier": {
+        "label": "Intitulé du cahier des charges de l'établissement (ajouté aux générations)",
+        "placeholders": [],
+        "default": PROMPT_ENTETE_CAHIER,
     },
 }

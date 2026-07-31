@@ -119,10 +119,10 @@ def api_exemple_referentiel(
         log.info(f"[exemple-ref] aucun chunk >= seuil {seuil} ({collection}, matiere='{matiere}') → available=false + message")
         return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
 
-    prompt = build_exemple_referentiel_prompt(chunks, matiere=matiere, niveau=niveau)
+    prompt = build_exemple_referentiel_prompt(db, chunks, matiere=matiere, niveau=niveau)
     # Cahier des charges de l'établissement (get, zéro copie) ajouté par-dessus le programme officiel —
     # même geste que générer et « Propose-moi une idée ». Pas de cahier → prompt inchangé.
-    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
     except LLMRateLimitError as e:

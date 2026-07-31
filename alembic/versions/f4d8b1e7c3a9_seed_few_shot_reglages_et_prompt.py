@@ -27,8 +27,6 @@ Create Date: 2026-07-31
 from alembic import op
 import sqlalchemy as sa
 
-from backend.core.llm_prompts import PROMPTS
-
 
 revision = "f4d8b1e7c3a9"
 down_revision = "e4b8c2d6a1f7"
@@ -38,12 +36,19 @@ depends_on = None
 
 CLES = ("few_shot_seuil", "few_shot_extrait_max", "prompt_few_shot")
 
+# Texte GELE (corrige le 31/07). Cette migration importait `PROMPTS` et semait le texte du
+# registre AU MOMENT DE SON EXECUTION : rejouee sur une base neuve apres une retouche du
+# registre, elle aurait seme un AUTRE texte que le jour de son ecriture — deux installations
+# a deux dates n'auraient pas eu le meme contenu. Une migration doit etre figee.
+# Les bases deja migrees ne sont pas concernees (alembic ne rejoue pas une revision appliquee).
+_PROMPT_FEW_SHOT = "LA MANIÈRE DE CE PROFESSEUR\n\nVoici des activités que ce professeur a déjà produites et gardées. Elles montrent SA façon de faire : ton employé, formulation des consignes, longueur des énoncés, mise en page, niveau de langue, habitudes de présentation.\n\n{exemples}\n\nInspire-toi de ces exemples pour la MANIÈRE, jamais pour le CONTENU. L'activité à produire porte sur le texte source donné plus haut, et sur lui seul : ne reprends aucune question, aucun énoncé, aucun extrait de ces exemples. N'ajoute aucun commentaire sur ces exemples : rends uniquement l'activité demandée."
+
 
 def upgrade():
     valeurs = {
         "few_shot_seuil": "3",
         "few_shot_extrait_max": "3000",
-        "prompt_few_shot": PROMPTS["few_shot"]["default"],
+        "prompt_few_shot": _PROMPT_FEW_SHOT,
     }
     for cle, valeur in valeurs.items():
         op.execute(

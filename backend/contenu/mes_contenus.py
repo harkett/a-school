@@ -743,7 +743,7 @@ def proposer_theme_seance(
     )
     # Cahier des charges de l'établissement (get, zéro copie) ajouté par-dessus le programme
     # officiel — même geste que « Propose-moi une idée ».
-    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
@@ -1180,7 +1180,7 @@ def proposer_objectif_sequence(
     prompt = get_prompt(db, "sequence_proposer_objectif").format(
         matiere=matiere or "", niveau=niveau, referentiel=referentiel_txt,
     )
-    prompt = ajouter_cahier_au_prompt(prompt, texte_cahier_du_profil(db, user))
+    prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
