@@ -8,7 +8,8 @@
 //  - Partager / Supprimer : pas encore d'équivalent monde neuf → « bientôt », inactifs ;
 //  - bouton « Cacher le détail » à droite des onglets : PERMANENT (règle maison).
 import { useState, useEffect, useCallback } from 'react'
-import { apiFetch, lireReponse, TIMEOUT_STD } from '../../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
+import { showError } from '../../errorDialog'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { aideSequences } from '../../utils/aideSequences.js'
 import { TYPES_CONTENUS } from '../../utils/typesContenus.js'
@@ -68,15 +69,24 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (règle maison du 30/07 : toute page liste naît avec, aucune correction ne le retire).
   const [detailCache, setDetailCache] = useState(false)
+  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
+  // Une panne ne se déguise jamais en « Aucune séquence » (motif de l'Accueil).
+  const [chargementRate, setChargementRate] = useState(false)
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement.
   const chargerSequences = useCallback(async () => {
-    const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
-    setSequences((d.contenus || []).filter(c => c.type === 'sequence'))
+    setChargementRate(false)
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      setSequences((d.contenus || []).filter(c => c.type === 'sequence'))
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
   }, [])
 
   useEffect(() => {
-    chargerSequences().catch(() => {}).finally(() => setLoading(false))
+    chargerSequences().finally(() => setLoading(false))
   }, [chargerSequences])
 
   // « Reprendre » : on ne travaille QUE des séquences du profil courant (règle maison).
@@ -420,7 +430,18 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
       )}
 
-      {!loading && sequences.length === 0 && (
+      {/* Lecture ratée : jamais « Aucune séquence ». Le message est déjà parti en boîte de
+          dialogue (règle maison) — l'écran ne garde que le bouton pour relancer. */}
+      {!loading && chargementRate && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
+          <button onClick={chargerSequences} className="btn-primary"
+            title="Recharger vos séquences">
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      {!loading && !chargementRate && sequences.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
           <p className="text-sm text-gray-500">Aucune séquence pour l'instant.</p>
           <p className="text-xs text-gray-400 mt-1">Créez une séquence avec le bouton « Nouvelle séquence » pour la retrouver ici.</p>

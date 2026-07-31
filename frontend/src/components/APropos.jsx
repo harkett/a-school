@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import Feedback from './Feedback'
 import Notation from './Notation'
 import { APP_VERSION } from '../version'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 // Puces « niveau » de l'onglet Programmes : disponible = gras + point bordeaux ; à venir = gris estompé.
 const chipDispo = {
@@ -23,15 +24,22 @@ export default function APropos({ email, matiere }) {
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
   const [onglet, setOnglet] = useState('apropos')   // onglet actif : 'apropos' | 'programmes'
+  const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « Chargement… » sans fin
 
-  useEffect(() => {
-    let actif = true
-    fetchWithTimeout('/api/programmes/couverture', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (actif) setProgrammes(d) })
-      .catch(() => { if (actif) setProgrammes(null) })
-    return () => { actif = false }
-  }, [])
+  // Lecture ratée : l'onglet ne reste pas figé sur « Chargement… » — message en boîte de
+  // dialogue et bouton « Réessayer » (motif de l'Accueil).
+  async function charger() {
+    setChargementRate(false)
+    try {
+      setProgrammes(await lireReponse(await fetchWithTimeout(
+        '/api/programmes/couverture', { credentials: 'include' }, TIMEOUT_STD)))
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
+  }
+
+  useEffect(() => { charger() }, [])
 
   const cycles = programmes?.cycles || []
   const totalNiv = cycles.reduce((s, b) => s + b.niveaux.length, 0)
@@ -150,7 +158,12 @@ export default function APropos({ email, matiere }) {
             </div>
             <p className="text-xs text-gray-400 mb-4">Les niveaux dont le programme officiel est déjà intégré à aSchool.</p>
 
-            {!programmes ? (
+            {!programmes && chargementRate ? (
+              <button type="button" onClick={charger} className="btn-primary"
+                title="Recharger la liste des programmes couverts">
+                Réessayer
+              </button>
+            ) : !programmes ? (
               <p className="text-sm text-gray-400">Chargement…</p>
             ) : cycles.length === 0 ? (
               <p className="text-sm text-gray-400">Aucun programme pour le moment.</p>

@@ -5,7 +5,7 @@
 // à la génération même (POST à la 1re, PUT + version aux suivantes), dans les tables NEUVES
 // (`activites` + `activite_versions`). L'écran existant n'est PAS touché : il reste le
 // modèle dans Mes outils jusqu'à la suppression finale de l'ancien monde.
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Parametres from './Parametres'
 import TexteSource from './TexteSource'
 import ZoneResultat from './ZoneResultat'
@@ -16,7 +16,7 @@ import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { typeVierge } from '../utils/activite.js'
-import { apiFetch, lireReponse, refreshSession, TIMEOUT_STD } from '../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD } from '../utils/api.js'
 import { showError, openFeedbackFromError } from '../errorDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
@@ -53,6 +53,7 @@ const libelleTon = t => (t === 'academique' ? 'académique' : t === 'operationne
 export default function ActiviteEcran({ activite, seanceParente = null, onRetourSeance, matiere, niveau, email, onNavigate }) {
   // ── État miroir de l'écran modèle (types, params, texte, résultat…) ──
   const [typesActivite, setTypesActivite] = useState([])
+  const [typesRate, setTypesRate] = useState(false)   // catalogue des types illisible (panne) ≠ aucun type
   const [params, setParams] = useState(() => ({
     ...typeVierge(),
     niveau,
@@ -77,13 +78,22 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   const resultatRef = useRef(null)
 
   // Catalogue des types (même endpoint que l'écran modèle — un référentiel partagé, en lecture).
-  useEffect(() => {
+  // Lecture ratée : la cartouche ① ne disparaît PAS en silence (le prof croirait qu'aucun type
+  // n'existe pour son couple) — message en boîte de dialogue + bouton « Réessayer » à sa place.
+  const chargerTypes = useCallback(async () => {
     if (!matiere) return
-    apiFetch(`/api/activites/${encodeURIComponent(matiere)}?niveau=${encodeURIComponent(niveau || '')}`, {}, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : []))
-      .then(liste => setTypesActivite(Array.isArray(liste) ? liste : []))
-      .catch(() => setTypesActivite([]))
+    setTypesRate(false)
+    try {
+      const liste = await lireReponse(await apiFetch(
+        `/api/activites/${encodeURIComponent(matiere)}?niveau=${encodeURIComponent(niveau || '')}`, {}, TIMEOUT_STD))
+      setTypesActivite(Array.isArray(liste) ? liste : [])
+    } catch (e) {
+      setTypesRate(true)
+      showError(messagePourEcran(e))
+    }
   }, [matiere, niveau])
+
+  useEffect(() => { chargerTypes() }, [chargerTypes])
 
   // Cahier des charges déposé ? (get, zéro copie — adapte les bulles d'aide, comme le modèle.)
   useEffect(() => {
@@ -321,6 +331,16 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
         {(() => {
           const pilotage = (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Catalogue illisible : la cartouche ① laisse place au bouton qui relance la
+                  lecture (le message est déjà passé en boîte de dialogue — règle maison). */}
+              {typesRate && typesActivite.length === 0 && (
+                <section className="bg-white rounded border border-gray-200 p-4">
+                  <button type="button" onClick={chargerTypes} className="btn-primary"
+                    title="Recharger les types d'activité de votre matière et de votre niveau">
+                    Réessayer
+                  </button>
+                </section>
+              )}
               {typesActivite.length > 0 && (
                 <Parametres
                   activites={typesActivite}

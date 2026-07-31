@@ -6,7 +6,8 @@
 //  - Partager / Supprimer : pas encore d'équivalent côté monde neuf → boutons visibles
 //    mais « bientôt » (réellement inactifs), comme le veut le motif maison.
 import { useState, useEffect, useCallback } from 'react'
-import { apiFetch, lireReponse, TIMEOUT_STD } from '../../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
+import { showError } from '../../errorDialog'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { corpsHtml, imprimerApercu } from '../../utils/apercuHtml.js'
 import { aideHistorique } from '../../utils/aideHistorique.js'
@@ -135,18 +136,27 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (demande utilisateur répétée du 30/07 : ce bouton ne se retire JAMAIS de cette page).
   const [detailCache, setDetailCache] = useState(false)
+  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
+  // Une panne ne se déguise jamais en « Aucune activité » (motif de l'Accueil).
+  const [chargementRate, setChargementRate] = useState(false)
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
   // les lignes « activite » de /api/mes-contenus (jamais l'ancien monde).
   const chargerActivites = useCallback(async () => {
-    const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
-    const lignes = (d.contenus || []).filter(c => c.type === 'activite')
-    // Même forme de ligne que l'écran d'origine : l'aperçu (quand pas d'objet) vient du texte source.
-    setActivites(lignes.map(c => ({ ...c, apercu: (c.texte_source || '').slice(0, 120), partagee: false })))
+    setChargementRate(false)
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      const lignes = (d.contenus || []).filter(c => c.type === 'activite')
+      // Même forme de ligne que l'écran d'origine : l'aperçu (quand pas d'objet) vient du texte source.
+      setActivites(lignes.map(c => ({ ...c, apercu: (c.texte_source || '').slice(0, 120), partagee: false })))
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
   }, [])
 
   useEffect(() => {
-    chargerActivites().catch(() => {}).finally(() => setLoading(false))
+    chargerActivites().finally(() => setLoading(false))
   }, [chargerActivites])
 
   // Échap ferme l'aperçu HTML.
@@ -463,7 +473,18 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
       )}
 
-      {!loading && activites.length === 0 && (
+      {/* Lecture ratée : jamais « Aucune activité ». Le message est déjà parti en boîte de
+          dialogue (règle maison) — l'écran ne garde que le bouton pour relancer. */}
+      {!loading && chargementRate && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
+          <button onClick={chargerActivites} className="btn-primary"
+            title="Recharger vos activités">
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      {!loading && !chargementRate && activites.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
           <p className="text-sm text-gray-500">Aucune activité pour l'instant.</p>
           <p className="text-xs text-gray-400 mt-1">Créez une activité depuis Mes contenus pour la retrouver ici.</p>

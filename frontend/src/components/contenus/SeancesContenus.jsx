@@ -5,7 +5,8 @@
 //  - Partager / Supprimer : pas encore d'équivalent côté monde neuf → boutons visibles
 //    mais « bientôt » (réellement inactifs), comme le veut le motif maison.
 import { useState, useEffect, useCallback } from 'react'
-import { apiFetch, lireReponse, TIMEOUT_STD } from '../../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
+import { showError } from '../../errorDialog'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { corpsHtml, imprimerApercu } from '../../utils/apercuHtml.js'
 import { aideSeances } from '../../utils/aideSeances.js'
@@ -90,18 +91,27 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (demande utilisateur répétée du 30/07 : ce bouton ne se retire JAMAIS de cette page).
   const [detailCache, setDetailCache] = useState(false)
+  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
+  // Une panne ne se déguise jamais en « Aucune séance » (motif de l'Accueil).
+  const [chargementRate, setChargementRate] = useState(false)
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
   // les lignes « seance » de /api/mes-contenus (jamais l'ancien monde).
   const chargerSeances = useCallback(async () => {
-    const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
-    const lignes = (d.contenus || []).filter(c => c.type === 'seance')
-    // Même forme de ligne que le motif Activités : l'aperçu (quand pas de titre) vient du contexte.
-    setSeances(lignes.map(c => ({ ...c, apercu: (c.contexte || '').slice(0, 120) })))
+    setChargementRate(false)
+    try {
+      const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
+      const lignes = (d.contenus || []).filter(c => c.type === 'seance')
+      // Même forme de ligne que le motif Activités : l'aperçu (quand pas de titre) vient du contexte.
+      setSeances(lignes.map(c => ({ ...c, apercu: (c.contexte || '').slice(0, 120) })))
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
   }, [])
 
   useEffect(() => {
-    chargerSeances().catch(() => {}).finally(() => setLoading(false))
+    chargerSeances().finally(() => setLoading(false))
   }, [chargerSeances])
 
   // Échap ferme l'aperçu HTML.
@@ -456,7 +466,18 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
         <p className="text-sm text-gray-400 py-4">Chargement…</p>
       )}
 
-      {!loading && seances.length === 0 && (
+      {/* Lecture ratée : jamais « Aucune séance ». Le message est déjà parti en boîte de
+          dialogue (règle maison) — l'écran ne garde que le bouton pour relancer. */}
+      {!loading && chargementRate && (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
+          <button onClick={chargerSeances} className="btn-primary"
+            title="Recharger vos séances">
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      {!loading && !chargementRate && seances.length === 0 && (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-10 text-center">
           <p className="text-sm text-gray-500">Aucune séance pour l'instant.</p>
           <p className="text-xs text-gray-400 mt-1">Créez une séance avec le bouton « Nouvelle séance » pour la retrouver ici.</p>

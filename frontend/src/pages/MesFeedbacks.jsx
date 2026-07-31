@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchWithTimeout } from '../utils/api.js'
+import { fetchWithTimeout, lireReponse, messagePourEcran } from '../utils/api.js'
+import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
 import FilEchange from '../components/FilEchange'
 
@@ -131,6 +132,7 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, error, onError }) {
 export default function MesFeedbacks() {
   const [onglet, setOnglet] = useState('envoyer')
   const [retours, setRetours] = useState(null)
+  const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « aucun retour »
   const [erreurGlobal, setErreurGlobal] = useState('')
   const [succès, setSuccès] = useState('')
 
@@ -159,14 +161,18 @@ export default function MesFeedbacks() {
 
   // Read-after-write : après chaque écriture on relit le serveur, jamais de miroir local.
   async function recharger() {
+    setChargementRate(false)
     const res = await fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })
-    if (!res.ok) throw new Error()
-    setRetours(await res.json())
+    setRetours(await lireReponse(res))
   }
 
-  useEffect(() => {
-    recharger().catch(() => setErreurGlobal('Impossible de charger vos retours.'))
-  }, [])
+  // Lecture ratée : ni « Chargement… » sans fin, ni liste vide trompeuse — message en boîte de
+  // dialogue et bouton « Réessayer » (motif de l'Accueil).
+  function chargerRetours() {
+    recharger().catch(e => { setChargementRate(true); showError(messagePourEcran(e)) })
+  }
+
+  useEffect(() => { chargerRetours() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function uploadFile(file) {
     const form = new FormData()
@@ -277,8 +283,7 @@ export default function MesFeedbacks() {
       })
       if (!res.ok) throw new Error()
       setSent(true)
-      fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })
-        .then(r => r.ok ? r.json() : Promise.reject()).then(setRetours).catch(() => {})
+      chargerRetours()   // read-after-write : la relecture dit elle-même si elle échoue
     } catch { setSendError('Une erreur est survenue. Réessayez.') }
     finally { setSending(false) }
   }
@@ -370,7 +375,14 @@ export default function MesFeedbacks() {
         <div className="flex flex-col gap-3">
           {succès && <div style={{ background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem', color: '#15803d' }}>{succès}</div>}
           {erreurGlobal && <p className="text-sm text-red-500">{erreurGlobal}</p>}
-          {!retours && !erreurGlobal && <p className="text-sm text-gray-400">Chargement…</p>}
+          {!retours && !chargementRate && <p className="text-sm text-gray-400">Chargement…</p>}
+          {!retours && chargementRate && (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+              <button onClick={chargerRetours} className="btn-primary" title="Recharger vos retours">
+                Réessayer
+              </button>
+            </div>
+          )}
           {retours && retours.length === 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
               Vous n'avez pas encore envoyé de retour.

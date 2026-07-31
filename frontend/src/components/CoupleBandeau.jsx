@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 // Boutons du couple de travail (« Changer niveau et/ou matière » + « Revenir à mon profil »),
 // affichés dans le HEADER bleu, juste SOUS le couple qu'ils modifient (décision du 25/07 :
@@ -12,15 +14,27 @@ export default function CoupleBandeau({ sessionMatiere, niveau, coupleAjuste, on
   const [ajustTemp, setAjustTemp] = useState({ matiere: sessionMatiere, niveau })
   const [niveauxParCycle, setNiveauxParCycle] = useState([])
   const [matieresParNiveau, setMatieresParNiveau] = useState([])  // [{niveau, matieres:[{id,nom}]}] — filtre la matière par le niveau
+  const [chargementRate, setChargementRate] = useState(false)     // listes illisibles (panne) ≠ menus vides
 
   function ouvrirAjuster() {
     setAjustTemp({ matiere: sessionMatiere, niveau })
     setShowAjuster(true)
-    // Listes relues EN BASE à CHAQUE ouverture (get frais) — jamais servies d'un chargement périmé.
-    fetch('/api/programmes', { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) { setNiveauxParCycle(d.niveaux_par_cycle || []); setMatieresParNiveau(d.matieres_par_niveau || []) } })
-      .catch(() => {})
+    charger()
+  }
+
+  // Listes relues EN BASE à CHAQUE ouverture (get frais) — jamais servies d'un chargement périmé.
+  // Lecture ratée : les menus ne restent pas vides sans explication (le prof croirait qu'il n'a
+  // ni niveau ni matière) — message en boîte de dialogue et bouton « Réessayer » dans la modale.
+  async function charger() {
+    setChargementRate(false)
+    try {
+      const d = await lireReponse(await fetchWithTimeout('/api/programmes', { credentials: 'include' }, TIMEOUT_STD))
+      setNiveauxParCycle(d.niveaux_par_cycle || [])
+      setMatieresParNiveau(d.matieres_par_niveau || [])
+    } catch (e) {
+      setChargementRate(true)
+      showError(messagePourEcran(e))
+    }
   }
 
   // coupleAjuste vient du SERVEUR (/auth/me → couple_ajuste) — jamais recalculé ici.
@@ -101,6 +115,20 @@ export default function CoupleBandeau({ sessionMatiere, niveau, coupleAjuste, on
               <div className="text-sm font-semibold text-gray-800">Changer la classe ou la matière</div>
               <div className="text-xs text-gray-400 mt-0.5">Pour cette activité seulement — votre profil reste inchangé.</div>
             </div>
+
+            {chargementRate && (
+              <button
+                type="button"
+                onClick={charger}
+                title="Recharger les niveaux et les matières"
+                style={{
+                  alignSelf: 'flex-start', padding: '7px 16px', fontSize: '13px', borderRadius: '6px',
+                  border: 'none', background: 'var(--bleu)', color: '#fff', cursor: 'pointer', fontWeight: 600,
+                }}
+              >
+                Réessayer
+              </button>
+            )}
 
             <div className="flex flex-col gap-3">
               <div>

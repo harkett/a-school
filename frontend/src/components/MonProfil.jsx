@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { apiFetch, TIMEOUT_STD } from '../utils/api.js'
+import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
 import InfoGuide from './InfoGuide.jsx'
@@ -42,15 +42,15 @@ export default function MonProfil({ onNavigate }) {
   const [refOfficiel, setRefOfficiel] = useState(null)             // { disponible, fichier } — programme officiel du niveau (lecture seule)
   const [cahier, setCahier] = useState(null)                       // { present, fichier } — cahier des charges déposé par le prof
   const [cahierBusy, setCahierBusy] = useState(false)              // dépôt en cours (sablier sur le bouton)
+  // Lecture d'ouverture ratée (serveur muet, réseau coupé) : une panne ne se déguise JAMAIS en
+  // « aucun programme », « rien déposé » ni en menus vides — c'est l'écran forcé quand le profil
+  // est incomplet, le prof y serait coincé sans explication. Un message, un bouton « Réessayer ».
+  const [chargementRate, setChargementRate] = useState(false)
 
-  // Programme officiel du niveau du prof (lecture seule) : nom exact déposé + programme à lire. get
-  // pur, aucune écriture — la carte n'est qu'une fenêtre sur le référentiel déposé par l'admin.
-  useEffect(() => {
-    apiFetch('/api/user/referentiel', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setRefOfficiel(d || { disponible: false }))
-      .catch(() => setRefOfficiel({ disponible: false }))
-  }, [])
+  // Le formulaire courant, lisible depuis `charger` sans le remettre en dépendance (le bouton
+  // « Réessayer » rejoue la même lecture, avec le profil tel qu'il est à cet instant).
+  const formRef = useRef(form)
+  useEffect(() => { formRef.current = form })
 
   // « Ouvrir le PDF d'origine » : ouvre le fichier déposé par l'admin dans un NOUVEL ONGLET
   // (visionneuse du navigateur), jamais dans l'appli. On ouvre l'onglet TOUT DE SUITE (le geste
@@ -71,14 +71,6 @@ export default function MonProfil({ onNavigate }) {
         showError("Le programme officiel de votre niveau n'est pas disponible pour le moment.")
       })
   }
-
-  // Cahier des charges du prof (dépôt libre) : get de l'état au montage (présent + nom du fichier).
-  useEffect(() => {
-    apiFetch('/api/user/cahier', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setCahier(d || { present: false }))
-      .catch(() => setCahier({ present: false }))
-  }, [])
 
   // « Déposer / Remplacer » : le prof envoie SON PDF (POST = put). Re-déposer REMPLACE l'ancien →
   // confirmation d'abord (jamais de perte au clic direct). Erreurs en langage humain (règle 23).
@@ -114,29 +106,48 @@ export default function MonProfil({ onNavigate }) {
       })
   }
 
-  useEffect(() => {
-    apiFetch('/api/programmes', { credentials: 'include' }, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (!data) return
-        const niveaux   = data.niveaux_par_cycle || []
-        const parNiveau = data.matieres_par_niveau || []
-        setNiveauxParCycle(niveaux)
-        setMatieresParCycle(data.matieres_par_cycle || [])
-        setMatieresParNiveau(parNiveau)
-        // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non disponible,
-        // donc caché — ex. Master) → on vide niveau + matière, le prof doit tout re-choisir.
-        if (form.niveau && !niveauDisponible(niveaux, form.niveau)) {
-          showError(messageNiveauIndisponible(form.niveau))
-          setForm(f => ({ ...f, niveau: '', subject: '' }))
-        // Déclencheur 2 : niveau OK mais matière incohérente (ex. Français + un niveau réel).
-        } else if (matiereIncoherente(parNiveau, form.niveau, form.subject)) {
-          showError(messageIncoherence('ouverture', form.niveau, form.subject))
-          setForm(f => ({ ...f, subject: '' }))
-        }
-      })
-      .catch(() => {})
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps -- check à l'ouverture, sur le profil initial
+  // Les TROIS lectures de l'écran, ensemble : le programme officiel du niveau (lecture seule),
+  // l'état du cahier des charges, et les programmes qui remplissent les menus niveau/matière.
+  // Chacune garde son sort : ce qui a répondu s'affiche, ce qui a échoué laisse sa carte en
+  // « Réessayer » plutôt qu'en fausse absence. Un seul message pour le prof.
+  const charger = useCallback(async () => {
+    setChargementRate(false)
+    const [ref, cah, prog] = await Promise.allSettled([
+      apiFetch('/api/user/referentiel', { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+      apiFetch('/api/user/cahier',      { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+      apiFetch('/api/programmes',       { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+    ])
+
+    if (ref.status === 'fulfilled') setRefOfficiel(ref.value || { disponible: false })
+    if (cah.status === 'fulfilled') setCahier(cah.value || { present: false })
+    if (prog.status === 'fulfilled') {
+      const data      = prog.value || {}
+      const niveaux   = data.niveaux_par_cycle || []
+      const parNiveau = data.matieres_par_niveau || []
+      setNiveauxParCycle(niveaux)
+      setMatieresParCycle(data.matieres_par_cycle || [])
+      setMatieresParNiveau(parNiveau)
+      const { niveau, subject } = formRef.current
+      // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non disponible,
+      // donc caché — ex. Master) → on vide niveau + matière, le prof doit tout re-choisir.
+      if (niveau && !niveauDisponible(niveaux, niveau)) {
+        showError(messageNiveauIndisponible(niveau))
+        setForm(f => ({ ...f, niveau: '', subject: '' }))
+      // Déclencheur 2 : niveau OK mais matière incohérente (ex. Français + un niveau réel).
+      } else if (matiereIncoherente(parNiveau, niveau, subject)) {
+        showError(messageIncoherence('ouverture', niveau, subject))
+        setForm(f => ({ ...f, subject: '' }))
+      }
+    }
+
+    const rate = [ref, cah, prog].find(r => r.status === 'rejected')
+    if (rate) {
+      setChargementRate(true)
+      showError(messagePourEcran(rate.reason))
+    }
+  }, [])
+
+  useEffect(() => { charger() }, [charger])
 
   // Matière en cascade sur le NIVEAU choisi (helper pur testé : utils/profil.js).
   // null = pas de niveau / niveau inconnu → on montre tout, groupé par cycle (repli).
@@ -199,6 +210,15 @@ export default function MonProfil({ onNavigate }) {
 
       {erreur && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded p-3 text-sm mb-4">{erreur}</div>
+      )}
+
+      {/* Lecture ratée : les menus niveau/matière sont vides parce qu'on n'a pas pu les lire,
+          pas parce qu'il n'y a rien. Le message est déjà en boîte de dialogue — ici, le bouton. */}
+      {chargementRate && (
+        <button type="button" onClick={charger} className="btn-primary mb-4"
+          title="Recharger les niveaux, les matières et vos documents">
+          Réessayer
+        </button>
       )}
 
       <form onSubmit={handleValider} className="flex flex-col gap-4">
@@ -333,7 +353,14 @@ export default function MonProfil({ onNavigate }) {
     <section className="bg-white rounded border border-gray-200 p-6">
       <div className="section-title mb-3">Programme officiel de votre niveau<InfoGuide {...aideProfil('programme')} /></div>
       {refOfficiel === null ? (
-        <div className="text-sm text-gray-400">Chargement…</div>
+        chargementRate ? (
+          <button type="button" onClick={charger} className="btn-secondary"
+            title="Recharger le programme officiel de votre niveau">
+            Réessayer
+          </button>
+        ) : (
+          <div className="text-sm text-gray-400">Chargement…</div>
+        )
       ) : refOfficiel.disponible ? (
         <div className="flex items-center justify-between gap-3">
           <span
@@ -365,7 +392,14 @@ export default function MonProfil({ onNavigate }) {
     <section className="bg-white rounded border border-gray-200 p-6">
       <div className="section-title mb-3">Mon cahier des charges<InfoGuide {...aideProfil('cahier')} /></div>
       {cahier === null ? (
-        <div className="text-sm text-gray-400">Chargement…</div>
+        chargementRate ? (
+          <button type="button" onClick={charger} className="btn-secondary"
+            title="Recharger l'état de votre cahier des charges">
+            Réessayer
+          </button>
+        ) : (
+          <div className="text-sm text-gray-400">Chargement…</div>
+        )
       ) : cahier.present ? (
         <div className="flex items-center justify-between gap-3">
           <span className="text-sm text-gray-700 truncate" title={cahier.fichier} style={{ minWidth: 0 }}>
