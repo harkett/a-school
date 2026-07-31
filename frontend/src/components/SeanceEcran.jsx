@@ -24,6 +24,7 @@ import { aideSeances } from '../utils/aideSeances.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import { demanderConfirmation } from '../confirmDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
 // Identités de type (fichier commun) : le retour standard porte le vert séance ; le retour
@@ -302,7 +303,11 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       showError('Décrivez d\'abord le thème de la séance (cartouche 1) : la proposition s\'appuie dessus.')
       return
     }
-    if (valeur.trim() && !window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')) return
+    if (valeur.trim() && !await demanderConfirmation({
+      titre: 'Remplacer le texte actuel ?',
+      message: 'Le contenu de la zone sera perdu.',
+      confirmLabel: 'Remplacer',
+    })) return
     setLoad(true)
     setNote(null)
     try {
@@ -332,7 +337,11 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
       showError('Décrivez d\'abord le thème de la séance (cartouche 1) : la proposition s\'appuie dessus.')
       return
     }
-    if (esquisse[phase].trim() && !window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')) return
+    if (esquisse[phase].trim() && !await demanderConfirmation({
+      titre: 'Remplacer le texte actuel ?',
+      message: 'Le contenu de la zone sera perdu.',
+      confirmLabel: 'Remplacer',
+    })) return
     setEsqLoading(phase)
     setEsqNotes(prev => ({ ...prev, [phase]: false }))
     try {
@@ -386,7 +395,11 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   }, [seanceId])
 
   async function detacherActivite(a) {
-    if (!window.confirm(`Détacher « ${a.titre} » de cette séance ?\n\nL'activité reste dans vos activités — rien n'est supprimé.`)) return
+    if (!await demanderConfirmation({
+      titre: 'Détacher cette activité ?',
+      message: `« ${a.titre} » ne sera plus rattachée à cette séance.\n\nElle reste dans vos activités — rien n'est supprimé.`,
+      confirmLabel: 'Détacher',
+    })) return
     try {
       await lireReponse(await apiFetch(`/api/contenus/activites/${a.id}/seance`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seance_id: null }),
@@ -401,7 +414,11 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
     // Une activité n'a qu'UN parent : déjà rangée ailleurs = elle déménage, après confirmation.
     if (row.parent && row.parent.id !== seanceId) {
       const nom = row.parent.titre ? `« ${row.parent.titre} »` : 'une autre séance'
-      if (!window.confirm(`Cette activité est déjà rattachée à la séance ${nom}.\n\nUne activité n'a qu'une seule séance : la déplacer ici ?`)) return
+      if (!await demanderConfirmation({
+        titre: 'Déplacer cette activité ?',
+        message: `Elle est déjà rattachée à la séance ${nom}.\n\nUne activité n'a qu'une seule séance : elle quittera l'autre pour venir ici.`,
+        confirmLabel: 'Déplacer',
+      })) return
     }
     try {
       await lireReponse(await apiFetch(`/api/contenus/activites/${row.id}/seance`, {

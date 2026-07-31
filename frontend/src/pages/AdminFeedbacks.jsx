@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { demanderConfirmation } from '../confirmDialog'
 import FilEchange from '../components/FilEchange'
 
 const ETOILES = r => '★'.repeat(r) + '☆'.repeat(5 - r)
@@ -85,7 +86,12 @@ export default function AdminFeedbacks() {
   }
 
   async function supprimerFeedback(id) {
-    if (!window.confirm('Supprimer définitivement ce feedback ? Cette action est irréversible.')) return
+    if (!await demanderConfirmation({
+      titre: 'Supprimer définitivement ce feedback ?',
+      message: 'Le retour du prof et son échange seront perdus. Cette action est irréversible.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    })) return
     await fetchWithTimeout(`/api/admin/feedbacks/${id}`, { method: 'DELETE', credentials: 'include' })
     await recharger()
   }

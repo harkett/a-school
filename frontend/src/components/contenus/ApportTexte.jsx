@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
+import { demanderConfirmation } from '../../confirmDialog'
 import { formatTime, computeBarLevels } from '../../utils/audioViz.js'
 import JaugeAttente from '../JaugeAttente.jsx'
 
@@ -99,9 +100,35 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
 
   // Zone déjà remplie = tout geste qui REMPLACERAIT le texte demande d'abord confirmation.
   const zoneRemplie = !!(texte || '').trim()
-  function confirmerRemplacement() {
+
+  const DEMANDE_REMPLACEMENT = {
+    titre: 'Remplacer le texte actuel ?',
+    message: 'Le contenu de la zone sera perdu.',
+    confirmLabel: 'Remplacer',
+  }
+
+  // Gestes qui passent par une FONCTION (« Propose-moi… », dictée) : on demande, on attend.
+  async function confirmerRemplacement() {
     if (!zoneRemplie) return true
-    return window.confirm('Remplacer le texte actuel ? Le contenu de la zone sera perdu.')
+    return demanderConfirmation(DEMANDE_REMPLACEMENT)
+  }
+
+  // Boutons d'IMPORT DE FICHIER : seul un `preventDefault()` SYNCHRONE empêche la fenêtre de
+  // sélection de s'ouvrir — après une attente, l'événement est terminé et la question arriverait
+  // trop tard, la fenêtre déjà ouverte. On bloque donc immédiatement, on demande, puis on rouvre
+  // le sélecteur nous-mêmes si le prof confirme (le clic sur « Remplacer » vaut geste utilisateur).
+  // `reouverture` évite la boucle : le clic qu'on déclenche ne repose pas la question.
+  const reouverture = useRef(false)
+  function gardeImportFichier(e) {
+    if (reouverture.current) { reouverture.current = false; return }
+    if (!zoneRemplie) return
+    e.preventDefault()
+    const input = e.currentTarget
+    demanderConfirmation(DEMANDE_REMPLACEMENT).then(ok => {
+      if (!ok) return
+      reouverture.current = true
+      input.click()
+    })
   }
 
   // Course d'attention sur les 5 boutons tant que la zone est vide (même dispositif que
@@ -352,7 +379,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   async function handleProposer() {
     if (propLoading) return
     if (proposer.avant && !proposer.avant()) return
-    if (!confirmerRemplacement()) return
+    if (!await confirmerRemplacement()) return
     setPropLoading(true)
     onSourceNote(null)
     try {
@@ -377,7 +404,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           <IconTxt />
           Fichier TXT
           <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt}
-            onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+            onClick={gardeImportFichier} />
         </label>
 
         <label
@@ -389,7 +416,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
           <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
             onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
-            onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+            onClick={gardeImportFichier} />
         </label>
 
         <label
@@ -401,7 +428,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
           <input type="file" accept="application/pdf,.pdf" className="hidden"
             onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
-            onClick={e => { if (!confirmerRemplacement()) e.preventDefault() }} />
+            onClick={gardeImportFichier} />
         </label>
 
         <button

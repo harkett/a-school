@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
+import { demanderConfirmation } from '../confirmDialog.js'
 import InfoGuide from './InfoGuide.jsx'
 import { aideProfil } from '../utils/aideProfil.js'
 
@@ -73,8 +74,13 @@ export default function MonProfil({ onNavigate }) {
 
   // « Déposer / Remplacer » : le prof envoie SON PDF (POST = put). Re-déposer REMPLACE l'ancien →
   // confirmation d'abord (jamais de perte au clic direct). Erreurs en langage humain (règle 23).
-  function deposerCahier(file, remplace) {
-    if (remplace && !window.confirm('Remplacer le cahier des charges actuel ?\n\nL’ancien PDF sera perdu.')) return
+  async function deposerCahier(file, remplace) {
+    if (remplace && !await demanderConfirmation({
+      titre: 'Remplacer le cahier des charges ?',
+      message: 'L’ancien PDF sera perdu, et aSchool s’appuiera sur le nouveau pour vos prochaines générations.',
+      confirmLabel: 'Remplacer',
+      danger: true,
+    })) return
     setCahierBusy(true)
     const form = new FormData()
     form.append('file', file)

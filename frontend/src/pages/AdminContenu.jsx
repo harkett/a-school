@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import { demanderConfirmation } from '../confirmDialog'
 
 // LA page « Programmes & contenu » : tout le contenu pédagogique dans UN SEUL tableau qui se
 // déroule — cycle → niveau (le couple) → référentiel, matières, types d'activité (et leurs
@@ -153,10 +154,12 @@ export default function AdminContenu() {
     })
   }
 
-  function toggleMatiere(m) {
-    if (m.actif && !window.confirm(
-      `Désactiver la matière « ${m.nom} » ?\n\nElle disparaîtra des menus des profs et ne sera plus cochable dans les programmes. Désactivation réversible : rien n'est supprimé, son historique et ses paires restent en base.`
-    )) return Promise.resolve(false)
+  async function toggleMatiere(m) {
+    if (m.actif && !await demanderConfirmation({
+      titre: `Désactiver la matière « ${m.nom} » ?`,
+      message: "Elle disparaîtra des menus des profs et ne sera plus cochable dans les programmes.\n\nDésactivation réversible : rien n'est supprimé, son historique et ses paires restent en base.",
+      confirmLabel: 'Désactiver',
+    })) return false
     return ecrire(async () => {
       const r = await fetchWithTimeout('/api/admin/matieres/actif', {
         method: 'PATCH', credentials: 'include',

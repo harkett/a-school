@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { demanderConfirmation } from '../confirmDialog'
 import { VARIABLES_EMAIL, apercuVariables } from '../utils/variablesEmail.js'
 
 export default function AdminParametresEmail() {
@@ -107,7 +108,12 @@ export default function AdminParametresEmail() {
 
   async function removeTemplate() {
     if (!selected || !selected.supprimable) return
-    if (!window.confirm(`Supprimer le modèle « ${selected.nom} » ? Cette action est définitive.`)) return
+    if (!await demanderConfirmation({
+      titre: `Supprimer le modèle « ${selected.nom} » ?`,
+      message: 'Ce modèle d’e-mail sera perdu. Cette action est définitive.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    })) return
     setBusy(true)
     try {
       const res = await fetchWithTimeout(`/api/admin/email-templates/${selected.id}`, {

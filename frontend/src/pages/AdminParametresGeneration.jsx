@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import { demanderConfirmation } from '../confirmDialog'
 import InfoGuide from '../components/InfoGuide'
 
 // Aide « i » des réglages — même principe que les bulles du profil (survol = court, clic = fiche
@@ -400,10 +401,12 @@ export default function AdminParametresGeneration() {
 
   async function resetPrompt() {
     if (!promptActif) return
-    if (!window.confirm(
-      `Revenir au prompt par défaut pour « ${promptActif.label} » ? ` +
-      `Votre version personnalisée sera définitivement supprimée.`
-    )) return
+    if (!await demanderConfirmation({
+      titre: `Revenir au prompt par défaut pour « ${promptActif.label} » ?`,
+      message: 'Votre version personnalisée sera définitivement supprimée.',
+      confirmLabel: 'Revenir au défaut',
+      danger: true,
+    })) return
     setSavingPrompt(true)
     setMessagePrompt(null)
     try {

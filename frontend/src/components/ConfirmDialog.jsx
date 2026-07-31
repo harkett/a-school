@@ -7,21 +7,27 @@ import { registerConfirmHandler } from '../confirmDialog'
 // d'avertissement (ambre, pas rouge : c'est une décision, pas une erreur). Échap / clic dehors /
 // « Annuler » = on ne fait rien ; seul « Continuer » déclenche l'action.
 export default function ConfirmDialog() {
-  const [dialog, setDialog] = useState(null)  // { titre, message, confirmLabel, cancelLabel, onConfirm, danger } | null
+  const [dialog, setDialog] = useState(null)  // { titre, message, confirmLabel, cancelLabel, onConfirm, onCancel, danger } | null
 
   useEffect(() => { registerConfirmHandler(setDialog) }, [])
+
+  // Fermer SANS confirmer doit prévenir l'appelant. Sans ce rappel, `demanderConfirmation`
+  // (confirmDialog.js) ne se résoudrait jamais quand le prof annule : la fonction qui l'attend
+  // resterait figée pour toujours, sans le moindre signe. Les TROIS sorties passent donc ici —
+  // le bouton « Annuler », la touche Échap, et le clic en dehors du dialogue.
+  const fermerSansConfirmer = () => { const cb = dialog?.onCancel; setDialog(null); cb && cb() }
 
   // Échap = annuler. Hook placé AVANT le return conditionnel (règle des hooks React).
   useEffect(() => {
     if (!dialog) return
-    const onKey = e => { if (e.key === 'Escape') setDialog(null) }
+    const onKey = e => { if (e.key === 'Escape') fermerSansConfirmer() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [dialog])
+  }, [dialog])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!dialog) return null
 
-  const annuler = () => setDialog(null)
+  const annuler = fermerSansConfirmer
   const confirmer = () => { const cb = dialog.onConfirm; setDialog(null); cb && cb() }
   const couleurAction = dialog.danger ? '#dc2626' : 'var(--bleu)'
 

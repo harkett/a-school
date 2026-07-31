@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
@@ -690,7 +691,11 @@ export default function AdminReferentiels() {
     if (nom === ligne.nom) return
     if (ligne.en_base && ligne.id) {
       // Renommage EN BASE (garde l'id) : effet GLOBAL → on prévient avant.
-      if (!window.confirm(`Renommer « ${ligne.nom} » en « ${nom} » ?\n\nCette matière est partagée : le libellé changera PARTOUT où elle est utilisée (tous les niveaux).`)) return
+      if (!await demanderConfirmation({
+        titre: `Renommer « ${ligne.nom} » en « ${nom} » ?`,
+        message: 'Cette matière est partagée : le libellé changera PARTOUT où elle est utilisée, à tous les niveaux.',
+        confirmLabel: 'Renommer',
+      })) return
       try {
         const r = await fetchWithTimeout('/api/admin/referentiels/matiere', {
           method: 'PATCH', credentials: 'include',
@@ -712,7 +717,11 @@ export default function AdminReferentiels() {
       setMatieres(ms => ms.filter((_, j) => j !== i))   // pas encore en base : retrait local
       return
     }
-    if (!window.confirm(`Retirer « ${ligne.nom} » du niveau « ${niveau} » ?\n\nDésactivation réversible (l'historique est conservé, rien n'est supprimé).`)) return
+    if (!await demanderConfirmation({
+      titre: `Retirer « ${ligne.nom} » du niveau « ${niveau} » ?`,
+      message: "Désactivation réversible : l'historique est conservé, rien n'est supprimé.",
+      confirmLabel: 'Retirer',
+    })) return
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/retirer-matiere', {
         method: 'POST', credentials: 'include',
@@ -842,7 +851,12 @@ export default function AdminReferentiels() {
 
   // DELETE encadré (précision du couple) : après confirmation, puis re-get.
   async function supprimerPrecisCouple(t, p) {
-    if (!window.confirm(`Supprimer la précision « ${p.libelle} » ?\nCette action est irréversible.`)) return
+    if (!await demanderConfirmation({
+      titre: `Supprimer la précision « ${p.libelle} » ?`,
+      message: 'Cette action est irréversible.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    })) return
     setPrecisBusy(true)
     try {
       const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions/${p.id}?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${t.id}`,
@@ -1919,7 +1933,14 @@ export default function AdminReferentiels() {
                           ✎ Précisions
                         </button>
                         <button type="button"
-                          onClick={() => { if (window.confirm(`Retirer « ${t.label} » des types de ce couple ?\n\nSes précisions pour ce couple seront supprimées aussi. Une future détection le remettra si l'IA le relit dans le document.`)) basculerType(t.id) }}
+                          onClick={async () => {
+                            if (await demanderConfirmation({
+                              titre: `Retirer « ${t.label} » des types de ce couple ?`,
+                              message: "Ses précisions pour ce couple seront supprimées aussi.\n\nUne future détection le remettra si l'IA le relit dans le document.",
+                              confirmLabel: 'Retirer',
+                              danger: true,
+                            })) basculerType(t.id)
+                          }}
                           title={`Retirer « ${t.label} » de ce couple — supprime ce type d'activité et ses précisions pour ce couple (les autres niveaux ne sont pas touchés)`}
                           style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2',
                             color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
