@@ -101,33 +101,18 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   // Zone déjà remplie = tout geste qui REMPLACERAIT le texte demande d'abord confirmation.
   const zoneRemplie = !!(texte || '').trim()
 
-  const DEMANDE_REMPLACEMENT = {
-    titre: 'Remplacer le texte actuel ?',
-    message: 'Le contenu de la zone sera perdu.',
-    confirmLabel: 'Remplacer',
-  }
-
-  // Gestes qui passent par une FONCTION (« Propose-moi… », dictée) : on demande, on attend.
-  async function confirmerRemplacement() {
+  // La question se pose JUSTE AVANT de remplacer, jamais avant d'ouvrir le sélecteur de fichiers
+  // (voir la note détaillée dans TexteSource.jsx : bloquer l'ouverture obligerait à rouvrir le
+  // sélecteur par `input.click()` après la réponse, ce que les navigateurs n'autorisent que sous
+  // conditions — Safari est strict — et qu'aucun test du projet ne couvre).
+  async function confirmerRemplacement(nomFichier) {
     if (!zoneRemplie) return true
-    return demanderConfirmation(DEMANDE_REMPLACEMENT)
-  }
-
-  // Boutons d'IMPORT DE FICHIER : seul un `preventDefault()` SYNCHRONE empêche la fenêtre de
-  // sélection de s'ouvrir — après une attente, l'événement est terminé et la question arriverait
-  // trop tard, la fenêtre déjà ouverte. On bloque donc immédiatement, on demande, puis on rouvre
-  // le sélecteur nous-mêmes si le prof confirme (le clic sur « Remplacer » vaut geste utilisateur).
-  // `reouverture` évite la boucle : le clic qu'on déclenche ne repose pas la question.
-  const reouverture = useRef(false)
-  function gardeImportFichier(e) {
-    if (reouverture.current) { reouverture.current = false; return }
-    if (!zoneRemplie) return
-    e.preventDefault()
-    const input = e.currentTarget
-    demanderConfirmation(DEMANDE_REMPLACEMENT).then(ok => {
-      if (!ok) return
-      reouverture.current = true
-      input.click()
+    return demanderConfirmation({
+      titre: 'Remplacer le texte actuel ?',
+      message: nomFichier
+        ? `Le contenu de la zone sera remplacé par « ${nomFichier} », et le texte actuel sera perdu.`
+        : 'Le contenu de la zone sera perdu.',
+      confirmLabel: 'Remplacer',
     })
   }
 
@@ -340,19 +325,23 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   }, [])
 
   // ── Fichiers : mêmes appels serveur que l'activité. ──
-  function handleTxt(e) {
+  async function handleTxt(e) {
     const file = e.target.files[0]
+    e.target.value = ''
     if (!file) return
+    if (!await confirmerRemplacement(file.name)) return
     const reader = new FileReader()
     reader.onload = ev => { onChange(ev.target.result); onSourceNote('txt') }
     reader.readAsText(file, 'utf-8')
-    e.target.value = ''
   }
 
   async function handleOcr(e, type) {
     const file = e.target.files[0]
-    if (!file) return
     e.target.value = ''
+    if (!file) return
+    // Demandé AVANT l'extraction : inutile de faire travailler aSchool sur un fichier dont le
+    // texte ne remplacera rien.
+    if (!await confirmerRemplacement(file.name)) return
     setOcrLoading(type)
     try {
       const form = new FormData()
@@ -404,7 +393,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           <IconTxt />
           Fichier TXT
           <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt}
-            onClick={gardeImportFichier} />
+            />
         </label>
 
         <label
@@ -416,7 +405,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
           <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
             onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
-            onClick={gardeImportFichier} />
+            />
         </label>
 
         <label
@@ -428,7 +417,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
           <input type="file" accept="application/pdf,.pdf" className="hidden"
             onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
-            onClick={gardeImportFichier} />
+            />
         </label>
 
         <button

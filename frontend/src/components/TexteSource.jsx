@@ -143,37 +143,23 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const zoneRemplie = !!texte.trim()
   const enRetrait = {}
 
-  const DEMANDE_REMPLACEMENT = {
-    titre: 'Remplacer le texte actuel ?',
-    message: 'Le contenu de la zone sera perdu.',
-    confirmLabel: 'Remplacer',
-  }
-
-  // Pour les gestes qui passent par une FONCTION (dictée, document d'exemple) : on demande, on
-  // attend la réponse, on continue. Rien de particulier.
-  async function confirmerRemplacement() {
+  // La question se pose JUSTE AVANT de remplacer, jamais avant d'ouvrir le sélecteur de fichiers.
+  //
+  // Pourquoi c'est important. Empêcher la fenêtre de sélection de s'ouvrir demande un
+  // `preventDefault()` SYNCHRONE ; comme la réponse du prof, elle, arrive plus tard, il faudrait
+  // ensuite rouvrir le sélecteur soi-même par `input.click()`. Or les navigateurs n'autorisent ce
+  // clic programmé que s'ils considèrent la chaîne comme un « geste utilisateur » — et Safari est
+  // strict là-dessus. On dépendrait donc d'un comportement qu'aucun test du projet ne couvre.
+  // En posant la question à l'arrivée du fichier, il n'y a plus rien à rouvrir : le sélecteur suit
+  // son cours normal, et rien n'est remplacé sans accord. Le message nomme même le fichier choisi.
+  async function confirmerRemplacement(nomFichier) {
     if (!zoneRemplie) return true
-    return demanderConfirmation(DEMANDE_REMPLACEMENT)
-  }
-
-  // Pour les trois boutons d'IMPORT DE FICHIER, c'est plus délicat : ce sont des <input
-  // type="file"> et seul un `preventDefault()` SYNCHRONE empêche la fenêtre de sélection de
-  // s'ouvrir. Après une attente, l'événement est terminé — la fenêtre serait déjà ouverte et la
-  // question arriverait trop tard. On bloque donc tout de suite, on demande, puis on rouvre
-  // nous-mêmes le sélecteur si le prof confirme (le clic sur « Remplacer » vaut geste utilisateur,
-  // le navigateur l'accepte).
-  // `reouverture` évite la boucle : le clic qu'on déclenche nous-mêmes doit passer sans reposer
-  // la question.
-  const reouverture = useRef(false)
-  function gardeImportFichier(e) {
-    if (reouverture.current) { reouverture.current = false; return }
-    if (!zoneRemplie) return
-    e.preventDefault()
-    const input = e.currentTarget
-    demanderConfirmation(DEMANDE_REMPLACEMENT).then(ok => {
-      if (!ok) return
-      reouverture.current = true
-      input.click()
+    return demanderConfirmation({
+      titre: 'Remplacer le texte actuel ?',
+      message: nomFichier
+        ? `Le contenu de la zone sera remplacé par « ${nomFichier} », et le texte actuel sera perdu.`
+        : 'Le contenu de la zone sera perdu.',
+      confirmLabel: 'Remplacer',
     })
   }
 
@@ -425,19 +411,23 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
     }
   }
 
-  function handleTxt(e) {
+  async function handleTxt(e) {
     const file = e.target.files[0]
+    e.target.value = ''
     if (!file) return
+    if (!await confirmerRemplacement(file.name)) return
     const reader = new FileReader()
     reader.onload = ev => { onChange(ev.target.result); setSourceNote('txt') }
     reader.readAsText(file, 'utf-8')
-    e.target.value = ''
   }
 
   async function handleOcr(e, type) {
     const file = e.target.files[0]
-    if (!file) return
     e.target.value = ''
+    if (!file) return
+    // Demandé AVANT l'extraction : inutile de faire travailler aSchool sur un fichier dont le
+    // texte ne remplacera rien.
+    if (!await confirmerRemplacement(file.name)) return
     setOcrLoading(type)
     try {
       const form = new FormData()
@@ -579,7 +569,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             <IconTxt />
             Fichier TXT
             <input type="file" accept=".txt,text/plain" className="hidden" onChange={handleTxt}
-              onClick={gardeImportFichier} />
+              />
           </label>
 
           <label
@@ -591,7 +581,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             {ocrLoading === 'image' ? 'Extraction…' : 'Image / Scan'}
             <input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" className="hidden"
               onChange={e => handleOcr(e, 'image')} disabled={!!ocrLoading}
-              onClick={gardeImportFichier} />
+              />
           </label>
 
           <label
@@ -603,7 +593,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
             {ocrLoading === 'pdf' ? 'Extraction…' : 'PDF'}
             <input type="file" accept="application/pdf,.pdf" className="hidden"
               onChange={e => handleOcr(e, 'pdf')} disabled={!!ocrLoading}
-              onClick={gardeImportFichier} />
+              />
           </label>
 
           {/* 4e façon d'obtenir un DOCUMENT (famille TXT / Image / PDF) : un document d'exemple
