@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
+import ConfirmerSuppression from './ConfirmerSuppression.jsx'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { aideSequences } from '../../utils/aideSequences.js'
 import { TYPES_CONTENUS } from '../../utils/typesContenus.js'
@@ -72,6 +73,7 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
   // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
   // Une panne ne se déguise jamais en « Aucune séquence » (motif de l'Accueil).
   const [chargementRate, setChargementRate] = useState(false)
+  const [aSupprimer, setASupprimer] = useState(null)   // séquence en attente de confirmation
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement.
   const chargerSequences = useCallback(async () => {
@@ -206,12 +208,14 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
           >
             <IconShare />
           </span>
-          <span
-            title="Bientôt — la suppression arrive dans Mes contenus"
-            style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, color: '#cbd5e1', cursor: 'not-allowed' }}
+          <button
+            type="button"
+            onClick={() => setASupprimer(q)}
+            title="Supprimer cette séquence — ses séances, elles, seront conservées"
+            style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, color: '#94a3b8', cursor: 'pointer' }}
           >
             <IconTrash />
-          </span>
+          </button>
         </div>
       </div>
     </div>
@@ -456,6 +460,18 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
             ? <div className="split-pane"><div className="split-col split-col-flex">{colonneListe}</div></div>
             : <SplitPane storageKey="contenus-sequences-split-v1" defautGauche={54} gauche={colonneListe} droite={colonneDetail} />}
         </div>
+      )}
+
+      {/* Suppression : la confirmation dit combien de séances SURVIVENT (elles repassent en
+          « non rangées », garanti par la base), puis la liste est RELUE en base. */}
+      {aSupprimer && (
+        <ConfirmerSuppression
+          base={`/api/contenus/sequences/${aSupprimer.id}`}
+          type="sequence"
+          titre={aSupprimer.titre}
+          onAnnuler={() => setASupprimer(null)}
+          onSupprime={() => { setASupprimer(null); chargerSequences() }}
+        />
       )}
 
       {profilDialog && (

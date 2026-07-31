@@ -10,10 +10,15 @@
 // « Réessayer l'enregistrement ». V1 : le plan ne se génère que sur une séquence NEUVE
 // (jamais destructif) — ensuite viennent les gestes (étape 4 du chantier).
 //
+// ÉDITION (31/07) : une séquence née n'est plus figée. Ses champs restent ouverts et toute
+// retouche part en base d'elle-même (PUT, auto-save — aucun bouton « Valider », comme
+// partout ailleurs). Seul le PLAN est intouchable ici : les séances existent déjà, chacune
+// avec son déroulé et son historique ; on les travaille une à une dans l'écran Séance.
+//
 // Cascade : UN CLIC = UN ÉTAGE — générer le plan ne génère aucun déroulé de séance.
 // LA BOUCLE (30/07) : chaque ligne du plan s'OUVRE (écran Séance pré-rempli, la séance est
 // déjà en base) — le prof y génère le déroulé, y accroche ses activités, puis revient ici.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import SplitPane from './SplitPane.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
@@ -169,6 +174,41 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
   useEffect(() => {
     if (sequence?.id) chargerSeances(sequence.id)
   }, [sequence?.id])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Corriger une séquence DÉJÀ NÉE (auto-save, règle 0) ──────────────────────────────
+  // Une séquence écrite n'était plus modifiable du tout : ni renommer, ni corriger l'objectif.
+  // Ses champs restent donc ouverts après la naissance, et toute retouche part en base d'
+  // elle-même (PUT), sans bouton « Valider » — comme le reste de l'application. Le PLAN n'est
+  // jamais touché : les séances existent, chacune avec son déroulé et son historique.
+  const dernierEnregistre = useRef(null)   // l'état déjà en base, pour ne pas écrire pour rien
+
+  async function sauverModifs(instantane) {
+    try {
+      await lireReponse(await apiFetch(`/api/contenus/sequences/${sequenceId}`, {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          objectif, contexte, ampleur,
+          competences: competencesTexte.split('\n').map(l => l.trim()).filter(Boolean),
+        }),
+      }, TIMEOUT_STD))
+      dernierEnregistre.current = instantane
+      setEnregistrement('ok')
+    } catch (err) {
+      setEnregistrement('echec')
+      showError(`Vos modifications n'ont pas pu être enregistrées.\n\n${messagePourEcran(err)}`)
+    }
+  }
+
+  useEffect(() => {
+    if (!sequenceId) return
+    const instantane = JSON.stringify({ objectif, contexte, ampleur, competencesTexte })
+    // Premier passage (reprise ou naissance) : on note l'état de la base, on n'écrit rien.
+    if (dernierEnregistre.current === null) { dernierEnregistre.current = instantane; return }
+    if (dernierEnregistre.current === instantane) return
+    if (!objectif.trim()) return          // le serveur refuse un objectif vide, on n'insiste pas
+    const t = setTimeout(() => sauverModifs(instantane), 1200)   // fin de frappe, pas chaque touche
+    return () => clearTimeout(t)
+  }, [sequenceId, objectif, contexte, ampleur, competencesTexte])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const objectifOk = !!objectif.trim()
   const precisionsFaites = !!ampleur.trim() || !!competencesTexte.trim()
@@ -454,7 +494,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   {/* Même procédé d'apport que la séance : TXT / Image / PDF / Dicter +
                       « Propose-moi un objectif ». Replier CACHE la rangée sans la démonter. */}
                   <div style={{ display: baseReplie ? 'none' : 'block', marginLeft: 'auto', minWidth: 0 }}>
-                    <ApportTexte texte={objectif} onChange={setObjectif} onSourceNote={setSourceNote} proposer={proposerObjectif} disabled={loading || !!sequenceId} />
+                    <ApportTexte texte={objectif} onChange={setObjectif} onSourceNote={setSourceNote} proposer={proposerObjectif} disabled={loading} />
                   </div>
                 </div>
                 {!baseReplie && (<>
@@ -471,7 +511,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   onChange={e => setObjectif(e.target.value)}
                   placeholder={"Décrivez l'objectif général de la séquence…\n— ou importez un fichier TXT, une image scannée ou un PDF\n— ou dictez avec le micro\n— ou laissez « Propose-moi un objectif » l'écrire à votre place"}
                   rows={4}
-                  disabled={loading || !!sequenceId}
+                  disabled={loading}
                   style={{ ...CHAMP, resize: 'vertical' }}
                 />
                 <label style={LABEL}>
@@ -487,7 +527,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   value={contexte}
                   onChange={e => setContexte(e.target.value)}
                   placeholder="Ex : classe de 24, très hétérogène ; le travail en groupe fonctionne bien…"
-                  disabled={loading || !!sequenceId}
+                  disabled={loading}
                   style={CHAMP}
                 />
                 </>)}
@@ -540,7 +580,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   value={ampleur}
                   onChange={e => setAmpleur(e.target.value)}
                   placeholder="Ex : une dizaine de séances · un trimestre · un projet sur deux ans…"
-                  disabled={loading || !!sequenceId}
+                  disabled={loading}
                   style={CHAMP}
                 />
                 {/* Zone Compétences — même grammaire que la séance : libellé + pastille
@@ -558,7 +598,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                     )}
                   </div>
                   <div style={{ marginLeft: 'auto', minWidth: 0 }}>
-                    <ApportTexte texte={competencesTexte} onChange={setCompetencesTexte} onSourceNote={setSourceNoteComp} proposer={proposerCompetences} disabled={loading || !!sequenceId} />
+                    <ApportTexte texte={competencesTexte} onChange={setCompetencesTexte} onSourceNote={setSourceNoteComp} proposer={proposerCompetences} disabled={loading} />
                   </div>
                 </div>
                 <textarea
@@ -566,7 +606,7 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
                   onChange={e => setCompetencesTexte(e.target.value)}
                   placeholder={"Une compétence ou un attendu par ligne…\n— ou importez un fichier TXT, une image scannée ou un PDF\n— ou dictez avec le micro\n— ou laissez « Propose-moi des compétences » les écrire depuis le programme"}
                   rows={3}
-                  disabled={loading || !!sequenceId}
+                  disabled={loading}
                   style={{ ...CHAMP, resize: 'vertical' }}
                 />
                 </>)}

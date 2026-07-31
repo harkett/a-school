@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
+import ConfirmerSuppression from './ConfirmerSuppression.jsx'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
 import { corpsHtml, imprimerApercu } from '../../utils/apercuHtml.js'
 import { aideSeances } from '../../utils/aideSeances.js'
@@ -94,6 +95,7 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
   // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
   // Une panne ne se déguise jamais en « Aucune séance » (motif de l'Accueil).
   const [chargementRate, setChargementRate] = useState(false)
+  const [aSupprimer, setASupprimer] = useState(null)   // séance en attente de confirmation
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
   // les lignes « seance » de /api/mes-contenus (jamais l'ancien monde).
@@ -245,12 +247,14 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
           >
             <IconShare />
           </span>
-          <span
-            title="Bientôt — la suppression arrive dans Mes contenus"
-            style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, color: '#cbd5e1', cursor: 'not-allowed' }}
+          <button
+            type="button"
+            onClick={() => setASupprimer(s)}
+            title="Supprimer cette séance — ses activités, elles, seront conservées"
+            style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, color: '#94a3b8', cursor: 'pointer' }}
           >
             <IconTrash />
-          </span>
+          </button>
         </div>
       </div>
     </div>
@@ -492,6 +496,19 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
             ? <div className="split-pane"><div className="split-col split-col-flex">{colonneListe}</div></div>
             : <SplitPane storageKey="contenus-seances-split-v1" defautGauche={54} gauche={colonneListe} droite={colonneDetail} />}
         </div>
+      )}
+
+      {/* Suppression : la confirmation demande au serveur ce qui meurt (l'historique) et ce
+          qui survit (les activités, qui repassent en « non rangées »), puis la liste est RELUE
+          en base — jamais un retrait optimiste de l'état local. */}
+      {aSupprimer && (
+        <ConfirmerSuppression
+          base={`/api/contenus/seances/${aSupprimer.id}`}
+          type="seance"
+          titre={aSupprimer.titre}
+          onAnnuler={() => setASupprimer(null)}
+          onSupprime={() => { setASupprimer(null); chargerSeances() }}
+        />
       )}
 
       {profilDialog && (

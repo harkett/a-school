@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -431,6 +432,106 @@ def restaurer_version_seance(
                          style=version.style, resultat=version.resultat))
     db.commit()
     return {"ok": True, "id": seance.id, "resultat": seance.resultat, "style": seance.style}
+
+
+# ---------------------------------------------------------------------------
+# Supprimer — dire d'abord ce qui meurt, puis le faire
+# ---------------------------------------------------------------------------
+# Deux gestes par contenu :
+#   GET  .../suppression : CE QUI VA DISPARAÎTRE, compté EN BASE (pas un texte générique) —
+#        la boîte de confirmation annonce des nombres vrais (règle maison : la confirmation
+#        est proportionnée à ce qui est détruit) ;
+#   DELETE ...           : la suppression elle-même.
+# Ce que la BASE garantit déjà, et qu'on ne réinvente donc pas ici :
+#   - `activite_versions` / `seance_versions` : ON DELETE CASCADE — l'historique suit son
+#     contenu (c'est justement ce que la confirmation doit annoncer au prof) ;
+#   - `seances.sequence_id` / `activites.seance_id` : ON DELETE SET NULL — supprimer un
+#     parent ne détruit JAMAIS ses enfants, ils repassent en « non rangés ».
+# Le cloisonnement passe par _activite_de / _seance_de / _sequence_de : un contenu qui n'est
+# pas à soi répond 404 (jamais 403, qui confirmerait son existence à un curieux).
+
+
+@router.get("/contenus/activites/{activite_id}/suppression")
+def impact_suppression_activite(
+    activite_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ce que la suppression de cette activité emporte : son historique de versions (CASCADE)."""
+    activite = _activite_de(user, activite_id, db)
+    versions = (db.query(func.count(ActiviteVersion.id))
+                  .filter(ActiviteVersion.activite_id == activite.id).scalar() or 0)
+    return {"titre": activite.objet or activite.activite_label, "versions": versions}
+
+
+@router.delete("/contenus/activites/{activite_id}")
+def supprimer_activite(
+    activite_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Supprime l'activité et, par CASCADE, tout son historique de versions."""
+    activite = _activite_de(user, activite_id, db)
+    db.delete(activite)
+    db.commit()
+    return {"ok": True, "id": activite_id}
+
+
+@router.get("/contenus/seances/{seance_id}/suppression")
+def impact_suppression_seance(
+    seance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ce que la suppression de cette séance emporte (son historique) et ce qu'elle épargne
+    (ses activités, qui repassent en « non rangées » — SET NULL, garanti par la base)."""
+    seance = _seance_de(user, seance_id, db)
+    versions = (db.query(func.count(SeanceVersion.id))
+                  .filter(SeanceVersion.seance_id == seance.id).scalar() or 0)
+    activites = (db.query(func.count(Activite.id))
+                   .filter(Activite.seance_id == seance.id).scalar() or 0)
+    return {"titre": seance.titre, "versions": versions, "activites_liberees": activites}
+
+
+@router.delete("/contenus/seances/{seance_id}")
+def supprimer_seance(
+    seance_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Supprime la séance et son historique (CASCADE). Ses activités SURVIVENT : elles
+    repassent en « non rangées » (SET NULL)."""
+    seance = _seance_de(user, seance_id, db)
+    db.delete(seance)
+    db.commit()
+    return {"ok": True, "id": seance_id}
+
+
+@router.get("/contenus/sequences/{sequence_id}/suppression")
+def impact_suppression_sequence(
+    sequence_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ce que la suppression de cette séquence épargne : ses séances (SET NULL). Une séquence
+    n'a pas de table de versions — son résultat, ce sont ses séances."""
+    sequence = _sequence_de(user, sequence_id, db)
+    seances = (db.query(func.count(Seance.id))
+                 .filter(Seance.sequence_id == sequence.id).scalar() or 0)
+    return {"titre": sequence.titre, "seances_liberees": seances}
+
+
+@router.delete("/contenus/sequences/{sequence_id}")
+def supprimer_sequence(
+    sequence_id: int,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Supprime la séquence SEULE : ses séances survivent et repassent en « non rangées »."""
+    sequence = _sequence_de(user, sequence_id, db)
+    db.delete(sequence)
+    db.commit()
+    return {"ok": True, "id": sequence_id}
 
 
 class RattacherSeanceCorps(BaseModel):
@@ -1283,3 +1384,30 @@ def creer_sequence(
         {"id": s.id, "titre": s.titre, "position": s.position, "resultat": ""}
         for s in seances
     ]}
+
+
+@router.put("/contenus/sequences/{sequence_id}")
+def modifier_sequence(
+    sequence_id: int,
+    corps: SequencePlanGeneration,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Corriger une séquence déjà née : son objectif (= son titre), son contexte, son ampleur,
+    ses compétences. Le PLAN N'EST PAS TOUCHÉ — les séances existent déjà, chacune avec son
+    propre déroulé et son propre historique ; les régénérer ici effacerait ce travail. Pour
+    changer le plan, on travaille les séances une à une, comme les activités dans une séance.
+
+    Pas de version empilée : une séquence n'a pas de table de versions (son résultat, ce sont
+    ses séances, qui ont chacune le leur). Le couple matière/niveau ne bouge pas non plus :
+    il a été fixé à la naissance."""
+    sequence = _sequence_de(user, sequence_id, db)
+    if not corps.objectif.strip():
+        raise HTTPException(400, "L'objectif général de la séquence ne peut pas être vide.")
+    sequence.titre = corps.objectif.strip()
+    sequence.contexte = corps.contexte.strip()
+    sequence.ampleur = corps.ampleur.strip()
+    sequence.competences = json.dumps(
+        [c.strip() for c in corps.competences if c and c.strip()], ensure_ascii=False)
+    db.commit()
+    return {"ok": True, "id": sequence.id, "titre": sequence.titre}
