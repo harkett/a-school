@@ -13,7 +13,6 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from backend.core.models_db import EmailToken, RefreshToken, User
-from backend.core.resolution_couple import matiere_id_du_nom
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM = "HS256"
@@ -52,7 +51,11 @@ def _validate_password(password: str) -> str:
     return password
 
 
-def create_user(db: Session, email: str, password: str, subject: str = "", langue_lv: str = "") -> User:
+# Les paramètres « subject » et « langue_lv » ont été retirés le 31/07 (ménage) : l'inscription ne
+# les a jamais reçus (l'écran n'envoie que l'e-mail et les mots de passe), et le prof
+# renseigne son couple dans Mon profil. Un compte naît donc sans matière ni langue — ce qui était
+# déjà le cas en pratique, ces paramètres arrivant toujours vides.
+def create_user(db: Session, email: str, password: str) -> User:
     email = email.strip().lower()
     password = _validate_password(password)
     existing = db.query(User).filter(User.email == email).first()
@@ -66,8 +69,6 @@ def create_user(db: Session, email: str, password: str, subject: str = "", langu
     user = User(
         email=email,
         password_hash=_hash_password(password),
-        subject_id=matiere_id_du_nom(db, subject or None),   # RÈGLE 4 : matière rangée UNIQUEMENT par clé
-        langue_lv=langue_lv or None,
     )
     db.add(user)
     db.commit()

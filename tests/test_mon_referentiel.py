@@ -84,17 +84,8 @@ def test_pas_de_referentiel_indisponible():
 
 def test_exige_authentification():
     assert TestClient(app).get("/api/user/referentiel").status_code == 401
-    assert TestClient(app).get("/api/user/referentiel/texte").status_code == 401
 
 
-def test_texte_sert_le_programme_epure():
-    _seed_referentiel(); _prof()   # niveau semé AVANT le prof (le profil résout niveau_id depuis le nom)
-    r = _authed().get("/api/user/referentiel/texte")
-    assert r.status_code == 200, r.text
-    assert TEXTE_EPURE in r.json()["texte"]   # le TEXTE PROPRE (texte_epure), jamais le PDF brut
-
-
-def test_texte_404_si_pas_de_referentiel():
-    _prof(niveau="4e", subject="Français")
-    r = _authed().get("/api/user/referentiel/texte")
-    assert r.status_code == 404
+# Les trois tests de GET /user/referentiel/texte sont partis avec l'endpoint (ménage du 31/07) :
+# aucun écran ne l'appelait, le prof lit son programme dans le PDF d'origine. `texte_epure` reste
+# en base et reste testé là où il compte — c'est la GÉNÉRATION qui le lit.

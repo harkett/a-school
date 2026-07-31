@@ -130,24 +130,11 @@ def get_matieres(db: Session = Depends(get_db)):
     return [{"nom": m.nom} for m in rows]
 
 
-@router.get("/referentiel-disponible")
-def referentiel_disponible(niveau: str, matiere: str | None = None, db: Session = Depends(get_db)):
-    """Le garde-fou « génération » : un référentiel officiel existe-t-il pour ce couple ?
-
-    Répond {"disponible": true/false}. Vrai si un référentiel couvre tout le niveau
-    (matiere_id NULL) OU est propre à la matière du prof. Faux sinon (couple « en
-    construction » : rien à générer). Lecture seule, source = la table `referentiels`.
-    C'est la brique lue à la connexion pour poser le drapeau côté prof.
-    """
-    q = (db.query(Referentiel.id)
-           .join(Niveau, Niveau.id == Referentiel.niveau_id)
-           .filter(Niveau.nom == niveau))
-    if matiere:
-        mid = db.query(Matiere.id).filter(Matiere.nom == matiere).scalar()
-        q = q.filter((Referentiel.matiere_id.is_(None)) | (Referentiel.matiere_id == mid))
-    else:
-        q = q.filter(Referentiel.matiere_id.is_(None))
-    return {"disponible": q.first() is not None}
+# RETIRÉ le 31/07 (ménage) : GET /referentiel-disponible répondait « ce couple a-t-il un
+# référentiel ? ». Personne ne l'appelait : la réponse voyage déjà dans /programmes, où chaque
+# niveau porte son `refDisponible` — l'écran l'a par la même lecture que ses menus, sans second
+# appel. Trois vérifications faites : aucun import, aucun appelant (hors ses propres tests, partis
+# avec lui), aucun seed en migration.
 
 
 @router.get("/programmes/couverture")

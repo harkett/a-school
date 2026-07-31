@@ -21,6 +21,8 @@ import { showError } from '../../errorDialog'
 import { demanderConfirmation } from '../../confirmDialog'
 import { formatTime, computeBarLevels } from '../../utils/audioViz.js'
 import JaugeAttente from '../JaugeAttente.jsx'
+import IconSablier from '../IconSablier.jsx'
+import { JAUGE_IMAGE, JAUGE_PDF, JAUGE_DICTEE, messageMicro } from '../../utils/apportTexte.js'
 
 const NB_BARS = 12  // nombre de barres du visualiseur de volume (comme TexteSource)
 
@@ -28,13 +30,8 @@ const NB_BARS = 12  // nombre de barres du visualiseur de volume (comme TexteSou
 // la rangée vit dans l'en-tête de la cartouche, face au titre, elle doit rester discrète.
 const PETIT = { fontSize: '0.75rem', padding: '0.32rem 0.65rem' }
 
-// Le SABLIER de la règle maison (« tout appel IA montre le sablier ET la jauge ») : le bouton
-// qui tourne. Une seule définition ici — il était recopié inline à chaque endroit.
-const IconSablier = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-    <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-  </svg>
-)
+// Le sablier et les libellés de jauge communs aux deux rangées d'apport vivent maintenant dans
+// des modules partagés (IconSablier.jsx, utils/apportTexte.js) — ils étaient écrits deux fois.
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -211,11 +208,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
       activeRef.current = false
       setIsListening(false)
       setIsReady(false)
-      if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-        showError("Accès au microphone refusé.\n\nPour utiliser la dictée vocale, autorisez l'accès au microphone dans les paramètres du navigateur.")
-      } else {
-        showError(`Impossible d'accéder au microphone.\n\n${(err && err.message) || 'Erreur inconnue.'}`)
-      }
+      showError(messageMicro(err))
       return
     }
     mediaStreamRef.current = stream
@@ -492,13 +485,13 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
         <JaugeAttente libelle={proposer.jauge} />
       )}
       {ocrLoading === 'image' && (
-        <JaugeAttente libelle="aSchool lit votre image et en extrait le texte…" />
+        <JaugeAttente libelle={JAUGE_IMAGE} />
       )}
       {ocrLoading === 'pdf' && (
-        <JaugeAttente libelle="aSchool lit votre PDF et en extrait le texte…" />
+        <JaugeAttente libelle={JAUGE_PDF} />
       )}
       {isTranscribing && (
-        <JaugeAttente libelle="aSchool transcrit votre dictée — le texte s'insérera à la fin…" />
+        <JaugeAttente libelle={JAUGE_DICTEE} />
       )}
     </div>
   )

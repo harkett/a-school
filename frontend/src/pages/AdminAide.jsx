@@ -96,7 +96,9 @@ const SECTIONS = [
         ),
         contenu: [
           'Centralise tous les retours des enseignants : feedbacks libres, notations (étoiles) et idées de fonctionnalités.',
-          'Quatre statuts disponibles : Nouveau → En cours → Traité → Archivé.',
+          // Ne récite plus les statuts : ils vivent en base (table `feedback_statuts`) et l'écran
+          // les affiche déjà. Un texte d'aide qui énumère un catalogue finit toujours par mentir.
+          'Les statuts disponibles sont ceux du catalogue, affichés dans le filtre en haut de la liste.',
           'Changer le statut permet de suivre le traitement sans perdre l\'historique.',
           'Un badge rouge dans le menu indique le nombre de feedbacks au statut "Nouveau".',
           'Les idées de fonctionnalités arrivent ici depuis la page "Bientôt disponible" de l\'application.',

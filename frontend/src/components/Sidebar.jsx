@@ -282,7 +282,10 @@ export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
             {analysesOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
                 {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
-                {subNavItem('consigne', 'Consignes', "Bientôt disponible — analyser la qualité d'une consigne", { disabled: true })}
+                {/* Consignes EXISTE (composant Consigne + backend analyse/consigne.py) : le menu
+                    la donnait pour « bientôt » et la grisait, alors que l'Accueil l'ouvrait
+                    normalement. Deux écrans, deux vérités — c'est le menu qui se trompait. */}
+                {subNavItem('consigne', 'Consignes', "Analyser la qualité didactique d'une consigne")}
                 {subNavItem('equite', 'Équité', "Bientôt disponible — auditer l'équité d'une évaluation", { disabled: true })}
               </div>
             )}

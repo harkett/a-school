@@ -391,7 +391,7 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                   matiere={matiere} niveau={niveau}
                   activiteTypeId={params.activite_type_id} sousType={params.sous_type}
                   verrouille={(loading || !!resultat) && !entreeDeverrouillee}
-                  cahierPresent={cahierPresent} loading={loading} hasResultat={!!resultat}
+                  cahierPresent={cahierPresent}
                 />
               )}
               {/* Étape ③ — les DEUX boutons de ton (le clic choisit le ton ET lance), comme le modèle. */}

@@ -149,47 +149,9 @@ const SearchBox = ({ query, setQuery }) => {
   )
 }
 
-// Les 3 options du Centre d'aide (Niveau 2 de la spec) : Aide (fiches) · FAQ · Prise en main.
-// FAQ et Prise en main sont des emplacements « bientôt » à ce stade (N2-a) ; leur contenu
-// arrive dans les passes suivantes.
-const OPTIONS = [
-  { id: 'aide',          label: 'Aide',          title: 'Les fiches et guides : comment l\'application fonctionne' },
-  { id: 'faq',           label: 'FAQ',           title: 'Les questions fréquentes (bientôt)' },
-  { id: 'prise-en-main', label: 'Prise en main', title: 'Un assistant pour prendre en main aSchool (bientôt)' },
-]
-
-const OptionTabs = ({ option, setOption }) => (
-  <div style={{ display: 'inline-flex', gap: 4, background: '#f1f5f9', borderRadius: 10, padding: 4, alignSelf: 'flex-start' }}>
-    {OPTIONS.map(o => {
-      const active = option === o.id
-      return (
-        <button
-          key={o.id}
-          onClick={() => setOption(o.id)}
-          title={o.title}
-          style={{
-            padding: '7px 16px', fontSize: 13, fontWeight: active ? 600 : 500,
-            borderRadius: 7, border: 'none', cursor: 'pointer',
-            background: active ? '#fff' : 'transparent',
-            color: active ? 'var(--bleu)' : '#475569',
-            boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-            transition: 'background .15s, color .15s',
-          }}
-        >
-          {o.label}
-        </button>
-      )
-    })}
-  </div>
-)
-
-const OptionPlaceholder = ({ titre, texte }) => (
-  <div className="bg-white rounded-lg border border-gray-200 shadow-sm" style={{ padding: '32px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-    <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{titre}</div>
-    <p style={{ fontSize: 13, color: '#64748b', margin: 0, maxWidth: 420, lineHeight: 1.6 }}>{texte}</p>
-    <span style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 99, padding: '2px 10px' }}>Bientôt</span>
-  </div>
-)
+// RETIRÉ le 31/07 (ménage) : OPTIONS / OptionTabs / OptionPlaceholder dessinaient une barre
+// d'onglets « Aide · FAQ · Prise en main » jamais branchée — aucun rendu ne les appelait. Le jour
+// où la FAQ existera, elle se dessinera avec ce qu'elle contient vraiment.
 
 function telechargerProcedure(titre, html) {
   const w = window.open('', '_blank')

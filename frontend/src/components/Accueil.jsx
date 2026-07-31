@@ -195,15 +195,20 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
               {[
                 { label: 'Ambiguïtés', page: 'ambiguites', title: 'Détecter les ambiguïtés cognitives d\'un exercice ou énoncé' },
                 { label: 'Consignes',  page: 'consigne',   title: 'Analyser la qualité didactique d\'une consigne' },
-                { label: 'Équité',     page: 'equite',     title: 'Auditer l\'équité pédagogique d\'une évaluation' },
+                // Équité n'existe pas encore (la page rend « Outil en cours de développement ») :
+                // l'Accueil l'offrait comme un outil normal pendant que le menu la donnait pour
+                // « bientôt ». Deux écrans, deux vérités. Ici c'est l'Accueil qui se trompait.
+                { label: 'Équité',     page: 'equite',     title: 'Bientôt disponible — auditer l\'équité pédagogique d\'une évaluation', bientot: true },
               ].map(a => (
                 <button
                   key={a.page}
                   onClick={() => onNavigate(a.page)}
                   title={a.title}
-                  style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, color: '#475569', cursor: 'pointer' }}
+                  aria-disabled={a.bientot || undefined}
+                  style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer',
+                           color: a.bientot ? '#94a3b8' : '#475569' }}
                 >
-                  {a.label} →
+                  {a.label}{a.bientot ? ' · bientôt' : ' →'}
                 </button>
               ))}
             </div>

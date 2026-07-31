@@ -214,19 +214,11 @@ def get_mon_referentiel(aschool_access: str = Cookie(default=None), db: Session 
     return {"disponible": True, "fichier": ref.fichier or "referentiel.pdf"}
 
 
-@router.get("/user/referentiel/texte")
-def get_mon_referentiel_texte(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
-    """Le programme du niveau du prof en TEXTE PROPRE — get pur de `referentiels.texte_epure`, la
-    version épurée/lisible déjà figée au dépôt (rag.extraction), PAS le PDF brut. VERROUILLÉ sur SON
-    niveau (couple résolu en base, l'écran n'envoie aucun identifiant). 404 humain si rien à montrer."""
-    email = _get_email(aschool_access)
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(404, "Utilisateur introuvable.")
-    ref = _referentiel_du_profil(db, user)
-    if ref is None or not (ref.texte_epure or "").strip():
-        raise HTTPException(404, "Aucun programme officiel n'est disponible pour votre niveau.")
-    return {"texte": ref.texte_epure}
+# RETIRÉ le 31/07 (ménage) : GET /user/referentiel/texte servait le programme officiel en texte
+# épuré. Aucun écran ne l'appelait — le prof lit son programme dans le PDF d'origine
+# (/user/referentiel/pdf, celui-là bien branché). Trois vérifications faites avant de le retirer :
+# aucun import, aucun appelant (hors ses propres tests, partis avec lui), aucun seed en migration.
+# `referentiels.texte_epure` reste évidemment en base : c'est LUI que la génération lit.
 
 
 @router.get("/user/referentiel/pdf")

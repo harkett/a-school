@@ -40,10 +40,12 @@ def _clear_cookies(response: Response):
 # Schemas
 # ---------------------------------------------------------------------------
 
+# `subject` et `langue_lv` ont été RETIRÉS le 31/07 (ménage) : l'écran d'inscription ne les a
+# jamais envoyés (Signup.jsx n'envoie que l'e-mail et les deux mots de passe), et aucun autre
+# appelant n'existe. Le prof choisit sa matière et sa langue dans Mon profil, une fois son compte
+# vérifié — c'est là que le contrôle « cette matière est-elle au programme de ce niveau ? » vit.
 class SignupBody(BaseModel):
     email: str
-    subject: str = ""
-    langue_lv: str = ""
     password: str
     password_confirm: str
 
@@ -88,7 +90,7 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
             raise HTTPException(403, "Inscription réservée aux membres autorisés.")
 
     try:
-        user = auth_lib.create_user(db, body.email, body.password, body.subject, body.langue_lv)
+        user = auth_lib.create_user(db, body.email, body.password)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
