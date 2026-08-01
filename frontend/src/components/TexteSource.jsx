@@ -686,6 +686,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       </div>
 
       <textarea
+        data-guide="texte"
         ref={textareaRef}
         className="w-full border border-gray-300 rounded p-3 text-sm resize-y"
         rows={8}

@@ -304,7 +304,7 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
           />
         </div>
         {resultat && !loading && (
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div data-guide="reprise" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button
               type="button"
               className="btn-secondary"
@@ -432,7 +432,7 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                       ) : (!resultat || entreeDeverrouillee) ? (
                         <>
                           <span style={{ fontSize: 12.5, color: '#64748b' }}>Choisissez le ton — c'est lui qui lance la génération :</span>
-                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          <div data-guide="generer" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                             <button
                               type="button"
                               className="btn-primary"
