@@ -23,7 +23,7 @@ sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import User, Feedback, Incident
 from backend.supervision.incidents import creer_incident
 from fastapi.testclient import TestClient
@@ -67,7 +67,7 @@ def test_creer_incident_ecrit_en_base_et_renvoie_ref():
 def test_feedback_avec_ref_relie_l_incident():
     c = _client_avec_prof()
     ref = _creer_incident_en_base()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification") as notif:
+    with patch("backend.communication.feedback.comptes.send_feedback_notification") as notif:
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Ça a planté chez moi.",
                                           "category": "bug", "incident_ref": ref})
     assert r.status_code == 200, r.text
@@ -83,7 +83,7 @@ def test_admin_voit_l_incident_sur_le_feedback():
     from backend.systeme.admin import _make_admin_token
     prof = _client_avec_prof()
     ref = _creer_incident_en_base()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_notification"):
         prof.post("/api/feedback", json={"type": "feedback", "message": "Ça a planté chez moi.",
                                          "category": "bug", "incident_ref": ref})
     admin = TestClient(app)
@@ -100,7 +100,7 @@ def test_admin_voit_l_incident_sur_le_feedback():
 def test_feedback_sans_ref_n_altere_aucun_incident():
     c = _client_avec_prof()
     ref = _creer_incident_en_base()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_notification"):
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Suggestion diverse.",
                                           "category": "suggestion"})
     assert r.status_code == 200, r.text
@@ -110,7 +110,7 @@ def test_feedback_sans_ref_n_altere_aucun_incident():
 
 def test_feedback_ref_inconnue_ne_casse_pas():
     c = _client_avec_prof()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_notification"):
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Réf inexistante.",
                                           "category": "bug", "incident_ref": "INC-INEXISTANT"})
     assert r.status_code == 200, r.text   # feedback enregistré malgré la réf inconnue

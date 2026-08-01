@@ -25,7 +25,7 @@ sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.llm_prompts import PROMPTS
 from fastapi.testclient import TestClient
 

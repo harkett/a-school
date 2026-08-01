@@ -26,7 +26,7 @@ sys.path.insert(0, ROOT)
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from fastapi.testclient import TestClient
 
 TOKEN = create_access_token("filet-test@local.test")

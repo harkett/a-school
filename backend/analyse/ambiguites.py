@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
 from backend.prof.profil import couple_de_travail
@@ -37,7 +37,7 @@ class AmbigsResponse(BaseModel):
 def _get_email(aschool_access: str | None) -> str:
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email

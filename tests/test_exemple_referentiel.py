@@ -33,7 +33,7 @@ import pytest
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import Cycle, Niveau, Referentiel
 from backend.pedagogie.exemple_referentiel import AUCUN_EXTRAIT_PERTINENT
 from fastapi.testclient import TestClient

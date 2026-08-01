@@ -79,7 +79,7 @@ def _send_alert_email(level: str, title: str, message: str):
     msg.attach(MIMEText(html, "html"))
 
     try:
-        from backend.auth import _smtp_send
+        from backend.securite.comptes import _smtp_send
         _smtp_send(msg)
     except Exception:
         pass  # L'alerte est en BDD même si l'email échoue

@@ -22,7 +22,7 @@ try:
     msg["From"] = from_addr
     msg["To"] = to_addr
 
-    # Même délai que la porte d'envoi de l'application (_SMTP_TIMEOUT dans backend/auth.py) :
+    # Même délai que la porte d'envoi de l'application (_SMTP_TIMEOUT dans backend/securite/comptes.py) :
     # un diagnostic doit échouer vite et clairement, jamais rester suspendu sans rien dire.
     with smtplib.SMTP(host, port, timeout=10) as server:
         server.ehlo()

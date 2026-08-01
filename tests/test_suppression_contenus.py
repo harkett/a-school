@@ -24,7 +24,7 @@ sys.path.insert(0, ROOT)
 import backend.core.database as dbmod  # noqa: E402  (redirigé vers aschool_test par conftest)
 
 from backend.main import app  # noqa: E402
-from backend.auth import create_access_token  # noqa: E402
+from backend.securite.comptes import create_access_token  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 EMAIL = "suppression@local.test"

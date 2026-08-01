@@ -30,7 +30,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.core.limiter import limiter, plafond_depasse
 from backend.core.middleware import UserSessionMiddleware
-from backend.routers import auth
+from backend.securite import auth
 from backend.systeme import admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
 from backend.contenu import activites, mes_contenus

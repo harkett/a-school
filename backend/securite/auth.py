@@ -4,7 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.limiter import (
     PLAFOND_DEMANDE_RESET,
@@ -90,13 +90,13 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
             raise HTTPException(403, "Inscription réservée aux membres autorisés.")
 
     try:
-        user = auth_lib.create_user(db, body.email, body.password)
+        user = comptes.create_user(db, body.email, body.password)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
-    token = auth_lib.generate_email_token(db, user.email, "verify_email")
+    token = comptes.generate_email_token(db, user.email, "verify_email")
     try:
-        auth_lib.send_verification_email(user.email, token)
+        comptes.send_verification_email(user.email, token)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
 
@@ -108,12 +108,12 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
 @router.post("/auth/login")
 def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_db)):
     try:
-        user = auth_lib.authenticate_user(db, body.email, body.password)
+        user = comptes.authenticate_user(db, body.email, body.password)
     except ValueError as e:
         raise HTTPException(401, str(e))
 
-    access = auth_lib.create_access_token(user.email)
-    refresh = auth_lib.create_refresh_token(db, user.email)
+    access = comptes.create_access_token(user.email)
+    refresh = comptes.create_refresh_token(db, user.email)
     _set_cookies(response, access, refresh)
     db.add(ConnexionLog(email=user.email, user_id=user.id, action="login", ip=request.client.host if request.client else None))
     db.commit()
@@ -134,9 +134,9 @@ def resend_verification(body: ResendVerificationBody, request: Request, db: Sess
     user = db.query(User).filter(User.email == email).first()
     # Toujours retourner ok — ne pas révéler si l'email existe
     if user and not user.is_verified:
-        token = auth_lib.generate_email_token(db, email, "verify_email")
+        token = comptes.generate_email_token(db, email, "verify_email")
         try:
-            auth_lib.send_verification_email(email, token)
+            comptes.send_verification_email(email, token)
         except Exception:
             pass  # Silencieux — le frontend reçoit ok dans tous les cas
     return {"status": "ok"}
@@ -148,9 +148,9 @@ def request_reset(body: RequestResetBody, request: Request, db: Session = Depend
     email = body.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
     if user and user.is_verified:
-        token = auth_lib.generate_email_token(db, email, "reset_password")
+        token = comptes.generate_email_token(db, email, "reset_password")
         try:
-            auth_lib.send_reset_email(email, token)
+            comptes.send_reset_email(email, token)
         except Exception:
             pass
     return {"status": "ok"}
@@ -165,7 +165,7 @@ def reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
     if len(body.password.encode("utf-8")) > 72:
         raise HTTPException(400, "Le mot de passe est trop long (72 caractères maximum).")
 
-    email = auth_lib.verify_email_token(db, body.token, "reset_password")
+    email = comptes.verify_email_token(db, body.token, "reset_password")
     if not email:
         raise HTTPException(400, "Lien invalide ou expiré.")
 
@@ -173,25 +173,25 @@ def reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(400, "Lien invalide ou expiré.")
 
-    user.password_hash = auth_lib._hash_password(body.password)
-    auth_lib.revoke_all_refresh_tokens(db, email)
+    user.password_hash = comptes._hash_password(body.password)
+    comptes.revoke_all_refresh_tokens(db, email)
     db.commit()
     return {"status": "ok"}
 
 
 @router.get("/auth/verify-email")
 def verify_email(token: str, db: Session = Depends(get_db)):
-    email = auth_lib.verify_email_token(db, token, "verify_email")
+    email = comptes.verify_email_token(db, token, "verify_email")
     if not email:
         raise HTTPException(400, "Lien invalide ou expiré.")
-    auth_lib.mark_user_verified(db, email)
+    comptes.mark_user_verified(db, email)
     user = db.query(User).filter(User.email == email).first()
     try:
         from backend.systeme.admin import get_welcome_template, record_email_envoi
         tpl = get_welcome_template(db)
         statut, err = "envoye", None
         try:
-            auth_lib.send_custom_email(
+            comptes.send_custom_email(
                 email,
                 user.prenom if user else None,
                 tpl.objet,
@@ -206,7 +206,7 @@ def verify_email(token: str, db: Session = Depends(get_db)):
     except Exception:
         pass
     try:
-        auth_lib.send_admin_new_user_notification(email, matiere_nom_de_id(db, user.subject_id) if user else None)
+        comptes.send_admin_new_user_notification(email, matiere_nom_de_id(db, user.subject_id) if user else None)
     except Exception:
         pass
     return {"status": "ok", "email": email}
@@ -221,7 +221,7 @@ def refresh(
     if not aschool_refresh:
         raise HTTPException(401, "Non connecté.")
     try:
-        access, new_refresh = auth_lib.rotate_refresh_token(db, aschool_refresh)
+        access, new_refresh = comptes.rotate_refresh_token(db, aschool_refresh)
     except ValueError as e:
         _clear_cookies(response)
         raise HTTPException(401, str(e))
@@ -233,7 +233,7 @@ def refresh(
 def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()
@@ -272,7 +272,7 @@ def logout_inactivite(
     aschool_access: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ):
-    email = auth_lib.verify_access_token(aschool_access) if aschool_access else None
+    email = comptes.verify_access_token(aschool_access) if aschool_access else None
     if email:
         db.add(ConnexionLog(email=email, user_id=db.query(User.id).filter(User.email == email).scalar(), action="inactivite_logout"))
         db.commit()
@@ -286,6 +286,6 @@ def logout(
     db: Session = Depends(get_db),
 ):
     if aschool_refresh:
-        auth_lib.revoke_refresh_token(db, aschool_refresh)
+        comptes.revoke_refresh_token(db, aschool_refresh)
     _clear_cookies(response)
     return {"status": "ok"}

@@ -22,7 +22,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 import backend.core.database as dbmod
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import Feedback, User
 from backend.main import app
 from backend.systeme.admin import codes_statuts_assignables, codes_statuts_modifiables, labels_statuts

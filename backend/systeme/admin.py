@@ -1450,10 +1450,10 @@ def admin_reset_password(email: str, request: Request, db: Session = Depends(get
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    from backend import auth as auth_lib
-    token = auth_lib.generate_email_token(db, email, "reset_password")
+    from backend.securite import comptes
+    token = comptes.generate_email_token(db, email, "reset_password")
     try:
-        auth_lib.send_reset_email(email, token)
+        comptes.send_reset_email(email, token)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     log_admin_action(
@@ -1498,7 +1498,7 @@ class MailGroupeBody(BaseModel):
 
 @router.post("/admin/mail-groupe")
 def mail_groupe(body: MailGroupeBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     if not body.emails:
         raise HTTPException(400, "Aucun destinataire.")
     if not body.subject.strip():
@@ -1513,7 +1513,7 @@ def mail_groupe(body: MailGroupeBody, request: Request, db: Session = Depends(ge
             errors.append(email)
             continue
         try:
-            auth_lib.send_custom_email(email, user.prenom, body.subject, body.body)
+            comptes.send_custom_email(email, user.prenom, body.subject, body.body)
             sent += 1
         except Exception:
             errors.append(email)
@@ -1530,12 +1530,12 @@ def mail_groupe(body: MailGroupeBody, request: Request, db: Session = Depends(ge
 
 @router.post("/admin/user/{email}/send-email")
 def send_email_to_user(email: str, body: SendEmailBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
     try:
-        auth_lib.send_custom_email(email, user.prenom, body.subject, body.body)
+        comptes.send_custom_email(email, user.prenom, body.subject, body.body)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}
@@ -1543,7 +1543,7 @@ def send_email_to_user(email: str, body: SendEmailBody, db: Session = Depends(ge
 
 @router.post("/admin/settings/test-email")
 def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     admin_email = os.getenv("SMTP_USERNAME", "")
     if not admin_email:
         raise HTTPException(500, "SMTP_USERNAME non configuré.")
@@ -1551,7 +1551,7 @@ def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: Non
     subject = body.welcome_email_subject or settings["welcome_email_subject"]
     content = body.welcome_email_body    or settings["welcome_email_body"]
     try:
-        auth_lib.send_custom_email(admin_email, "Admin", subject, content)
+        comptes.send_custom_email(admin_email, "Admin", subject, content)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}
@@ -1661,7 +1661,7 @@ def delete_email_template(template_id: int, request: Request, db: Session = Depe
 def send_email_template(template_id: int, body: EmailTemplateSend, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     """Envoi MANUEL du modele vers une adresse saisie (ex. UNICEF). Passe par la
     porte SMTP unique via send_custom_email()."""
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     t = db.query(EmailTemplate).filter(EmailTemplate.id == template_id).first()
     if not t:
         raise HTTPException(404, "Modele introuvable.")
@@ -1672,7 +1672,7 @@ def send_email_template(template_id: int, body: EmailTemplateSend, request: Requ
         raise HTTPException(400, "Objet et corps requis avant l'envoi.")
     statut, err = "envoye", None
     try:
-        auth_lib.send_custom_email(to, None, t.objet, t.corps)
+        comptes.send_custom_email(to, None, t.objet, t.corps)
     except Exception as e:
         statut, err = "echec", str(e)
     # Suivi : on trace l'envoi (reussi OU echoue) avant de repondre.
@@ -1711,7 +1711,7 @@ def list_email_envois(db: Session = Depends(get_db), _: None = Depends(_require_
 @router.post("/admin/email-templates/{template_id}/test")
 def test_email_template(template_id: int, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     """Envoi de TEST du modele vers l'adresse SMTP de l'admin (verifie la config)."""
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     admin_email = os.getenv("SMTP_USERNAME", "")
     if not admin_email:
         raise HTTPException(500, "SMTP_USERNAME non configure.")
@@ -1719,7 +1719,7 @@ def test_email_template(template_id: int, db: Session = Depends(get_db), _: None
     if not t:
         raise HTTPException(404, "Modele introuvable.")
     try:
-        auth_lib.send_custom_email(admin_email, "Admin", t.objet, t.corps)
+        comptes.send_custom_email(admin_email, "Admin", t.objet, t.corps)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}
@@ -1777,7 +1777,7 @@ def force_logout(
     db: Session = Depends(get_db),
     _: None = Depends(_require_admin),
 ):
-    from backend.auth import send_custom_email
+    from backend.securite.comptes import send_custom_email
     session_obj = db.query(UserSession).filter(UserSession.id == session_id).first()
     if not session_obj:
         raise HTTPException(404, "Session introuvable.")

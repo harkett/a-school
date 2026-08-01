@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.models_db import User
-from backend import auth as auth_lib
+from backend.securite import comptes
 
 
 def get_current_user(
@@ -26,7 +26,7 @@ def get_current_user(
 ) -> User:
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()

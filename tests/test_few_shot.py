@@ -164,7 +164,7 @@ def test_reglage_absent_dit_l_erreur_au_lieu_de_retomber_sur_du_dur():
 def test_jauge_mes_stats_suit_le_declenchement_reel():
     """« aSchool vous connaît à X% » ne doit pas annoncer 100% quand rien ne s'applique :
     la jauge compte le meilleur groupe type × couple, comme le few-shot."""
-    from backend.auth import create_access_token
+    from backend.securite.comptes import create_access_token
     from backend.main import app
     from fastapi.testclient import TestClient
 

@@ -26,7 +26,7 @@ from unittest.mock import patch
 import backend.core.database as dbmod  # engine/SessionLocal redirigés vers aschool_test par conftest.py
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import Cycle, Niveau, Referentiel, User
 from backend.core.resolution_couple import matiere_id_du_nom, niveau_id_du_nom
 from fastapi.testclient import TestClient

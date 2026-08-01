@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models_db import FeatureVotable, FeatureVote, User
 from backend.systeme.admin import _require_admin
@@ -25,7 +25,7 @@ def catalogue_features(db: Session, actives_seulement: bool = True) -> list[Feat
 def _email_ou_401(aschool_access: str | None) -> str:
     if not aschool_access:
         raise HTTPException(401, "Connexion requise.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email

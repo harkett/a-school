@@ -16,7 +16,7 @@ import logging
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel, User
@@ -79,7 +79,7 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, flo
 def _get_email(aschool_access: str | None) -> str:
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email

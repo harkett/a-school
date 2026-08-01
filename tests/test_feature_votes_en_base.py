@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 import backend.core.database as dbmod
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import FeatureVote, User
 from backend.main import app
 from fastapi.testclient import TestClient

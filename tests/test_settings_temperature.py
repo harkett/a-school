@@ -30,7 +30,7 @@ from unittest.mock import MagicMock, patch
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import Setting
 from backend.systeme.admin import (
     get_temperature, TEMPERATURE_MIN, TEMPERATURE_MAX, _make_admin_token,

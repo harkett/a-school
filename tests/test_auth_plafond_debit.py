@@ -34,7 +34,7 @@ from fastapi.testclient import TestClient
 
 # engine / SessionLocal rediriges vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod  # noqa: F401
-import backend.auth as auth_lib
+import backend.securite.comptes as comptes
 from backend.core.limiter import (
     PLAFOND_DEMANDE_RESET,
     PLAFOND_RENVOI_VERIFICATION,
@@ -62,7 +62,7 @@ def _compteurs_a_zero():
 def _smtp_muet(monkeypatch):
     """Aucun mail ne part pendant les tests : la porte SMTP unique est remplacee."""
     envoyes = []
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: envoyes.append(msg))
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: envoyes.append(msg))
     return envoyes
 
 
@@ -95,11 +95,11 @@ class _FauxSMTP:
 
 
 def test_smtp_send_pose_un_delai_d_attente(monkeypatch):
-    monkeypatch.setattr(auth_lib.smtplib, "SMTP", _FauxSMTP)
-    auth_lib._smtp_send(MIMEText("corps de test"))
+    monkeypatch.setattr(comptes.smtplib, "SMTP", _FauxSMTP)
+    comptes._smtp_send(MIMEText("corps de test"))
     assert "timeout" in _FauxSMTP.dernier_appel, "smtplib.SMTP appele SANS timeout — blocage infini possible"
-    assert _FauxSMTP.dernier_appel["timeout"] == auth_lib._SMTP_TIMEOUT
-    assert auth_lib._SMTP_TIMEOUT > 0
+    assert _FauxSMTP.dernier_appel["timeout"] == comptes._SMTP_TIMEOUT
+    assert comptes._SMTP_TIMEOUT > 0
 
 
 def test_diagnostic_smtp_pose_aussi_un_delai():

@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.main import app
 from fastapi.testclient import TestClient
 from _profil import user_couple

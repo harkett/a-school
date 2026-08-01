@@ -19,7 +19,7 @@ sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from fastapi.testclient import TestClient
 
 EMAIL = "prof.ctx@aschool.fr"
@@ -40,7 +40,7 @@ def _client_avec_prof():
 def test_contexte_stocke_renvoye_et_fige_a_l_edition():
     from backend.core.models_db import Feedback
     c = _client_avec_prof()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_notification"):
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Le bouton ne répond pas.",
                                           "category": "bug", "contexte": CTX})
     assert r.status_code == 200, r.text
@@ -51,7 +51,7 @@ def test_contexte_stocke_renvoye_et_fige_a_l_edition():
     rows = c.get("/api/feedback/mes-feedbacks").json()
     assert rows[0]["contexte"] == CTX     # renvoyé au prof (Mes feedbacks)
     # L'édition du message NE TOUCHE PAS le contexte (fait d'événement figé à l'envoi).
-    with patch("backend.communication.feedback.auth_lib.send_feedback_update_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_update_notification"):
         r = c.patch(f"/api/feedback/{fid}", json={"message": "Précision : sur le bouton Générer."})
     assert r.status_code == 200, r.text
     with dbmod.SessionLocal() as db:
@@ -61,7 +61,7 @@ def test_contexte_stocke_renvoye_et_fige_a_l_edition():
 def test_sans_contexte_null_et_rien_ne_casse():
     from backend.core.models_db import Feedback
     c = _client_avec_prof()
-    with patch("backend.communication.feedback.auth_lib.send_feedback_notification"):
+    with patch("backend.communication.feedback.comptes.send_feedback_notification"):
         r = c.post("/api/feedback", json={"type": "feedback", "message": "Sans contexte.",
                                           "category": "question"})
     assert r.status_code == 200, r.text

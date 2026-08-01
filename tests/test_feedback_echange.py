@@ -36,7 +36,7 @@ from fastapi.testclient import TestClient
 
 # engine / SessionLocal rediriges vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod
-import backend.auth as auth_lib
+import backend.securite.comptes as comptes
 from backend.core.models_db import EmailEnvoi, EmailTemplate, Feedback, FeedbackMessage, User
 from backend.main import app
 from backend.systeme.admin import _make_admin_token
@@ -83,7 +83,7 @@ def _prof_et_retour(email=EMAIL_PROF, message=OUVERTURE):
 
 def _client_prof(email=EMAIL_PROF):
     c = TestClient(app)
-    c.cookies.set("aschool_access", auth_lib.create_access_token(email))
+    c.cookies.set("aschool_access", comptes.create_access_token(email))
     return c
 
 
@@ -97,7 +97,7 @@ def _client_admin():
 def smtp(monkeypatch):
     """Capture les mails au lieu de les envoyer. La porte SMTP unique est la seule remplacee."""
     envoyes = []
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: envoyes.append(msg))
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: envoyes.append(msg))
     return envoyes
 
 
@@ -209,7 +209,7 @@ def test_chaque_avis_est_journalise(smtp):
 def test_smtp_en_panne_la_reponse_est_gardee_et_l_echec_trace(monkeypatch):
     def boom(msg):
         raise RuntimeError("SMTP down")
-    monkeypatch.setattr(auth_lib, "_smtp_send", boom)
+    monkeypatch.setattr(comptes, "_smtp_send", boom)
     fb_id = _prof_et_retour()
 
     r = _client_admin().post(f"/api/admin/feedbacks/{fb_id}/messages", json={"corps": "Reponse quand meme."})

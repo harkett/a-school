@@ -29,7 +29,7 @@ import pytest
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 import backend.llm.generator as gen
 import backend.core.groq_client as gc
 from fastapi import HTTPException

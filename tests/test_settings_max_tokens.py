@@ -32,7 +32,7 @@ from unittest.mock import MagicMock, patch
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.auth import create_access_token
+from backend.securite.comptes import create_access_token
 from backend.core.models_db import Setting
 from backend.systeme.admin import (
     get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN, MAX_TOKENS_MAX,

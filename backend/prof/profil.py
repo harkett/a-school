@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models_db import CahierProf, Cycle, Matiere, Niveau, Referentiel, User
 from backend.core.nommage import dossier_cle as _dossier_cle
@@ -60,7 +60,7 @@ def _couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
 def _get_email(aschool_access: str | None) -> str:
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email

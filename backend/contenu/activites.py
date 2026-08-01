@@ -15,7 +15,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
@@ -245,7 +245,7 @@ def _prof_et_couple(db: Session, aschool_access: str | None) -> tuple[User, str,
     (user, matiere, niveau) ; profil incomplet → 400 humain, jamais une génération à vide."""
     if not aschool_access:
         raise HTTPException(401, "Non connecté.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()

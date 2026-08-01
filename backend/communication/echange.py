@@ -87,7 +87,7 @@ def _avis_par_mail(db: Session, feedback: Feedback, *, est_admin: bool) -> tuple
 
     Ne lève jamais : le message est déjà en base, un serveur de mail muet ne doit pas le perdre.
     Renvoie (statut, erreur) — 'envoye' ou 'echec' — pour que l'écran dise la vérité."""
-    from backend import auth as auth_lib
+    from backend.securite import comptes
     from backend.systeme.admin import record_email_envoi
 
     slug = SLUG_VERS_PROF if est_admin else SLUG_VERS_ADMIN
@@ -121,7 +121,7 @@ def _avis_par_mail(db: Session, feedback: Feedback, *, est_admin: bool) -> tuple
 
     statut, erreur = "envoye", None
     try:
-        auth_lib.send_custom_email(destinataire, prenom, modele.objet, modele.corps)
+        comptes.send_custom_email(destinataire, prenom, modele.objet, modele.corps)
     except Exception as e:
         statut, erreur = "echec", f"{type(e).__name__}: {e}"
         logger.error("Avis d'échange non envoyé à %s : %s", destinataire, erreur)

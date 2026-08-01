@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from backend import auth as auth_lib
+from backend.securite import comptes
 from backend.communication import echange
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, FeedbackStatut, Incident, User
@@ -18,7 +18,10 @@ from backend.systeme.admin import _reglage_entier, codes_statuts_modifiables, la
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = Path("data/uploads/feedbacks")
+# Ancré sur la RACINE DU DÉPÔT, jamais sur le répertoire courant : un chemin relatif suivait
+# le cwd de qui lançait le processus (les tests écrivaient ailleurs, ou pire dans le vrai
+# data/ selon l'endroit d'où pytest partait). parents[2] = la racine, depuis backend/communication/.
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "data" / "uploads" / "feedbacks"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Formats acceptés : type MIME -> extension. Reste du code (et non en base) parce que ce
@@ -85,7 +88,7 @@ class MessageBody(BaseModel):
 def _get_email(aschool_access: str | None) -> str:
     if not aschool_access:
         raise HTTPException(401, "Connexion requise.")
-    email = auth_lib.verify_access_token(aschool_access)
+    email = comptes.verify_access_token(aschool_access)
     if not email:
         raise HTTPException(401, "Session expirée.")
     return email
@@ -145,7 +148,7 @@ def get_attachment(
     # Auth : prof ou admin
     is_admin = False
     if aschool_admin:
-        payload = auth_lib.verify_access_token(aschool_admin)
+        payload = comptes.verify_access_token(aschool_admin)
         is_admin = bool(payload)
 
     if not is_admin:
@@ -225,7 +228,7 @@ def submit_feedback(
         "niveau":  niveau_nom_de_id(db, user.niveau_id)  if user else None,
     }
     try:
-        auth_lib.send_feedback_notification(prof, body.message, body.rating, body.category, body.type,
+        comptes.send_feedback_notification(prof, body.message, body.rating, body.category, body.type,
                                             contexte=body.contexte, incident_ref=body.incident_ref)
     except Exception as e:
         logger.error(f"Notification feedback non envoyée : {type(e).__name__}: {e}")
@@ -336,7 +339,7 @@ def update_feedback(
         "niveau":  niveau_nom_de_id(db, user.niveau_id)  if user else None,
     }
     try:
-        auth_lib.send_feedback_update_notification(prof, body.message, body.category)
+        comptes.send_feedback_update_notification(prof, body.message, body.category)
     except Exception as e:
         logger.error(f"Notification modification feedback non envoyée : {type(e).__name__}: {e}")
 

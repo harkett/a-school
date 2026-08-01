@@ -26,7 +26,7 @@ os.chdir(ROOT)
 sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod  # engine/SessionLocal rediriges vers aschool_test par conftest
-import backend.auth as auth_lib
+import backend.securite.comptes as comptes
 from backend.main import app
 from backend.core.models_db import EmailTemplate, User
 from backend.systeme.admin import _make_admin_token, get_welcome_template
@@ -109,7 +109,7 @@ def test_delete_welcome_refuse_manuel_ok():
 
 def test_send_manuel_passe_par_smtp(monkeypatch):
     sent = []
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: sent.append(msg))
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: sent.append(msg))
     c = _admin()
     t = c.post("/api/admin/email-templates", json={"nom": "Email UNICEF"}).json()
     c.put(f"/api/admin/email-templates/{t['id']}",
@@ -121,7 +121,7 @@ def test_send_manuel_passe_par_smtp(monkeypatch):
 
 def test_send_adresse_invalide_400(monkeypatch):
     sent = []
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: sent.append(msg))
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: sent.append(msg))
     c = _admin()
     t = c.post("/api/admin/email-templates", json={"nom": "Email UNICEF"}).json()
     c.put(f"/api/admin/email-templates/{t['id']}", json={"objet": "O", "corps": "C"})
@@ -131,7 +131,7 @@ def test_send_adresse_invalide_400(monkeypatch):
 
 
 def test_send_refuse_si_objet_ou_corps_vide(monkeypatch):
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: None)
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: None)
     c = _admin()
     t = c.post("/api/admin/email-templates", json={"nom": "Vide"}).json()  # objet/corps vides
     r = c.post(f"/api/admin/email-templates/{t['id']}/send", json={"to": "x@y.org"})
@@ -142,13 +142,13 @@ def test_welcome_autosend_lit_la_base(monkeypatch):
     """NO-REGRESSION : le mail de bienvenue (verify-email) lit le modele 'welcome'
     EN BASE et envoie son objet — chaine reelle."""
     sent = []
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: sent.append(msg))
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: sent.append(msg))
     _seed_welcome(objet="OBJET-TEMOIN-BIENVENUE", corps="Bonjour {prenom} !")
 
     db = dbmod.SessionLocal()
     db.add(User(email="prof@college.fr", password_hash="x", is_verified=False, prenom="Marie"))
     db.commit()
-    token = auth_lib.generate_email_token(db, "prof@college.fr", "verify_email")
+    token = comptes.generate_email_token(db, "prof@college.fr", "verify_email")
     db.close()
 
     r = TestClient(app).get(f"/api/auth/verify-email?token={token}")
@@ -175,7 +175,7 @@ def test_sans_cookie_admin_401():
 # ── Suivi des envois (onglet Suivi) ───────────────────────────────────────
 
 def test_send_manuel_enregistre_suivi(monkeypatch):
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: None)
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: None)
     c = _admin()
     assert c.get("/api/admin/email-envois").json() == []            # vide au depart
     t = c.post("/api/admin/email-templates", json={"nom": "Email UNICEF"}).json()
@@ -193,7 +193,7 @@ def test_send_manuel_enregistre_suivi(monkeypatch):
 def test_send_echec_trace_statut_echec(monkeypatch):
     def boom(msg):
         raise RuntimeError("SMTP down")
-    monkeypatch.setattr(auth_lib, "_smtp_send", boom)
+    monkeypatch.setattr(comptes, "_smtp_send", boom)
     c = _admin()
     t = c.post("/api/admin/email-templates", json={"nom": "Email UNICEF"}).json()
     c.put(f"/api/admin/email-templates/{t['id']}", json={"objet": "O", "corps": "C"})
@@ -204,12 +204,12 @@ def test_send_echec_trace_statut_echec(monkeypatch):
 
 
 def test_welcome_autosend_enregistre_suivi(monkeypatch):
-    monkeypatch.setattr(auth_lib, "_smtp_send", lambda msg: None)
+    monkeypatch.setattr(comptes, "_smtp_send", lambda msg: None)
     _seed_welcome(objet="Bienvenue !", corps="Bonjour {prenom}")
     db = dbmod.SessionLocal()
     db.add(User(email="prof2@college.fr", password_hash="x", is_verified=False, prenom="Luc"))
     db.commit()
-    token = auth_lib.generate_email_token(db, "prof2@college.fr", "verify_email")
+    token = comptes.generate_email_token(db, "prof2@college.fr", "verify_email")
     db.close()
     assert TestClient(app).get(f"/api/auth/verify-email?token={token}").status_code == 200
     envois = _admin().get("/api/admin/email-envois").json()
