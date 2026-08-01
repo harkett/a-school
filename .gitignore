@@ -47,3 +47,7 @@ A-SCHOOL.code-workspace
 docker/
 # Sauvegarde de la base (dump local) — donnees, JAMAIS sur un depot public
 db_backup/
+# Bagage/ : le travail que je_pars.ps1 fait entrer dans le dossier pour la bascule
+# A <-> B. Ce sont des DONNEES, elles voyagent par la COPIE DU DOSSIER, jamais par
+# le depot (un binaire complet ajoute a l'historique a chaque bascule).
+Bagage/
