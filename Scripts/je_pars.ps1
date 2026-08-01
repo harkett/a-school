@@ -35,13 +35,20 @@ function Echec($message) {
 }
 
 # Poids et nombre de fichiers d'un élément, pour l'annoncer tel qu'il est.
+# L'unité suit la taille réelle : un .env de 4 Ko ne doit pas s'afficher « 0,0 Mo ».
+function Poids($octets) {
+    if ($octets -ge 1MB) { return "{0:N0} Mo" -f ($octets / 1MB) }
+    if ($octets -ge 1KB) { return "{0:N0} Ko" -f ($octets / 1KB) }
+    return "{0:N0} octets" -f $octets
+}
+
 function Mesure($chemin) {
     if (-not (Test-Path $chemin)) { return $null }
     $fichiers = @(Get-ChildItem $chemin -Recurse -Force -File -ErrorAction SilentlyContinue)
     $octets   = ($fichiers | Measure-Object -Sum Length).Sum
     if ($null -eq $octets) { $octets = 0 }
-    if ($fichiers.Count -le 1) { return "{0:N1} Mo" -f ($octets / 1MB) }
-    return "{0:N0} fichiers, {1:N0} Mo" -f $fichiers.Count, ($octets / 1MB)
+    if ($fichiers.Count -le 1) { return (Poids $octets) }
+    return "{0:N0} fichiers, {1}" -f $fichiers.Count, (Poids $octets)
 }
 
 Write-Host ""
@@ -110,6 +117,10 @@ if (-not $pret) {
 }
 
 New-Item -ItemType Directory -Force -Path $bagage | Out-Null
+
+# La copie de sécurité prise lors d'une arrivée appartient à CE poste : elle
+# n'a rien à faire dans le voyage, et elle doublerait le poids à copier.
+Remove-Item (Join-Path $bagage 'avant_installation.aschool') -Force -ErrorAction SilentlyContinue
 
 docker compose exec -T db pg_dump -U aschool -d aschool_dev -Fc -f /tmp/aschool_bascule 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
