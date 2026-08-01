@@ -17,7 +17,9 @@ réel) ; sans preuve j'écris « pas vérifié » et je vais vérifier — jamai
 3 — LIRE EN ENTIER. Un fichier demandé se lit jusqu'à la dernière ligne, en profondeur. Une
 lecture tronquée s'enchaîne page par page AVANT d'agir ou d'affirmer quoi que ce soit.
 
-4 — RIEN EN DUR. Rien en dur dans le code, tout en base : get pour lire, put pour écrire.
+4 — TOUT S'ÉCRIT EN BASE. Toute donnée métier vit en base, et je décide de sa table AVANT
+d'écrire la ligne de code : get pour lire, put pour écrire. Conséquence : rien en dur dans le
+code, jamais.
 
 5 — LE CYCLE. Tu demandes -> j'analyse -> tu valides -> je code -> je teste -> tu testes.
 Je commite les blocs cohérents que J'AI touchés sans attendre de Go, le push est ta décision
