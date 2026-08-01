@@ -1,8 +1,9 @@
 ﻿# ─────────────────────────────────────────────────────────────
-#  j_arrive.ps1 — à lancer sur le poste où vous ARRIVEZ,
-#  après avoir copié le dossier A-SCHOOL depuis l'autre poste.
+#  j_arrive.ps1 — à lancer sur le poste où vous ARRIVEZ, après y avoir
+#  copié les trois éléments que je_pars.ps1 vous a nommés.
 #
-#  Il remet tout en marche et installe le travail que vous apportez.
+#  Il récupère le code, remet tout en marche, et installe le travail
+#  que vous apportez.
 #
 #  Avant d'installer, il pose une question et une seule : la base de ce
 #  poste a-t-elle bougé APRÈS la date du travail que vous apportez ?
@@ -11,6 +12,8 @@
 #
 #  Ce script ne connaît aucune lettre de lecteur : il se repère depuis
 #  son propre emplacement.
+#
+#  Il suppose que le dossier A-SCHOOL existe déjà sur ce poste.
 # ─────────────────────────────────────────────────────────────
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -22,6 +25,7 @@ $bagage         = Join-Path $racine 'Bagage'
 $fichierTravail = Join-Path $bagage 'travail.aschool'
 $fichierDate    = Join-Path $bagage 'depart.txt'
 $fichierAvant   = Join-Path $bagage 'avant_installation.aschool'
+$cacheModele    = Join-Path $racine 'docker\hf-cache\hub'
 
 function Echec($message) {
     Write-Host ""
@@ -73,8 +77,8 @@ Write-Host "  A-SCHOOL — j'arrive" -ForegroundColor Cyan
 Write-Host "  ═══════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-# ── 1/4  Vérifications avant de toucher à quoi que ce soit ──────────────
-Write-Host "  1/4  Vérification..." -ForegroundColor Cyan
+# ── 1/5  Vérifications avant de toucher à quoi que ce soit ──────────────
+Write-Host "  1/5  Vérification..." -ForegroundColor Cyan
 
 docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -83,7 +87,20 @@ if ($LASTEXITCODE -ne 0) {
 
 if (-not (Test-Path $fichierTravail)) {
     Echec ("Ce dossier ne contient aucun travail à installer.`n" +
-           "  Sur le poste de départ, lancez d'abord Scripts\je_pars.ps1, puis recopiez le dossier A-SCHOOL ici.")
+           "  Sur le poste de départ, lancez Scripts\je_pars.ps1 : il vous dira quoi copier ici.")
+}
+
+# Les deux autres éléments apportés à la main. Leur absence n'empêche pas
+# d'installer, mais elle se dit maintenant, pas dans trois jours.
+$manquants = @()
+if (-not (Test-Path (Join-Path $racine 'REFERENTIELS'))) { $manquants += 'REFERENTIELS  (le dossier)' }
+if (-not (Test-Path (Join-Path $racine '.env')))         { $manquants += '.env          (le fichier)' }
+if ($manquants.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  Attention : ces éléments n'ont pas été copiés ici." -ForegroundColor Yellow
+    foreach ($m in $manquants) { Write-Host "      $m" -ForegroundColor Yellow }
+    Write-Host "  L'application démarrera, mais il leur manquera cela." -ForegroundColor Yellow
+    Write-Host ""
 }
 
 $dateApportee = $null
@@ -93,7 +110,7 @@ if (Test-Path $fichierDate) {
 }
 Write-Host "       le travail à installer est bien là." -ForegroundColor Green
 
-# Première fois sur ce poste ? Aucun élément n'a encore été préparé ici.
+# Première fois sur ce poste ? Rien n'y a encore été préparé.
 # On l'annonce AVANT la longue attente, pour qu'elle ne soit pas subie.
 $dejaLa = docker compose ps -a -q 2>$null
 $premiereFois = -not $dejaLa
@@ -104,16 +121,53 @@ if ($premiereFois) {
     Write-Host ""
 }
 
-# ── 2/4  Mise en route de ce qui garde votre travail ────────────────────
-Write-Host "  2/4  Mise en route..." -ForegroundColor Cyan
+# ── 2/5  Le code, qui lui ne voyage pas dans la copie ───────────────────
+Write-Host "  2/5  Récupération du code..." -ForegroundColor Cyan
+
+git rev-parse --is-inside-work-tree 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Echec "Ce dossier n'est pas relié au dépôt du code. Rien n'a été modifié."
+}
+
+# Si ce poste a du travail à lui qui n'est pas parti, le récupérer par-dessus
+# le mélangerait. On le dit et on s'arrête : rien n'est touché.
+git fetch --quiet 2>$null | Out-Null
+$enCours   = @(git status --porcelain 2>$null | Where-Object { $_ })
+$nonPartis = @(git log --oneline '@{u}..HEAD' 2>$null | Where-Object { $_ })
+if ($enCours.Count -gt 0 -or $nonPartis.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  Ce poste a du travail à lui qui n'est pas encore parti." -ForegroundColor Yellow
+    Write-Host "  Récupérer le code par-dessus le mélangerait. Rien n'a été modifié." -ForegroundColor Yellow
+    Write-Host ""
+    if ($nonPartis.Count -gt 0) {
+        Write-Host "    Enregistré ici, mais pas encore envoyé :" -ForegroundColor Yellow
+        foreach ($c in $nonPartis) { Write-Host "      $c" -ForegroundColor Yellow }
+        Write-Host ""
+    }
+    if ($enCours.Count -gt 0) {
+        Write-Host "    Modifié ici, pas même enregistré :" -ForegroundColor Yellow
+        foreach ($f in $enCours) { Write-Host "      $f" -ForegroundColor Yellow }
+        Write-Host ""
+    }
+    Echec "Faites partir ce travail, puis relancez ce script."
+}
+
+git pull --quiet 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Echec "Le code n'a pas pu être récupéré. Rien n'a été modifié, vous pouvez relancer ce script."
+}
+Write-Host "       code à jour." -ForegroundColor Green
+
+# ── 3/5  Mise en route de ce qui garde votre travail ────────────────────
+Write-Host "  3/5  Mise en route..." -ForegroundColor Cyan
 docker compose up -d db 2>$null | Out-Null
 if (-not (Attendre-Base)) {
     Echec "La mise en route a échoué. Rien n'a été modifié, vous pouvez relancer ce script."
 }
 Write-Host "       prêt." -ForegroundColor Green
 
-# ── 3/4  Le filet : ce poste a-t-il quelque chose de plus récent ? ──────
-Write-Host "  3/4  Contrôle..." -ForegroundColor Cyan
+# ── 4/5  Le filet : ce poste a-t-il quelque chose de plus récent ? ──────
+Write-Host "  4/5  Contrôle..." -ForegroundColor Cyan
 $datePoste = Date-Du-Poste
 
 # On n'installe QUE sur un accord constaté. Le drapeau part baissé et ne se
@@ -158,8 +212,8 @@ if (-not $accordDonne) {
     exit 0
 }
 
-# ── 4/4  Installation ───────────────────────────────────────────────────
-Write-Host "  4/4  Installation de votre travail..." -ForegroundColor Cyan
+# ── 5/5  Installation ───────────────────────────────────────────────────
+Write-Host "  5/5  Installation de votre travail..." -ForegroundColor Cyan
 
 # Filet de dernière seconde : ce qui est déjà sur ce poste est mis de côté
 # dans le dossier avant d'être remplacé.
@@ -199,5 +253,13 @@ Write-Host "  Terminé. Ce poste contient votre travail et l'application démarr
 Write-Host "  Ouvrez :  http://localhost:5173" -ForegroundColor Green
 if ($premiereFois) {
     Write-Host "  (première fois : laissez-lui une minute ou deux avant d'ouvrir)" -ForegroundColor DarkGray
+}
+# Le modèle qui lit les référentiels ne voyage pas : il pèse 4 Go en 12 fichiers
+# que Windows ne sait pas copier. Il revient tout seul, mais pas instantanément.
+$cacheVide = -not (Test-Path $cacheModele) -or -not (Get-ChildItem $cacheModele -Force -ErrorAction SilentlyContinue)
+if ($cacheVide) {
+    Write-Host ""
+    Write-Host "  La première lecture d'un référentiel sera plus longue sur ce poste :" -ForegroundColor DarkGray
+    Write-Host "  aSchool doit d'abord récupérer de quoi les lire (environ 2 Go, une seule fois)." -ForegroundColor DarkGray
 }
 Write-Host ""
