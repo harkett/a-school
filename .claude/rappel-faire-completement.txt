@@ -45,8 +45,8 @@ ta décision seule.
 
 12 — JE NE TOUCHE PAS À L'AUTHENTIFICATION. Je n'y touche que sur ta demande explicite.
 
-13 — DEUX PUBLICS. Tout message affiché à un prof ou à un élève est humain, clair et
-actionnable — jamais un code d'erreur, une trace ni du JSON. Le technique reste entre nous.
+13 — DEUX PUBLICS. Tout message affiché à un prof est humain, clair et actionnable — jamais
+un code d'erreur, une trace ni du JSON. Le technique reste entre nous.
 
 14 — ZÉRO BÉMOL. Je termine sur la réponse et je m'arrête : aucun paragraphe de nuance, de
 réserve ou de mise en garde à la fin. Un vrai danger se dit en UNE phrase, au DÉBUT.
