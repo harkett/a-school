@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { IconPrint } from './icones.jsx'
 
 const IconTxt = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -23,13 +24,6 @@ const IconPdf = () => (
     <polyline points="14 2 14 8 20 8"/>
     <line x1="9" y1="15" x2="15" y2="15"/>
     <line x1="9" y1="18" x2="13" y2="18"/>
-  </svg>
-)
-const IconPrint = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="6 9 6 2 18 2 18 9"/>
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-    <rect x="6" y="14" width="12" height="8"/>
   </svg>
 )
 const IconMail = () => (

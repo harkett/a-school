@@ -3,34 +3,10 @@ import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/
 import { showError } from '../errorDialog.js'
 import AmbiguitesResultat from './AmbiguitesResultat.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
+import { IconAnalyser, IconExemple, Spinner } from './icones.jsx'
 
-function Spinner() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-      <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-    </svg>
-  )
-}
 
-function IconAnalyser() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <circle cx="11" cy="11" r="8"/>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      <line x1="11" y1="8" x2="11" y2="14"/>
-      <line x1="8" y1="11" x2="14" y2="11"/>
-    </svg>
-  )
-}
 
-function IconExemple() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-    </svg>
-  )
-}
 
 function isTexteGibberish(t) {
   const words = t.trim().split(/\s+/).filter(w => w.length > 2)

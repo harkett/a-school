@@ -26,6 +26,7 @@ import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSessio
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
+import { IconPrint } from './icones.jsx'
 
 // Identités de type (fichier commun) : le retour standard porte le vert séance ; le retour
 // vers la séquence mère porte le violet séquence — on voit d'où l'on vient.
@@ -67,13 +68,6 @@ const MENTION_OPTIONNEL = { fontWeight: 400, color: '#94a3b8' }
 const PASTILLE_RESUME = { fontSize: 12, fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 99, padding: '2px 10px', flexShrink: 0 }
 const CHAMP = { width: '100%', padding: '9px 12px', fontSize: 13, lineHeight: 1.6, color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: 6, fontFamily: 'inherit', boxSizing: 'border-box', background: '#fff' }
 
-const IconPrint = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="6 9 6 2 18 2 18 9"/>
-    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-    <rect x="6" y="14" width="12" height="8"/>
-  </svg>
-)
 
 // Titre de groupe : COPIE du patron des cartouches de l'écran Activité — pastille d'étape
 // (EtapeBadge) + titre en classe `section-title` (majuscules, gras, filet bordeaux).
@@ -1251,7 +1245,7 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                     </div>
                     <button type="button" onClick={() => imprimerApercu(corpsHtml(resultat))}
                       title="Imprimer cette séance mise en forme" className="btn-secondary">
-                      <IconPrint /> Imprimer
+                      <IconPrint taille={14} /> Imprimer
                     </button>
                   </div>
                   <div className="apercu-corps" style={{ color: '#1e293b', lineHeight: 1.7, fontSize: 14 }}

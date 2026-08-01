@@ -9,17 +9,10 @@ import { lignesMatieres, nbRetenues as compterRetenues, aRetenir as resteAReteni
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
+import { Spinner } from '../components/icones.jsx'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
 // que Consigne/Ambiguites : SVG animé via l'@keyframes `spin` global (index.css).
-function Spinner() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 0.7s linear infinite' }}>
-      <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round" />
-    </svg>
-  )
-}
 
 // Pastille d'étape — voyant vert/rouge/gris posé DANS le titre de la cartouche concernée.
 // C'est un REFLET lu en base (get), jamais un statut recopié : la couleur est calculée à
