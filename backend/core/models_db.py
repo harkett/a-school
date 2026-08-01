@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
 from backend.core.database import Base
+from backend.core.horloge import maintenant_utc
 
 
 class User(Base):
@@ -14,7 +15,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -50,7 +51,7 @@ class CahierProf(Base):
     # zéro copie) pour appliquer les règles de l'école par-dessus le programme officiel. NULL =
     # rien d'exploitable (ancien dépôt / PDF illisible) → la génération se fait sans cahier.
     texte_epure: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class EmailToken(Base):
@@ -83,7 +84,7 @@ class ConnexionLog(Base):
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # NULLABLE : NULL si l'email n'est pas un user (journal)
     action: Mapped[str] = mapped_column(String(16), nullable=False)  # signup | login
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class Feedback(Base):
@@ -96,7 +97,7 @@ class Feedback(Base):
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     category: Mapped[str | None] = mapped_column(String(64), nullable=True)
     statut: Mapped[str] = mapped_column(String(16), ForeignKey("feedback_statuts.code"), nullable=False, default="nouveau")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # D'où le feedback est parti (« Écran Créer une activité · Français × 6e ») — fait
@@ -145,7 +146,7 @@ class FeedbackMessage(Base):
     )
     auteur_est_admin: Mapped[bool] = mapped_column(Boolean, nullable=False)
     corps: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class Incident(Base):
@@ -159,7 +160,7 @@ class Incident(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ref: Mapped[str] = mapped_column(String(24), nullable=False, unique=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     endpoint: Mapped[str] = mapped_column(String(120), nullable=False)
     provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -204,7 +205,7 @@ class EmailTemplate(Base):
     corps: Mapped[str] = mapped_column(Text, nullable=False, default="")
     mode_envoi: Mapped[str] = mapped_column(String(16), nullable=False, default="manuel")  # 'auto' | 'manuel'
     supprimable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class EmailEnvoi(Base):
@@ -220,7 +221,7 @@ class EmailEnvoi(Base):
     objet: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     statut: Mapped[str] = mapped_column(String(16), nullable=False)  # 'envoye' | 'echec'
     erreur: Mapped[str | None] = mapped_column(Text, nullable=True)
-    envoye_le: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    envoye_le: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False, index=True)
 
 
 # (ActiviteSauvegardee et SequenceSauvegardee — l'ancien monde — ont été DROPPÉES le
@@ -254,8 +255,8 @@ class Sequence(Base):
     competences: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default="[]")  # liste JSON de chaînes
     matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, onupdate=maintenant_utc, nullable=False)
 
 
 class SeanceMode(Base):
@@ -326,8 +327,8 @@ class Seance(Base):
     contraintes: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     style: Mapped[str | None] = mapped_column(String(32), nullable=True)       # classique / ludique / structure / concis
     resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, onupdate=maintenant_utc, nullable=False)
 
 
 class SeanceVersion(Base):
@@ -341,21 +342,7 @@ class SeanceVersion(Base):
     jalon: Mapped[str] = mapped_column(String(32), nullable=False, default="generation", server_default="generation")
     style: Mapped[str | None] = mapped_column(String(32), nullable=True)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-class SeancePhase(Base):
-    """Phase d'une séance (mise en route, travail guidé, …). CASCADE : une phase
-    n'existe pas sans sa séance."""
-    __tablename__ = "seance_phases"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    seance_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("seances.id", ondelete="CASCADE"), nullable=False, index=True)
-    position: Mapped[int] = mapped_column(Integer, nullable=False)
-    titre: Mapped[str] = mapped_column(String(300), nullable=False, default="", server_default="")
-    contenu: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class Activite(Base):
@@ -387,8 +374,8 @@ class Activite(Base):
     texte_source: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     resultat: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")   # ÉTAT COURANT (auto-save)
     statut: Mapped[str] = mapped_column(String(32), nullable=False, default="brouillon", server_default="brouillon")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, onupdate=maintenant_utc, nullable=False)
 
 
 class ActiviteVersion(Base):
@@ -403,7 +390,7 @@ class ActiviteVersion(Base):
     jalon: Mapped[str] = mapped_column(String(32), nullable=False)   # 'generation' (puis 'edition', 'restauration'…)
     ton: Mapped[str | None] = mapped_column(String(32), nullable=True)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -421,8 +408,8 @@ class UserSession(Base):
     browser: Mapped[str | None] = mapped_column(String(100), nullable=True)
     os: Mapped[str | None] = mapped_column(String(100), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    login_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    login_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     @property
@@ -438,7 +425,7 @@ class FailedLoginAttempt(Base):
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    attempt_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    attempt_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
@@ -451,7 +438,7 @@ class AdminAuditLog(Base):
     target_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class AdminAlert(Base):
@@ -461,7 +448,7 @@ class AdminAlert(Base):
     level: Mapped[str] = mapped_column(String(20), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     read_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -494,20 +481,7 @@ class FeatureVote(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     feature_key: Mapped[str] = mapped_column(String(64), ForeignKey("features_votables.code"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-
-
-class FicheMatiere(Base):
-    __tablename__ = "fiches_matieres"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    matiere_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
-    statut: Mapped[str] = mapped_column(String(16), nullable=False, default="brouillon")  # brouillon | publie | a_reviser
-    accroche: Mapped[str | None] = mapped_column(Text, nullable=True)
-    pour_qui: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ameliorations: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class ToolUsageLog(Base):
@@ -519,7 +493,7 @@ class ToolUsageLog(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # consigne | ambiguites
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 class FewShotMilestone(Base):
@@ -536,7 +510,7 @@ class FewShotMilestone(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     activite_type_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("types_activite.id"), nullable=False)
-    reached_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    reached_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,7 @@ from backend.core.database import get_db
 from backend.core.models_db import Feedback, FeedbackStatut, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
 from backend.systeme.admin import _reglage_entier, codes_statuts_modifiables, labels_statuts
+from backend.core.horloge import maintenant_utc
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
 router = APIRouter()
@@ -333,7 +334,7 @@ def update_feedback(
     fb.message         = body.message
     fb.category        = body.category
     fb.attachment_path = body.attachment_path
-    fb.updated_at      = datetime.utcnow()
+    fb.updated_at      = maintenant_utc()
     db.commit()
 
     user = db.query(User).filter(User.email == email).first()

@@ -8,6 +8,7 @@ from starlette.responses import Response
 
 from backend.core.database import SessionLocal
 from backend.core.models_db import User, UserSession
+from backend.core.horloge import maintenant_utc
 
 _REFRESH_COOKIE = "aschool_refresh"
 _ALGO = "HS256"
@@ -68,7 +69,7 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
                         .first()
                     )
                     if session:
-                        now = datetime.utcnow()
+                        now = maintenant_utc()
                         gap = (now - session.last_seen).total_seconds()
                         session.last_seen = now
                         # Reprise après 30+ min d'inactivité → met à jour last_login

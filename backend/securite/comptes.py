@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from backend.core.models_db import EmailToken, RefreshToken, User
+from backend.core.horloge import maintenant_utc
 
 SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM = "HS256"
@@ -33,7 +34,7 @@ def _verify_password(password: str, hashed: str) -> bool:
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    return maintenant_utc()
 
 
 def _hash_token(token: str) -> str:
@@ -555,7 +556,7 @@ def send_admin_new_user_notification(email: str, subject: str | None):
     """Notifie l'admin par email quand un nouveau prof active son compte."""
     from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     to_addr   = os.getenv("FEEDBACK_NOTIFY_EMAIL", "contact@aschool.fr")
-    date_str  = datetime.utcnow().strftime("%d/%m/%Y %H:%M")
+    date_str  = maintenant_utc().strftime("%d/%m/%Y %H:%M")
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "[aSchool] Nouveau prof inscrit"

@@ -7,6 +7,7 @@ import psutil
 
 from backend.core.database import SessionLocal
 from backend.core.models_db import AdminAlert, FailedLoginAttempt
+from backend.core.horloge import maintenant_utc
 
 def seuils_alertes(db) -> dict:
     """Seuils de surveillance LUS EN BASE (réglages `alerte_*`), relus à chaque contrôle — donc
@@ -41,7 +42,7 @@ def _ou_mesure() -> str:
 
 def _already_alerted(db, title: str) -> bool:
     """Évite le flood : une seule alerte du même titre par fenêtre `alerte_anti_flood_h` (base)."""
-    since = datetime.utcnow() - timedelta(hours=seuils_alertes(db)["anti_flood_h"])
+    since = maintenant_utc() - timedelta(hours=seuils_alertes(db)["anti_flood_h"])
     return db.query(AdminAlert).filter(
         AdminAlert.title == title,
         AdminAlert.created_at >= since,
@@ -60,7 +61,7 @@ def _send_alert_email(level: str, title: str, message: str):
     msg["From"]    = from_addr
     msg["To"]      = admin_email
 
-    plain = f"{title}\n\n{message}\n\nDate : {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC"
+    plain = f"{title}\n\n{message}\n\nDate : {maintenant_utc().strftime('%d/%m/%Y %H:%M')} UTC"
     html  = f"""
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:2rem;">
       <div style="background:#1e293b;border-radius:10px;padding:1rem 1.5rem;margin-bottom:1.5rem;">
@@ -71,7 +72,7 @@ def _send_alert_email(level: str, title: str, message: str):
       <p style="font-size:1rem;font-weight:600;color:#1e293b;">{icon} {title}</p>
       <p style="color:#475569;line-height:1.6;">{message}</p>
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
-        {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC · aschool.fr
+        {maintenant_utc().strftime('%d/%m/%Y %H:%M')} UTC · aschool.fr
       </p>
     </div>
     """
@@ -138,7 +139,7 @@ def check_brute_force_alert():
     db = SessionLocal()
     try:
         seuil = seuils_alertes(db)["tentatives_1h"]
-        since = datetime.utcnow() - timedelta(hours=1)
+        since = maintenant_utc() - timedelta(hours=1)
         count = db.query(FailedLoginAttempt).filter(
             FailedLoginAttempt.attempt_at >= since,
         ).count()

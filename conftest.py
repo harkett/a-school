@@ -110,12 +110,23 @@ from backend.core.llm_prompts import PROMPTS as _PROMPTS  # noqa: E402
 
 with _test_engine.begin() as _conn:
     _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-# drop_all AVANT create_all : `create_all` crée les tables MANQUANTES mais n'ajoute jamais une
-# colonne à une table déjà là. Sans ce nettoyage, une base de test montée hier reste figée sur
-# le schéma d'hier et la suite entière tombe sur une colonne inconnue — un faux échec, qui ne
-# dit rien du code. Le schéma de test est donc reconstruit à neuf à chaque session (les deux
-# verrous ci-dessus garantissent qu'on ne peut viser que `aschool_test`).
-models_db.Base.metadata.drop_all(bind=_test_engine)
+# TABLE RASE AVANT create_all. Deux raisons, et la seconde a coûté cher :
+#   1. `create_all` crée les tables MANQUANTES mais n'ajoute jamais une colonne à une table
+#      déjà là : une base de test montée hier resterait figée sur le schéma d'hier, et la
+#      suite tomberait sur une colonne inconnue — un faux échec, qui ne dit rien du code.
+#   2. `Base.metadata.drop_all` ne connaît QUE les tables encore déclarées. Une table dont on
+#      vient de supprimer le modèle SURVIT donc dans la base de test, et sa clé étrangère
+#      empêche de retirer la table dont elle dépend : toute la suite tombait sur un
+#      `DependentObjectsStillExist` qui ne parlait de rien (vu le 01/08 en retirant
+#      seance_phases). On balaie donc ce qui EXISTE, pas ce qu'on croit exister.
+# Les deux verrous ci-dessus garantissent qu'on ne peut viser que `aschool_test`.
+# `alembic_version` est épargnée : elle n'appartient pas aux modèles.
+with _test_engine.begin() as _conn:
+    _a_droper = [r[0] for r in _conn.execute(text(
+        "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
+    ))]
+    for _t in _a_droper:
+        _conn.execute(text(f'DROP TABLE IF EXISTS "{_t}" CASCADE'))
 models_db.Base.metadata.create_all(bind=_test_engine)
 
 

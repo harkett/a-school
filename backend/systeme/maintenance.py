@@ -11,6 +11,7 @@ from backend.core.models_db import (
     Seance, Sequence, User, UserSession,
 )
 from backend.systeme.admin import _require_admin, _get_admin_email
+from backend.core.horloge import maintenant_utc
 
 router = APIRouter()
 
@@ -78,7 +79,7 @@ def _count_orphans(db: Session, now: datetime) -> dict:
 
 @router.get("/admin/maintenance/stats")
 def get_maintenance_stats(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    now = datetime.utcnow()
+    now = maintenant_utc()
 
     db_size_mb = get_db_size_mb()
 
@@ -117,7 +118,7 @@ def purge_category(
     if category not in CATEGORIES:
         raise HTTPException(400, f"Catégorie inconnue : {category}")
 
-    now = datetime.utcnow()
+    now = maintenant_utc()
     purged = 0
 
     if category == "tokens_email_expires":

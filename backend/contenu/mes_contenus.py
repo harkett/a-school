@@ -1,8 +1,10 @@
 """« Mes contenus » — le monde NEUF du prof (modèle playlist : séquence ⊃ séances ⊃ activités).
 
 DÉCISION utilisateur (29/07, aboutie le 30/07) : ce monde EST le produit. Il ne lit et
-n'écrit QUE ses tables neuves (`sequences`, `seances`, `seance_phases`, `activites`,
-`activite_versions`). L'ancien monde a été démoli puis droppé le 30/07.
+n'écrit QUE ses tables neuves (`sequences`, `seances`, `activites`, `activite_versions`).
+L'ancien monde a été démoli puis droppé le 30/07.
+(`seance_phases` figurait ici : le module ne l'a jamais écrite, et la table a été supprimée
+le 01/08 — 0 ligne, aucun lecteur. La promesse tenait dans ce texte, pas dans le code.)
 
 L'activité applique la règle 0 NATIVEMENT : écrite en base à la génération même (POST à la
 première, PUT aux suivantes), chaque jalon fige une version restaurable (`activite_versions`)

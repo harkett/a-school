@@ -16,6 +16,7 @@ from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
 from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
+from backend.core.horloge import maintenant_utc
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def _admin_secret() -> str:
 
 
 def _make_admin_token() -> str:
-    exp = datetime.utcnow() + timedelta(hours=4)
+    exp = maintenant_utc() + timedelta(hours=4)
     return jwt.encode({"sub": "admin", "role": "admin", "exp": exp}, _admin_secret(), algorithm=_ALGO)
 
 
@@ -492,7 +493,7 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
         )
         db.add(attempt)
         db.commit()
-        since = datetime.utcnow() - timedelta(hours=1)
+        since = maintenant_utc() - timedelta(hours=1)
         count = db.query(FailedLoginAttempt).filter(
             FailedLoginAttempt.ip_address == ip,
             FailedLoginAttempt.attempt_at >= since,
@@ -1750,7 +1751,7 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
         .limit(100)
         .all()
     )
-    now = datetime.utcnow()
+    now = maintenant_utc()
     user_ids = {s.user_id for s in sessions if s.user_id is not None}
     email_par_id = dict(
         db.query(User.id, User.email).filter(User.id.in_(user_ids)).all()
@@ -1835,8 +1836,8 @@ def force_logout(
 
 @router.get("/admin/stats/overview")
 def stats_overview(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    today = datetime.utcnow().date()
-    threshold_online = datetime.utcnow() - timedelta(seconds=90)
+    today = maintenant_utc().date()
+    threshold_online = maintenant_utc() - timedelta(seconds=90)
     return {
         "total_profs":        db.query(User).filter(User.is_verified == True).count(),
         "connexions_today":   db.query(ConnexionLog).filter(
@@ -1854,7 +1855,7 @@ def stats_overview(db: Session = Depends(get_db), _: None = Depends(_require_adm
 
 @router.get("/admin/stats/logins")
 def stats_logins(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    since = datetime.utcnow() - timedelta(days=30)
+    since = maintenant_utc() - timedelta(days=30)
     rows = (
         db.query(
             func.date(ConnexionLog.created_at).label("day"),
@@ -1921,7 +1922,7 @@ def mark_alert_read(alert_id: int, request: Request, db: Session = Depends(get_d
         raise HTTPException(404, "Alerte introuvable.")
     alert.is_read  = True
     alert.read_by  = _get_admin_email(request)
-    alert.read_at  = datetime.utcnow()
+    alert.read_at  = maintenant_utc()
     db.commit()
     return {"status": "ok"}
 

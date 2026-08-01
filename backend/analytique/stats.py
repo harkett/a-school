@@ -8,6 +8,7 @@ from backend.core.database import get_db
 from backend.core.models_db import Activite, ConnexionLog, Seance, Sequence, User
 from backend.securite import comptes
 from backend.systeme.admin import _require_admin, get_minutes_par_activite, get_few_shot_seuil
+from backend.core.horloge import maintenant_utc
 
 router = APIRouter()
 
@@ -208,7 +209,7 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     total_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
     heures_gagnees = (total_activites * get_minutes_par_activite(db)) // 60
 
-    debut_mois = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    debut_mois = maintenant_utc().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     activites_ce_mois = db.query(func.count(Activite.id)).filter(
         Activite.user_id == uid,
         Activite.created_at >= debut_mois,
@@ -239,8 +240,8 @@ def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = D
     monde."""
     _get_email(aschool_access)
 
-    today = datetime.utcnow().date()
-    depuis_7j = datetime.utcnow() - timedelta(days=7)
+    today = maintenant_utc().date()
+    depuis_7j = maintenant_utc() - timedelta(days=7)
 
     # Comparaison sur l'objet date (jamais str) : « date = varchar » est refusé par
     # PostgreSQL — ce 500 silencieux cachait la section communauté depuis l'origine.
@@ -269,8 +270,8 @@ def stats_communaute(aschool_access: str = Cookie(default=None), db: Session = D
 
 @router.get("/admin/stats/vitalite")
 def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin)):
-    today = datetime.utcnow().date()
-    depuis_7j = datetime.utcnow() - timedelta(days=7)
+    today = maintenant_utc().date()
+    depuis_7j = maintenant_utc() - timedelta(days=7)
 
     profs_actifs_aujourd_hui = db.query(func.count(func.distinct(ConnexionLog.user_id))).filter(
         ConnexionLog.action == "login",
