@@ -10,14 +10,14 @@
 // possible ici, et ajouter une dépendance de test au projet est un autre sujet. Le test porte
 // donc sur la SOURCE — la structure, pas le pixel.
 //
-// Lancer : npm test  (ou  node --test test/couple-toujours-dans-le-header.test.js)
+// Lancer : npm test  (ou  node --test src/couple-toujours-dans-le-header.test.js)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
+const SRC = dirname(fileURLToPath(import.meta.url))
 const header = readFileSync(join(SRC, 'components', 'Header.jsx'), 'utf8')
 const app = readFileSync(join(SRC, 'App.jsx'), 'utf8')
 

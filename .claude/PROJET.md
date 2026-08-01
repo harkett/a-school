@@ -120,7 +120,7 @@ pédagogiques » de gauche, sur **tous** les écrans.
 Le retirer, le déplacer ou le masquer est un bug bloquant, pas un détail — demandé quatre fois
 par l'utilisateur.
 
-**Test qui le tient :** `frontend/test/couple-toujours-dans-le-header.test.js` (4 tests). Il attrape la
+**Test qui le tient :** `frontend/src/couple-toujours-dans-le-header.test.js` (4 tests). Il attrape la
 suppression, le passage sous le bouton, la mise sous condition, et le démontage du Header dans
 `App.jsx`. Il n'attrape **pas** un `display: none` : le front tourne sur `node --test`, sans
 jsdom ni testing-library, donc aucun rendu de composant n'est possible.

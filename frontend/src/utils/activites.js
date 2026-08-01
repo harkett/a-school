@@ -83,3 +83,18 @@ export function couleurCouple(key) {
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
   return PALETTE_COUPLE[h % PALETTE_COUPLE.length]
 }
+
+// Champs du type d'activité remis à VIERGE : plus AUCUNE présélection (règle appli — tout
+// combo démarre sur son placeholder gris « Choisissez… », le prof fait le choix). Avant, on
+// reposait ici le 1er type de la matière et sa 1re précision : les deux combos arrivaient
+// remplies et l'étape ① passait au vert sans que le prof ait rien choisi.
+// Renvoie l'objet à fusionner dans `params`. (Venait de utils/activite.js, fusionné le 01/08 :
+// deux fichiers voisins au nom quasi identique, rien ne disait lequel faisait quoi.)
+export function typeVierge() {
+  return {
+    activite_type_id: null,   // identité du type = son id ; null = rien de choisi
+    sous_type: null,
+    nb: null,   // posé (à 5) par la carte Paramètres au choix du type, si son prompt le demande
+    avec_correction: false,
+  }
+}

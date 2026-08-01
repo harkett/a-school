@@ -3,7 +3,7 @@
 // (Les tests de sauvegarderActivite ont été démolis le 30/07 avec POST /api/mes-activites.)
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { grouperParCouple, coupleKey, formatDateActivite, couleurCouple, correspondProfil } from './activites.js'
+import { grouperParCouple, coupleKey, formatDateActivite, couleurCouple, correspondProfil, typeVierge } from './activites.js'
 
 // --- grouperParCouple : onglet « Toutes mes activités » ---
 
@@ -112,4 +112,35 @@ test('couleur : déterministe (même clé -> même couleur) et format hex', () =
   const c2 = couleurCouple(coupleKey('Maths', '5e'))
   assert.equal(c1, c2)
   assert.match(c1, /^#[0-9a-f]{6}$/)
+})
+
+// --- typeVierge : les combos du type d'activité démarrent vierges ---
+// (venait de test/activite.test.js, rapatrié le 01/08 avec la fonction elle-même)
+
+test('typeVierge : aucun type ni précision présélectionné', () => {
+  assert.deepEqual(typeVierge(), {
+    activite_type_id: null,
+    sous_type: null,
+    nb: null,
+    avec_correction: false,
+  })
+})
+
+// Le vrai piège d'avant : on recevait la liste des activités de la matière et on reposait le
+// 1er type + sa 1re précision. Même avec une liste bien remplie, plus rien n'est choisi.
+test('typeVierge : une liste d\'activités disponible ne repose plus le 1er type', () => {
+  const activites = [
+    { id: 3, label: 'Compréhension', sous_types: ['inférence', 'mélange'], besoins: ['nb'] },
+    { id: 8, label: 'Questions de cours', sous_types: ['x'], besoins: [] },
+  ]
+  const r = typeVierge(activites)
+  assert.equal(r.activite_type_id, null)
+  assert.equal(r.sous_type, null)
+  assert.equal(r.nb, null)
+})
+
+test('typeVierge : garde-fou liste vide / non-tableau → activite_type_id null, pas de crash', () => {
+  assert.equal(typeVierge([]).activite_type_id, null)
+  assert.equal(typeVierge(undefined).activite_type_id, null)
+  assert.equal(typeVierge(null).activite_type_id, null)
 })
