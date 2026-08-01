@@ -20,7 +20,7 @@ from backend.core.database import get_db
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
     Activite, Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision,
-    TypeParametre, User,
+    User,
 )
 from backend.prof.profil import couple_de_travail, matiere_demande_langue, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
@@ -165,9 +165,9 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
 
     1) types COCHÉS (`liaison.actif`) du référentiel du niveau, joints au catalogue (`actif`) ;
     2) si vide (pas de référentiel, ou rien de coché) → le type par DÉFAUT du catalogue.
-    Précisions LUES PAR COUPLE (`referentiel_type_precisions`, ordonnées par `ordre`) et paramètres
-    dans `type_parametres` — plus de blob JSON. Renvoie `[{label, key, sous_types:[...], params:[...]}]`
-    (ordre liaison puis catalogue)."""
+    Précisions LUES PAR COUPLE (`referentiel_type_precisions`, ordonnées par `ordre`). Les besoins
+    de saisie ne sont plus stockés : ils se déduisent des trous du prompt du couple×type, à l'instant.
+    Renvoie `[{id, label, sous_types:[...], besoins:[...]}]` (ordre liaison puis catalogue)."""
     ref_id = _referentiel_du_niveau(db, niveau)
     lignes = []
     if ref_id is not None:
@@ -185,11 +185,10 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
                     .order_by(ActiviteType.ordre)
                     .all())
 
-    # Précisions / paramètres de chaque type, LUS dans leurs tables filles (une requête chacune,
-    # groupée par type). Ordre des précisions = `ordre`. Zéro JSON, une donnée = une ligne.
+    # Précisions de chaque type, LUES dans leur table fille (une requête, groupée par type).
+    # Ordre des précisions = `ordre`. Zéro JSON, une donnée = une ligne.
     type_ids = [t.id for t in lignes]
     prec_par_type: dict[int, list[str]] = {}
-    par_par_type: dict[int, list[str]] = {}
     besoins_par_type: dict[int, list[str]] = {}
     if type_ids:
         # Précisions PAR COUPLE (table fille de la liaison `referentiel_type_precisions`), comme le
@@ -216,14 +215,10 @@ def types_du_couple(db: Session, niveau: str) -> list[dict]:
                                                      ReferentielTypePrecision.ordre)
                                            .all()):
                     prec_par_type.setdefault(type_par_lien[lien_id], []).append(libelle)
-        for tid, cle in (db.query(TypeParametre.type_activite_id, TypeParametre.cle)
-                           .filter(TypeParametre.type_activite_id.in_(type_ids))
-                           .all()):
-            par_par_type.setdefault(tid, []).append(cle)
 
     return [
         {"id": t.id, "label": t.label,
-         "sous_types": prec_par_type.get(t.id, []), "params": par_par_type.get(t.id, []),
+         "sous_types": prec_par_type.get(t.id, []),
          "besoins": besoins_par_type.get(t.id, [])}
         for t in lignes
     ]

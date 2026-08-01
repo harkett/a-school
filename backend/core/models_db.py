@@ -722,8 +722,8 @@ class ActiviteType(Base):
     l'anti-doublon du catalogue se fait par `label` (insensible à la casse), comme `matieres.nom`.
     `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
     aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
-    Les paramètres du type vivent dans la table fille `type_parametres` (une ligne par valeur) ;
-    les précisions vivent PAR COUPLE sur la liaison (`referentiel_type_precisions`)."""
+    Les précisions vivent PAR COUPLE sur la liaison (`referentiel_type_precisions`). Les besoins de
+    saisie du type ne sont PAS stockés : ils se lisent des trous de son prompt, à l'instant."""
     __tablename__ = "types_activite"
     __table_args__ = (
         Index("ux_default", "is_default", unique=True, postgresql_where=text("is_default")),
@@ -788,22 +788,3 @@ class ReferentielTypePrecision(Base):
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")
 
-
-class TypeParametre(Base):
-    """Paramètre saisi qu'un type d'activité réclame — UNE ligne par paramètre (ex. « nb » = nombre
-    de questions).
-
-    Remplace l'ancien blob JSON `types_activite.params` : une donnée = une ligne, en base, avec contrôle
-    (règle 4). Un type a 0..N paramètres ; leur présence déclenche un champ de saisie côté prof (ex. `nb`
-    → champ « Nombre de questions »). `source` = provenance ('systeme' | 'admin' | 'ia'). CASCADE :
-    supprimer le type retire ses paramètres. UNIQUE (type_activite_id, cle) : pas de doublon dans un type."""
-    __tablename__ = "type_parametres"
-    __table_args__ = (
-        UniqueConstraint("type_activite_id", "cle", name="uq_type_parametres_type_cle"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    type_activite_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
-    cle: Mapped[str] = mapped_column(String(32), nullable=False)
-    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")

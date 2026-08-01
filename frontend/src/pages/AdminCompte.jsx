@@ -31,7 +31,6 @@ export default function AdminCompte() {
     }
   }
 
-  const adminUser = import.meta.env.VITE_ADMIN_USER || 'admin'
 
   return (
     <div>
