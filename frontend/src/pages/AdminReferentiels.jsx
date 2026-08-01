@@ -5,6 +5,7 @@
 // Hors périmètre étape 1 : extraction des matières, chunks, recherche web automatique.
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
+import { lignesMatieres, nbRetenues as compterRetenues, aRetenir as resteARetenir } from '../utils/matieresReferentiel.js'
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
@@ -34,18 +35,9 @@ function Pastille({ etat, titre }) {
   )
 }
 
-// Construit les lignes de la table matières à partir de l'état du couple (endpoint /etat) :
-// d'abord les matières DÉJÀ en base (cochée figée), puis les CANDIDATES proposées non encore
-// en base (nouvelles, à cocher par l'admin). Les candidates viennent de la BASE
-// (table matieres_candidates, une ligne par niveau) — l'app ne les calcule jamais.
-function construireLignesMatieres(etatObj) {
-  const enBase = (etatObj?.matieres || []).map(m => ({ id: m.id, nom: m.nom, en_base: true, cochee: true }))
-  const nomsEnBase = new Set(enBase.map(m => m.nom.toLowerCase()))
-  const nouvelles = (etatObj?.candidates || [])
-    .filter(nom => !nomsEnBase.has(nom.toLowerCase()))
-    .map(nom => ({ id: null, nom, en_base: false, cochee: false }))
-  return [...enBase, ...nouvelles]
-}
+// La table des matières (lignes + les deux comptages qui la pilotent) vit dans
+// utils/matieresReferentiel.js, avec ses tests — même découpage que utils/profil.js face à
+// MonProfil : l'écran rend, le module décide de ce qu'il rend.
 
 // Badge d'ORIGINE d'un type coché : IA (violet) | ADMIN (vert) | SYSTÈME (gris). Le badge dit d'où
 // VIENT le type (origine tracée sur le lien), jamais qui a coché.
@@ -360,7 +352,7 @@ export default function AdminReferentiels() {
       const re = await fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
         { credentials: 'include' }, TIMEOUT_STD)
       const dd = await re.json().catch(() => null)
-      setEtat(dd); setMatieres(construireLignesMatieres(dd)); setResultat(null); setApercu(null)
+      setEtat(dd); setMatieres(lignesMatieres(dd)); setResultat(null); setApercu(null)
       chargerListe()   // colonne 2 : le référentiel supprimé disparaît (relecture)
     } catch { showError("La suppression du référentiel a échoué (réseau).") }
     finally { setSupprBusy(false) }
@@ -394,7 +386,7 @@ export default function AdminReferentiels() {
       .then(d => {
         if (annule) return
         setEtat(d)
-        setMatieres(construireLignesMatieres(d))
+        setMatieres(lignesMatieres(d))
         // Mode AJOUT (couple sans référentiel) : la carte PDF s'ouvre pour déposer tout de suite.
         // Mode « déjà traité » : elle reste repliée (simple relecture).
         setPdfOuvert(!(d && d.existe_referentiel))
@@ -642,8 +634,8 @@ export default function AdminReferentiels() {
       chargerListe()   // un nouveau référentiel vient d'apparaître → recharger la colonne 2
       // Relire l'état du couple EN BASE (get) : le référentiel existe désormais, donc
       // etat.existe_referentiel passe à true → la cartouche Matières (et la suite) se déroule
-      // sans re-sélectionner le couple. rafraichirEtat réhydrate aussi la table matières
-      // (candidates du nouveau PDF + matières déjà en base). Zéro copie : on relit la base.
+      // sans re-sélectionner le couple. rafraichirEtat réhydrate aussi la table matières : les
+      // propositions du nouveau document + celles déjà retenues. Zéro copie : on relit la base.
       await rafraichirEtat()
       setMatieresOuvert(true)   // référentiel validé → ouvrir la cartouche Matières
     } catch (e) { showError(`Validation impossible.\n\n${e.message}`) }
@@ -658,28 +650,29 @@ export default function AdminReferentiels() {
     background: actif ? '#eff6ff' : '#f8fafc', color: actif ? '#1d4ed8' : '#64748b', fontWeight: 600,
   })
 
-  // ── Table des matières (INTERFACE) : interactions locales uniquement. Les actions
-  //    qui touchent la base (enregistrer, retirer, renommer côté base) seront branchées
-  //    à l'étape code ; ici « Récupérer » ne fait qu'un aperçu du bilan, sans écrire.
+  // ── Table des matières : cocher est une interaction d'écran, c'est « Récupérer » qui écrit
+  //    (il RETIENT les matières cochées : `validee` passe à vrai en base). Une matière déjà
+  //    retenue est verrouillée cochée — pour la sortir du programme, c'est « Retirer ».
   function toggleCochee(i) {
-    setMatieres(matieres.map((m, j) => (j === i && !m.en_base ? { ...m, cochee: !m.cochee } : m)))
+    setMatieres(matieres.map((m, j) => (j === i && !m.validee ? { ...m, cochee: !m.cochee } : m)))
   }
-  // « Sélectionner tout » : coche d'un coup toutes les matières NOUVELLES de la liste (les « déjà
-  // en base » sont déjà cochées et verrouillées). Interaction d'écran uniquement — aucune écriture :
-  // c'est « Récupérer » (le put) qui enregistre, et il se dégrise tout seul dès qu'une nouvelle est cochée.
+  // « Sélectionner tout » : coche d'un coup toutes les matières PROPOSÉES (les retenues le sont
+  // déjà et sont verrouillées). Aucune écriture : « Récupérer » se dégrise tout seul.
   function selectionnerTout() {
-    setMatieres(matieres.map(m => (m.en_base ? m : { ...m, cochee: true })))
+    setMatieres(matieres.map(m => (m.validee ? m : { ...m, cochee: true })))
   }
+  // Ajout à la main : la ligne n'existe pas encore en base (id null) — « Récupérer » la créera
+  // dans CE référentiel, retenue d'emblée.
   function ajouterMain() {
     const nom = nouvelleMatiere.trim()
     if (!nom) return
-    setMatieres([...matieres, { nom, en_base: false, cochee: true }])
+    setMatieres([...matieres, { id: null, nom, validee: false, cochee: true }])
     setNouvelleMatiere('')
   }
   async function rafraichirEtat() {
     const re = await fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
-    if (re.ok) { const dd = await re.json(); setEtat(dd); setMatieres(construireLignesMatieres(dd)) }
+    if (re.ok) { const dd = await re.json(); setEtat(dd); setMatieres(lignesMatieres(dd)) }
   }
   function demarrerRenommage(i) { setEditIndex(i); setEditNom(matieres[i].nom) }
   async function validerRenommage() {
@@ -689,11 +682,12 @@ export default function AdminReferentiels() {
     if (!nom || i < 0) return
     const ligne = matieres[i]
     if (nom === ligne.nom) return
-    if (ligne.en_base && ligne.id) {
-      // Renommage EN BASE (garde l'id) : effet GLOBAL → on prévient avant.
+    if (ligne.id) {
+      // Renommage EN BASE (garde l'id, donc aucun lien cassé). Portée : CE référentiel, et lui
+      // seul — une matière du même nom dans un autre diplôme est une autre matière, elle ne bouge pas.
       if (!await demanderConfirmation({
         titre: `Renommer « ${ligne.nom} » en « ${nom} » ?`,
-        message: 'Cette matière est partagée : le libellé changera PARTOUT où elle est utilisée, à tous les niveaux.',
+        message: `Le libellé change pour le référentiel de « ${niveau} », et nulle part ailleurs. Les profs qui ont cette matière la verront sous son nouveau nom.`,
         confirmLabel: 'Renommer',
       })) return
       try {
@@ -713,14 +707,20 @@ export default function AdminReferentiels() {
   }
   async function retirer(i) {
     const ligne = matieres[i]
-    if (!ligne.en_base || !ligne.id) {
-      setMatieres(ms => ms.filter((_, j) => j !== i))   // pas encore en base : retrait local
+    if (!ligne.id) {
+      setMatieres(ms => ms.filter((_, j) => j !== i))   // ajoutée à la main, jamais écrite : retrait local
       return
     }
+    // Une matière RETENUE sort du programme des profs ; une simple PROPOSITION n'y était pas
+    // encore entrée. Deux gestes de poids différents, donc deux questions différentes.
     if (!await demanderConfirmation({
-      titre: `Retirer « ${ligne.nom} » du niveau « ${niveau} » ?`,
-      message: "Désactivation réversible : l'historique est conservé, rien n'est supprimé.",
-      confirmLabel: 'Retirer',
+      titre: ligne.validee
+        ? `Retirer « ${ligne.nom} » du programme de « ${niveau} » ?`
+        : `Écarter la proposition « ${ligne.nom} » ?`,
+      message: ligne.validee
+        ? "Elle disparaîtra des menus des profs. Désactivation réversible : l'historique est conservé, rien n'est supprimé."
+        : "Elle quitte la liste sans jamais être entrée au programme. Réversible : un nouveau dépôt du document peut la reproposer.",
+      confirmLabel: ligne.validee ? 'Retirer' : 'Écarter',
     })) return
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/retirer-matiere', {
@@ -737,9 +737,11 @@ export default function AdminReferentiels() {
     } catch (e) { showError(`Retrait impossible.\n\n${e.message}`) }
   }
   async function recuperer() {
-    // On envoie les matières qui doivent être en base = déjà en base + cochées (nouvelles).
-    const aEnvoyer = matieres.filter(m => m.en_base || m.cochee).map(m => m.nom)
-    if (!aEnvoyer.length) { setBilanApercu('Aucune matière cochée à enregistrer.'); return }
+    // On envoie les matières que l'admin RETIENT : les cochées (propositions acceptées et lignes
+    // ajoutées à la main). Les déjà retenues n'ont pas besoin d'être renvoyées — le serveur les
+    // reconnaîtrait de toute façon comme « déjà présentes ».
+    const aEnvoyer = matieres.filter(m => m.cochee && !m.validee).map(m => m.nom)
+    if (!aEnvoyer.length) { setBilanApercu('Aucune matière cochée à retenir.'); return }
     setBusy(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/matieres', {
@@ -749,8 +751,8 @@ export default function AdminReferentiels() {
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setBilanApercu(`Enregistré : ${d.nb_ajoutees} ajoutée(s), ${d.nb_deja} déjà en base.`)
-      await rafraichirEtat()   // les nouvelles matières deviennent « déjà en base »
+      setBilanApercu(`Retenu : ${d.nb_ajoutees} matière(s), ${d.nb_deja} déjà au programme.`)
+      await rafraichirEtat()   // relecture : les matières retenues reviennent avec validee vraie
     } catch (e) { showError(`Enregistrement impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
   }
@@ -971,6 +973,11 @@ export default function AdminReferentiels() {
   const cycleCourant = arbre.find(c => String(c.id) === String(cycleId))
   const coupleLabel = cycleCourant && niveau ? `${cycleCourant.nom} · ${niveau}` : niveau
 
+  // Deux comptages DÉRIVÉS de la liste lue (jamais stockés) : combien de matières sont au
+  // programme, et reste-t-il quelque chose à retenir (une case cochée qui n'y est pas encore).
+  const nbRetenues = compterRetenues(matieres)
+  const aRetenir = resteARetenir(matieres)
+
   // Les 5 cartouches = 5 étapes, ordre FIXE. `done` = REFLET lu en base (get, zéro copie), jamais un
   // booléen stocké en double : couple = couple choisi ; pdf = référentiel enregistré ;
   // matieres = matières reliées ; prompt = prompt validé ; decoupe = découpage validé. Règle unique
@@ -979,7 +986,9 @@ export default function AdminReferentiels() {
   const steps = [
     { id: 'couple',        done: !!(cycleId && niveau) },
     { id: 'pdf',           done: dejaTraite },   // = etat.existe_referentiel (une seule source : etat)
-    { id: 'matieres',      done: !!(etat?.matieres?.length > 0) },
+    // L'étape n'est faite que si une matière est RETENUE : une proposition non cochée ne met
+    // aucune matière au programme, donc elle ne fait pas avancer la procédure.
+    { id: 'matieres',      done: (etat?.matieres || []).some(m => m.validee) },
     { id: 'prompt',        done: !!etat?.prompt_decoupe_valide },   // lu depuis etat (get), comme matieres
     { id: 'decoupe',       done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
     { id: 'types',         done: typesChecked.size > 0 },           // dernière étape : au moins un type coché
@@ -1480,25 +1489,26 @@ export default function AdminReferentiels() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
               <h2 className="text-base font-semibold text-gray-800">
-                <Pastille etat={(etat?.matieres?.length > 0) ? 'vert' : 'rouge'} titre="Vert = des matières sont reliées à ce niveau en base." />
+                <Pastille etat={nbRetenues > 0 ? 'vert' : 'rouge'} titre="Vert = au moins une matière est retenue au programme de ce niveau." />
                 Matières de ce référentiel
                 <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
-                  ({matieres.length})
+                  ({nbRetenues} retenue{nbRetenues > 1 ? 's' : ''}
+                  {matieres.length - nbRetenues > 0 ? `, ${matieres.length - nbRetenues} proposée${matieres.length - nbRetenues > 1 ? 's' : ''}` : ''})
                 </span>
                 <span style={{ marginLeft: 8 }}>
-                  <BadgeIA titre="Matières proposées par l'IA (lecture du document + table des matières existantes)" />
+                  <BadgeIA titre="Matières proposées par la lecture du document — ce référentiel nomme les siennes" />
                 </span>
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {dejaTraite
-                  ? 'Couple déjà traité : voici les matières déjà en base pour ce niveau. Tu peux les renommer, en retirer, ou en ajouter à la main (geste exceptionnel).'
-                  : 'Cochée = déjà en base (rien à faire). Décochée = nouvelle : cochez celles à ajouter. « Récupérer » enregistre en base les matières cochées et nouvelles.'}
+                Ce référentiel possède ses propres matières, avec l'orthographe de son document.
+                {' '}Cochez les propositions que vous retenez, puis « Récupérer » : elles entrent au
+                {' '}programme et apparaissent aux profs de « {niveau} ».
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              {matieresOuvert && matieres.some(m => !m.en_base && !m.cochee) && (
+              {matieresOuvert && matieres.some(m => !m.validee && !m.cochee) && (
                 <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                  title="Cocher d'un coup toutes les matières de la liste — « Récupérer » s'active ensuite"
+                  title="Cocher d'un coup toutes les propositions — « Récupérer » s'active ensuite"
                   onClick={selectionnerTout}>
                   Sélectionner tout
                 </button>
@@ -1515,10 +1525,10 @@ export default function AdminReferentiels() {
           <>
           <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             {matieres.map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                borderTop: i ? '1px solid #f1f5f9' : 'none', background: m.en_base ? '#f8fafc' : '#fff' }}>
-                <input type="checkbox" checked={m.en_base || m.cochee} disabled={m.en_base}
-                  title={m.en_base ? 'Déjà en base — pour l’enlever, utilisez « Retirer »' : 'Cocher pour ajouter cette matière'}
+              <div key={m.id ?? `neuve-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                borderTop: i ? '1px solid #f1f5f9' : 'none', background: m.validee ? '#f8fafc' : '#fff' }}>
+                <input type="checkbox" checked={m.cochee} disabled={m.validee}
+                  title={m.validee ? 'Déjà au programme — pour l’en sortir, utilisez « Retirer »' : 'Cocher pour retenir cette matière'}
                   onChange={() => toggleCochee(i)} />
                 {editIndex === i ? (
                   <input style={{ ...champ, flex: 1 }} value={editNom} autoFocus
@@ -1528,23 +1538,27 @@ export default function AdminReferentiels() {
                 ) : (
                   <span style={{ flex: 1, fontSize: 13, color: '#1e293b' }}>{m.nom}</span>
                 )}
-                <span style={{ fontSize: 11, fontWeight: 600, color: m.en_base ? '#16a34a' : '#2563eb' }}>
-                  {m.en_base ? 'déjà en base' : 'nouvelle'}
+                <span style={{ fontSize: 11, fontWeight: 600, color: m.validee ? '#16a34a' : '#7c3aed' }}
+                  title={m.validee
+                    ? 'Au programme : les profs de ce niveau la voient.'
+                    : 'Lue dans le document, en attente de votre décision.'}>
+                  {m.validee ? 'retenue' : 'proposée'}
                 </span>
                 <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
                   title="Renommer cette matière (garde le même identifiant)" onClick={() => demarrerRenommage(i)}>
                   Renommer
                 </button>
                 <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
-                  title={m.en_base ? 'Retirer cette matière de ce niveau' : 'Retirer cette matière de la liste'}
+                  title={m.validee ? 'Sortir cette matière du programme de ce niveau' : 'Écarter cette proposition'}
                   onClick={() => retirer(i)}>
-                  Retirer
+                  {m.validee ? 'Retirer' : 'Écarter'}
                 </button>
               </div>
             ))}
             {matieres.length === 0 && (
               <div style={{ padding: '10px', fontSize: 12, color: '#94a3b8' }}>
-                Aucune matière à afficher pour l’instant.
+                Ce référentiel ne porte encore aucune matière. La lecture du document n’en a
+                proposé aucune : ajoutez-les à la main ci-dessous.
               </div>
             )}
           </div>
@@ -1559,16 +1573,16 @@ export default function AdminReferentiels() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            {/* Grisé quand il n'y a rien à récupérer : aucune matière cochée qui ne soit PAS déjà en
-                base (m.cochee && !m.en_base). État lu (get), zéro copie. Se réactive dès qu'on coche une nouvelle. */}
-            <button type="button" className="btn-primary" title="Enregistrer en base les matières cochées et nouvelles"
-              onClick={recuperer} disabled={busy || !matieres.some(m => m.cochee && !m.en_base)}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
+            {/* Grisé quand il n'y a rien à retenir : aucune matière cochée qui ne soit PAS déjà au
+                programme. État lu (get), zéro copie. Se réactive dès qu'on coche une proposition. */}
+            <button type="button" className="btn-primary" title="Retenir les matières cochées : elles entrent au programme de ce niveau"
+              onClick={recuperer} disabled={busy || !aRetenir}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
             {/* Passage Matières → Prompt (cas exceptionnel) : UN seul geste — affiche la cartouche
                 Prompt ET lance la génération IA dans la foulée (le bouton fait ce qu'il dit).
                 N'apparaît que lorsque « Récupérer » est grisé (plus rien à récupérer) ; se grise dès que
                 la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence,
                 donc jamais de génération par-dessus un prompt existant. */}
-            {estVisible('prompt') && !matieres.some(m => m.cochee && !m.en_base) && (
+            {estVisible('prompt') && !aRetenir && (
               <button type="button" className="btn-primary"
                 onClick={() => { setAfficherPrompt(true); setPromptOuvert(true); genererPromptDecoupe() }}
                 disabled={afficherPrompt || !!promptDecoupe}

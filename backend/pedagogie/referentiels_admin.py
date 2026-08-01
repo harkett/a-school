@@ -534,29 +534,29 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     déjà traité » + les matières, et à griser la zone de dépôt. Chaque niveau a sa propre
     ligne `referentiels`, qui possède ses propres matières.
 
-    `matieres` = celles que l'admin a RETENUES (validee, actives) ; `candidates` = les noms de
-    celles que la détection PROPOSE et qu'il n'a pas encore cochées. Deux lectures de la MÊME
-    table, distinguées par `validee` — la table `matieres_candidates` n'existe plus.
+    `matieres` = UNE seule liste, celle du référentiel, chaque ligne portant son état : `validee`
+    vrai = retenue par l'admin (elle est au programme du prof), faux = proposée par la détection
+    et pas encore cochée. L'écran affiche cette liste telle quelle — il n'a plus à recoller deux
+    sources, et deux matières de même nom ne peuvent plus s'y masquer l'une l'autre.
     """
     niveau_nom = (niveau or "").strip()
     niv = (db.query(Niveau)
              .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
     if not niv:
-        return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": [],
+        return {"existe_referentiel": False, "referentiel": None, "matieres": [],
                 "prompt_decoupe_valide": False, "decoupe_valide": False}
 
     # Référentiel du niveau — même clé qu'à la validation.
     ref = db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first()
 
-    matieres, candidates = [], []
+    matieres = []
     if ref is not None:
-        for m in (db.query(Matiere)
-                    .filter(Matiere.referentiel_id == ref.id, Matiere.actif == True)  # noqa: E712
-                    .order_by(Matiere.ordre, Matiere.id).all()):
-            if m.validee:
-                matieres.append({"id": m.id, "nom": m.nom})
-            else:
-                candidates.append(m.nom)
+        matieres = [
+            {"id": m.id, "nom": m.nom, "validee": m.validee}
+            for m in (db.query(Matiere)
+                        .filter(Matiere.referentiel_id == ref.id, Matiere.actif == True)  # noqa: E712
+                        .order_by(Matiere.ordre, Matiere.id).all())
+        ]
 
     return {
         "existe_referentiel": ref is not None,
@@ -566,7 +566,6 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
             if ref else None
         ),
         "matieres": matieres,
-        "candidates": candidates,
         # Drapeaux de validation lus sur la MÊME ligne `ref` (get) — la table front les lit via etat.
         "prompt_decoupe_valide": bool(ref.prompt_decoupe_valide) if ref else False,
         "decoupe_valide": bool(ref.decoupe_valide) if ref else False,
