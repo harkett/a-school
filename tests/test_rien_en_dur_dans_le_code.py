@@ -1,5 +1,4 @@
-"""RÈGLE 25 — stop « en dur » : une donnée métier ou un choix de config vit EN BASE, pas dans
-le code.
+"""Rien en dur dans le code : une donnée métier ou un choix de config vit EN BASE.
 
 CE QUE CE TEST ATTRAPE — deux formes, celles que la règle nomme explicitement :
   (1) un dictionnaire, une liste, un tuple ou un ensemble de chaînes déclaré AU NIVEAU MODULE
@@ -45,7 +44,7 @@ DETTE = {
         "activites.py:43 — les clés (nb, sous_type, langue) SONT `type_parametres.cle` en base ; "
         "seule leur formulation est recopiée ici.",
     "backend/contenu/mes_contenus.py:JALON_LABELS":
-        "mes_contenus.py:295 — libellés des jalons de la RÈGLE 0 ; aucune table `jalons`.",
+        "mes_contenus.py:295 — libellés des jalons de l'historique ; aucune table `jalons`.",
     "backend/contenu/mes_contenus.py:PHASES_ESQUISSE":
         "mes_contenus.py:898 — les 3 phases A/B/C de l'esquisse ; aucune table.",
     "backend/systeme/maintenance.py:CATEGORIES":
@@ -142,13 +141,13 @@ def _scanner():
 def test_aucune_donnee_metier_nouvelle_ecrite_en_dur():
     """Le filet. Toute forme surveillée NON inscrite dans la liste gelée fait tomber la suite."""
     nouvelles = [
-        f"{chemin}:{ligne} — {description}\n      RÈGLE 25 : cette donnée doit-elle vivre en "
+        f"{chemin}:{ligne} — {description}\n      Cette donnée doit-elle vivre en "
         f"base ? Si oui, la LIRE (get), jamais l'écrire ici."
         for cle, chemin, ligne, description in _scanner()
         if cle not in TOLERE
     ]
     assert not nouvelles, (
-        "RÈGLE 25 enfreinte par une donnée en dur NOUVELLE :\n  - "
+        "Une donnée métier est écrite en dur à un endroit NOUVEAU :\n  - "
         + "\n  - ".join(nouvelles)
         + "\n\nCe test ne s'affaiblit pas : soit la donnée descend en base, soit l'utilisateur "
           "décide explicitement de l'inscrire à la dette ou aux exceptions permanentes."
@@ -170,7 +169,7 @@ def test_le_compte_de_la_dette_est_celui_du_31_07_2026():
     """Le chiffre de départ. Il ne bouge qu'en BAISSE, et une baisse fait tomber ce test —
     réparer une dette se conclut en corrigeant ce nombre."""
     assert len(DETTE) == 6, (
-        f"Dette RÈGLE 25 : {len(DETTE)} entrées, 6 attendues (état gelé du 31/07/2026)."
+        f"Dette « en dur » : {len(DETTE)} entrées, 6 attendues (état gelé du 31/07/2026)."
     )
     assert len(EXCEPTIONS_PERMANENTES) == 5, (
         f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 5 attendues."

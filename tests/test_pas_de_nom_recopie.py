@@ -1,5 +1,4 @@
-"""RÈGLE 4 — zéro copie : une donnée de référence se range par son IDENTIFIANT, jamais par
-son nom recopié.
+"""Aucun nom recopié depuis une table de référence : on range l'identifiant, pas le libellé.
 
 CE QUE CE TEST ATTRAPE
 Une colonne TEXTE qui porte le nom d'une donnée possédée par une table de référence
@@ -110,13 +109,13 @@ def _colonnes_suspectes():
 def test_aucune_copie_nouvelle_d_une_donnee_de_reference():
     """Le filet. Toute copie NON inscrite dans la liste gelée fait tomber la suite."""
     nouvelles = [
-        f"{cible} recopie {proprio} — RÈGLE 4 : stocker {cible.split('.')[1]}_id "
+        f"{cible} recopie {proprio} — il faut stocker {cible.split('.')[1]}_id "
         f"(clé étrangère vers {proprio.split('.')[0]}), pas le nom."
         for cible, proprio in _colonnes_suspectes()
         if cible not in TOLERE
     ]
     assert not nouvelles, (
-        "RÈGLE 4 enfreinte par une copie NOUVELLE :\n  - "
+        "Un nom de référence est recopié à un endroit NOUVEAU :\n  - "
         + "\n  - ".join(nouvelles)
         + "\n\nCe test ne s'affaiblit pas : soit la colonne devient `<nom>_id`, soit "
           "l'utilisateur décide explicitement de l'inscrire à la dette."
@@ -134,7 +133,7 @@ def test_l_annuaire_dit_vrai_sur_les_tables_de_reference():
         elif colonne not in models_db.Base.metadata.tables[table].columns:
             manquants.append(f"{nom} → colonne {proprio} introuvable")
     assert not manquants, (
-        "L'annuaire de la RÈGLE 4 pointe dans le vide :\n  - " + "\n  - ".join(manquants)
+        "L'annuaire des tables de référence pointe dans le vide :\n  - " + "\n  - ".join(manquants)
     )
 
 
@@ -154,7 +153,7 @@ def test_le_compte_de_la_dette_est_celui_du_31_07_2026():
     """Le chiffre de départ, écrit noir sur blanc. Il ne bouge qu'en BAISSE, et une baisse fait
     tomber ce test — c'est voulu : réparer une dette se conclut en corrigeant ce nombre."""
     assert len(DETTE) == 10, (
-        f"Dette RÈGLE 4 : {len(DETTE)} entrées, 10 attendues (état gelé du 31/07/2026). "
+        f"Dette « nom recopié » : {len(DETTE)} entrées, 10 attendues (état gelé du 31/07/2026). "
         "Une réparation ? Baisse le nombre ici. Une entrée nouvelle ? Elle n'a rien à faire "
         "dans cette liste sans décision de l'utilisateur."
     )

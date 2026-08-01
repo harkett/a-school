@@ -1,4 +1,4 @@
-// RÈGLE 26 — le couple Matière - Niveau reste affiché en permanence dans le header, juste
+// Le couple Matière - Niveau reste affiché en permanence dans le header, juste
 // AU-DESSUS de « Changer niveau et/ou matière », sur TOUS les écrans.
 //
 // CE QUE CE TEST ATTRAPE : la suppression du couple, son passage SOUS le bouton, sa mise sous
@@ -10,7 +10,7 @@
 // possible ici, et ajouter une dépendance de test au projet est un autre sujet. Le test porte
 // donc sur la SOURCE — la structure, pas le pixel.
 //
-// Lancer : npm test  (ou  node --test test/regle26-couple-header.test.js)
+// Lancer : npm test  (ou  node --test test/couple-toujours-dans-le-header.test.js)
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -35,7 +35,7 @@ function ligneUtileAvant(source, aiguille) {
   return { precedente: '', courante: lignes[index].trim() }
 }
 
-test('RÈGLE 26 : le couple est construit à partir de la matière ET du niveau', () => {
+test('le couple est construit à partir de la matière ET du niveau', () => {
   assert.match(
     header,
     /const\s+matiereNiveau\s*=\s*\[\s*matiere\s*,\s*niveau\s*\]/,
@@ -47,18 +47,18 @@ test('RÈGLE 26 : le couple est construit à partir de la matière ET du niveau'
   )
 })
 
-test('RÈGLE 26 : le couple est AU-DESSUS du bouton « Changer niveau et/ou matière »', () => {
+test('le couple est AU-DESSUS du bouton « Changer niveau et/ou matière »', () => {
   const posCouple = header.indexOf('{matiereNiveau}')
   const posBouton = header.indexOf('<CoupleBandeau')
   assert.ok(posCouple !== -1 && posBouton !== -1, 'Le couple ou son bouton a disparu du header.')
   assert.ok(
     posCouple < posBouton,
     'Le couple passe SOUS « Changer niveau et/ou matière » : dans une colonne flex, l\'ordre '
-      + 'de la source EST l\'ordre à l\'écran. La règle 26 le veut au-dessus.',
+      + 'de la source EST l\'ordre à l\'écran. Le couple doit rester au-dessus du bouton.',
   )
 })
 
-test('RÈGLE 26 : le bloc du couple n\'est enfermé dans aucune condition', () => {
+test('le bloc du couple n\'est enfermé dans aucune condition', () => {
   const { precedente, courante } = ligneUtileAvant(header, 'data-guide="couple"')
   assert.ok(
     !/(&&|\?)\s*\(?\s*$/.test(precedente),
@@ -76,7 +76,7 @@ test('RÈGLE 26 : le bloc du couple n\'est enfermé dans aucune condition', () =
   )
 })
 
-test('RÈGLE 26 : le Header est monté sur TOUS les écrans, avec le couple', () => {
+test('le Header est monté sur TOUS les écrans, avec le couple', () => {
   const { precedente } = ligneUtileAvant(app, '<Header')
   assert.ok(
     !/(&&|\?)\s*\(?\s*$/.test(precedente),

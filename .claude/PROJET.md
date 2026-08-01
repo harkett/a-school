@@ -87,7 +87,9 @@ jamais du client).
 
 ## 3. Décision produit — le CRUD encadré et le principe d'écran
 
-*(ancienne RÈGLE 4, la partie descriptive ; le principe « zéro copie » est resté une règle)*
+*(ancienne RÈGLE 4, supprimée du rappel le 31/07/2026 : c'est du métier de base, pas une
+consigne de travail. Elle est descendue ici en entier, et le test
+`tests/test_pas_de_nom_recopie.py` en tient la partie vérifiable.)*
 
 La base de données est la **seule** source de vérité. Toute donnée métier vit en base, à un
 seul endroit.
@@ -125,7 +127,7 @@ pédagogiques » de gauche, sur **tous** les écrans.
 Le retirer, le déplacer ou le masquer est un bug bloquant, pas un détail — demandé quatre fois
 par l'utilisateur.
 
-**Test qui le tient :** `frontend/test/regle26-couple-header.test.js` (4 tests). Il attrape la
+**Test qui le tient :** `frontend/test/couple-toujours-dans-le-header.test.js` (4 tests). Il attrape la
 suppression, le passage sous le bouton, la mise sous condition, et le démontage du Header dans
 `App.jsx`. Il n'attrape **pas** un `display: none` : le front tourne sur `node --test`, sans
 jsdom ni testing-library, donc aucun rendu de composant n'est possible.
@@ -138,7 +140,7 @@ Deux tests portent l'état des lieux gelé au **31/07/2026**. Ils sont verts auj
 rouges à la première violation nouvelle. **Aucune entrée ne s'ajoute sans décision de
 l'utilisateur** — un ajout silencieux vaut suppression du test.
 
-### `tests/test_regle4_zero_copie.py` — 10 dettes, 2 exceptions permanentes
+### `tests/test_pas_de_nom_recopie.py` — 10 dettes, 2 exceptions permanentes
 
 Une colonne texte qui recopie le nom d'une donnée de référence au lieu de ranger son
 identifiant.
@@ -150,7 +152,7 @@ identifiant.
 tentative, motif « facture validée ». Relire le référentiel donnerait le nom d'aujourd'hui et
 falsifierait le journal.
 
-### `tests/test_regle25_rien_en_dur.py` — 6 dettes, 5 exceptions permanentes
+### `tests/test_rien_en_dur_dans_le_code.py` — 6 dettes, 5 exceptions permanentes
 
 Une donnée métier écrite dans le code au lieu de vivre en base.
 
