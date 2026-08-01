@@ -416,6 +416,41 @@ def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
                     json={"matiere_id": 999999, "actif": True}).status_code == 404
 
 
+def test_admin_matiere_demande_langue_se_regle_et_se_relit():
+    """« Cette matiere porte une langue » : le drapeau qui fait apparaitre le choix de la langue
+    au profil du prof et l'injecte dans la generation. Une matiere naissant TOUJOURS a false
+    (creation admin comme detection), il faut pouvoir le poser -- sinon le sous-menu langue du
+    profil devient inatteignable. La case de la page « Programmes & contenu » ecrit ici, et
+    l'arbre /admin/contenu le relit."""
+    from _profil import referentiel_id
+    with dbmod.SessionLocal() as db:
+        ref_id = referentiel_id(db, "ML-Niveau")
+        db.commit()
+    cl = admin_client()
+
+    mid = cl.post("/api/admin/matieres",
+                  json={"referentiel_id": ref_id, "nom": "ML-Anglais"}).json()["id"]
+    # Elle nait a « non », alors meme que son libelle est celui d'une langue : c'est le drapeau
+    # qui decide, jamais le nom.
+    with dbmod.SessionLocal() as db:
+        from backend.core.models_db import Matiere
+        assert db.get(Matiere, mid).demande_langue is False
+
+    assert noauth().patch("/api/admin/matieres/demande-langue",
+                          json={"matiere_id": mid, "demande_langue": True}).status_code == 401
+    assert cl.patch("/api/admin/matieres/demande-langue",
+                    json={"matiere_id": 999999, "demande_langue": True}).status_code == 404
+
+    assert cl.patch("/api/admin/matieres/demande-langue",
+                    json={"matiere_id": mid, "demande_langue": True}).json()["demande_langue"] is True
+    arbre = cl.get("/api/admin/contenu").json()
+    lue = next(m for c in arbre["cycles"] for n in c["niveaux"] for m in n["matieres"]
+               if m["id"] == mid)
+    assert lue["demande_langue"] is True          # relu dans l'arbre : la case se rouvre cochee
+    assert cl.patch("/api/admin/matieres/demande-langue",
+                    json={"matiere_id": mid, "demande_langue": False}).json()["demande_langue"] is False
+
+
 # ===================== /api/matieres — deux questions, deux réponses =====================
 # Sans argument : les NOMS distincts de toutes les matières au programme (ce que lisent les trois
 # filtres admin, qui trient de l'historique rangé par nom). Avec ?niveau_id= : les matières du

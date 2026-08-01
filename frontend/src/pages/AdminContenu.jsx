@@ -168,6 +168,21 @@ export default function AdminContenu() {
     })
   }
 
+  // « Cette matière porte une langue » — l'indicateur qui décide si le prof choisit une langue à
+  // son profil, et si la génération l'injecte dans le prompt. Il vit sur la ligne matière, donc
+  // il se règle ici, à côté d'elle : une matière et ses attributs sur un seul écran. Sans cette
+  // case, aucune matière ne pourrait plus le porter — elles naissent toutes à « non ».
+  function toggleLangue(m) {
+    return ecrire(async () => {
+      const r = await fetchWithTimeout('/api/admin/matieres/demande-langue', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matiere_id: m.id, demande_langue: !m.demande_langue }),
+      }, TIMEOUT_STD)
+      await lireReponse(r)
+    })
+  }
+
   function basculerNiveau(id) {
     setNivOuverts(prev => {
       const s = new Set(prev)
@@ -218,7 +233,8 @@ export default function AdminContenu() {
         directement dans l'arbre&nbsp;; dépliez un niveau pour voir et gérer <b>ses matières</b> —
         elles appartiennent à son référentiel, un niveau ne partage jamais les siennes avec un
         autre. Retirer une matière du programme la retire des menus des profs de ce niveau
-        (réversible, rien n'est supprimé). Le dépôt du référentiel, lui, se fait sur l'écran
+        (réversible, rien n'est supprimé)&nbsp;; cochez <b>langue</b> sur celles qui en sont une,
+        pour que leurs profs choisissent laquelle. Le dépôt du référentiel, lui, se fait sur l'écran
         <b> Référentiel</b> : c'est aussi là que se retiennent les matières qu'il propose.
       </p>
 
@@ -244,6 +260,7 @@ export default function AdminContenu() {
                 onCreerNiveau={creerNiveau}
                 onCreerMatiere={creerMatiere}
                 onToggleMatiere={toggleMatiere}
+                onToggleLangue={toggleLangue}
               />
             ))}
             <AjoutCycleRow busy={busy} onCreer={creerCycle} />
@@ -335,8 +352,8 @@ function AjoutMatiereRow({ referentielId, niveauNom, busy, onCreer }) {
   )
 }
 
-function CycleBloc({ cycle, busy, nivOuverts, typesOuverts,
-                     basculerNiveau, basculerType, onCreerNiveau, onCreerMatiere, onToggleMatiere }) {
+function CycleBloc({ cycle, busy, nivOuverts, typesOuverts, basculerNiveau, basculerType,
+                     onCreerNiveau, onCreerMatiere, onToggleMatiere, onToggleLangue }) {
   return (
     <>
       {/* ─ Ligne CYCLE ─ */}
@@ -369,6 +386,7 @@ function CycleBloc({ cycle, busy, nivOuverts, typesOuverts,
           basculerType={basculerType}
           onCreerMatiere={onCreerMatiere}
           onToggleMatiere={onToggleMatiere}
+          onToggleLangue={onToggleLangue}
         />
       ))}
 
@@ -377,8 +395,8 @@ function CycleBloc({ cycle, busy, nivOuverts, typesOuverts,
   )
 }
 
-function NiveauBloc({ niveau, ref_, ouvert, busy, typesOuverts,
-                      basculerNiveau, basculerType, onCreerMatiere, onToggleMatiere }) {
+function NiveauBloc({ niveau, ref_, ouvert, busy, typesOuverts, basculerNiveau, basculerType,
+                      onCreerMatiere, onToggleMatiere, onToggleLangue }) {
   // Les matières de CE niveau, telles que la base les rend, chacune avec son état.
   const matieres = lignesMatieres(niveau)
   const nbProgramme = nbAuProgramme(niveau)
@@ -462,6 +480,29 @@ function NiveauBloc({ niveau, ref_, ouvert, busy, typesOuverts,
                         >
                           {m.nom}
                           {a.mention && <span style={{ fontSize: 10 }}>({a.mention})</span>}
+                          {/* « Porte une langue » : c'est CE drapeau, et pas le libellé, qui fait
+                              apparaître le choix de la langue au profil du prof et l'injecte dans
+                              la génération. Une matière naît toujours à « non » — sans cette case,
+                              plus aucune ne pourrait le porter. */}
+                          {m.etat !== PROPOSEE && (
+                            <label
+                              title={m.demande_langue
+                                ? `« ${m.nom} » porte une langue : ses profs choisissent laquelle à leur profil, et aSchool en tient compte à la génération. Décochez si ce n'est pas le cas.`
+                                : `Cochez si « ${m.nom} » est une matière de langue (LV1, LV2, langue régionale…) : ses profs pourront alors choisir laquelle à leur profil.`}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10,
+                                       fontWeight: 600, color: m.demande_langue ? a.fg : '#94a3b8',
+                                       cursor: busy ? 'wait' : 'pointer' }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!m.demande_langue}
+                                disabled={busy}
+                                onChange={() => onToggleLangue(m)}
+                                style={{ width: 11, height: 11, cursor: busy ? 'wait' : 'pointer' }}
+                              />
+                              langue
+                            </label>
+                          )}
                           {m.etat !== PROPOSEE && (
                             <button
                               type="button"

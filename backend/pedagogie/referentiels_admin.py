@@ -269,7 +269,8 @@ def lire_contenu(db: Session = Depends(get_db)):
                     "decoupe_valide": bool(ref.decoupe_valide),
                     "nb_unites": nb_unites.get(ref.id, 0),
                 },
-                "matieres": [{"id": m.id, "nom": m.nom, "validee": m.validee, "actif": m.actif}
+                "matieres": [{"id": m.id, "nom": m.nom, "validee": m.validee, "actif": m.actif,
+                              "demande_langue": m.demande_langue}
                              for m in (mat_par_ref.get(ref.id, []) if ref else [])],
                 "types": [] if ref is None else [
                     {"id": t.id, "label": t.label, "source": lien.source, "origine": t.origine,

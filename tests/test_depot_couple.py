@@ -502,7 +502,8 @@ def test_page_contenu_arbre_complet():
                           texte_epure="TEXTE FIGE", decoupe_valide=True)
         t1 = ActiviteType(label="DC-Évaluation", ordre=1, actif=True, origine="systeme")
         db.add_all([ref, t1]); db.flush()
-        db.add(Matiere(referentiel_id=ref.id, nom="DC-Cuisine", ordre=1, actif=True, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="DC-Cuisine", ordre=1, actif=True, validee=True,
+                       demande_langue=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Retiree", ordre=2, actif=False, validee=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Proposee", ordre=3, actif=True, validee=False))
         db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
@@ -531,6 +532,10 @@ def test_page_contenu_arbre_complet():
     assert etats == {"DC-Cuisine": (True, True),      # au programme
                      "DC-Retiree": (True, False),     # retirée du programme, jamais supprimée
                      "DC-Proposee": (False, True)}    # lue dans le document, pas encore retenue
+    # `demande_langue` voyage avec la matière : c'est LUI qui fait apparaître le choix de la
+    # langue au profil du prof, et la case qui le règle est sur cet écran-là.
+    langue = {m["nom"]: m["demande_langue"] for m in plein["matieres"]}
+    assert langue == {"DC-Cuisine": True, "DC-Retiree": False, "DC-Proposee": False}
     assert plein["types"] == [{"id": plein["types"][0]["id"], "label": "DC-Évaluation",
                                "source": "ia", "origine": "systeme",
                                "precisions": ["évaluation pratique"]}]
