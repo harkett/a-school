@@ -19,8 +19,6 @@ const STYLES = {
 export default function AdminBase() {
   const [info, setInfo] = useState(null)
   const [erreur, setErreur] = useState(false)
-  const [carteBusy, setCarteBusy] = useState(false)   // lancement de la carte en cours
-  const [carteMsg, setCarteMsg] = useState(null)      // {type:'ok'|'err', texte}
 
   useEffect(() => {
     fetchWithTimeout('/api/admin/base', { credentials: 'include' }, TIMEOUT_STD)
@@ -29,15 +27,14 @@ export default function AdminBase() {
       .catch(() => setErreur(true))
   }, [])
 
-  // Lance le script local `carte.py` (via l'endpoint) : il régénère la carte et l'ouvre dans Edge.
-  async function ouvrirCarte() {
-    setCarteBusy(true); setCarteMsg(null)
-    try {
-      const r = await fetchWithTimeout('/api/admin/base/carte', { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
-      if (!r.ok) { const e = await r.json().catch(() => ({})); setCarteMsg({ type: 'err', texte: e.detail || 'Lancement impossible.' }); return }
-      setCarteMsg({ type: 'ok', texte: 'Carte lancée — elle s’ouvre dans Edge.' })
-    } catch { setCarteMsg({ type: 'err', texte: 'Lancement impossible.' }) }
-    finally { setCarteBusy(false) }
+  // La carte est une PAGE, pas un lancement : le serveur la construit sur la structure réelle
+  // et la renvoie. Ouverture directe dans un onglet — aucun Edge, aucun script local, donc elle
+  // marche depuis le poste comme depuis le VPS. Avant, le bouton appelait une route qui se
+  // terminait par `cmd /c start msedge` : depuis le conteneur Linux, elle ne pouvait jamais
+  // aboutir. window.open est appelé SYNCHRONEMENT (pas après un await) — sinon le navigateur
+  // le prend pour une fenêtre surgissante et le bloque.
+  function ouvrirCarte() {
+    window.open('/api/admin/base/carte', '_blank', 'noopener')
   }
 
   const s = info ? (STYLES[info.type] || STYLES.autre) : null
@@ -73,25 +70,19 @@ export default function AdminBase() {
         )}
       </div>
 
-      {/* Cartouche « Carte de la base » : lance le script local qui régénère la carte et l'ouvre dans Edge. */}
+      {/* Cartouche « Carte de la base » : le serveur construit la page et la renvoie. */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
         <div>
           <h2 className="text-base font-semibold text-gray-800">Carte de la base</h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Génère la carte visuelle de la base (tables, colonnes, relations, volumes) à partir de la structure réelle, et l’ouvre dans Edge.
+            Ouvre la carte visuelle de la base (tables, colonnes, relations, volumes), dessinée sur la structure réelle au moment du clic.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button type="button" className="btn-primary" onClick={ouvrirCarte} disabled={carteBusy}
-            title="Régénérer la carte de la base et l’ouvrir dans Edge"
-            style={{ cursor: carteBusy ? 'wait' : 'pointer' }}>
-            {carteBusy ? 'Ouverture…' : '🗺️ Afficher la carte'}
+          <button type="button" className="btn-primary" onClick={ouvrirCarte}
+            title="Ouvrir la carte de la base dans un nouvel onglet">
+            🗺️ Afficher la carte
           </button>
-          {carteMsg && (
-            <span style={{ fontSize: 13, color: carteMsg.type === 'ok' ? '#166534' : '#b91c1c' }}>
-              {carteMsg.texte}
-            </span>
-          )}
         </div>
       </div>
     </div>

@@ -26,15 +26,21 @@ MERMAID_LIB = HERE / "vendor" / "mermaid.min.js"  # moteur de dessin embarque (h
 # ---------------------------------------------------------------------------
 # 1. LECTURE DE LA BASE REELLE (structure uniquement : tables, colonnes, FK)
 # ---------------------------------------------------------------------------
-def lire_schema() -> dict:
+def moteur_du_env():
+    """Le moteur que vise le LANCEUR en ligne de commande : celui du .env, comme l'application.
+    L'ecran Admin, lui, passe SON moteur a `lire_schema` — il vise la base ou il tourne, sans
+    relire un fichier qui n'est pas forcement le sien."""
     load_dotenv(ROOT / ".env")
     url = os.getenv("DATABASE_URL")
     if not url:
         sys.exit("ARRET : DATABASE_URL absente du .env — on ne sait pas quelle base viser.")
     if not url.startswith("postgresql"):
         sys.exit(f"ARRET : DATABASE_URL = '{url.split('://')[0]}://...', PostgreSQL exige.")
+    return create_engine(url)
 
-    eng = create_engine(url)
+
+def lire_schema(eng=None) -> dict:
+    eng = eng if eng is not None else moteur_du_env()
     out = {"tables": {}, "fks": []}
     with eng.connect() as c:
         cols = c.execute(text("""
@@ -90,21 +96,30 @@ def lire_schema() -> dict:
 #    Toute table inconnue tombe dans "systeme" (garde-fou : jamais un oubli muet,
 #    une nouvelle table apparait quand meme sur la carte).
 # ---------------------------------------------------------------------------
+# Remis sur le schema REEL le 01/08/2026. L'ancien classement datait : il nommait 7 tables
+# disparues (matiere_niveaux, matieres_candidates, user_enseignements, fiches_matieres,
+# arbitrage_demandes, activites_sauvegardees, sequences_sauvegardees) et ignorait 15 tables
+# vivantes — dont activites, seances, sequences, c'est-a-dire le coeur du produit. Elles
+# tombaient toutes dans « systeme » : la carte se dessinait, le pied de page les signalait,
+# mais les couleurs ne voulaient plus rien dire. `test_carte_base_classe_toutes_les_tables.py`
+# tombe desormais si une table de la base n'est nommee nulle part ici.
 DOMAINS = {
     "comptes":  ("Comptes & securite", "#2563eb", "#dbeafe", "#1e3a8a",
         ["users", "refresh_tokens", "email_tokens", "connexion_logs",
          "failed_login_attempts", "user_sessions", "admin_audit_log", "admin_alerts"]),
     "peda":     ("Structure pedagogique", "#16a34a", "#dcfce7", "#14532d",
-        ["cycles", "niveaux", "matieres", "matiere_niveaux", "matieres_candidates",
-         "user_enseignements", "fiches_matieres"]),
+        ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
+         "seance_styles", "langues_lv"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
-        ["referentiels", "referentiel_chunks", "arbitrage_demandes"]),
+        ["referentiels", "referentiel_chunks", "referentiel_types_activite",
+         "referentiel_type_precisions"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
-        ["activites_sauvegardees", "sequences_sauvegardees", "feedbacks",
-         "feedback_statuts", "feature_votes", "few_shot_milestones", "tool_usage_logs"]),
+        ["activites", "activite_versions", "sequences", "seances", "seance_versions",
+         "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
+         "feature_votes", "features_votables", "few_shot_milestones", "tool_usage_logs"]),
     "systeme":  ("Config, e-mail & systeme", "#e11d48", "#ffe4e6", "#881337",
         ["settings", "ai_fournisseurs", "ai_modeles", "email_templates",
-         "email_envois", "alembic_version"]),
+         "email_envois", "incidents", "alembic_version"]),
 }
 
 TYPE_MAP = {

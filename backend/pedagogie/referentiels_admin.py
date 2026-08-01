@@ -360,17 +360,6 @@ def detecter_couple_depot(body: DetecterCoupleBody, db: Session = Depends(get_db
     }
 
 
-class AbandonnerBody(BaseModel):
-    token: str
-
-
-@router.post("/admin/referentiels/abandonner", dependencies=[Depends(_require_admin)])
-def abandonner(body: AbandonnerBody):
-    """L'admin jette le PDF en attente (Scénario candidate). Efface le staging. Aucun écrit en base."""
-    (STAGING_DIR / f"{body.token}.pdf").unlink(missing_ok=True)
-    return {"ok": True}
-
-
 class ValiderBody(BaseModel):
     token: str
     cycle_id: int
@@ -1087,29 +1076,7 @@ def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
     return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs}
 
 
-# ── CRUD référentiel : écrire UN champ (put au coup par coup) + supprimer (gardé) ──
-
-class ModifierChampBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    champ: str                 # colonne libre autorisée : 'source' | 'date_doc'
-    valeur: str | None = None
-
-
-@router.patch("/admin/referentiels/champ", dependencies=[Depends(_require_admin)])
-def modifier_champ(body: ModifierChampBody, db: Session = Depends(get_db)):
-    """Écrit UN champ scalaire du référentiel du couple (put direct, zéro copie). Réservé aux
-    colonnes de saisie libre (source, date_doc). Valeur vide → NULL. 404 si aucun référentiel."""
-    CHAMPS = {"source", "date_doc"}
-    if body.champ not in CHAMPS:
-        raise HTTPException(400, f"Champ non modifiable : {body.champ}.")
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    setattr(ref, body.champ, (body.valeur or "").strip() or None)
-    db.commit()
-    return {"ok": True, "champ": body.champ, "valeur": getattr(ref, body.champ)}
-
+# ── CRUD référentiel : supprimer ────────────────────────────────────────────
 
 class SupprimerRefBody(BaseModel):
     cycle_id: int

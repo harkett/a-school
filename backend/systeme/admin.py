@@ -571,37 +571,37 @@ def admin_base(_: None = Depends(_require_admin)):
     return {"base": nom, "host": engine.url.host, "port": engine.url.port, "type": type_}
 
 
-@router.post("/admin/base/carte")
+@router.get("/admin/base/carte")
 def admin_base_carte(_: None = Depends(_require_admin)):
-    """Lance le script LOCAL `outils_bdd/carte_base/carte.py` : il régénère la carte visuelle
-    de la base (structure réelle lue dans information_schema) et l'ouvre dans Edge. Outil de
-    DÉVELOPPEMENT local : lecture seule de la base, aucune écriture. Fire-and-forget — on ne
-    bloque pas la requête pendant que le script tourne et qu'Edge s'ouvre.
+    """Rend la carte visuelle de la base : structure RÉELLE lue dans information_schema, dessinée
+    par `outils_bdd/carte_base/carte.py`. Lecture seule, aucune écriture.
 
-    Cette route ne peut PAS tenir sa promesse ailleurs que sur un poste Windows : le script
-    termine par `cmd /c start msedge`. Ailleurs (serveur Linux, conteneur), l'ancien code
-    lançait quand même le processus, qui mourait en silence — et répondait « ok » : un échec
-    déguisé en succès, le pire des deux mondes (check-up 31/07). On refuse donc franchement."""
-    import subprocess
-    import sys
+    Elle est CONSTRUITE ET RENVOYÉE ici, page HTML autonome (le moteur de dessin est embarqué,
+    aucun appel réseau) — donc elle marche depuis n'importe où : le conteneur du poste comme le
+    VPS. L'ancienne version lançait le script en sous-processus et se terminait par
+    `cmd /c start msedge` : sur un serveur Linux, elle ne pouvait par construction jamais
+    aboutir, et l'écran offrait quand même le bouton. Une route qui ne peut pas tenir sa
+    promesse n'est pas une route, c'est un piège.
+
+    Le moteur passé à `lire_schema` est celui de l'APPLICATION : la carte montre la base où le
+    serveur tourne vraiment, jamais celle qu'un fichier .env raconte."""
+    import importlib.util
     from pathlib import Path
-    if not sys.platform.startswith("win"):
-        raise HTTPException(
-            400,
-            "La carte de la base est un outil de développement local : elle a besoin d'un poste "
-            "Windows pour s'ouvrir dans Edge. Depuis ce serveur, elle ne peut pas être lancée."
-        )
-    root = Path(__file__).resolve().parents[2]          # backend/systeme -> racine du dépôt
-    script = root / "outils_bdd" / "carte_base" / "carte.py"
+    from fastapi.responses import HTMLResponse
+    from backend.core.database import engine
+
+    script = Path(__file__).resolve().parents[2] / "outils_bdd" / "carte_base" / "carte.py"
     if not script.exists():
-        raise HTTPException(500, "Script de la carte introuvable.")
-    python = root / ".venv" / "Scripts" / "python.exe"   # même Python que le lanceur carte.ps1
-    exe = str(python) if python.exists() else sys.executable
+        raise HTTPException(500, "Script de la carte introuvable (outils_bdd/carte_base/carte.py).")
+    # `outils_bdd` n'est pas un paquet : on charge le module par son chemin.
+    spec = importlib.util.spec_from_file_location("carte_base_outil", script)
+    carte = importlib.util.module_from_spec(spec)
     try:
-        subprocess.Popen([exe, str(script)], cwd=str(root))
+        spec.loader.exec_module(carte)
+        html = carte.construire_html(carte.lire_schema(engine))
     except Exception as e:
-        raise HTTPException(500, f"Lancement de la carte impossible : {e}")
-    return {"ok": True}
+        raise HTTPException(500, f"Construction de la carte impossible : {e}")
+    return HTMLResponse(html)
 
 
 @router.get("/admin/feedbacks")
@@ -1580,22 +1580,6 @@ def send_email_to_user(email: str, body: SendEmailBody, db: Session = Depends(ge
         raise HTTPException(404, "Utilisateur introuvable.")
     try:
         comptes.send_custom_email(email, user.prenom, body.subject, body.body)
-    except Exception as e:
-        raise HTTPException(500, f"Erreur envoi email : {e}")
-    return {"status": "ok"}
-
-
-@router.post("/admin/settings/test-email")
-def test_welcome_email(body: SettingsBody, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    from backend.securite import comptes
-    admin_email = os.getenv("SMTP_USERNAME", "")
-    if not admin_email:
-        raise HTTPException(500, "SMTP_USERNAME non configuré.")
-    settings = get_settings_dict(db)
-    subject = body.welcome_email_subject or settings["welcome_email_subject"]
-    content = body.welcome_email_body    or settings["welcome_email_body"]
-    try:
-        comptes.send_custom_email(admin_email, "Admin", subject, content)
     except Exception as e:
         raise HTTPException(500, f"Erreur envoi email : {e}")
     return {"status": "ok"}
