@@ -1,0 +1,42 @@
+# Ce que le CONTEXTE DE BUILD n'a pas à emporter.
+#
+# Sans ce fichier, `COPY . .` (Dockerfile:10) envoyait tout le dossier au démon Docker à
+# chaque build — environ 6,4 Go dont rien n'a sa place dans l'image : le venv Windows
+# (1,8 Go), le cache du modèle BGE-M3 (4,3 Go), les node_modules (172 Mo) et les fichiers
+# de la base locale (80 Mo). Le venv et les node_modules sont en plus des binaires du
+# POSTE : dans une image Linux, ils sont au mieux inutiles, au pire faux.
+#
+# Ce qui reste emporté : le code, les migrations, les tests, requirements.txt — de quoi
+# construire une image autonome. Au run, le code arrive de toute façon par volume (.:/app).
+
+# Environnements et dépendances (reconstruits dans l'image)
+.venv/
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Données locales du poste : base, caches de modèles, dumps, uploads
+docker/
+db_backup/
+data/
+outputs/
+REFERENTIELS/
+Bagage/
+
+# Sorties régénérables
+frontend/dist/
+outils_bdd/carte_base/carte_base.html
+
+# Secrets : jamais dans une image
+.env
+.env.*
+!.env.example
+
+# Dépôt et outillage local
+.git/
+.gitignore
+.claude/
+*.bak-*
+_tmp_*
