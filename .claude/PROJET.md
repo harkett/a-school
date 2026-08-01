@@ -1,17 +1,10 @@
 # A-SCHOOL — faits du poste et décisions produit
 
-Ce fichier recueille ce qui est sorti du rappel permanent le 31/07/2026 sans avoir à
-disparaître : **les faits du poste de travail** et **les décisions produit**. Ce ne sont pas
-des consignes de conduite — elles, elles sont restées dans
-`.claude/rappel-faire-completement.txt`, qui est réinjecté à chaque message.
+Ce fichier garde **les faits du poste de travail** et **les décisions produit** : comment le
+poste est fait, et ce que l'application doit faire.
 
-La différence tient en une phrase : une consigne dit *comment je travaille*, un fait dit
-*comment le poste est fait*, une décision produit dit *ce que l'application doit faire*. Les
-trois étaient mélangés dans le hook, donc les trois étaient répétés à chaque message.
-
-L'ancien fichier complet, avant remise à plat, est conservé tel quel dans
-`.claude/archives/rappel-2026-07-31-avant-remise-a-plat.txt` — rien de ce qui avait été décidé
-n'a été perdu.
+Il ne contient aucune consigne de conduite. Le rappel permanent et son archive ont été
+supprimés le 01/08/2026.
 
 ---
 

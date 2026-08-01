@@ -83,17 +83,5 @@
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",
       "C:\\Users\\harketti\\AppData\\Local\\Temp"
     ]
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat \"$CLAUDE_PROJECT_DIR/.claude/rappel-faire-completement.txt\""
-          }
-        ]
-      }
-    ]
   }
 }
