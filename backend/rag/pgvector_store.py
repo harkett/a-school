@@ -29,7 +29,7 @@ from .embeddings import embed_texts, EMBEDDING_MODEL  # voie directe (pas Chroma
 
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).resolve().parents[2]            # racine du projet (d:\A-SCHOOL)
+_ROOT = Path(__file__).resolve().parents[2]            # racine du depot
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 
 # Dossier des sauvegardes horodatées, filet AVANT toute suppression de chunks.

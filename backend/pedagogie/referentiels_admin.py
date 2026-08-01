@@ -33,7 +33,7 @@ from backend.systeme.admin import _require_admin, get_settings_dict, SETTING_DEF
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).resolve().parents[2]                 # racine du projet (d:\A-SCHOOL)
+_ROOT = Path(__file__).resolve().parents[2]                 # racine du depot
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 STAGING_DIR = _ROOT / "data" / "referentiels_staging"       # PDF récupéré, en attente de validation
 STAGING_DIR.mkdir(parents=True, exist_ok=True)

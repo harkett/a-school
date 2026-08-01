@@ -7,14 +7,14 @@ base**, jamais sur une supposition.
 | Fichier | Rôle |
 |---|---|
 | `carte.py` (ici) | **Outil** : lit la structure réelle (`information_schema`) → régénère le HTML → l'ouvre dans Edge. Aucune donnée en dur. |
-| `..\..\carte.ps1` (racine) | **Lanceur** : appelle `carte.py` avec le venv du projet. Vit à la racine du dépôt (`D:\A-SCHOOL\carte.ps1`). |
+| `..\..\Scripts\carte.ps1` | **Lanceur** : appelle `carte.py` avec le venv du projet. Vit dans `Scripts/`, avec les autres lanceurs du dépôt. |
 | `vendor/mermaid.min.js` | **Moteur de dessin** embarqué (Mermaid). Inclus dans le HTML → les schémas se dessinent **hors ligne**, sans CDN ni claude.ai. Versionné. |
 | `carte_base.html` | **Sortie** : la carte régénérée (~3,3 Mo, moteur inclus). Fichier produit, **ignoré de git** (on le régénère, on ne le versionne pas). |
 
 ## Usage (depuis la racine du dépôt, venv actif)
 
 ```powershell
-.\carte.ps1                                       # régénère + ouvre Edge
+.\Scripts\carte.ps1                               # régénère + ouvre Edge
 
 # ou directement en Python :
 python outils_bdd\carte_base\carte.py            # régénère + ouvre Edge

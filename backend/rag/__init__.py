@@ -8,8 +8,6 @@ Modules :
   pgvector_store : ingestion (PDF -> referentiel_chunks) + retrieve_pg (recherche cosinus)
   embeddings     : singleton SentenceTransformer (voie directe, charge une fois)
   chunker        : decoupage generique (aucun referentiel code en dur)
-
-Voir MesMD/LEVIERS/L36.md pour le mapping leviers <-> corpus.
 """
 from .pgvector_store import retrieve_pg
 

@@ -29,7 +29,7 @@
 # dans le working tree. C'est tout l'interet de deleguer a Claude : il trie par
 # SENS, ce qu'un script de chemins ne saurait pas faire.
 #
-# --- USAGE (depuis D:\A-SCHOOL\Scripts) -------------------------------------
+# --- USAGE (depuis le dossier Scripts du depot) ------------------------------
 #   .\bilan.ps1            BILAN seulement. Propose le plan. N'ECRIT RIEN dans git.
 #   .\bilan.ps1 -Go        EXECUTE les commits thematiques. Ne pousse pas.
 #   .\bilan.ps1 -Go -Push  Idem, puis 'git push' a la fin. (-Push seul = sans effet.)
