@@ -26,12 +26,32 @@ _ALGO    = "HS256"
 
 
 def _admin_secret() -> str:
-    # Secret DÉDIÉ aux tokens admin, distinct du JWT_SECRET des tokens prof (isolation :
-    # un token prof ne peut pas servir de token admin même si le role n'était pas vérifié).
-    # Transition sans casse : tant qu'ADMIN_JWT_SECRET n'est pas défini, on retombe sur
-    # JWT_SECRET (comportement d'avant). Poser ADMIN_JWT_SECRET invalide les sessions admin
-    # en cours (signées avec l'ancien secret) → l'admin se reconnecte, désormais isolé.
-    return os.getenv("ADMIN_JWT_SECRET") or os.getenv("JWT_SECRET", "")
+    """Secret DÉDIÉ aux jetons admin, distinct du JWT_SECRET des jetons prof (isolation : un
+    jeton prof ne peut pas servir de jeton admin même si le rôle n'était pas vérifié).
+
+    Repli assumé sur JWT_SECRET tant qu'ADMIN_JWT_SECRET n'est pas posé — poser le second
+    invalide les sessions admin en cours, l'admin se reconnecte, désormais isolé.
+
+    MAIS PLUS DE CHAÎNE VIDE. Le `os.getenv("JWT_SECRET", "")` d'avant faisait qu'un serveur
+    démarré sans aucun des deux secrets signait ses jetons admin avec `""` — c'est-à-dire
+    avec un secret que le monde entier connaît, sans le moindre message. Une clé de signature
+    vide n'est jamais un cas légitime : on refuse, comme le projet refuse déjà une base qui
+    n'est pas PostgreSQL. Le message dit quoi poser."""
+    secret = os.getenv("ADMIN_JWT_SECRET") or os.getenv("JWT_SECRET") or ""
+    if not secret.strip():
+        raise RuntimeError(
+            "SÉCURITÉ : aucun secret de signature pour les jetons admin. Posez ADMIN_JWT_SECRET "
+            "(recommandé, il isole l'admin du prof) ou, à défaut, JWT_SECRET dans le .env du "
+            "serveur. Sans lui, les jetons admin seraient signés avec une chaîne vide."
+        )
+    return secret
+
+
+# AU DÉMARRAGE, pas au premier clic : le serveur refuse de monter sans secret, comme la suite
+# de tests refuse de tourner sur autre chose que PostgreSQL. Découvrir ça à la première
+# connexion admin — ou pire, ne jamais le découvrir — n'est pas une option pour une clé de
+# signature. Cette ligne s'exécute à l'import du module, donc au boot de l'application.
+_admin_secret()
 
 
 def _make_admin_token() -> str:

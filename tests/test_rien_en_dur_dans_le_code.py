@@ -70,6 +70,12 @@ DETTE = {
     "backend/securite/comptes.py::idee|notation":
         "comptes.py:313 — les types de feedback, pour décider des lignes de l'e-mail admin. "
         "Aucune table `feedback_types` (44 tables, vérifié) — seuls les STATUTS ont la leur.",
+    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_EXACTS":
+        "admin.py:984 — des CLÉS DE RÉGLAGE recopiées, pas de la plomberie : ajouter demain un "
+        "réglage à écran dédié sans toucher cette liste, et l'écran Paramètres ment sans que "
+        "rien ne tombe. Aucun test ne la garde.",
+    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_PREFIXES":
+        "admin.py:985 — mêmes clés, par préfixe (max_tokens_, prompt_, welcome_email_).",
 }
 
 # --- EXCEPTION PERMANENTE — plomberie technique ou registre déjà gardé ailleurs -------------
@@ -87,14 +93,6 @@ EXCEPTIONS_PERMANENTES = {
         "analyse_amont.py:43 — schéma JSON attendu du modèle. Technique.",
     "backend/dictee/ocr.py::jpeg|jpg|png":
         "ocr.py:65 — extensions d'image acceptées. Technique.",
-
-    # --- RÉVÉLÉES LE 01/08/2026 avec les précédentes (même cause : le BOM). Classées ici et non
-    # en dette : ce ne sont pas des données métier, ce sont deux repères de navigation entre
-    # écrans admin — « cette clé se règle ailleurs, sur son écran dédié ».
-    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_EXACTS":
-        "admin.py:984 — clés de réglage qui ont leur propre écran. Aiguillage d'interface.",
-    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_PREFIXES":
-        "admin.py:985 — mêmes repères, par préfixe (max_tokens_, prompt_, welcome_email_).",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -204,9 +202,9 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     les fichiers en « utf-8 » et sautait EN SILENCE les quatre qui portent un BOM, dont admin.py.
     Quatre dettes cachées sont remontées (plus deux repères classés en exception permanente).
     Le chiffre d'avant était faux ; celui-ci est mesuré sur tout le backend."""
-    assert len(DETTE) == 10, (
-        f"Dette « en dur » : {len(DETTE)} entrées, 10 attendues (état mesuré du 01/08/2026)."
+    assert len(DETTE) == 12, (
+        f"Dette « en dur » : {len(DETTE)} entrées, 12 attendues (état mesuré du 01/08/2026)."
     )
-    assert len(EXCEPTIONS_PERMANENTES) == 7, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 7 attendues."
+    assert len(EXCEPTIONS_PERMANENTES) == 5, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 5 attendues."
     )
