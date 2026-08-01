@@ -9,11 +9,11 @@ const TYPE_COLOR = {
 
 const DEFAULT_COLOR = { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' }
 
-// Affichage du rapport d'ambiguïtés (verdict + cartes) — SEULE source de l'affichage, partagée
-// entre le module autonome (Analyse → Ambiguité) et la cartouche « Résultat Ambiguïté » de Créer
-// une activité. onDemanderSequence est OPTIONNEL : fourni → bouton « Créer une séance » sur chaque
-// carte (module autonome) ; absent → cartouche en lecture seule (Créer une activité).
-export default function AmbiguitesResultat({ resultat, onDemanderSequence }) {
+// Affichage du rapport d'ambiguïtés (verdict + cartes) — SEULE source de l'affichage, utilisée
+// par le module Analyse → Ambiguïté. La cartouche jumelle vivait dans l'écran Créer une activité,
+// démoli le 30/07 ; le bouton « Créer une séance » qu'elle portait visait l'ancien outil Séquence,
+// démoli lui aussi — il est parti avec, le rapport est en lecture seule.
+export default function AmbiguitesResultat({ resultat }) {
   if (!resultat) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -69,19 +69,6 @@ export default function AmbiguitesResultat({ resultat, onDemanderSequence }) {
                       {a.reformulation}
                     </div>
                   </div>
-
-                  {/* Bouton Créer une séance — uniquement si le parent le fournit */}
-                  {onDemanderSequence && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => onDemanderSequence(a.reformulation)}
-                        title="Utiliser cette reformulation comme thème pour créer une séance pédagogique"
-                        style={{ fontSize: '12px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
-                      >
-                        Créer une séance →
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             )

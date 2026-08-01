@@ -47,7 +47,7 @@ function isTexteGibberish(t) {
   return suspect / words.length > 0.25
 }
 
-export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence }) {
+export default function Ambiguites({ matiere, niveau, onNavigate }) {
   const mat = matiere
   const niv = niveau
 
@@ -56,7 +56,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
   const [loading, setLoading]     = useState(false)
 
   const [alertDialog, setAlertDialog] = useState(null)
-  const [confirmDialog, setConfirmDialog] = useState(null)
   const [resultat, setResultat]   = useState(null)
   const resultRef = useRef(null)
 
@@ -208,13 +207,10 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
               <JaugeAttente libelle="aSchool relit votre énoncé à la recherche des ambiguïtés…" />
             )}
 
-            {/* Résultats — affichage partagé (verdict + cartes) avec la cartouche de Créer une activité */}
+            {/* Résultats — verdict + cartes */}
             {resultat && (
               <div ref={resultRef}>
-                <AmbiguitesResultat
-                  resultat={resultat}
-                  onDemanderSequence={onCreateSequence ? (r) => setConfirmDialog({ reformulation: r }) : undefined}
-                />
+                <AmbiguitesResultat resultat={resultat} />
               </div>
             )}
           </>
@@ -227,7 +223,7 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px 16px', marginBottom: '16px' }}>
               <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '12px', marginBottom: '6px' }}>À quoi ça sert</div>
               <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
-                Un énoncé mal formulé, et l'élève bute sur la consigne au lieu de l'exercice. Cet outil relit votre énoncé à la loupe : il repère chaque formulation qui prête à confusion et, pour chacune, vous montre l'<strong>extrait</strong> en cause, le <strong>type</strong> de piège, le <strong>risque concret pour l'élève</strong>, et une <strong>reformulation corrigée</strong> prête à copier — le tout précédé d'un <strong>verdict global</strong> sur la clarté. Et si une reformulation vous inspire, elle devient le <strong>thème d'une nouvelle séance</strong> en un clic.
+                Un énoncé mal formulé, et l'élève bute sur la consigne au lieu de l'exercice. Cet outil relit votre énoncé à la loupe : il repère chaque formulation qui prête à confusion et, pour chacune, vous montre l'<strong>extrait</strong> en cause, le <strong>type</strong> de piège, le <strong>risque concret pour l'élève</strong>, et une <strong>reformulation corrigée</strong> prête à copier — le tout précédé d'un <strong>verdict global</strong> sur la clarté.
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -271,50 +267,6 @@ export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequen
           </div>
         )}
       </div>
-
-      {/* Dialog confirmation séance */}
-      {confirmDialog && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={() => setConfirmDialog(null)}
-        >
-          <div
-            style={{ background: '#fff', borderRadius: '10px', padding: '24px 28px', maxWidth: '460px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '10px', color: '#1e293b' }}>
-              Créer une séance depuis cette reformulation
-            </div>
-            <p style={{ fontSize: '13.5px', color: '#475569', margin: '0 0 6px', lineHeight: 1.6 }}>
-              Cette reformulation sera utilisée comme thème de votre nouvelle séance :
-            </p>
-            <div style={{ fontSize: '13px', color: '#166534', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '5px', padding: '8px 12px', marginBottom: '16px', lineHeight: 1.5 }}>
-              {confirmDialog.reformulation}
-            </div>
-            <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 6px', lineHeight: 1.5 }}>
-              Vous basculerez dans le module <strong>Créer une séance</strong> avec ce thème déjà rempli.
-            </p>
-            <p style={{ fontSize: '13px', color: '#ef4444', margin: '0 0 20px', lineHeight: 1.5 }}>
-              Vous quitterez cette page — l'analyse en cours sera perdue.
-            </p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setConfirmDialog(null)}
-                style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => { setConfirmDialog(null); onCreateSequence(confirmDialog.reformulation) }}
-                style={{ background: '#6366f1', color: '#fff', border: 'none', borderRadius: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-                title="Naviguer vers Créer une séance avec ce thème pré-rempli"
-              >
-                Créer la séance
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Dialog validation */}
       {alertDialog && (
