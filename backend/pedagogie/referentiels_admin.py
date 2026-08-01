@@ -212,10 +212,16 @@ def lister_matieres_table(db: Session = Depends(get_db)):
 @router.get("/admin/contenu", dependencies=[Depends(_require_admin)])
 def lire_contenu(db: Session = Depends(get_db)):
     """Page « Contenu » : TOUT le contenu pédagogique en UN SEUL arbre (get direct, lecture seule).
-    Cycle → niveau (le couple) → son référentiel (PDF, texte épuré, découpe, unités), ses matières
-    du programme, ses types d'activité (avec les précisions du couple). Chaque bloc est LU dans sa
-    table — aucune écriture, aucune copie, l'écran n'est qu'une fenêtre sur la base. Un niveau sans
-    référentiel apparaît quand même (referentiel: null) : l'admin voit ce qui reste à remplir."""
+    Cycle → niveau (le couple) → son référentiel (PDF, texte épuré, découpe, unités), les matières
+    de CE référentiel avec leur état, ses types d'activité (avec les précisions du couple). Chaque
+    bloc est LU dans sa table — aucune écriture, aucune copie, l'écran n'est qu'une fenêtre sur la
+    base. Un niveau sans référentiel apparaît quand même (referentiel et referentiel_id à null) :
+    l'admin voit ce qui reste à remplir.
+
+    C'est la lecture UNIQUE de la page « Programmes & contenu ». Elle lisait avant deux endpoints
+    et les recollait — un arbre d'un côté, un catalogue global de matières et des paires
+    matière × niveau de l'autre. Ni le catalogue global ni les paires n'existent : les matières
+    d'un niveau sont celles de son référentiel, elles sont donc déjà dans l'arbre."""
     cycles = db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all()
     niveaux = db.query(Niveau).order_by(Niveau.ordre, Niveau.id).all()
 
@@ -226,10 +232,11 @@ def lire_contenu(db: Session = Depends(get_db)):
     nb_unites = dict(db.query(ReferentielChunk.referentiel_id, func.count())
                        .group_by(ReferentielChunk.referentiel_id).all())
 
-    # Matières du programme par RÉFÉRENTIEL (actives), dans leur ordre.
+    # Matières par RÉFÉRENTIEL, dans leur ordre — TOUTES, sans filtrer : cet arbre est la page où
+    # l'admin les gère, il doit donc voir aussi celles que le prof ne voit pas (désactivées, ou
+    # seulement proposées par la lecture du document). Chaque ligne porte son état, l'écran tranche.
     mat_par_ref: dict[int, list] = {}
-    for m in (db.query(Matiere).filter(Matiere.actif == True)  # noqa: E712
-                .order_by(Matiere.ordre, Matiere.id).all()):
+    for m in db.query(Matiere).order_by(Matiere.ordre, Matiere.id).all():
         mat_par_ref.setdefault(m.referentiel_id, []).append(m)
 
     # Types d'activité liés par référentiel, puis précisions par lien (couple × type).
@@ -251,6 +258,9 @@ def lire_contenu(db: Session = Depends(get_db)):
             blocs_niveaux.append({
                 "id": n.id,
                 "nom": n.nom,
+                # L'id du référentiel voyage à part : c'est lui qu'on adresse pour créer une
+                # matière (elle naît DANS un référentiel). À null, le niveau n'a rien reçu.
+                "referentiel_id": None if ref is None else ref.id,
                 "referentiel": None if ref is None else {
                     "fichier": ref.fichier,
                     "source": ref.source,
@@ -259,7 +269,7 @@ def lire_contenu(db: Session = Depends(get_db)):
                     "decoupe_valide": bool(ref.decoupe_valide),
                     "nb_unites": nb_unites.get(ref.id, 0),
                 },
-                "matieres": [{"id": m.id, "nom": m.nom, "validee": m.validee}
+                "matieres": [{"id": m.id, "nom": m.nom, "validee": m.validee, "actif": m.actif}
                              for m in (mat_par_ref.get(ref.id, []) if ref else [])],
                 "types": [] if ref is None else [
                     {"id": t.id, "label": t.label, "source": lien.source, "origine": t.origine,

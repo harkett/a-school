@@ -482,9 +482,15 @@ def test_enregistrer_matiere_longue_passe_et_trop_longue_422():
 
 
 def test_page_contenu_arbre_complet():
-    """GET /admin/contenu = l'arbre COMPLET en une lecture : cycle → niveau → référentiel du couple
-    (états lus, unités comptées), matières du programme, types liés avec les précisions du couple.
-    Un niveau SANS référentiel apparaît quand même (referentiel: null) — l'admin voit le « à remplir »."""
+    """GET /admin/contenu = l'arbre COMPLET en UNE lecture : cycle → niveau → référentiel du couple
+    (états lus, unités comptées), matières de CE référentiel avec leur état, types liés avec les
+    précisions du couple. Un niveau SANS référentiel apparaît quand même (referentiel et
+    referentiel_id à null) — l'admin voit le « à remplir ».
+
+    C'est la lecture unique de la page « Programmes & contenu » : elle en faisait deux et les
+    recollait. L'arbre porte donc TOUTES les matières du référentiel, y compris celles que le prof
+    ne voit pas — retirée du programme (actif=false) ou seulement proposée (validee=false) — et
+    l'id du référentiel, qu'il faut pour y créer une matière."""
     from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere,
                                         ActiviteType, ReferentielActiviteType, ReferentielTypePrecision)
     cid = _cycle("DC-Cont", 84)
@@ -497,6 +503,8 @@ def test_page_contenu_arbre_complet():
         t1 = ActiviteType(label="DC-Évaluation", ordre=1, actif=True, origine="systeme")
         db.add_all([ref, t1]); db.flush()
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Cuisine", ordre=1, actif=True, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="DC-Retiree", ordre=2, actif=False, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="DC-Proposee", ordre=3, actif=True, validee=False))
         db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
                                 texte="Unité 1", embedding=[0.0] * 1024, embedding_model="test"))
         lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t1.id,
@@ -516,11 +524,18 @@ def test_page_contenu_arbre_complet():
     assert plein["referentiel"] == {"fichier": "doc.pdf", "source": "education.gouv.fr",
                                     "date_doc": None, "epure": True, "decoupe_valide": True,
                                     "nb_unites": 1}
-    assert [m["nom"] for m in plein["matieres"]] == ["DC-Cuisine"]
+    assert plein["referentiel_id"] is not None      # l'id qu'il faut pour y créer une matière
+    # Les TROIS matières du référentiel sont là, chacune avec son état : l'admin gère ici ce que
+    # le prof ne voit pas. Filtrer les inactives priverait l'écran du bouton « remettre ».
+    etats = {m["nom"]: (m["validee"], m["actif"]) for m in plein["matieres"]}
+    assert etats == {"DC-Cuisine": (True, True),      # au programme
+                     "DC-Retiree": (True, False),     # retirée du programme, jamais supprimée
+                     "DC-Proposee": (False, True)}    # lue dans le document, pas encore retenue
     assert plein["types"] == [{"id": plein["types"][0]["id"], "label": "DC-Évaluation",
                                "source": "ia", "origine": "systeme",
                                "precisions": ["évaluation pratique"]}]
 
     vide = par_nom["DC-NivVide"]
     assert vide["referentiel"] is None      # le niveau sans dépôt reste VISIBLE : à remplir
+    assert vide["referentiel_id"] is None   # rien à adresser : pas de champ « + Matière » à l'écran
     assert vide["matieres"] == [] and vide["types"] == []

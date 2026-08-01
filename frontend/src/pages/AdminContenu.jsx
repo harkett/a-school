@@ -3,15 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
+import { lignesMatieres, nbAuProgramme, compterContenu, AU_PROGRAMME, DESACTIVEE, PROPOSEE } from '../utils/contenuMatieres.js'
 
 // LA page « Programmes & contenu » : tout le contenu pédagogique dans UN SEUL tableau qui se
 // déroule — cycle → niveau (le couple) → référentiel, matières, types d'activité (et leurs
-// précisions) — ET les actions du programme officiel au même endroit (fusion de l'ancien
-// écran Programmes, 30/07) : cocher les matières du programme dans le niveau déplié,
-// « + Cycle » / « + Niveau » dans l'arbre, catalogue des matières (créer, activer/désactiver)
-// dans son panneau. Source unique = la base : chaque affichage est un get direct, chaque
-// écriture est suivie d'une RELECTURE complète (read-after-write, jamais de miroir local).
-// Le référentiel, lui, se gère toujours dans l'écran Référentiel (chaîne à étapes, autre métier).
+// précisions) — ET les gestes du programme au même endroit : « + Cycle » / « + Niveau » dans
+// l'arbre, les matières d'un niveau dans le niveau déplié. Source unique = la base : UNE seule
+// lecture (GET /admin/contenu), et chaque écriture est suivie d'une RELECTURE complète
+// (read-after-write, jamais de miroir local).
+//
+// LA GRILLE A DISPARU (chantier Matière). L'écran croisait un catalogue global de matières avec
+// les niveaux : une case à cocher par intersection, une paire matière × niveau derrière chaque
+// case, et un panneau « Matières » au-dessus pour gérer le catalogue. Une matière appartient
+// désormais au RÉFÉRENTIEL d'un niveau : il n'y a plus de catalogue à croiser, plus de paire à
+// cocher, et les matières d'un niveau s'affichent simplement dans ce niveau. Un niveau sans
+// référentiel n'a pas de matière et le dit — c'est l'écran Référentiel qui reçoit son document.
 
 // Badge d'origine d'un type — même vérité que sur l'écran Référentiel : le lien dit qui l'a
 // posé (source), le catalogue dit d'où vient le type (origine).
@@ -40,6 +46,14 @@ function Etat({ ok, texte }) {
   )
 }
 
+// L'allure d'une matière dit son état, avec les mêmes couleurs que l'écran Référentiel :
+// vert = au programme, violet = proposée par la lecture du document, gris = désactivée.
+const ALLURE_MATIERE = {
+  [AU_PROGRAMME]: { bg: '#f0fdf4', bord: '#bbf7d0', fg: '#166534', mention: null },
+  [DESACTIVEE]:   { bg: '#fff',    bord: '#e2e8f0', fg: '#94a3b8', mention: 'retirée' },
+  [PROPOSEE]:     { bg: '#faf5ff', bord: '#e9d5ff', fg: '#7e22ce', mention: 'proposée' },
+}
+
 const CHEVRON = (ouvert) => (
   <span aria-hidden="true" style={{
     display: 'inline-block', width: 14, fontSize: 10, color: '#94a3b8',
@@ -55,9 +69,7 @@ const btnAjout = (busy) => ({
 })
 
 export default function AdminContenu() {
-  const [cycles, setCycles]       = useState([])   // arbre contenu (référentiel, matières du programme, types)
-  const [catalogue, setCatalogue] = useState([])   // TOUTES les matières (inactives incluses)
-  const [paires, setPaires]       = useState([])   // paires matière × niveau (état actif)
+  const [cycles, setCycles] = useState([])   // l'arbre COMPLET : référentiel, matières, types
   const [loading, setLoading] = useState(true)
   const [panne, setPanne]     = useState(false)    // lecture échouée (réseau/serveur)
   const [busy, setBusy]       = useState(false)    // une écriture (et sa relecture) est en cours
@@ -65,20 +77,15 @@ export default function AdminContenu() {
   const [typesOuverts, setTypesOuverts] = useState(() => new Set())  // `${niveauId}|${typeId}` → précisions dépliées
   const navigate = useNavigate()
 
-  // Lecture COMPLÈTE en base : l'arbre (contenu) + le programme (catalogue matières, paires).
-  // Une panne (réseau, serveur) n'affiche JAMAIS le faux « Aucun cycle en base. » : erreur en
-  // modale (règle maison) et l'écran ne garde qu'un bouton « Réessayer ».
+  // Lecture COMPLÈTE en base, en UN appel : l'arbre porte le référentiel de chaque niveau, ses
+  // matières avec leur état, et ses types. Une panne (réseau, serveur) n'affiche JAMAIS le faux
+  // « Aucun cycle en base. » : erreur en modale (règle maison), l'écran ne garde qu'un « Réessayer ».
   async function recharger() {
     try {
-      const [rc, rp] = await Promise.all([
-        fetchWithTimeout('/api/admin/contenu',    { credentials: 'include' }, TIMEOUT_STD),
-        fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD),
-      ])
-      if (rc.status === 401 || rp.status === 401) { navigate('/admin/login'); return }
-      const [contenu, prog] = await Promise.all([lireReponse(rc), lireReponse(rp)])
+      const rc = await fetchWithTimeout('/api/admin/contenu', { credentials: 'include' }, TIMEOUT_STD)
+      if (rc.status === 401) { navigate('/admin/login'); return }
+      const contenu = await lireReponse(rc)
       setCycles(contenu.cycles || [])
-      setCatalogue(prog.matieres || [])
-      setPaires(prog.paires || [])
       setPanne(false)
     } catch (err) {
       setPanne(true)
@@ -100,17 +107,6 @@ export default function AdminContenu() {
       setBusy(false)
     }
     return ok
-  }
-
-  function togglePaire(matiere_id, niveau_id, actif) {
-    return ecrire(async () => {
-      const r = await fetchWithTimeout('/api/admin/programmes/paire', {
-        method: 'PATCH', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matiere_id, niveau_id, actif }),
-      }, TIMEOUT_STD)
-      await lireReponse(r)
-    })
   }
 
   function creerCycle(nom) {
@@ -136,29 +132,31 @@ export default function AdminContenu() {
         body: JSON.stringify({ cycle_id, nom: n }),
       }, TIMEOUT_STD)
       const d = await lireReponse(r)
-      // Le niveau tout neuf s'ouvre : on voit tout de suite où cocher ses matières.
+      // Le niveau tout neuf s'ouvre : on voit tout de suite ce qui lui manque.
       setNivOuverts(prev => { const s = new Set(prev); s.add(d.id); return s })
     })
   }
 
-  function creerMatiere(nom) {
+  // Une matière naît DANS un référentiel : sans référentiel, pas de matière — et le champ
+  // d'ajout n'existe alors même pas à l'écran.
+  function creerMatiere(referentiel_id, nom) {
     const n = (nom || '').trim()
     if (!n) { showError('Indiquez le nom de la matière.'); return Promise.resolve(false) }
     return ecrire(async () => {
       const r = await fetchWithTimeout('/api/admin/matieres', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom: n }),
+        body: JSON.stringify({ referentiel_id, nom: n }),
       }, TIMEOUT_STD)
       await lireReponse(r)
     })
   }
 
-  async function toggleMatiere(m) {
+  async function toggleMatiere(m, niveauNom) {
     if (m.actif && !await demanderConfirmation({
-      titre: `Désactiver la matière « ${m.nom} » ?`,
-      message: "Elle disparaîtra des menus des profs et ne sera plus cochable dans les programmes.\n\nDésactivation réversible : rien n'est supprimé, son historique et ses paires restent en base.",
-      confirmLabel: 'Désactiver',
+      titre: `Retirer « ${m.nom} » du programme de ${niveauNom} ?`,
+      message: `Elle disparaîtra des menus des profs de ce niveau. Les autres niveaux ne sont pas touchés : leurs matières leur appartiennent, même si l'une d'elles porte le même nom.\n\nRéversible : rien n'est supprimé, la matière reste sur son référentiel avec son historique.`,
+      confirmLabel: 'Retirer du programme',
     })) return false
     return ecrire(async () => {
       const r = await fetchWithTimeout('/api/admin/matieres/actif', {
@@ -185,11 +183,6 @@ export default function AdminContenu() {
     })
   }
 
-  function paireActive(matiere_id, niveau_id) {
-    const p = paires.find(p => p.matiere_id === matiere_id && p.niveau_id === niveau_id)
-    return !!(p && p.actif)
-  }
-
   if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
 
   // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
@@ -207,32 +200,27 @@ export default function AdminContenu() {
     </div>
   )
 
-  const nbNiveaux = cycles.reduce((n, c) => n + c.niveaux.length, 0)
-  const matieresActives = catalogue.filter(m => m.actif)
+  // Comptages DÉRIVÉS de l'arbre lu (jamais stockés) — les matières comptées sont celles qui sont
+  // vraiment au programme, sans dédoublonner par nom : deux référentiels ont chacun les leurs.
+  const total = compterContenu(cycles)
 
   return (
     <div>
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
         <h2 className="text-sm font-semibold text-gray-700">Programmes &amp; contenu</h2>
         <span className="text-xs text-gray-400">
-          {cycles.length} cycle{cycles.length > 1 ? 's' : ''} · {nbNiveaux} niveau{nbNiveaux > 1 ? 'x' : ''} · {matieresActives.length} matière{matieresActives.length > 1 ? 's' : ''}
+          {total.cycles} cycle{total.cycles > 1 ? 's' : ''} · {total.niveaux} niveau{total.niveaux > 1 ? 'x' : ''} · {total.matieres} matière{total.matieres > 1 ? 's' : ''} au programme
         </span>
       </div>
 
       <p className="text-xs text-gray-500 mb-3" style={{ maxWidth: 760, lineHeight: 1.5 }}>
-        Tout le contenu pédagogique, lu en direct dans la base — et le programme officiel se règle
-        ici même : dépliez un niveau pour <b>cocher ses matières</b>, ajoutez cycles et niveaux
-        directement dans l'arbre, gérez le catalogue dans le panneau <b>Matières</b>. Décocher ou
-        désactiver <b>désactive</b> (l'historique reste intact, rien n'est supprimé). Seul le
-        référentiel se gère ailleurs : écran <b>Référentiel</b>.
+        Tout le contenu pédagogique, lu en direct dans la base. Ajoutez cycles et niveaux
+        directement dans l'arbre&nbsp;; dépliez un niveau pour voir et gérer <b>ses matières</b> —
+        elles appartiennent à son référentiel, un niveau ne partage jamais les siennes avec un
+        autre. Retirer une matière du programme la retire des menus des profs de ce niveau
+        (réversible, rien n'est supprimé). Le dépôt du référentiel, lui, se fait sur l'écran
+        <b> Référentiel</b> : c'est aussi là que se retiennent les matières qu'il propose.
       </p>
-
-      <MatieresPanel
-        catalogue={catalogue}
-        busy={busy}
-        onCreer={creerMatiere}
-        onToggle={toggleMatiere}
-      />
 
       <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -248,100 +236,20 @@ export default function AdminContenu() {
               <CycleBloc
                 key={cycle.id}
                 cycle={cycle}
-                matieresActives={matieresActives}
-                paireActive={paireActive}
                 busy={busy}
                 nivOuverts={nivOuverts}
                 typesOuverts={typesOuverts}
                 basculerNiveau={basculerNiveau}
                 basculerType={basculerType}
-                onTogglePaire={togglePaire}
                 onCreerNiveau={creerNiveau}
+                onCreerMatiere={creerMatiere}
+                onToggleMatiere={toggleMatiere}
               />
             ))}
             <AjoutCycleRow busy={busy} onCreer={creerCycle} />
           </tbody>
         </table>
       </div>
-    </div>
-  )
-}
-
-// ── Panneau « Matières » : le catalogue (créer, activer/désactiver) — SA cartouche, SON état. ──
-function MatieresPanel({ catalogue, busy, onCreer, onToggle }) {
-  const [ouvert, setOuvert] = useState(false)
-  const [nom, setNom] = useState('')
-  const inactives = catalogue.filter(m => !m.actif)
-
-  async function creer() {
-    const ok = await onCreer(nom)
-    if (ok) setNom('')
-  }
-
-  return (
-    <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: 12 }}>
-      <button
-        type="button"
-        onClick={() => setOuvert(o => !o)}
-        title={ouvert ? 'Replier le catalogue des matières' : 'Déplier le catalogue des matières (créer, activer, désactiver)'}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', textAlign: 'left',
-                 border: 'none', background: ouvert ? '#fcfdff' : 'white', cursor: 'pointer',
-                 padding: '10px 16px', fontSize: 13 }}
-      >
-        {CHEVRON(ouvert)}
-        <span style={{ fontWeight: 600, color: '#1e293b' }}>Matières</span>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>
-          {catalogue.length - inactives.length} active{catalogue.length - inactives.length > 1 ? 's' : ''}
-          {inactives.length > 0 && <> · {inactives.length} inactive{inactives.length > 1 ? 's' : ''}</>}
-        </span>
-      </button>
-
-      {ouvert && (
-        <div style={{ padding: '4px 16px 14px', borderTop: '1px solid #f1f5f9', background: '#fcfdff' }}>
-          <p style={{ margin: '8px 0 10px', fontSize: 11.5, color: '#94a3b8' }}>
-            Le catalogue complet. Désactiver retire la matière des menus des profs — réversible,
-            rien n'est supprimé. Cocher où elle s'enseigne se fait niveau par niveau, dans l'arbre dessous.
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {catalogue.length === 0 && (
-              <span style={{ fontSize: 12.5, color: '#94a3b8' }}>Aucune matière en base.</span>
-            )}
-            {catalogue.map(m => (
-              <span
-                key={m.id}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '3px 10px',
-                         borderRadius: 6, fontSize: 12, border: '1px solid #e2e8f0',
-                         background: m.actif ? '#f1f5f9' : '#fff',
-                         color: m.actif ? '#334155' : '#94a3b8' }}
-              >
-                {m.nom}{!m.actif && <span style={{ fontSize: 10 }}>(inactive)</span>}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onToggle(m)}
-                  title={m.actif
-                    ? `Désactiver « ${m.nom} » (réversible : historique et paires conservés)`
-                    : `Réactiver « ${m.nom} » : elle redevient cochable et réapparaît chez les profs`}
-                  style={{ border: 'none', background: 'none', padding: 0, fontSize: 11, fontWeight: 600,
-                           color: m.actif ? '#A63045' : '#16a34a', cursor: busy ? 'wait' : 'pointer' }}
-                >
-                  {m.actif ? 'désactiver' : 'réactiver'}
-                </button>
-              </span>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 12, maxWidth: 420 }}>
-            <input
-              style={CHAMP_AJOUT} value={nom} disabled={busy}
-              placeholder="Nom de la matière…" title="Nom de la nouvelle matière (ex. Philosophie)"
-              onChange={e => setNom(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') creer() }}
-            />
-            <button type="button" style={btnAjout(busy)} onClick={creer} disabled={busy}
-              title="Créer cette matière (active d'emblée ; cochez ensuite ses niveaux dans l'arbre)">+ Matière</button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -394,15 +302,41 @@ function AjoutNiveauRow({ cycle, busy, onCreer }) {
             onKeyDown={e => { if (e.key === 'Enter') creer() }}
           />
           <button type="button" style={btnAjout(busy)} onClick={creer} disabled={busy}
-            title="Créer ce niveau dans ce cycle (il s'ouvre aussitôt pour cocher ses matières)">+ Niveau</button>
+            title="Créer ce niveau dans ce cycle (il s'ouvre aussitôt, prêt à recevoir son référentiel)">+ Niveau</button>
         </div>
       </td>
     </tr>
   )
 }
 
-function CycleBloc({ cycle, matieresActives, paireActive, busy, nivOuverts, typesOuverts,
-                     basculerNiveau, basculerType, onTogglePaire, onCreerNiveau }) {
+// ── Champ « + Matière » d'un niveau — SA cartouche, SON état. N'apparaît que si le niveau a un
+// référentiel : la matière créée y entre, au programme d'emblée (l'admin qui la saisit la retient
+// par ce geste même). ──
+function AjoutMatiereRow({ referentielId, niveauNom, busy, onCreer }) {
+  const [nom, setNom] = useState('')
+
+  async function creer() {
+    const ok = await onCreer(referentielId, nom)
+    if (ok) setNom('')
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 10, maxWidth: 420 }}>
+      <input
+        style={CHAMP_AJOUT} value={nom} disabled={busy}
+        placeholder="Nom de la matière…"
+        title={`Nom d'une matière à ajouter au programme de ${niveauNom}, tel qu'il figure dans son référentiel`}
+        onChange={e => setNom(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') creer() }}
+      />
+      <button type="button" style={btnAjout(busy)} onClick={creer} disabled={busy}
+        title="Ajouter cette matière au référentiel de ce niveau (au programme d'emblée)">+ Matière</button>
+    </div>
+  )
+}
+
+function CycleBloc({ cycle, busy, nivOuverts, typesOuverts,
+                     basculerNiveau, basculerType, onCreerNiveau, onCreerMatiere, onToggleMatiere }) {
   return (
     <>
       {/* ─ Ligne CYCLE ─ */}
@@ -429,13 +363,12 @@ function CycleBloc({ cycle, matieresActives, paireActive, busy, nivOuverts, type
           niveau={niveau}
           ref_={niveau.referentiel}
           ouvert={nivOuverts.has(niveau.id)}
-          matieresActives={matieresActives}
-          paireActive={paireActive}
           busy={busy}
           typesOuverts={typesOuverts}
           basculerNiveau={basculerNiveau}
           basculerType={basculerType}
-          onTogglePaire={onTogglePaire}
+          onCreerMatiere={onCreerMatiere}
+          onToggleMatiere={onToggleMatiere}
         />
       ))}
 
@@ -444,13 +377,11 @@ function CycleBloc({ cycle, matieresActives, paireActive, busy, nivOuverts, type
   )
 }
 
-function NiveauBloc({ niveau, ref_, ouvert, matieresActives, paireActive, busy,
-                      typesOuverts, basculerNiveau, basculerType, onTogglePaire }) {
-  // Variantes lues dans l'arbre (paires actives du niveau) : affichées sur la case cochée.
-  const variantes = {}
-  for (const m of niveau.matieres) {
-    if (m.variante) (variantes[m.id] = variantes[m.id] || []).push(m.variante)
-  }
+function NiveauBloc({ niveau, ref_, ouvert, busy, typesOuverts,
+                      basculerNiveau, basculerType, onCreerMatiere, onToggleMatiere }) {
+  // Les matières de CE niveau, telles que la base les rend, chacune avec son état.
+  const matieres = lignesMatieres(niveau)
+  const nbProgramme = nbAuProgramme(niveau)
 
   return (
     <>
@@ -474,7 +405,7 @@ function NiveauBloc({ niveau, ref_, ouvert, matieresActives, paireActive, busy,
               <Etat ok={ref_.epure} texte={ref_.epure ? 'texte épuré' : 'épuré manquant'} />
               <Etat ok={ref_.decoupe_valide} texte={ref_.decoupe_valide ? 'découpe validée' : 'découpe en cours'} />
               <span style={{ fontSize: 11, color: '#64748b', alignSelf: 'center', whiteSpace: 'nowrap' }}>
-                {ref_.nb_unites} unité{ref_.nb_unites > 1 ? 's' : ''} · {niveau.matieres.length} matière{niveau.matieres.length > 1 ? 's' : ''} · {niveau.types.length} type{niveau.types.length > 1 ? 's' : ''}
+                {ref_.nb_unites} unité{ref_.nb_unites > 1 ? 's' : ''} · {nbProgramme} matière{nbProgramme > 1 ? 's' : ''} · {niveau.types.length} type{niveau.types.length > 1 ? 's' : ''}
               </span>
             </span>
           )}
@@ -495,41 +426,68 @@ function NiveauBloc({ niveau, ref_, ouvert, matieresActives, paireActive, busy,
               </p>
             )}
 
-            {/* Matières du programme : cases à cocher sur le catalogue actif — décocher DÉSACTIVE
-                la paire (l'historique reste). Après chaque coche : PATCH puis relecture en base. */}
+            {/* Matières du niveau : celles de SON référentiel, chacune avec son état. Aucune
+                grille, aucun croisement — il n'y a plus de catalogue commun à croiser. */}
             <p style={{ margin: '12px 0 6px', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Matières au programme ({niveau.matieres.length})
+              Matières de ce niveau ({nbProgramme} au programme{matieres.length > nbProgramme ? ` · ${matieres.length - nbProgramme} de côté` : ''})
             </p>
-            {matieresActives.length === 0 ? (
+
+            {niveau.referentiel_id == null ? (
               <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>
-                Aucune matière active au catalogue — créez-la dans le panneau « Matières » ci-dessus.
+                Aucun référentiel déposé pour ce niveau : ses matières naissent du document, sur
+                l'écran <b>Référentiel</b>. Tant qu'il n'a rien reçu, aucun prof ne peut choisir ce niveau.
               </p>
             ) : (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {matieresActives.map(m => {
-                  const coche = paireActive(m.id, niveau.id)
-                  return (
-                    <label
-                      key={m.id}
-                      title={`${m.nom} en ${niveau.nom} : ${coche ? 'enseignée (décocher pour désactiver — réversible)' : 'non enseignée (cocher pour l’ajouter au programme)'}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px',
-                               borderRadius: 6, fontSize: 12, cursor: busy ? 'wait' : 'pointer',
-                               background: coche ? '#f0fdf4' : '#fff',
-                               border: `1px solid ${coche ? '#bbf7d0' : '#e2e8f0'}`,
-                               color: coche ? '#166534' : '#64748b' }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={coche}
-                        disabled={busy}
-                        onChange={() => onTogglePaire(m.id, niveau.id, !coche)}
-                        style={{ cursor: busy ? 'wait' : 'pointer', width: 13, height: 13 }}
-                      />
-                      {m.nom}{coche && variantes[m.id] ? ` (${variantes[m.id].join(', ')})` : ''}
-                    </label>
-                  )
-                })}
-              </div>
+              <>
+                {matieres.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>
+                    Le référentiel est déposé mais aucune matière n'en a encore été retenue —
+                    cela se fait sur l'écran <b>Référentiel</b>, ou en ajoutant la matière ici.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {matieres.map(m => {
+                      const a = ALLURE_MATIERE[m.etat]
+                      return (
+                        <span
+                          key={m.id}
+                          title={m.etat === AU_PROGRAMME
+                            ? `« ${m.nom} » est au programme de ${niveau.nom} : les profs de ce niveau la voient.`
+                            : m.etat === DESACTIVEE
+                              ? `« ${m.nom} » a été retirée du programme de ${niveau.nom} : elle reste en base, remettez-la quand vous voulez.`
+                              : `« ${m.nom} » a été lue dans le document mais pas encore retenue : cela se fait sur l'écran Référentiel.`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '3px 10px',
+                                   borderRadius: 6, fontSize: 12, border: `1px solid ${a.bord}`,
+                                   background: a.bg, color: a.fg }}
+                        >
+                          {m.nom}
+                          {a.mention && <span style={{ fontSize: 10 }}>({a.mention})</span>}
+                          {m.etat !== PROPOSEE && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => onToggleMatiere(m, niveau.nom)}
+                              title={m.actif
+                                ? `Retirer « ${m.nom} » du programme de ${niveau.nom} (réversible)`
+                                : `Remettre « ${m.nom} » au programme de ${niveau.nom} : elle réapparaît chez ses profs`}
+                              style={{ border: 'none', background: 'none', padding: 0, fontSize: 11, fontWeight: 600,
+                                       color: m.actif ? '#A63045' : '#16a34a', cursor: busy ? 'wait' : 'pointer' }}
+                            >
+                              {m.actif ? 'retirer' : 'remettre'}
+                            </button>
+                          )}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+                <AjoutMatiereRow
+                  referentielId={niveau.referentiel_id}
+                  niveauNom={niveau.nom}
+                  busy={busy}
+                  onCreer={onCreerMatiere}
+                />
+              </>
             )}
 
             {/* Types d'activité du couple */}
