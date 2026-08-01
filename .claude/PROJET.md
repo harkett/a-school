@@ -201,6 +201,73 @@ Supprimer la ligne remet celui du `.env` en service, immédiatement, sans redém
 DELETE FROM settings WHERE key = 'admin_password_hash';
 ```
 
-Sur le poste : `docker exec -it a-school-db-1 psql -U postgres -d aschool_dev -c "DELETE FROM
-settings WHERE key = 'admin_password_hash';"`. Le dernier test du fichier vérifie ce chemin —
+Sur le poste : `docker exec a-school-db-1 psql -U aschool -d aschool_dev -c "DELETE FROM
+settings WHERE key = 'admin_password_hash';"` (l'utilisateur de la base est `aschool`, pas
+`postgres` — cf. `docker-compose.yml`). Le dernier test du fichier vérifie ce chemin —
 ce n'est pas une promesse de documentation, c'est un chemin prouvé.
+
+---
+
+## 7. Le cœur de la génération — ce que la lecture du 01/08/2026 a trouvé
+
+Quatre fichiers portaient la génération sans avoir jamais été relus : `referentiels_admin.py`,
+`mes_contenus.py`, `activites.py`, `generator.py` (~3 800 lignes). Quatre défauts en sont sortis,
+tous **silencieux** : la suite était verte sur les quatre, et aucune passe mécanique ne les
+avait vus.
+
+### Le prompt d'un couple×type est contrôlé À L'ÉCRITURE
+
+C'était le **seul** prompt du produit qui ne l'était pas. Tous les autres passent par
+`valider_prompt` (admin.py) ; celui-là, écrit par ✎ Prompt de l'écran Référentiels, n'exigeait
+que « non vide ». Il finit pourtant dans `modele.format(...)` (`activites.py`, api_generate
+étape 5), qui n'attrape que `KeyError`.
+
+- Accolades cassées (un exemple JSON collé, une accolade seule) → `ValueError` non attrapée →
+  **500 nu chez le prof**, sans message et sans incident enregistré : l'erreur survient AVANT le
+  flux, donc hors du `try` qui crée les incidents.
+- **`{texte}` oublié** → rien ne tombe. La génération marche, elle ignore simplement l'idée que
+  l'enseignant a écrite. Le produit repose sur « la zone de texte mène » ; sans ce repère, elle
+  ne mène plus rien.
+
+Garde-fou : `activites.valider_prompt_couple`, appelé avant l'écriture.
+**Test :** `tests/test_prompt_du_couple_valide_a_l_ecriture.py` (8 tests).
+
+### Le couple d'une activité suit sa régénération
+
+`PUT /contenus/activites/{id}` contrôlait le type contre le couple de travail ACTUEL mais
+laissait `matiere`/`niveau` à leur valeur de naissance. Un prof qui changeait de couple puis
+régénérait écrivait un type validé en 3e sur une ligne étiquetée 6e. Cette étiquette n'est pas
+décorative : « Mes stats » compte par couple, et le few-shot « aSchool vous reconnaît » ne
+compare qu'aux activités du **même** couple. La séance faisait déjà suivre le sien
+(`_remplir_seance`) — les deux frères se comportent enfin pareil.
+**Test :** `tests/test_couple_de_l_activite_suit_la_regeneration.py` (3 tests).
+
+### Le catalogue des types ne peut plus doublonner un libellé
+
+L'anti-doublon se fait par `label` (aucun unique en base : la règle ne tient que par le code) —
+et le code la disait de deux façons. `ajouter_type_catalogue` cherchait sans filtrer sur
+`actif`, la détection IA cherchait avec. Un type **désactivé** devenait invisible pour la
+détection, qui en recréait un second du même nom. Reproduit : 2 lignes « Exercice de repérage ».
+Les deux portes cherchent maintenant par libellé seul ; un type désactivé reste désactivé.
+**Test :** `tests/test_catalogue_types_sans_doublon.py` (4 tests, comportement réel).
+
+### Retirer une matière annonce le vrai nombre de profs
+
+`retirer_matiere` ne comptait que `subject_id` ; la suppression du référentiel, vingt lignes
+plus bas, comptait `subject_id` **et** `travail_matiere_id`. Un prof dont c'était le couple de
+travail perdait sa matière sans figurer dans le nombre annoncé à l'admin.
+
+### Reste ouvert (aucun code écrit)
+
+- **`prompt_meta_decoupe` et `prompt_verif_decoupe` vivent hors du registre.** Pire que noté :
+  `prompt_verif_decoupe` n'a **aucune route** — il est lu à chaque découpe et n'est modifiable
+  par rien. Les faire entrer dans `PROMPTS` exige de changer le contrat de validation : mesuré,
+  leur texte réel **casse `.format()`** (`KeyError: 'texte'` et `KeyError: '"unites"'`), parce
+  qu'ils sont consommés par `.replace()`, pas par `.format()`. Il faut donc un mode d'injection
+  déclaré au registre, plus une migration `PROMPTS_MAJ` pour les semer. Décision à prendre.
+- **`GET /mes-contenus` renvoie le `resultat` COMPLET** de chaque séance et de chaque activité —
+  l'écran n'en affiche qu'un titre. Un prof à 200 contenus télécharge 200 documents entiers pour
+  dessiner une liste.
+- **Le gabarit `prompt_gabarit_type`** produit les prompts de couple au coche d'un type ; s'il
+  est mal écrit, tous les prompts qu'il produit le seront, et le garde-fou ci-dessus ne
+  s'applique qu'à l'édition manuelle.

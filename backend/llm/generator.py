@@ -151,7 +151,7 @@ def _groq(
     return response.json()["choices"][0]["message"]["content"]
 
 
-# Note : la dictée (Whisper) passe par backend/groq_client.transcribe_audio, pas ici.
+# Note : la dictée (Whisper) passe par backend/core/groq_client.transcribe_audio, pas ici.
 # (L'ancien transcribe_audio de ce module était du code mort — supprimé.)
 
 

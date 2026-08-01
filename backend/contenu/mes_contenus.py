@@ -266,10 +266,17 @@ def regenerer_activite(
     """Jalon suivant (régénération, changement de ton/texte) : l'ÉTAT COURANT est mis à jour
     et une NOUVELLE version s'empile — on n'écrase jamais une version (règle 0)."""
     activite = _activite_de(user, activite_id, db)
-    _, niveau, _ = couple_de_travail(db, user)
+    matiere, niveau, _ = couple_de_travail(db, user)
     if not niveau:
         raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
     label = _controler_type_et_label(db, niveau, corps.activite_type_id)
+    # Le couple SUIT la régénération, comme il le fait déjà pour la séance (_remplir_seance).
+    # Il ne le faisait pas ici, alors que la ligne juste au-dessus contrôle le type contre le
+    # couple ACTUEL : un prof qui changeait de couple puis régénérait écrivait un type valable
+    # en 3e sur une ligne qui restait étiquetée 6e. Et cette étiquette-là n'est pas cosmétique —
+    # c'est elle que « Mes stats » compte, et c'est sur elle que le few-shot reconnaît son style.
+    activite.matiere = matiere or None
+    activite.niveau = niveau
     activite.activite_type_id = corps.activite_type_id
     activite.activite_label = label
     activite.sous_type = corps.sous_type

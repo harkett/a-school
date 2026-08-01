@@ -31,7 +31,7 @@ class AmbigsResponse(BaseModel):
     verdict: str
 
 
-# Prompt déplacé dans backend/llm_prompts.py (administrable en base, lu via get_prompt).
+# Prompt déplacé dans backend/core/llm_prompts.py (administrable en base, lu via get_prompt).
 
 
 def _get_email(aschool_access: str | None) -> str:

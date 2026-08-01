@@ -46,6 +46,43 @@ _USER_PARAMS = {
     "langue": "la langue vivante",
 }
 
+# Les trous que le SERVEUR remplit lui-même (api_generate, étape 5). Avec `texte` et
+# `_USER_PARAMS`, c'est la liste COMPLÈTE de ce qu'un prompt de couple a le droit de nommer.
+_PARAMS_SERVEUR = ("niveau", "referentiel")
+
+
+def valider_prompt_couple(modele: str) -> str | None:
+    """Garde-fou d'ÉCRITURE du prompt d'un couple×type. Renvoie un message humain si le prompt
+    est invalide, sinon None.
+
+    POURQUOI IL EXISTE. Ce prompt est le SEUL du produit qui n'était contrôlé nulle part :
+    l'écran Prompts passe par `valider_prompt` (admin.py), mais ✎ Prompt de l'écran
+    Référentiels n'exigeait que « non vide ». Or il finit dans `modele.format(...)`
+    (api_generate, étape 5), qui n'attrape que KeyError. Deux pannes en découlaient, toutes
+    deux SILENCIEUSES jusqu'au clic d'un prof :
+      - une accolade seule, ou un exemple JSON non doublé -> ValueError/IndexError non
+        attrapée -> 500 nu, sans message, sans incident (l'erreur est AVANT le flux) ;
+      - `{texte}` oublié -> l'idée du prof n'entre JAMAIS dans le prompt. Rien ne tombe : la
+        génération marche, elle ignore simplement ce que l'enseignant a écrit. C'est la plus
+        traître des deux, et rien ne l'aurait jamais dite.
+    `_trous_du_prompt` savait déjà que ce texte peut avoir des accolades cassées (son
+    `except ValueError`) — il rendait « aucun besoin » sans rien signaler.
+    """
+    if "{texte}" not in modele:
+        return ("Le repère {texte} est obligatoire : c'est là que l'idée du professeur entre "
+                "dans le prompt. Sans lui, elle serait purement et simplement ignorée.")
+    connus = {"texte", *_PARAMS_SERVEUR, *_USER_PARAMS}
+    try:
+        modele.format(**{k: "x" for k in connus})
+    except KeyError as e:
+        inconnu = str(e).strip("'")
+        return (f"Le repère {{{inconnu}}} n'existe pas : aSchool n'a rien à mettre dedans. "
+                f"Repères disponibles : " + ", ".join("{" + k + "}" for k in sorted(connus)) + ".")
+    except (IndexError, ValueError):
+        return ("Les accolades du prompt sont mal équilibrées. Dans un exemple qui contient de "
+                "vraies accolades, doublez-les : {{ et }}.")
+    return None
+
 
 def type_du_couple_verifie(db: Session, niveau: str, activite_type_id: int):
     """LA porte unique de la question « ce type est-il utilisable pour ce couple ? ».

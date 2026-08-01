@@ -1070,7 +1070,12 @@ def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
         raise HTTPException(404, "Cette matière n'appartient pas au référentiel de ce couple.")
     if not mat.actif:
         return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0}
-    profs = db.query(User).filter(User.subject_id == mat.id).count()   # RÈGLE 4 : comptage PAR CLÉ (fin de la comparaison par nom)
+    # Comptage PAR CLÉ, sur les DEUX rattachements — comme le fait la suppression du référentiel
+    # vingt lignes plus bas. Ne compter que `subject_id` sous-estimait : un prof dont c'est le
+    # couple de TRAVAIL perdait sa matière sans figurer dans le nombre annoncé à l'admin.
+    profs = (db.query(User)
+               .filter((User.subject_id == mat.id) | (User.travail_matiere_id == mat.id))
+               .count())
     mat.actif = False
     db.commit()
     return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs}
@@ -1260,6 +1265,14 @@ def ecrire_prompt_type_couple(body: PromptLienBody, db: Session = Depends(get_db
         raise HTTPException(404, "Ce type n'est pas coché pour ce couple.")
     if not (body.prompt or "").strip():
         raise HTTPException(422, "Le prompt est vide.")
+    # Garde-fou d'écriture — il manquait ICI, et seulement ici, de tout le produit : ce prompt
+    # part ensuite dans `modele.format(...)` (api_generate), qui n'attrape que KeyError. Un
+    # prompt sans {texte} ignorait l'idée du prof en silence ; une accolade seule rendait un
+    # 500 nu au premier clic d'un enseignant. On refuse AVANT d'écrire, avec un message humain.
+    from backend.contenu.activites import valider_prompt_couple   # import local : pas de cycle
+    err = valider_prompt_couple(body.prompt)
+    if err:
+        raise HTTPException(400, err)
     l.prompt = body.prompt
     db.commit()
     return {"ok": True, "activite_type_id": body.activite_type_id}
@@ -1448,8 +1461,16 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
         if not cle or cle in vus:          # même libellé (à la casse près) : une seule fois
             continue
         vus.add(cle)
+        # Recherche par LIBELLÉ SEUL, sans filtrer sur `actif` — comme `ajouter_type_catalogue`.
+        # Avec le filtre, un type que l'admin avait DÉSACTIVÉ devenait invisible ici, et la
+        # détection en recréait un second portant le MÊME libellé : exactement le doublon que le
+        # catalogue interdit (models_db.py:696), et que rien n'empêche en base (aucun unique sur
+        # `label`). Un type désactivé reste désactivé : on ne le ressuscite pas en douce, on
+        # passe simplement notre tour.
         t = (db.query(ActiviteType)
-               .filter(func.lower(ActiviteType.label) == cle, ActiviteType.actif.is_(True)).first())
+               .filter(func.lower(ActiviteType.label) == cle).first())
+        if t is not None and not t.actif:
+            continue                          # désactivé par l'admin : sa décision tient
         if t is None:
             # Type NOUVEAU : créé au catalogue (origine='ia') puis collé au couple, même geste.
             maxo = db.query(func.max(ActiviteType.ordre)).scalar()
