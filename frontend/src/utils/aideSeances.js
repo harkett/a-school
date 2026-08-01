@@ -3,7 +3,7 @@
 //  - court : bulle affichée au SURVOL du « i » (une phrase) ;
 //  - long  : carte affichée au CLIC (l'aide complète, épinglée).
 // Textes honnêtes (règle des deux publics) : on ne décrit que ce que l'écran fait vraiment.
-export const GUIDE_SEANCES = [
+const GUIDE_SEANCES = [
   {
     cle: 'ecran',
     titre: 'Mes séances',

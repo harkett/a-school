@@ -4,7 +4,7 @@
 //  - court : bulle affichée au SURVOL du « i » (une phrase) ;
 //  - long  : carte affichée au CLIC (l'aide complète, épinglée).
 // Textes honnêtes (règle des deux publics) : on ne décrit que ce que l'écran fait vraiment.
-export const GUIDE_ACTIVITE = [
+const GUIDE_ACTIVITE = [
   {
     cle: 'parametres',
     titre: "Paramètres de l'activité",

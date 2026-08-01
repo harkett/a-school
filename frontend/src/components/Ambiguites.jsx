@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
 import AmbiguitesResultat from './AmbiguitesResultat.jsx'
@@ -47,16 +47,12 @@ function isTexteGibberish(t) {
   return suspect / words.length > 0.25
 }
 
-export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence, prefillTexte, onPrefillUsed }) {
+export default function Ambiguites({ matiere, niveau, onNavigate, onCreateSequence }) {
   const mat = matiere
   const niv = niveau
 
   const [tab, setTab]             = useState('analyser')
-  const [texte, setTexte]         = useState(prefillTexte || '')
-
-  useEffect(() => {
-    if (prefillTexte) onPrefillUsed?.()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [texte, setTexte]         = useState('')
   const [loading, setLoading]     = useState(false)
 
   const [alertDialog, setAlertDialog] = useState(null)

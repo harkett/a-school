@@ -89,7 +89,6 @@ const WARNING_SECS  = 300
 function MainApp() {
   const { user, logout, refreshUser } = useAuth()
   const navigate = useNavigate()
-  const matiere = user?.subject
 
   // Garde-fou : pas de matière = pas de couple → profil BLOQUANT (l'app force « Mon profil »
   // comme tout premier écran, et neutralise la navigation tant que le couple n'est pas enregistré).
@@ -100,9 +99,7 @@ function MainApp() {
   const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
-  const isMobile = window.innerWidth < 768
   const [page, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
-  const [prefillAmbiguites, setPrefillAmbiguites] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackIncidentRef, setFeedbackIncidentRef] = useState(null)  // réf d'incident jointe au feedback (échec de génération) ; null = feedback ouvert manuellement
   const [showNotation, setShowNotation] = useState(false)
@@ -224,22 +221,12 @@ function MainApp() {
     if (profilIncomplet && page !== 'mon-profil') setPage('mon-profil')
   }, [profilIncomplet, page])
 
+  // Le niveau vit EN BASE (users.niveau) : `params` n'en est que le reflet du get /auth/me,
+  // jamais dupliqué en localStorage. Les autres champs de l'ancien écran Créer sont partis
+  // avec lui le 30/07 — il ne reste que le niveau, seul champ lu.
   const [params, setParams] = useState({
-    activite_type_id: null,              // identité du type = son id (génération ET sauvegarde pointent par id)
-    niveau: user?.travail_niveau || '',  // reflet du get /auth/me (couple de travail résolu EN BASE)
-    sous_type: null,
-    nb: 5,
-    avec_correction: false,
+    niveau: user?.travail_niveau || '',
   })
-
-  // Le niveau vit EN BASE (users.niveau, sauvegardé par le profil) — jamais dupliqué en localStorage.
-  function setParamsWithSave(newParams) {
-    setParams(newParams)
-  }
-
-  function changerParams(newParams) {
-    setParamsWithSave(newParams)
-  }
 
   // « Revenir à mon profil » = EFFACER l'écart en base (DELETE), puis relire /auth/me :
   // le header et l'écran suivent le même get — jamais une remise à zéro locale.
@@ -575,8 +562,6 @@ function MainApp() {
               matiere={sessionMatiere}
               niveau={params.niveau}
               onNavigate={naviguer}
-              prefillTexte={prefillAmbiguites}
-              onPrefillUsed={() => setPrefillAmbiguites('')}
             />
           )}
 

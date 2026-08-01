@@ -5,7 +5,7 @@
 //  - long  : carte affichée au CLIC (l'aide complète, épinglée).
 // Textes honnêtes (règle des deux publics), en langage prof (« aSchool », jamais « IA »). Le cahier
 // des charges est décrit comme alimentant la génération (décision produit : on le considère branché).
-export const GUIDE_PROFIL = [
+const GUIDE_PROFIL = [
   {
     cle: 'profil',
     titre: 'Mon profil',
