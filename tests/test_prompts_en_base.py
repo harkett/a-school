@@ -32,17 +32,53 @@ from backend.core.models_db import SeanceMode, SeanceStyle, Setting  # noqa: E40
 from backend.systeme.admin import get_prompts_settings  # noqa: E402
 
 
-def _prompts_geles() -> dict[str, str]:
-    """La liste gelée de la migration de seed, chargée depuis le FICHIER de migration.
+VERSIONS = os.path.join(os.path.dirname(ROOT), "alembic", "versions")
 
-    Import par chemin, volontairement : `alembic/versions` n'est pas un paquet importable, et
-    surtout on veut lire CE fichier-là — celui qui sera rejoué sur une base neuve."""
-    chemin = os.path.join(os.path.dirname(ROOT), "alembic", "versions",
-                          "b8e5f2a1c9d7_seed_tous_les_prompts_geles.py")
-    spec = importlib.util.spec_from_file_location("_migration_seed_prompts", chemin)
+
+def _charger(nom: str):
+    """Charge un fichier de migration comme module. Import par chemin, volontairement :
+    `alembic/versions` n'est pas un paquet importable, et surtout on veut lire CE fichier-là —
+    celui qui sera rejoué sur une base neuve."""
+    spec = importlib.util.spec_from_file_location(f"_migration_{nom}",
+                                                  os.path.join(VERSIONS, nom))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return dict(module.PROMPTS_GELES)
+    return module
+
+
+def _prompts_geles() -> dict[str, str]:
+    """Ce qu'une base NEUVE contiendra vraiment : le seed gelé, PUIS les mises à jour gelées des
+    migrations suivantes, appliquées dans l'ordre de la chaîne.
+
+    Une migration ne se retouche jamais une fois appliquée : un prompt qui change se corrige par
+    une migration DE MISE À JOUR, qui expose son texte figé dans `PROMPTS_MAJ`. Sans cette
+    composition, ce fichier comparerait le registre au texte du premier jour et interdirait toute
+    évolution — ou pire, la laisserait passer sans que la base la reçoive."""
+    textes = dict(_charger("b8e5f2a1c9d7_seed_tous_les_prompts_geles.py").PROMPTS_GELES)
+
+    # Les mises à jour, rangées dans l'ordre de la chaîne (down_revision -> revision), pour que
+    # deux migrations touchant le même prompt s'appliquent comme sur une vraie base.
+    majs = {}
+    for nom in sorted(os.listdir(VERSIONS)):
+        if not nom.endswith(".py"):
+            continue
+        with open(os.path.join(VERSIONS, nom), encoding="utf-8") as f:
+            if "PROMPTS_MAJ" not in f.read():
+                continue
+        m = _charger(nom)
+        majs[m.revision] = (m.down_revision, dict(m.PROMPTS_MAJ))
+
+    ordonnees, restants = [], dict(majs)
+    precedente = "b8e5f2a1c9d7"
+    while restants:
+        suivante = next((r for r, (dr, _) in restants.items() if dr == precedente), None)
+        if suivante is None:            # mise à jour posée plus loin dans la chaîne : ordre du nom
+            suivante = sorted(restants)[0]
+        ordonnees.append(restants.pop(suivante)[1])
+        precedente = suivante
+    for maj in ordonnees:
+        textes.update(maj)
+    return textes
 
 
 def test_chaque_prompt_du_registre_est_seme_par_la_migration():

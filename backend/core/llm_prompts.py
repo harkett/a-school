@@ -533,23 +533,19 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, 
 
 PROMPT_DETECTER_MATIERES = """Tu lis un référentiel officiel et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
 
-Matières déjà connues de l'application :
-{matieres_existantes}
-
 Texte du référentiel :
 {texte}
 
 Ta tâche :
 - Repère les matières, disciplines ou domaines d'apprentissage que ce référentiel organise (ses grands champs).
-- Fais CORRESPONDRE ce que tu lis avec les matières déjà connues :
-  - Si un intitulé du document correspond à une matière déjà connue, reprends EXACTEMENT le nom de la liste (même orthographe, mêmes majuscules), pas celui du document.
-  - Si un intitulé du document REGROUPE plusieurs matières déjà connues (par exemple « Mathématiques et physique-chimie »), sépare-le : donne chacune de ces matières comme une entrée à part, avec le nom exact de la liste.
-  - Si un intitulé du document ne correspond à aucune matière connue, donne son nom tel qu'il apparaît dans le document, court et lisible (le nom de la matière, pas une phrase).
+- Donne le nom de chaque matière TEL QU'IL APPARAÎT DANS LE DOCUMENT : son orthographe, ses majuscules, ses accents. Ce document nomme SES matières ; il n'y a aucune liste extérieure à laquelle les ramener, et aucun nom à normaliser.
+- Garde des noms courts et lisibles : le nom de la matière, pas une phrase ni un intitulé de chapitre.
 - Ne sépare jamais un intitulé qui désigne UNE seule discipline, même si son nom est composé (par exemple « Prévention-santé-environnement » ou « Éducation physique et sportive » restent entières).
+- Sépare en revanche un intitulé qui en énumère visiblement plusieurs (par exemple « Mathématiques et physique-chimie » donne deux matières), en gardant pour chacune le nom que le document lui donne.
 
 Règle :
 - "matieres" : la liste des noms de matières, sans doublon.
-- N'invente aucune matière absente du document : la liste des matières connues sert à faire correspondre et à séparer, jamais à ajouter une matière que le document ne couvre pas. Si aucune n'apparaît clairement, renvoie une liste vide.
+- N'invente aucune matière absente du document. Si aucune n'apparaît clairement, renvoie une liste vide.
 
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau de chaînes)."""
 
@@ -845,7 +841,9 @@ PROMPTS = {
     },
     "detecter_matieres": {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",
-        "placeholders": ["matieres_existantes", "texte"],
+        # {matieres_existantes} RETIRÉ : il n'y a plus de catalogue commun auquel comparer le
+        # document. Chaque référentiel nomme SES matières — l'IA ne reçoit donc que le texte.
+        "placeholders": ["texte"],
         "categorie": "admin",
         "default": PROMPT_DETECTER_MATIERES,
     },

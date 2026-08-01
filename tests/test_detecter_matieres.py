@@ -25,19 +25,21 @@ import backend.core.database as dbmod
 import backend.rag.analyse_amont as amont
 
 
-def test_detecter_matieres_injecte_la_table_des_matieres(monkeypatch):
-    """L'IA reçoit la table des matières ACTIVES dans son prompt (get, zéro copie) pour faire
-    correspondre le document avec l'existant. Preuve : les matières actives figurent dans le prompt
-    envoyé à `generate`, pas les inactives, et les deux trous {matieres_existantes}/{texte} sont remplis."""
+def test_detecter_matieres_ne_recoit_que_le_texte(monkeypatch):
+    """L'IA ne reçoit PLUS aucune liste de matières : il n'existe plus de catalogue commun auquel
+    ramener le document, chaque référentiel nomme les siennes. Preuve : des matières bien
+    présentes en base n'apparaissent nulle part dans le prompt envoyé à `generate`, qui ne porte
+    que le texte du document — et aucun repère resté en clair."""
     from backend.core.models_db import Cycle, Matiere, Niveau, Referentiel
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom="Collège", ordre=1); db.add(cy); db.flush()
         niv = Niveau(cycle_id=cy.id, nom="5e", ordre=1); db.add(niv); db.flush()
         # Une matière vit dans le référentiel qui la nomme : pas de référentiel, pas de matière.
         ref = Referentiel(niveau_id=niv.id, nom_fixe="5e", collection="5e"); db.add(ref); db.flush()
-        db.add(Matiere(referentiel_id=ref.id, nom="Mathématiques", ordre=1, actif=True, validee=True))
-        db.add(Matiere(referentiel_id=ref.id, nom="Physique-Chimie", ordre=2, actif=True, validee=True))
-        db.add(Matiere(referentiel_id=ref.id, nom="Vieille matière", ordre=3, actif=False, validee=True))
+        # Noms volontairement improbables : le prompt cite lui-même « Mathématiques » dans un
+        # exemple, un nom courant ferait passer le test pour de mauvaises raisons.
+        db.add(Matiere(referentiel_id=ref.id, nom="ZZ-Discipline-Alpha", ordre=1, actif=True, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="ZZ-Discipline-Beta", ordre=2, actif=True, validee=True))
         db.commit()
     capture = {}
 
@@ -49,10 +51,9 @@ def test_detecter_matieres_injecte_la_table_des_matieres(monkeypatch):
     with dbmod.SessionLocal() as db:
         amont.detecter_matieres("texte du référentiel", db=db)
     p = capture["prompt"]
-    assert "- Mathématiques" in p and "- Physique-Chimie" in p
-    assert "Vieille matière" not in p                      # inactive = hors liste
-    assert "{matieres_existantes}" not in p and "{texte}" not in p
-    assert "texte du référentiel" in p
+    assert "ZZ-Discipline-Alpha" not in p and "ZZ-Discipline-Beta" not in p  # aucune liste injectée
+    assert "{matieres_existantes}" not in p                          # ni le repère, ni son texte
+    assert "{texte}" not in p and "texte du référentiel" in p        # le seul trou est rempli
 
 
 def test_detecter_types_injecte_le_catalogue(monkeypatch):

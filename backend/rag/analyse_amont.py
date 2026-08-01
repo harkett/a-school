@@ -325,22 +325,19 @@ def _schema_matieres() -> dict:
 
 def detecter_matieres(texte: str, *, db: Session) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des matières (disciplines / domaines)
-    qu'il structure. Proposition seulement : l'admin coche ce qu'il ajoute (jamais une matière écrite
-    d'office). L'IA reçoit AUSSI la table des matières actives (get, zéro copie) pour faire
-    CORRESPONDRE le document avec l'existant : orthographe exacte de la table, et un intitulé qui
-    regroupe plusieurs matières connues (ex. « Mathématiques et physique-chimie ») est séparé.
+    qu'il structure. Proposition seulement : l'admin coche ce qu'il retient (jamais une matière
+    écrite d'office).
+
+    Elle ne reçoit QUE le texte. La table des matières ne lui est plus donnée : il n'existe plus
+    de catalogue commun auquel ramener le document. Chaque référentiel possède SES matières,
+    nommées comme LUI les nomme — il n'y a donc rien à faire correspondre, et normaliser
+    l'orthographe sur un autre diplôme serait une erreur, pas une aide.
+
     Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie
     les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
     lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit / absorbe)."""
-    from backend.core.models_db import Matiere
-    existantes = [nom for (nom,) in (db.query(Matiere.nom)
-                                       .filter(Matiere.actif == True)
-                                       .order_by(Matiere.ordre, Matiere.id).all())]
-    prompt = (get_prompt(db, _CLE_MATIERES)
-              .replace("{matieres_existantes}",
-                       "\n".join(f"- {n}" for n in existantes) or "(aucune pour le moment)")
-              .replace("{texte}", texte))
+    prompt = get_prompt(db, _CLE_MATIERES).replace("{texte}", texte)
     raw = generate(
         prompt,
         cle=get_cle_texte(db),

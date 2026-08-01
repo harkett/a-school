@@ -1118,7 +1118,7 @@ def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db))
     n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
     if n > 0:
         raise HTTPException(409, f"Référentiel utilisé (déjà ingéré : {n} unité(s)) — suppression impossible.")
-    # DELETE encadré (RÈGLE 4) : ses matières tombent avec lui, or un prof peut en avoir une à son
+    # DELETE encadré : ses matières tombent avec lui, or un prof peut en avoir une à son
     # profil ou à son couple de travail. On refuse AVANT d'écrire, avec un message qui dit quoi faire.
     profs = (db.query(User)
                .join(Matiere, (Matiere.id == User.subject_id) | (Matiere.id == User.travail_matiere_id))

@@ -1,7 +1,7 @@
 """Résolution NOM → ID du couple du prof (matière, niveau) — une seule règle, un seul endroit.
 
 Le profil range matière et niveau UNIQUEMENT par CLÉ (users.subject_id / niveau_id / travail_*_id) :
-le nom vit dans `matieres`/`niveaux` et se relit par get (zéro copie, RÈGLE 4). Deux sens ici :
+le nom vit dans `matieres`/`niveaux` et se relit par get, jamais recopié ailleurs. Deux sens ici :
 nom → id à l'écriture, id → nom à la lecture (matiere_nom_de_id / niveau_nom_de_id).
 
 UNE MATIÈRE SE RÉSOUT DANS UN RÉFÉRENTIEL, JAMAIS GLOBALEMENT. Depuis que chaque référentiel

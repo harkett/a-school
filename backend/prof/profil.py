@@ -111,8 +111,8 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     niveau_id       = niveau_id_du_nom(db, niveau or None)
     user.prenom     = body.prenom    or None
     user.nom        = body.nom       or None
-    # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put). La matière se résout DANS le référentiel
-    # du niveau choisi — le nom seul ne désigne plus rien (plusieurs « Mathématiques » en base).
+    # Matière rangée UNIQUEMENT par clé (put) : elle se résout DANS le référentiel du niveau
+    # choisi — le nom seul ne désigne plus rien (plusieurs « Mathématiques » coexistent en base).
     user.subject_id = matiere_id_du_nom(db, matiere or None, niveau_id)
     user.niveau_id  = niveau_id
     user.langue_lv  = body.langue_lv or None
@@ -149,8 +149,8 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
         user.travail_matiere_id = None   # même couple que le profil → aucun écart à stocker
         user.travail_niveau_id = None
     else:
-        # RÈGLE 4 : couple de travail rangé UNIQUEMENT par clé (put), matière résolue DANS le
-        # référentiel du niveau visé.
+        # Couple de travail rangé UNIQUEMENT par clé (put), matière résolue DANS le référentiel
+        # du niveau visé.
         travail_niveau_id = niveau_id_du_nom(db, niveau)
         user.travail_matiere_id = matiere_id_du_nom(db, matiere, travail_niveau_id)
         user.travail_niveau_id = travail_niveau_id

@@ -809,7 +809,7 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    # RÈGLE 4 : couple rangé UNIQUEMENT par clé (put). Le NIVEAU d'abord : c'est lui qui donne le
+    # Couple rangé UNIQUEMENT par clé (put). Le NIVEAU d'abord : c'est lui qui donne le
     # référentiel, et le référentiel qui donne SA matière — le nom d'une matière ne désigne rien
     # tout seul depuis que chaque diplôme nomme les siennes.
     niveau_id   = niveau_id_du_nom(db, body.niveau or None)
