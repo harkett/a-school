@@ -30,6 +30,19 @@ function Echec($message) {
     exit 1
 }
 
+# La seule porte vers l'installation quand le contrôle n'a pas donné son feu vert.
+# Elle ne rend vrai que sur le mot exact ; toute autre réponse, l'absence de
+# réponse, ou une question qui ne peut même pas être posée valent refus.
+function Demander-Remplacement {
+    Write-Host ""
+    Write-Host "  Tapez le mot  remplacer  puis Entrée pour l'installer quand même," -ForegroundColor Yellow
+    Write-Host "  ou appuyez simplement sur Entrée pour ne rien changer." -ForegroundColor Yellow
+    Write-Host ""
+    $reponse = ''
+    try { $reponse = Read-Host "  Votre choix" } catch { $reponse = '' }
+    return ("$reponse".Trim().ToLower() -eq 'remplacer')
+}
+
 function Attendre-Base {
     for ($essai = 0; $essai -lt 90; $essai++) {
         docker compose exec -T db pg_isready -U aschool -d aschool_dev 2>$null | Out-Null
@@ -103,12 +116,24 @@ Write-Host "       prêt." -ForegroundColor Green
 Write-Host "  3/4  Contrôle..." -ForegroundColor Cyan
 $datePoste = Date-Du-Poste
 
-# On n'installe QUE sur un accord franc. Tant que cet accord n'est pas donné,
-# ce drapeau reste baissé : si quoi que ce soit se passe mal dans la question
-# ci-dessous, on ne touche à rien. Le silence n'est jamais un oui.
-$accordDonne = $true
+# On n'installe QUE sur un accord constaté. Le drapeau part baissé et ne se
+# lève que dans deux cas prouvés : ce poste n'a rien de plus récent, ou le mot
+# a été tapé. Tout le reste — date illisible, contrôle qui échoue, question qui
+# tourne mal — le laisse baissé et rien n'est touché. Le silence n'est pas un oui,
+# et « je ne sais pas » non plus.
+$accordDonne = $false
 
-if ($null -ne $datePoste -and $null -ne $dateApportee -and $datePoste -gt $dateApportee) {
+if ($null -eq $datePoste -or $null -eq $dateApportee) {
+    # On n'a pas pu établir la date d'un des deux côtés. Sans cette preuve,
+    # on ne suppose rien : c'est à l'utilisateur de trancher en connaissance.
+    Write-Host ""
+    Write-Host "  Impossible de savoir si ce poste contient du travail plus récent" -ForegroundColor Yellow
+    Write-Host "  que ce que vous apportez. Rien n'a été modifié." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Installer ce que vous apportez effacerait définitivement le travail de ce poste." -ForegroundColor Yellow
+    $accordDonne = Demander-Remplacement
+}
+elseif ($datePoste -gt $dateApportee) {
     $ici     = [DateTimeOffset]::FromUnixTimeSeconds($datePoste).LocalDateTime
     $apporte = [DateTimeOffset]::FromUnixTimeSeconds($dateApportee).LocalDateTime
     Write-Host ""
@@ -119,15 +144,11 @@ if ($null -ne $datePoste -and $null -ne $dateApportee -and $datePoste -gt $dateA
     Write-Host ("    travail que vous apportez    : {0:dddd d MMMM yyyy à HH:mm}" -f $apporte) -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  Installer ce que vous apportez effacerait définitivement le travail de ce poste." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  Tapez le mot  remplacer  puis Entrée pour l'installer quand même," -ForegroundColor Yellow
-    Write-Host "  ou appuyez simplement sur Entrée pour ne rien changer." -ForegroundColor Yellow
-    Write-Host ""
-    $reponse = ''
-    try { $reponse = Read-Host "  Votre choix" } catch { $reponse = '' }
-    $accordDonne = ("$reponse".Trim().ToLower() -eq 'remplacer')
-} else {
+    $accordDonne = Demander-Remplacement
+}
+else {
     Write-Host "       rien de plus récent ici." -ForegroundColor Green
+    $accordDonne = $true
 }
 
 if (-not $accordDonne) {
