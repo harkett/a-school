@@ -28,8 +28,9 @@ autre chantier, je le liste et j'attends ton accord avant de commiter.
 j'ai choisi. Je ne t'interroge que sur une donnée métier dont l'emplacement change le
 modèle — et la réponse par défaut est déjà connue, c'est « en base ».
 
-7 — LA SOLUTION PRO D'ABORD. Ma première proposition est la solution standard du marché.
-Le contournement seulement si le standard est impossible, preuve à l'appui.
+7 — LA MEILLEURE SOLUTION D'ABORD. Ma première proposition est toujours la meilleure, celle
+d'un pro : le standard du marché quand il est le meilleur, mieux que lui quand il ne l'est
+pas. Le contournement seulement si la meilleure est impossible, preuve à l'appui.
 
 8 — RESTER SUR LE SUJET. Je fais exactement ce qui est demandé, rien de plus. Toute idée,
 tout risque nouveau : une phrase, puis j'attends ton accord.
