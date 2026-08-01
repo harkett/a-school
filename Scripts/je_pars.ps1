@@ -166,6 +166,87 @@ else          { Write-Host  "      .env             absent de ce poste — rien 
 Write-Host ""
 Write-Host "  Ne copiez rien d'autre. Tout le reste du dossier arrive tout seul" -ForegroundColor Green
 Write-Host "  là-bas : le code est déjà parti, et le reste se refabrique sur place." -ForegroundColor Green
+
+# ── La copie, faite ici plutôt que laissée à faire ──────────────────────
+# Choisir cinq choses à la main dans l'explorateur, c'est l'endroit où on se
+# trompe. Si la clé est branchée, on copie et on vérifie chaque fichier.
 Write-Host ""
-Write-Host "  Ensuite, sur l'autre poste, lancez :  Scripts\j_arrive.ps1" -ForegroundColor Green
+Write-Host "  Branchez votre clé maintenant et indiquez-la (par exemple  E:  )," -ForegroundColor Cyan
+Write-Host "  je copie tout dessus et je vérifie. Ou Entrée pour le faire vous-même." -ForegroundColor Cyan
+Write-Host ""
+$ou = ''
+try { $ou = Read-Host "  Où copier" } catch { $ou = '' }
+$ou = "$ou".Trim().Trim('"')
+
+if (-not $ou) {
+    Write-Host ""
+    Write-Host "  Entendu. Ensuite, sur l'autre poste, lancez :  Scripts\j_arrive.ps1" -ForegroundColor Green
+    Write-Host ""
+    exit 0
+}
+
+if (-not (Test-Path $ou)) {
+    Echec "Cet endroit n'existe pas : $ou`n  Le dossier est prêt : copiez les trois éléments vous-même."
+}
+
+$valise = Join-Path $ou 'A-SCHOOL-a-emporter'
+Write-Host ""
+Write-Host "  Copie vers $valise ..." -ForegroundColor Cyan
+if (Test-Path $valise) { Remove-Item -LiteralPath $valise -Recurse -Force -ErrorAction SilentlyContinue }
+New-Item -ItemType Directory -Force -Path $valise | Out-Null
+
+# Les deux fichiers d'installation partent aussi : ils ne servent que sur un
+# poste où le dossier n'existe pas encore, et là-bas rien d'autre ne les fournit.
+$aCopier = @($bagage, (Join-Path $racine 'REFERENTIELS'), (Join-Path $racine '.env'),
+             (Join-Path $PSScriptRoot 'j_installe.ps1'), (Join-Path $PSScriptRoot 'j_installe.cmd'))
+
+foreach ($element in $aCopier) {
+    if (-not (Test-Path $element)) { continue }
+    if ((Get-Item $element -Force).PSIsContainer) {
+        Copy-Item -LiteralPath $element -Destination $valise -Recurse -Force -ErrorAction SilentlyContinue
+    } else {
+        Copy-Item -LiteralPath $element -Destination $valise -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# Vérification : chaque fichier est relu des deux côtés et comparé. Une copie
+# annoncée sans être vérifiée, c'est ce qui a coûté une journée.
+$ecarts = @()
+$comptes = 0
+foreach ($element in $aCopier) {
+    if (-not (Test-Path $element)) { continue }
+    $item = Get-Item $element -Force
+    if ($item.PSIsContainer) {
+        $base = Split-Path $element -Parent
+        foreach ($f in Get-ChildItem -LiteralPath $element -Recurse -Force -File) {
+            $relatif = $f.FullName.Substring($base.Length + 1)
+            $arrivee = Join-Path $valise $relatif
+            $comptes++
+            if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
+            if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
+        }
+    } else {
+        $arrivee = Join-Path $valise $item.Name
+        $comptes++
+        if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $item.Name }
+        elseif ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $item.FullName).Hash) { $ecarts += $item.Name }
+    }
+}
+
+if ($ecarts.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  Ces fichiers ne sont pas arrivés correctement :" -ForegroundColor Red
+    foreach ($e in $ecarts | Select-Object -First 10) { Write-Host "      $e" -ForegroundColor Red }
+    Echec "La copie n'est pas fiable. Videz la clé et relancez ce script."
+}
+
+Write-Host ("       $comptes fichiers copiés, tous vérifiés un par un.") -ForegroundColor Green
+Write-Host ""
+Write-Host "  Votre clé est prête. Sur l'autre poste :" -ForegroundColor Green
+Write-Host ""
+Write-Host "     — s'il a déjà le dossier A-SCHOOL : collez-y Bagage, REFERENTIELS" -ForegroundColor Green
+Write-Host "       et .env, puis lancez Scripts\j_arrive.ps1" -ForegroundColor Green
+Write-Host ""
+Write-Host "     — s'il ne l'a pas, ou qu'il est à refaire : posez j_installe.ps1" -ForegroundColor Green
+Write-Host "       et j_installe.cmd sur le Bureau, et double-cliquez j_installe.cmd" -ForegroundColor Green
 Write-Host ""
