@@ -770,7 +770,6 @@ export default function AdminReferentiels() {
       setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
       setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
       setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
-      if ((d.coches || []).some(x => x.source === 'ia')) setTypesDejaDetecte(true)
     } catch { /* réseau : on garde l'affichage courant */ }
   }
 
