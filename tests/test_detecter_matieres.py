@@ -11,15 +11,12 @@ Lancer : docker exec a-school-backend-1 python -m pytest tests/test_detecter_mat
 """
 import json
 import os
-import sys
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 import backend.rag.analyse_amont as amont

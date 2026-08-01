@@ -14,12 +14,7 @@ l'historique »). Vérifié ici, pour les activités ET les séances :
 
 Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
 """
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod  # noqa: E402  (redirigé vers aschool_test par conftest)
 

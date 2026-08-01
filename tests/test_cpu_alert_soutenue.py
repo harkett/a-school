@@ -8,12 +8,7 @@ Ce que le test PROUVE (decision reelle de check_cpu_alert, create_alert capturee
 
 Lancer : .\.venv\Scripts\python.exe -m pytest test_cpu_alert_soutenue.py -q
 """
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.supervision.alerts as alerts
 

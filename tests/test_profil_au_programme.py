@@ -10,11 +10,7 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py — JAMAIS SQLite) 
 
 Même règle et même message que PUT /user/couple-travail (_couple_est_au_programme).
 """
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.securite.comptes import create_access_token

@@ -9,13 +9,8 @@ Ce que ces tests PROUVENT :
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), notification e-mail mockée.
 """
-import os
-import sys
 from unittest.mock import patch
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.main import app

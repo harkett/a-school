@@ -12,11 +12,7 @@ Ce que le test PROUVE (base aschool_test via conftest.py — JAMAIS SQLite) :
 
 Le catalogue est semé par conftest (_seed_catalogues) — en prod il l'est par migration.
 """
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT)
 
 import pytest
 from sqlalchemy.exc import IntegrityError

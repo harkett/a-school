@@ -9,14 +9,9 @@ Ce que le test PROUVE (le plafond agit RÉELLEMENT, pas « le code existe ») :
 
 Lancer : .\.venv\Scripts\python.exe -m pytest test_llm_concurrence.py -q
 """
-import os
-import sys
 import threading
 import time
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 from unittest.mock import MagicMock, patch
 

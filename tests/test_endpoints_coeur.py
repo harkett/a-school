@@ -14,13 +14,8 @@ Garde-fous : BDD de test PostgreSQL dédiée (aschool_test, via conftest.py — 
 user de test fictif, JWT signé via create_access_token (secret jamais exposé).
 Verrouille l'existant contre une régression — n'introduit aucun comportement nouveau.
 """
-import os
-import sys
 from unittest.mock import patch
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod
@@ -482,5 +477,4 @@ def test_matieres_derive_de_la_base():
     du_niveau = noauth().get(f"/api/matieres?niveau_id={n4_id}").json()
     assert [m["nom"] for m in du_niveau] == ["P510-Français", "P510-Maths"]
     assert all(m["id"] for m in du_niveau)                    # scopé au référentiel = id sans ambiguïté
-
 

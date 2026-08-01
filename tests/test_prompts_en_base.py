@@ -17,13 +17,10 @@ Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base
 """
 import importlib.util
 import os
-import sys
 
 import pytest
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod  # noqa: E402  (redirigé vers aschool_test par conftest)
 

@@ -1,4 +1,5 @@
 import logging
+import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -18,10 +19,15 @@ from backend.systeme.admin import _reglage_entier, codes_statuts_modifiables, la
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Ancré sur la RACINE DU DÉPÔT, jamais sur le répertoire courant : un chemin relatif suivait
-# le cwd de qui lançait le processus (les tests écrivaient ailleurs, ou pire dans le vrai
-# data/ selon l'endroit d'où pytest partait). parents[2] = la racine, depuis backend/communication/.
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "data" / "uploads" / "feedbacks"
+# Destination des pièces jointes. DEUX exigences, d'où ces deux lignes :
+#   1. jamais un chemin RELATIF — il suivait le répertoire courant de qui lançait le
+#      processus ; le même code écrivait donc à un endroit différent selon le lanceur.
+#      Ancré sur la racine du dépôt (parents[2], depuis backend/communication/).
+#   2. jamais le VRAI dossier pendant les tests — la suite doit pouvoir écrire ailleurs
+#      sans toucher aux pièces jointes réelles. C'est le rôle de UPLOAD_DIR_FEEDBACKS,
+#      que conftest.py pose sur un dossier temporaire (comme DATABASE_URL pour la base).
+_DEFAUT = Path(__file__).resolve().parents[2] / "data" / "uploads" / "feedbacks"
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR_FEEDBACKS") or _DEFAUT)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Formats acceptés : type MIME -> extension. Reste du code (et non en base) parce que ce

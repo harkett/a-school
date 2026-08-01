@@ -14,16 +14,12 @@ Ce que les tests PROUVENT (chaine reelle, pas « le code existe ») :
 Lancer : .\.venv\Scripts\python.exe -m pytest test_admin_email_templates.py -q
 """
 import os
-import sys
 from datetime import datetime
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod  # engine/SessionLocal rediriges vers aschool_test par conftest
 import backend.securite.comptes as comptes

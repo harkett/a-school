@@ -13,16 +13,12 @@ Ce que le test PROUVE (le comportement réel, pas « le code existe ») :
 Lancer : docker exec a-school-backend-1 python -m pytest tests/test_llm_retry.py -q
 """
 import os
-import sys
 
 # Windows : torch + chromadb -> deux runtimes OpenMP. Garde-fous AVANT tout import torch.
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 from unittest.mock import MagicMock, patch
 

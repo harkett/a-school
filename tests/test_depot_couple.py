@@ -10,13 +10,9 @@ Ce que ces tests verrouillent :
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), IA et texte du PDF mockés.
 """
 import os
-import sys
 import uuid
 from unittest.mock import patch
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 import backend.pedagogie.referentiels_admin as refadm

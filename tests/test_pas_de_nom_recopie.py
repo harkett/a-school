@@ -29,12 +29,7 @@ suppression du test.
 
 Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
 """
-import os
-import sys
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 from sqlalchemy import String, Text  # noqa: E402
 

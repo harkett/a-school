@@ -13,16 +13,12 @@ Lancer : python -m pytest tests/test_ocr_pdf_scanne.py -q
 """
 import asyncio
 import io
-import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from PIL import Image, ImageDraw
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(ROOT))
 
 import backend.dictee.ocr as ocr_mod
 

@@ -13,14 +13,10 @@ Ce que ces tests PROUVENT :
 Lancer : .\.venv\Scripts\python.exe -m pytest tests/test_ocr_model.py -q
 """
 import asyncio
-import os
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(ROOT))   # racine projet -> `src` importable
 
 import backend.llm.generator as gen
 import backend.dictee.ocr as ocr_mod

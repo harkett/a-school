@@ -30,11 +30,8 @@ Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base
 """
 import ast
 import os
-import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 BACKEND = os.path.join(os.path.dirname(ROOT), "backend")
 

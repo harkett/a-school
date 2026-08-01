@@ -11,6 +11,8 @@ jamais sur SQLite, jamais sur la base dev `aschool`. Trois verrous :
   3. ISOLATION — `TRUNCATE` entre chaque test, exclusivement sur `aschool_test`.
 """
 import os
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -18,6 +20,26 @@ import sqlalchemy
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
+
+# --- Amorçage, une fois pour toutes (01/08) -----------------------------------
+# Cinquante-deux fichiers de tests recopiaient le même préambule : `ROOT`,
+# `sys.path.insert(0, ROOT)` et, dans quarante-trois d'entre eux, `os.chdir(ROOT)`.
+# Deux ennuis. D'abord `ROOT` ne désignait pas la racine du dépôt mais le dossier
+# `tests/` : le chdir déplaçait donc le répertoire courant de TOUTE la suite dans
+# `tests/`, sans que personne l'ait voulu. Ensuite chaque nouveau fichier devait
+# penser à recopier ces lignes pour que `from _profil import …` fonctionne.
+# Les deux chemins sont posés ici, une seule fois : la racine (les imports
+# `backend.…`) et `tests/` (les aides partagées, `_profil`).
+_RACINE = Path(__file__).resolve().parent
+for _p in (_RACINE, _RACINE / "tests"):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+# Pièces jointes : la suite écrit dans un dossier temporaire, JAMAIS dans le vrai
+# data/uploads/feedbacks. Même principe que DATABASE_URL ci-dessous — la base de test
+# est une autre base, le dossier de test est un autre dossier. Posé AVANT tout import
+# de backend.communication.feedback, qui lit cette variable au chargement.
+os.environ.setdefault("UPLOAD_DIR_FEEDBACKS", tempfile.mkdtemp(prefix="aschool_test_uploads_"))
 
 # --- Verrou 1 : barrière physique anti-SQLite (posée avant toute collecte) ---
 _real_create_engine = sqlalchemy.create_engine

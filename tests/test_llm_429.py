@@ -10,16 +10,12 @@ Ce que le test PROUVE (le bon code HTTP ressort vraiment, pas « le code existe 
 Lancer : .\.venv\Scripts\python.exe -m pytest test_llm_429.py -q
 """
 import os
-import sys
 import threading
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-os.chdir(ROOT)
-sys.path.insert(0, ROOT)
 
 from unittest.mock import MagicMock, patch
 

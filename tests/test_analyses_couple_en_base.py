@@ -6,12 +6,8 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py, LLM MOQUÉ — auc
      le modèle de requête — le serveur ne fait plus confiance à l'écran (trou du check-up).
   2. Profil sans couple → 400 humain, AUCUN appel LLM.
 """
-import os
-import sys
 from unittest.mock import patch
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 from backend.securite.comptes import create_access_token
