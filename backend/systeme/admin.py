@@ -497,7 +497,9 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
             FailedLoginAttempt.ip_address == ip,
             FailedLoginAttempt.attempt_at >= since,
         ).count()
-        if count >= 10:
+        # Le seuil de blocage était écrit « 10 » ici, juste à côté du réglage `alerte_tentatives_1h`
+        # qui vaut 10 en base : deux vérités pour un seul nombre, dont une seule se règle.
+        if count >= _reglage_entier(db, "alerte_tentatives_1h", 1):
             db.query(FailedLoginAttempt).filter(
                 FailedLoginAttempt.ip_address == ip,
                 FailedLoginAttempt.attempt_at >= since,
@@ -939,8 +941,11 @@ def change_admin_password(body: ChangePasswordBody, request: Request, db: Sessio
 
 
 class SettingsBody(BaseModel):
-    welcome_email_subject: str = ""
-    welcome_email_body: str = ""
+    # `None` et non `""` : le défaut vide faisait qu'un PUT ne portant QUE l'objet écrivait
+    # aussi un corps vide en base — enregistrer un champ effaçait l'autre (trouvé le 01/08).
+    # Seuls les champs réellement envoyés sont écrits (voir `exclude_unset` ci-dessous).
+    welcome_email_subject: str | None = None
+    welcome_email_body: str | None = None
 
 
 @router.get("/admin/settings")
@@ -950,7 +955,10 @@ def get_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin
 
 @router.put("/admin/settings")
 def save_settings(body: SettingsBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    for key, value in body.dict().items():
+    fournis = body.dict(exclude_unset=True)
+    if not fournis:
+        raise HTTPException(400, "Aucun réglage fourni.")
+    for key, value in fournis.items():
         row = db.query(Setting).filter(Setting.key == key).first()
         if row:
             row.value = value
@@ -1420,14 +1428,22 @@ def save_prompt(body: PromptBody, request: Request, db: Session = Depends(get_db
 
 @router.delete("/admin/prompts/{key}")
 def reset_prompt(key: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Vrai retour au défaut d'un outil : SUPPRIME la surcharge en base (ligne `prompt_<key>`).
-    `get_prompt` retombe alors sur le défaut code — qui pourra évoluer librement. Idempotent :
-    rien en base -> déjà au défaut, on renvoie ok sans erreur."""
+    """Retour au défaut d'un outil : RÉÉCRIT en base le texte de référence (`llm_prompts.PROMPTS`).
+
+    Cette route SUPPRIMAIT la ligne, en s'appuyant sur un repli code de `get_prompt` qui
+    n'existe plus depuis l'étape 9 lot C : `get_prompt` lève désormais un 500 quand la ligne
+    manque. Le bouton « revenir au prompt par défaut » RENDAIT donc l'outil inutilisable au
+    lieu de le réparer (trouvé le 01/08). La base reste la source unique : revenir au défaut,
+    c'est y RÉÉCRIRE la référence, jamais retirer la ligne. Idempotent."""
     if key not in PROMPTS:
         raise HTTPException(400, "Prompt inconnu.")
+    defaut = PROMPTS[key]["default"]
     row = db.query(Setting).filter(Setting.key == f"prompt_{key}").first()
-    if row:
-        db.delete(row)
+    if row is None or row.value != defaut:
+        if row:
+            row.value = defaut
+        else:
+            db.add(Setting(key=f"prompt_{key}", value=defaut))
         db.commit()
         log_admin_action(
             db=db,
@@ -1934,14 +1950,15 @@ def get_audit_log(db: Session = Depends(get_db), _: None = Depends(_require_admi
 
 @router.get("/admin/stats/hours")
 def stats_hours(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    # `to_char` et non `strftime` : strftime est une fonction SQLITE. Elle est restée là
+    # après la bascule vers PostgreSQL, où elle n'existe pas — la route répondait 500 à
+    # chaque appel de l'écran Serveur, et aucun test ne la couvrait (corrigé le 01/08).
+    heure = func.to_char(ConnexionLog.created_at, 'HH24')
     rows = (
-        db.query(
-            func.strftime('%H', ConnexionLog.created_at).label("hour"),
-            func.count(ConnexionLog.id).label("count"),
-        )
+        db.query(heure.label("hour"), func.count(ConnexionLog.id).label("count"))
         .filter(ConnexionLog.action == "login")
-        .group_by(func.strftime('%H', ConnexionLog.created_at))
-        .order_by(func.strftime('%H', ConnexionLog.created_at))
+        .group_by(heure)
+        .order_by(heure)
         .all()
     )
     hours_map = {r.hour: r.count for r in rows}

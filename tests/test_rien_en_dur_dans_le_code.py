@@ -52,6 +52,24 @@ DETTE = {
     "backend/llm/generator.py::anthropic|groq":
         "generator.py:94 — les fournisseurs IA en dur ALORS QUE la table `ai_fournisseurs` "
         "existe avec sa colonne `code`. La plus nette des cinq.",
+
+    # --- RÉVÉLÉES LE 01/08/2026 : elles étaient là depuis toujours, le filet ne les VOYAIT pas.
+    # Il lisait les fichiers en « utf-8 » ; quatre fichiers du backend portent un BOM, ast.parse
+    # levait, et l'ancien `except: continue` les sautait EN SILENCE — dont admin.py, le plus gros
+    # fichier du projet. Le compte passe donc de 6 à 12 : aucune dette nouvelle n'a été créée,
+    # six étaient invisibles.
+    "backend/systeme/admin.py:SETTING_DEFAULTS":
+        "admin.py:54 — LE repli code du projet : chaque réglage y a sa valeur de secours, alors "
+        "que la doctrine du même fichier (admin.py:386 et :417) l'interdit. La plus grosse des six.",
+    "backend/main.py:_cors_defaut":
+        "main.py:87 — les origines CORS de secours quand la variable est absente. Repli code : "
+        "se solde en exigeant CORS_ALLOWED_ORIGINS au déploiement (deploy.sh:18), pas avant.",
+    "backend/systeme/admin.py::aschool|aschool_dev":
+        "admin.py:539 — les NOMS des bases réelles, pour classer une base en « réelle » ou "
+        "« autre ». Un nom de base est de la configuration : il n'a pas sa place dans le code.",
+    "backend/securite/comptes.py::idee|notation":
+        "comptes.py:313 — les types de feedback, pour décider des lignes de l'e-mail admin. "
+        "Aucune table `feedback_types` (44 tables, vérifié) — seuls les STATUTS ont la leur.",
 }
 
 # --- EXCEPTION PERMANENTE — plomberie technique ou registre déjà gardé ailleurs -------------
@@ -69,6 +87,14 @@ EXCEPTIONS_PERMANENTES = {
         "analyse_amont.py:43 — schéma JSON attendu du modèle. Technique.",
     "backend/dictee/ocr.py::jpeg|jpg|png":
         "ocr.py:65 — extensions d'image acceptées. Technique.",
+
+    # --- RÉVÉLÉES LE 01/08/2026 avec les précédentes (même cause : le BOM). Classées ici et non
+    # en dette : ce ne sont pas des données métier, ce sont deux repères de navigation entre
+    # écrans admin — « cette clé se règle ailleurs, sur son écran dédié ».
+    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_EXACTS":
+        "admin.py:984 — clés de réglage qui ont leur propre écran. Aiguillage d'interface.",
+    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_PREFIXES":
+        "admin.py:985 — mêmes repères, par préfixe (max_tokens_, prompt_, welcome_email_).",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -98,10 +124,18 @@ def _scanner():
     trouves = []
     for chemin in _fichiers_python():
         court = _chemin_court(chemin)
+        # « utf-8-sig » et non « utf-8 » : quatre fichiers du backend portent un BOM UTF-8
+        # (admin.py, comptes.py, alerts.py, main.py). Lus en « utf-8 », le BOM arrive dans le
+        # texte, ast.parse lève, et l'ancien `except: continue` les SAUTAIT EN SILENCE — le
+        # plus gros fichier du projet n'était pas analysé, et le filet annonçait 6 dettes
+        # quand il y en avait 12 (trouvé le 01/08). Un fichier illisible fait désormais TOMBER
+        # le test : un filet qui saute une maille sans le dire ne prouve rien.
+        with open(chemin, encoding="utf-8-sig") as f:
+            source = f.read()
         try:
-            arbre = ast.parse(open(chemin, encoding="utf-8").read())
-        except (SyntaxError, UnicodeDecodeError):
-            continue
+            arbre = ast.parse(source)
+        except SyntaxError as e:
+            raise AssertionError(f"{court} illisible par le filet « rien en dur » : {e}") from e
 
         # Forme (1) — déclaration au niveau module
         for n in arbre.body:
@@ -162,12 +196,17 @@ def test_la_liste_ne_garde_pas_une_entree_disparue():
     )
 
 
-def test_le_compte_de_la_dette_est_celui_du_31_07_2026():
+def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     """Le chiffre de départ. Il ne bouge qu'en BAISSE, et une baisse fait tomber ce test —
-    réparer une dette se conclut en corrigeant ce nombre."""
-    assert len(DETTE) == 6, (
-        f"Dette « en dur » : {len(DETTE)} entrées, 6 attendues (état gelé du 31/07/2026)."
+    réparer une dette se conclut en corrigeant ce nombre.
+
+    6 -> 10 le 01/08/2026, et pas parce qu'on a écrit du code en dur ce jour-là : le filet lisait
+    les fichiers en « utf-8 » et sautait EN SILENCE les quatre qui portent un BOM, dont admin.py.
+    Quatre dettes cachées sont remontées (plus deux repères classés en exception permanente).
+    Le chiffre d'avant était faux ; celui-ci est mesuré sur tout le backend."""
+    assert len(DETTE) == 10, (
+        f"Dette « en dur » : {len(DETTE)} entrées, 10 attendues (état mesuré du 01/08/2026)."
     )
-    assert len(EXCEPTIONS_PERMANENTES) == 5, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 5 attendues."
+    assert len(EXCEPTIONS_PERMANENTES) == 7, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 7 attendues."
     )

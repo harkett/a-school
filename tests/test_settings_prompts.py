@@ -266,12 +266,18 @@ def test_put_cle_inconnue_refuse_400():
 
 
 def test_delete_remet_vraiment_au_defaut():
+    """Revenir au defaut REECRIT la reference en base — il ne retire pas la ligne.
+
+    Ce test attendait l'inverse (`_row(...) is None`) : il gelait le comportement d'avant,
+    quand `get_prompt` avait encore un repli code. Depuis l'etape 9 lot C, ce repli n'existe
+    plus et `get_prompt` leve un 500 sur ligne absente : supprimer la ligne CASSAIT l'outil
+    au lieu de le reparer. La base est la source unique, donc le defaut s'y ECRIT."""
     _reset_settings()
     _admin().put("/api/admin/prompts", json={"key": "consigne", "text": "PERSO {matiere} {niveau} {consigne}"})
     assert _row("prompt_consigne") is not None
     r = _admin().delete("/api/admin/prompts/consigne")
     assert r.status_code == 200, r.text
-    assert _row("prompt_consigne") is None  # surcharge supprimee = vrai retour au defaut
+    assert _row("prompt_consigne") == PROMPTS["consigne"]["default"]  # la reference est REECRITE
     out = _admin().get("/api/admin/prompts").json()["prompts"]
     cons = next(p for p in out if p["key"] == "consigne")
     assert cons["is_default"] is True
@@ -280,8 +286,24 @@ def test_delete_remet_vraiment_au_defaut():
 
 def test_delete_idempotent():
     _reset_settings()
-    r = _admin().delete("/api/admin/prompts/consigne")  # rien en base -> deja au defaut
+    r = _admin().delete("/api/admin/prompts/consigne")  # rien en base -> la reference y est ecrite
     assert r.status_code == 200, r.text
+    assert _row("prompt_consigne") == PROMPTS["consigne"]["default"]
+    r = _admin().delete("/api/admin/prompts/consigne")  # deuxieme fois : rien ne bouge
+    assert r.status_code == 200, r.text
+    assert _row("prompt_consigne") == PROMPTS["consigne"]["default"]
+
+
+def test_get_prompt_marche_apres_retour_au_defaut():
+    """Le vrai symptome du bug : apres un clic sur « revenir au defaut », l'outil devait
+    encore fonctionner. Il repondait 500, parce que la ligne avait disparu de la base."""
+    from backend.systeme.admin import get_prompt
+    from backend.core.database import SessionLocal
+    _reset_settings()
+    _admin().put("/api/admin/prompts", json={"key": "consigne", "text": "PERSO {matiere} {niveau} {consigne}"})
+    assert _admin().delete("/api/admin/prompts/consigne").status_code == 200
+    with SessionLocal() as db:
+        assert get_prompt(db, "consigne") == PROMPTS["consigne"]["default"]
 
 
 def test_delete_cle_inconnue_400():
