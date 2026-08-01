@@ -145,14 +145,23 @@ identifiant.
 tentative, motif « facture validée ». Relire le référentiel donnerait le nom d'aujourd'hui et
 falsifierait le journal.
 
-### `tests/test_rien_en_dur_dans_le_code.py` — 6 dettes, 5 exceptions permanentes
+### `tests/test_rien_en_dur_dans_le_code.py` — 12 dettes, 5 exceptions permanentes
 
 Une donnée métier écrite dans le code au lieu de vivre en base.
+
+**Le compte est passé de 6 à 12 le 01/08/2026, sans qu'une seule dette nouvelle ait été
+écrite.** Le filet lisait les fichiers en `utf-8` ; quatre fichiers du backend portent un BOM
+(`admin.py`, `comptes.py`, `alerts.py`, `main.py`), `ast.parse` levait, et un `except: continue`
+les sautait **en silence** — le plus gros fichier du projet n'était pas analysé. Le chiffre
+d'avant était faux ; un fichier illisible fait désormais **tomber** le test.
 
 **Dette** — `activites.py:_USER_PARAMS`, `mes_contenus.py:JALON_LABELS`,
 `mes_contenus.py:PHASES_ESQUISSE`, `maintenance.py:CATEGORIES`, les deux tons de rédaction
 (`activites.py:438`), les fournisseurs IA (`generator.py:94`, alors que la table
-`ai_fournisseurs` existe).
+`ai_fournisseurs` existe) ; et les six révélées : `admin.py:SETTING_DEFAULTS` (le repli code du
+projet, alors que la doctrine du même fichier l'interdit), `main.py:_cors_defaut`, les noms de
+bases réelles (`admin.py:539`), les types de feedback (`comptes.py:313`),
+`admin.py:_PARAM_ECRAN_DEDIE_EXACTS` et `_PREFIXES`.
 
 **Exception permanente** — `feedback.py:ALLOWED_TYPES` (types MIME),
 `transcribe.py:_ALLOWED_EXT` et `ocr.py:65` (extensions de fichier),
@@ -162,3 +171,36 @@ migration, déjà gardé par `test_prompts_en_base.py`).
 **Corriger une dette se conclut en baissant le compte dans le test.** Un troisième test dans
 chaque fichier tombe si une entrée réparée traîne encore dans la liste : la dette reste
 comptable.
+
+---
+
+## 6. Le mot de passe admin — le `.env` amorce, il n'ouvre pas pour toujours
+
+Il y a deux mots de passe admin possibles : celui écrit en clair dans `.env`
+(`ADMIN_PASSWORD`) et celui que l'administrateur choisit lui-même dans **Admin → Mon compte**,
+rangé chiffré en base (ligne `admin_password_hash` de la table `settings`).
+
+**La règle : tant qu'aucun mot de passe n'a été choisi, celui du `.env` ouvre ; dès qu'un
+existe en base, LUI SEUL ouvre.**
+
+Ce n'était pas le cas jusqu'au 01/08/2026. `/admin/change-password` appliquait déjà cette
+règle, mais `/admin/login` faisait `password_ok = env_ok or db_ok` : l'ancien mot de passe du
+`.env` continuait d'ouvrir la porte d'entrée après un changement. Le bouton « changer mon mot
+de passe » ne fermait donc rien — et ce mot de passe-là voyage, il est en clair dans chaque
+copie du dossier (`Scripts/je_pars.ps1` emporte le `.env`) et dans chaque sauvegarde.
+
+**Test qui le tient :** `tests/test_admin_mot_de_passe_amorcage_seul.py` (5 tests). Il vérifie
+les deux sens — le `.env` ouvre quand la base est vide, il est refusé quand elle ne l'est pas —
+et que les deux routes disent la même chose.
+
+### Secours — mot de passe admin oublié
+
+Supprimer la ligne remet celui du `.env` en service, immédiatement, sans redémarrage :
+
+```sql
+DELETE FROM settings WHERE key = 'admin_password_hash';
+```
+
+Sur le poste : `docker exec -it a-school-db-1 psql -U postgres -d aschool_dev -c "DELETE FROM
+settings WHERE key = 'admin_password_hash';"`. Le dernier test du fichier vérifie ce chemin —
+ce n'est pas une promesse de documentation, c'est un chemin prouvé.

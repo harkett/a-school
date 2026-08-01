@@ -496,14 +496,21 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
     ip = request.client.host if request.client else None
     pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
     username_ok = bool(expected_user) and secrets.compare_digest(body.username, expected_user)
-    env_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
-    db_ok = False
+    # AMORÇAGE SEUL, et non « les deux ouvrent ». Le mot de passe du .env sert tant qu'aucun
+    # n'a été choisi ; dès qu'un existe en base, lui seul ouvre. C'est déjà la règle appliquée
+    # par /admin/change-password (voir plus bas, `if pwd_setting: ... else: ...`) : la connexion
+    # faisait `env_ok or db_ok`, donc l'ancien mot de passe du .env continuait d'ouvrir APRÈS
+    # un changement — le bouton « changer mon mot de passe » ne fermait rien. Les deux routes
+    # disent maintenant la même chose.
+    # SECOURS en cas d'oubli : supprimer la ligne `admin_password_hash` de la table `settings`
+    # remet le mot de passe du .env en service (procédure dans PROJET.md).
     if pwd_setting:
         try:
-            db_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
+            password_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
         except Exception:
-            pass
-    password_ok = env_ok or db_ok
+            password_ok = False
+    else:
+        password_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
     ok = username_ok and password_ok
     if not ok:
         attempt = FailedLoginAttempt(
