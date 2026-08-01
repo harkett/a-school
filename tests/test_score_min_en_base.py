@@ -34,7 +34,7 @@ def _couple(score_min=None):
     cy = Cycle(nom="Crèche", ordre=1); db.add(cy); db.flush()
     niv = Niveau(cycle_id=cy.id, nom=NIVEAU, ordre=1); db.add(niv); db.flush()
     kw = {} if score_min is None else {"score_min": score_min}
-    db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=COLLECTION,
+    db.add(Referentiel(niveau_id=niv.id, nom_fixe=COLLECTION,
                        collection=COLLECTION, filtres=None, fichier="referentiel.pdf", **kw))
     db.commit()
     db.close()

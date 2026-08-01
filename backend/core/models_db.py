@@ -561,47 +561,37 @@ class Niveau(Base):
 
 
 class Matiere(Base):
+    """Une matière DU référentiel qui la nomme — jamais un catalogue partagé entre diplômes.
+
+    Le BTS CIEL a ses matières, la Terminale a les siennes, avec l'orthographe de LEUR document :
+    deux « Mathématiques » dans deux référentiels sont deux matières distinctes, et elles ne se
+    comparent jamais. D'où l'unicité sur (referentiel_id, nom) — et non sur le nom seul. La
+    disparition du référentiel emporte ses matières (CASCADE) : une matière sans document qui la
+    nomme n'a pas de sens.
+
+    Les paires matière×niveau (table `matiere_niveaux`) n'existent plus : le référentiel connaît
+    déjà son niveau, la paire faisait doublon. Sa `variante` (LV A/B) non plus — un document qui
+    distingue LV1 et LV2 donne désormais deux matières."""
     __tablename__ = "matieres"
+    __table_args__ = (UniqueConstraint("referentiel_id", "nom", name="uq_matieres_referentiel_nom"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
     # 255 : les intitulés officiels dépassent 64 (cas réel : 70 car. dans le référentiel
     # ergothérapie). Cette colonne EST la limite — les gardes la lisent ici (zéro copie).
     nom: Mapped[str] = mapped_column(String(255), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = retirée du programme (historique conservé)
+    # PROPOSÉE par la détection au dépôt du PDF (false) vs RETENUE par l'admin (true). Le prof ne
+    # voit QUE les matières validées : une proposition d'IA n'entre jamais dans ses menus toute
+    # seule. Remplace la table `matieres_candidates`, qui doublait la liste à côté de celle-ci.
+    validee: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0', nullable=False)
     # « Cette matière porte une langue » : le prof choisit sa langue dans son profil, et la
     # génération l'injecte dans le prompt ({langue}). Un INDICATEUR, pas un libellé : jusqu'ici
     # le code comparait le nom à « Langues Vivantes (LV) » — la matière réelle s'appelant
     # « Langue vivante », le test était faux en silence. Renommer la matière ne casse plus rien.
     demande_langue: Mapped[bool] = mapped_column(Boolean, default=False, server_default='0', nullable=False)
-
-
-class MatiereNiveau(Base):
-    """Programme officiel : quelle matière à quel niveau (paire valide)."""
-    __tablename__ = "matiere_niveaux"
-    __table_args__ = (Index("ix_matiere_niveaux_unique", "matiere_id", "niveau_id", "variante", unique=True),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    matiere_id: Mapped[int] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=False, index=True)
-    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, index=True)
-    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)  # false = paire retirée du programme (historique conservé)
-    # '' = pas de variante ; sinon 'A' / 'B'… — même matière déclinée au même niveau (cf. règle
-    # « Matière, variante, spécialité »). NOT NULL default '' : l'unique protège partout sans piège NULL.
-    variante: Mapped[str] = mapped_column(String(32), nullable=False, server_default='', default='')
-
-
-class MatiereCandidate(Base):
-    """Matières candidates d'un couple (cycle+niveau) — proposition à valider par l'admin.
-
-    Liste de noms de matières proposée (aujourd'hui préparée en DEV, cible = app via Groq) et
-    affichée dans la table de l'écran Référentiels : l'admin coche celles à ajouter → crée les
-    paires MatiereNiveau. DONNÉE MÉTIER → elle vit EN BASE (plus de fichier matieres-candidates.json).
-    Une ligne par niveau (le niveau implique son cycle) ; `matieres` = tableau JSON de noms."""
-    __tablename__ = "matieres_candidates"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False, unique=True, index=True)
-    matieres: Mapped[str] = mapped_column(Text, nullable=False, server_default="[]", default="[]")  # JSON array de noms
 
 
 class AiModele(Base):
@@ -645,28 +635,18 @@ class AiFournisseur(Base):
     cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
 
 
-class UserEnseignement(Base):
-    """Ce que CE prof enseigne : un sous-ensemble du programme (paire valide)."""
-    __tablename__ = "user_enseignements"
-
-    # CASCADE : ce que le prof enseigne disparaît avec lui (voir migration e4b8c2d6a1f7).
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    matiere_niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("matiere_niveaux.id"), primary_key=True)
-
-
 class Referentiel(Base):
-    """Référentiel officiel d'un couple → collection ChromaDB + filtres de retrieval.
+    """Référentiel officiel d'un NIVEAU → collection de recherche + filtres de retrieval.
 
     Schéma PostgreSQL : id en IDENTITY, created_at DateTime/func.now().
-    Clé d'identification = le COUPLE (niveau_id, matiere_id), jamais niveau_id seul.
-    matiere_id NULL = le référentiel couvre TOUT le niveau (toutes ses matières)."""
+    Clé d'identification = le NIVEAU, un seul référentiel par niveau (unique sur `niveau_id`).
+    Il POSSÈDE ses matières (`matieres.referentiel_id`) : la colonne `matiere_id` qui pointait
+    en sens inverse a disparu — elle était NULL partout et la boucle n'avait pas de sens."""
     __tablename__ = "referentiels"
-    __table_args__ = (UniqueConstraint("niveau_id", "matiere_id"),)
+    __table_args__ = (UniqueConstraint("niveau_id", name="uq_referentiels_niveau"),)
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
-    matiere_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matieres.id"), nullable=True)
     nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     collection: Mapped[str] = mapped_column(Text, nullable=False)
     filtres: Mapped[str | None] = mapped_column(Text, nullable=True)

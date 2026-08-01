@@ -46,7 +46,7 @@ def _couple_avec_types(nom, ordre, prompts):
         db.add(cy); db.flush()
         niv = Niveau(cycle_id=cy.id, nom=f"BT-Niv{nom}", ordre=ordre)
         db.add(niv); db.flush()
-        ref = Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=f"bt_{nom.lower()}",
+        ref = Referentiel(niveau_id=niv.id, nom_fixe=f"bt_{nom.lower()}",
                           collection=f"bt_{nom.lower()}", filtres=None, fichier="doc.pdf",
                           texte_epure="TEXTE")
         db.add(ref); db.flush()

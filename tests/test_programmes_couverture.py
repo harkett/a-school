@@ -47,7 +47,7 @@ def test_ref_disponible_vrai_seulement_avec_un_chunk():
         n_ok = Niveau(cycle_id=cy.id, nom='CV-Avec', ordre=1); db.add(n_ok); db.flush()
         n_ko = Niveau(cycle_id=cy.id, nom='CV-Sans', ordre=2); db.add(n_ko); db.flush()
         # n_ok : référentiel + 1 chunk → disponible ; n_ko : aucun référentiel.
-        ref = Referentiel(niveau_id=n_ok.id, matiere_id=None, nom_fixe='cv_avec', collection='cv_avec',
+        ref = Referentiel(niveau_id=n_ok.id, nom_fixe='cv_avec', collection='cv_avec',
                           filtres=None, fichier='doc.pdf', texte_epure='TEXTE')
         db.add(ref); db.flush()
         db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab='', page=1,

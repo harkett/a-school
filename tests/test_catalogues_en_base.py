@@ -98,7 +98,7 @@ def test_la_langue_se_reconnait_au_drapeau_et_survit_a_un_renommage():
     s'appelle « Langue vivante » → l'injection de {langue} ne partait jamais. Maintenant le
     drapeau décide, et renommer la matière ne change rien."""
     with dbmod.SessionLocal() as db:
-        mid = matiere_id(db, "Langue vivante")
+        mid = matiere_id(db, "Langue vivante", "3e")
         db.query(Matiere).filter(Matiere.id == mid).update({"demande_langue": True})
         u = User(email="lv@local.test", password_hash="x", is_verified=True,
                  subject_id=mid, niveau_id=niveau_id(db, "3e"), langue_lv="Anglais")
@@ -116,7 +116,7 @@ def test_la_langue_se_reconnait_au_drapeau_et_survit_a_un_renommage():
 def test_une_matiere_ordinaire_ne_demande_pas_de_langue():
     with dbmod.SessionLocal() as db:
         u = User(email="hg@local.test", password_hash="x", is_verified=True,
-                 subject_id=matiere_id(db, "Histoire-Géographie"), niveau_id=niveau_id(db, "3e"))
+                 subject_id=matiere_id(db, "Histoire-Géographie", "3e"), niveau_id=niveau_id(db, "3e"))
         db.add(u)
         db.commit()
         assert matiere_demande_langue(db, u) is False
@@ -126,11 +126,11 @@ def test_le_couple_de_travail_prime_sur_le_profil():
     """Le prof travaille hors de son profil : c'est la matière DE TRAVAIL qui décide, comme
     partout ailleurs dans l'application."""
     with dbmod.SessionLocal() as db:
-        lv = matiere_id(db, "Langue vivante")
+        lv = matiere_id(db, "Langue vivante", "3e")
         db.query(Matiere).filter(Matiere.id == lv).update({"demande_langue": True})
         niv = niveau_id(db, "3e")
         u = User(email="bascule@local.test", password_hash="x", is_verified=True,
-                 subject_id=matiere_id(db, "Français"), niveau_id=niv,
+                 subject_id=matiere_id(db, "Français", "3e"), niveau_id=niv,
                  travail_matiere_id=lv, travail_niveau_id=niv)
         db.add(u)
         db.commit()

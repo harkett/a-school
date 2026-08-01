@@ -142,7 +142,7 @@ def _trous_du_prompt(modele: str | None) -> list[str]:
 
 
 def _referentiel_du_niveau(db: Session, niveau: str) -> int | None:
-    """id du référentiel du couple (niveau entier, `matiere_id` NULL), ou None.
+    """id du référentiel de ce niveau, ou None.
 
     None si niveau vide, aucun référentiel, ou ambiguïté (même nom de niveau dans deux cycles :
     on ne peut pas trancher sans le cycle). Dans tous ces cas on retombe sur le défaut — un GET
@@ -151,7 +151,7 @@ def _referentiel_du_niveau(db: Session, niveau: str) -> int | None:
         return None
     rows = (db.query(Referentiel.id)
               .join(Niveau, Niveau.id == Referentiel.niveau_id)
-              .filter(Niveau.nom == niveau, Referentiel.matiere_id.is_(None))
+              .filter(Niveau.nom == niveau)
               .all())
     if len(rows) != 1:
         if len(rows) > 1:

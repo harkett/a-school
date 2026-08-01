@@ -46,14 +46,23 @@ def _couple(nom, ordre, avec_ref=True):
         niv = Niveau(cycle_id=cy.id, nom=f"PI-Niv{nom}", ordre=ordre)
         db.add(niv); db.flush()
         if avec_ref:
-            db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=f"pi_{nom.lower()}",
+            db.add(Referentiel(niveau_id=niv.id, nom_fixe=f"pi_{nom.lower()}",
                                collection=f"pi_{nom.lower()}", filtres=None, fichier="doc.pdf",
                                texte_epure="TEXTE"))
         t = ActiviteType(label=f"PI-Manuelle-{nom}", ordre=1, actif=True, origine="systeme")
         db.add(t); db.flush()
-        from _profil import user_couple
-        db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
-                    subject=f"PI-Matiere-{nom}", niveau=niv.nom))
+        from _profil import matiere_id, user_couple
+        if avec_ref:
+            db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+                        subject=f"PI-Matiere-{nom}", niveau=niv.nom))
+        else:
+            # Niveau SANS référentiel : il ne peut donc porter aucune matière. Le profil est ici
+            # posé À LA MAIN, incohérent EXPRÈS (matière venue d'un autre niveau) — c'est
+            # précisément l'état contre lequel la garde de l'endpoint existe : rien à quoi
+            # s'ancrer, donc aucune génération et zéro appel au LLM.
+            db.add(User(email="prof.test@aschool.fr", password_hash="x", is_verified=True,
+                        subject_id=matiere_id(db, f"PI-Matiere-{nom}", "PI-NivAilleurs"),
+                        niveau_id=niv.id))
         db.commit()
         return niv.nom, t.id
 

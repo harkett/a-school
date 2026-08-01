@@ -2,20 +2,35 @@
 
 Le profil range matière et niveau UNIQUEMENT par CLÉ (users.subject_id / niveau_id / travail_*_id) :
 le nom vit dans `matieres`/`niveaux` et se relit par get (zéro copie, RÈGLE 4). Deux sens ici :
-nom → id à l'écriture (matiere_id_du_nom / niveau_id_du_nom : un nom → son id SEULEMENT s'il
-correspond à EXACTEMENT un enregistrement, sinon None — on ne devine jamais un id ambigu) ;
-id → nom à la lecture (matiere_nom_de_id / niveau_nom_de_id)."""
+nom → id à l'écriture, id → nom à la lecture (matiere_nom_de_id / niveau_nom_de_id).
+
+UNE MATIÈRE SE RÉSOUT DANS UN RÉFÉRENTIEL, JAMAIS GLOBALEMENT. Depuis que chaque référentiel
+possède ses matières, plusieurs « Mathématiques » coexistent en base — une par diplôme qui en
+nomme une. Chercher par le nom seul ne pouvait donc plus rendre qu'un doublon ambigu, c'est-à-dire
+rien. `matiere_id_du_nom` demande le NIVEAU : il donne le référentiel, le référentiel donne SA
+matière. Le niveau, lui, reste unique par son nom (cf. `niveau_id_du_nom`).
+"""
 from sqlalchemy.orm import Session
 
-from backend.core.models_db import Matiere, Niveau
+from backend.core.models_db import Matiere, Niveau, Referentiel
 
 
-def matiere_id_du_nom(db: Session, nom: str | None) -> int | None:
-    """id de la matière dont le nom == `nom`, si et seulement s'il y en a exactement une ; sinon None."""
-    if not nom:
+def matiere_id_du_nom(db: Session, nom: str | None, niveau_id: int | None) -> int | None:
+    """id de LA matière de ce nom DANS le référentiel de ce niveau, sinon None.
+
+    None si le nom ou le niveau manque, si le niveau n'a pas de référentiel, ou si son
+    référentiel ne nomme pas cette matière. Seules les matières RETENUES par l'admin (`validee`)
+    et actives sont résolues : une proposition de la détection n'entre jamais dans un profil.
+    L'unicité (referentiel_id, nom) garantit qu'il n'y a jamais deux réponses possibles."""
+    if not nom or not niveau_id:
         return None
-    rows = db.query(Matiere.id).filter(Matiere.nom == nom).all()
-    return rows[0][0] if len(rows) == 1 else None
+    return (db.query(Matiere.id)
+              .join(Referentiel, Referentiel.id == Matiere.referentiel_id)
+              .filter(Referentiel.niveau_id == niveau_id,
+                      Matiere.nom == nom,
+                      Matiere.validee.is_(True),
+                      Matiere.actif.is_(True))
+              .scalar())
 
 
 def niveau_id_du_nom(db: Session, nom: str | None) -> int | None:

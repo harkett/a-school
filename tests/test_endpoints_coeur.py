@@ -121,77 +121,74 @@ def test_endpoint_outil_llm_down_500():
 
 
 # ===================== Programmes — lecture référentiel (profil) =====================
-# Ne renvoie que les niveaux UTILISABLES (>= 1 paire active), groupés par cycle.
-# Un cycle sans paire (ex. Supérieur) ne doit PAS apparaître -> coeur du fix P5.11.
+# Ne renvoie que les niveaux UTILISABLES (>= 1 matière au programme), groupés par cycle.
+# Un cycle dont aucun niveau n'a de matière (ex. Supérieur) ne doit PAS apparaître.
 
 def test_programmes_niveaux_utilisables_groupes_par_cycle():
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
     db = dbmod.SessionLocal()
     col = Cycle(nom="Collège", ordre=4); db.add(col)
     sup = Cycle(nom="Supérieur", ordre=6); db.add(sup); db.flush()
     n6 = Niveau(cycle_id=col.id, nom="6e", ordre=9); db.add(n6)
-    nbts = Niveau(cycle_id=sup.id, nom="BTS", ordre=20); db.add(nbts)  # aucune paire -> exclu
-    mat = Matiere(nom="Mathématiques", ordre=2); db.add(mat); db.flush()
-    db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=n6.id))
+    nbts = Niveau(cycle_id=sup.id, nom="BTS", ordre=20); db.add(nbts)  # aucun référentiel -> exclu
+    db.flush()
+    ref6 = Referentiel(niveau_id=n6.id, nom_fixe="p_6e", collection="p_6e"); db.add(ref6); db.flush()
+    db.add(Matiere(referentiel_id=ref6.id, nom="Mathématiques", ordre=2, validee=True))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
     assert any(m["nom"] == "Mathématiques" for m in data["matieres"])
     cycles = {g["cycle"]: [n["nom"] for n in g["niveaux"]] for g in data["niveaux_par_cycle"]}
-    assert cycles.get("Collège") == ["6e"]      # niveau avec paire -> présent
-    assert "Supérieur" not in cycles            # cycle sans paire -> absent (P5.11)
+    assert cycles.get("Collège") == ["6e"]      # niveau avec matière -> présent
+    assert "Supérieur" not in cycles            # aucun référentiel, donc aucune matière -> absent
 
 
 def test_programmes_matieres_par_cycle():
-    # Matières scopées par cycle (menu matière du profil) : paire active + matière active.
-    # BDD de test partagée -> identifiants uniques (mpc-*) pour ne rien collisionner.
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    # Matières scopées par cycle (menu matière du profil) : matière du référentiel d'un niveau du
+    # cycle, RETENUE (validee) et active. BDD partagée -> identifiants uniques (mpc-*).
+    from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
     db = dbmod.SessionLocal()
     cA = Cycle(nom="MPC-Cycle-A", ordre=40); db.add(cA)
     cB = Cycle(nom="MPC-Cycle-B", ordre=41); db.add(cB); db.flush()
     nA = Niveau(cycle_id=cA.id, nom="MPC-nivA", ordre=40); db.add(nA)
     nB = Niveau(cycle_id=cB.id, nom="MPC-nivB", ordre=41); db.add(nB); db.flush()
-    m1 = Matiere(nom="MPC-Mat1", ordre=40); db.add(m1)
-    m2 = Matiere(nom="MPC-Mat2", ordre=41); db.add(m2)
-    inact = Matiere(nom="MPC-Inactive", ordre=99, actif=False); db.add(inact)
+    refA = Referentiel(niveau_id=nA.id, nom_fixe="mpc_a", collection="mpc_a"); db.add(refA)
+    refB = Referentiel(niveau_id=nB.id, nom_fixe="mpc_b", collection="mpc_b"); db.add(refB)
     db.flush()
-    db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nA.id))                  # Mat1 -> Cycle-A
-    db.add(MatiereNiveau(matiere_id=m2.id, niveau_id=nB.id))                  # Mat2 -> Cycle-B
-    db.add(MatiereNiveau(matiere_id=inact.id, niveau_id=nA.id))               # matière INACTIVE -> exclue
-    db.add(MatiereNiveau(matiere_id=m1.id, niveau_id=nB.id, actif=False))     # paire INACTIVE -> Mat1 pas en Cycle-B
+    db.add(Matiere(referentiel_id=refA.id, nom="MPC-Mat1", ordre=40, validee=True))
+    db.add(Matiere(referentiel_id=refB.id, nom="MPC-Mat2", ordre=41, validee=True))
+    # Une matière INACTIVE et une matière PROPOSÉE mais pas encore retenue : ni l'une ni l'autre
+    # n'entre dans les menus du prof.
+    db.add(Matiere(referentiel_id=refA.id, nom="MPC-Inactive", ordre=99, actif=False, validee=True))
+    db.add(Matiere(referentiel_id=refB.id, nom="MPC-Proposee", ordre=98, validee=False))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
     parc = {g["cycle"]: [m["nom"] for m in g["matieres"]] for g in data["matieres_par_cycle"]}
-    assert parc.get("MPC-Cycle-A") == ["MPC-Mat1"]   # la matière inactive est exclue malgré sa paire
-    assert parc.get("MPC-Cycle-B") == ["MPC-Mat2"]   # Mat1 absent : sa seule paire ici est inactive
+    assert parc.get("MPC-Cycle-A") == ["MPC-Mat1"]   # la matière inactive est exclue
+    assert parc.get("MPC-Cycle-B") == ["MPC-Mat2"]   # la simple proposition est exclue
 
 
 def test_programmes_matieres_par_niveau():
-    # Matières scopées par NIVEAU (le programme du diplôme) : paire active + matière active,
-    # dans l'ORDRE D'INSERTION des paires (= ordre du référentiel), PAS l'ordre global matiere.
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    # Matières scopées par NIVEAU (le programme du diplôme) = les matières de SON référentiel,
+    # retenues et actives, dans l'ordre porté par la ligne (`ordre`, l'ordre du document).
+    from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="MPN-Cycle", ordre=50); db.add(cyc); db.flush()
     niv = Niveau(cycle_id=cyc.id, nom="MPN-Diplome", ordre=50); db.add(niv); db.flush()
-    # ordre GLOBAL volontairement DÉCROISSANT (99,98,97) : si l'API ordonnait par matiere.ordre
-    # on aurait C,B,A — le test attend A,B,C, donc il prouve l'ordre d'insertion des paires.
-    mA = Matiere(nom="MPN-A", ordre=99); db.add(mA)
-    mB = Matiere(nom="MPN-B", ordre=98); db.add(mB)
-    mC = Matiere(nom="MPN-C", ordre=97); db.add(mC)
-    mInact = Matiere(nom="MPN-Inact", ordre=96, actif=False); db.add(mInact)
-    mD = Matiere(nom="MPN-D", ordre=95); db.add(mD)
-    db.flush()
-    db.add(MatiereNiveau(matiere_id=mA.id, niveau_id=niv.id))                 # A
-    db.add(MatiereNiveau(matiere_id=mB.id, niveau_id=niv.id))                 # B
-    db.add(MatiereNiveau(matiere_id=mC.id, niveau_id=niv.id))                 # C
-    db.add(MatiereNiveau(matiere_id=mInact.id, niveau_id=niv.id))             # matière INACTIVE -> exclue
-    db.add(MatiereNiveau(matiere_id=mD.id, niveau_id=niv.id, actif=False))    # paire INACTIVE -> exclue
+    ref = Referentiel(niveau_id=niv.id, nom_fixe="mpn", collection="mpn"); db.add(ref); db.flush()
+    # Insertion volontairement DÉSORDONNÉE (C, A, B) : le test attend A, B, C — il prouve donc
+    # que c'est `ordre` qui range, pas l'ordre d'écriture en base.
+    db.add(Matiere(referentiel_id=ref.id, nom="MPN-C", ordre=3, validee=True))
+    db.add(Matiere(referentiel_id=ref.id, nom="MPN-A", ordre=1, validee=True))
+    db.add(Matiere(referentiel_id=ref.id, nom="MPN-B", ordre=2, validee=True))
+    db.add(Matiere(referentiel_id=ref.id, nom="MPN-Inact", ordre=4, actif=False, validee=True))
+    db.add(Matiere(referentiel_id=ref.id, nom="MPN-Proposee", ordre=5, validee=False))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
     parn = {g["niveau"]: [m["nom"] for m in g["matieres"]] for g in data["matieres_par_niveau"]}
-    assert parn.get("MPN-Diplome") == ["MPN-A", "MPN-B", "MPN-C"]  # ordre d'insertion, exclusions OK
+    assert parn.get("MPN-Diplome") == ["MPN-A", "MPN-B", "MPN-C"]  # ordre du document, exclusions OK
 
 
 def test_programmes_niveau_ref_disponible_expose():
@@ -199,40 +196,38 @@ def test_programmes_niveau_ref_disponible_expose():
     # un référentiel réellement ingéré (>= 1 chunk). Référentiel sans chunk => faux ;
     # pas de référentiel du tout => faux.
     from backend.core.models_db import (
-        Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk,
+        Cycle, Niveau, Matiere, Referentiel, ReferentielChunk,
     )
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
     nDispo     = Niveau(cycle_id=cyc.id, nom="NT-Dispo", ordre=60);     db.add(nDispo)
     nSansChunk = Niveau(cycle_id=cyc.id, nom="NT-SansChunk", ordre=61); db.add(nSansChunk)
     nSansRef   = Niveau(cycle_id=cyc.id, nom="NT-SansRef", ordre=62);   db.add(nSansRef)
-    m = Matiere(nom="NT-Mat", ordre=60); db.add(m); db.flush()
-    # une paire par niveau => les trois apparaissent dans l'endpoint
-    db.add_all([
-        MatiereNiveau(matiere_id=m.id, niveau_id=nDispo.id),
-        MatiereNiveau(matiere_id=m.id, niveau_id=nSansChunk.id),
-        MatiereNiveau(matiere_id=m.id, niveau_id=nSansRef.id),
-    ])
-    # référentiel + 1 chunk => nDispo disponible (matiere_id=None = couvre tout le niveau)
-    refDispo = Referentiel(niveau_id=nDispo.id, matiere_id=None,
+    db.flush()
+    # référentiel + 1 chunk => nDispo disponible
+    refDispo = Referentiel(niveau_id=nDispo.id,
                            nom_fixe="NT-ref-dispo", collection="nt_dispo")
-    db.add(refDispo); db.flush()
+    # référentiel SANS chunk => nSansChunk reste indisponible (prouve la règle >= 1 chunk)
+    refSansChunk = Referentiel(niveau_id=nSansChunk.id,
+                               nom_fixe="NT-ref-sanschunk", collection="nt_sanschunk")
+    db.add_all([refDispo, refSansChunk]); db.flush()
+    # une matière par référentiel => les deux niveaux apparaissent dans l'endpoint. NT-SansRef,
+    # lui, n'a pas de référentiel : il ne peut porter aucune matière, donc il n'apparaît pas.
+    db.add(Matiere(referentiel_id=refDispo.id, nom="NT-Mat", ordre=60, validee=True))
+    db.add(Matiere(referentiel_id=refSansChunk.id, nom="NT-Mat", ordre=60, validee=True))
     db.add(ReferentielChunk(referentiel_id=refDispo.id, chunk_index=0, option_ab="A",
                             page=1, texte="x", embedding=[0.0] * 1024, embedding_model="test"))
-    # référentiel SANS chunk => nSansChunk reste indisponible (prouve la règle >= 1 chunk)
-    db.add(Referentiel(niveau_id=nSansChunk.id, matiere_id=None,
-                       nom_fixe="NT-ref-sanschunk", collection="nt_sanschunk"))
     db.commit(); db.close()
 
     data = noauth().get("/api/programmes").json()
     grp = next(g for g in data["niveaux_par_cycle"] if g["cycle"] == "NT-Cycle")
     flags = {n["nom"]: n["refDisponible"] for n in grp["niveaux"]}
-    assert flags == {"NT-Dispo": True, "NT-SansChunk": False, "NT-SansRef": False}
+    assert flags == {"NT-Dispo": True, "NT-SansChunk": False}
 
 
 # ===================== Programmes ADMIN — CRUD (T1) =====================
-# GET arbre complet (inactives incluses) + PATCH bascule paire (cree/desactive,
-# JAMAIS de DELETE) + POST niveau (debloque superieur/creche, avec gardes).
+# GET arbre complet (cycle -> niveau -> matieres de SON referentiel, inactives et non validees
+# incluses) + POST niveau (debloque superieur/creche, avec gardes) + POST/PATCH matiere.
 
 def admin_client():
     from backend.systeme.admin import _make_admin_token
@@ -242,46 +237,37 @@ def admin_client():
 
 
 def test_admin_programmes_arbre_complet_inactives_incluses():
-    from backend.core.models_db import Cycle, Niveau, Matiere
+    """L'arbre admin montre TOUT : le niveau sans référentiel (à remplir), et les matières du
+    référentiel y compris celles que le prof ne voit pas — inactive, ou seulement proposée."""
+    from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="CycleAdminTest", ordre=99); db.add(cyc); db.flush()
-    db.add(Niveau(cycle_id=cyc.id, nom="NivA", ordre=1))
-    db.add(Matiere(nom="MatAdmin", ordre=99, actif=False))  # INACTIVE
+    nivA = Niveau(cycle_id=cyc.id, nom="NivA", ordre=1)
+    nivVide = Niveau(cycle_id=cyc.id, nom="NivVide", ordre=2)
+    db.add_all([nivA, nivVide]); db.flush()
+    ref = Referentiel(niveau_id=nivA.id, nom_fixe="adm_a", collection="adm_a")
+    db.add(ref); db.flush()
+    db.add(Matiere(referentiel_id=ref.id, nom="MatAdmin", ordre=99, actif=False, validee=True))
+    db.add(Matiere(referentiel_id=ref.id, nom="MatProposee", ordre=98, validee=False))
     db.commit(); db.close()
 
     assert noauth().get("/api/admin/programmes").status_code == 401  # garde admin
 
     data = admin_client().get("/api/admin/programmes").json()
-    assert "CycleAdminTest" in {c["nom"] for c in data["cycles"]}
-    assert any(m["nom"] == "MatAdmin" and m["actif"] is False for m in data["matieres"])  # inactive presente
+    cycle = next(c for c in data["cycles"] if c["nom"] == "CycleAdminTest")
+    par_nom = {n["nom"]: n for n in cycle["niveaux"]}
+    mats = {m["nom"]: m for m in par_nom["NivA"]["matieres"]}
+    assert mats["MatAdmin"]["actif"] is False          # inactive : présente quand même
+    assert mats["MatProposee"]["validee"] is False     # proposée : présente quand même
+    # Le niveau sans référentiel apparaît, vide : l'admin voit ce qui reste à déposer.
+    assert par_nom["NivVide"]["referentiel_id"] is None
+    assert par_nom["NivVide"]["matieres"] == []
 
 
-def test_admin_toggle_paire_cree_puis_desactive_sans_delete():
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
-    db = dbmod.SessionLocal()
-    cyc = Cycle(nom="CycPaire", ordre=98); db.add(cyc); db.flush()
-    niv = Niveau(cycle_id=cyc.id, nom="NivP", ordre=1); db.add(niv); db.flush()
-    mat = Matiere(nom="MatPaire", ordre=98); db.add(mat); db.flush()
-    mid, nid = mat.id, niv.id
-    db.commit(); db.close()
-
-    cl = admin_client()
-    assert cl.patch("/api/admin/programmes/paire",
-                    json={"matiere_id": mid, "niveau_id": nid, "actif": True}).status_code == 200
-
-    def _paire():
-        d = dbmod.SessionLocal()
-        p = d.query(MatiereNiveau).filter_by(matiere_id=mid, niveau_id=nid).first()
-        res = (p is not None, p.actif if p else None)
-        d.close()
-        return res
-
-    assert _paire() == (True, True)   # creee active
-    cl.patch("/api/admin/programmes/paire", json={"matiere_id": mid, "niveau_id": nid, "actif": False})
-    assert _paire() == (True, False)  # ligne CONSERVEE, actif False (pas de DELETE)
-
-    assert cl.patch("/api/admin/programmes/paire",
-                    json={"matiere_id": 999999, "niveau_id": nid, "actif": True}).status_code == 404
+# RETIRE (chantier Matiere) : test_admin_toggle_paire_cree_puis_desactive_sans_delete prouvait
+# PATCH /admin/programmes/paire. La paire matiere x niveau n'existe plus, et l'endpoint avec elle.
+# Le geste equivalent — activer/desactiver une matiere du referentiel, JAMAIS de DELETE — est
+# prouve par test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete.
 
 
 def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
@@ -292,8 +278,8 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
     avec TOUT ce qui peut pendre à un compte, le supprime, et vérifie qu'il ne reste rien —
     sauf l'incident technique, qui survit en perdant son lien."""
     from backend.core.models_db import (Activite, ActiviteType, FeatureVote, Feedback,
-                                        FewShotMilestone, Incident, MatiereNiveau, Seance,
-                                        Sequence, ToolUsageLog, User, UserEnseignement)
+                                        FewShotMilestone, Incident, Seance,
+                                        Sequence, ToolUsageLog, User)
     from _profil import user_couple
 
     # `with` obligatoire : une session laissée ouverte bloque le TRUNCATE de fin de test
@@ -308,14 +294,10 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
         if not typ:
             typ = ActiviteType(label="Test suppression", ordre=900)
             db.add(typ); db.flush()
-        paire = MatiereNiveau(matiere_id=u.subject_id, niveau_id=u.niveau_id, actif=True)
-        db.add(paire); db.flush()
-
         # Tout ce qui peut pendre à un compte, dont les 5 liens qui cassaient la suppression.
         db.add(FeatureVote(user_id=uid, feature_key="quiz-interactif"))       # cassait (FK)
         db.add(ToolUsageLog(user_id=uid, tool="consigne", score_label="3"))   # cassait (FK)
         db.add(FewShotMilestone(user_id=uid, activite_type_id=typ.id))        # cassait (FK)
-        db.add(UserEnseignement(user_id=uid, matiere_niveau_id=paire.id))     # cassait (FK)
         db.add(Sequence(user_id=uid, titre="Séq"))
         db.add(Seance(user_id=uid, titre="Séance"))
         db.add(Activite(user_id=uid, activite_type_id=typ.id, activite_label="Act"))
@@ -334,7 +316,6 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
             "votes":         d.query(FeatureVote).filter(FeatureVote.user_id == uid).count(),
             "usages":        d.query(ToolUsageLog).filter(ToolUsageLog.user_id == uid).count(),
             "jalons":        d.query(FewShotMilestone).filter(FewShotMilestone.user_id == uid).count(),
-            "enseignements": d.query(UserEnseignement).filter(UserEnseignement.user_id == uid).count(),
             "activites":     d.query(Activite).filter(Activite.user_id == uid).count(),
             "seances":       d.query(Seance).filter(Seance.user_id == uid).count(),
             "sequences":     d.query(Sequence).filter(Sequence.user_id == uid).count(),
@@ -360,18 +341,16 @@ def test_admin_feedback_statuts_lus_en_base():
 def test_admin_update_user_refuse_un_couple_hors_programme():
     """PATCH /admin/user rangeait matière et niveau par clés SANS vérifier que le couple
     existe au programme : l'admin pouvait poser « Français en Crèche ». Désormais refusé."""
-    from backend.core.models_db import MatiereNiveau, User
-    from _profil import user_couple
+    from backend.core.models_db import User
+    from _profil import referentiel_id, user_couple
 
     with dbmod.SessionLocal() as db:
         u = user_couple(db, email="couple-prog@local.test", password_hash="x",
                         is_verified=True, subject="P900-Maths", niveau="P900-6e")
-        db.add(u); db.flush()
-        # Deuxième niveau, SANS paire avec la matière : c'est le couple interdit.
-        autre = user_couple(db, email="couple-prog2@local.test", password_hash="x",
-                            subject="P900-Maths", niveau="P900-Creche")
-        db.add(autre)
-        db.add(MatiereNiveau(matiere_id=u.subject_id, niveau_id=u.niveau_id, actif=True))
+        db.add(u)
+        # Deuxième niveau avec SON référentiel, qui ne nomme PAS « P900-Maths » : le couple
+        # (P900-Maths, P900-Creche) n'existe donc nulle part — c'est le couple interdit.
+        referentiel_id(db, "P900-Creche")
         db.commit()
 
     cl = admin_client()
@@ -394,19 +373,33 @@ def test_admin_update_user_refuse_un_couple_hors_programme():
 
 
 def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
-    # La maison des matières : POST création directe (garde nom vide / doublon insensible à la
-    # casse) + PATCH actif (bascule, ligne CONSERVEE — jamais de DELETE).
+    # La maison des matières : POST création DANS un référentiel (garde nom vide / référentiel
+    # inconnu / doublon insensible à la casse DANS CE référentiel) + PATCH actif (bascule, ligne
+    # CONSERVEE — jamais de DELETE). Le même nom dans un AUTRE référentiel reste permis.
     from backend.core.models_db import Matiere
+    from _profil import referentiel_id
+    with dbmod.SessionLocal() as db:
+        ref_id = referentiel_id(db, "MM-Niveau")
+        autre_ref_id = referentiel_id(db, "MM-Autre")
+        db.commit()
     cl = admin_client()
 
-    assert noauth().post("/api/admin/matieres", json={"nom": "MatMaison"}).status_code == 401
-    assert cl.post("/api/admin/matieres", json={"nom": "   "}).status_code == 400
+    assert noauth().post("/api/admin/matieres",
+                         json={"referentiel_id": ref_id, "nom": "MatMaison"}).status_code == 401
+    assert cl.post("/api/admin/matieres",
+                   json={"referentiel_id": ref_id, "nom": "   "}).status_code == 400
+    assert cl.post("/api/admin/matieres",
+                   json={"referentiel_id": 999999, "nom": "MatMaison"}).status_code == 404
 
-    r = cl.post("/api/admin/matieres", json={"nom": "MatMaison"})
+    r = cl.post("/api/admin/matieres", json={"referentiel_id": ref_id, "nom": "MatMaison"})
     assert r.status_code == 200
     mid = r.json()["id"]
-    assert r.json()["actif"] is True
-    assert cl.post("/api/admin/matieres", json={"nom": "matmaison"}).status_code == 409  # doublon (casse)
+    assert r.json()["actif"] is True and r.json()["validee"] is True   # saisie admin = retenue
+    assert cl.post("/api/admin/matieres",
+                   json={"referentiel_id": ref_id, "nom": "matmaison"}).status_code == 409  # doublon (casse)
+    # Le même nom dans un autre référentiel : deux matières distinctes, c'est le modèle.
+    assert cl.post("/api/admin/matieres",
+                   json={"referentiel_id": autre_ref_id, "nom": "MatMaison"}).status_code == 200
 
     assert cl.patch("/api/admin/matieres/actif",
                     json={"matiere_id": mid, "actif": False}).status_code == 200
@@ -423,24 +416,36 @@ def test_admin_creer_matiere_encadre_et_toggle_actif_sans_delete():
                     json={"matiere_id": 999999, "actif": True}).status_code == 404
 
 
-# ===================== /api/matieres — matières dérivées de la base =====================
-# GET /api/matieres dérive les matières de la BASE par jointure matieres⋈matiere_niveaux
-# (plus de liste en dur, plus de filtre par catégorie). Données préfixées (BDD partagée)
-# pour ne rien collisionner.
+# ===================== /api/matieres — deux questions, deux réponses =====================
+# Sans argument : les NOMS distincts de toutes les matières au programme (ce que lisent les trois
+# filtres admin, qui trient de l'historique rangé par nom). Avec ?niveau_id= : les matières du
+# RÉFÉRENTIEL de ce niveau, avec leur id. Données préfixées (BDD partagée) pour ne rien collisionner.
 
 def test_matieres_derive_de_la_base():
-    from backend.core.models_db import Cycle, Niveau, Matiere, MatiereNiveau
+    from backend.core.models_db import Cycle, Niveau, Matiere, Referentiel
     db = dbmod.SessionLocal()
     c = Cycle(nom="P510-Cyc", ordre=510); db.add(c); db.flush()
-    n = Niveau(cycle_id=c.id, nom="P510-4e", ordre=510); db.add(n); db.flush()
-    mFr   = Matiere(nom="P510-Français", ordre=5101); db.add(mFr)
-    mMath = Matiere(nom="P510-Maths",    ordre=5102); db.add(mMath)
+    n4 = Niveau(cycle_id=c.id, nom="P510-4e", ordre=510); db.add(n4)
+    n3 = Niveau(cycle_id=c.id, nom="P510-3e", ordre=511); db.add(n3); db.flush()
+    ref4 = Referentiel(niveau_id=n4.id, nom_fixe="p510_4e", collection="p510_4e"); db.add(ref4)
+    ref3 = Referentiel(niveau_id=n3.id, nom_fixe="p510_3e", collection="p510_3e"); db.add(ref3)
     db.flush()
-    db.add(MatiereNiveau(matiere_id=mFr.id,   niveau_id=n.id))
-    db.add(MatiereNiveau(matiere_id=mMath.id, niveau_id=n.id))
-    db.commit(); db.close()
+    db.add(Matiere(referentiel_id=ref4.id, nom="P510-Français", ordre=5101, validee=True))
+    db.add(Matiere(referentiel_id=ref4.id, nom="P510-Maths",    ordre=5102, validee=True))
+    # Même nom dans l'autre référentiel : le catalogue global ne le compte qu'une fois.
+    db.add(Matiere(referentiel_id=ref3.id, nom="P510-Maths",    ordre=5103, validee=True))
+    db.add(Matiere(referentiel_id=ref3.id, nom="P510-Proposee", ordre=5104, validee=False))
+    db.commit()
+    n4_id = n4.id
+    db.close()
 
     noms = [m["nom"] for m in noauth().get("/api/matieres").json()]
-    assert "P510-Français" in noms and "P510-Maths" in noms   # matières actives à paire active
+    assert "P510-Français" in noms and "P510-Maths" in noms   # matières retenues et actives
+    assert noms.count("P510-Maths") == 1                      # un seul nom, malgré deux matières
+    assert "P510-Proposee" not in noms                        # une proposition n'est pas au programme
+
+    du_niveau = noauth().get(f"/api/matieres?niveau_id={n4_id}").json()
+    assert [m["nom"] for m in du_niveau] == ["P510-Français", "P510-Maths"]
+    assert all(m["id"] for m in du_niveau)                    # scopé au référentiel = id sans ambiguïté
 
 

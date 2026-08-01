@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend import auth as auth_lib
 from backend.core.database import get_db
-from backend.core.models_db import CahierProf, Cycle, Matiere, MatiereNiveau, Niveau, Referentiel, User
+from backend.core.models_db import CahierProf, Cycle, Matiere, Niveau, Referentiel, User
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.systeme.admin import _reglage_entier
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
@@ -50,14 +50,11 @@ def matiere_demande_langue(db: Session, user: User) -> bool:
 
 
 def _couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
-    """La paire (matière, niveau) existe-t-elle dans le programme officiel ? Lue sur
-    `matiere_niveaux` (paires actives, matière active) par les NOMS — la même convention
-    que le profil du prof (colonnes texte)."""
-    return db.query(MatiereNiveau.id).join(Matiere, Matiere.id == MatiereNiveau.matiere_id) \
-             .join(Niveau, Niveau.id == MatiereNiveau.niveau_id) \
-             .filter(Matiere.nom == matiere, Niveau.nom == niveau,
-                     MatiereNiveau.actif.is_(True), Matiere.actif.is_(True)) \
-             .first() is not None
+    """Cette matière est-elle au programme de ce niveau ? = le référentiel du niveau la nomme-t-il,
+    retenue par l'admin et active ? C'est EXACTEMENT la question que résout `matiere_id_du_nom` :
+    le contrôle et la résolution disent donc la même chose, à un seul endroit. Un niveau sans
+    référentiel n'a aucune matière — le couple est refusé, et c'est juste."""
+    return matiere_id_du_nom(db, matiere, niveau_id_du_nom(db, niveau)) is not None
 
 
 def _get_email(aschool_access: str | None) -> str:
@@ -101,16 +98,23 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    # Contrôle métier AVANT d'écrire — même règle que « Changer niveau et/ou matière » :
-    # une paire complète doit exister au programme officiel, le front seul ne suffit pas.
-    # Un profil encore incomplet (matière OU niveau vide) reste enregistrable tel quel.
+    # Contrôle métier AVANT d'écrire — même règle que « Changer niveau et/ou matière » : la
+    # matière doit être au programme du niveau, le front seul ne suffit pas. Un profil encore
+    # VIDE (ni matière ni niveau) reste enregistrable tel quel : c'est l'état normal d'un compte
+    # qui vient de naître. Une matière SANS niveau, en revanche, ne se range nulle part — elle
+    # n'existe que dans le référentiel d'un niveau : on le dit, plutôt que de l'effacer en silence.
     matiere, niveau = (body.subject or "").strip(), (body.niveau or "").strip()
+    if matiere and not niveau:
+        raise HTTPException(400, "Choisissez d'abord votre niveau : les matières proposées dépendent de son programme.")
     if matiere and niveau and not _couple_est_au_programme(db, matiere, niveau):
         raise HTTPException(400, "Cette matière n'est pas enseignée à ce niveau dans les programmes. Choisissez une matière proposée pour ce niveau.")
+    niveau_id       = niveau_id_du_nom(db, niveau or None)
     user.prenom     = body.prenom    or None
     user.nom        = body.nom       or None
-    user.subject_id = matiere_id_du_nom(db, matiere or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
-    user.niveau_id  = niveau_id_du_nom(db, niveau or None)
+    # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put). La matière se résout DANS le référentiel
+    # du niveau choisi — le nom seul ne désigne plus rien (plusieurs « Mathématiques » en base).
+    user.subject_id = matiere_id_du_nom(db, matiere or None, niveau_id)
+    user.niveau_id  = niveau_id
     user.langue_lv  = body.langue_lv or None
     user.mobile     = body.mobile    or None
     db.commit()
@@ -145,8 +149,11 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
         user.travail_matiere_id = None   # même couple que le profil → aucun écart à stocker
         user.travail_niveau_id = None
     else:
-        user.travail_matiere_id = matiere_id_du_nom(db, matiere)   # RÈGLE 4 : couple de travail rangé UNIQUEMENT par clé (put)
-        user.travail_niveau_id = niveau_id_du_nom(db, niveau)
+        # RÈGLE 4 : couple de travail rangé UNIQUEMENT par clé (put), matière résolue DANS le
+        # référentiel du niveau visé.
+        travail_niveau_id = niveau_id_du_nom(db, niveau)
+        user.travail_matiere_id = matiere_id_du_nom(db, matiere, travail_niveau_id)
+        user.travail_niveau_id = travail_niveau_id
     db.commit()
     tm, tn, ajuste = couple_de_travail(db, user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
@@ -187,16 +194,14 @@ def delete_couple_travail(aschool_access: str = Cookie(default=None), db: Sessio
 #    donnée : le nom EXACT déposé vit déjà en base (referentiels.fichier) et le PDF sur disque.
 
 def _referentiel_du_profil(db: Session, user: User) -> Referentiel | None:
-    """Le référentiel officiel du NIVEAU de profil du prof (matiere_id NULL), lu PAR SA CLÉ
-    (users.niveau_id → referentiels.niveau_id). La clé lève toute ambiguïté — un niveau = une
-    ligne — donc plus de correspondance par nom ni de garde « len == 1 » (fini le bidouillage).
+    """Le référentiel officiel du NIVEAU de profil du prof, lu PAR SA CLÉ (users.niveau_id →
+    referentiels.niveau_id). La clé lève toute ambiguïté — un niveau = une ligne, l'unicité de
+    la base le garantit — donc plus de correspondance par nom ni de garde « len == 1 ».
     None si le prof n'a pas de niveau (niveau_id NULL) ou si ce niveau n'a pas de référentiel :
     la carte du profil affiche alors « indisponible »."""
     if not user.niveau_id:
         return None
-    return (db.query(Referentiel)
-              .filter(Referentiel.niveau_id == user.niveau_id, Referentiel.matiere_id.is_(None))
-              .first())
+    return db.query(Referentiel).filter(Referentiel.niveau_id == user.niveau_id).first()
 
 
 @router.get("/user/referentiel")

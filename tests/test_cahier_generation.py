@@ -44,7 +44,7 @@ def _preparer(nom, ordre, prompt, cahier_texte=None):
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom=f"CG-{nom}", ordre=ordre); db.add(cy); db.flush()
         niv = Niveau(cycle_id=cy.id, nom=f"CG-Niv{nom}", ordre=ordre); db.add(niv); db.flush()
-        ref = Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe=f"cg_{nom.lower()}",
+        ref = Referentiel(niveau_id=niv.id, nom_fixe=f"cg_{nom.lower()}",
                           collection=f"cg_{nom.lower()}", filtres=None, fichier="doc.pdf",
                           texte_epure="TEXTE")
         db.add(ref); db.flush()

@@ -1,8 +1,10 @@
 """Lecture du référentiel des programmes pour le frontend (matières + niveaux).
 
-Lecture seule. Source de vérité = les tables cycles/niveaux/matieres/matiere_niveaux.
-Ne renvoie que les niveaux UTILISABLES (au moins une paire active) → un cycle sans
-programme (Crèche, Supérieur) ou un niveau sans matière n'apparaît pas.
+Lecture seule. Source de vérité = les tables cycles/niveaux/referentiels/matieres.
+Une matière appartient au RÉFÉRENTIEL d'un niveau : le programme d'un niveau, ce sont les
+matières de son référentiel, retenues par l'admin (`validee`) et actives. Ne renvoie que les
+niveaux UTILISABLES (au moins une matière) → un niveau sans référentiel, ou dont le référentiel
+n'a encore aucune matière validée, n'apparaît pas dans les menus du prof.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -10,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, LangueLv, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk
+from backend.core.models_db import Cycle, LangueLv, Niveau, Matiere, Referentiel, ReferentielChunk
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()
@@ -21,6 +23,18 @@ def _matiere(m: Matiere) -> dict:
     c'est LUI qui décide d'afficher le choix de la langue au profil — plus une comparaison de
     libellé côté écran, qu'un renommage de matière casserait en silence."""
     return {"id": m.id, "nom": m.nom, "demande_langue": m.demande_langue}
+
+
+def _matieres_du_programme(db: Session):
+    """(niveau_id, cycle_id, Matiere) pour TOUTE matière réellement au programme : validée par
+    l'admin, active, portée par le référentiel d'un niveau. LA lecture de base des menus du prof
+    — une seule jointure, faite une fois, réutilisée par les trois vues de /programmes."""
+    return (db.query(Referentiel.niveau_id, Niveau.cycle_id, Matiere)
+              .join(Matiere, Matiere.referentiel_id == Referentiel.id)
+              .join(Niveau, Niveau.id == Referentiel.niveau_id)
+              .filter(Matiere.validee.is_(True), Matiere.actif.is_(True))
+              .order_by(Matiere.ordre, Matiere.id)
+              .all())
 
 
 def _langues_lv(db: Session) -> list[LangueLv]:
@@ -35,27 +49,18 @@ def _langues_lv(db: Session) -> list[LangueLv]:
 
 @router.get("/programmes")
 def get_programmes(db: Session = Depends(get_db)):
-    matiere_objs = (db.query(Matiere).filter(Matiere.actif == True)
-                      .order_by(Matiere.ordre).all())
-    matieres = [_matiere(m) for m in matiere_objs]
-    matiere_ids_actifs = {m.id for m in matiere_objs}
+    programme = _matieres_du_programme(db)
 
-    niveau_ids_utiles = {
-        row[0]
-        for row in db.query(MatiereNiveau.niveau_id)
-                     .filter(MatiereNiveau.actif == True).distinct().all()
-    }
+    # Toutes les matières au programme, tous référentiels confondus. Deux référentiels peuvent
+    # nommer chacun leur « Mathématiques » : ce sont DEUX lignes distinctes, jamais fusionnées.
+    matieres = [_matiere(m) for _, _, m in programme]
 
-    # Matières utilisables PAR CYCLE (paire active + matière active) → menu matière du profil,
-    # scopé sur le cycle du niveau choisi.
-    cycle_matiere_ids = {}
-    for cycle_id, matiere_id in (
-        db.query(Niveau.cycle_id, MatiereNiveau.matiere_id)
-          .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
-          .filter(MatiereNiveau.actif == True).distinct().all()
-    ):
-        if matiere_id in matiere_ids_actifs:
-            cycle_matiere_ids.setdefault(cycle_id, set()).add(matiere_id)
+    niveau_ids_utiles = {niveau_id for niveau_id, _, _ in programme}
+
+    # Matières utilisables PAR CYCLE → menu matière du profil, scopé sur le cycle du niveau choisi.
+    cycle_matieres: dict[int, list] = {}
+    for _, cycle_id, m in programme:
+        cycle_matieres.setdefault(cycle_id, []).append(m)
 
     # refDisponible = DÉRIVÉ, jamais stocké : un niveau a un référentiel réellement ingéré
     # (au moins 1 chunk). Source unique de vérité = les référentiels eux-mêmes.
@@ -78,27 +83,19 @@ def get_programmes(db: Session = Depends(get_db)):
         if nivs:
             niveaux_par_cycle.append({"cycle": c.nom, "niveaux": nivs})
 
-        ids = cycle_matiere_ids.get(c.id, set())
-        mats = [_matiere(m) for m in matiere_objs if m.id in ids]
+        mats = [_matiere(m) for m in cycle_matieres.get(c.id, [])]
         if mats:
             matieres_par_cycle.append({"cycle": c.nom, "matieres": mats})
 
-    # Matières PAR NIVEAU (scope fin = le programme du diplôme/niveau, via les paires).
-    # C'est ce que lit le menu matière du profil : un niveau ne propose QUE ses matières
-    # (deux diplômes d'un même cycle ont des matières différentes — ex. BTS CIEL ≠ Master).
-    # Ordre = ordre d'insertion des paires (= ordre du référentiel au seed), stable car une
-    # paire n'est jamais supprimée (désactivation seulement). Clé = nom du niveau (unique
-    # dans le référentiel actuel).
+    # Matières PAR NIVEAU (scope fin = le programme du diplôme/niveau, via son référentiel).
+    # C'est ce que lit le menu matière du profil : un niveau ne propose QUE les matières de SON
+    # référentiel (deux diplômes d'un même cycle ont des matières différentes — ex. BTS CIEL ≠
+    # Master). Clé = nom du niveau (unique dans le référentiel actuel).
+    noms_niveaux = dict(db.query(Niveau.id, Niveau.nom).all())
     par_niveau = {}
-    for niv_nom, m in (
-        db.query(Niveau.nom, Matiere)
-          .join(MatiereNiveau, MatiereNiveau.niveau_id == Niveau.id)
-          .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
-          .filter(MatiereNiveau.actif == True, Matiere.actif == True)
-          .order_by(MatiereNiveau.id).all()
-    ):
-        par_niveau.setdefault(niv_nom, []).append(_matiere(m))
-    matieres_par_niveau = [{"niveau": k, "matieres": v} for k, v in par_niveau.items()]
+    for niveau_id, _, m in programme:
+        par_niveau.setdefault(noms_niveaux.get(niveau_id, ""), []).append(_matiere(m))
+    matieres_par_niveau = [{"niveau": k, "matieres": v} for k, v in par_niveau.items() if k]
 
     return {
         "matieres": matieres,
@@ -112,22 +109,27 @@ def get_programmes(db: Session = Depends(get_db)):
 
 
 @router.get("/matieres")
-def get_matieres(db: Session = Depends(get_db)):
-    """Toutes les matières actives présentes dans au moins un couple actif, dérivées de la
-    base par jointure matieres⋈matiere_niveaux. Source unique = la base ; remplace les listes
-    en dur du frontend. Public (Signup en a besoin)."""
-    rows = (
-        db.query(Matiere)
-          .join(MatiereNiveau, MatiereNiveau.matiere_id == Matiere.id)
-          .filter(
-              Matiere.actif == True,
-              MatiereNiveau.actif == True,
-          )
-          .order_by(Matiere.ordre)
-          .distinct()
-          .all()
-    )
-    return [{"nom": m.nom} for m in rows]
+def get_matieres(niveau_id: int | None = None, db: Session = Depends(get_db)):
+    """Les matières au programme, LUES EN BASE. Deux questions, deux réponses :
+
+    • `?niveau_id=` → les matières du RÉFÉRENTIEL de ce niveau (le vrai programme d'un diplôme).
+      Chaque ligne porte son `id` : dans ce cadre, une matière est identifiée sans ambiguïté.
+    • sans argument → les NOMS distincts de toutes les matières au programme, tous référentiels
+      confondus. C'est ce que lisent les trois filtres admin (Analytique, Profils, Communication),
+      qui trient de l'historique rangé par NOM. Pas d'`id` ici : deux référentiels peuvent nommer
+      chacun leur « Mathématiques », le nom seul ne désigne donc plus une ligne.
+
+    Dans les deux cas : matières retenues par l'admin (`validee`) et actives, jamais une
+    proposition de la détection. Liste vide si le niveau n'a pas de référentiel."""
+    q = (db.query(Matiere)
+           .join(Referentiel, Referentiel.id == Matiere.referentiel_id)
+           .filter(Matiere.validee.is_(True), Matiere.actif.is_(True)))
+    if niveau_id is not None:
+        rows = q.filter(Referentiel.niveau_id == niveau_id).order_by(Matiere.ordre, Matiere.id).all()
+        return [_matiere(m) for m in rows]
+    noms = [nom for (nom,) in
+            q.with_entities(Matiere.nom).distinct().order_by(Matiere.nom).all()]
+    return [{"nom": n} for n in noms]
 
 
 # RETIRÉ le 31/07 (ménage) : GET /referentiel-disponible répondait « ce couple a-t-il un
@@ -170,55 +172,40 @@ def get_couverture(db: Session = Depends(get_db)):
 
 @router.get("/admin/programmes", dependencies=[Depends(_require_admin)])
 def admin_programmes(db: Session = Depends(get_db)):
-    """Arbre COMPLET pour la grille admin : tous les cycles (même sans niveau),
-    tous les niveaux, toutes les matières (INACTIVES incluses), toutes les paires."""
+    """Arbre COMPLET pour l'écran admin : tous les cycles (même sans niveau), tous leurs niveaux,
+    et pour chaque niveau les matières de SON référentiel — inactives et non validées INCLUSES
+    (l'admin voit ce que le prof ne voit pas encore, c'est là qu'il coche).
+
+    Le catalogue global de matières et la liste des paires ont disparu de cette réponse : ils
+    n'existent plus. Un niveau sans référentiel n'a aucune matière et le dit (`referentiel_id`
+    à null) — l'écran affiche « aucun référentiel déposé » au lieu d'une grille de cases vides."""
+    refs = {r.niveau_id: r.id for r in db.query(Referentiel).all()}
+    mat_par_ref: dict[int, list] = {}
+    for m in db.query(Matiere).order_by(Matiere.ordre, Matiere.id).all():
+        mat_par_ref.setdefault(m.referentiel_id, []).append(m)
+
     cycles = []
     for c in db.query(Cycle).order_by(Cycle.ordre).all():
-        niveaux = [
-            {"id": n.id, "nom": n.nom, "ordre": n.ordre}
-            for n in db.query(Niveau).filter(Niveau.cycle_id == c.id)
-                       .order_by(Niveau.ordre).all()
-        ]
+        niveaux = []
+        for n in db.query(Niveau).filter(Niveau.cycle_id == c.id).order_by(Niveau.ordre).all():
+            ref_id = refs.get(n.id)
+            niveaux.append({
+                "id": n.id, "nom": n.nom, "ordre": n.ordre,
+                "referentiel_id": ref_id,
+                "matieres": [
+                    {"id": m.id, "nom": m.nom, "ordre": m.ordre,
+                     "actif": m.actif, "validee": m.validee, "demande_langue": m.demande_langue}
+                    for m in mat_par_ref.get(ref_id, [])
+                ],
+            })
         cycles.append({"id": c.id, "nom": c.nom, "ordre": c.ordre, "niveaux": niveaux})
-
-    matieres = [
-        {"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif}
-        for m in db.query(Matiere).order_by(Matiere.ordre).all()
-    ]
-    paires = [
-        {"matiere_id": p.matiere_id, "niveau_id": p.niveau_id, "actif": p.actif}
-        for p in db.query(MatiereNiveau).all()
-    ]
-    return {"cycles": cycles, "matieres": matieres, "paires": paires}
+    return {"cycles": cycles}
 
 
-class PaireUpdate(BaseModel):
-    matiere_id: int
-    niveau_id: int
-    actif: bool
-
-
-@router.patch("/admin/programmes/paire", dependencies=[Depends(_require_admin)])
-def admin_toggle_paire(body: PaireUpdate, db: Session = Depends(get_db)):
-    """Bascule une paire matière×niveau : crée si absente, sinon met à jour `actif`.
-    JAMAIS de DELETE — une paire désactivée reste en base (historique préservé)."""
-    if not db.get(Matiere, body.matiere_id):
-        raise HTTPException(404, "Matière inconnue.")
-    if not db.get(Niveau, body.niveau_id):
-        raise HTTPException(404, "Niveau inconnu.")
-
-    paire = db.query(MatiereNiveau).filter(
-        MatiereNiveau.matiere_id == body.matiere_id,
-        MatiereNiveau.niveau_id == body.niveau_id,
-    ).first()
-    if paire:
-        paire.actif = body.actif
-    else:
-        db.add(MatiereNiveau(
-            matiere_id=body.matiere_id, niveau_id=body.niveau_id, actif=body.actif,
-        ))
-    db.commit()
-    return {"matiere_id": body.matiere_id, "niveau_id": body.niveau_id, "actif": body.actif}
+# RETIRÉ (chantier Matière) : PATCH /admin/programmes/paire basculait une paire matière×niveau.
+# La paire n'existe plus — une matière appartient à un référentiel, donc à un niveau, et rien
+# d'autre ne les relie. Le geste équivalent est « activer/désactiver une matière du référentiel » :
+# PATCH /admin/matieres/actif, juste en dessous, qui existait déjà.
 
 
 # ── Création de cycle / niveau — la SEULE place où l'on crée ces entrées (boutons
@@ -266,33 +253,42 @@ def creer_niveau(body: CreerNiveauBody, db: Session = Depends(get_db)):
     return {"id": n.id, "nom": n.nom, "cycle_id": n.cycle_id}
 
 
-# ── La maison des matières : création directe + activer/désactiver. Jusqu'ici une matière
-# ne naissait qu'au dépôt de référentiel (get-or-create de referentiels_admin) et, une fois
-# inactive, plus personne ne pouvait la réactiver nulle part. Même moule que cycles/niveaux :
-# Create encadré, bascule `actif`, JAMAIS de DELETE (l'historique et les paires restent).
+# ── La maison des matières : créer DANS un référentiel + activer/désactiver. Une matière naît
+# soit ici (l'admin l'ajoute à la main au référentiel), soit à la détection du dépôt (proposée,
+# `validee=false`). Create encadré, bascule `actif`, JAMAIS de DELETE (l'historique reste).
 
 class CreerMatiereBody(BaseModel):
+    referentiel_id: int
     nom: str
 
 
 @router.post("/admin/matieres", dependencies=[Depends(_require_admin)])
 def creer_matiere(body: CreerMatiereBody, db: Session = Depends(get_db)):
-    """Crée une matière (Create encadré : nom non vide, borné par la colonne, unique insensible
-    à la casse). `ordre` = max+1, active d'emblée. Une matière déjà en base mais inactive ne se
-    recrée pas : on la réactive par PATCH /admin/matieres/actif."""
+    """Crée une matière DANS un référentiel (Create encadré : référentiel existant, nom non vide,
+    borné par la colonne, unique DANS CE référentiel, insensible à la casse). `ordre` = max+1 du
+    référentiel, active et VALIDÉE d'emblée — l'admin qui la saisit la retient par ce geste même.
+    Une matière déjà là mais inactive ne se recrée pas : on la réactive par PATCH
+    /admin/matieres/actif. Le même nom dans un AUTRE référentiel est normal, et accepté."""
     nom = (body.nom or "").strip()
     if not nom:
         raise HTTPException(400, "Le nom de la matière est requis.")
+    ref = db.get(Referentiel, body.referentiel_id)
+    if not ref:
+        raise HTTPException(404, "Référentiel inconnu : déposez d'abord son document.")
     max_nom = Matiere.__table__.c.nom.type.length
     if len(nom) > max_nom:
         raise HTTPException(422, f"Le nom de matière est trop long ({len(nom)} caractères, "
                                  f"maximum {max_nom}). Raccourcissez-le.")
-    if db.query(Matiere).filter(func.lower(Matiere.nom) == nom.lower()).first():
-        raise HTTPException(409, f"La matière « {nom} » existe déjà.")
-    maxo = db.query(func.max(Matiere.ordre)).scalar()
-    m = Matiere(nom=nom, ordre=(maxo or 0) + 1, actif=True)
+    if (db.query(Matiere)
+          .filter(Matiere.referentiel_id == ref.id, func.lower(Matiere.nom) == nom.lower())
+          .first()):
+        raise HTTPException(409, f"La matière « {nom} » existe déjà dans ce référentiel.")
+    maxo = (db.query(func.max(Matiere.ordre))
+              .filter(Matiere.referentiel_id == ref.id).scalar())
+    m = Matiere(referentiel_id=ref.id, nom=nom, ordre=(maxo or 0) + 1, actif=True, validee=True)
     db.add(m); db.commit(); db.refresh(m)
-    return {"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif}
+    return {"id": m.id, "nom": m.nom, "ordre": m.ordre, "actif": m.actif, "validee": m.validee,
+            "referentiel_id": m.referentiel_id}
 
 
 class MatiereActifBody(BaseModel):
@@ -302,9 +298,9 @@ class MatiereActifBody(BaseModel):
 
 @router.patch("/admin/matieres/actif", dependencies=[Depends(_require_admin)])
 def admin_toggle_matiere(body: MatiereActifBody, db: Session = Depends(get_db)):
-    """Active/désactive une matière — JAMAIS de DELETE. Désactivée : elle disparaît des menus
-    prof (les GET publics filtrent sur `actif`) mais garde ses paires et son historique ;
-    la réactiver la remet telle quelle."""
+    """Active/désactive une matière de son référentiel — JAMAIS de DELETE. Désactivée : elle
+    disparaît des menus prof (les GET publics filtrent sur `actif`) mais reste sur son
+    référentiel avec son historique ; la réactiver la remet telle quelle."""
     m = db.get(Matiere, body.matiere_id)
     if not m:
         raise HTTPException(404, "Matière inconnue.")

@@ -14,7 +14,7 @@ from backend.securite.audit import log_admin_action
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, MatiereNiveau, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 
 router = APIRouter()
@@ -809,25 +809,29 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
-    subject_id = matiere_id_du_nom(db, body.subject or None)   # RÈGLE 4 : matière rangée UNIQUEMENT par clé (put)
-    niveau_id  = niveau_id_du_nom(db, body.niveau or None)
+    # RÈGLE 4 : couple rangé UNIQUEMENT par clé (put). Le NIVEAU d'abord : c'est lui qui donne le
+    # référentiel, et le référentiel qui donne SA matière — le nom d'une matière ne désigne rien
+    # tout seul depuis que chaque diplôme nomme les siennes.
+    niveau_id   = niveau_id_du_nom(db, body.niveau or None)
+    subject_nom = (body.subject or "").strip()
+    subject_id  = matiere_id_du_nom(db, subject_nom or None, niveau_id)
 
-    # Le couple doit être AU PROGRAMME (paire active en base). Sans ce contrôle, l'admin
-    # pouvait ranger un prof sur « Français en Crèche » : un couple qui n'existe nulle part,
-    # que les écrans du prof ne savent pas servir. Un profil incomplet (un seul des deux, ou
-    # aucun) reste permis — c'est l'état normal d'un compte qui vient de naître.
-    if subject_id and niveau_id:
-        paire = (db.query(MatiereNiveau.id)
-                   .filter(MatiereNiveau.matiere_id == subject_id,
-                           MatiereNiveau.niveau_id == niveau_id,
-                           MatiereNiveau.actif == True)  # noqa: E712
-                   .first())
-        if not paire:
-            raise HTTPException(
-                400,
-                f"« {body.subject} » n'est pas au programme de « {body.niveau} ». "
-                "Cochez d'abord ce couple dans Programmes & contenu, ou choisissez-en un autre."
-            )
+    # Le couple doit être AU PROGRAMME. Sans ce contrôle, l'admin pouvait ranger un prof sur
+    # « Français en Crèche » : un couple qui n'existe nulle part, que les écrans du prof ne
+    # savent pas servir. Un profil incomplet (aucun des deux) reste permis — c'est l'état normal
+    # d'un compte qui vient de naître.
+    if subject_nom and not niveau_id:
+        raise HTTPException(
+            400,
+            "Choisissez d'abord le niveau : une matière appartient au programme d'un niveau."
+        )
+    if subject_nom and not subject_id:
+        raise HTTPException(
+            400,
+            f"« {body.subject} » n'est pas au programme de « {body.niveau} ». "
+            "Ajoutez-la au référentiel de ce niveau dans Programmes & contenu, "
+            "ou choisissez-en une autre."
+        )
 
     user.prenom     = body.prenom or None
     user.nom        = body.nom or None

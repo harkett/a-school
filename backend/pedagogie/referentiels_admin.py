@@ -27,7 +27,7 @@ from backend.core.database import get_db, SessionLocal
 # Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, MatiereNiveau, MatiereCandidate, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
 from backend.systeme.admin import _require_admin, get_settings_dict, SETTING_DEFAULTS
 
 router = APIRouter()
@@ -44,32 +44,27 @@ APERCU_LIGNES = 25                 # lignes de texte montrées à l'admin pour l
 # (L'identifiant interne `nom_fixe` est la version minuscule de `_dossier_cle`.)
 
 
-def _lire_candidates(db: Session, niveau_id: int) -> list[str]:
-    """Liste des matières candidates du couple, lue EN BASE (table `matieres_candidates`,
-    une ligne par niveau). L'app ne calcule JAMAIS cette liste : elle la lit. [] si aucune
-    ligne pour ce niveau (ou contenu illisible). Plus de fichier matieres-candidates.json."""
-    row = (db.query(MatiereCandidate)
-             .filter(MatiereCandidate.niveau_id == niveau_id).first())
-    if not row:
-        return []
-    try:
-        data = json.loads(row.matieres)
-    except Exception:
-        return []
-    return [str(m).strip() for m in (data or []) if str(m).strip()]
+def _ecrire_matieres_proposees(db: Session, referentiel_id: int, noms: list[str]) -> None:
+    """Range les matières LUES par la détection dans le référentiel lui-même (`matieres`,
+    `validee=false`) — l'admin cochera celles qu'il retient.
 
-
-def _ecrire_candidates(db: Session, niveau_id: int, noms: list[str]) -> None:
-    """PENDANT écriture de `_lire_candidates` : ÉCRIT les matières candidates d'un niveau EN BASE
-    (table `matieres_candidates`, une ligne par niveau — `niveau_id` unique). get-or-create sur le
-    niveau, `matieres` = tableau JSON de noms. Le nouveau PDF ÉCRASE la proposition précédente. La
-    donnée vit à un seul endroit : get pour lire, put pour écrire, zéro copie."""
-    charge = json.dumps(noms, ensure_ascii=False)
-    row = db.query(MatiereCandidate).filter(MatiereCandidate.niveau_id == niveau_id).first()
-    if row:
-        row.matieres = charge
-    else:
-        db.add(MatiereCandidate(niveau_id=niveau_id, matieres=charge))
+    Plus de table `matieres_candidates` à côté : la proposition et la matière retenue sont la
+    MÊME ligne, cocher ne fait que basculer `validee`. Rien n'est écrasé ni supprimé : une
+    matière déjà là (retenue ou non) est laissée telle quelle, seules les vraiment nouvelles
+    sont ajoutées. Anti-doublon par nom, insensible à la casse, DANS ce référentiel."""
+    deja = {nom.lower(): True for (nom,) in
+            db.query(Matiere.nom).filter(Matiere.referentiel_id == referentiel_id).all()}
+    maxo = (db.query(func.max(Matiere.ordre))
+              .filter(Matiere.referentiel_id == referentiel_id).scalar()) or 0
+    max_nom = Matiere.__table__.c.nom.type.length
+    for nom in noms:
+        nom = (nom or "").strip()
+        if not nom or len(nom) > max_nom or nom.lower() in deja:
+            continue
+        deja[nom.lower()] = True
+        maxo += 1
+        db.add(Matiere(referentiel_id=referentiel_id, nom=nom, ordre=maxo,
+                       actif=True, validee=False))
     db.commit()
 
 
@@ -224,20 +219,18 @@ def lire_contenu(db: Session = Depends(get_db)):
     cycles = db.query(Cycle).order_by(Cycle.ordre, Cycle.id).all()
     niveaux = db.query(Niveau).order_by(Niveau.ordre, Niveau.id).all()
 
-    # Référentiel du couple (dépôt cycle → niveau : matiere_id NULL = tout le niveau).
-    refs = {r.niveau_id: r for r in db.query(Referentiel).filter(Referentiel.matiere_id.is_(None)).all()}
+    # Référentiel du niveau (un seul par niveau, l'unicité de la base le garantit).
+    refs = {r.niveau_id: r for r in db.query(Referentiel).all()}
 
     # Nombre d'unités (chunks) par référentiel — comptage à la volée, rien de stocké.
     nb_unites = dict(db.query(ReferentielChunk.referentiel_id, func.count())
                        .group_by(ReferentielChunk.referentiel_id).all())
 
-    # Matières du programme par niveau (paires actives), dans l'ordre des matières.
-    mat_par_niveau: dict[int, list] = {}
-    for mn, m in (db.query(MatiereNiveau, Matiere)
-                    .join(Matiere, Matiere.id == MatiereNiveau.matiere_id)
-                    .filter(MatiereNiveau.actif == True)  # noqa: E712
-                    .order_by(Matiere.ordre, Matiere.id, MatiereNiveau.variante).all()):
-        mat_par_niveau.setdefault(mn.niveau_id, []).append((mn, m))
+    # Matières du programme par RÉFÉRENTIEL (actives), dans leur ordre.
+    mat_par_ref: dict[int, list] = {}
+    for m in (db.query(Matiere).filter(Matiere.actif == True)  # noqa: E712
+                .order_by(Matiere.ordre, Matiere.id).all()):
+        mat_par_ref.setdefault(m.referentiel_id, []).append(m)
 
     # Types d'activité liés par référentiel, puis précisions par lien (couple × type).
     liens_par_ref: dict[int, list] = {}
@@ -266,8 +259,8 @@ def lire_contenu(db: Session = Depends(get_db)):
                     "decoupe_valide": bool(ref.decoupe_valide),
                     "nb_unites": nb_unites.get(ref.id, 0),
                 },
-                "matieres": [{"id": m.id, "nom": m.nom, "variante": mn.variante}
-                             for mn, m in mat_par_niveau.get(n.id, [])],
+                "matieres": [{"id": m.id, "nom": m.nom, "validee": m.validee}
+                             for m in (mat_par_ref.get(ref.id, []) if ref else [])],
                 "types": [] if ref is None else [
                     {"id": t.id, "label": t.label, "source": lien.source, "origine": t.origine,
                      "precisions": precs_par_lien.get(lien.id, [])}
@@ -387,8 +380,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         # l'écran perdait patience à 45 s et l'admin recliquait — le reclic recevait un mensonge
         # (« aperçu expiré ? » alors que rien n'expire). Si le référentiel du couple EXISTE, la
         # seule réponse vraie est : déjà validé → succès, l'écran se resynchronise sur la base.
-        deja = db.query(Referentiel).filter(Referentiel.niveau_id == body.niveau_id,
-                                            Referentiel.matiere_id.is_(None)).first()
+        deja = db.query(Referentiel).filter(Referentiel.niveau_id == body.niveau_id).first()
         if deja is not None:
             cycle_deja = db.get(Cycle, body.cycle_id)
             niveau_deja = db.get(Niveau, body.niveau_id)
@@ -427,10 +419,9 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         raise HTTPException(404, "Niveau inconnu pour ce cycle.")
     niveau_nom = niveau.nom
 
-    # Un référentiel par niveau (matiere_id NULL = tout le niveau). S'il existe déjà pour ce couple
+    # Un référentiel par niveau (l'unicité de la base le garantit). S'il existe déjà pour ce couple
     # → MISE À JOUR (le nouveau PDF remplace l'ancien, on refait texte/prompt/découpe). Sinon → création.
-    existing = db.query(Referentiel).filter(Referentiel.niveau_id == niveau.id,
-                                            Referentiel.matiere_id.is_(None)).first()
+    existing = db.query(Referentiel).filter(Referentiel.niveau_id == niveau.id).first()
     nom_fixe = _dossier_cle(niveau_nom).lower()
     # Contrôle d'unicité du nom_fixe seulement pour une CRÉATION (en MAJ, c'est le même couple).
     if existing is None and db.query(Referentiel).filter(Referentiel.nom_fixe == nom_fixe).first():
@@ -486,15 +477,17 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         existing.verif_couple = verif_couple_json
         existing.texte_epure = texte_epure   # le NOUVEAU PDF impose SON texte de travail
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
-        # Candidates issues de l'ANCIEN PDF : effacées ici (elles seront refaites par le nouveau juste
-        # après). Ainsi, si la détection échoue, on reste sur une proposition VIDE, jamais périmée.
-        # Les matières VALIDÉES (paires matière×niveau) ne sont PAS touchées : c'est le travail de l'admin.
-        db.query(MatiereCandidate).filter(MatiereCandidate.niveau_id == niveau.id).delete()
+        # Matières PROPOSÉES par l'ANCIEN PDF et jamais retenues : effacées ici (le nouveau document
+        # refera sa propre proposition juste après). Si la détection échoue, on reste sur une liste
+        # sans proposition périmée. Les matières RETENUES par l'admin (`validee`) ne sont PAS
+        # touchées : c'est son travail, et des profs y sont peut-être déjà rattachés.
+        db.query(Matiere).filter(Matiere.referentiel_id == existing.id,
+                                 Matiere.validee.is_(False)).delete()
         db.commit()
         ref = existing
     else:
         ref = Referentiel(
-            niveau_id=niveau.id, matiere_id=None,
+            niveau_id=niveau.id,
             nom_fixe=nom_fixe, collection=nom_fixe, filtres=None,
             fichier=fichier_origine,
             source=(body.source.strip() if body.source else None),
@@ -506,15 +499,14 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         db.add(ref)
         db.commit()
 
-    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne crée jamais une matière
-    # validée (paire matière×niveau, travail de l'admin) : elle remplit seulement `matieres_candidates`
-    # — les propositions que l'admin cochera. Le nouveau PDF ÉCRASE les anciennes candidates (déjà
-    # effacées ci-dessus en mise à jour). Best-effort : une panne IA ne casse pas la validation du
-    # référentiel (les candidates ne sont qu'une aide au remplissage, jamais une donnée figée).
+    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne retient jamais une
+    # matière d'office : elle les écrit sur le référentiel avec `validee=false` — l'admin coche
+    # ce qu'il garde. Best-effort : une panne IA ne casse pas la validation du référentiel (une
+    # proposition n'est qu'une aide au remplissage, jamais une donnée figée).
     try:
         from backend.rag.analyse_amont import detecter_matieres
         if texte_epure.strip():                     # le texte de travail qui vient d'être figé (get)
-            _ecrire_candidates(db, niveau.id, detecter_matieres(texte_epure, db=db))
+            _ecrire_matieres_proposees(db, ref.id, detecter_matieres(texte_epure, db=db))
     except Exception:
         logger.exception("valider : détection des matières échouée (%s / %s)", cycle.nom, niveau_nom)
 
@@ -536,37 +528,35 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
 def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     """À la sélection d'un couple (cycle + niveau) sur l'écran admin : dire si un
     référentiel est DÉJÀ enregistré (« déjà traité »), avec son VRAI nom d'origine
-    (colonne `fichier`) + la source, et la liste des matières déjà reliées à ce niveau.
+    (colonne `fichier`) + la source, et les matières que ce référentiel porte.
 
     Lecture seule (aucune écriture). Sert à l'écran à afficher l'état « déjà téléchargé,
-    déjà traité » + les matières existantes, et à griser la zone de dépôt. Le couple est
-    INDÉPENDANT : chaque niveau a sa propre ligne `referentiels` et ses propres paires.
+    déjà traité » + les matières, et à griser la zone de dépôt. Chaque niveau a sa propre
+    ligne `referentiels`, qui possède ses propres matières.
+
+    `matieres` = celles que l'admin a RETENUES (validee, actives) ; `candidates` = les noms de
+    celles que la détection PROPOSE et qu'il n'a pas encore cochées. Deux lectures de la MÊME
+    table, distinguées par `validee` — la table `matieres_candidates` n'existe plus.
     """
     niveau_nom = (niveau or "").strip()
     niv = (db.query(Niveau)
              .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
     if not niv:
-        # Pas de niveau en base → pas de candidates (elles sont clés par niveau_id).
         return {"existe_referentiel": False, "referentiel": None, "matieres": [], "candidates": [],
                 "prompt_decoupe_valide": False, "decoupe_valide": False}
-    candidates = _lire_candidates(db, niv.id)
 
-    # Référentiel du niveau entier (matiere_id NULL) — même clé qu'à la validation.
-    ref = (db.query(Referentiel)
-             .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None))
-             .first())
+    # Référentiel du niveau — même clé qu'à la validation.
+    ref = db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first()
 
-    # Matières déjà reliées à ce niveau (paires actives + matière active).
-    matieres = [
-        {"id": mid, "nom": mnom}
-        for mid, mnom in (
-            db.query(Matiere.id, Matiere.nom)
-              .join(MatiereNiveau, MatiereNiveau.matiere_id == Matiere.id)
-              .filter(MatiereNiveau.niveau_id == niv.id,
-                      MatiereNiveau.actif == True, Matiere.actif == True)
-              .order_by(Matiere.ordre).all()
-        )
-    ]
+    matieres, candidates = [], []
+    if ref is not None:
+        for m in (db.query(Matiere)
+                    .filter(Matiere.referentiel_id == ref.id, Matiere.actif == True)  # noqa: E712
+                    .order_by(Matiere.ordre, Matiere.id).all()):
+            if m.validee:
+                matieres.append({"id": m.id, "nom": m.nom})
+            else:
+                candidates.append(m.nom)
 
     return {
         "existe_referentiel": ref is not None,
@@ -602,8 +592,8 @@ def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
 # ── Résolution du référentiel d'un couple (cycle + niveau) — porteur EN BASE des données du couple ──
 
 def _ref_du_couple(db: Session, cycle_id: int, niveau: str) -> Referentiel | None:
-    """Résout la ligne `referentiels` (matiere_id NULL) du COUPLE cycle+niveau — le porteur EN BASE
-    des données du couple (prompt de découpe, PDF…). Lève 404 si le cycle est inconnu, 422 si le
+    """Résout la ligne `referentiels` du COUPLE cycle+niveau — le porteur EN BASE des données du
+    couple (prompt de découpe, PDF, matières…). Lève 404 si le cycle est inconnu, 422 si le
     niveau manque. Renvoie None si le niveau ou le référentiel du couple n'existe pas encore."""
     cycle = db.get(Cycle, cycle_id)
     if not cycle:
@@ -615,8 +605,7 @@ def _ref_du_couple(db: Session, cycle_id: int, niveau: str) -> Referentiel | Non
              .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == cycle_id).first())
     if not niv:
         return None
-    return (db.query(Referentiel)
-              .filter(Referentiel.niveau_id == niv.id, Referentiel.matiere_id.is_(None)).first())
+    return db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first()
 
 
 class RegleStatutBody(BaseModel):
@@ -965,7 +954,7 @@ def ecrire_meta_prompt(body: MetaPromptBody, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-# ── Enregistrement des matières d'un couple : get-or-create + paire (idempotent) ──
+# ── L'admin RETIENT les matières d'un référentiel : cocher = `validee=true` (idempotent) ──
 
 class EnregistrerMatieresBody(BaseModel):
     cycle_id: int
@@ -975,15 +964,14 @@ class EnregistrerMatieresBody(BaseModel):
 
 @router.post("/admin/referentiels/matieres", dependencies=[Depends(_require_admin)])
 def enregistrer_matieres(body: EnregistrerMatieresBody, db: Session = Depends(get_db)):
-    """Enregistre en base les matières d'un couple (cycle + niveau) : pour chaque nom, on
-    RÉUTILISE la matière existante (get-or-create par nom, insensible à la casse — jamais de
-    doublon) et on crée/réactive la paire matière×niveau. Idempotent : relancer ne crée rien
-    en double. Renvoie un bilan (ajoutées / déjà présentes). Ne supprime JAMAIS rien."""
-    niveau_nom = (body.niveau or "").strip()
-    niv = (db.query(Niveau)
-             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+    """L'admin RETIENT des matières pour le référentiel de ce couple. Pour chaque nom : la matière
+    du référentiel qui le porte est VALIDÉE (et réactivée si elle était retirée) ; un nom que le
+    référentiel ne porte pas encore est créé, validé d'emblée — c'est une saisie de l'admin, donc
+    un choix. Le même nom dans un AUTRE référentiel n'est jamais réutilisé : chaque référentiel a
+    les siennes. Idempotent : relancer ne crée rien en double. Ne supprime JAMAIS rien."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord son document.")
 
     # Dédoublonnage des noms reçus (insensible à la casse), 1er libellé vu conservé.
     # Garde de longueur AVANT toute écriture : la limite est LUE sur la colonne (zéro copie),
@@ -999,24 +987,25 @@ def enregistrer_matieres(body: EnregistrerMatieresBody, db: Session = Depends(ge
         if nom and nom.lower() not in vus:
             vus.add(nom.lower()); noms.append(nom)
 
+    # Les matières DE CE RÉFÉRENTIEL, indexées par nom en minuscules (une seule lecture).
+    du_ref = {m.nom.lower(): m for m in
+              db.query(Matiere).filter(Matiere.referentiel_id == ref.id).all()}
+    maxo = (db.query(func.max(Matiere.ordre))
+              .filter(Matiere.referentiel_id == ref.id).scalar()) or 0
+
     ajoutees, deja = [], []
     for nom in noms:
-        mat = db.query(Matiere).filter(func.lower(Matiere.nom) == nom.lower()).first()
-        if not mat:
-            maxo = db.query(func.max(Matiere.ordre)).scalar()
-            mat = Matiere(nom=nom, ordre=(maxo or 0) + 1, actif=True)
-            db.add(mat); db.flush()
-        paire = (db.query(MatiereNiveau)
-                   .filter(MatiereNiveau.matiere_id == mat.id, MatiereNiveau.niveau_id == niv.id)
-                   .first())
-        if paire and paire.actif:
+        mat = du_ref.get(nom.lower())
+        if mat is not None and mat.validee and mat.actif:
             deja.append(nom)
-        elif paire:
-            paire.actif = True
-            ajoutees.append(nom)
+            continue
+        if mat is not None:
+            mat.validee = True
+            mat.actif = True
         else:
-            db.add(MatiereNiveau(matiere_id=mat.id, niveau_id=niv.id, actif=True))
-            ajoutees.append(nom)
+            maxo += 1
+            db.add(Matiere(referentiel_id=ref.id, nom=nom, ordre=maxo, actif=True, validee=True))
+        ajoutees.append(nom)
     db.commit()
     return {"ajoutees": ajoutees, "deja_presentes": deja,
             "nb_ajoutees": len(ajoutees), "nb_deja": len(deja)}
@@ -1031,9 +1020,10 @@ class RenommerMatiereBody(BaseModel):
 
 @router.patch("/admin/referentiels/matiere", dependencies=[Depends(_require_admin)])
 def renommer_matiere(body: RenommerMatiereBody, db: Session = Depends(get_db)):
-    """Renomme une matière par son id : garde l'identifiant, donc aucun lien (paire, prof,
-    référentiel) n'est cassé. Le libellé change PARTOUT où la matière est partagée entre
-    niveaux. Refuse un nom vide ou déjà porté par une AUTRE matière (anti-doublon)."""
+    """Renomme une matière par son id : garde l'identifiant, donc aucun lien (prof, historique)
+    n'est cassé. Le renommage ne touche QUE cette matière-là : une matière de même nom dans un
+    autre référentiel est une autre matière, elle ne bouge pas. Refuse un nom vide ou déjà porté
+    par une AUTRE matière DU MÊME référentiel (anti-doublon, comme l'unique en base)."""
     nom = (body.nouveau_nom or "").strip()
     if not nom:
         raise HTTPException(400, "Le nouveau nom est requis.")
@@ -1045,16 +1035,17 @@ def renommer_matiere(body: RenommerMatiereBody, db: Session = Depends(get_db)):
     if not mat:
         raise HTTPException(404, "Matière inconnue.")
     autre = (db.query(Matiere)
-               .filter(func.lower(Matiere.nom) == nom.lower(), Matiere.id != mat.id).first())
+               .filter(Matiere.referentiel_id == mat.referentiel_id,
+                       func.lower(Matiere.nom) == nom.lower(), Matiere.id != mat.id).first())
     if autre:
-        raise HTTPException(409, f"Une autre matière porte déjà le nom « {nom} ».")
+        raise HTTPException(409, f"Une autre matière de ce référentiel porte déjà le nom « {nom} ».")
     ancien = mat.nom
     mat.nom = nom
     db.commit()
     return {"ok": True, "id": mat.id, "ancien_nom": ancien, "nouveau_nom": nom}
 
 
-# ── Retirer une matière d'un niveau = DÉSACTIVER la paire (jamais de suppression dure) ──
+# ── Retirer une matière du programme = la DÉSACTIVER (jamais de suppression dure) ──
 
 class RetirerMatiereBody(BaseModel):
     cycle_id: int
@@ -1064,26 +1055,26 @@ class RetirerMatiereBody(BaseModel):
 
 @router.post("/admin/referentiels/retirer-matiere", dependencies=[Depends(_require_admin)])
 def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
-    """Retire une matière d'un niveau = met la paire `actif=False` (historique conservé,
-    JAMAIS de suppression dure). Signale, sans rien casser, si la matière est encore utilisée
-    par un prof (profil) ou par un référentiel de matière."""
-    niveau_nom = (body.niveau or "").strip()
-    niv = (db.query(Niveau)
-             .filter(Niveau.nom == niveau_nom, Niveau.cycle_id == body.cycle_id).first())
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+    """Retire une matière du programme = `actif=False` sur SA ligne (historique conservé, JAMAIS
+    de suppression dure). Garde : la matière doit bien appartenir au référentiel de ce couple —
+    on ne retire pas la matière d'un autre diplôme depuis cet écran. Signale, sans rien casser,
+    combien de profs l'ont encore à leur profil.
+
+    Le comptage des « référentiels qui utilisent cette matière » a disparu avec la colonne
+    `referentiels.matiere_id` : le référentiel ne pointe plus vers une matière, il la POSSÈDE —
+    il y en a donc exactement un, celui du couple affiché, et le dire n'apprend rien."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
     mat = db.get(Matiere, body.matiere_id)
-    if not mat:
-        raise HTTPException(404, "Matière inconnue.")
-    paire = (db.query(MatiereNiveau)
-               .filter(MatiereNiveau.matiere_id == mat.id, MatiereNiveau.niveau_id == niv.id).first())
-    if not paire or not paire.actif:
-        return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0, "referentiels": 0}
+    if not mat or mat.referentiel_id != ref.id:
+        raise HTTPException(404, "Cette matière n'appartient pas au référentiel de ce couple.")
+    if not mat.actif:
+        return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0}
     profs = db.query(User).filter(User.subject_id == mat.id).count()   # RÈGLE 4 : comptage PAR CLÉ (fin de la comparaison par nom)
-    refs = db.query(Referentiel).filter(Referentiel.matiere_id == mat.id).count()
-    paire.actif = False
+    mat.actif = False
     db.commit()
-    return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs, "referentiels": refs}
+    return {"ok": True, "deja_absente": False, "matiere": mat.nom, "profs": profs}
 
 
 # ── CRUD référentiel : écrire UN champ (put au coup par coup) + supprimer (gardé) ──
@@ -1117,15 +1108,24 @@ class SupprimerRefBody(BaseModel):
 
 @router.post("/admin/referentiels/supprimer", dependencies=[Depends(_require_admin)])
 def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db)):
-    """Supprime le référentiel d'un couple — UNIQUEMENT s'il n'a JAMAIS servi (aucun chunk ingéré) ;
-    sinon refus (409). Efface la ligne `referentiels` + le PDF sur disque. Ne touche PAS les
-    matières (données du couple, pas du document)."""
+    """Supprime le référentiel d'un couple — UNIQUEMENT s'il n'a JAMAIS servi (aucun chunk ingéré)
+    et si aucun prof n'est rattaché à l'une de ses matières ; sinon refus (409). Efface la ligne
+    `referentiels` + le PDF sur disque. Ses matières partent avec lui (CASCADE) : une matière
+    n'existe pas sans le document qui la nomme."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
     n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
     if n > 0:
         raise HTTPException(409, f"Référentiel utilisé (déjà ingéré : {n} unité(s)) — suppression impossible.")
+    # DELETE encadré (RÈGLE 4) : ses matières tombent avec lui, or un prof peut en avoir une à son
+    # profil ou à son couple de travail. On refuse AVANT d'écrire, avec un message qui dit quoi faire.
+    profs = (db.query(User)
+               .join(Matiere, (Matiere.id == User.subject_id) | (Matiere.id == User.travail_matiere_id))
+               .filter(Matiere.referentiel_id == ref.id).count())
+    if profs > 0:
+        raise HTTPException(409, f"{profs} professeur(s) travaillent sur une matière de ce référentiel — "
+                                 "suppression impossible. Changez d'abord leur matière.")
     _pdf_du_couple(db, body.cycle_id, body.niveau).unlink(missing_ok=True)
     db.delete(ref)
     db.commit()

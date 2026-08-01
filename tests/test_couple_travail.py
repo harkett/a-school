@@ -40,11 +40,11 @@ def _client():
 
 
 def _programme():
-    """Deux niveaux d'un même cycle (CT-6e profil, CT-5e travail), chacun avec sa matière
-    au programme (paires `matiere_niveaux`), + le prof (profil = CT-Fr × CT-6e) + un
-    référentiel et un type SUR CT-5e (pour prouver que la génération suit le TRAVAIL).
-    Renvoie (type_id_5e)."""
-    from backend.core.models_db import (Cycle, Niveau, Matiere, MatiereNiveau, User,
+    """Deux niveaux d'un même cycle (CT-6e profil, CT-5e travail), chacun avec SON référentiel et
+    SES matières, + le prof (profil = CT-Fr × CT-6e) + un type SUR CT-5e (pour prouver que la
+    génération suit le TRAVAIL). « CT-Fr » existe DEUX fois — une par référentiel : c'est le
+    cœur du modèle, deux matières distinctes qui portent le même nom. Renvoie (type_id_5e)."""
+    from backend.core.models_db import (Cycle, Niveau, Matiere, User,
                                         Referentiel, ActiviteType, ReferentielActiviteType)
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom="CT-College", ordre=80)
@@ -52,18 +52,17 @@ def _programme():
         n6 = Niveau(cycle_id=cy.id, nom="CT-6e", ordre=1)
         n5 = Niveau(cycle_id=cy.id, nom="CT-5e", ordre=2)
         db.add_all([n6, n5]); db.flush()
-        mfr = Matiere(nom="CT-Fr", ordre=801)
-        mhg = Matiere(nom="CT-HG", ordre=802)
-        db.add_all([mfr, mhg]); db.flush()
-        db.add_all([MatiereNiveau(matiere_id=mfr.id, niveau_id=n6.id),
-                    MatiereNiveau(matiere_id=mfr.id, niveau_id=n5.id),
-                    MatiereNiveau(matiere_id=mhg.id, niveau_id=n5.id)])
+        ref6 = Referentiel(niveau_id=n6.id, nom_fixe="ct_6e", collection="ct_6e", filtres=None,
+                           fichier="doc.pdf", texte_epure="TEXTE")
+        ref5 = Referentiel(niveau_id=n5.id, nom_fixe="ct_5e", collection="ct_5e", filtres=None,
+                           fichier="doc.pdf", texte_epure="TEXTE")
+        db.add_all([ref6, ref5]); db.flush()
+        mfr6 = Matiere(referentiel_id=ref6.id, nom="CT-Fr", ordre=801, validee=True)
+        mfr5 = Matiere(referentiel_id=ref5.id, nom="CT-Fr", ordre=801, validee=True)
+        mhg5 = Matiere(referentiel_id=ref5.id, nom="CT-HG", ordre=802, validee=True)
+        db.add_all([mfr6, mfr5, mhg5]); db.flush()
         db.add(User(email=EMAIL, password_hash="x", is_verified=True,
-                    subject_id=mfr.id, niveau_id=n6.id))
-        ref5 = Referentiel(niveau_id=n5.id, matiere_id=None, nom_fixe="ct_5e",
-                           collection="ct_5e", filtres=None, fichier="doc.pdf",
-                           texte_epure="TEXTE")
-        db.add(ref5); db.flush()
+                    subject_id=mfr6.id, niveau_id=n6.id))
         t = ActiviteType(label="CT-Type", ordre=1, actif=True, origine="systeme")
         db.add(t); db.flush()
         db.add(ReferentielActiviteType(referentiel_id=ref5.id, activite_type_id=t.id,
@@ -100,7 +99,7 @@ def test_me_resout_profil_puis_travail_et_couple_ajuste():
 def test_put_hors_programme_400_humain_et_rien_ecrit():
     _programme()
     c = _client()
-    # CT-HG n'est PAS au programme de CT-6e (paire absente de matiere_niveaux).
+    # CT-HG n'est PAS au programme de CT-6e : le référentiel de CT-6e ne la nomme pas.
     r = c.put("/api/user/couple-travail", json={"matiere": "CT-HG", "niveau": "CT-6e"})
     assert r.status_code == 400, r.text
     assert "n'est pas enseignée à ce niveau" in r.json()["detail"]

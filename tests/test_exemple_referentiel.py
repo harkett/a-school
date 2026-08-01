@@ -70,7 +70,7 @@ def couple_creche():
         db.add(cyc); db.flush()
         niv = Niveau(cycle_id=cyc.id, nom=NIVEAU_CRECHE, ordre=1)
         db.add(niv); db.flush()
-        db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe="Bébés (0-1 an)",
+        db.add(Referentiel(niveau_id=niv.id, nom_fixe="Bébés (0-1 an)",
                            collection="bebes_0_1_an", filtres=None, source="dépôt manuel"))
         db.commit()
     finally:

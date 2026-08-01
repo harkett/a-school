@@ -48,8 +48,8 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, flo
     """Niveau → (collection, filtres ChromaDB, seuil). None = pas de référentiel pour ce couple.
 
     Data-driven : lit la table `referentiels` (plus de couple en dur, plus de seuil en dur).
-    Jointure DIRECTE referentiels → niveaux en UN seul SELECT (n.nom = :niveau AND matiere_id
-    IS NULL), pas « résoudre l'id puis requêter » (forme fragile si un nom de niveau n'est pas unique).
+    Jointure DIRECTE referentiels → niveaux en UN seul SELECT (n.nom = :niveau), pas « résoudre
+    l'id puis requêter » (forme fragile si un nom de niveau n'est pas unique).
 
     Trois branches assumées :
       - 0 ligne → None (couple « en construction » : on n'invente RIEN).
@@ -63,13 +63,13 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, flo
     rows = (
         db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
         .join(Niveau, Niveau.id == Referentiel.niveau_id)
-        .filter(Niveau.nom == niveau, Referentiel.matiere_id.is_(None))
+        .filter(Niveau.nom == niveau)
         .all()
     )
     if not rows:
         return None
     if len(rows) > 1:
-        log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r} (matiere_id NULL)")
+        log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r}")
         raise HTTPException(500, f"Ambiguïté niveau : {len(rows)} référentiels trouvés pour ce nom de niveau. Configuration à corriger.")
     collection, filtres_json, score_min = rows[0]
     filters = json.loads(filtres_json) if filtres_json else None

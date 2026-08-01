@@ -1,13 +1,13 @@
-r"""Preuve — détection IA des matières au dépôt du PDF + écriture EN BASE des candidates.
+r"""Preuve — détection IA des matières au dépôt du PDF.
 
-Deux briques neuves (tâche « au dépôt, l'IA lit le PDF et propose des matières ») :
-  1. `_ecrire_candidates(db, niveau_id, noms)` = pendant écriture de `_lire_candidates` : une ligne
-     par niveau dans `matieres_candidates`, ÉCRASÉE par le nouveau PDF (get-or-create). Round-trip
-     avec `_lire_candidates` + preuve de l'écrasement (2e dépôt remplace le 1er).
-  2. `detecter_matieres(texte, db=)` = l'IA rend un JSON {matieres:[...]} ; on prouve le parsing,
-     le nettoyage et la déduplication (insensible à la casse) SANS appeler de vrai LLM (generate mocké).
+`detecter_matieres(texte, db=)` : l'IA rend un JSON {matieres:[...]} ; on prouve le parsing, le
+nettoyage et la déduplication (insensible à la casse) SANS appeler de vrai LLM (generate mocké),
+et le remplissage des repères du prompt.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest tests/test_detecter_matieres.py -q
+L'ÉCRITURE de ces propositions en base (matières du référentiel, `validee=false`) est prouvée
+par tests/test_matieres_candidates_en_base.py — elle ne passe plus par une table à part.
+
+Lancer : docker exec a-school-backend-1 python -m pytest tests/test_detecter_matieres.py -q
 """
 import json
 import os
@@ -23,57 +23,21 @@ sys.path.insert(0, ROOT)
 
 import backend.core.database as dbmod
 import backend.rag.analyse_amont as amont
-from backend.core.models_db import Cycle, Niveau
-from backend.pedagogie.referentiels_admin import _ecrire_candidates, _lire_candidates
-
-CYCLE = "Crèche"
-NIVEAU = "Bébés (0-1 an)"
-
-
-def _niveau():
-    """Crée cycle + niveau, renvoie niveau_id."""
-    db = dbmod.SessionLocal()
-    try:
-        cy = Cycle(nom=CYCLE, ordre=1); db.add(cy); db.flush()
-        niv = Niveau(cycle_id=cy.id, nom=NIVEAU, ordre=1); db.add(niv); db.flush()
-        db.commit()
-        return niv.id
-    finally:
-        db.close()
-
-
-def test_ecrire_puis_lire_candidates():
-    """Écriture EN BASE puis relecture : ce que _ecrire_candidates pose, _lire_candidates le rend."""
-    niveau_id = _niveau()
-    db = dbmod.SessionLocal()
-    try:
-        _ecrire_candidates(db, niveau_id, ["Langage", "Motricité", "Éveil"])
-        assert _lire_candidates(db, niveau_id) == ["Langage", "Motricité", "Éveil"]
-    finally:
-        db.close()
-
-
-def test_nouveau_pdf_ecrase_les_candidates():
-    """Le nouveau PDF ÉCRASE la proposition précédente (une ligne par niveau, jamais d'empilement)."""
-    niveau_id = _niveau()
-    db = dbmod.SessionLocal()
-    try:
-        _ecrire_candidates(db, niveau_id, ["Ancienne A", "Ancienne B"])
-        _ecrire_candidates(db, niveau_id, ["Nouvelle X"])          # 2e dépôt
-        assert _lire_candidates(db, niveau_id) == ["Nouvelle X"]   # l'ancien a disparu
-    finally:
-        db.close()
 
 
 def test_detecter_matieres_injecte_la_table_des_matieres(monkeypatch):
     """L'IA reçoit la table des matières ACTIVES dans son prompt (get, zéro copie) pour faire
     correspondre le document avec l'existant. Preuve : les matières actives figurent dans le prompt
     envoyé à `generate`, pas les inactives, et les deux trous {matieres_existantes}/{texte} sont remplis."""
-    from backend.core.models_db import Matiere
+    from backend.core.models_db import Cycle, Matiere, Niveau, Referentiel
     with dbmod.SessionLocal() as db:
-        db.add(Matiere(nom="Mathématiques", ordre=1, actif=True))
-        db.add(Matiere(nom="Physique-Chimie", ordre=2, actif=True))
-        db.add(Matiere(nom="Vieille matière", ordre=3, actif=False))
+        cy = Cycle(nom="Collège", ordre=1); db.add(cy); db.flush()
+        niv = Niveau(cycle_id=cy.id, nom="5e", ordre=1); db.add(niv); db.flush()
+        # Une matière vit dans le référentiel qui la nomme : pas de référentiel, pas de matière.
+        ref = Referentiel(niveau_id=niv.id, nom_fixe="5e", collection="5e"); db.add(ref); db.flush()
+        db.add(Matiere(referentiel_id=ref.id, nom="Mathématiques", ordre=1, actif=True, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="Physique-Chimie", ordre=2, actif=True, validee=True))
+        db.add(Matiere(referentiel_id=ref.id, nom="Vieille matière", ordre=3, actif=False, validee=True))
         db.commit()
     capture = {}
 

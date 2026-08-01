@@ -138,7 +138,7 @@ def test_modifier_unite_recalcule_l_empreinte():
     cid = _cycle("DC-Edit", 75)
     nid = _niveau(cid, "DC-NivEdit", 75)
     with dbmod.SessionLocal() as db:
-        ref = Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_edit", collection="dc_edit",
+        ref = Referentiel(niveau_id=nid, nom_fixe="dc_edit", collection="dc_edit",
                           filtres=None, fichier="doc.pdf")
         db.add(ref); db.flush()
         ch = ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
@@ -197,7 +197,7 @@ def test_lire_document_epure():
     cid = _cycle("DC-Lect", 78)
     nid = _niveau(cid, "DC-NivLect", 78)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_lect", collection="dc_lect",
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_lect", collection="dc_lect",
                            filtres=None, fichier="doc.pdf", texte_epure="Un texte de travail propre"))
         db.commit()
     c = admin_client()
@@ -215,7 +215,7 @@ def test_decoupe_lit_le_texte_en_base():
     cid = _cycle("DC-Dec", 80)
     nid = _niveau(cid, "DC-NivDec", 80)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_dec", collection="dc_dec",
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_dec", collection="dc_dec",
                            filtres=None, fichier="doc.pdf", prompt_decoupe="PROMPT",
                            prompt_decoupe_valide=True, texte_epure="TEXTE FIGE EN BASE"))
         db.commit()
@@ -237,7 +237,7 @@ def test_ajouter_type_colle_au_couple():
     cid = _cycle("DC-Typ", 81)
     nid = _niveau(cid, "DC-NivTyp", 81)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_typ", collection="dc_typ",
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_typ", collection="dc_typ",
                            filtres=None, fichier="doc.pdf"))
         db.commit()
     c = admin_client()
@@ -270,7 +270,7 @@ def test_detecter_types_coche_par_correspondance_avec_prompt():
     cid = _cycle("DC-Det", 82)
     nid = _niveau(cid, "DC-NivDet", 82)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_det", collection="dc_det",
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_det", collection="dc_det",
                            filtres=None, fichier="doc.pdf", texte_epure="TEXTE DE TRAVAIL"))
         db.add(ActiviteType(label="Évaluation", ordre=1, actif=True, origine="systeme"))
         db.commit()
@@ -300,7 +300,7 @@ def test_retirer_type_supprime_le_lien_et_la_detection_le_recree():
     cid = _cycle("DC-Rel", 83)
     nid = _niveau(cid, "DC-NivRel", 83)
     with dbmod.SessionLocal() as db:
-        ref = Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_rel", collection="dc_rel",
+        ref = Referentiel(niveau_id=nid, nom_fixe="dc_rel", collection="dc_rel",
                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE")
         t1 = ActiviteType(label="Évaluation", ordre=1, actif=True, origine="systeme")
         db.add_all([ref, t1]); db.flush()
@@ -350,7 +350,7 @@ def test_valider_jeton_consomme_avec_referentiel_dit_deja_valide():
     cid = _cycle("DC-Deja", 86)
     nid = _niveau(cid, "DC-NivDeja", 86)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_deja", collection="dc_deja",
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_deja", collection="dc_deja",
                            filtres=None, fichier="mon-document.pdf"))
         db.commit()
     r = admin_client().post("/api/admin/referentiels/valider", json={
@@ -453,9 +453,13 @@ def test_enregistrer_matiere_longue_passe_et_trop_longue_422():
     """Cas réel du 24/07 : « Conception et réalisation d'orthèses temporaires et d'aides
     techniques » (70 car.) explosait contre VARCHAR(64) en 500 brut à l'écran. La colonne passe
     à 255 ; au-delà, refus 422 en langage humain — jamais un « Internal Server Error »."""
-    from backend.core.models_db import Matiere
+    from backend.core.models_db import Matiere, Referentiel
     cid = _cycle("DC-Long", 88)
-    _niveau(cid, "DC-NivLong", 88)
+    nid = _niveau(cid, "DC-NivLong", 88)
+    with dbmod.SessionLocal() as db:      # la matière vit dans le référentiel du niveau
+        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_long", collection="dc_long",
+                           fichier="doc.pdf", texte_epure="TEXTE"))
+        db.commit()
     c = admin_client()
     long70 = "Conception et réalisation d'orthèses temporaires et d'aides techniques"
     r = c.post("/api/admin/referentiels/matieres", json={
@@ -481,20 +485,18 @@ def test_page_contenu_arbre_complet():
     """GET /admin/contenu = l'arbre COMPLET en une lecture : cycle → niveau → référentiel du couple
     (états lus, unités comptées), matières du programme, types liés avec les précisions du couple.
     Un niveau SANS référentiel apparaît quand même (referentiel: null) — l'admin voit le « à remplir »."""
-    from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere, MatiereNiveau,
+    from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere,
                                         ActiviteType, ReferentielActiviteType, ReferentielTypePrecision)
     cid = _cycle("DC-Cont", 84)
     nid = _niveau(cid, "DC-NivCont", 84)
     nid_vide = _niveau(cid, "DC-NivVide", 85)
     with dbmod.SessionLocal() as db:
-        m = Matiere(nom="DC-Cuisine", ordre=1, actif=True)
-        db.add(m); db.flush()
-        db.add(MatiereNiveau(matiere_id=m.id, niveau_id=nid, actif=True))
-        ref = Referentiel(niveau_id=nid, matiere_id=None, nom_fixe="dc_cont", collection="dc_cont",
+        ref = Referentiel(niveau_id=nid, nom_fixe="dc_cont", collection="dc_cont",
                           filtres=None, fichier="doc.pdf", source="education.gouv.fr",
                           texte_epure="TEXTE FIGE", decoupe_valide=True)
         t1 = ActiviteType(label="DC-Évaluation", ordre=1, actif=True, origine="systeme")
         db.add_all([ref, t1]); db.flush()
+        db.add(Matiere(referentiel_id=ref.id, nom="DC-Cuisine", ordre=1, actif=True, validee=True))
         db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
                                 texte="Unité 1", embedding=[0.0] * 1024, embedding_model="test"))
         lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t1.id,

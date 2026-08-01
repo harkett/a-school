@@ -48,9 +48,10 @@ def _prof(niveau=NIVEAU, subject="Langage"):
     # niveau doit être semé AVANT le prof pour les cas « référentiel présent »). Nom absent de la
     # table → id None → « indisponible » (exactement le comportement attendu côté profil).
     with dbmod.SessionLocal() as db:
+        niv_id = niveau_id_du_nom(db, niveau)
         db.add(User(email="prof.ref@aschool.fr", password_hash="x", is_verified=True,
-                    subject_id=matiere_id_du_nom(db, subject),
-                    niveau_id=niveau_id_du_nom(db, niveau)))
+                    subject_id=matiere_id_du_nom(db, subject, niv_id),
+                    niveau_id=niv_id))
         db.commit()
 
 
@@ -58,7 +59,7 @@ def _seed_referentiel(fichier=NOM_FICHIER):
     with dbmod.SessionLocal() as db:
         cyc = Cycle(nom="Crèche", ordre=1); db.add(cyc); db.flush()
         niv = Niveau(cycle_id=cyc.id, nom=NIVEAU, ordre=1); db.add(niv); db.flush()
-        db.add(Referentiel(niveau_id=niv.id, matiere_id=None, nom_fixe="bebes_0_1_an",
+        db.add(Referentiel(niveau_id=niv.id, nom_fixe="bebes_0_1_an",
                            collection="bebes_0_1_an", filtres=None, fichier=fichier,
                            source="dépôt manuel", texte_epure=TEXTE_EPURE))
         db.commit()

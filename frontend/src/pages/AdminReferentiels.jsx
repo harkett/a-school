@@ -730,8 +730,8 @@ export default function AdminReferentiels() {
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      if (d.profs > 0 || d.referentiels > 0) {
-        showError(`« ${d.matiere} » a été retirée de ce niveau (réversible).\n\nÀ savoir : elle est encore utilisée par ${d.profs} prof(s) et ${d.referentiels} référentiel(s) de matière. Rien n'a été cassé (désactivation seulement).`)
+      if (d.profs > 0) {
+        showError(`« ${d.matiere} » a été retirée de ce niveau (réversible).\n\nÀ savoir : elle est encore choisie par ${d.profs} prof(s). Rien n'a été cassé (désactivation seulement).`)
       }
       await rafraichirEtat()
     } catch (e) { showError(`Retrait impossible.\n\n${e.message}`) }

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.models_db import (
-    Cycle, Niveau, Matiere, MatiereNiveau, Referentiel, ReferentielChunk,
+    Cycle, Niveau, Matiere, Referentiel, ReferentielChunk,
     ReferentielActiviteType, EmailEnvoi, Activite, AiFournisseur,
 )
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model
@@ -39,12 +39,14 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
     cle_presente = bool(env_name and os.getenv(env_name, "").strip())
     ia_ok = bool(provider and model and cle_presente)
 
-    # 2 — Programme (semé) : cycles / niveaux / matières / paires actives.
+    # 2 — Programme : cycles et niveaux (semés) + au moins une matière RETENUE et active sur un
+    #     référentiel. Les matières ne sont plus semées : elles arrivent au dépôt du PDF, où
+    #     l'admin les coche — tant qu'il n'a rien coché, le prof n'a aucune matière à choisir.
     prog_ok = (
         db.query(Cycle).count() > 0
         and db.query(Niveau).count() > 0
-        and db.query(Matiere).count() > 0
-        and db.query(MatiereNiveau).filter(MatiereNiveau.actif == True).count() > 0
+        and db.query(Matiere).filter(Matiere.validee == True,   # noqa: E712
+                                     Matiere.actif == True).count() > 0
     )
 
     # 3 — Au moins un référentiel déposé (un PDF enregistré sur un couple).
