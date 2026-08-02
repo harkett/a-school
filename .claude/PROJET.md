@@ -346,3 +346,76 @@ comparaison le montre en quelques minutes là où une relecture isolée ne voit 
 
 Les deux autres règles de l'audit sont dans les sections 5 et 7 : un test vert prouve qu'il n'a
 pas échoué, pas qu'il a regardé ; et un test peut geler un bug.
+
+---
+
+## 10. L'audit du 31/07 – 02/08/2026 — procédure et clôture
+
+### Comment il a été mené
+
+Quatre profondeurs, dans cet ordre : **noms** de fichiers → **références** (qui appelle quoi) →
+**exécution** (ce qui tourne vraiment) → **lecture ligne par ligne**. Backend lu de bout en
+bout ; frontend en passes mécaniques complètes plus la lecture des trois écrans du prof.
+
+Le travail était partagé : une session **lisait et prescrivait**, l'autre **vérifiait chaque
+affirmation à la source, puis exécutait**. Rien n'a été corrigé sur parole — et cette règle a
+servi dans les deux sens : trois affirmations du rapport se sont révélées inexactes à la
+vérification, et deux défauts absents du rapport ont été trouvés en la faisant.
+
+### Le fait qui compte plus que la liste
+
+**Les 9 bugs confirmés sont tous sortis de la LECTURE. Aucun des passes mécaniques. La suite de
+tests était verte sur les neuf.** Une route écrite pour SQLite a traversé toute la bascule vers
+PostgreSQL sans que rien ne la voie ; `admin.py`, le plus gros fichier du projet, était aussi le
+moins surveillé — il a rendu quatre bugs à lui seul.
+
+### Fermé
+
+| Sujet | Commit |
+|---|---|
+| `GET /admin/stats/hours` : `strftime` (SQLite) sur PostgreSQL — 500 à chaque ouverture de l'écran Serveur | `983d807` |
+| « Revenir au défaut » d'un prompt cassait l'outil — et le test gelait le bug | `983d807` |
+| `PUT /admin/settings` écrasait le champ non envoyé | `983d807` |
+| Filet `test_rien_en_dur` : 4 fichiers à BOM sautés en silence — 12 dettes réelles, pas 6 | `983d807` |
+| Seuil de blocage en dur → lit `alerte_tentatives_1h` en base | `983d807` |
+| `datetime.utcnow()` × 22 → une seule source d'heure (`core/horloge.py`) | `f817ccf` |
+| Clé de signature vide : le serveur refuse de démarrer sans secret | `bcb8bf1` |
+| Mot de passe `.env` : amorçage seul, les deux routes disent enfin la même chose (§ 6) | `f278e9a` |
+| Carte de la base : HTML autonome, marche partout — et son classement des tables était périmé | `f342f20` |
+| 3 routes orphelines retirées | `f342f20` |
+| 4 défauts silencieux du cœur de génération (§ 7) | `087827a` |
+| Registre des prompts : champ `mode`, `verif_decoupe` a enfin une porte, gabarit validé aux deux bouts (§ 8) | `23df9c0` |
+| Accès à l'historique après un échec, et `ai_retry_max` ignoré par trois outils du prof (§ 9) | `e91861f` |
+| `docker/initdb` au dépôt, `.dockerignore` (6,4 Go hors contexte), `pytest.ini` | `6fd4fbc` |
+| Tables mortes, `type_parametres`, déclarations mortes au front | `5daf7fe` |
+| 16 icônes dupliquées ramenées à 2 | `1d08b70` |
+
+**393 tests backend, 94 frontend.** Dette comptée et gelée : 12 dettes, 5 exceptions (§ 5).
+
+### Reste ouvert
+
+- **`GET /mes-contenus` renvoie le `resultat` complet** de chaque contenu pour afficher un
+  titre. Grossit avec l'usage.
+- **Le chantier `SETTING_DEFAULTS`** — le même fichier interdit le repli code (`admin.py:386`
+  et `:417`) et le pratique. Descendre les défauts en base par migration, puis retirer le repli.
+  Chantier, pas correction. Il a perdu un usage au passage : `prompt_gabarit_type` lit la base
+  depuis le § 8.
+
+### Les trois règles que cet audit a produites
+
+1. **Un test vert prouve qu'il n'a pas échoué, pas qu'il a regardé.** Tout garde-fou qui lit des
+   sources doit **tomber bruyamment** quand il ne peut pas en lire une. Un `except: continue`
+   dans un test est un angle mort permanent — celui-là a masqué le plus gros fichier du backend
+   pendant des mois.
+2. **Un test peut geler un bug.** Celui de `reset_prompt` affirmait `is None` : il consacrait le
+   comportement cassé. Quand un test protège un comportement, vérifier que c'est celui qu'on
+   **veut**, pas celui qu'on **a**.
+3. **Quand deux écrans font le même geste, comparer les deux.** Trois bugs sur neuf sont sortis
+   de cette seule comparaison (§ 9). Le corollaire vaut aussi : la comparaison a confirmé que le
+   rattrapage de *sauvegarde*, lui, était déjà symétrique — elle dit non seulement où ça cloche,
+   mais où ça ne cloche pas.
+
+Et une quatrième, sur le suivi plutôt que sur le code : **un rapport qui déclare clos ce qui est
+ouvert est plus dangereux qu'un rapport qui oublie.** Un oubli se retrouve ; un « fermé » faux
+met la trouvaille à l'abri de toute relecture. C'est le mécanisme de la règle 1, un cran plus
+haut.
