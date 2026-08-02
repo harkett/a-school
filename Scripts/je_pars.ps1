@@ -1,21 +1,68 @@
-﻿# ─────────────────────────────────────────────────────────────
+﻿# ═════════════════════════════════════════════════════════════
+#  A-SCHOOL — LA BASCULE D'UNE MACHINE À L'AUTRE, EN ENTIER
+#  (ce cadre est identique dans les deux scripts : je_pars et j_arrive.
+#   Vous ouvrez l'un ou l'autre, vous avez tout.)
+#
+#  DEUX SCRIPTS, et un seul est à lancer à la fois.
+#
+#    je_pars.ps1     sur la machine que vous QUITTEZ.
+#                    Enregistre et envoie votre code, sort la base dans
+#                    Bagage\, ferme l'application, copie le dossier vers
+#                    l'endroit que vous indiquez, et relit chaque fichier
+#                    des deux côtés pour vérifier.
+#
+#    j_arrive.ps1    sur la machine où vous ARRIVEZ.
+#                    Récupère le code, refuse d'écraser quelque chose de
+#                    plus récent, installe votre travail, redémarre.
+#
+#  LE RITUEL, identique dans les deux sens :
+#
+#    1. sur la machine que vous quittez :   .\Scripts\je_pars.ps1
+#       puis indiquez où copier quand il le demande.
+#
+#    2. sur l'autre machine :               .\Scripts\j_arrive.ps1
+#
+#    Plus aucun glisser-déposer : les deux bouts copient et vérifient.
+#
+#  CE QUI VOYAGE : le dossier ENTIER, moins ce qui se refabrique.
+#    Bagage\        la base de données (pg_dump) + la date du départ
+#    REFERENTIELS\  les PDF déposés — hors dépôt, irremplaçables
+#    .env           hors dépôt, identique sur les deux machines
+#    .git           l'historique. Sans lui, plus de dépôt là-bas.
+#    le code        et tout le reste du dossier
+#
+#  CE QUI NE VOYAGE PAS, parce que ça se refabrique sur place — et c'est
+#  ça, tout le volume. Six dossiers, 73 100 fichiers, 6,2 Go :
+#    .venv, node_modules          réinstallés par pip et npm
+#    docker\hf-cache              le modèle, 4,3 Go, retéléchargé seul
+#    docker\pgdata                un reste : la base vit dans le volume
+#                                 nommé pgdata_dev, pas dans le dossier
+#    __pycache__, .pytest_cache   caches de Python
+#
+#    Le dossier fait 79 500 fichiers et 6,5 Go ; il en part 6 342 et
+#    277 Mo. C'est pourquoi la copie ne se fait PAS dans l'explorateur
+#    Windows : il emporte tout, échoue sur les liens du cache du modèle,
+#    et saute .git parce qu'il est caché.
+#
+#  « OÙ COPIER » = n'importe quel endroit atteignable des deux machines :
+#    un chemin réseau de l'autre poste (\\FIXE\D$), une clé USB, un
+#    disque externe, un dossier synchronisé.
+#
+#  EN CAS DE DOUTE : ces scripts s'arrêtent plutôt que de deviner, et
+#    disent « Rien n'a été modifié » quand c'est le cas. Relancer un
+#    script interrompu est toujours sans danger.
+# ═════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────
 #  je_pars.ps1 — à lancer sur le poste que vous QUITTEZ.
 #
-#  Il prépare le départ, puis affiche EXACTEMENT ce qu'il faut copier
-#  sur l'autre poste. Le reste du dossier n'est pas à copier : il
-#  arrive tout seul là-bas.
-#
-#  Pourquoi : copier le dossier entier a été essayé et a échoué. 87 000
-#  fichiers, dont 68 000 pour .venv et frontend/node_modules, et surtout
-#  12 fichiers du cache du modèle que l'explorateur Windows ne sait pas
-#  copier (ce sont des liens créés depuis Linux). Ne voyagent donc que
-#  les trois choses qui n'existent nulle part ailleurs.
+#  Il fait partir votre code, fait entrer votre travail dans le dossier,
+#  ferme l'application, puis copie le dossier vers l'endroit que vous
+#  indiquez et vérifie chaque fichier un par un.
 #
 #  Ce script ne connaît aucune lettre de lecteur : il se repère depuis
 #  son propre emplacement. Il fonctionne à l'identique que le dossier
 #  soit sur C:, sur D: ou ailleurs.
-#
-#  Il suppose que le dossier A-SCHOOL existe déjà sur l'autre poste.
 # ─────────────────────────────────────────────────────────────
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -34,23 +81,6 @@ function Echec($message) {
     exit 1
 }
 
-# Poids et nombre de fichiers d'un élément, pour l'annoncer tel qu'il est.
-# L'unité suit la taille réelle : un .env de 4 Ko ne doit pas s'afficher « 0,0 Mo ».
-function Poids($octets) {
-    if ($octets -ge 1MB) { return "{0:N0} Mo" -f ($octets / 1MB) }
-    if ($octets -ge 1KB) { return "{0:N0} Ko" -f ($octets / 1KB) }
-    return "{0:N0} octets" -f $octets
-}
-
-function Mesure($chemin) {
-    if (-not (Test-Path $chemin)) { return $null }
-    $fichiers = @(Get-ChildItem $chemin -Recurse -Force -File -ErrorAction SilentlyContinue)
-    $octets   = ($fichiers | Measure-Object -Sum Length).Sum
-    if ($null -eq $octets) { $octets = 0 }
-    if ($fichiers.Count -le 1) { return (Poids $octets) }
-    return "{0:N0} fichiers, {1}" -f $fichiers.Count, (Poids $octets)
-}
-
 Write-Host ""
 Write-Host "  A-SCHOOL — je pars" -ForegroundColor Cyan
 Write-Host "  ══════════════════" -ForegroundColor Cyan
@@ -59,46 +89,149 @@ Write-Host ""
 # ── 1/4  Le moteur doit tourner ─────────────────────────────────────────
 Write-Host "  1/4  Vérification..." -ForegroundColor Cyan
 
+# On demande d'abord si la commande existe, avant de la lancer. Une commande
+# absente ne touche pas à $LASTEXITCODE : elle laisse la valeur de la
+# précédente, et un 0 hérité d'un succès passé se lit alors comme un succès.
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Echec "Docker Desktop n'est pas installé sur ce poste. Sans lui, votre travail ne peut pas être récupéré."
+}
 docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Echec "Docker Desktop n'est pas démarré. Lancez-le, attendez qu'il soit vert, puis relancez ce script."
 }
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Echec "Git n'est pas installé sur ce poste. Impossible de vérifier que votre code est bien parti."
+}
 Write-Host "       le moteur tourne." -ForegroundColor Green
 
-# ── 2/4  Le code doit être parti, sinon il manquera là-bas ──────────────
-# Le code ne voyage plus dans la copie : il passe par le dépôt. Donc tout
-# ce qui n'est pas encore envoyé n'existera pas sur l'autre poste. On le
-# dit avant de partir, on n'envoie rien à la place de l'utilisateur.
-Write-Host "  2/4  Le code est-il déjà parti ?" -ForegroundColor Cyan
+# ── 2/4  Le code part, sinon il manquera là-bas ─────────────────────────
+# Le code ne voyage pas dans la copie : il passe par le dépôt. Ce qui n'est pas
+# envoyé n'existera donc pas sur l'autre poste.
+#
+# Ce script renvoyait l'utilisateur le faire lui-même. C'était le seul endroit
+# où la bascule s'arrêtait, à chaque fois, pour un geste que le script sait
+# faire. Il l'enregistre et l'envoie donc lui-même : un départ, c'est justement
+# le moment où plus rien ne doit rester derrière.
+#
+# Une seule chose n'est PAS faite à la place de l'utilisateur : trancher un
+# conflit. C'est le seul endroit où du travail peut se perdre pour de bon.
+Write-Host "  2/4  Envoi du code..." -ForegroundColor Cyan
 
 git rev-parse --is-inside-work-tree 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Echec "Ce dossier n'est pas relié au dépôt du code. Rien n'a été modifié."
 }
 
-git fetch --quiet 2>$null | Out-Null
+# @{u} désigne l'endroit où le code part. Sans ce lien, il n'y a nulle part où
+# envoyer, et les comparaisons plus bas ne renverraient rien — « rien » se
+# lisant alors comme « tout est parti », alors que RIEN ne serait parti.
+git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Echec ("Ce dossier n'envoie son code nulle part : la branche n'est reliée à aucun dépôt.`n" +
+           "  Rien de ce poste n'arriverait sur l'autre. Rien n'a été modifié.")
+}
 
-$enCours  = @(git status --porcelain 2>$null | Where-Object { $_ })
+# Ce qui traîne est enregistré tel quel. Le message dit d'où et quand : ce n'est
+# pas un commit de travail, c'est un point de sauvegarde avant un départ.
+$enCours = @(git status --porcelain 2>$null | Where-Object { $_ })
+if ($enCours.Count -gt 0) {
+    Write-Host ("       {0} élément(s) à enregistrer :" -f $enCours.Count) -ForegroundColor DarkGray
+    foreach ($f in $enCours | Select-Object -First 10) { Write-Host "          $f" -ForegroundColor DarkGray }
+    if ($enCours.Count -gt 10) { Write-Host ("          ... et {0} autres" -f ($enCours.Count - 10)) -ForegroundColor DarkGray }
+
+    git add -A 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Echec "Votre travail n'a pas pu être préparé pour l'envoi. Rien n'a été modifié."
+    }
+    $message = "bascule : depart de {0}, le {1}" -f $env:COMPUTERNAME, (Get-Date -Format 'dd/MM/yyyy a HH:mm')
+    git commit --quiet -m $message 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Echec "Votre travail n'a pas pu être enregistré. Rien n'a été modifié."
+    }
+    Write-Host "       enregistré." -ForegroundColor Green
+}
+
+# Le dépôt a pu avancer pendant ce temps — l'autre poste, un autre outil. Si on
+# envoie sans se remettre dessus, l'envoi est refusé. --rebase pose notre
+# travail par-dessus le leur. En cas de conflit on annule et on s'arrête :
+# rien n'est perdu, l'enregistrement ci-dessus tient toujours.
+$depotJoignable = $true
+git fetch --quiet 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) { $depotJoignable = $false }
+
 $nonPartis = @(git log --oneline '@{u}..HEAD' 2>$null | Where-Object { $_ })
 
-if ($enCours.Count -gt 0 -or $nonPartis.Count -gt 0) {
-    Write-Host ""
-    Write-Host "  Du travail de ce poste n'est pas encore envoyé." -ForegroundColor Yellow
-    Write-Host "  Il ne serait pas sur l'autre poste. Rien n'a été modifié." -ForegroundColor Yellow
-    Write-Host ""
+if (-not $depotJoignable) {
     if ($nonPartis.Count -gt 0) {
-        Write-Host "    Enregistré ici, mais pas encore envoyé :" -ForegroundColor Yellow
-        foreach ($c in $nonPartis) { Write-Host "      $c" -ForegroundColor Yellow }
-        Write-Host ""
+        Echec ("Le dépôt est injoignable : votre code ne peut pas partir, et il manquerait`n" +
+               "  sur l'autre poste. Votre travail est enregistré ici, rien n'est perdu.")
     }
-    if ($enCours.Count -gt 0) {
-        Write-Host "    Modifié ici, pas même enregistré :" -ForegroundColor Yellow
-        foreach ($f in $enCours) { Write-Host "      $f" -ForegroundColor Yellow }
-        Write-Host ""
+    Write-Host "       (dépôt injoignable, mais rien n'attendait de partir)" -ForegroundColor DarkGray
+}
+else {
+    $enRetard = @(git log --oneline 'HEAD..@{u}' 2>$null | Where-Object { $_ })
+    if ($enRetard.Count -gt 0) {
+        git rebase --quiet '@{u}' 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            git rebase --abort 2>$null | Out-Null
+            Echec ("Le dépôt contient du travail qui touche les mêmes endroits que le vôtre.`n" +
+                   "  Je ne tranche pas un conflit à votre place : c'est le seul endroit où`n" +
+                   "  du travail peut se perdre. Réglez-le, puis relancez ce script.`n" +
+                   "  Votre travail est enregistré ici, rien n'est perdu.")
+        }
+        $nonPartis = @(git log --oneline '@{u}..HEAD' 2>$null | Where-Object { $_ })
     }
-    Echec "Faites partir ce travail, puis relancez ce script."
+
+    if ($nonPartis.Count -gt 0) {
+        git push --quiet 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Echec ("Le code n'a pas pu être envoyé : il manquerait sur l'autre poste.`n" +
+                   "  Votre travail est enregistré ici, rien n'est perdu.")
+        }
+        Write-Host ("       {0} enregistrement(s) envoyé(s)." -f $nonPartis.Count) -ForegroundColor Green
+    }
+}
+
+# Ce qu'on croit avoir fait, on le constate. Sans ce contrôle, un envoi
+# silencieusement incomplet laisserait partir un dossier amputé de son code.
+$resteIci    = @(git status --porcelain 2>$null | Where-Object { $_ })
+$resteAPartir = @(git log --oneline '@{u}..HEAD' 2>$null | Where-Object { $_ })
+if ($resteIci.Count -gt 0 -or $resteAPartir.Count -gt 0) {
+    Echec ("Malgré l'envoi, du travail reste sur ce poste et manquerait sur l'autre.`n" +
+           "  Rien d'autre n'a été modifié.")
 }
 Write-Host "       tout le code est parti." -ForegroundColor Green
+
+# ── VS Code se ferme ici, et pas avant ──────────────────────────────────
+# Il écrit en continu : état de session, caches d'extensions, et surtout
+# .git\index que son extension git rafraîchit toute seule. Un fichier qui
+# bouge entre la copie et la vérification serait signalé comme mal arrivé
+# alors que tout va bien — une fausse alerte, c'est-à-dire le pire des
+# messages, celui qui apprend à ne plus lire les messages.
+#
+# Mais on ne le ferme pas plus tôt : jusqu'ici, il fallait encore pouvoir
+# enregistrer et envoyer. Une fois le code parti, il n'a plus rien à faire.
+#
+# Fermeture par la fenêtre, jamais par la force : VS Code met de côté les
+# onglets non enregistrés et les retrouve au prochain lancement. Un arrêt
+# brutal ne le garantit pas, et ce n'est pas à un script de bascule de
+# décider du sort d'un texte que vous n'avez pas encore enregistré.
+$vscode = @(Get-Process -Name 'Code' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+if ($vscode.Count -gt 0) {
+    Write-Host "  Fermeture de VS Code..." -ForegroundColor Cyan
+    foreach ($p in $vscode) { $p.CloseMainWindow() | Out-Null }
+    for ($essai = 0; $essai -lt 15; $essai++) {
+        Start-Sleep -Seconds 1
+        if (-not (Get-Process -Name 'Code' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })) { break }
+    }
+    if (Get-Process -Name 'Code' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 }) {
+        Write-Host "       VS Code ne s'est pas fermé — il attend sans doute une réponse à l'écran." -ForegroundColor Yellow
+        Write-Host "       Fermez-le à la main. Sinon la vérification, tout à l'heure, pourra" -ForegroundColor Yellow
+        Write-Host "       signaler des fichiers comme mal arrivés alors qu'ils vont bien." -ForegroundColor Yellow
+    } else {
+        Write-Host "       fermé." -ForegroundColor Green
+    }
+}
 
 # ── 3/4  Votre travail entre dans le dossier ────────────────────────────
 # Votre travail ne se trouve pas dans le dossier : il vit à côté. On le
@@ -147,32 +280,28 @@ Write-Host "  4/4  Fermeture de l'application..." -ForegroundColor Cyan
 docker compose stop 2>$null | Out-Null
 Write-Host "       fermée." -ForegroundColor Green
 
-# ── Ce qu'il faut copier, nommé un par un ───────────────────────────────
-$mBagage = Mesure $bagage
-$mRefs   = Mesure (Join-Path $racine 'REFERENTIELS')
-$mEnv    = Mesure (Join-Path $racine '.env')
+# ── Les six dossiers qui ne voyagent pas ────────────────────────────────
+# Ils font le volume et ils se refabriquent tous sur place. Sur 79 500 fichiers
+# et 6,5 Go, ils en représentent 73 100 et 6,2 Go :
+#
+#   .venv, node_modules   55 400 + 15 300 fichiers, réinstallés par pip et npm
+#   hf-cache              4,3 Go — le modèle, retéléchargé à la première lecture
+#   pgdata                la base ne vit plus là : volume nommé pgdata_dev
+#                         (docker-compose.yml:24). Ce dossier est un reste.
+#   __pycache__, .pytest_cache   caches de Python
+#
+# .git n'en fait PAS partie : il voyage. Sans lui, l'autre poste n'a plus de
+# dépôt, et j_arrive s'arrête à 3/6.
+$ecartes = @('.venv', 'node_modules', '__pycache__', '.pytest_cache', 'pgdata', 'hf-cache')
 
 Write-Host ""
 Write-Host "  C'est prêt." -ForegroundColor Green
 Write-Host ""
-Write-Host "  Copiez SEULEMENT ces trois éléments, depuis ce dossier A-SCHOOL" -ForegroundColor Green
-Write-Host "  vers le dossier A-SCHOOL de l'autre poste, en remplaçant :" -ForegroundColor Green
+Write-Host "  Où copier le dossier ?" -ForegroundColor Cyan
 Write-Host ""
-if ($mBagage) { Write-Host ("      Bagage           le dossier         ({0})" -f $mBagage) -ForegroundColor White }
-if ($mRefs)   { Write-Host ("      REFERENTIELS     le dossier         ({0})" -f $mRefs)   -ForegroundColor White }
-else          { Write-Host  "      REFERENTIELS     absent de ce poste — rien à copier" -ForegroundColor DarkGray }
-if ($mEnv)    { Write-Host ("      .env             le fichier         ({0})" -f $mEnv)    -ForegroundColor White }
-else          { Write-Host  "      .env             absent de ce poste — rien à copier" -ForegroundColor DarkGray }
-Write-Host ""
-Write-Host "  Ne copiez rien d'autre. Tout le reste du dossier arrive tout seul" -ForegroundColor Green
-Write-Host "  là-bas : le code est déjà parti, et le reste se refabrique sur place." -ForegroundColor Green
-
-# ── La copie, faite ici plutôt que laissée à faire ──────────────────────
-# Choisir cinq choses à la main dans l'explorateur, c'est l'endroit où on se
-# trompe. Si la clé est branchée, on copie et on vérifie chaque fichier.
-Write-Host ""
-Write-Host "  Branchez votre clé maintenant et indiquez-la (par exemple  E:  )," -ForegroundColor Cyan
-Write-Host "  je copie tout dessus et je vérifie. Ou Entrée pour le faire vous-même." -ForegroundColor Cyan
+Write-Host '      un chemin réseau de l''autre poste    \\FIXE\D$' -ForegroundColor White
+Write-Host '      une clé, un disque externe           E:'         -ForegroundColor White
+Write-Host '      ou Entrée pour le faire vous-même.'              -ForegroundColor White
 Write-Host ""
 $ou = ''
 try { $ou = Read-Host "  Où copier" } catch { $ou = '' }
@@ -180,73 +309,77 @@ $ou = "$ou".Trim().Trim('"')
 
 if (-not $ou) {
     Write-Host ""
-    Write-Host "  Entendu. Ensuite, sur l'autre poste, lancez :  Scripts\j_arrive.ps1" -ForegroundColor Green
+    Write-Host "  Entendu. N'utilisez pas l'explorateur Windows : il emporterait les" -ForegroundColor Green
+    Write-Host "  79 000 fichiers, échouerait sur les liens du modèle, et sauterait" -ForegroundColor Green
+    Write-Host "  .git parce qu'il est caché. Cette commande-ci fait le tri :" -ForegroundColor Green
+    Write-Host ""
+    Write-Host ("      robocopy `"{0}`" `"<destination>\A-SCHOOL`" /MIR /XJ /XD {1}" -f $racine, ($ecartes -join ' ')) -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Puis, sur l'autre poste :  .\Scripts\j_arrive.ps1" -ForegroundColor Green
     Write-Host ""
     exit 0
 }
 
 if (-not (Test-Path $ou)) {
-    Echec "Cet endroit n'existe pas : $ou`n  Le dossier est prêt : copiez les trois éléments vous-même."
+    Echec "Cet endroit n'existe pas : $ou`n  Rien n'a été modifié."
 }
 
-$valise = Join-Path $ou 'A-SCHOOL-a-emporter'
+$destination = Join-Path $ou 'A-SCHOOL'
+
+# /MIR aligne la destination sur la source, suppressions comprises. C'est
+# nécessaire : un fichier qui n'existerait QUE là-bas resterait, et j_arrive
+# s'arrêterait à 3/6 en le prenant pour du travail local de ce poste.
+# Mais /MIR sur un mauvais chemin efface. On refuse donc d'écrire dans un
+# dossier existant qui ne serait pas déjà un A-SCHOOL.
+if ((Test-Path $destination) -and -not (Test-Path (Join-Path $destination 'docker-compose.yml'))) {
+    Echec ("$destination existe déjà, mais ce n'est pas un dossier A-SCHOOL.`n" +
+           "  Je refuse d'écrire dedans : /MIR y supprimerait ce qui s'y trouve.`n" +
+           "  Rien n'a été modifié.")
+}
+
 Write-Host ""
-Write-Host "  Copie vers $valise ..." -ForegroundColor Cyan
-if (Test-Path $valise) { Remove-Item -LiteralPath $valise -Recurse -Force -ErrorAction SilentlyContinue }
-New-Item -ItemType Directory -Force -Path $valise | Out-Null
+Write-Host "  Copie vers $destination" -ForegroundColor Cyan
+Write-Host "  (le dossier entier, moins les six qui se refabriquent)" -ForegroundColor DarkGray
+Write-Host ""
 
-# Les deux fichiers d'installation partent aussi : ils ne servent que sur un
-# poste où le dossier n'existe pas encore, et là-bas rien d'autre ne les fournit.
-$aCopier = @($bagage, (Join-Path $racine 'REFERENTIELS'), (Join-Path $racine '.env'),
-             (Join-Path $PSScriptRoot 'j_installe.ps1'), (Join-Path $PSScriptRoot 'j_installe.cmd'))
+robocopy $racine $destination /MIR /XJ /XD @ecartes /NFL /NDL /R:2 /W:2
 
-foreach ($element in $aCopier) {
-    if (-not (Test-Path $element)) { continue }
-    if ((Get-Item $element -Force).PSIsContainer) {
-        Copy-Item -LiteralPath $element -Destination $valise -Recurse -Force -ErrorAction SilentlyContinue
-    } else {
-        Copy-Item -LiteralPath $element -Destination $valise -Force -ErrorAction SilentlyContinue
-    }
+# robocopy ne suit pas la convention des autres commandes : 0 à 7 sont des
+# succès (0 = rien à faire, 1 = fichiers copiés, 2 = extras supprimés, et les
+# combinaisons), 8 et au-delà sont de vrais échecs. Lire « -ne 0 » comme
+# ailleurs déclarerait en échec la copie la plus normale qui soit.
+if ($LASTEXITCODE -ge 8) {
+    Echec "La copie a échoué (code $LASTEXITCODE). Vérifiez que $ou est accessible en écriture. Rien n'a été modifié ici."
 }
 
 # Vérification : chaque fichier est relu des deux côtés et comparé. Une copie
-# annoncée sans être vérifiée, c'est ce qui a coûté une journée.
-$ecarts = @()
+# annoncée sans être vérifiée, c'est ce qui a coûté une journée. robocopy dit
+# ce qu'il a fait ; il ne dit pas ce qui est arrivé.
+Write-Host ""
+Write-Host "  Vérification de chaque fichier des deux côtés..." -ForegroundColor Cyan
+
+$motifEcartes = ($ecartes | ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
+$ecarts  = @()
 $comptes = 0
-foreach ($element in $aCopier) {
-    if (-not (Test-Path $element)) { continue }
-    $item = Get-Item $element -Force
-    if ($item.PSIsContainer) {
-        $base = Split-Path $element -Parent
-        foreach ($f in Get-ChildItem -LiteralPath $element -Recurse -Force -File) {
-            $relatif = $f.FullName.Substring($base.Length + 1)
-            $arrivee = Join-Path $valise $relatif
-            $comptes++
-            if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
-            if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
-        }
-    } else {
-        $arrivee = Join-Path $valise $item.Name
-        $comptes++
-        if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $item.Name }
-        elseif ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $item.FullName).Hash) { $ecarts += $item.Name }
-    }
+foreach ($f in Get-ChildItem -LiteralPath $racine -Recurse -Force -File -ErrorAction SilentlyContinue) {
+    $relatif = $f.FullName.Substring($racine.Length + 1)
+    if ("\$relatif\" -match $motifEcartes) { continue }
+    $arrivee = Join-Path $destination $relatif
+    $comptes++
+    if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
+    if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
 }
 
 if ($ecarts.Count -gt 0) {
     Write-Host ""
     Write-Host "  Ces fichiers ne sont pas arrivés correctement :" -ForegroundColor Red
     foreach ($e in $ecarts | Select-Object -First 10) { Write-Host "      $e" -ForegroundColor Red }
-    Echec "La copie n'est pas fiable. Videz la clé et relancez ce script."
+    if ($ecarts.Count -gt 10) { Write-Host ("      ... et {0} autres" -f ($ecarts.Count - 10)) -ForegroundColor Red }
+    Echec "La copie n'est pas fiable. Relancez ce script."
 }
 
 Write-Host ("       $comptes fichiers copiés, tous vérifiés un par un.") -ForegroundColor Green
 Write-Host ""
-Write-Host "  Votre clé est prête. Sur l'autre poste :" -ForegroundColor Green
-Write-Host ""
-Write-Host "     — s'il a déjà le dossier A-SCHOOL : collez-y Bagage, REFERENTIELS" -ForegroundColor Green
-Write-Host "       et .env, puis lancez Scripts\j_arrive.ps1" -ForegroundColor Green
-Write-Host ""
-Write-Host "     — s'il ne l'a pas, ou qu'il est à refaire : posez j_installe.ps1" -ForegroundColor Green
-Write-Host "       et j_installe.cmd sur le Bureau, et double-cliquez j_installe.cmd" -ForegroundColor Green
+Write-Host "  C'est en place. Sur l'autre poste, ouvrez le dossier A-SCHOOL" -ForegroundColor Green
+Write-Host "  et lancez :  .\Scripts\j_arrive.ps1" -ForegroundColor Green
 Write-Host ""
