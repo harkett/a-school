@@ -586,7 +586,37 @@ Write-Host "       la progression s'affiche ci-dessous." -ForegroundColor DarkGr
 Write-Host ""
 docker compose up -d --build
 Write-Host ""
-if ($LASTEXITCODE -ne 0) {
+$codeDemarrage = $LASTEXITCODE
+
+# ── Refaire les liens du modèle ─────────────────────────────────────────
+# Le cache est arrivé sans ses 12 liens : Windows ne sait ni les lire ni les
+# écrire. Les octets, eux, sont là (blobs\). Il ne manque que les noms.
+# je_pars a relevé la carte depuis Linux ; on la rejoue ici depuis Linux.
+# Sans cette étape, le modèle ne charge pas et plus rien ne se génère.
+$fichierLiens = Join-Path $bagage 'liens_modele.txt'
+if ($codeDemarrage -eq 0 -and (Test-Path $fichierLiens)) {
+    Write-Host "       Remise en place des liens du modèle..." -ForegroundColor Cyan
+    # Découpage par expansion de paramètre (${l%%|*} et ${l#*|}) : ni guillemets
+    # imbriqués, ni antislash. PowerShell détruit les deux en passant la commande
+    # à Docker. Les chemins du cache ne contiennent ni espace ni « | ».
+    # Le compte final ne compte PAS les liens : il compte ceux qui MÈNENT
+    # quelque part (test -e). Un lien peut exister et ne rien viser — c'est
+    # arrivé, sur model.safetensors, à cause d'un retour chariot en trop.
+    # Compter les liens aurait dit « 12 en place » sur un modèle inutilisable.
+    $sortie = docker compose run --rm --no-deps -T backend sh -c 'cd /root/.cache/huggingface; while read l; do n=${l%%|*}; c=${l#*|}; mkdir -p ${n%/*}; rm -f $n; ln -s $c $n; done < /app/Bagage/liens_modele.txt; for f in $(find . -type l); do if [ -e $f ]; then echo x; fi; done | wc -l'
+    $n = 0
+    $der = @($sortie) | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1
+    if ($der) { $n = [int]$der }
+    $attendus = @(Get-Content $fichierLiens -ErrorAction SilentlyContinue | Where-Object { $_ }).Count
+    if ($n -ge $attendus -and $attendus -gt 0) {
+        Write-Host ("       $n liens en place." -f $n) -ForegroundColor Green
+    } else {
+        Write-Host "       ATTENTION : les liens du modèle n'ont pas pu être refaits" -ForegroundColor Red
+        Write-Host ("       ($n en place, $attendus attendus). Les générations échoueront.") -ForegroundColor Red
+    }
+}
+
+if ($codeDemarrage -ne 0) {
     Echec "Votre travail est bien installé, mais l'application n'a pas démarré. Relancez ce script."
 }
 

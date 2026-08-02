@@ -292,6 +292,58 @@ if ($dateEcrite -notmatch '^\d+$') {
            "  synchronisation. Renommez-le à la main, puis relancez ce script.`n" +
            "  Votre travail est déjà dans le dossier, rien n'est perdu.")
 }
+
+# ── La carte des liens du modèle ────────────────────────────────────────
+# Le cache du modèle est bâti en deux étages : blobs\ porte les octets sous des
+# noms illisibles, snapshots\ porte 12 LIENS qui leur donnent leurs vrais noms
+# (config.json, model.safetensors, tokenizer.json…). Sans ces liens, le modèle
+# ne charge pas — et sans le modèle, plus une seule génération ne fonctionne.
+#
+# Ces liens viennent de Linux, et WINDOWS NE SAIT PAS LES LIRE. Aucun outil
+# Windows ne les reproduira. On emporte donc leur CARTE, lue depuis Linux où
+# elle est lisible, et j_arrive refera les liens là-bas, depuis Linux aussi.
+# Le cache est monté dans le conteneur backend (docker-compose.yml:86).
+$fichierLiens = Join-Path $bagage 'liens_modele.txt'
+Remove-Item $fichierLiens -Force -ErrorAction SilentlyContinue
+
+if (Test-Path (Join-Path $racine 'docker\hf-cache')) {
+    Write-Host "       relevé des liens du modèle..." -ForegroundColor DarkGray
+
+    # Deux listes plutôt qu'une, et PAS LA MOINDRE séquence d'échappement :
+    # PowerShell mange les \t et \n en passant la commande à Docker (la sortie
+    # revenait collée en un seul bloc), et casse les guillemets imbriqués.
+    # find rend ses lignes tout seul, et « -exec … + » garde le même ordre de
+    # parcours : les deux listes s'apparient donc rang par rang.
+    $brut   = docker compose run --rm --no-deps -T backend sh -c 'cd /root/.cache/huggingface; find . -type l; echo ---; find . -type l -exec readlink {} +'
+    $lignes = @($brut) | ForEach-Object { "$_".Trim() } | Where-Object { $_ }
+    $sep    = [Array]::IndexOf($lignes, '---')
+
+    $noms = @(); $cibles = @()
+    if ($sep -gt 0 -and $sep -lt ($lignes.Count - 1)) {
+        $noms   = @($lignes[0..($sep - 1)]                 | Where-Object { $_ -like './*' })
+        $cibles = @($lignes[($sep + 1)..($lignes.Count -1)] | Where-Object { $_ -like '*blobs/*' })
+    }
+
+    # On n'écrit la carte que si les deux listes se correspondent. Une carte
+    # bancale referait de MAUVAIS liens là-bas — pire que pas de carte du tout.
+    if ($noms.Count -gt 0 -and $noms.Count -eq $cibles.Count) {
+        $paires = for ($k = 0; $k -lt $noms.Count; $k++) { "{0}|{1}" -f $noms[$k], $cibles[$k] }
+
+        # Écrit en fins de ligne UNIX, et surtout PAS avec Set-Content : celui-ci
+        # termine le fichier par un CRLF, et le « read » du shell garde alors le
+        # retour chariot. Il se collait au nom du blob de la DERNIÈRE ligne, qui
+        # devenait introuvable — un lien sur douze cassé, et pas n'importe lequel :
+        # model.safetensors, le modèle lui-même. Le symptôme était invisible
+        # (le lien existait, il pointait juste un caractère à côté).
+        [IO.File]::WriteAllText($fichierLiens, (($paires -join "`n") + "`n"))
+        Write-Host ("       {0} liens relevés." -f $noms.Count) -ForegroundColor Green
+    } else {
+        # On ne se tait pas : sans cette carte, l'autre poste aura les octets du
+        # modèle sans les noms, et ne pourra rien générer sans qu'on lui dise
+        # pourquoi. C'est exactement le silence qui a coûté une bascule.
+        Write-Host "       (aucun lien relevé — le modèle risque de ne pas charger là-bas)" -ForegroundColor Yellow
+    }
+}
 Write-Host "       c'est fait." -ForegroundColor Green
 
 # ── 4/4  Fermer proprement ──────────────────────────────────────────────
@@ -393,14 +445,18 @@ Write-Host ""
 # DOSSIERS s'affichent : sans eux, robocopy reste muet le temps de la copie,
 # et un écran figé pendant vingt minutes se lit comme un plantage.
 #
-# PAS de /XJ. Le cache du modèle est bâti en deux étages : blobs\ contient les
-# octets sous des noms illisibles, snapshots\ contient 12 LIENS qui leur
-# donnent leurs vrais noms (config.json, model.safetensors, tokenizer.json…).
-# /XJ sautait ces 12 liens : l'autre poste recevait 4,3 Go de blobs et un
-# snapshots vide, et le modèle ne se chargeait pas davantage. Sans /XJ,
-# robocopy recrée les liens — vérifié : 0 octet chacun, rien n'est dupliqué.
-# Ce sont les seuls liens du dossier ; il n'y a donc aucune boucle à craindre.
-robocopy $racine $destination /MIR /XD @ecartes /NFL /R:2 /W:2
+# /XJ écarte les 12 liens du cache du modèle, et c'est volontaire.
+#
+# Ils ont été créés depuis Linux, par Docker. Windows ne sait pas les LIRE —
+# pas seulement les copier : les lire. Get-Content répond « le système ne peut
+# pas accéder au fichier », LinkType et Target sont vides. Sans /XJ, robocopy
+# les tente, échoue (code 9), et laisse douze fichiers VIDES à l'arrivée : le
+# modèle ne charge pas davantage, et l'échec passe pour un problème de droits.
+#
+# Ce ne sont que des noms : les octets, eux, sont dans blobs\ et voyagent.
+# La carte « nom -> blob » part dans Bagage\liens_modele.txt (étape 3/4), et
+# j_arrive refait les liens là-bas depuis Linux, qui sait les faire.
+robocopy $racine $destination /MIR /XJ /XD @ecartes /NFL /R:2 /W:2
 
 # robocopy ne suit pas la convention des autres commandes : 0 à 7 sont des
 # succès (0 = rien à faire, 1 = fichiers copiés, 2 = extras supprimés, et les
