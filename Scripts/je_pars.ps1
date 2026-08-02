@@ -337,12 +337,33 @@ if ((Test-Path $destination) -and -not (Test-Path (Join-Path $destination 'docke
            "  Rien n'a été modifié.")
 }
 
+# ── Docker doit être fermé LÀ-BAS, et surtout pas ici ───────────────────
+# /MIR supprime et remplace à la destination. Un conteneur qui tourne là-bas
+# tient des fichiers ouverts : la copie bute dessus, et l'application se fait
+# retirer le sol sous les pieds en pleine marche.
+# Ici, au contraire, Docker doit rester ouvert — l'étape 3/4 vient de s'en
+# servir pour sortir votre base.
+Write-Host ""
+Write-Host "  AVANT DE CONTINUER" -ForegroundColor Yellow
+Write-Host "  ══════════════════" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Fermez Docker Desktop sur le poste qui REÇOIT." -ForegroundColor Yellow
+Write-Host "  (pas sur celui-ci : ici, il doit rester ouvert)" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  La copie remplace et supprime là-bas. Elle butera sur tout fichier" -ForegroundColor Yellow
+Write-Host "  qu'un conteneur y tient ouvert." -ForegroundColor Yellow
+Write-Host ""
+try { Read-Host "  Entrée quand c'est fait" | Out-Null } catch { }
+
 Write-Host ""
 Write-Host "  Copie vers $destination" -ForegroundColor Cyan
 Write-Host "  (le dossier entier, moins les six qui se refabriquent)" -ForegroundColor DarkGray
 Write-Host ""
 
-robocopy $racine $destination /MIR /XJ /XD @ecartes /NFL /NDL /R:2 /W:2
+# /NFL tait la liste des fichiers — 6 000 lignes n'apprennent rien. Mais les
+# DOSSIERS s'affichent : sans eux, robocopy reste muet le temps de la copie,
+# et un écran figé pendant vingt minutes se lit comme un plantage.
+robocopy $racine $destination /MIR /XJ /XD @ecartes /NFL /R:2 /W:2
 
 # robocopy ne suit pas la convention des autres commandes : 0 à 7 sont des
 # succès (0 = rien à faire, 1 = fichiers copiés, 2 = extras supprimés, et les
@@ -359,16 +380,41 @@ Write-Host ""
 Write-Host "  Vérification de chaque fichier des deux côtés..." -ForegroundColor Cyan
 
 $motifEcartes = ($ecartes | ForEach-Object { [regex]::Escape("\$_\") }) -join '|'
+
+# On compte d'abord, pour pouvoir dire où on en est. Ce comptage prend quelques
+# secondes ; le quart d'heure qui suit se passait sans un mot, et un écran figé
+# se lit comme un plantage. C'est arrivé.
+$fichiers = @(Get-ChildItem -LiteralPath $racine -Recurse -Force -File -ErrorAction SilentlyContinue |
+              Where-Object { "\$($_.FullName.Substring($racine.Length + 1))\" -notmatch $motifEcartes })
+$total = $fichiers.Count
+Write-Host ("       $total fichiers à relire des deux côtés. Les octets de la destination") -ForegroundColor DarkGray
+Write-Host  "       repassent par le réseau : comptez le même temps que la copie." -ForegroundColor DarkGray
+Write-Host ""
+
+$chrono  = [System.Diagnostics.Stopwatch]::StartNew()
 $ecarts  = @()
 $comptes = 0
-foreach ($f in Get-ChildItem -LiteralPath $racine -Recurse -Force -File -ErrorAction SilentlyContinue) {
+foreach ($f in $fichiers) {
     $relatif = $f.FullName.Substring($racine.Length + 1)
-    if ("\$relatif\" -match $motifEcartes) { continue }
     $arrivee = Join-Path $destination $relatif
     $comptes++
+
+    # Une seule ligne réécrite sur place, plutôt que 6 000 lignes qui défilent.
+    # Après cinquante fichiers, la cadence est connue : on annonce ce qui reste.
+    if ($comptes % 25 -eq 0 -or $comptes -eq $total) {
+        $reste = ''
+        if ($comptes -gt 50) {
+            $s = [int](($chrono.Elapsed.TotalSeconds / $comptes) * ($total - $comptes))
+            $reste = "  —  encore {0} min {1:00} s" -f [int]($s / 60), ($s % 60)
+        }
+        Write-Host ("`r       {0}/{1}  ({2} %){3}          " -f $comptes, $total, [int](100 * $comptes / $total), $reste) -NoNewline -ForegroundColor DarkGray
+    }
+
     if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
     if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
 }
+$chrono.Stop()
+Write-Host ""
 
 if ($ecarts.Count -gt 0) {
     Write-Host ""

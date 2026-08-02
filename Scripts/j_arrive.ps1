@@ -574,8 +574,17 @@ if ($codeInstallation -ne 0) {
     Write-Host "       installé." -ForegroundColor Green
 }
 
-Write-Host "       démarrage de l'application..." -ForegroundColor Cyan
-docker compose up -d --build 2>$null | Out-Null
+# La sortie n'est plus jetée. Cette commande peut avoir à reconstruire l'image
+# du backend, et cette reconstruction installe torch et sentence-transformers :
+# plusieurs minutes la première fois sur un poste. Muette, elle se lisait comme
+# un plantage. Docker dit ce qu'il fait au fur et à mesure — on le laisse dire.
+Write-Host ""
+Write-Host "       Démarrage de l'application." -ForegroundColor Cyan
+Write-Host "       Si l'image doit être reconstruite, comptez plusieurs minutes :" -ForegroundColor DarkGray
+Write-Host "       la progression s'affiche ci-dessous." -ForegroundColor DarkGray
+Write-Host ""
+docker compose up -d --build
+Write-Host ""
 if ($LASTEXITCODE -ne 0) {
     Echec "Votre travail est bien installé, mais l'application n'a pas démarré. Relancez ce script."
 }
