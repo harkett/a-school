@@ -9,7 +9,8 @@ from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
 from backend.prof.profil import couple_de_travail
-from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_prompt
+from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+                                   get_retry_max, get_retry_wait_max, get_temperature, get_prompt)
 from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
@@ -91,7 +92,11 @@ def api_analyser_consigne(
     )
 
     try:
-        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db))
+        # retry_max / retry_wait_max : même politique de rattrapage qu'ailleurs, lue en base.
+        # Elle manquait ici : le réglage `ai_retry_max` de l'admin ne s'appliquait pas.
+        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+                       max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db),
+                       retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
         data = _parse_json(raw)
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne

@@ -22,7 +22,8 @@ from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel, User
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.rag.pgvector_store import retrieve_pg
-from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k
+from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+                                   get_rag_top_k, get_retry_max, get_retry_wait_max, get_temperature)
 from backend.llm.generator import generate, LLMRateLimitError
 from backend.llm.prompts import build_exemple_referentiel_prompt, ajouter_cahier_au_prompt
 
@@ -124,7 +125,11 @@ def api_exemple_referentiel(
     # même geste que générer et « Propose-moi une idée ». Pas de cahier → prompt inchangé.
     prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
-        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db))
+        # retry_max / retry_wait_max : même politique de rattrapage qu'ailleurs, lue en base.
+        # Elle manquait ici : le réglage `ai_retry_max` de l'admin ne s'appliquait pas.
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+                         max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db),
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     log.info(f"[exemple-ref] généré pour couple ({matiere}, {niveau}) — {len(chunks)} chunks ancrés (>= {seuil})")

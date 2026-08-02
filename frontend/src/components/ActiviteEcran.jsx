@@ -327,21 +327,29 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                 Changer votre ton
               </button>
             )}
-            {/* L'historique promis par les infobulles, enfin lisible : chaque jalon a figé une
-                version, celle-ci s'ouvre et se restaure (règle 0). Disponible dès que l'activité
-                existe en base — avant, il n'y a rien à relire. */}
-            {activiteId && (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setHistoriqueOuvert(true)}
-                title="Historique : relire les versions précédentes de cette activité et revenir à l'une d'elles. Rien n'est jamais supprimé."
-                style={{ flexShrink: 0 }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 14"/></svg>
-                Historique
-              </button>
-            )}
+          </div>
+        )}
+        {/* L'HISTORIQUE EST HORS DE LA CONDITION `resultat` — et c'est tout l'objet du correctif
+            du 02/08/2026. Il était imbriqué dans le bloc « reprise » ci-dessus, donc affiché
+            seulement quand un résultat était à l'écran. Or une génération qui ÉCHOUE fait
+            `setResultat(null)` (deux fois : sur l'événement `error` du flux, et dans le catch) :
+            le bouton disparaissait exactement au moment où le prof en avait le plus besoin —
+            son texte venait d'être perdu, et la version précédente était à un clic.
+            La séance n'a jamais eu ce défaut : son bouton ne dépend que de `seanceId`
+            (SeanceEcran.jsx). Les deux écrans disent enfin la même chose.
+            Condition : l'activité existe en base — avant, il n'y a rien à relire. */}
+        {activiteId && (
+          <div style={{ marginLeft: resultat && !loading ? 0 : 'auto', flexShrink: 0 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setHistoriqueOuvert(true)}
+              title="Historique : relire les versions précédentes de cette activité et revenir à l'une d'elles. Rien n'est jamais supprimé."
+              style={{ flexShrink: 0 }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 14"/></svg>
+              Historique
+            </button>
           </div>
         )}
       </div>

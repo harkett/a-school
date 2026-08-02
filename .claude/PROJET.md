@@ -311,3 +311,38 @@ dans les deux sens.
 **Tests :** `tests/test_prompts_mode_replace.py` (11 tests) — dont la liste **gelée** des trois
 prompts en mode replace : retirer le contrôle `.format()` d'un prompt se décide, ça ne se glisse
 pas.
+
+---
+
+## 9. Deux écrans qui font le même geste doivent le faire pareil
+
+*(02/08/2026 — la règle qui a produit le plus de trouvailles de tout l'audit.)*
+
+L'activité et la séance sont des frères : même auto-save, même historique de versions, même
+génération en flux. Quand l'un est juste et l'autre non, c'est le second qui a tort — et la
+comparaison le montre en quelques minutes là où une relecture isolée ne voit rien.
+
+**Trois défauts sur les neuf de l'audit sont sortis de cette seule comparaison :**
+
+1. **Le couple à la régénération** (section 7) — la séance faisait suivre `matiere`/`niveau`,
+   l'activité non.
+2. **L'accès à l'historique après un échec** — dans `ActiviteEcran`, le bouton « Historique »
+   était imbriqué dans le bloc des reprises, ouvert par `{resultat && !loading && (`. Or un
+   échec de génération fait `setResultat(null)` (deux fois : sur l'événement `error` du flux et
+   dans le `catch`). Le bouton **disparaissait** donc au moment précis où le prof en avait le
+   plus besoin : son texte venait d'être perdu et la version précédente était à un clic. La
+   séance ne conditionnait que sur `seanceId` — elle n'a jamais eu le défaut.
+   **Test :** `frontend/src/historique-accessible-apres-un-echec.test.js` (4 tests), dont un qui
+   compare les gardes des DEUX écrans.
+3. **La politique de rattrapage sur 429** — `ai_retry_max` et `ai_retry_wait_max` sont des
+   réglages admin, en base. Trois outils du prof ne les passaient pas à `generate()` :
+   « Détecteur d'ambiguïtés », « Analyse de consigne », « Tester un exemple ». Ils rendaient
+   donc 429 dès la **première** limite du fournisseur pendant que séance, séquence et activité
+   re-tentaient. Le réglage de l'admin ne concernait pas ces écrans, et rien ne le disait — la
+   panne ressemble à « le service est très demandé », un message parfaitement crédible.
+   **Test :** `tests/test_rattrapage_429_partout.py` (3 tests). Il lit **tous** les sites
+   d'appel, donc il couvre aussi ceux qu'on écrira demain, et il **nomme** sa seule exclusion
+   (`analyse_amont.py`, geste admin) au lieu de l'écarter en silence.
+
+Les deux autres règles de l'audit sont dans les sections 5 et 7 : un test vert prouve qu'il n'a
+pas échoué, pas qu'il a regardé ; et un test peut geler un bug.

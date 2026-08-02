@@ -9,7 +9,8 @@ from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models_db import ToolUsageLog, User
 from backend.prof.profil import couple_de_travail
-from backend.systeme.admin import get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_prompt
+from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+                                   get_retry_max, get_retry_wait_max, get_temperature, get_prompt)
 from backend.llm.generator import generate, LLMRateLimitError
 
 router = APIRouter()
@@ -89,7 +90,13 @@ def api_detect_ambiguites(
     )
 
     try:
-        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db), max_tokens=get_max_tokens(db, "ambiguites"), temperature=get_temperature(db))
+        # retry_max / retry_wait_max : la politique de rattrapage sur 429, LUE EN BASE comme
+        # partout ailleurs. Elle manquait ici — l'outil rendait donc 429 au prof dès la première
+        # limite du fournisseur, pendant que la séance et l'activité re-tentaient. Le réglage
+        # `ai_retry_max` de l'admin ne s'appliquait pas à cet écran, sans que rien ne le dise.
+        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+                       max_tokens=get_max_tokens(db, "ambiguites"), temperature=get_temperature(db),
+                       retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
         data = _parse_json(raw)
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
