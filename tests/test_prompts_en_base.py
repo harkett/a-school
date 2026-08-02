@@ -13,7 +13,7 @@ migrations), donc comparer le registre à la base ne prouverait rien — les deu
 dictionnaire. La migration, elle, est un texte figé, écrit une fois : c'est le seul témoin
 indépendant.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_prompts_en_base.py -q
 """
 import importlib.util
 import os
@@ -45,12 +45,17 @@ def _charger(nom: str):
 
 def _prompts_geles() -> dict[str, str]:
     """Ce qu'une base NEUVE contiendra vraiment : le seed gelé, PUIS les mises à jour gelées des
-    migrations suivantes, appliquées dans l'ordre de la chaîne.
+    migrations suivantes, appliquées dans l'ordre de la chaîne, PUIS les retraits.
 
     Une migration ne se retouche jamais une fois appliquée : un prompt qui change se corrige par
     une migration DE MISE À JOUR, qui expose son texte figé dans `PROMPTS_MAJ`. Sans cette
     composition, ce fichier comparerait le registre au texte du premier jour et interdirait toute
-    évolution — ou pire, la laisserait passer sans que la base la reçoive."""
+    évolution — ou pire, la laisserait passer sans que la base la reçoive.
+
+    Un prompt peut aussi SORTIR : celui dont l'outil a été démoli, et que plus aucun
+    `get_prompt` ne demande. La migration qui le supprime de `settings` l'annonce dans
+    `PROMPTS_RETIRES`, sans quoi ce fichier le signalerait éternellement comme « semé par la
+    migration mais absent du registre » — un faux positif qui n'a aucune correction possible."""
     textes = dict(_charger("b8e5f2a1c9d7_seed_tous_les_prompts_geles.py").PROMPTS_GELES)
 
     # Les mises à jour, rangées dans l'ordre de la chaîne (down_revision -> revision), pour que
@@ -63,7 +68,12 @@ def _prompts_geles() -> dict[str, str]:
             if "PROMPTS_MAJ" not in f.read():
                 continue
         m = _charger(nom)
-        majs[m.revision] = (m.down_revision, dict(m.PROMPTS_MAJ))
+        # Le filtre ci-dessus lit le TEXTE du fichier : une migration qui se contente de CITER
+        # `PROMPTS_MAJ` dans un commentaire y passe aussi. On confirme sur le module.
+        maj = getattr(m, "PROMPTS_MAJ", None)
+        if maj is None:
+            continue
+        majs[m.revision] = (m.down_revision, dict(maj))
 
     ordonnees, restants = [], dict(majs)
     precedente = "b8e5f2a1c9d7"
@@ -75,6 +85,18 @@ def _prompts_geles() -> dict[str, str]:
         precedente = suivante
     for maj in ordonnees:
         textes.update(maj)
+
+    # Les retraits en dernier : une clé retirée l'est quel que soit l'endroit de la chaîne où
+    # elle avait été semée ou mise à jour. Aucune migration ne re-sème un prompt retiré (le
+    # `downgrade` de b6d1f4a8c2e7 le fait, mais un downgrade n'est pas une base neuve).
+    for nom in sorted(os.listdir(VERSIONS)):
+        if not nom.endswith(".py"):
+            continue
+        with open(os.path.join(VERSIONS, nom), encoding="utf-8") as f:
+            if "PROMPTS_RETIRES" not in f.read():
+                continue
+        for cle in getattr(_charger(nom), "PROMPTS_RETIRES", ()):
+            textes.pop(cle, None)
     return textes
 
 

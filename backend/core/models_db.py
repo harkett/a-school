@@ -339,6 +339,9 @@ class SeanceVersion(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     seance_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("seances.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Mêmes deux jalons que l'activité — 'generation' et 'restauration', et pas de troisième :
+    # le déroulé d'une séance ne s'édite pas davantage dans l'application. Le pourquoi est
+    # écrit une seule fois, sur `ActiviteVersion.jalon` juste en dessous.
     jalon: Mapped[str] = mapped_column(String(32), nullable=False, default="generation", server_default="generation")
     style: Mapped[str | None] = mapped_column(String(32), nullable=True)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
@@ -387,7 +390,23 @@ class ActiviteVersion(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     activite_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("activites.id", ondelete="CASCADE"), nullable=False, index=True)
-    jalon: Mapped[str] = mapped_column(String(32), nullable=False)   # 'generation' (puis 'edition', 'restauration'…)
+    # DEUX JALONS, ET DEUX SEULEMENT :
+    #   'generation'    le prof a (re)généré — POST à la première, PUT aux suivantes.
+    #   'restauration'  le prof est revenu à une version précédente ; ce retour s'empile à son
+    #                   tour, d'où la possibilité de revenir en arrière d'un retour en arrière.
+    #
+    # IL N'Y A PAS DE TROISIÈME JALON, et ce n'est pas un manque : le résultat NE S'ÉDITE PAS
+    # dans l'application. C'est un choix produit, déjà annoncé au prof dans l'aide de l'écran
+    # Créer (frontend/src/utils/aideCreer.js) — pour retoucher une question ou corriger une
+    # coquille, il télécharge l'activité en .txt ou Word et la modifie dans son traitement de
+    # texte. Aucun écran n'offre d'édition, aucun code n'écrit un autre jalon.
+    #
+    # Ce commentaire annonçait « (puis 'edition', 'restauration'…) » et JALON_LABELS portait un
+    # libellé « Modification à la main » pour un jalon que rien n'écrivait. Le libellé est parti
+    # le 02/08/2026. La raison est écrite ici pour qu'on ne le remette pas : ouvrir l'édition
+    # sans toucher au PUT de régénération étiquetterait la retouche « Génération » — un mensonge
+    # inscrit dans l'historique du prof, pire que l'absence.
+    jalon: Mapped[str] = mapped_column(String(32), nullable=False)
     ton: Mapped[str | None] = mapped_column(String(32), nullable=True)
     resultat: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
@@ -663,8 +682,10 @@ class ReferentielChunk(Base):
 
     niveau/source NON dupliqués : récupérés par jointure via referentiel_id (cap relationnel).
     embedding_model = garde-fou : interdit de comparer un jour des vecteurs de modèles différents.
-    Dimension 1024 (embeddings BGE-M3). Migration Alembic 384->1024 encore à écrire pour la
-    vraie base / environnements neufs : le modèle est ici en avance sur les migrations commitées."""
+    Dimension 1024 (embeddings BGE-M3). La migration 384->1024 EXISTE :
+    alembic/versions/e2f3a4b5c6d7_embedding_1024.py — le modèle et les migrations sont alignés.
+    (Ce commentaire annonçait la migration « encore à écrire » longtemps après qu'elle l'ait
+    été : un texte qui promet un travail déjà fait le fait refaire, ou pire, croire absent.)"""
     __tablename__ = "referentiel_chunks"
     __table_args__ = (
         Index("ix_referentiel_chunks_referentiel_id", "referentiel_id"),

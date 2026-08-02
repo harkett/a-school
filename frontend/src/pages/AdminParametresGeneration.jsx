@@ -40,8 +40,12 @@ export default function AdminParametresGeneration() {
   const [allProviders, setAllProviders] = useState([]) // [{ name, label, available }]
   const [providersLoaded, setProvidersLoaded] = useState(false) // distingue « en cours » de « vide »
 
-  // max_tokens (Phase 4.1.c) — défaut global + 3 surcharges + bornes.
-  const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '', optimiseur: '' })
+  // max_tokens (Phase 4.1.c) — défaut global + 2 surcharges + bornes.
+  // La surcharge « optimiseur » est partie le 02/08 : l'outil qu'elle réglait a été démoli le
+  // 30/07, le champ restait affiché et enregistrait une valeur que personne ne lisait. Retiré
+  // ICI ET DANS LE CONTRAT D'API en même temps — un champ ôté d'un seul côté fait tomber
+  // l'enregistrement de TOUTES les surcharges, le corps étant validé en bloc.
+  const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '' })
   const [bounds, setBounds] = useState({ min: 256, max: 8000 })
   const [savingTokens, setSavingTokens] = useState(false)
   const [messageTokens, setMessageTokens] = useState(null)
@@ -83,7 +87,6 @@ export default function AdminParametresGeneration() {
           default: String(data.default ?? ''),
           ambiguites: String(data.overrides?.ambiguites ?? ''),
           sequence: String(data.overrides?.sequence ?? ''),
-          optimiseur: String(data.overrides?.optimiseur ?? ''),
         })
         if (data.bounds) setBounds(data.bounds)
       })
@@ -177,7 +180,7 @@ export default function AdminParametresGeneration() {
   }
   const tokensInvalides =
     champInvalide(tokens.default) || champInvalide(tokens.ambiguites) ||
-    champInvalide(tokens.sequence) || champInvalide(tokens.optimiseur)
+    champInvalide(tokens.sequence)
 
   async function saveMaxTokens() {
     // Garde-fou principal : incohérence -> modale bloquante (jamais avertissement inline),
@@ -201,7 +204,6 @@ export default function AdminParametresGeneration() {
           default: Number(tokens.default),
           ambiguites: Number(tokens.ambiguites),
           sequence: Number(tokens.sequence),
-          optimiseur: Number(tokens.optimiseur),
         }),
       }, TIMEOUT_STD)
       const data = await res.json().catch(() => ({}))
@@ -482,8 +484,6 @@ export default function AdminParametresGeneration() {
             'Sortie souvent plus longue : laisser au-dessus du défaut. (valeur par défaut : 3000)')}
           {champTokens('sequence', 'Surcharge — Générateur de séquences',
             'Une séquence complète demande davantage de longueur. (valeur par défaut : 4000)')}
-          {champTokens('optimiseur', 'Surcharge — Optimiseur de séquences',
-            'Le plus long des outils : la valeur la plus haute. (valeur par défaut : 6000)')}
 
           <div className="flex flex-col gap-3 pt-1">
             <button
@@ -513,8 +513,8 @@ export default function AdminParametresGeneration() {
       )}
 
       {/* Onglet Température (Phase 4.1.d) — GLOBALE. Vide = défaut du fournisseur, sinon 0.0–2.0.
-          « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables. L'optimiseur
-          n'est PAS concerné (température 0 figée en dur). Hors bornes -> bord rouge + modale + bouton off. */}
+          « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
+          Hors bornes -> bord rouge + modale + bouton off. */}
       {onglet === 'temperature' && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
           <p className="text-xs text-gray-500">
@@ -537,9 +537,6 @@ export default function AdminParametresGeneration() {
               className="w-full border rounded px-3 py-2 text-sm"
               style={{ borderColor: tempInvalide(temperature) ? '#dc2626' : '#d1d5db' }}
             />
-            <p className="text-xs text-gray-400 mt-1">
-              L'optimiseur de séquences n'est pas concerné : il reste à 0 pour une sortie fiable.
-            </p>
           </div>
 
           <div className="flex flex-col gap-3 pt-1">

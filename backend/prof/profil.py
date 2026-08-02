@@ -49,11 +49,18 @@ def matiere_demande_langue(db: Session, user: User) -> bool:
     return bool(db.query(Matiere.demande_langue).filter(Matiere.id == matiere_id).scalar())
 
 
-def _couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
+def couple_est_au_programme(db: Session, matiere: str, niveau: str) -> bool:
     """Cette matière est-elle au programme de ce niveau ? = le référentiel du niveau la nomme-t-il,
     retenue par l'admin et active ? C'est EXACTEMENT la question que résout `matiere_id_du_nom` :
     le contrôle et la résolution disent donc la même chose, à un seul endroit. Un niveau sans
-    référentiel n'a aucune matière — le couple est refusé, et c'est juste."""
+    référentiel n'a aucune matière — le couple est refusé, et c'est juste.
+
+    PUBLIQUE depuis le 02/08/2026 (elle s'appelait `_couple_est_au_programme`). Elle ne servait
+    qu'À L'ÉCRITURE, pour refuser un couple qu'on pose. Elle sert désormais aussi À LA LECTURE :
+    /auth/me s'en sert pour dire si le profil DÉJÀ ENREGISTRÉ tient toujours debout — un profil
+    accepté hier peut avoir cessé d'être au programme depuis (référentiel remplacé, matière
+    retirée, niveau renommé), et rien ne le relisait.
+    Le `_` partait : elle sort de son module. La règle, elle, reste ici et nulle part ailleurs."""
     return matiere_id_du_nom(db, matiere, niveau_id_du_nom(db, niveau)) is not None
 
 
@@ -106,7 +113,7 @@ def update_profile(body: ProfileBody, aschool_access: str = Cookie(default=None)
     matiere, niveau = (body.subject or "").strip(), (body.niveau or "").strip()
     if matiere and not niveau:
         raise HTTPException(400, "Choisissez d'abord votre niveau : les matières proposées dépendent de son programme.")
-    if matiere and niveau and not _couple_est_au_programme(db, matiere, niveau):
+    if matiere and niveau and not couple_est_au_programme(db, matiere, niveau):
         raise HTTPException(400, "Cette matière n'est pas enseignée à ce niveau dans les programmes. Choisissez une matière proposée pour ce niveau.")
     niveau_id       = niveau_id_du_nom(db, niveau or None)
     user.prenom     = body.prenom    or None
@@ -141,7 +148,7 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
     matiere, niveau = body.matiere.strip(), body.niveau.strip()
     if not matiere or not niveau:
         raise HTTPException(400, "Choisissez un niveau et une matière avant de valider.")
-    if not _couple_est_au_programme(db, matiere, niveau):
+    if not couple_est_au_programme(db, matiere, niveau):
         raise HTTPException(400, "Cette matière n'est pas enseignée à ce niveau dans les programmes. Choisissez une matière proposée pour ce niveau.")
     profil_matiere = matiere_nom_de_id(db, user.subject_id) or ""
     profil_niveau = niveau_nom_de_id(db, user.niveau_id) or ""

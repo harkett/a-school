@@ -468,7 +468,10 @@ système fait générer **pour ce document précis**. Fichier :
   **dimension 1024**, exécuté **localement** via `sentence-transformers` (aucun appel
   distant). Environ 2,2 Go, singleton thread-safe (l. 21-33), préchauffé au démarrage
   du serveur (`main.py:65-75`), cache monté depuis `./docker/hf-cache`
-  (`docker-compose.yml:86`), mode hors-ligne forcé (`main.py:11-12`).
+  (`docker-compose.yml`), mode hors-ligne forcé dans `docker-compose.yml` (tout ce qui
+  tourne dans la boîte) **et** en tête de `backend/rag/embeddings.py` (le reste — tests,
+  scripts, `docker exec python -c`). Il ne vivait que dans `main.py` jusqu'au 02/08/2026,
+  et ne couvrait donc que le serveur.
   **Premier appel à froid : ~30 s de chargement.**
 - Sauvegarde obligatoire avant purge (l. 55-105) : écrit un fichier JSONL dans
   `backend/rag/backups/`, le relit, et **lève une exception si le compte ne

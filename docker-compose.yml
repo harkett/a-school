@@ -78,7 +78,40 @@ services:
       # pansement Windows (plantage OpenMP hors Docker) inutile dans la boîte Linux — ici on rend
       # 8 cœurs au calcul (setdefault dans main.py → cette valeur gagne). Vectorisation ~8× plus vite.
       OMP_NUM_THREADS: "8"
-    command: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+      # Le modèle d'embedding ne se télécharge JAMAIS tout seul : il voyage dans le dossier
+      # ./docker/hf-cache monté ci-dessous (4,3 Go), il ne se refabrique pas sur place. Posées
+      # ICI, ces deux variables précèdent le démarrage de Python : elles couvrent TOUT ce qui
+      # tourne dans la boîte — le serveur, la suite de tests, alembic, un `docker exec python -c`
+      # — sans dépendre d'un ordre d'import. `huggingface_hub` fige la valeur dans une constante
+      # à son import : posée trop tard, elle ne sert plus à rien (c'est pourquoi il y a aussi un
+      # garde-fou dans backend/rag/embeddings.py, pour les entrées hors conteneur).
+      # POUR REMPLIR LE CACHE UNE PREMIÈRE FOIS : mettre HF_HUB_OFFLINE à "0" le temps d'un
+      # démarrage, laisser le modèle se télécharger, puis remettre "1".
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    # ERREUR CONNUE, NON RÉPARÉE, ET C'EST UN CHOIX (constaté le 02/08/2026).
+    # Le surveillant de fichiers de --reload peut planter au démarrage sur cette trace :
+    #     _rust_notify.WatchfilesRustInternalError: error in underlying watcher:
+    #     Input/output error (os error 5)
+    # Elle vient du dossier partagé avec Windows, qui ne rend pas toujours les événements de
+    # fichiers que le surveillant attend. Ce n'est PAS un plantage de l'application : uvicorn
+    # relance son surveillant tout seul et le rechargement fonctionne ensuite.
+    # Mesuré sur le journal courant : 1 plantage, 3 démarrages du surveillant, 40 rechargements
+    # réussis derrière. Intermittent, pas systématique — un redémarrage sur trois environ.
+    # Le contournement (WATCHFILES_FORCE_POLLING=1) échangerait une trace occasionnelle et
+    # sans effet contre une relecture permanente de 6 000 fichiers. On préfère la trace, et
+    # on la documente ICI pour qu'elle ne soit pas confondue avec une vraie panne.
+    # ATTENDRE LA BASE AVANT alembic — et non, ce n'est pas un doublon de `depends_on`.
+    # `depends_on: db: condition: service_healthy` (plus bas) fait bien son travail, mais
+    # seulement quand c'est COMPOSE qui démarre : au `docker compose up`. Au lancement du
+    # moteur, ce n'est pas compose — c'est le démon qui relance tout seul les conteneurs
+    # `restart: unless-stopped`, sans ordre et sans attendre la santé de personne. Le backend
+    # partait alors avant la base, alembic échouait, le `&&` coupait, le conteneur mourait et
+    # repartait : mesuré le 02/08 sur un démarrage à froid, 3 morts en 15 s avec la trace
+    # « FATAL: the database system is starting up ». Personne ne l'avait vu parce que ça finit
+    # par marcher. Les deux garde-fous couvrent donc DEUX chemins différents ; retirer l'un
+    # rouvre le sien. Le pourquoi complet, avec les mesures, est dans le fichier appelé.
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
       - "8001:8001"
     volumes:

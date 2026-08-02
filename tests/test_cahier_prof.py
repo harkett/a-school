@@ -8,6 +8,8 @@ Ce que ces tests PROUVENT (Étape 1 — la donnée) :
   4. GET /api/user/cahier reflète l'état ; sans cookie d'auth : 401.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py). Extraction mockée (déterministe).
+
+Lancer : docker compose exec backend python -m pytest tests/test_cahier_prof.py -q
 """
 from unittest.mock import patch
 

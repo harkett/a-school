@@ -9,7 +9,7 @@ forgeables par le premier venu.
 Desormais l'absence des deux secrets fait LEVER, et au demarrage (l'appel est au niveau
 module, donc a l'import de backend.systeme.admin), pas au premier clic.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_secret_admin_obligatoire.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_secret_admin_obligatoire.py -q
 """
 import pytest
 

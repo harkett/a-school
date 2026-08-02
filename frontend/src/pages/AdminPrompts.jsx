@@ -27,7 +27,7 @@ const CATEGORIES = {
   },
   autres: {
     titre: 'Prompts — Autres',
-    intro: 'Le filet : ce qui ne sert ni au prof ni à l\'admin. Aujourd\'hui, des restes de l\'ancien monde démoli — plus aucun outil ne les demande. Ils sont rangés ici en attendant une décision.',
+    intro: 'Le filet : ce qui ne sert ni au prof ni à l\'admin. Vide aujourd\'hui — les trois restes de l\'ancien monde démoli qui y étaient rangés ont été retirés, faute d\'usage. La catégorie reste ouverte pour un texte qui ne trouverait sa place nulle part ailleurs.',
   },
 }
 

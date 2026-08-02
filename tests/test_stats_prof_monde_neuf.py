@@ -7,6 +7,8 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py — JAMAIS SQLite) 
      (`stats_minutes_par_activite`, surchargeable à chaud) — plus de « 15 » en dur.
   3. /stats/communaute : total d'activités = monde neuf ; `partages_total` a disparu
      (le partage n'existe pas encore dans le monde neuf — pas de faux zéro).
+
+Lancer : docker compose exec backend python -m pytest tests/test_stats_prof_monde_neuf.py -q
 """
 
 

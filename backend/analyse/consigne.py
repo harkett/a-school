@@ -107,11 +107,14 @@ def api_analyser_consigne(
 
     nb = len(data.get("analyses", []))
 
+    # Même correction et même raison qu'à l'identique dans analyse/ambiguites.py : une
+    # statistique ne casse jamais l'outil du prof, mais un commit() qui échoue laisse la
+    # session en état d'échec — le rollback est ce qui la rend réutilisable.
     try:
         db.add(ToolUsageLog(user_id=user.id, tool="consigne", score_label=str(nb)))
         db.commit()
     except Exception:
-        pass
+        db.rollback()
 
     return ConsigneResponse(
         analyses=[AxeAnalyse(**a) for a in data.get("analyses", [])],

@@ -7,7 +7,7 @@ Ce que le test PROUVE (le plafond agit RÉELLEMENT, pas « le code existe ») :
   3. Créneau indisponible dans le délai -> erreur honnête (RuntimeError), requête jamais pendante,
      aucun appel réseau tenté.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_llm_concurrence.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_llm_concurrence.py -q
 """
 import threading
 import time

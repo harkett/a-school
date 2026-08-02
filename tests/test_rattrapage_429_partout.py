@@ -18,14 +18,11 @@ un message parfaitement crédible.
 Ce test lit les appels réels plutôt qu'un comportement simulé : ce qui compte est qu'AUCUN site
 d'appel n'oublie la politique, y compris ceux qu'on écrira demain.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_rattrapage_429_partout.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_rattrapage_429_partout.py -q
 """
 import ast
 import os
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 RACINE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.join(os.path.dirname(RACINE), "backend")

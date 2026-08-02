@@ -1,6 +1,6 @@
 """Test de non-régression — dictée vocale (Groq Whisper batch).
 
-Lance avec :  pytest   (suite pytest — convention unique du projet)
+Lancer : docker compose exec backend python -m pytest tests/test_transcribe.py -q
 
 Garde-fou des DEUX causes historiques du 400 Groq sur /api/transcribe, vérifiées
 de bout en bout à travers la vraie route FastAPI (aucun appel réseau — l'appel
@@ -20,8 +20,27 @@ from fastapi.testclient import TestClient
 
 import backend.core.database as dbmod
 import backend.core.groq_client as groq_client
-from backend.core.models_db import Setting
+import backend.securite.comptes as comptes
+from backend.core.limiter import limiter
+from backend.core.models_db import Setting, User
 from backend.main import app
+
+EMAIL_PROF = "prof.dictee@college.fr"
+
+
+def _client_connecte():
+    """La dictée est passée derrière la connexion le 02/08/2026 : la route était ouverte à tout
+    le monde alors qu'elle dépense une clé payante à chaque appel. Ces tests l'appelaient donc
+    sans cookie — ils prouvaient le bon câblage Groq sur une porte grande ouverte."""
+    db = dbmod.SessionLocal()
+    db.add(User(email=EMAIL_PROF, password_hash="x", is_verified=True, prenom="Marie"))
+    db.commit()
+    db.close()
+    limiter.reset()          # les compteurs vivent en mémoire du process, entre les tests aussi
+    client = TestClient(app)
+    client.cookies.set("aschool_access", comptes.create_access_token(EMAIL_PROF))
+    return client
+
 
 # Extensions acceptées par l'endpoint Groq Whisper (doc officielle Speech-to-Text).
 _ALLOWED_EXT = {"flac", "mp3", "mp4", "mpeg", "mpga", "m4a", "ogg", "opus", "wav", "webm"}
@@ -92,7 +111,7 @@ def _assert_groq_call_valid(captured, contexte):
 def test_transcribe_nom_avec_extension():
     """Cas nominal : le navigateur envoie « dictee.webm » → 200 + texte inséré."""
     _seed_cle_dictee()
-    client = TestClient(app)
+    client = _client_connecte()
     captured, restore = _install_groq_spy()
     try:
         res = _post_audio(client, "dictee.webm", "audio/webm")
@@ -107,7 +126,7 @@ def test_transcribe_nom_sans_extension_force_une_extension():
     """RÉGRESSION CŒUR : même si le client envoie « blob » (sans extension), le
     backend doit FORCER une extension valide avant de transmettre à Groq."""
     _seed_cle_dictee()
-    client = TestClient(app)
+    client = _client_connecte()
     captured, restore = _install_groq_spy()
     try:
         res = _post_audio(client, "blob", "audio/webm")
@@ -119,7 +138,7 @@ def test_transcribe_nom_sans_extension_force_une_extension():
 
 def test_transcribe_fichier_vide_refuse():
     """Un fichier vide est refusé proprement (400) — pas de 502 Groq."""
-    client = TestClient(app)
+    client = _client_connecte()
     files = {"file": ("vide.webm", io.BytesIO(b""), "audio/webm")}
     res = client.post("/api/transcribe", files=files)
     assert res.status_code == 400, f"status {res.status_code} : {res.text}"

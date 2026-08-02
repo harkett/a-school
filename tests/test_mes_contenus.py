@@ -11,7 +11,7 @@ tables neuves (l'ancien monde a été droppé le 30/07). Vérifié ici :
   - SET NULL en base : supprimer une séquence rend ses séances « non rangées », ne les
     détruit pas.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_mes_contenus.py -q
 """
 
 

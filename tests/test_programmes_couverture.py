@@ -7,6 +7,8 @@ Ce que ces tests PROUVENT :
      réellement ingéré (au moins un chunk), faux sinon.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py).
+
+Lancer : docker compose exec backend python -m pytest tests/test_programmes_couverture.py -q
 """
 
 

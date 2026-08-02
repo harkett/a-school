@@ -39,10 +39,43 @@ AUCUN_EXTRAIT_PERTINENT = (
 )
 
 # Gabarit de requête RAG (acteur « requête ») — UNIFORME pour tout couple ({matiere}/{niveau}),
-# jamais de formulation par matière en dur. Choisi = T2, prouvé sur le miroir Bébés : une phrase
-# de tâche cherche mieux que le nom seul de la matière (score rang 1 relevé, bonne fiche nette).
-# NB : formulation calibrée crèche ; à réexaminer quand un couple non-crèche sera branché.
-REQUETE_GABARIT = "Activité d'éveil pour développer {matiere} chez un enfant de {niveau}"
+# jamais de formulation par matière en dur, et jamais de supposition sur l'âge de l'élève : les
+# cinq autres requêtes RAG du projet (activites.py, mes_contenus.py ×4) sont neutres, celle-ci
+# l'est enfin aussi.
+#
+# CE QUI A ÉTÉ MESURÉ (02/08/2026), sur les DEUX référentiels réels — bebes_0_1_an (27 chunks,
+# 5 matières) et bts_ciel_option_a (46 chunks, 6 matières), seuil 0.3 pour les deux.
+#
+#   LA MÉTRIQUE : le nombre de chunks de RANG 1 DISTINCTS sur l'ensemble des matières du
+#   couple. Une requête qui rend le MÊME extrait pour six matières différentes n'ancre pas six
+#   fois, elle ancre une fois — et le score, lui, ne le montre pas.
+#
+#   NE PAS MESURER LE SEUIL : il ne discrimine RIEN ici. Tous les chunks des deux collections
+#   passent 0.3, pour toutes les formulations essayées (27/27 et 46/46). Le nombre d'extraits
+#   retenus vaut donc toujours 4 (rag_top_k), quelle que soit la requête. Ce qui change n'est
+#   pas COMBIEN d'extraits remontent, mais LESQUELS. Inutile de recompter, c'est fait.
+#
+#   NE PAS SE FIER AU SCORE DE RANG 1 NON PLUS : entre l'ancienne formulation et celle-ci,
+#   l'écart moyen tient dans 0.04 sur des scores autour de 0.63 — un tableau de scores conclut
+#   « ça ne change presque rien », et c'est faux.
+#
+#   RÉSULTATS (rang 1 distincts, deux relevés indépendants) :
+#
+#                                     Bébés        BTS
+#     ancienne (« activité d'éveil »)  5/5      2/6 et 3/6
+#     celle-ci (« idée d'activité »)  4/5 et 5/5    4/6
+#
+#   Sept autres formulations ont été essayées (nom seul, « contenus et attendus du programme »,
+#   variantes activité/pédagogique) : aucune ne dépasse 4/6 sur BTS, et toutes font moins bien
+#   que celles-ci au total. Aucune n'atteint 5/5 sur Bébés ET plus de 2/6 sur BTS.
+#
+# CE QUE LA MESURE A MONTRÉ AU PASSAGE, et que la requête ne peut pas réparer : sous l'ancienne
+# formulation, le chunk de rang 1 de CINQ matières BTS sur six était le même — « C11 MAINTENIR
+# UN RÉSEAU INFORMATIQUE — BTS CIEL Option B », un extrait de l'Option B servi dans un
+# référentiel Option A, y compris pour l'anglais. La collection contient 10 chunks Option B sur
+# 46, et 4 doublons (46 lignes pour 42 textes distincts). Aucune formulation ne choisit bien
+# dans un sac pollué : c'est l'ingestion qu'il faut reprendre, pas cette ligne.
+REQUETE_GABARIT = "Idée d'activité de {matiere}, niveau {niveau}, ancrée sur le programme"
 
 
 def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, float] | None:

@@ -35,6 +35,30 @@ for _p in (_RACINE, _RACINE / "tests"):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+# --- Les trois garde-fous des bibliothèques de calcul (02/08) -----------------
+# Trente fichiers de tests recopiaient ces trois lignes en tête, avant leurs imports. Le
+# ménage du 01/08 avait factorisé le reste du préambule et les avait oubliées.
+#
+# Ce qu'elles font, et pourquoi elles doivent être posées ICI :
+#
+#   KMP_DUPLICATE_LIB_OK   torch et numpy embarquent chacun leur runtime OpenMP. Deux
+#                          runtimes dans le même processus font ABORTER l'interpréteur sous
+#                          Windows — pas une erreur, un arrêt net. Contournement officiel.
+#   TOKENIZERS_PARALLELISM  les tokenizers HuggingFace forkent ; après un fork, ils écrivent
+#                          un avertissement à chaque appel et brouillent la sortie des tests.
+#   OMP_NUM_THREADS        un seul cœur pour OpenMP. Le conteneur en rend 8 au calcul
+#                          (docker-compose.yml) ; pour les tests, un thread suffit et évite
+#                          que trente fichiers lancés à la suite se disputent les cœurs.
+#
+# `setdefault`, jamais `=` : une valeur déjà posée par l'environnement (le compose, un
+# lanceur) gagne. C'est ce qui permet aux 8 cœurs du conteneur de rester en place hors tests.
+#
+# Le conftest est importé AVANT la collecte, donc avant le premier `import torch` de n'importe
+# quel fichier de tests : posées ici, elles arrivent à temps pour tous.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 # Pièces jointes : la suite écrit dans un dossier temporaire, JAMAIS dans le vrai
 # data/uploads/feedbacks. Même principe que DATABASE_URL ci-dessous — la base de test
 # est une autre base, le dossier de test est un autre dossier. Posé AVANT tout import

@@ -3,26 +3,35 @@
 #  (ce cadre est identique dans les deux scripts : je_pars et j_arrive.
 #   Vous ouvrez l'un ou l'autre, vous avez tout.)
 #
-#  DEUX SCRIPTS, et un seul est à lancer à la fois.
+#  LE RITUEL : UNE COMMANDE PAR POSTE, ET RIEN D'AUTRE.
 #
-#    je_pars.ps1     sur la machine que vous QUITTEZ.
-#                    Enregistre et envoie votre code, sort la base dans
-#                    Bagage\, ferme l'application, copie le dossier vers
-#                    l'endroit que vous indiquez, et relit chaque fichier
-#                    des deux côtés pour vérifier.
+#    1. sur la machine que vous QUITTEZ :   .\Scripts\je_pars.ps1
+#    2. sur la machine où vous ARRIVEZ  :   .\Scripts\j_arrive.ps1
 #
-#    j_arrive.ps1    sur la machine où vous ARRIVEZ.
-#                    Récupère le code, refuse d'écraser quelque chose de
-#                    plus récent, installe votre travail, redémarre.
+#  Rien à fermer, rien à rouvrir, rien à attendre, rien à glisser dans
+#  l'explorateur. Si un programme doit être fermé, le script le ferme ;
+#  s'il doit être ouvert, le script l'ouvre.
 #
-#  LE RITUEL, identique dans les deux sens :
+#    je_pars.ps1     enregistre et envoie votre code, sort la base dans
+#                    Bagage\, ferme l'application, et DÉPOSE une valise
+#                    A-SCHOOL-a-emporter à l'endroit que vous indiquez —
+#                    demandé une seule fois : ensuite il s'en souvient.
 #
-#    1. sur la machine que vous quittez :   .\Scripts\je_pars.ps1
-#       puis indiquez où copier quand il le demande.
+#    j_arrive.ps1    trouve la valise, l'installe, récupère le code,
+#                    refuse d'écraser quelque chose de plus récent,
+#                    redémarre, puis jette la valise.
 #
-#    2. sur l'autre machine :               .\Scripts\j_arrive.ps1
-#
-#    Plus aucun glisser-déposer : les deux bouts copient et vérifient.
+#  POURQUOI UNE VALISE, ET PAS LE DOSSIER DIRECTEMENT (02/08/2026)
+#    Le départ écrivait droit dans le dossier vivant de l'autre poste, et
+#    l'effaçait pour le remplacer. Or à cet instant rien ne tourne là-bas
+#    pour se protéger : c'était donc à l'utilisateur d'y aller à la main
+#    fermer l'application, fermer VS Code, puis revenir les rouvrir.
+#    Quatre gestes sur une machine à laquelle il n'avait rien à demander,
+#    et dont l'oubli faisait échouer la copie sur un fichier tenu ouvert.
+#    Déposée à côté, la valise ne touche à rien : le dossier d'en face
+#    peut tourner, être ouvert, être utilisé. C'est j_arrive, qui tourne
+#    LÀ-BAS, qui installe — et un script qui tourne sur une machine sait
+#    fermer et rouvrir ses propres programmes.
 #
 #  CE QUI VOYAGE : le dossier ENTIER, moins ce qui se refabrique.
 #    Bagage\          la base de données (pg_dump) + la date du départ
@@ -31,23 +40,35 @@
 #    .git             l'historique. Sans lui, plus de dépôt là-bas.
 #    docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Lourd,
 #                     mais il ne se retéléchargera PAS de lui-même :
-#                     backend/main.py:11 pose HF_HUB_OFFLINE=1. Sans lui,
+#                     le dépôt pose HF_HUB_OFFLINE=1 partout. Sans lui,
 #                     l'autre poste ne génère plus rien.
 #    le code          et tout le reste du dossier
 #
 #  CE QUI NE VOYAGE PAS, parce que ça se refabrique vraiment sur place :
-#    .venv, node_modules          réinstallés par pip et npm (70 700 fichiers)
+#    node_modules                 refait par le conteneur (15 300 fichiers)
 #    docker\pgdata                un reste : la base vit dans le volume
 #                                 nommé pgdata_dev, pas dans le dossier
 #    __pycache__, .pytest_cache   caches de Python
 #
+#    .venv N'EXISTE PLUS — abandonné le 02/08/2026. Un environnement qui
+#    ne survit pas à une bascule et qui exige internet pour renaître n'est
+#    pas un outil, c'est une charge. Le seul Python du projet est celui du
+#    conteneur : c'est lui qui fait tourner l'application, et désormais lui
+#    aussi qui lance les tests (voir l'en-tête de n'importe quel fichier de
+#    tests\). Les deux scripts le retirent encore s'ils en trouvent un :
+#    c'est un reste, pas quelque chose qui renaîtra.
+#
 #    La copie ne se fait PAS dans l'explorateur Windows : il emporte les
-#    70 000 fichiers inutiles, échoue sur les liens du cache du modèle, et
-#    saute .git parce qu'il est caché.
+#    fichiers inutiles, échoue sur les liens du cache du modèle, et saute
+#    .git parce qu'il est caché.
+#
+#  PLACE DISQUE : la valise pèse le poids du dossier (6,5 Go, modèle
+#    compris). Elle coexiste avec le dossier vivant le temps de la
+#    bascule, puis j_arrive la jette. Prévoir 13 Go libres à l'arrivée.
 #
 #  « OÙ COPIER » = n'importe quel endroit atteignable des deux machines :
 #    un chemin réseau de l'autre poste (\\FIXE\D$), une clé USB, un
-#    disque externe, un dossier synchronisé.
+#    disque externe, un dossier synchronisé. Demandé une seule fois.
 #
 #  EN CAS DE DOUTE : ces scripts s'arrêtent plutôt que de deviner, et
 #    disent « Rien n'a été modifié » quand c'est le cas. Relancer un
@@ -55,14 +76,15 @@
 # ═════════════════════════════════════════════════════════════
 
 # ─────────────────────────────────────────────────────────────
-#  j_arrive.ps1 — à lancer sur le poste où vous ARRIVEZ, la clé branchée.
+#  j_arrive.ps1 — à lancer sur le poste où vous ARRIVEZ. Rien d'autre à faire.
 #
-#  Il trouve la clé tout seul, y prend les trois éléments et les pose dans
-#  le dossier en vérifiant chaque fichier, récupère le code, remet tout en
-#  marche, et installe le travail que vous apportez.
+#  Il ouvre le moteur si besoin, trouve la valise tout seul — sur une clé, un
+#  disque, un dossier réseau — en tire tout ce qui ne voyage pas par le code,
+#  vérifie chaque fichier, récupère le code, installe votre travail, redémarre
+#  l'application, et jette la valise.
 #
-#  Rien à glisser dans l'explorateur : le départ copiait et vérifiait,
-#  l'arrivée fait de même. Un seul geste à chaque bout du voyage.
+#  Rien à glisser dans l'explorateur, rien à fermer, rien à rouvrir : le départ
+#  copiait et vérifiait, l'arrivée fait de même. Une commande à chaque bout.
 #
 #  Avant d'installer, il pose une question et une seule : la base de ce
 #  poste a-t-elle bougé APRÈS la date du travail que vous apportez ?
@@ -91,6 +113,39 @@ function Echec($message) {
     Write-Host "  $message" -ForegroundColor Red
     Write-Host ""
     exit 1
+}
+
+# Le moteur, c'est Docker Desktop — mais ce nom ne sort jamais à l'écran. Il était
+# demandé à l'utilisateur : « lancez-le, attendez qu'il soit vert, puis relancez ce
+# script ». Trois choses à savoir, à retenir et à réussir dans l'ordre, pour un
+# programme qu'un script sait ouvrir. S'il faut qu'il tourne, on l'ouvre.
+#
+# L'attente est celle du MOTEUR, pas de la fenêtre : Docker Desktop s'affiche bien
+# avant de pouvoir répondre. On interroge donc le moteur jusqu'à ce qu'il réponde,
+# et c'est cette réponse-là qui vaut « prêt ».
+#
+# (fonction identique dans je_pars.ps1 — les deux scripts se lisent seuls)
+function Demarrer-Le-Moteur {
+    docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+
+    $exe = @("$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+             "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe",
+             "$env:LOCALAPPDATA\Docker\Docker Desktop.exe") |
+           Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $exe) { return $false }
+
+    Write-Host "       démarrage du moteur, une minute environ..." -ForegroundColor DarkGray
+    Start-Process -FilePath $exe -ErrorAction SilentlyContinue
+
+    # 150 essais de 2 s = 5 minutes. Un poste qui sort de veille, ou qui démarre le
+    # moteur pour la première fois, met couramment deux à trois minutes.
+    for ($essai = 0; $essai -lt 150; $essai++) {
+        Start-Sleep -Seconds 2
+        docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $true }
+    }
+    return $false
 }
 
 # La seule porte vers l'installation quand le contrôle n'a pas donné son feu vert.
@@ -125,52 +180,70 @@ function Trouver-Valises {
     return $trouvees
 }
 
+# CE QU'IL FAUT SORTIR DE LA VALISE : tout ce qui ne voyage pas par le code.
+#
+# Le modèle (docker\hf-cache) a rejoint cette liste le 02/08/2026, et c'est la
+# conséquence directe de la valise. Tant que le départ écrasait le dossier d'en
+# face, le modèle y arrivait tout seul, dans le tas. Déposé à côté, il n'arrive
+# plus que si on l'en sort — et sans lui, plus une seule génération ne fonctionne
+# (le mode hors-ligne du dépôt interdit de le retélécharger).
+$A_SORTIR = @('Bagage', 'REFERENTIELS', '.env', 'docker\hf-cache')
+
+# Les deux blobs du modèle pèsent 2,2 Go chacun. Les relire pour empreinte, des
+# deux côtés, coûte des minutes pour un gain nul. Au-delà de ce poids on compare
+# la TAILLE, qui est instantanée — même seuil et même raison qu'au départ.
+$SEUIL_EMPREINTE = 20MB
+
 # Chaque fichier est relu des deux côtés et comparé, exactement comme au départ.
 # Une copie annoncée sans être vérifiée, c'est ce qui a coûté une journée.
 function Poser-Depuis($valise) {
     $copies  = 0
     $ecarts  = @()
     $absents = @()
-    foreach ($nom in @('Bagage', 'REFERENTIELS', '.env')) {
+    foreach ($nom in $A_SORTIR) {
         $source = Join-Path $valise $nom
         if (-not (Test-Path $source)) { $absents += $nom; continue }
         $item = Get-Item $source -Force
-        Copy-Item -LiteralPath $source -Destination $racine -Recurse:$item.PSIsContainer -Force -ErrorAction SilentlyContinue
+
+        # On copie vers le dossier PARENT, pas vers la racine. « docker\hf-cache »
+        # posé sur la racine donnerait un dossier « hf-cache » à côté de « docker »,
+        # et le modèle serait là sans être là où on le cherche.
+        $parent = Split-Path (Join-Path $racine $nom) -Parent
+        New-Item -ItemType Directory -Force -Path $parent -ErrorAction SilentlyContinue | Out-Null
+        Copy-Item -LiteralPath $source -Destination $parent -Recurse:$item.PSIsContainer -Force -ErrorAction SilentlyContinue
+
         if ($item.PSIsContainer) {
-            $base = Split-Path $source -Parent
+            # Le chemin est relevé depuis la VALISE, jamais depuis le dossier parent
+            # de la source : sur un nom à deux étages, ce dernier rendait
+            # « hf-cache\... » au lieu de « docker\hf-cache\... », et la vérification
+            # allait chercher les fichiers au mauvais endroit.
             foreach ($f in Get-ChildItem -LiteralPath $source -Recurse -Force -File) {
-                $relatif = $f.FullName.Substring($base.Length + 1)
+                $relatif = $f.FullName.Substring($valise.TrimEnd('\').Length + 1)
                 $arrivee = Join-Path $racine $relatif
                 $copies++
                 if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
+                if ($f.Length -ge $SEUIL_EMPREINTE) {
+                    if ((Get-Item -LiteralPath $arrivee -Force).Length -ne $f.Length) { $ecarts += $relatif }
+                    continue
+                }
                 if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
             }
         } else {
-            $arrivee = Join-Path $racine $item.Name
+            $arrivee = Join-Path $racine $nom
             $copies++
-            if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $item.Name }
-            elseif ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $item.FullName).Hash) { $ecarts += $item.Name }
+            if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $nom }
+            elseif ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $item.FullName).Hash) { $ecarts += $nom }
         }
     }
     return [pscustomobject]@{ Copies = $copies; Ecarts = $ecarts; Absents = $absents }
 }
 
-# Un environnement Python inscrit le chemin qu'il croit occuper. S'il désigne
-# un autre endroit que celui où il se trouve, c'est qu'il a été construit
-# ailleurs : inutilisable ici, et il se refabrique. S'il désigne CE dossier,
-# il a été construit sur ce poste et on n'y touche pas. C'est cette distinction
-# qui permet de nettoyer à CHAQUE arrivée sans jamais détruire un environnement
-# local qui marche.
-function Venv-Etranger($chemin) {
-    $marqueur = Join-Path $chemin 'Scripts\activate.bat'
-    if (-not (Test-Path $marqueur)) { return $false }   # illisible : dans le doute, on garde
-    $ligne = @(Get-Content $marqueur -ErrorAction SilentlyContinue |
-               Where-Object { $_ -match 'VIRTUAL_ENV' })[0]
-    if (-not $ligne) { return $false }
-    $inscrit = (($ligne -replace '.*VIRTUAL_ENV\s*=\s*', '') -replace '"', '').Trim()
-    if (-not $inscrit) { return $false }
-    return ($inscrit.TrimEnd('\') -ne $chemin.TrimEnd('\'))
-}
+# Venv-Etranger vivait ici. Elle lisait le chemin inscrit dans un environnement
+# Python pour distinguer celui venu d'une autre machine (à retirer) de celui
+# construit sur ce poste (à garder, « parce qu'il marche »). La distinction est
+# morte avec la décision du 02/08/2026 : plus rien ne s'en sert, donc les deux
+# se retirent. Retirée aussi, plutôt que laissée à dormir — une fonction que
+# personne n'appelle finit par se faire rappeler par erreur.
 
 function Poids-De($chemin) {
     $o = (Get-ChildItem $chemin -Recurse -Force -File -ErrorAction SilentlyContinue |
@@ -218,19 +291,30 @@ Write-Host "  1/6  Vérification..." -ForegroundColor Cyan
 # manquant héritait du 0 de docker et l'étape 2 annonçait « code à jour »
 # alors qu'aucune commande n'avait été exécutée.
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Echec "Docker Desktop n'est pas installé sur ce poste. Installez-le, puis relancez ce script."
+    Echec ("Le moteur qui fait tourner aSchool n'est pas installé sur ce poste.`n" +
+           "  Sans lui, votre travail ne peut pas être installé ici.")
 }
-docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Echec "Docker Desktop n'est pas démarré. Lancez-le, attendez qu'il soit vert, puis relancez ce script."
+if (-not (Demarrer-Le-Moteur)) {
+    Echec ("Le moteur qui fait tourner aSchool ne répond pas, même après cinq minutes.`n" +
+           "  Redémarrez ce poste, puis relancez ce script. Rien n'a été modifié.")
 }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Echec "Git n'est pas installé sur ce poste. Installez-le, puis relancez ce script."
+    Echec ("Ce poste ne sait pas aller chercher votre code en ligne.`n" +
+           "  Il arriverait sans son code : l'arrivée s'arrête ici, rien n'a été modifié.")
 }
 Write-Host "       tout répond." -ForegroundColor Green
 
 # ── 2/6  Ce que vous apportez entre dans le dossier ─────────────────────
 Write-Host "  2/6  Ce que vous apportez..." -ForegroundColor Cyan
+
+# L'application se ferme AVANT qu'on pose quoi que ce soit, et pas seulement par
+# précaution : le dossier du modèle est partagé avec elle pendant qu'elle tourne
+# (docker-compose.yml:86). Écrire dedans pendant qu'elle le lit, c'est le cas
+# exact qui faisait échouer les copies — celui-là même qu'on demandait à
+# l'utilisateur d'éviter à la main sur l'autre poste.
+#
+# Muet et sans conséquence si rien ne tourne : on ne dit donc rien ici.
+docker compose stop 2>$null | Out-Null
 
 $valises = @(Trouver-Valises)
 $valise  = $null
@@ -255,22 +339,21 @@ elseif ($valises.Count -gt 1) {
     }
 }
 else {
-    # Aucune clé. Si le dossier contient déjà le travail — c'est le cas quand on
-    # a copié le dossier entier plutôt que d'utiliser une clé — il n'y a rien à
-    # demander : on s'en sert et on avance. Poser une question qui n'a qu'une
-    # seule réponse possible, c'est offrir une occasion de se tromper pour rien.
+    # Aucune valise trouvée. Si le dossier contient déjà le travail — c'est le cas
+    # quand on a copié le dossier entier à la main — il n'y a rien à demander : on
+    # s'en sert et on avance. Poser une question qui n'a qu'une seule réponse
+    # possible, c'est offrir une occasion de se tromper pour rien.
     if (Test-Path $fichierTravail) {
         Write-Host "       déjà dans le dossier, rien à aller chercher." -ForegroundColor Green
     }
     else {
-        # Là, en revanche, il n'y a vraiment rien : ni clé, ni travail dans le
+        # Là, en revanche, il n'y a vraiment rien : ni valise, ni travail dans le
         # dossier. La question a un sens, on la pose.
         Write-Host ""
-        Write-Host "  Aucune clé branchée ne porte de dossier $NOM_VALISE," -ForegroundColor Yellow
-        Write-Host "  et ce dossier ne contient aucun travail à installer." -ForegroundColor Yellow
+        Write-Host "  Rien à installer n'a été trouvé sur ce poste." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "     Entrée      branchez la clé maintenant, je regarde à nouveau" -ForegroundColor White
-        Write-Host "     un chemin   si votre clé est ailleurs (par exemple  E:\ )" -ForegroundColor White
+        Write-Host "     un chemin   si ce que vous apportez est ailleurs (par exemple  E:\ )" -ForegroundColor White
         Write-Host ""
         $r = ''
         try { $r = Read-Host "  Votre choix" } catch { $r = '' }
@@ -279,7 +362,10 @@ else {
         if (-not $r) {
             $valises = @(Trouver-Valises)
             if ($valises.Count -ge 1) { $valise = $valises[0] }
-            else { Echec "Toujours aucune clé trouvée. Rien n'a été modifié." }
+            else {
+                Echec ("Toujours rien trouvé. Rien n'a été modifié.`n" +
+                       "  Sur le poste de départ, lancez  .\Scripts\je_pars.ps1  d'abord.")
+            }
         }
         elseif (Test-Path (Join-Path $r $NOM_VALISE)) { $valise = Join-Path $r $NOM_VALISE }
         elseif (Test-Path (Join-Path $r 'Bagage'))    { $valise = $r }
@@ -291,49 +377,47 @@ else {
 
 if ($valise) {
     Write-Host "       depuis $valise" -ForegroundColor White
+    Write-Host "       (le modèle en fait partie : comptez une minute)" -ForegroundColor DarkGray
     $bilan = Poser-Depuis $valise
 
     if ($bilan.Ecarts.Count -gt 0) {
         Write-Host ""
         Write-Host "  Ces fichiers ne sont pas arrivés correctement :" -ForegroundColor Red
         foreach ($e in $bilan.Ecarts | Select-Object -First 10) { Write-Host "      $e" -ForegroundColor Red }
-        Echec "La copie n'est pas fiable. Rebranchez la clé, puis relancez ce script."
+        Echec "La copie n'est pas fiable. Relancez ce script ; s'il s'agit d'une clé, rebranchez-la."
     }
     if ($bilan.Absents.Count -gt 0) {
-        Write-Host ("       (absent de la clé : {0})" -f ($bilan.Absents -join ', ')) -ForegroundColor DarkGray
+        Write-Host ("       (absent de ce que vous apportez : {0})" -f ($bilan.Absents -join ', ')) -ForegroundColor DarkGray
     }
     Write-Host ("       {0} fichiers posés, tous vérifiés un par un." -f $bilan.Copies) -ForegroundColor Green
 }
 
-# ── Ce qu'une copie complète du dossier a ramené pour rien ──────────────
-# Copier le dossier entier plutôt que de trier dans l'explorateur est un choix
-# légitime : le tri se fait ici, où l'on peut vérifier, et pas à la main où
-# l'on se trompe. On ne retire QUE ce dont on est sûr que ça se refabrique.
+# ── Les restes, retirés parce qu'ils ne servent plus ────────────────────
+# On ne retire QUE ce dont on est sûr que rien ne le lit.
 #
-#   .venv          retiré seulement s'il vient d'une autre machine (son
-#                  chemin est inscrit dedans). Construit ici → gardé.
-#                  Se refabrique : python -m venv .venv puis
-#                  pip install -r requirements.txt
+#   .venv          ABANDONNÉ le 02/08/2026, et donc retiré sans condition.
+#                  Ce bloc ne retirait que celui venu d'une autre machine et
+#                  gardait celui construit ici, « parce qu'il marche » — un
+#                  raisonnement devenu faux le jour où plus rien ne s'en sert.
+#                  Le commentaire promettait même son retour (python -m venv
+#                  puis pip install) : promesse jamais tenue par ce script, et
+#                  qui n'avait plus lieu d'être. Le seul Python du projet est
+#                  celui de l'application, tests compris.
 #   node_modules   jamais lu par l'application : le conteneur monte le sien
-#                  (docker-compose.yml:104). Se refabrique : npm ci
-#   docker\hf-cache  JAMAIS retiré. C'est le modèle d'embedding, 2,2 Go.
-#                  S'il est arrivé, c'est autant de téléchargement épargné.
+#                  (docker-compose.yml:104). Il se refait tout seul.
+#   docker\hf-cache  JAMAIS retiré. C'est le modèle, 2,2 Go, et il vient
+#                  d'être posé ci-dessus. Le retirer, c'est tout casser.
 $retires = @()
-$gardes  = @()
 
 foreach ($nom in @('.venv', 'venv')) {
     $chemin = Join-Path $racine $nom
     if (-not (Test-Path $chemin)) { continue }
-    if (Venv-Etranger $chemin) {
-        $poids = Poids-De $chemin
-        Remove-Item $chemin -Recurse -Force -ErrorAction SilentlyContinue
-        if (Test-Path $chemin) {
-            Write-Host "       ($nom n'a pas pu être retiré — fermez ce qui l'utilise)" -ForegroundColor Yellow
-        } else {
-            $retires += ("{0}  ({1:N0} Mo, venu de l'autre machine)" -f $nom, ($poids / 1MB))
-        }
+    $poids = Poids-De $chemin
+    Remove-Item $chemin -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path $chemin) {
+        Write-Host "       (un ancien dossier d'outils n'a pas pu être retiré — sans gravité)" -ForegroundColor Yellow
     } else {
-        $gardes += "$nom (construit sur ce poste)"
+        $retires += ("un ancien dossier d'outils  ({0:N0} Mo, plus utilisé)" -f ($poids / 1MB))
     }
 }
 
@@ -343,9 +427,9 @@ foreach ($nom in @('frontend\node_modules', 'node_modules')) {
     $poids = Poids-De $chemin
     Remove-Item $chemin -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path $chemin) {
-        Write-Host "       ($nom n'a pas pu être retiré entièrement — sans gravité)" -ForegroundColor Yellow
+        Write-Host "       (des fichiers d'affichage n'ont pas pu être retirés — sans gravité)" -ForegroundColor Yellow
     } else {
-        $retires += ("{0}  ({1:N0} Mo, refait par le conteneur)" -f $nom, ($poids / 1MB))
+        $retires += ("les fichiers d'affichage  ({0:N0} Mo, refaits au démarrage)" -f ($poids / 1MB))
     }
 }
 
@@ -353,7 +437,6 @@ if ($retires.Count -gt 0) {
     Write-Host "       retiré, parce que ça se refabrique tout seul :" -ForegroundColor DarkGray
     foreach ($r in $retires) { Write-Host "          $r" -ForegroundColor DarkGray }
 }
-foreach ($g in $gardes) { Write-Host "       gardé : $g" -ForegroundColor DarkGray }
 
 # Le modèle n'est jamais retiré, mais on dit s'il est là : c'est la différence
 # entre une première lecture instantanée et 2,2 Go à retélécharger.
@@ -410,13 +493,15 @@ if ($LASTEXITCODE -ne 0) {
     # qui soit caché. Entrer dans le dossier et faire Ctrl+A prend donc tout
     # sauf lui. Copier le DOSSIER lui-même, en revanche, l'emporte.
     if (-not (Test-Path (Join-Path $racine '.git'))) {
-        Echec ("Le dossier .git n'est pas arrivé ici — sans lui, le code ne peut pas être mis à jour.`n`n" +
-               "  C'est le seul dossier caché du projet : si vous êtes entré dans A-SCHOOL puis`n" +
-               "  avez fait Ctrl+A, il n'a pas été sélectionné.`n`n" +
+        Echec ("L'historique de votre code n'est pas arrivé ici — sans lui, le code ne peut`n" +
+               "  pas être mis à jour.`n`n" +
+               "  Il est rangé dans le seul dossier CACHÉ du projet : si vous êtes entré dans`n" +
+               "  A-SCHOOL puis avez fait Ctrl+A, il n'a pas été sélectionné.`n`n" +
                "  Recopiez le DOSSIER A-SCHOOL lui-même (clic droit dessus, Copier), et non`n" +
                "  son contenu. Rien n'a été modifié.")
     }
-    Echec "Ce dossier n'est pas relié au dépôt du code. Rien n'a été modifié."
+    Echec ("Ce dossier n'est relié à aucun abri en ligne : son code ne peut pas être mis`n" +
+           "  à jour. Rien n'a été modifié.")
 }
 
 # Si ce poste a du travail à lui qui n'est pas parti, le récupérer par-dessus
@@ -426,8 +511,8 @@ if ($LASTEXITCODE -ne 0) {
 # en retard » — alors qu'on ne sait tout simplement pas.
 git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Echec ("Ce dossier n'est relié à aucun dépôt distant : le code ne peut pas être mis à jour.`n" +
-           "  Rien n'a été modifié.")
+    Echec ("Ce dossier ne sait pas d'où venir chercher son code : il n'est relié à aucun`n" +
+           "  abri en ligne. Rien n'a été modifié.")
 }
 
 git fetch --quiet 2>$null | Out-Null
@@ -620,6 +705,27 @@ if ($codeDemarrage -ne 0) {
     Echec "Votre travail est bien installé, mais l'application n'a pas démarré. Relancez ce script."
 }
 
+# ── La valise est jetée, et seulement maintenant ────────────────────────
+# Elle pèse le poids du dossier, modèle compris : la laisser, c'est garder deux
+# fois aSchool sur ce poste jusqu'à la prochaine bascule, et risquer qu'une
+# arrivée future réinstalle une valise périmée en la prenant pour la bonne.
+#
+# On ne la jette qu'ICI : après une installation vérifiée ET un démarrage
+# réussi. Tant que l'un des deux n'est pas acquis, elle reste — c'est le seul
+# exemplaire complet de ce que vous apportiez, et on ne détruit pas la copie
+# de secours avant d'être sûr que l'original tient debout.
+#
+# Le dossier de départ, lui, n'a jamais été touché : rien n'est perdu même ici.
+if ($valise -and (Test-Path $valise)) {
+    $poidsValise = Poids-De $valise
+    Remove-Item -LiteralPath $valise -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path $valise) {
+        Write-Host ("       (ce que vous apportiez est resté à $valise — sans gravité)") -ForegroundColor DarkGray
+    } else {
+        Write-Host ("       {0:N1} Go rendus : ce que vous apportiez est installé, la copie est jetée." -f ($poidsValise / 1GB)) -ForegroundColor DarkGray
+    }
+}
+
 Write-Host ""
 Write-Host "  Terminé. Ce poste contient votre travail et l'application démarre." -ForegroundColor Green
 Write-Host "  Ouvrez :  http://localhost:5173" -ForegroundColor Green
@@ -627,7 +733,8 @@ if ($premiereFois) {
     Write-Host "  (première fois : laissez-lui une minute ou deux avant d'ouvrir)" -ForegroundColor DarkGray
 }
 # Ce message disait que le modèle « revient tout seul ». C'était faux, et ça a
-# coûté une bascule : backend/main.py:11 pose HF_HUB_OFFLINE=1, le backend a
+# coûté une bascule : HF_HUB_OFFLINE=1 est posé partout (docker-compose.yml et
+# backend/rag/embeddings.py), le backend a
 # donc interdiction d'aller le chercher. Absent, il le reste — et sans lui,
 # plus une seule génération ne fonctionne. Ce n'est pas une lenteur au premier
 # usage, c'est une panne, et elle se dit comme telle.
@@ -640,7 +747,7 @@ if ($cacheVide) {
     Write-Host "  et découper un référentiel, ne fonctionneront pas." -ForegroundColor Red
     Write-Host ""
     Write-Host "  Il ne se retéléchargera pas de lui-même : le backend est réglé en" -ForegroundColor Yellow
-    Write-Host "  mode hors-ligne (backend/main.py:11). Il doit voyager dans la copie." -ForegroundColor Yellow
+    Write-Host "  mode hors-ligne. Il doit voyager dans la copie." -ForegroundColor Yellow
     Write-Host "  Relancez je_pars.ps1 depuis l'autre poste : il l'emporte désormais." -ForegroundColor Yellow
 }
 Write-Host ""

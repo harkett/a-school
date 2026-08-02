@@ -34,9 +34,12 @@ Le code du projet est **monté** dans les conteneurs (`.:/app`) et le back tourn
 
 Avant de dire « je ne peux pas exécuter », lancer `docker ps` et passer par le bon conteneur.
 
-**Le dépôt est en `c:\A-SCHOOL`.** L'ancien cartouche du hook annonçait `d:\A-SCHOOL` à trois
-endroits et le hook lui-même se repliait sur `/d/A-SCHOOL` — ce chemin n'existe pas sur ce
-poste. Corrigé le 31/07/2026.
+**Le dépôt est en `d:\A-SCHOOL`.**
+
+*(Ce paragraphe annonçait `c:\A-SCHOOL` : il avait été écrit le 31/07/2026 sur le portable, à
+propos d'un cartouche de hook qui ne correspondait pas à CE poste-là. Le développement se fait
+depuis sur le fixe, et seulement sur lui. Une note de dépannage vaut par le poste où elle a été
+prise ; recopiée ailleurs, elle annonce le mauvais disque à tous ceux qui la lisent.)*
 
 ---
 
@@ -275,9 +278,15 @@ contenait.
 
 | Prompt | Ce qu'il fait | Sa porte, avant |
 |---|---|---|
-| `prompt_meta_decoupe` | l'IA **rédige** le prompt de découpe du document | deux routes qu'aucun écran n'appelle |
+| `prompt_meta_decoupe` | l'IA **rédige** le prompt de découpe du document | deux routes qu'aucun écran n'appelait — dont une **non gardée** |
 | `prompt_verif_decoupe` | l'IA **relit** ce prompt et le corrige | **aucune** — lu à chaque découpe, modifiable par rien |
 | `prompt_gabarit_type` | il **fabrique** le prompt de chaque couple×type au coche | **aucune** — pas même une ligne en base, seulement un repli code |
+
+**Suite, 02/08/2026 :** les deux routes de `prompt_meta_decoupe` (`GET`/`PUT
+/admin/referentiels/meta-prompt`) ont été **supprimées**. Le `PUT` écrivait la même ligne de
+base sans passer par `valider_prompt` — mesuré : un texte sans `{document}` y entrait en 200 et
+s'installait en base, et le méta-prompt ne recevait alors plus jamais le document à découper.
+La porte qui reste est `PUT /api/admin/prompts`, qui valide et refuse en 400.
 
 Ils ne pouvaient pas y entrer tels quels, et c'est la raison du champ `mode` :
 

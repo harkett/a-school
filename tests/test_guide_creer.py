@@ -7,6 +7,8 @@ Ce que ces tests PROUVENT :
   3. Sans cookie d'auth : 401.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py).
+
+Lancer : docker compose exec backend python -m pytest tests/test_guide_creer.py -q
 """
 
 

@@ -19,14 +19,8 @@ SECOURS. Mot de passe oublié : supprimer la ligne `admin_password_hash` de la t
 `settings` remet celui du .env en service. Le dernier test le prouve — ce n'est pas une
 promesse de documentation, c'est un chemin vérifié.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_admin_mot_de_passe_amorcage_seul.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_admin_mot_de_passe_amorcage_seul.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
 import bcrypt
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite

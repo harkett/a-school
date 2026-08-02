@@ -3,26 +3,35 @@
 #  (ce cadre est identique dans les deux scripts : je_pars et j_arrive.
 #   Vous ouvrez l'un ou l'autre, vous avez tout.)
 #
-#  DEUX SCRIPTS, et un seul est à lancer à la fois.
+#  LE RITUEL : UNE COMMANDE PAR POSTE, ET RIEN D'AUTRE.
 #
-#    je_pars.ps1     sur la machine que vous QUITTEZ.
-#                    Enregistre et envoie votre code, sort la base dans
-#                    Bagage\, ferme l'application, copie le dossier vers
-#                    l'endroit que vous indiquez, et relit chaque fichier
-#                    des deux côtés pour vérifier.
+#    1. sur la machine que vous QUITTEZ :   .\Scripts\je_pars.ps1
+#    2. sur la machine où vous ARRIVEZ  :   .\Scripts\j_arrive.ps1
 #
-#    j_arrive.ps1    sur la machine où vous ARRIVEZ.
-#                    Récupère le code, refuse d'écraser quelque chose de
-#                    plus récent, installe votre travail, redémarre.
+#  Rien à fermer, rien à rouvrir, rien à attendre, rien à glisser dans
+#  l'explorateur. Si un programme doit être fermé, le script le ferme ;
+#  s'il doit être ouvert, le script l'ouvre.
 #
-#  LE RITUEL, identique dans les deux sens :
+#    je_pars.ps1     enregistre et envoie votre code, sort la base dans
+#                    Bagage\, ferme l'application, et DÉPOSE une valise
+#                    A-SCHOOL-a-emporter à l'endroit que vous indiquez —
+#                    demandé une seule fois : ensuite il s'en souvient.
 #
-#    1. sur la machine que vous quittez :   .\Scripts\je_pars.ps1
-#       puis indiquez où copier quand il le demande.
+#    j_arrive.ps1    trouve la valise, l'installe, récupère le code,
+#                    refuse d'écraser quelque chose de plus récent,
+#                    redémarre, puis jette la valise.
 #
-#    2. sur l'autre machine :               .\Scripts\j_arrive.ps1
-#
-#    Plus aucun glisser-déposer : les deux bouts copient et vérifient.
+#  POURQUOI UNE VALISE, ET PAS LE DOSSIER DIRECTEMENT (02/08/2026)
+#    Le départ écrivait droit dans le dossier vivant de l'autre poste, et
+#    l'effaçait pour le remplacer. Or à cet instant rien ne tourne là-bas
+#    pour se protéger : c'était donc à l'utilisateur d'y aller à la main
+#    fermer l'application, fermer VS Code, puis revenir les rouvrir.
+#    Quatre gestes sur une machine à laquelle il n'avait rien à demander,
+#    et dont l'oubli faisait échouer la copie sur un fichier tenu ouvert.
+#    Déposée à côté, la valise ne touche à rien : le dossier d'en face
+#    peut tourner, être ouvert, être utilisé. C'est j_arrive, qui tourne
+#    LÀ-BAS, qui installe — et un script qui tourne sur une machine sait
+#    fermer et rouvrir ses propres programmes.
 #
 #  CE QUI VOYAGE : le dossier ENTIER, moins ce qui se refabrique.
 #    Bagage\          la base de données (pg_dump) + la date du départ
@@ -31,23 +40,35 @@
 #    .git             l'historique. Sans lui, plus de dépôt là-bas.
 #    docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Lourd,
 #                     mais il ne se retéléchargera PAS de lui-même :
-#                     backend/main.py:11 pose HF_HUB_OFFLINE=1. Sans lui,
+#                     le dépôt pose HF_HUB_OFFLINE=1 partout. Sans lui,
 #                     l'autre poste ne génère plus rien.
 #    le code          et tout le reste du dossier
 #
 #  CE QUI NE VOYAGE PAS, parce que ça se refabrique vraiment sur place :
-#    .venv, node_modules          réinstallés par pip et npm (70 700 fichiers)
+#    node_modules                 refait par le conteneur (15 300 fichiers)
 #    docker\pgdata                un reste : la base vit dans le volume
 #                                 nommé pgdata_dev, pas dans le dossier
 #    __pycache__, .pytest_cache   caches de Python
 #
+#    .venv N'EXISTE PLUS — abandonné le 02/08/2026. Un environnement qui
+#    ne survit pas à une bascule et qui exige internet pour renaître n'est
+#    pas un outil, c'est une charge. Le seul Python du projet est celui du
+#    conteneur : c'est lui qui fait tourner l'application, et désormais lui
+#    aussi qui lance les tests (voir l'en-tête de n'importe quel fichier de
+#    tests\). Les deux scripts le retirent encore s'ils en trouvent un :
+#    c'est un reste, pas quelque chose qui renaîtra.
+#
 #    La copie ne se fait PAS dans l'explorateur Windows : il emporte les
-#    70 000 fichiers inutiles, échoue sur les liens du cache du modèle, et
-#    saute .git parce qu'il est caché.
+#    fichiers inutiles, échoue sur les liens du cache du modèle, et saute
+#    .git parce qu'il est caché.
+#
+#  PLACE DISQUE : la valise pèse le poids du dossier (6,5 Go, modèle
+#    compris). Elle coexiste avec le dossier vivant le temps de la
+#    bascule, puis j_arrive la jette. Prévoir 13 Go libres à l'arrivée.
 #
 #  « OÙ COPIER » = n'importe quel endroit atteignable des deux machines :
 #    un chemin réseau de l'autre poste (\\FIXE\D$), une clé USB, un
-#    disque externe, un dossier synchronisé.
+#    disque externe, un dossier synchronisé. Demandé une seule fois.
 #
 #  EN CAS DE DOUTE : ces scripts s'arrêtent plutôt que de deviner, et
 #    disent « Rien n'a été modifié » quand c'est le cas. Relancer un
@@ -68,6 +89,25 @@
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# ── Lancé depuis le terminal intégré de VS Code, ce script se coupait lui-même ──
+# Il ferme VS Code plus bas (VS Code tient .git\index ouvert et fausse la
+# vérification). Or VS Code emporte son terminal en se fermant : le script mourait
+# au milieu de son travail, sans un mot.
+#
+# La procédure disait donc « fermez VS Code avant, et ne lancez pas depuis son
+# terminal ». Deux choses à savoir, à retenir, et dont l'oubli casse la bascule —
+# pour un problème que le script peut régler seul en se relançant ailleurs.
+if ($env:TERM_PROGRAM -eq 'vscode') {
+    Write-Host ""
+    Write-Host "  Je continue dans une fenêtre à part." -ForegroundColor Cyan
+    Write-Host "  (VS Code va se fermer pendant le départ : il ne peut pas m'héberger)" -ForegroundColor DarkGray
+    Write-Host ""
+    Start-Process powershell -ArgumentList @(
+        '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`""
+    ) -ErrorAction SilentlyContinue
+    exit 0
+}
+
 $racine = Split-Path -Parent $PSScriptRoot
 Set-Location $racine
 
@@ -82,6 +122,37 @@ function Echec($message) {
     exit 1
 }
 
+# Le moteur, c'est Docker Desktop — mais ce nom ne sort jamais à l'écran. Il était
+# demandé à l'utilisateur : « lancez-le, attendez qu'il soit vert, puis relancez ce
+# script ». Trois choses à savoir, à retenir et à réussir dans l'ordre, pour un
+# programme qu'un script sait ouvrir. S'il faut qu'il tourne, on l'ouvre.
+#
+# L'attente est celle du MOTEUR, pas de la fenêtre : Docker Desktop s'affiche bien
+# avant de pouvoir répondre. On interroge donc le moteur jusqu'à ce qu'il réponde,
+# et c'est cette réponse-là qui vaut « prêt ».
+function Demarrer-Le-Moteur {
+    docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+
+    $exe = @("$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+             "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe",
+             "$env:LOCALAPPDATA\Docker\Docker Desktop.exe") |
+           Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $exe) { return $false }
+
+    Write-Host "       démarrage du moteur, une minute environ..." -ForegroundColor DarkGray
+    Start-Process -FilePath $exe -ErrorAction SilentlyContinue
+
+    # 150 essais de 2 s = 5 minutes. Un poste qui sort de veille, ou qui démarre le
+    # moteur pour la première fois, met couramment deux à trois minutes.
+    for ($essai = 0; $essai -lt 150; $essai++) {
+        Start-Sleep -Seconds 2
+        docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { return $true }
+    }
+    return $false
+}
+
 Write-Host ""
 Write-Host "  A-SCHOOL — je pars" -ForegroundColor Cyan
 Write-Host "  ══════════════════" -ForegroundColor Cyan
@@ -94,14 +165,16 @@ Write-Host "  1/4  Vérification..." -ForegroundColor Cyan
 # absente ne touche pas à $LASTEXITCODE : elle laisse la valeur de la
 # précédente, et un 0 hérité d'un succès passé se lit alors comme un succès.
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Echec "Docker Desktop n'est pas installé sur ce poste. Sans lui, votre travail ne peut pas être récupéré."
+    Echec ("Le moteur qui fait tourner aSchool n'est pas installé sur ce poste.`n" +
+           "  Sans lui, votre travail ne peut pas être récupéré.")
 }
-docker info -f "{{.ServerVersion}}" 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Echec "Docker Desktop n'est pas démarré. Lancez-le, attendez qu'il soit vert, puis relancez ce script."
+if (-not (Demarrer-Le-Moteur)) {
+    Echec ("Le moteur qui fait tourner aSchool ne répond pas, même après cinq minutes.`n" +
+           "  Redémarrez ce poste, puis relancez ce script. Rien n'a été modifié.")
 }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Echec "Git n'est pas installé sur ce poste. Impossible de vérifier que votre code est bien parti."
+    Echec ("Ce poste ne sait pas mettre votre code à l'abri en ligne.`n" +
+           "  Impossible de vérifier qu'il est bien parti : le départ s'arrête ici.")
 }
 Write-Host "       le moteur tourne." -ForegroundColor Green
 
@@ -120,7 +193,8 @@ Write-Host "  2/4  Envoi du code..." -ForegroundColor Cyan
 
 git rev-parse --is-inside-work-tree 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Echec "Ce dossier n'est pas relié au dépôt du code. Rien n'a été modifié."
+    Echec ("Ce dossier n'est relié à aucun abri en ligne : votre code n'a nulle part`n" +
+           "  où partir, et il manquerait sur l'autre poste. Rien n'a été modifié.")
 }
 
 # @{u} désigne l'endroit où le code part. Sans ce lien, il n'y a nulle part où
@@ -128,7 +202,7 @@ if ($LASTEXITCODE -ne 0) {
 # lisant alors comme « tout est parti », alors que RIEN ne serait parti.
 git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Echec ("Ce dossier n'envoie son code nulle part : la branche n'est reliée à aucun dépôt.`n" +
+    Echec ("Ce dossier n'envoie son code nulle part : il n'est relié à aucun abri en ligne.`n" +
            "  Rien de ce poste n'arriverait sur l'autre. Rien n'a été modifié.")
 }
 
@@ -164,10 +238,10 @@ $nonPartis = @(git log --oneline '@{u}..HEAD' 2>$null | Where-Object { $_ })
 
 if (-not $depotJoignable) {
     if ($nonPartis.Count -gt 0) {
-        Echec ("Le dépôt est injoignable : votre code ne peut pas partir, et il manquerait`n" +
+        Echec ("L'abri en ligne est injoignable : votre code ne peut pas partir, et il manquerait`n" +
                "  sur l'autre poste. Votre travail est enregistré ici, rien n'est perdu.")
     }
-    Write-Host "       (dépôt injoignable, mais rien n'attendait de partir)" -ForegroundColor DarkGray
+    Write-Host "       (abri en ligne injoignable, mais rien n'attendait de partir)" -ForegroundColor DarkGray
 }
 else {
     $enRetard = @(git log --oneline 'HEAD..@{u}' 2>$null | Where-Object { $_ })
@@ -175,7 +249,7 @@ else {
         git rebase --quiet '@{u}' 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
             git rebase --abort 2>$null | Out-Null
-            Echec ("Le dépôt contient du travail qui touche les mêmes endroits que le vôtre.`n" +
+            Echec ("L'abri en ligne contient du travail qui touche les mêmes endroits que le vôtre.`n" +
                    "  Je ne tranche pas un conflit à votre place : c'est le seul endroit où`n" +
                    "  du travail peut se perdre. Réglez-le, puis relancez ce script.`n" +
                    "  Votre travail est enregistré ici, rien n'est perdu.")
@@ -368,35 +442,71 @@ Write-Host "       fermée." -ForegroundColor Green
 #   docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Il a été
 #                    écarté d'ici le 02/08/2026, au motif qu'il « se
 #                    retéléchargerait tout seul ». C'était faux :
-#                    backend/main.py:11 pose HF_HUB_OFFLINE=1, le backend a
+#                    HF_HUB_OFFLINE=1 est posé partout (docker-compose.yml et
+#                    backend/rag/embeddings.py), le backend a
 #                    donc interdiction d'aller le chercher. Sans ce dossier,
 #                    l'autre poste ne peut plus rien générer — ni activité,
 #                    ni séance, ni thème, ni idée, ni exemple. Il coûte cher
 #                    à copier ; ne pas le copier coûte l'application entière.
 $ecartes = @('.venv', 'node_modules', '__pycache__', '.pytest_cache', 'pgdata')
 
+# ── « Où copier » ne se demande qu'une fois dans une vie ────────────────
+# La réponse est toujours la même — c'est le même autre poste. La redemander à
+# chaque départ, c'est faire retaper un chemin réseau exact, à la main, au seul
+# moment où une faute de frappe coûte une bascule.
+#
+# Retenue HORS du dossier, et volontairement : le dossier voyage. Écrite dedans,
+# la réponse du portable arriverait sur le fixe et lui proposerait de copier vers
+# lui-même. Chaque poste garde donc la sienne, dans ses réglages à lui.
+$memoire = Join-Path $env:LOCALAPPDATA 'aSchool\dernier_endroit.txt'
+$connu   = ''
+if (Test-Path $memoire) { $connu = (Get-Content $memoire -Raw -ErrorAction SilentlyContinue).Trim() }
+
 Write-Host ""
 Write-Host "  C'est prêt." -ForegroundColor Green
 Write-Host ""
 Write-Host "  Où copier le dossier ?" -ForegroundColor Cyan
 Write-Host ""
-Write-Host '      un chemin réseau de l''autre poste    \\FIXE\D$' -ForegroundColor White
-Write-Host '      une clé, un disque externe           E:'         -ForegroundColor White
-Write-Host '      ou Entrée pour le faire vous-même.'              -ForegroundColor White
+if ($connu) {
+    Write-Host ("      Entrée      le même endroit que la dernière fois  ({0})" -f $connu) -ForegroundColor White
+    Write-Host  '      un chemin   pour copier ailleurs' -ForegroundColor White
+} else {
+    Write-Host '      un chemin réseau de l''autre poste    \\FIXE\D$' -ForegroundColor White
+    Write-Host '      une clé, un disque externe           E:'         -ForegroundColor White
+    Write-Host '      ou Entrée pour le faire vous-même.'              -ForegroundColor White
+}
 Write-Host ""
 $ou = ''
 try { $ou = Read-Host "  Où copier" } catch { $ou = '' }
 $ou = "$ou".Trim().Trim('"')
 
+# Entrée + un endroit retenu = cet endroit. On le redit à l'écran : une touche
+# qui déclenche une copie de plusieurs gigaoctets doit dire où elle l'envoie.
+if (-not $ou -and $connu) {
+    $ou = $connu
+    Write-Host ("       vers $ou") -ForegroundColor Green
+}
+
+# Entrée sans endroit retenu : il n'y a rien à deviner. Ce cas affichait une
+# commande de copie à recopier soi-même — une ligne de trente caractères
+# techniques, à taper juste, au seul moment où l'on ne sait pas quoi faire.
+# C'était le contraire du but : donner du travail à celui qui vient de dire
+# qu'il ne savait pas où copier.
+#
+# Rien n'est perdu ici : votre travail est déjà dans le dossier, et le code est
+# déjà parti. Il ne manque que la destination, et elle ne se devine pas.
 if (-not $ou) {
     Write-Host ""
-    Write-Host "  Entendu. N'utilisez pas l'explorateur Windows : il emporterait les" -ForegroundColor Green
-    Write-Host "  79 000 fichiers, échouerait sur les liens du modèle, et sauterait" -ForegroundColor Green
-    Write-Host "  .git parce qu'il est caché. Cette commande-ci fait le tri :" -ForegroundColor Green
+    Write-Host "  Il me faut un endroit où déposer, sinon rien ne peut partir." -ForegroundColor Yellow
     Write-Host ""
-    Write-Host ("      robocopy `"{0}`" `"<destination>\A-SCHOOL`" /MIR /XJ /XD {1}" -f $racine, ($ecartes -join ' ')) -ForegroundColor White
+    Write-Host "  Relancez ce script et indiquez, par exemple :" -ForegroundColor Yellow
+    Write-Host '      \\FIXE\D$    le disque de l''autre poste, par le réseau' -ForegroundColor White
+    Write-Host '      E:           une clé ou un disque branché ici' -ForegroundColor White
     Write-Host ""
-    Write-Host "  Puis, sur l'autre poste :  .\Scripts\j_arrive.ps1" -ForegroundColor Green
+    Write-Host "  Vous ne l'indiquerez qu'une fois : ensuite je m'en souviens." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Votre travail est déjà dans le dossier et votre code est déjà parti :" -ForegroundColor Green
+    Write-Host "  rien n'est perdu, il manque seulement la destination." -ForegroundColor Green
     Write-Host ""
     exit 0
 }
@@ -405,36 +515,42 @@ if (-not (Test-Path $ou)) {
     Echec "Cet endroit n'existe pas : $ou`n  Rien n'a été modifié."
 }
 
-$destination = Join-Path $ou 'A-SCHOOL'
+# ── On dépose À CÔTÉ, jamais dans le dossier vivant d'en face ───────────
+# C'est le changement du 02/08/2026, et il vaut quatre gestes.
+#
+# Avant, la copie allait droit dans le dossier A-SCHOOL de l'autre poste et le
+# remplaçait. Or à cet instant, rien ne tourne là-bas pour se protéger : c'était
+# donc à l'utilisateur d'y aller à la main fermer l'application, fermer VS Code,
+# puis revenir les rouvrir. Quatre allers-retours sur une machine à laquelle il
+# n'avait rien à demander, et dont l'oubli faisait échouer la copie sur un
+# fichier tenu ouvert.
+#
+# Déposé à côté, le dossier vivant d'en face n'est pas touché : il peut tourner,
+# être ouvert, être utilisé. C'est j_arrive, qui tourne LÀ-BAS, qui installera —
+# et un script qui tourne sur une machine sait fermer et rouvrir ses programmes.
+#
+# La valise porte le nom que j_arrive cherche déjà sur les disques branchés.
+$NOM_VALISE  = 'A-SCHOOL-a-emporter'
+$destination = Join-Path $ou $NOM_VALISE
 
 # /MIR aligne la destination sur la source, suppressions comprises. C'est
-# nécessaire : un fichier qui n'existerait QUE là-bas resterait, et j_arrive
-# s'arrêterait à 3/6 en le prenant pour du travail local de ce poste.
+# nécessaire : un fichier qui n'existerait QUE dans la valise y resterait d'une
+# bascule à l'autre, et repartirait indéfiniment.
 # Mais /MIR sur un mauvais chemin efface. On refuse donc d'écrire dans un
-# dossier existant qui ne serait pas déjà un A-SCHOOL.
+# dossier existant qui ne serait pas déjà une valise.
 if ((Test-Path $destination) -and -not (Test-Path (Join-Path $destination 'docker-compose.yml'))) {
-    Echec ("$destination existe déjà, mais ce n'est pas un dossier A-SCHOOL.`n" +
-           "  Je refuse d'écrire dedans : /MIR y supprimerait ce qui s'y trouve.`n" +
+    Echec ("$destination existe déjà, mais ce n'est pas une valise aSchool.`n" +
+           "  Je refuse d'écrire dedans : la copie y supprimerait ce qui s'y trouve.`n" +
            "  Rien n'a été modifié.")
 }
 
-# ── Docker doit être fermé LÀ-BAS, et surtout pas ici ───────────────────
-# /MIR supprime et remplace à la destination. Un conteneur qui tourne là-bas
-# tient des fichiers ouverts : la copie bute dessus, et l'application se fait
-# retirer le sol sous les pieds en pleine marche.
-# Ici, au contraire, Docker doit rester ouvert — l'étape 3/4 vient de s'en
-# servir pour sortir votre base.
-Write-Host ""
-Write-Host "  AVANT DE CONTINUER" -ForegroundColor Yellow
-Write-Host "  ══════════════════" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  Fermez Docker Desktop sur le poste qui REÇOIT." -ForegroundColor Yellow
-Write-Host "  (pas sur celui-ci : ici, il doit rester ouvert)" -ForegroundColor DarkGray
-Write-Host ""
-Write-Host "  La copie remplace et supprime là-bas. Elle butera sur tout fichier" -ForegroundColor Yellow
-Write-Host "  qu'un conteneur y tient ouvert." -ForegroundColor Yellow
-Write-Host ""
-try { Read-Host "  Entrée quand c'est fait" | Out-Null } catch { }
+# Le garde-fou qui manquait : on ne dépose pas la valise DANS le dossier d'où
+# l'on part. Elle se copierait elle-même en se remplissant.
+if ($destination.TrimEnd('\').ToLower().StartsWith($racine.TrimEnd('\').ToLower())) {
+    Echec ("Cet endroit est à l'intérieur du dossier de travail : la copie se`n" +
+           "  recopierait elle-même sans jamais finir. Choisissez un autre endroit.`n" +
+           "  Rien n'a été modifié.")
+}
 
 Write-Host ""
 Write-Host "  Copie vers $destination" -ForegroundColor Cyan
@@ -541,7 +657,18 @@ if ($ecarts.Count -gt 0) {
 }
 
 Write-Host ("       $comptes fichiers copiés, tous vérifiés un par un.") -ForegroundColor Green
+
+# L'endroit n'est retenu qu'ICI : une copie vérifiée fichier par fichier. Le
+# retenir plus tôt reviendrait à proposer par défaut, la prochaine fois, un
+# endroit qui n'a jamais reçu quoi que ce soit.
+New-Item -ItemType Directory -Force -Path (Split-Path $memoire -Parent) -ErrorAction SilentlyContinue | Out-Null
+Set-Content -Path $memoire -Value $ou -Encoding utf8 -ErrorAction SilentlyContinue
+
 Write-Host ""
-Write-Host "  C'est en place. Sur l'autre poste, ouvrez le dossier A-SCHOOL" -ForegroundColor Green
-Write-Host "  et lancez :  .\Scripts\j_arrive.ps1" -ForegroundColor Green
+Write-Host "  C'est en place." -ForegroundColor Green
+Write-Host ""
+Write-Host "  Sur l'autre poste, une seule chose à faire :" -ForegroundColor Green
+Write-Host "      .\Scripts\j_arrive.ps1" -ForegroundColor White
+Write-Host ""
+Write-Host "  Rien à fermer, rien à rouvrir, rien à attendre : il s'en charge." -ForegroundColor DarkGray
 Write-Host ""

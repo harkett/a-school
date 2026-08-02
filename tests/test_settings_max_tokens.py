@@ -12,14 +12,9 @@ Ce que le test PROUVE (la chaine reelle remonte la bonne valeur, pas « le code 
   6. GET/PUT /admin/max-tokens : lecture, ecriture validee, 400 hors bornes (rien ecrit),
      401 sans cookie admin, isolation vis-a-vis de ai_model et de l'email.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_settings_max_tokens.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_settings_max_tokens.py -q
 """
-import os
-
 # Windows : torch + chromadb -> deux runtimes OpenMP. Garde-fous AVANT tout import torch.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 
 from unittest.mock import MagicMock, patch
@@ -83,12 +78,11 @@ def _fake_groq_post(capture):
 # ===================== get_max_tokens : resolution HYBRIDE =====================
 
 def test_surcharges_semees_lues_sans_aucune_ligne_en_base():
-    # Anti-regression : sans ligne en base, les 3 surcharges restent a 3000/4000/6000
+    # Anti-regression : sans ligne en base, les 2 surcharges restent a 3000/4000
     # (semees dans SETTING_DEFAULTS) — PAS de retombee a 2048.
     db = _fresh_db()
     assert get_max_tokens(db, "ambiguites") == 3000
     assert get_max_tokens(db, "sequence") == 4000
-    assert get_max_tokens(db, "optimiseur") == 6000
     db.close()
 
 
@@ -115,7 +109,7 @@ def test_changer_le_defaut_change_les_outils_sans_surcharge():
     assert get_max_tokens(db, "activite") == 1500
     assert get_max_tokens(db, "consigne") == 1500
     # un outil AVEC surcharge semee n'est pas affecte
-    assert get_max_tokens(db, "optimiseur") == 6000
+    assert get_max_tokens(db, "sequence") == 4000
     db.close()
 
 
@@ -146,20 +140,19 @@ def test_get_max_tokens_defauts_et_bornes():
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["default"] == 2048
-    assert data["overrides"] == {"ambiguites": 3000, "sequence": 4000, "optimiseur": 6000}
+    assert data["overrides"] == {"ambiguites": 3000, "sequence": 4000}
     assert data["bounds"] == {"min": MAX_TOKENS_MIN, "max": MAX_TOKENS_MAX}
 
 
-def test_put_valide_ecrit_les_4_cles():
+def test_put_valide_ecrit_les_3_cles():
     _reset_settings()
     r = _admin().put("/api/admin/max-tokens", json={
-        "default": 2500, "ambiguites": 3200, "sequence": 4200, "optimiseur": 6500,
+        "default": 2500, "ambiguites": 3200, "sequence": 4200,
     })
     assert r.status_code == 200, r.text
     assert _row("max_tokens_default") == "2500"
     assert _row("max_tokens_ambiguites") == "3200"
     assert _row("max_tokens_sequence") == "4200"
-    assert _row("max_tokens_optimiseur") == "6500"
     # GET reflete le courant
     assert _admin().get("/api/admin/max-tokens").json()["default"] == 2500
 
@@ -167,7 +160,7 @@ def test_put_valide_ecrit_les_4_cles():
 def test_put_trop_bas_refuse_400_rien_ecrit():
     _reset_settings()
     r = _admin().put("/api/admin/max-tokens", json={
-        "default": 10, "ambiguites": 3000, "sequence": 4000, "optimiseur": 6000,
+        "default": 10, "ambiguites": 3000, "sequence": 4000,
     })
     assert r.status_code == 400, r.text
     assert "hors limites" in r.json()["detail"]
@@ -177,16 +170,16 @@ def test_put_trop_bas_refuse_400_rien_ecrit():
 def test_put_trop_haut_refuse_400_rien_ecrit():
     _reset_settings()
     r = _admin().put("/api/admin/max-tokens", json={
-        "default": 2048, "ambiguites": 3000, "sequence": 4000, "optimiseur": 99999,
+        "default": 2048, "ambiguites": 3000, "sequence": 99999,
     })
     assert r.status_code == 400, r.text
-    assert _row("max_tokens_optimiseur") is None
+    assert _row("max_tokens_sequence") is None
 
 
 def test_sans_cookie_admin_401():
     assert TestClient(app).get("/api/admin/max-tokens").status_code == 401
     assert TestClient(app).put("/api/admin/max-tokens", json={
-        "default": 2048, "ambiguites": 3000, "sequence": 4000, "optimiseur": 6000,
+        "default": 2048, "ambiguites": 3000, "sequence": 4000,
     }).status_code == 401
 
 
@@ -194,7 +187,7 @@ def test_isolation_endpoint_email_n_altere_pas_max_tokens():
     # Endpoints dedies : le PUT email ne doit jamais toucher les cles max_tokens.
     _reset_settings()
     _admin().put("/api/admin/max-tokens", json={
-        "default": 2500, "ambiguites": 3000, "sequence": 4000, "optimiseur": 6000,
+        "default": 2500, "ambiguites": 3000, "sequence": 4000,
     })
     r = _admin().put("/api/admin/settings", json={
         "welcome_email_subject": "Sujet X", "welcome_email_body": "Corps Y",

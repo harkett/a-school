@@ -9,15 +9,8 @@ Ce que le test PROUVE (chaîne réelle, pas « le code existe ») :
 L'écran ne modifie rien (plus de POST/PUT) : changer une valeur passe par un autre moyen
 (un secret se change dans le .env, jamais dans l'UI).
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_admin_parametres.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_admin_parametres.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
-
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod
 

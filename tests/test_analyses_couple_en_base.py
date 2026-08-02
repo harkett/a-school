@@ -5,6 +5,8 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py, LLM MOQUÉ — auc
      un couple encore envoyé par un écran (corps forgé) est IGNORÉ, les champs ont quitté
      le modèle de requête — le serveur ne fait plus confiance à l'écran (trou du check-up).
   2. Profil sans couple → 400 humain, AUCUN appel LLM.
+
+Lancer : docker compose exec backend python -m pytest tests/test_analyses_couple_en_base.py -q
 """
 from unittest.mock import patch
 

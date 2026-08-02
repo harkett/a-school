@@ -6,10 +6,11 @@ import os as _omp
 _omp.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 _omp.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 _omp.environ.setdefault("OMP_NUM_THREADS", "1")
-# Modèle d'embeddings déjà en cache local → on coupe les allers-retours réseau HF Hub
-# au chargement (petit gain, et pas de dépendance réseau au boot).
-_omp.environ.setdefault("HF_HUB_OFFLINE", "1")
-_omp.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+# HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE vivaient ICI, et donc pour le serveur SEUL : tout ce
+# qui charge le modèle sans passer par main.py (tests, script, `docker exec python -c`) partait
+# sans garde-fou. Ils sont posés le 02/08 à la seule porte qu'on ne peut pas contourner —
+# backend/rag/embeddings.py, qui explique le pourquoi — et dans docker-compose.yml. Rien à
+# remettre ici : ce fichier n'est pas le chemin du modèle, il n'en est qu'un parmi d'autres.
 
 from contextlib import asynccontextmanager
 import json

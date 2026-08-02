@@ -8,6 +8,8 @@ Ce que ces tests PROUVENT :
   3. Cahier au texte VIDE (PDF sans texte exploitable) → traité comme pas de cahier (rien ajouté).
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_cahier_generation.py -q
 """
 from unittest.mock import patch
 

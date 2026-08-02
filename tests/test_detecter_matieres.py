@@ -7,14 +7,11 @@ et le remplissage des repères du prompt.
 L'ÉCRITURE de ces propositions en base (matières du référentiel, `validee=false`) est prouvée
 par tests/test_matieres_candidates_en_base.py — elle ne passe plus par une table à part.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_detecter_matieres.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_detecter_matieres.py -q
 """
 import json
 import os
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

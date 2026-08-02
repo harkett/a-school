@@ -14,7 +14,7 @@ Ce que ces tests garantissent :
     vivante » et la comparaison au libellé « Langues Vivantes (LV) » était déjà fausse, en
     silence. Un renommage de matière ne doit plus rien casser.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_catalogues_en_base.py -q
 """
 
 import pytest

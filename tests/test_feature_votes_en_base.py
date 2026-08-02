@@ -11,6 +11,8 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py — JAMAIS SQLite) 
   6. Table vide = erreur claire (migration non appliquée), jamais un repli en dur.
 
 Le catalogue est semé par conftest (_seed_catalogues) — en prod il l'est par migration.
+
+Lancer : docker compose exec backend python -m pytest tests/test_feature_votes_en_base.py -q
 """
 
 

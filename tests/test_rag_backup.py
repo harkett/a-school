@@ -11,6 +11,8 @@ elle RAISE et le delete n'est jamais atteint (garde-fou structurel, visible dans
 `ingest_pgvector`). Ce module se lance hors suite normale via
 `pytest test_rag_backup.py --noconftest` (le conftest racine, lui, se connecte a
 aschool_test ; ici on n'en a pas besoin).
+
+Lancer : docker compose exec backend python -m pytest tests/test_rag_backup.py -q
 """
 import datetime as _dt
 import json

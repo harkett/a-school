@@ -3,7 +3,8 @@ r"""Le registre dit COMMENT chaque prompt est consommé — et la validation en 
 CE QUE CES TESTS PROUVENT, et pourquoi ils existent. Trois prompts vivaient HORS du registre :
 
   - `prompt_meta_decoupe` — lu à chaque génération d'un prompt de découpe ; ses seules portes
-    étaient GET/PUT /admin/referentiels/meta-prompt, qu'AUCUN écran n'appelle ;
+    étaient GET/PUT /admin/referentiels/meta-prompt, qu'AUCUN écran n'appelait — et dont le PUT
+    écrivait la ligne SANS valider (supprimées le 02/08, cf. les deux derniers tests) ;
   - `prompt_verif_decoupe` — lu à chaque découpe lui aussi, et AUCUNE route ne permettait de le
     corriger. Ni écran, ni endpoint : semé une fois, puis intouchable ;
   - `prompt_gabarit_type` — il FABRIQUE le prompt de chaque couple×type au coche, et il n'avait
@@ -18,14 +19,8 @@ supposé (`test_leur_texte_reel_casse_bien_format` ci-dessous). C'est normal : i
 autre prompt, donc leurs accolades sont du texte à préserver. D'où le champ `mode` : en
 « replace », on vérifie la PRÉSENCE des repères et on n'appelle jamais `.format()`.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_prompts_mode_replace.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_prompts_mode_replace.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
 import pytest
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
@@ -179,3 +174,42 @@ def test_le_gabarit_de_type_est_lu_en_base_pas_dans_le_code():
     assert "SETTING_DEFAULTS" not in source, (
         "Le repli code est revenu : la base cesse d'être la source, et l'écran Prompts ment."
     )
+
+
+# ── La seconde porte, retirée le 02/08 ───────────────────────────────────────────────────
+
+def test_l_ancienne_porte_non_gardee_du_meta_prompt_n_existe_plus():
+    """`prompt_meta_decoupe` avait DEUX portes vers la même ligne de base.
+
+    La seconde — GET/PUT /admin/referentiels/meta-prompt — n'avait aucun appelant et
+    n'appelait pas `valider_prompt` : elle ne vérifiait que « non vide ». Un texte sans
+    {document} y passait, et le méta-prompt ne recevait alors plus jamais le document à
+    découper — exactement la panne que `valider_prompt` existe pour empêcher.
+
+    On interroge en ADMIN authentifié exprès : un 403 dirait « la route est là, mais fermée ».
+    C'est 404 qu'on veut — la route n'existe plus."""
+    c = _admin()
+    assert c.get("/api/admin/referentiels/meta-prompt").status_code == 404
+    assert c.put("/api/admin/referentiels/meta-prompt",
+                 json={"texte": "un texte sans le moindre repère"}).status_code == 404
+
+
+def test_la_porte_qui_reste_refuse_un_meta_prompt_sans_document():
+    """Le corollaire, et la raison pour laquelle supprimer ne perd rien : la porte restante
+    fait le travail, et le fait AU NIVEAU HTTP — pas seulement dans `valider_prompt` pris à
+    part. Rien n'est écrit en base, et le texte d'origine est intact après le refus."""
+    with dbmod.SessionLocal() as db:
+        # conftest sème les prompts du registre avant chaque test — la ligne est donc là, et
+        # c'est bien elle que les DEUX portes visaient.
+        avant = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first().value
+
+    r = _admin().put("/api/admin/prompts",
+                     json={"key": "meta_decoupe", "text": "Rédige un prompt de découpe, sans plus."})
+    assert r.status_code == 400, r.text
+    assert "{document}" in r.json()["detail"]
+
+    with dbmod.SessionLocal() as db:
+        reste = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first()
+        assert reste.value == avant, (
+            "un texte refusé a quand même été écrit en base"
+        )

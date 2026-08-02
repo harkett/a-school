@@ -14,6 +14,8 @@ NB (ordre voulu) : le CONTRÔLE QUALITÉ est la dernière couche du prompt, APR�
 corrigé — c'est une relecture finale qui couvre l'activité ET son corrigé.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_correction_incluse.py -q
 """
 from unittest.mock import patch
 

@@ -12,7 +12,7 @@ l'historique »). Vérifié ici, pour les activités ET les séances :
   - cloisonnement : l'historique d'un autre prof est introuvable (404), et une version qui
     n'appartient pas au contenu visé aussi.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_historique_versions.py -q
 """
 
 

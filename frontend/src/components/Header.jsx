@@ -1,4 +1,5 @@
 import CoupleBandeau from './CoupleBandeau'
+import useIsMobile from '../hooks/useIsMobile'
 
 // Header sur DEUX lignes utiles (décision du 25/07) : à droite, trois colonnes empilées —
 // « assistance » (« Comment ça marche » selon le contexte de la page + « Feedback » partout,
@@ -10,7 +11,7 @@ export default function Header({ matiere, niveau, email, prenom, nom, profilNomI
                                  sessionMatiere, coupleAjuste, onValiderCouple, onRevenirProfil, onOuvrirGuide }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
-  const isMobile = window.innerWidth < 768
+  const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
   return (
     <header
       className="flex items-center justify-between px-6"

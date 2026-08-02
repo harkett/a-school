@@ -8,6 +8,8 @@ Ce que ces tests verrouillent :
   - la création cycle/niveau est relogée dans programmes.py (unicité 409, cycle inconnu 404).
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), IA et texte du PDF mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_depot_couple.py -q
 """
 import os
 import uuid

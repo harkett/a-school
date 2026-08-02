@@ -51,7 +51,14 @@ cd "$APP_DIR"
 
 echo ""
 echo "=== [4/7] Variables .env manquantes ==="
-if ! grep -q "JWT_SECRET" .env; then
+# ANCRÉ (`^JWT_SECRET=`) et pas `grep -q "JWT_SECRET"` : le motif large est aussi satisfait par
+# une ligne ADMIN_JWT_SECRET=… — donc un serveur portant le secret admin RECOMMANDÉ, et lui
+# seul, faisait croire au script que JWT_SECRET existait et repartait sans le générer. Les
+# jetons des PROFS étaient alors signés avec le repli du code (mesuré le 02/08 :
+# « change-me-in-production », un jeton forgé accepté). Le repli a disparu — sans cette
+# correction, le même .env ferait maintenant refuser le démarrage, ce qui est mieux mais
+# n'était pas la peine.
+if ! grep -qE "^JWT_SECRET=.+" .env; then
     JWT=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     echo "JWT_SECRET=$JWT" >> .env
     echo "  → JWT_SECRET généré et ajouté"

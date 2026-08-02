@@ -1,8 +1,11 @@
 import io
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.deps import get_current_user
+from backend.core.limiter import limiter, cle_utilisateur, PLAFOND_OCR
+from backend.core.models_db import User
 from backend.systeme.admin import get_cle_api, get_ocr_model, get_max_tokens
 from backend.llm.generator import transcribe_image, LLMRateLimitError
 
@@ -56,8 +59,28 @@ def _ocr_pdf_scanne(data: bytes, db: Session) -> str:
     return texte
 
 
+# CETTE ROUTE ÉTAIT OUVERTE À TOUT LE MONDE (corrigé le 02/08/2026).
+#
+# Aucun cookie lu, aucun plafond : n'importe qui, sans compte, pouvait poster un PDF scanné de
+# 15 pages en boucle et vider la clé payante du propriétaire — 15 appels modèle par requête.
+# C'était, avec /transcribe, la seule route coûteuse dans ce cas ; toutes les autres lisent
+# déjà aschool_access.
+#
+# get_current_user, et pas le motif _get_email() des voisines : c'est le seul des deux qui
+# vérifie que le compte EXISTE ENCORE en base. Un jeton reste valide 15 minutes après la
+# suppression d'un compte, et sur une route qui dépense de l'argent, ces 15 minutes se paient.
+# L'identité n'est pas utilisée dans le corps : elle sert au contrôle, d'où le nom en « _ ».
+#
+# Le plafond se compte PAR COMPTE (cle_utilisateur), pas par adresse : voir le pourquoi dans
+# backend/core/limiter.py. `request` est exigé par slowapi, il n'est pas décoratif.
 @router.post("/ocr")
-async def ocr(file: UploadFile, db: Session = Depends(get_db)):
+@limiter.limit(PLAFOND_OCR, key_func=cle_utilisateur)
+async def ocr(
+    request: Request,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    _utilisateur: User = Depends(get_current_user),
+):
     content_type = file.content_type or ""
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     data = await file.read()

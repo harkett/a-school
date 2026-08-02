@@ -301,10 +301,11 @@ def regenerer_activite(
 # en arrière d'un retour en arrière. Même moule pour les activités et les séances.
 
 # Ce qui a créé la version, en français, pour l'écran (le code reste la vérité en base).
+# DEUX jalons, parce qu'il n'y a que deux façons de créer une version — voir la note sur
+# `ActiviteVersion.jalon` (backend/core/models_db.py) pour le pourquoi.
 JALON_LABELS = {
     "generation": "Génération",
     "restauration": "Retour à une version précédente",
-    "edition": "Modification à la main",
 }
 
 

@@ -1,7 +1,8 @@
 """Analyse amont d'un référentiel — par l'IA.
 
-Applique la règle de `CLAUDE.md` « L'ambiguïté d'un référentiel se détecte par l'IA » :
-on donne à l'IA les unités DÉJÀ découpées d'un document ; elle en DÉDUIT la règle de
+RÈGLE : l'ambiguïté d'un référentiel se détecte par l'IA, jamais à la main, et sur un cas
+flou on ne décide jamais seul en silence — on signale et on attend l'arbitrage de l'admin.
+Concrètement : on donne à l'IA les unités DÉJÀ découpées d'un document ; elle en DÉDUIT la règle de
 classement (l'axe qui structure le document) et, pour chaque unité, dit si le classement est
 clair (dans quelle(s) classe(s)) ou s'il y a un VRAI doute. L'IA propose, l'admin valide
 (cap « aSchool n'invente rien »).
@@ -120,23 +121,111 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
 from backend.rag.extraction import _sans_numeros_de_page
 
 
+def _replier_blancs(s: str) -> str:
+    """Replie tous les blancs (espaces, tabulations, retours à la ligne) en un espace simple.
+
+    C'est TOUTE la normalisation, et c'est délibéré. L'IA recopie un titre en normalisant les
+    blancs alors que le document peut porter deux espaces ou une coupure de ligne : il faut donc
+    comparer sur les blancs repliés. Mais on ne va pas plus loin — ni minuscules, ni accents
+    retirés, ni ponctuation ignorée : un titre court comme « C08 CODER » s'accrocherait alors
+    n'importe où, et « Unité U4 » se confondrait avec « UNITÉ U4 », qui peuvent désigner deux
+    choses dans un référentiel. Une normalisation trop large fabrique des frontières fausses,
+    ce qui est pire que d'en manquer une.
+    """
+    return " ".join(s.split())
+
+
+def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[int, int]]:
+    """Toutes les places où `titre` commence, en `(première ligne, ligne suivant le titre)`.
+
+    Deux façons de reconnaître un titre, dans cet ordre :
+      1. il tient dans UNE ligne (comportement d'origine, conservé tel quel) ;
+      2. il est à CHEVAL sur plusieurs lignes — on recolle les lignes suivantes jusqu'à couvrir
+         sa longueur, et on regarde si le tout commence par lui.
+
+    Le second cas manquait, et il n'était pas rare : sur le BTS CIEL, 10 des 54 titres rendus
+    par l'IA tenaient sur deux ou trois lignes (les six épreuves, les deux épreuves
+    facultatives, une activité) parce que c'est ainsi qu'ils sont écrits dans le document. Ils
+    étaient perdus à tous les coups. Cette fonction rend donc un SUR-ENSEMBLE de ce que
+    l'ancienne comparaison trouvait : elle ne peut rien faire perdre.
+    """
+    t = _replier_blancs(titre)
+    if not t:
+        return []
+    trouvees: list[tuple[int, int]] = []
+    for i, ligne in enumerate(lignes_repliees):
+        if not ligne:
+            continue
+        if t in ligne:                       # 1. le titre tient dans la ligne
+            trouvees.append((i, i + 1))
+            continue
+        accumule, j = ligne, i + 1           # 2. le titre déborde sur les suivantes
+        while len(accumule) < len(t) and j < len(lignes_repliees):
+            if lignes_repliees[j]:
+                accumule += " " + lignes_repliees[j]
+            j += 1
+        if accumule.startswith(t):
+            trouvees.append((i, j))
+    return trouvees
+
+
 def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
     """Tranche le TEXTE RÉEL aux lignes de titre rendues par l'IA — jamais réécrit par l'IA
     (cap « aSchool n'invente rien »). Pur, sans IA, sans base : testable seul.
-    Chaque unité = du titre trouvé jusqu'au titre suivant (recherche séquentielle, ordre du
-    document). Un titre introuvable est ignoré (on ne fabrique pas de frontière). Les numéros
-    de page (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte"}]`
-    dans l'ordre."""
+    Chaque unité = du titre retenu jusqu'au titre suivant, dans l'ordre du document. Un titre
+    introuvable est ignoré (on ne fabrique pas de frontière). Les numéros de page
+    (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte"}]` dans l'ordre.
+
+    LE CHOIX ENTRE PLUSIEURS OCCURRENCES. Un même intitulé figure souvent DEUX fois : une
+    première dans un sommaire ou un récapitulatif, une seconde en tête de la vraie section.
+    L'ancienne version retenait toujours la première : le récapitulatif raflait les titres, et
+    les vraies sections, privées de frontière, se retrouvaient avalées par leur voisine. Mesuré
+    le 02/08/2026 sur le BTS CIEL : 19 unités réduites à leur seule ligne de titre (la plus
+    courte, 9 caractères) et 3 unités géantes emportant 75 % du document.
+
+    LA RÈGLE RETENUE, et pourquoi elle est générique : **un intitulé immédiatement suivi d'un
+    autre intitulé de la liste ne porte aucun contenu — c'est une entrée de sommaire, pas une
+    unité.** On préfère donc la première occurrence dont la suite n'est pas un autre titre.
+    Elle ne nomme aucune section, aucun document, aucun métier : elle ne parle que de la forme,
+    comme le reste du socle. Et elle se suffit d'une ligne d'avance, parce que le curseur fait
+    le reste : dès que le premier intitulé du récapitulatif est enjambé, les suivants ne peuvent
+    plus revenir en arrière — c'est ce qui règle aussi le cas du DERNIER intitulé d'un
+    récapitulatif, celui qui était suivi non pas d'un titre mais de l'en-tête de section
+    suivant, et le ramassait dans sa tranche.
+
+    SA LIMITE, assumée et testée : si TOUTES les occurrences d'un intitulé sont suivies d'un
+    autre intitulé — un document qui n'est qu'une liste — il n'y a pas de « vraie section » à
+    préférer. On garde alors la première plutôt que de perdre l'unité : un défaut connu vaut
+    mieux qu'une disparition silencieuse.
+    """
     lignes = _sans_numeros_de_page(texte).split("\n")
+    lignes_repliees = [_replier_blancs(l) for l in lignes]
+
+    occurrences = [_occurrences_du_titre(lignes_repliees, t) for t in titres]
+    # Les lignes qui PORTENT le début d'un titre — de n'importe lequel. C'est le seul signal
+    # dont la règle a besoin, et il se calcule une fois.
+    portent_un_titre = {debut for liste in occurrences for debut, _ in liste}
+
+    def _suivante_non_vide(depuis: int) -> int | None:
+        for j in range(depuis, len(lignes_repliees)):
+            if lignes_repliees[j]:
+                return j
+        return None
+
     debuts: list[int] = []
     curseur = 0
-    for t in titres:
-        for i in range(curseur, len(lignes)):
-            ligne = lignes[i].strip()
-            if ligne and (ligne == t or t in lignes[i]):
-                debuts.append(i)
-                curseur = i + 1
-                break
+    for places in occurrences:
+        candidates = [(d, f) for d, f in places if d >= curseur]
+        if not candidates:
+            continue                                  # titre introuvable : aucune frontière
+        choisi = next(
+            (d for d, f in candidates
+             if (j := _suivante_non_vide(f)) is None or j not in portent_un_titre),
+            candidates[0][0],                         # tout est en liste : on garde la première
+        )
+        debuts.append(choisi)
+        curseur = choisi + 1
+
     unites: list[dict] = []
     for k, i in enumerate(debuts):
         fin = debuts[k + 1] if k + 1 < len(debuts) else len(lignes)
@@ -468,6 +557,12 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
     return noms
 
 
+# Clé EN BASE du prompt de suggestion des PRÉCISIONS d'un type d'activité pour un niveau donné.
+# Ajoutée le 02/08/2026 : le texte vivait en dur dans la fonction ci-dessous, seul prompt du
+# projet hors du registre administrable.
+_CLE_PRECISIONS_TYPE = "suggerer_precisions_type"
+
+
 def _schema_precisions_type() -> dict:
     """Sortie structurée : `precisions` = tableau de libellés. `additionalProperties: false` interdit tout
     champ en trop (réponse contrainte, petite, ni troncature ni dépassement)."""
@@ -486,20 +581,24 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
     que `detecter_types_activite` : provider / modèle lus EN BASE, température 0 (déterministe), JSON
     contraint. Renvoie des libellés nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu.
     Lève `ValueError` si l'IA ne rend pas un JSON exploitable (l'appelant absorbe)."""
-    prompt = (
-        f"Tu es un concepteur pédagogique.\n"
-        f"Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propose 3 à 6 PRÉCISIONS : "
-        f"des déclinaisons concrètes de ce type, réellement adaptées à ce niveau (ni trop enfantines, ni "
-        f"trop avancées).\n"
-        f"Appuie-toi sur le référentiel officiel ci-dessous pour rester dans le programme :\n{texte}\n\n"
-        f"Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."
-    )
+    # Le texte de ce prompt était ÉCRIT ICI, en f-string. C'était le seul vrai prompt du projet
+    # hors du registre : invisible à l'écran d'administration, donc ni lisible ni corrigeable —
+    # alors que les trois autres fonctions de CE fichier passaient déjà par get_prompt.
+    # `.replace()` et non `.format()`, comme sa voisine detecter_types_activite : le texte vient
+    # de la base et peut porter des accolades qui ne sont pas des repères.
+    prompt = (get_prompt(db, _CLE_PRECISIONS_TYPE)
+              .replace("{label}", label)
+              .replace("{niveau}", niveau)
+              .replace("{texte}", texte))
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
         provider=get_ai_provider(db),
         model=get_ai_model(db),
-        max_tokens=2000,   # marge large : 300 coupait la réponse (JSON tronqué → erreur → 0 précision)
+        # 2000 était écrit en dur ici, avec sa raison : « 300 coupait la réponse ». La raison
+        # tient, le nombre en dur non — il devient réglable. Sans surcharge en base, ceci résout
+        # sur le défaut global (2048) : la marge reste au-dessus des 2000 d'avant.
+        max_tokens=get_max_tokens(db, _CLE_PRECISIONS_TYPE),
         temperature=0,
         json_mode=True,
         schema=_schema_precisions_type(),

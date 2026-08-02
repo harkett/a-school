@@ -3,6 +3,7 @@ import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSn
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import useIsMobile from '../hooks/useIsMobile'
 import { couleurStatut } from '../utils/statutsFeedback.js'
 import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
 import { listeFormats } from '../utils/piecesJointes.js'
@@ -813,7 +814,7 @@ const CATEGORIES = [
 ]
 
 export default function Aide({ initialSection = null }) {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const isMobile = useIsMobile()   // le motif venait d'ici : il vit maintenant dans le hook
   // Lien profond : l'Aide est remontée à chaque navigation, donc l'init suffit à cibler
   // la bonne section (ex. « Plus de détails » de la modale few-shot -> 'apprentissage').
   const [selected, setSelected] = useState(initialSection || 'comment')
@@ -824,12 +825,6 @@ export default function Aide({ initialSection = null }) {
   const terms = queryTerms(query)
   const isSearching = terms.length > 0
   const results = useMemo(() => searchSections(searchIndex, query), [searchIndex, query])
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
 
   if (isMobile) {
     return (

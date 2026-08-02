@@ -12,6 +12,8 @@ Ce que ces tests PROUVENT :
   5. Type d'activité inconnu → 400 humain.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_proposer_idee.py -q
 """
 from unittest.mock import patch
 

@@ -27,7 +27,7 @@ from backend.core.database import get_db, SessionLocal
 # Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
 # SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
 # usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
 from backend.core.llm_prompts import PROMPTS
@@ -910,51 +910,66 @@ def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
 
 @router.get("/admin/referentiels/decoupe/statut", dependencies=[Depends(_require_admin)])
 def statut_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """État de l'ingestion d'un couple (surveillance après « Valider le découpage »). La VÉRITÉ
-    d'aboutissement = `decoupe_valide` + nombre de chunks EN BASE (get) ; `status` d'orchestration
-    (running / error) lu dans `_INGESTIONS` (runtime). idle = rien en cours et pas encore validé."""
+    """État de l'ingestion d'un couple (surveillance après « Valider le découpage »).
+
+    LE TRAVAIL EN COURS L'EMPORTE SUR LE DRAPEAU, et l'ordre inverse a coûté onze minutes de
+    mensonge (mesurées le 02/08/2026, sur la réingestion du BTS CIEL). Le docstring d'avant
+    annonçait « la VÉRITÉ d'aboutissement = `decoupe_valide` + nombre de chunks », et c'est cette
+    phrase qui a produit l'ordre fautif : elle est vraie pour une PREMIÈRE ingestion, fausse pour
+    une REPRISE. `decoupe_valide` reste posé depuis la fois d'avant ; testé en premier, il gagnait
+    contre le travail réellement en cours. L'écran affichait donc `done` avec `chunks: 46` — les
+    anciens, pas encore purgés — pendant que la vectorisation était à 0/44. Un admin qui réingère
+    croyait que c'était fini avant que ça n'ait commencé.
+
+    LA RÈGLE : `_INGESTIONS` porte l'ÉTAT COURANT, `decoupe_valide` porte l'HISTOIRE. Quand il y
+    a un job, il est forcément plus récent que le drapeau — on le lit d'abord, quel que soit son
+    état. Sans job, le drapeau reprend la main : c'est lui qui distingue « déjà ingéré » de
+    « jamais ingéré ». Le garde de `valider_decoupe` (plus haut) lisait déjà `_INGESTIONS` de
+    cette façon ; il était juste, c'est cette route qui le contredisait.
+
+    CE QUE ÇA ÉLARGIT, au-delà des onze minutes : une réingestion qui ÉCHOUE rendait elle aussi
+    `done` (même cause, drapeau d'abord). Elle rend désormais `error`, avec son message. C'est
+    le même défaut, pas un second.
+
+    LA LIMITE, VUE ET LAISSÉE (décision du 02/08). `_INGESTIONS` est de l'état RUNTIME : il
+    disparaît au redémarrage du processus — et le conteneur de développement recharge à chaque
+    modification de fichier (`--reload`). Une ingestion en cours au moment d'un rechargement
+    redevient donc invisible aux DEUX sources : le job est perdu, le drapeau n'est pas encore
+    posé, et la route rend `idle` alors que rien ne tourne plus. Corriger l'ordre règle le cas
+    mesuré ; ça ne rend pas le statut fiable à travers un redémarrage. Le rendre fiable
+    demanderait un drapeau EN BASE (« ingestion en cours depuis … »), c'est-à-dire un autre
+    sujet : le cas est rare, et sans perte de données (la sauvegarde avant purge tient, et
+    `outils_bdd/restaurer_chunks.py` sait rejouer). On l'a vu, on ne le tait pas, on le laisse."""
     ref = _ref_du_couple(db, cycle_id, niveau)
     if ref is None:
         return {"status": "absent", "decoupe_valide": False, "chunks": 0, "message": None}
     n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
     with _INGESTIONS_LOCK:
         job = _INGESTIONS.get(ref.collection)
-    if ref.decoupe_valide:
-        status = "done"
-    elif job is not None:
-        status = job["status"]
+    if job is not None:
+        status = job["status"]          # running / done / error — plus récent que le drapeau
+    elif ref.decoupe_valide:
+        status = "done"                 # pas de job : l'histoire répond
     else:
         status = "idle"
     return {"status": status, "decoupe_valide": bool(ref.decoupe_valide), "chunks": n,
             "message": (job or {}).get("message"), "progress": (job or {}).get("progress")}
 
 
-# ── Méta-prompt (générique) : EN BASE (Setting 'prompt_meta_decoupe'), lu par le code, éditable ──
-
-class MetaPromptBody(BaseModel):
-    texte: str
-
-
-@router.get("/admin/referentiels/meta-prompt", dependencies=[Depends(_require_admin)])
-def lire_meta_prompt(db: Session = Depends(get_db)):
-    """Lit le méta-prompt (EN BASE). Vide si pas encore renseigné."""
-    from backend.systeme.admin import get_settings_dict
-    return {"texte": get_settings_dict(db).get("prompt_meta_decoupe", "")}
-
-
-@router.put("/admin/referentiels/meta-prompt", dependencies=[Depends(_require_admin)])
-def ecrire_meta_prompt(body: MetaPromptBody, db: Session = Depends(get_db)):
-    """Enregistre le méta-prompt EN BASE. Vide refusé."""
-    if not (body.texte or "").strip():
-        raise HTTPException(422, "Le méta-prompt est vide.")
-    row = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first()
-    if row:
-        row.value = body.texte
-    else:
-        db.add(Setting(key="prompt_meta_decoupe", value=body.texte))
-    db.commit()
-    return {"ok": True}
-
+# ── Méta-prompt de découpe : PLUS DE PORTE ICI (retirée le 02/08/2026) ───────────────────
+#
+# Il y avait a cet endroit un GET et un PUT `/admin/referentiels/meta-prompt` qui lisaient et
+# ecrivaient `Setting['prompt_meta_decoupe']`. Aucun ecran ne les appelait — ni le frontend,
+# ni un script, ni un test. Et le PUT ecrivait CETTE MEME LIGNE sans passer par
+# `valider_prompt` : il ne verifiait que « non vide ». Un texte sans `{document}` y passait,
+# et le meta-prompt ne recevait alors plus jamais le document a decouper. C'etait une seconde
+# porte, non gardee, sur une serrure deja posee.
+#
+# La porte qui reste est PUT /api/admin/prompts (backend/systeme/admin.py) : meme ligne en
+# base (`prompt_` + la cle du registre), mais precedee de `valider_prompt`, qui refuse en 400
+# tout texte ou `{document}` a disparu. La cle `meta_decoupe` est au registre
+# (llm_prompts.py, categorie « admin », mode « replace ») donc l'ecran Prompts — Admin
+# l'affiche et l'edite comme les autres.
 
 # ── L'admin RETIENT les matières d'un référentiel : cocher = `validee=true` (idempotent) ──
 

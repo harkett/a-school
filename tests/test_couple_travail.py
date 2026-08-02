@@ -15,6 +15,8 @@ Ce que ces tests PROUVENT :
      le niveau A, travail posé sur le niveau B → le RAG interroge la collection de B.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_couple_travail.py -q
 """
 from unittest.mock import patch
 

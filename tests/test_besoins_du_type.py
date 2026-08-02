@@ -14,6 +14,8 @@ Ce que ces tests PROUVENT :
      (anti-régression — le texte est la requête, toujours).
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), RAG et LLM mockés.
+
+Lancer : docker compose exec backend python -m pytest tests/test_besoins_du_type.py -q
 """
 from unittest.mock import patch
 

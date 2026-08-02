@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/Scripts/pip install *)",
       "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\Bibliotheque.jsx\")",
       "Bash(Remove-Item \"d:\\\\A-SCHOOL\\\\frontend\\\\src\\\\components\\\\BibliothequeSequences.jsx\")",
       "Bash(Get-ChildItem -Path \"D:\\\\A-SCHOOL\" -Directory)",
@@ -9,8 +8,6 @@
       "PowerShell(Get-ChildItem -Path \"D:\\\\A-SCHOOL\" | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}})",
       "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src\\\\pages -ErrorAction SilentlyContinue)",
       "Bash(Get-ChildItem D:\\\\A-SCHOOL\\\\frontend\\\\src -ErrorAction SilentlyContinue)",
-      "Bash(Copy-Item \"D:\\\\A-SCHOOL\\\\MesMD\\\\PAGE_AFIA_SCHOOL.md\" \"D:\\\\AFIASAVE\\\\PAGE_AFIA_SCHOOL.md\" -Force)",
-      "Bash(\\\\.venv\")",
       "Bash(ls -1 \"/c/Users/harketti/.claude/projects/d--A-SCHOOL/memory/\" 2>/dev/null || echo \"MEMORY DIR EMPTY OR MISSING\")",
       "Read(//c/Users/harketti/.claude/projects/d--A-SCHOOL/memory//**)",
       "Bash(git config *)",
@@ -19,20 +16,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "PowerShell(try { $r = Invoke-WebRequest -Uri 'https://www.enterprisedb.com/downloads/postgres-postgresql-downloads' -UseBasicParsing -TimeoutSec 30; $links = $r.Links | Where-Object { $_.href -match 'binaries\\\\.zip' } | Select-Object -ExpandProperty href -Unique; if \\($links\\) { $links } else { Write-Output \"Aucun lien binaries.zip trouvé dans le HTML statique \\(probablement rendu JS\\).\" } } catch { Write-Output \"ERREUR: $\\($_.Exception.Message\\)\" })",
-      "PowerShell(& 'D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe' -c $py)",
       "PowerShell(& 'C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\psql.exe' -U postgres -h 127.0.0.1 -p 5433 -d aschool -c \"\\\\d fiches_matieres\")",
       "PowerShell(& 'C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\psql.exe' -U postgres -h 127.0.0.1 -p 5433 -d aschool -c \"SELECT nom FROM niveaux WHERE nom ILIKE '%BTS%' OR nom ILIKE '%master%' ORDER BY nom;\")",
       "PowerShell(& 'C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\psql.exe' -U postgres -h 127.0.0.1 -p 5433 -d aschool -c \"SELECT nom_fixe, collection, n.nom AS niveau FROM referentiels r JOIN niveaux n ON n.id=r.niveau_id;\")",
-      "PowerShell(& 'D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\pip.exe' install alembic --disable-pip-version-check)",
-      "PowerShell(& 'D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe' -c \"import alembic; print\\('alembic', alembic.__version__\\)\")",
-      "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\harketti\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--A-SCHOOL\\\\4d82ce56-7b8c-4f87-8ee2-a124ad40ddfd\\\\scratchpad\\\\proof_zero_perte.py\")",
       "Read(//d/A-SCHOOL/backend/**)",
       "PowerShell(git -C \"D:\\\\A-SCHOOL\" status --short -- backend/seed_programmes.py backend/seed_bts_ciel.py)",
-      "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" -m pytest -q --no-header 2>&1)",
-      "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" -m pytest -q -p no:warnings --tb=no 2>&1 | Out-File \"$env:TEMP\\\\pytest_out.txt\" -Encoding utf8; Get-Content \"$env:TEMP\\\\pytest_out.txt\" | Select-Object -Last 2)",
       "PowerShell($c = Get-Content \"$env:TEMP\\\\pytest_out.txt\"; \"lignes totales: $\\($c.Count\\)\"; \"--- 8 dernieres ---\"; $c | Select-Object -Last 8; \"--- recherche tally ---\"; $c | Select-String -Pattern \"passed|failed in|==\")",
-      "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" -c \"from backend.main import app; print\\('APP OK ->', app.title, app.version\\)\")",
-      "PowerShell(& \"D:\\\\A-SCHOOL\\\\.venv\\\\Scripts\\\\python.exe\" -m pytest -q -p no:warnings --tb=no 2>&1 | Out-File \"$env:TEMP\\\\pytest_final.txt\" -Encoding utf8; $c = Get-Content \"$env:TEMP\\\\pytest_final.txt\"; \"lignes: $\\($c.Count\\)\"; $c | Select-Object -Last 6)",
       "PowerShell(git -C \"D:\\\\A-SCHOOL\" status)",
       "PowerShell(git -C \"D:\\\\A-SCHOOL\" add backend/database.py backend/models_db.py backend/main.py backend/routers/admin.py backend/routers/maintenance.py alembic.ini requirements.txt alembic/)",
       "PowerShell(git -C \"D:\\\\A-SCHOOL\" add .gitignore)",
@@ -53,10 +42,6 @@
       "PowerShell(& \"C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\pg_ctl.exe\" -D \"C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\data\" status)",
       "PowerShell(& \"C:\\\\Users\\\\harketti\\\\PostgreSQL\\\\16\\\\pgsql\\\\bin\\\\pg_isready.exe\" -h 127.0.0.1 -p 5433)",
       "PowerShell(try { $r = Invoke-RestMethod -Uri \"http://localhost:8001/api/programmes\" -Method Get -TimeoutSec 30; \"HTTP OK\"; \"matieres=\" + $r.matieres.Count; \"niveaux_par_cycle blocs=\" + $r.niveaux_par_cycle.Count; \"cycles=\" + \\(\\($r.niveaux_par_cycle | ForEach-Object { $_.cycle }\\) -join ', '\\) } catch { \"ECHEC: \" + $_.Exception.Message })",
-      "Bash(.venv/Scripts/python.exe -c 'from dotenv import load_dotenv; load_dotenv\\(\"d:/A-SCHOOL/.env\", override=True\\); from backend.database import SessionLocal, engine; from backend.models_db import Cycle,Niveau,Matiere,MatiereNiveau,Referentiel; print\\(\"moteur:\", engine.dialect.name\\); db=SessionLocal\\(\\); print\\(\"cycles:\",db.query\\(Cycle\\).count\\(\\)\\); print\\(\"niveaux:\",db.query\\(Niveau\\).count\\(\\)\\); print\\(\"matieres:\",db.query\\(Matiere\\).count\\(\\)\\); print\\(\"paires:\",db.query\\(MatiereNiveau\\).count\\(\\)\\); print\\(\"referentiels:\",db.query\\(Referentiel\\).count\\(\\)\\); db.close\\(\\)')",
-      "Bash(.venv/Scripts/python.exe -c 'from dotenv import load_dotenv; load_dotenv\\(\"d:/A-SCHOOL/.env\", override=True\\); from backend.database import SessionLocal, engine; from backend.models_db import Cycle,Niveau,Referentiel; print\\(\"moteur:\", engine.dialect.name\\); db=SessionLocal\\(\\); *)",
-      "Bash(.venv/Scripts/python.exe -c 'from dotenv import load_dotenv; load_dotenv\\(\"d:/A-SCHOOL/.env\", override=True\\); from backend.database import engine; from sqlalchemy import inspect, text *)",
-      "Bash(.venv/Scripts/python.exe -c ' *)",
       "Bash(python -c ' *)"
     ]
   }

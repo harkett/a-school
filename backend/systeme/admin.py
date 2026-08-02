@@ -11,6 +11,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.securite.audit import log_admin_action
+from backend.core.cles import secret_obligatoire
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
@@ -36,15 +37,21 @@ def _admin_secret() -> str:
     démarré sans aucun des deux secrets signait ses jetons admin avec `""` — c'est-à-dire
     avec un secret que le monde entier connaît, sans le moindre message. Une clé de signature
     vide n'est jamais un cas légitime : on refuse, comme le projet refuse déjà une base qui
-    n'est pas PostgreSQL. Le message dit quoi poser."""
-    secret = os.getenv("ADMIN_JWT_SECRET") or os.getenv("JWT_SECRET") or ""
-    if not secret.strip():
-        raise RuntimeError(
-            "SÉCURITÉ : aucun secret de signature pour les jetons admin. Posez ADMIN_JWT_SECRET "
-            "(recommandé, il isole l'admin du prof) ou, à défaut, JWT_SECRET dans le .env du "
-            "serveur. Sans lui, les jetons admin seraient signés avec une chaîne vide."
-        )
-    return secret
+    n'est pas PostgreSQL. Le message dit quoi poser.
+
+    L'ORDRE des deux noms est la règle propre à l'admin ; la LECTURE et le REFUS, eux, sont
+    ceux de `backend/core/cles.py`, partagés avec le jeton prof — le trou fermé ici l'était
+    encore côté prof, parce que le raisonnement avait été recopié au lieu d'être mis en
+    commun. Une seule copie, donc, qu'on ne peut plus corriger à moitié."""
+    return secret_obligatoire(
+        "ADMIN_JWT_SECRET", "JWT_SECRET",
+        usage="les jetons admin",
+        quoi_poser=(
+            "Posez ADMIN_JWT_SECRET (recommandé, il isole l'admin du prof) ou, à défaut, "
+            "JWT_SECRET dans le .env du serveur. Sans lui, les jetons admin seraient signés "
+            "avec une chaîne vide."
+        ),
+    )
 
 
 # AU DÉMARRAGE, pas au premier clic : le serveur refuse de monter sans secret, comme la suite
@@ -95,18 +102,20 @@ SETTING_DEFAULTS = {
     # max_tokens administrable (Phase 4.1.c) — HYBRIDE : un défaut global + surcharges
     # par outil seulement là où c'est nécessaire. Lu au runtime via get_max_tokens(db, outil),
     # jamais figé au boot (rechargeable à chaud, comme ai_model). Valeurs en chaîne (Setting.value).
-    # SEEDING des 3 surcharges = NON NÉGOCIABLE : sans elles, ambiguïtés/séquence/optimiseur
+    # SEEDING des 2 surcharges = NON NÉGOCIABLE : sans elles, ambiguïtés et séquence
     # retomberaient au défaut 2048 -> activités tronquées (régression). activité/exemple/consigne
     # n'ont PAS de clé -> ils résolvent sur le défaut global.
+    # Il y en avait une TROISIÈME, `max_tokens_optimiseur` : l'outil qu'elle réglait a été démoli
+    # le 30/07 et plus aucun `get_max_tokens` ne la demandait. L'écran admin offrait pourtant
+    # toujours le champ — l'admin saisissait une valeur, elle s'enregistrait, elle ne servait à
+    # rien. Retirée du code et de la base le 02/08 (migration b6d1f4a8c2e7).
     "max_tokens_default": "2048",
     "max_tokens_ambiguites": "3000",
     "max_tokens_sequence": "4000",
-    "max_tokens_optimiseur": "6000",
     # Température LLM — administrable à chaud (Phase 4.1.d), GLOBALE (un seul réglage pour tous
     # les outils de génération). Défaut = "" (non réglée) -> get_temperature() renvoie None ->
     # generate() n'envoie rien -> le fournisseur applique SON défaut = comportement historique,
-    # zéro régression. L'optimiseur n'utilise PAS ce réglage (température 0 figée en dur, JSON
-    # déterministe). « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
+    # zéro régression. « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
     "ai_temperature": "",
     # Nb de chunks que le RAG ramène (top_k) pour ancrer une génération. Réglage admin en
     # base, sûr à changer à chaud (aucun ré-index). Défaut 4. Lu via get_rag_top_k(db).
@@ -381,8 +390,7 @@ def get_temperature(db: Session):
     """Température courante (GLOBALE), lue en base au moment de l'appel (rechargeable à chaud,
     même motif que get_max_tokens). Renvoie un float dans [MIN, MAX], ou None si non réglée ->
     generate() n'envoie alors RIEN et le fournisseur applique son défaut (comportement
-    historique = zéro régression). Valeur corrompue / hors bornes -> None (jamais d'exception).
-    L'optimiseur n'utilise PAS ce réglage (température 0 figée en dur pour un JSON déterministe)."""
+    historique = zéro régression). Valeur corrompue / hors bornes -> None (jamais d'exception)."""
     raw = get_settings_dict(db).get("ai_temperature", "")
     if raw is None or str(raw).strip() == "":
         return None
@@ -702,6 +710,26 @@ def codes_statuts_modifiables(db: Session) -> set[str]:
     return {code for code, modifiable in rows if modifiable}
 
 
+def code_statut_initial(db: Session) -> str:
+    """Code du statut qu'un retour porte à son dépôt, lu EN BASE : celui d'`ordre` minimal.
+
+    Le tableau de bord admin comptait `Feedback.statut == "nouveau"`, écrit en dur — alors que
+    les statuts vivent en base depuis le chantier `feedback_statuts` et que leur ordre y est
+    porté par une colonne. Renommer le premier statut, ou en insérer un avant lui, faisait
+    tomber ce compteur à zéro sans qu'aucune erreur ne le signale : un compteur faux ne se
+    plaint pas, il compte mal.
+
+    Table vide = migration non appliquée -> on lève (même contrôle que codes_statuts_assignables).
+    """
+    code = (db.query(FeedbackStatut.code)
+              .order_by(FeedbackStatut.ordre.asc())
+              .limit(1)
+              .scalar())
+    if not code:
+        raise HTTPException(500, "Statuts de feedback absents en base (migration non appliquée ?).")
+    return code
+
+
 def labels_statuts(db: Session) -> dict[str, str]:
     """Libellé de chaque statut de feedback (code -> label), lu EN BASE. L'écran prof affiche
     CE libellé — plus de copie « Nouveau »/« Traité » côté front. Table vide = migration non
@@ -890,9 +918,12 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     # CE QUI EST PURGÉ ICI : les tables reliées au compte SANS cascade en base (email_tokens et
     # connexion_logs n'ont même pas de clé étrangère : ce sont des journaux à l'email).
     # CE QUI PART TOUT SEUL : les tables dont la clé étrangère porte ON DELETE (migration
-    # e4b8c2d6a1f7) — cahiers_prof, feature_votes, tool_usage_logs, few_shot_milestones,
-    # user_enseignements en CASCADE, incidents.feedback_id en SET NULL (l'incident technique
-    # survit). Ne PAS les rajouter à la main ici : la base est la garantie, pas cette liste.
+    # e4b8c2d6a1f7) — cahiers_prof, feature_votes, tool_usage_logs, few_shot_milestones en
+    # CASCADE, incidents.feedback_id en SET NULL (l'incident technique survit).
+    # Ne PAS les rajouter à la main ici : la base est la garantie, pas cette liste.
+    # (Cette liste citait aussi user_enseignements : cette table a été SUPPRIMÉE depuis, par
+    # la migration f8b3d5c7a1e9. Elle illustrait exactement le risque qu'elle annonce — une
+    # liste recopiée à côté de la base finit par décrire une base qui n'existe plus.)
     db.query(EmailToken).filter(EmailToken.email == email).delete()
     db.query(RefreshToken).filter(RefreshToken.user_id == user.id).delete()
     db.query(UserSession).filter(UserSession.user_id == user.id).delete()
@@ -1017,8 +1048,10 @@ def save_settings(body: SettingsBody, request: Request, db: Session = Depends(ge
 
 # ── Écran « Paramètres » : la table settings en LECTURE SEULE (clé / valeur) ──
 # Écran de consultation : il lit la base et l'affiche, il ne modifie rien. Changer une valeur
-# passe par un autre moyen (ex. un secret se change dans le .env, jamais dans l'UI — cf. règle
-# « Secrets » de CLAUDE.md). Certaines clés ont un ÉCRAN DÉDIÉ (validé) où elles se règlent
+# passe par un autre moyen. RÈGLE SUR LES SECRETS : un secret ne se règle JAMAIS depuis l'UI et
+# ne vit JAMAIS en base — la base porte le NOM de la variable, le .env porte sa valeur. Un
+# secret modifiable à l'écran serait un secret lisible à l'écran.
+# Certaines clés ont un ÉCRAN DÉDIÉ (validé) où elles se règlent
 # vraiment ; on les marque pour indiquer où (repère, pas un blocage).
 _PARAM_ECRAN_DEDIE_EXACTS = {"ai_model", "ai_provider", "ai_temperature", "rag_top_k"}
 _PARAM_ECRAN_DEDIE_PREFIXES = ("max_tokens_", "prompt_", "welcome_email_")
@@ -1195,12 +1228,15 @@ class MaxTokensBody(BaseModel):
     default: int
     ambiguites: int
     sequence: int
-    optimiseur: int
+    # Le champ `optimiseur` a été retiré le 02/08 EN MÊME TEMPS que l'écran : l'outil qu'il
+    # réglait n'existe plus depuis le 30/07. Retirer d'un seul côté aurait cassé l'enregistrement
+    # de TOUTES les surcharges — le corps est validé en bloc, un champ en trop ou en moins fait
+    # tomber la requête entière.
 
 
 @router.get("/admin/max-tokens")
 def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Valeurs max_tokens courantes (défaut global + 3 surcharges) + bornes — alimente
+    """Valeurs max_tokens courantes (défaut global + 2 surcharges) + bornes — alimente
     le formulaire admin et sa validation. Miroir de GET /admin/ai-models."""
     s = get_settings_dict(db)
     return {
@@ -1208,7 +1244,6 @@ def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_re
         "overrides": {
             "ambiguites": int(s["max_tokens_ambiguites"]),
             "sequence": int(s["max_tokens_sequence"]),
-            "optimiseur": int(s["max_tokens_optimiseur"]),
         },
         "bounds": {"min": MAX_TOKENS_MIN, "max": MAX_TOKENS_MAX},
     }
@@ -1216,14 +1251,13 @@ def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_re
 
 @router.put("/admin/max-tokens")
 def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Écrit le défaut global + les 3 surcharges. Endpoint DÉDIÉ (PUT /admin/settings email
+    """Écrit le défaut global + les 2 surcharges. Endpoint DÉDIÉ (PUT /admin/settings email
     et PUT /admin/ai-model restent intacts). Validation stricte : chaque valeur doit être un
     entier dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien n'est écrit."""
     valeurs = {
         "max_tokens_default": body.default,
         "max_tokens_ambiguites": body.ambiguites,
         "max_tokens_sequence": body.sequence,
-        "max_tokens_optimiseur": body.optimiseur,
     }
     for cle, v in valeurs.items():
         if not (MAX_TOKENS_MIN <= v <= MAX_TOKENS_MAX):
@@ -1247,7 +1281,7 @@ def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends
         ip=request.client.host if request.client else None,
         details=(
             f"max_tokens mis à jour — défaut {body.default}, ambiguïtés {body.ambiguites}, "
-            f"séquence {body.sequence}, optimiseur {body.optimiseur}"
+            f"séquence {body.sequence}"
         ),
     )
     return {"status": "ok"}
@@ -1276,7 +1310,7 @@ def save_temperature(body: TemperatureBody, request: Request, db: Session = Depe
     """Écrit la température globale. Endpoint DÉDIÉ (les autres PUT restent intacts).
     `temperature` absente/None -> on revient au défaut du fournisseur (clé vidée). Sinon
     validation stricte dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien
-    écrit. L'optimiseur n'est pas concerné (température 0 figée en dur)."""
+    écrit."""
     if body.temperature is None:
         valeur = ""
     else:
@@ -1866,7 +1900,12 @@ def stats_overview(db: Session = Depends(get_db), _: None = Depends(_require_adm
                                   ConnexionLog.action == "login",
                                   func.date(ConnexionLog.created_at) == today
                               ).count(),
-        "feedbacks_nouveaux": db.query(Feedback).filter(Feedback.statut == "nouveau").count(),
+        # Le statut initial est LU EN BASE (ordre minimal), jamais écrit ici : voir
+        # code_statut_initial(). Le `default="nouveau"` de la colonne, lui, reste — une valeur
+        # par défaut SQL doit être littérale, et ce n'est pas elle qui posait problème.
+        "feedbacks_nouveaux": db.query(Feedback).filter(
+                                  Feedback.statut == code_statut_initial(db)
+                              ).count(),
         "alertes_nonlues":    db.query(AdminAlert).filter(AdminAlert.is_read == False).count(),
         "sessions_online":    db.query(UserSession).filter(
                                   UserSession.is_active == True,

@@ -15,14 +15,8 @@ Rien ne tombait : la génération marchait, elle comptait juste dans la mauvaise
 La séance faisait DÉJÀ suivre son couple à chaque régénération (`_remplir_seance`). Les deux
 frères se comportent maintenant pareil.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_couple_de_l_activite_suit_la_regeneration.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_couple_de_l_activite_suit_la_regeneration.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod
 

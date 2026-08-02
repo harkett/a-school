@@ -6,8 +6,10 @@ import { registerErrorHandler } from '../errorDialog'
 const SEP = { separator: true }
 
 // Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
-// Règle (CLAUDE.md) : toute nouvelle page se range sous une famille existante,
-// jamais une entrée à plat de plus. « Programmes & contenu » = l'arbre du contenu
+// RÈGLE : un menu se range du général au détaillé — familles, puis options. Toute nouvelle
+// page se loge SOUS une famille existante, jamais en entrée à plat de plus : une liste plate
+// qui grandit d'une ligne par écran finit illisible, et c'est irréversible en pratique.
+// « Programmes & contenu » = l'arbre du contenu
 // pédagogique ET les actions du programme officiel (fusion de l'ex-écran Programmes, 30/07).
 const NAV_ITEMS = [
   // — Mise en route (assistant de première configuration) —
@@ -67,7 +69,7 @@ const NAV_ITEMS = [
     items: [
       { to: '/admin/prompts/prof',   label: 'Prof',   aide: 'Les textes qui servent à l\'enseignant : séances et séquences, propositions, tons de rédaction, correction et contrôle qualité.' },
       { to: '/admin/prompts/admin',  label: 'Admin',  aide: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.' },
-      { to: '/admin/prompts/autres', label: 'Autres', aide: 'Le filet : ce qui ne sert ni au prof ni à l\'admin — aujourd\'hui des restes de l\'ancien monde démoli, rangés en attendant une décision.' },
+      { to: '/admin/prompts/autres', label: 'Autres', aide: 'Le filet : ce qui ne sert ni au prof ni à l\'admin — vide aujourd\'hui.' },
     ],
   },
   // — Profs & communication —

@@ -15,11 +15,14 @@ Groq détermine le format audio par l'EXTENSION du nom de fichier. On force donc
 nom à extension valide AVANT de transmettre à Groq, et le paramètre `model` (requis).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.deps import get_current_user
 from backend.core.groq_client import transcribe_audio
+from backend.core.limiter import limiter, cle_utilisateur, PLAFOND_DICTEE
+from backend.core.models_db import User
 from backend.systeme.admin import get_cle_api
 
 router = APIRouter()
@@ -47,8 +50,22 @@ def _safe_ext(filename: str | None, content_type: str | None) -> str:
     return "webm"
 
 
+# CETTE ROUTE ÉTAIT OUVERTE À TOUT LE MONDE (corrigé le 02/08/2026).
+#
+# Aucun cookie lu, aucun plafond : n'importe qui, sans compte, pouvait envoyer de l'audio en
+# boucle et vider la clé payante du propriétaire (cle_env_dictee). Même correction et mêmes
+# choix que /api/ocr — voir l'en-tête de backend/dictee/ocr.py pour le raisonnement, et
+# backend/core/limiter.py pour la clé du plafond.
+#
+# Les garde-fous déjà là ne bougent pas : 25 Mo, extensions acceptées par Groq.
 @router.post("/transcribe")
-async def transcribe(file: UploadFile, db: Session = Depends(get_db)):
+@limiter.limit(PLAFOND_DICTEE, key_func=cle_utilisateur)
+async def transcribe(
+    request: Request,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    _utilisateur: User = Depends(get_current_user),
+):
     data = await file.read()
     if not data:
         raise HTTPException(400, "Fichier audio vide.")

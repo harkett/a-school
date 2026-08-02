@@ -94,88 +94,6 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
-PROMPT_SEQUENCE_STANDARD = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, prépare une séance de {duree} minutes sur :
-"{theme}"
-
-Génère une séance pédagogique complète, cohérente et directement utilisable en classe.
-
-Structure attendue : 5 à 6 phases couvrant exactement {duree} minutes.
-Progression conseillée : Activation → Exploration/Découverte → Structuration/Formalisation → Entraînement → Ancrage/Consolidation.
-
-Format de réponse — markdown strict :
-
-# Séance : [titre court reprenant le thème]
-**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** [Ce que les élèves construisent ou réalisent]
-**Déroulement :** [Description concrète — ce que fait le prof, ce que font les élèves]
-**Organisation :** [Individuel / Binôme / Groupe / Collectif]
-
-## Phase 2 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-[…continuer jusqu'à la dernière phase]
-
----
-
-> *Séance générée par aSchool*
-
-Règles absolues :
-- La somme des durées des phases = exactement {duree} minutes
-- Chaque phase a un rôle clair et distinct dans la progression
-- Le déroulement est concret, précis et directement applicable en classe
-- Le contenu est adapté au niveau {niveau} et à la matière {matiere}
-- Aucune phase sans lien direct avec le thème "{theme}"
-- Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
-
-
-PROMPT_SEQUENCE_REMEDIATION = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français.
-
-Un enseignant de {matiere}, niveau {niveau}, décrit la situation de sa classe :
-"{description_classe}"
-
-La notion à retravailler est : "{theme}"
-Durée disponible : {duree} minutes
-
-Génère un scénario de remédiation créatif qui :
-1. Exploite la situation décrite (difficultés, contexte, centres d'intérêt) comme point d'accroche
-2. Cible précisément la notion à consolider
-3. Propose une approche différente de la présentation initiale, plus engageante
-4. Alterne entre phases courtes pour maintenir l'attention
-
-Format de réponse — markdown strict :
-
-# Remédiation : [titre court lié à la notion et au contexte]
-**Matière :** {matiere} | **Niveau :** {niveau} | **Durée :** {duree} min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-[…continuer jusqu'à la dernière phase]
-
----
-
-> *Séance de remédiation générée par aSchool*
-
-Règles absolues :
-- La somme des durées des phases = exactement {duree} minutes
-- Le scénario exploite concrètement la situation décrite par l'enseignant
-- Chaque phase a un rôle clair dans la reconsolidation de la notion "{theme}"
-- Le contenu est adapté au niveau {niveau}
-- Répondre uniquement en markdown, rien d'autre avant ni après le markdown"""
-
-
 # ── Séance du monde « Mes contenus » — un prompt PAR MODE (les 4 pastilles de l'écran). ──
 # Le squelette markdown (phases minutées) est commun ; les précisions optionnelles du formulaire
 # (contexte, compétences, matériel, esquisse, contraintes) sont AJOUTÉES au prompt par le code,
@@ -349,9 +267,12 @@ Va à l'essentiel : phrases très courtes, format télégraphique lisible en un 
 
 # ---------------------------------------------------------------------------
 # SÉQUENCE du monde « Mes contenus » (playlist : séquence ⊃ séances ⊃ activités).
-# Famille NEUVE, sans collision avec les prompts sequence_standard/sequence_remediation
-# de l'ANCIEN outil (qui génère en réalité une séance). Le plan généré n'est jamais un
-# texte stocké : chaque ligne devient une vraie ligne `seances` (rattachée, ordonnée).
+# Famille NEUVE. Elle a coexisté un temps avec `sequence_standard` / `sequence_remediation`,
+# restes de l'ANCIEN outil démoli le 30/07 (qui, malgré leur nom, généraient une SÉANCE) —
+# retirés le 02/08, faute d'appelant. Le préfixe `sequence` ne dit donc rien à lui seul : les
+# trois prompts ci-dessous, eux, sont bel et bien appelés (backend/contenu/mes_contenus.py).
+# Le plan généré n'est jamais un texte stocké : chaque ligne devient une vraie ligne
+# `seances` (rattachée, ordonnée).
 # ---------------------------------------------------------------------------
 
 PROMPT_SEQUENCE_GENERER_PLAN = """Tu es un expert en ingénierie pédagogique.
@@ -397,54 +318,6 @@ Règles :
 - Reste STRICTEMENT dans ce que couvrent les extraits — n'invente aucune compétence hors programme.
 - Ne garde que ce qui a un vrai lien avec l'objectif : mieux vaut 3 compétences justes que 6 tirées par les cheveux.
 - Une compétence par ligne, sans numérotation, sans puces, sans titre, sans commentaire : rends UNIQUEMENT les lignes de compétences."""
-
-
-PROMPT_OPTIMISEUR = """Tu es un expert en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
-
-Un enseignant de {matiere}, niveau {niveau}, te soumet une séquence pédagogique existante à optimiser.
-
-Ta mission : analyser la séquence selon les 6 critères ci-dessous, identifier les problèmes présents, puis produire la version optimisée.
-
-Les 6 critères d'analyse :
-1. Rupture conceptuelle — une phase suppose une notion non encore construite dans la séquence
-2. Surcharge cognitive — trop de notions nouvelles concentrées dans un temps trop court
-3. Consigne ambiguë — formulation pouvant être mal interprétée par les élèves
-4. Activité inefficace — exercice sans lien réel avec l'objectif pédagogique déclaré
-5. Progression déséquilibrée — phases trop courtes ou trop longues, rythme inadapté
-6. Ancrage mémoriel manquant — absence de consolidation avant la fin ou l'évaluation
-
-Séquence soumise :
-{sequence}
-
-Format de réponse — JSON strict, rien d'autre autour :
-{{
-  "problemes": [
-    {{"type": "Rupture conceptuelle", "detail": "description précise et concrète du problème détecté"}},
-    {{"type": "Surcharge cognitive", "detail": "..."}}
-  ],
-  "sequence_optimisee": "# Séance : [titre]
-**Matière :** ... | **Niveau :** ... | **Durée :** ... min
-
----
-
-## Phase 1 — [Nom] ([X] min)
-**Objectif :** ...
-**Déroulement :** ...
-**Organisation :** ...
-
-## Phase 2 — [Nom] ([X] min)
-...",
-  "score": "Bon|Moyen|À revoir — X problème(s) détecté(s)",
-  "avertissement": "Message optionnel si incohérence détectée — sinon ne pas inclure ce champ."
-}}
-
-Règles :
-- N'inclure dans "problemes" que les critères réellement problématiques. Ignorer les critères sans problème.
-- Si la séquence est déjà de bonne qualité, "problemes" est une liste vide [].
-- La séquence optimisée conserve la structure générale du prof. Elle corrige les problèmes détectés sans tout réécrire de zéro.
-- Le champ sequence_optimisee doit contenir le texte complet avec les vrais sauts de ligne (\\n) entre chaque phase — exactement le même format markdown que la séquence originale soumise.
-- Si la séquence soumise ne correspond manifestement pas à la matière {matiere} (ex : contenu de Français soumis pour Mathématiques, exercice de sport soumis pour Philosophie), remplis le champ "avertissement" avec un message court et précis signalant l'incohérence. Sinon, n'inclus pas ce champ.
-- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
 # Registre : clé -> libellé (UI) + repères obligatoires + texte par défaut.
@@ -602,6 +475,21 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau de chaînes)."""
 
 
+# Bouton « générer les précisions » de l'écran admin des types d'activité. Ce texte était ÉCRIT
+# EN DUR dans backend/rag/analyse_amont.py (f-string, ligne 490) : le seul vrai prompt du projet
+# que l'admin ne pouvait ni lire, ni corriger, ni même savoir qu'il existait — alors que ses
+# trois voisines du même fichier passaient déjà par le registre.
+# Repris ICI MOT POUR MOT, retours à la ligne compris : la seule différence est que les valeurs
+# interpolées deviennent des repères. On ne profite pas d'un déménagement pour réécrire un texte
+# qui marche — sinon un changement de comportement voyage sous couvert de rangement.
+PROMPT_SUGGERER_PRECISIONS_TYPE = """Tu es un concepteur pédagogique.
+Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propose 3 à 6 PRÉCISIONS : des déclinaisons concrètes de ce type, réellement adaptées à ce niveau (ni trop enfantines, ni trop avancées).
+Appuie-toi sur le référentiel officiel ci-dessous pour rester dans le programme :
+{texte}
+
+Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."""
+
+
 PROMPT_DETECTER_TYPES_ACTIVITE = """Tu lis un référentiel officiel et tu en dégages la liste des TYPES D'ACTIVITÉ (formats ou modalités d'activité pédagogique) qu'il met en œuvre à ce niveau.
 
 Types d'activité déjà connus de l'application :
@@ -742,9 +630,13 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 # sous-option de l'écran admin « Prompts » il se range :
 #   - "prof"   : ce que l'enseignant déclenche (séances, séquences, propositions, tons, corrections) ;
 #   - "admin"  : le traitement d'un référentiel au dépôt du PDF (découpe, analyse, détections) ;
-#   - "autres" : le filet — ce qui n'entre dans aucune des deux. Aujourd'hui les restes de
-#     l'ancien monde démoli (sequence_standard, sequence_remediation, optimiseur) : plus aucun
-#     `get_prompt` ne les demande. On les RANGE, on ne les supprime pas : décision à part.
+#   - "autres" : le filet — ce qui n'entre dans aucune des deux. AUCUN prompt n'y est rangé
+#     aujourd'hui, et c'est voulu. Il a contenu les trois restes de l'ancien monde démoli le
+#     30/07 (sequence_standard, sequence_remediation, optimiseur), que plus aucun `get_prompt`
+#     ne demandait ; la décision, alors mise de côté, a été prise le 02/08 : retirés du
+#     registre et de la base (migration b6d1f4a8c2e7). La catégorie reste ouverte pour le
+#     prochain texte qui ne saurait pas où se ranger — l'écran « Prompts — Autres » affiche
+#     simplement une liste vide tant qu'il n'y en a pas.
 # C'est de la même nature que `label` et `placeholders` — donc ici, pas en base : aucune migration.
 #
 # `mode` dit COMMENT le texte est consommé, et donc comment il se VALIDE (cf. `valider_prompt`) :
@@ -772,18 +664,6 @@ PROMPTS = {
         "placeholders": ["matiere", "niveau", "consigne"],
         "categorie": "prof",
         "default": PROMPT_CONSIGNE,
-    },
-    "sequence_standard": {
-        "label": "Séquence — standard",
-        "placeholders": ["matiere", "niveau", "duree", "theme"],
-        "categorie": "autres",
-        "default": PROMPT_SEQUENCE_STANDARD,
-    },
-    "sequence_remediation": {
-        "label": "Séquence — remédiation",
-        "placeholders": ["matiere", "niveau", "duree", "theme", "description_classe"],
-        "categorie": "autres",
-        "default": PROMPT_SEQUENCE_REMEDIATION,
     },
     "seance_standard": {
         "label": "Séance (Mes contenus) — mode standard",
@@ -881,12 +761,6 @@ PROMPTS = {
         "categorie": "prof",
         "default": PROMPT_SEQUENCE_PROPOSER_COMPETENCES,
     },
-    "optimiseur": {
-        "label": "Optimiseur de séquences",
-        "placeholders": ["matiere", "niveau", "sequence"],
-        "categorie": "autres",
-        "default": PROMPT_OPTIMISEUR,
-    },
     "analyse_amont": {
         "label": "Analyse amont d'un référentiel (détection des cas ambigus)",
         "placeholders": ["unites"],
@@ -943,6 +817,12 @@ PROMPTS = {
         "placeholders": ["types_existants", "texte"],
         "categorie": "admin",
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
+    },
+    "suggerer_precisions_type": {
+        "label": "Suggestion des précisions d'un type d'activité pour un niveau (écran admin des types)",
+        "placeholders": ["label", "niveau", "texte"],
+        "categorie": "admin",
+        "default": PROMPT_SUGGERER_PRECISIONS_TYPE,
     },
     "detecter_couple": {
         "label": "Détection du cycle et du niveau depuis le document (dépôt « PDF d'abord »)",

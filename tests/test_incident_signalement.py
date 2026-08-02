@@ -12,6 +12,8 @@ Ce que ces tests PROUVENT (comportement réel sur la base de test) :
      (réf + erreur brute + contexte technique) sur le feedback relié.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), notification e-mail mockée.
+
+Lancer : docker compose exec backend python -m pytest tests/test_incident_signalement.py -q
 """
 from unittest.mock import patch
 

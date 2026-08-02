@@ -13,7 +13,12 @@ from backend.communication import echange
 from backend.core.database import get_db
 from backend.core.models_db import Feedback, FeedbackStatut, Incident, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.systeme.admin import _reglage_entier, codes_statuts_modifiables, labels_statuts
+from backend.systeme.admin import (
+    _reglage_entier,
+    _verify_admin_token,
+    codes_statuts_modifiables,
+    labels_statuts,
+)
 from backend.core.horloge import maintenant_utc
 
 # A-FEEDBACK a été retiré le 28/04/2026 — notification par SMTP direct uniquement.
@@ -152,11 +157,18 @@ def get_attachment(
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(400, "Nom de fichier invalide.")
 
-    # Auth : prof ou admin
-    is_admin = False
-    if aschool_admin:
-        payload = comptes.verify_access_token(aschool_admin)
-        is_admin = bool(payload)
+    # Auth : prof ou admin.
+    #
+    # Le jeton admin a sa PROPRE clé (ADMIN_JWT_SECRET) et sa propre forme (role == "admin") :
+    # _verify_admin_token est le seul qui sache le lire. Ce cookie était passé au vérificateur
+    # PROF, ce qui faisait deux dégâts et non un seul : l'admin n'était jamais reconnu (mauvaise
+    # clé, et pas de champ `type`), et surtout un prof qui recopiait son propre aschool_access
+    # dans un cookie nommé aschool_admin passait pour admin — il sautait alors le contrôle de
+    # propriété ci-dessous et lisait les pièces jointes des autres.
+    #
+    # _verify_admin_token et non la dépendance _require_admin : ici, un échec côté admin doit
+    # retomber sur la branche prof, pas couper la route.
+    is_admin = bool(aschool_admin) and _verify_admin_token(aschool_admin)
 
     if not is_admin:
         email = _get_email(aschool_access)

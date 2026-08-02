@@ -1,6 +1,6 @@
 """Filet de test — les endpoints cœur d'aSchool.
 
-Lance avec :  pytest   (suite pytest — convention unique du projet)
+Lancer : docker compose exec backend python -m pytest tests/test_endpoints_coeur.py -q
 
 Couverture (happy path + cas d'erreur connus) — generate-sequence et optimize-sequence
 ont été DÉMOLIS le 30/07 avec l'ancien monde :

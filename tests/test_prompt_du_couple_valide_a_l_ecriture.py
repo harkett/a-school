@@ -20,14 +20,8 @@ Deux pannes en découlaient, toutes deux SILENCIEUSES jusqu'au clic d'un enseign
 `except ValueError: return []` rendait « aucun besoin » sans rien signaler. Le garde-fou
 manquait à l'autre bout.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_prompt_du_couple_valide_a_l_ecriture.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_prompt_du_couple_valide_a_l_ecriture.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
 from backend.contenu.activites import valider_prompt_couple
 
 

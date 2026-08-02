@@ -6,10 +6,11 @@ re-ingestion. Ce script les capture dans cycles_niveaux.json (source de verite
 committee) et sait les rejouer sur une base neuve.
 
 Outil de MAINTENANCE (hors application) : il vit dans outils_bdd/, pas sous backend/.
-Il ne porte AUCUNE donnee en dur : toute la donnee vit dans le JSON. Conforme a la
-doctrine "script ephemere" (CLAUDE.md) : ce qui est interdit, c'est qu'un script
-PERSISTE en PORTANT la donnee ; celui-ci la lit depuis le JSON committe, il a donc
-le droit de rester.
+Il ne porte AUCUNE donnee en dur : toute la donnee vit dans le JSON.
+
+DOCTRINE DU SCRIPT EPHEMERE : ce qui est interdit, ce n'est pas qu'un script reste, c'est
+qu'il reste en PORTANT la donnee — la donnee y devient une seconde source de verite que
+personne ne pense a mettre a jour. Celui-ci lit le JSON committe : il a donc le droit de rester.
 
 RECONSTRUCTION, PAS CORRECTION.
   Le mode "rejouer" fait un insert-si-absent (par id) : il n'ecrase JAMAIS une
@@ -36,7 +37,15 @@ from dotenv import load_dotenv  # noqa: E402
 
 # .env AVANT d'importer backend.core.database : son garde-fou (refus sans
 # DATABASE_URL PostgreSQL) se declenche des l'import, donc l'env doit etre pret.
-load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env", override=True)
+#
+# `override=False` — LE DEFAUT, ET C'EST DELIBERE (corrige le 02/08/2026). Avec `override=True`,
+# le .env ecrasait l'environnement DEJA POSE. Or le .env porte l'adresse de la base vue DE LA
+# MACHINE (127.0.0.1:5433) tandis que le conteneur joint la base par le nom du service
+# (db:5432, pose par docker-compose.yml APRES env_file, exprES). Lance dans la boite — ce que
+# le README de ce dossier indique de faire, et le seul endroit ou Python existe encore sur ce
+# poste — ce script visait donc 127.0.0.1:5433, qui n'y existe pas : "Connection refused".
+# L'environnement gagne, le .env comble les trous. Meme regle que les `setdefault` du conftest.
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[1] / ".env")
 
 from sqlalchemy import text  # noqa: E402
 
@@ -123,8 +132,21 @@ def rejouer(session) -> None:
     )
 
 
+def _base_visee() -> str:
+    """« hote:port/base », sans le mot de passe (str() d'une URL SQLAlchemy le masque deja).
+
+    AFFICHE AVANT D'AGIR : le .env de la machine et l'environnement de la boite ne visent pas
+    la meme base, et ce script ECRIT. Le README dit « verifier .env avant de rejouer » — vrai
+    sur la machine, mais dans le conteneur c'est l'environnement qui decide. Plutot que de
+    demander a l'operateur de deviner laquelle des deux gagne, on la lui montre."""
+    from backend.core.database import engine
+    u = engine.url
+    return f"{u.host}:{u.port}/{u.database}"
+
+
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "--rejouer"
+    print(f"[base] {_base_visee()}")
     session = SessionLocal()
     try:
         if mode == "--export":

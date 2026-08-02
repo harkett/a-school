@@ -9,7 +9,7 @@ Ce que ce test PROUVE : la requete s'execute vraiment sur PostgreSQL (une foncti
 leverait), les 24 heures sont toujours rendues, et une connexion enregistree tombe dans SA
 tranche horaire.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_admin_stats_hours.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_admin_stats_hours.py -q
 """
 from datetime import datetime
 

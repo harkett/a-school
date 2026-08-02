@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import useIsMobile from '../hooks/useIsMobile'
 
 function KpiCard({ label, value, sub, color }) {
   return (
@@ -16,7 +17,7 @@ export default function MesStats() {
   const [perso,     setPerso]     = useState(null)
   const [commu,     setCommu]     = useState(null)
   const [chargementRate, setChargementRate] = useState(false)
-  const isMobile = window.innerWidth < 768
+  const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
 
   // Monde NEUF uniquement : perso + communauté (l'appel au dashboard a disparu avec la
   // tuile « Partagées » — le partage n'existe pas encore dans le monde neuf).

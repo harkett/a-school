@@ -8,6 +8,8 @@ Ce que ces tests PROUVENT :
   3. Sans contexte (anciens clients, autres appels) → NULL, rien ne casse.
 
 BDD de test PostgreSQL dédiée (aschool_test via conftest.py), notification e-mail mockée.
+
+Lancer : docker compose exec backend python -m pytest tests/test_feedback_contexte.py -q
 """
 from unittest.mock import patch
 

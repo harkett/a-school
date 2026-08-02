@@ -8,7 +8,9 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py — JAMAIS SQLite) 
      référentiel d'un niveau, elle ne se range nulle part sans lui. On le dit au prof plutôt
      que d'enregistrer un profil dont la matière serait silencieusement perdue.
 
-Même règle et même message que PUT /user/couple-travail (_couple_est_au_programme).
+Même règle et même message que PUT /user/couple-travail (couple_est_au_programme).
+
+Lancer : docker compose exec backend python -m pytest tests/test_profil_au_programme.py -q
 """
 
 

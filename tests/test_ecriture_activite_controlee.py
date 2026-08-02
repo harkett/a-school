@@ -15,7 +15,7 @@ Vérifié ici :
   - une seule porte : c'est la fonction de la génération qui est appelée (une divergence
     entre les deux ferait tomber ce test).
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_ecriture_activite_controlee.py -q
 """
 
 

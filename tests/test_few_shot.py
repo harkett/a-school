@@ -9,7 +9,7 @@ deux mentions de l'aide) alors que la génération n'en tenait aucun compte. Vé
   - les réglages viennent de la BASE : ligne absente = erreur claire, jamais un défaut caché ;
   - la jauge de Mes stats suit EXACTEMENT ce qui déclenche le few-shot (groupe type × couple).
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_few_shot.py -q
 """
 
 import pytest

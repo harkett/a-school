@@ -17,13 +17,10 @@ Ce que ce test PROUVE (base aschool_test) :
   3. Rejouer la detection n'ecrit pas de doublon (anti-doublon insensible a la casse), et une
      matiere DEJA RETENUE n'est jamais redegradee en proposition.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_matieres_candidates_en_base.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_matieres_candidates_en_base.py -q
 """
 import os
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

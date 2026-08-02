@@ -3,8 +3,13 @@
 Une meme matiere peut etre declinee au meme niveau (ex. Langue vivante A / B en 3e).
 On ne dedouble PAS la matiere : la variante est portee sur la paire, dans
 `matiere_niveaux.variante` (NOT NULL default '' ; '' = pas de variante). L'index unique
-passe donc de (matiere_id, niveau_id) a (matiere_id, niveau_id, variante) — cf. regle
-« Matiere, variante, specialite » de CLAUDE.md. NOT NULL default '' plutot que NULL :
+passe donc de (matiere_id, niveau_id) a (matiere_id, niveau_id, variante).
+
+REGLE : une declinaison d'une matiere au meme niveau (variante, specialite) se porte sur la
+PAIRE, jamais en dedoublant la matiere. Dedoubler la matiere donnerait deux « Langue vivante »
+au catalogue, et le prof devrait deviner laquelle est la sienne.
+
+NOT NULL default '' plutot que NULL :
 l'unique protege partout, sans le piege PostgreSQL « NULL != NULL ».
 
 downgrade : rebascule l'unique sur (matiere_id, niveau_id) puis supprime la colonne.

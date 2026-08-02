@@ -6,13 +6,10 @@ On prouve la PLOMBERIE, jamais la sortie du modèle : `generate()` est MOQUÉ (a
   (JSON déterministe, température 0), parse le JSON, et laisse remonter les pannes.
 La brique n'est PAS branchée sur le découpage/ingestion (pas 1) : `_age_est_flou` vit encore.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest tests/test_analyse_amont.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_analyse_amont.py -q
 """
 import os
 
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

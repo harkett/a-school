@@ -9,18 +9,23 @@ Ce que ces tests PROUVENT :
   2. PDF numérique (couche texte ≥ 50 car.) → extraction directe, AUCUNE OCR ;
   3. PDF scanné trop long → message HUMAIN (RÈGLE 23), aucune OCR lancée.
 
-Lancer : python -m pytest tests/test_ocr_pdf_scanne.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_ocr_pdf_scanne.py -q
 """
-import asyncio
 import io
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
-
+# engine / SessionLocal rediriges vers PostgreSQL (aschool_test) par conftest.py
+import backend.core.database as dbmod
 import backend.dictee.ocr as ocr_mod
+import backend.securite.comptes as comptes
+from backend.core.limiter import limiter
+from backend.core.models_db import User
+from backend.main import app
+
+EMAIL_PROF = "prof.scan@college.fr"
 
 
 def _pdf_scanne(nb_pages: int = 1) -> bytes:
@@ -36,16 +41,23 @@ def _pdf_scanne(nb_pages: int = 1) -> bytes:
     return buf.getvalue()
 
 
-def _fake_pdf_file(data: bytes):
-    f = MagicMock()
-    f.content_type = "application/pdf"
-    f.filename = "doc.pdf"
+# Ces tests appelaient la fonction ocr() DIRECTEMENT, avec un faux UploadFile. Ils sautaient
+# donc la route, et avec elle l'authentification et le plafond ajoutes le 02/08/2026 — ils ne
+# voyaient meme pas que la route etait ouverte a tout le monde. Ils passent desormais par HTTP,
+# comme l'ecran : meme chemin, memes gardes, meme preuve de cablage.
+def _client_connecte():
+    db = dbmod.SessionLocal()
+    db.add(User(email=EMAIL_PROF, password_hash="x", is_verified=True, prenom="Marie"))
+    db.commit()
+    db.close()
+    limiter.reset()          # les compteurs vivent en memoire du process, entre les tests aussi
+    c = TestClient(app)
+    c.cookies.set("aschool_access", comptes.create_access_token(EMAIL_PROF))
+    return c
 
-    async def _read():
-        return data
 
-    f.read = _read
-    return f
+def _envoyer(client, data: bytes):
+    return client.post("/api/ocr", files={"file": ("doc.pdf", data, "application/pdf")})
 
 
 def _mocks_base():
@@ -58,10 +70,13 @@ def _mocks_base():
 
 
 def test_pdf_scanne_passe_par_l_ocr_page_par_page():
+    client = _client_connecte()
     data = _pdf_scanne(nb_pages=2)
     m_cle, m_mod, m_max = _mocks_base()
     with patch.object(ocr_mod, "transcribe_image", return_value="PAGE-OCR") as m_tr, m_cle, m_mod, m_max:
-        res = asyncio.run(ocr_mod.ocr(_fake_pdf_file(data), db=MagicMock()))
+        reponse = _envoyer(client, data)
+    assert reponse.status_code == 200, reponse.text
+    res = reponse.json()
     assert res == {"texte": "PAGE-OCR\n\nPAGE-OCR"}   # une OCR par page, recollées
     assert m_tr.call_count == 2
     args, kwargs = m_tr.call_args
@@ -85,19 +100,21 @@ def test_pdf_numerique_extraction_directe_sans_ocr():
         def __exit__(self, *a):
             return False
 
+    client = _client_connecte()
     with patch("pdfplumber.open", return_value=_Doc()), \
          patch.object(ocr_mod, "transcribe_image") as m_tr:
-        res = asyncio.run(ocr_mod.ocr(_fake_pdf_file(b"%PDF-fake"), db=MagicMock()))
-    assert "Contenu numérique" in res["texte"]
+        reponse = _envoyer(client, b"%PDF-fake")
+    assert reponse.status_code == 200, reponse.text
+    assert "Contenu numérique" in reponse.json()["texte"]
     m_tr.assert_not_called()                          # couche texte → jamais d'OCR
 
 
 def test_pdf_scanne_trop_long_message_humain():
+    client = _client_connecte()
     data = _pdf_scanne(nb_pages=ocr_mod._PDF_OCR_MAX_PAGES + 1)
     m_cle, m_mod, m_max = _mocks_base()
     with patch.object(ocr_mod, "transcribe_image") as m_tr, m_cle, m_mod, m_max:
-        with pytest.raises(HTTPException) as exc:
-            asyncio.run(ocr_mod.ocr(_fake_pdf_file(data), db=MagicMock()))
-    assert exc.value.status_code == 422
-    assert "plusieurs fois" in exc.value.detail       # message humain, actionnable — jamais technique
-    m_tr.assert_not_called()                          # plafond franchi → aucune OCR lancée
+        reponse = _envoyer(client, data)
+    assert reponse.status_code == 422
+    assert "plusieurs fois" in reponse.json()["detail"]  # message humain, actionnable — jamais technique
+    m_tr.assert_not_called()                            # plafond franchi → aucune OCR lancée

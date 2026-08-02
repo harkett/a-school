@@ -12,7 +12,7 @@ séquence, sans PUT, était figée pour toujours. Vérifié ici :
     et RIEN n'est supprimé ;
   - le PUT d'une séquence corrige le formulaire SANS toucher au plan déjà généré.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_suppression_contenus.py -q
 """
 
 

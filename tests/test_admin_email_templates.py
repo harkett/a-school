@@ -11,14 +11,9 @@ Ce que les tests PROUVENT (chaine reelle, pas « le code existe ») :
      EN BASE et envoie son objet -> chaine /auth/verify-email prouvee.
   7. Sans cookie admin : 401.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_admin_email_templates.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_admin_email_templates.py -q
 """
-import os
 from datetime import datetime
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 
 import backend.core.database as dbmod  # engine/SessionLocal rediriges vers aschool_test par conftest

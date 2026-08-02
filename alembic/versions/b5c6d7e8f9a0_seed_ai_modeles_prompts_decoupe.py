@@ -1,8 +1,12 @@
 """seed ai_modeles (3 modeles) + settings prompts de decoupe (meta + verif)
 
 Ces donnees sont STRUCTURELLES : sans elles l'application ne fonctionne pas en
-production. Elles voyagent donc dans une migration (regle CLAUDE.md « Penser au
-deploiement »), jamais par un script jetable qui n'atteindrait que le miroir.
+production. Elles voyagent donc dans une migration, jamais par un script jetable qui
+n'atteindrait que le miroir.
+
+REGLE : si une chose n'existe que sur le miroir et que rien ne sait comment la recreer
+ailleurs, c'est un defaut — meme si tout marche en local. Le deploiement n'est pas un
+probleme « pour plus tard » : c'est une contrainte de chaque geste.
 
 - ai_modeles : la table est creee VIDE par a4b5c6d7e8f9 ; sans lignes, AUCUN modele
   n'est selectionnable a l'ecran. On seed les 3 modeles offerts (2 Anthropic, 1 Groq),

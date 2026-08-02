@@ -27,7 +27,7 @@ Deux catégories qu'on ne mélange jamais :
 On ne l'allonge JAMAIS sans décision explicite de l'utilisateur. Un ajout silencieux ici vaut
 suppression du test.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_pas_de_nom_recopie.py -q
 """
 
 

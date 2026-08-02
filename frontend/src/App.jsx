@@ -96,6 +96,13 @@ function MainApp() {
   // Profil à revoir = matière absente OU matière devenue incohérente avec le programme vivant
   // (profil_coherent renvoyé en direct par /auth/me, ex. après remplacement d'un référentiel).
   // Dans les deux cas on force « Mon profil » à la connexion, où la modale + le re-choix existent.
+  //
+  // `=== false` et non `!user.profil_coherent` : le serveur renvoie NULL quand le profil est
+  // vide (la question ne se pose pas encore), et un profil vide part déjà par `!user.subject`.
+  // Un test de vérité simple confondrait « incohérent » et « pas encore rempli ».
+  //
+  // (Ce champ n'a longtemps jamais été envoyé par le serveur : il valait `undefined`, donc
+  // cette moitié de la condition ne s'exécutait pas une seule fois. Rétabli le 02/08/2026.)
   const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 

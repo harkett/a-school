@@ -98,6 +98,148 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     return {"sauvegarde": chemin.name, "lignes": lignes_ecrites}
 
 
+# ── LE CHEMIN DU RETOUR ──────────────────────────────────────────────────────────────────
+# La sauvegarde ci-dessus existait depuis le début ; RIEN dans le dépôt ne savait la relire.
+# Elle protégeait donc la donnée sans protéger l'opération : on pouvait constater qu'on avait
+# tout perdu, pas le défaire. Les deux fonctions suivantes ferment la boucle.
+#
+# CE QUI REND LA CHOSE POSSIBLE, et ce n'est pas rien : le fichier porte les EMBEDDINGS. Une
+# restauration ne repasse donc ni par le PDF, ni par la découpe IA, ni par la vectorisation —
+# c'est une lecture de fichier et un INSERT. Aucun appel externe, aucun aléa de modèle.
+
+def lire_sauvegarde(chemin: Path) -> list[dict]:
+    """Lit un dump JSONL écrit par `_sauvegarder_chunks_avant_purge`. NE TOUCHE À AUCUNE BASE.
+
+    Séparée de la restauration exprès : on veut pouvoir vérifier un fichier sans rien risquer
+    (c'est le mode par défaut de outils_bdd/restaurer_chunks.py). Toute anomalie lève une erreur
+    qui DIT quoi faire — un fichier douteux ne doit jamais arriver jusqu'au delete."""
+    # Les champs du format de fichier — les mêmes que ceux écrits par la sauvegarde ci-dessus,
+    # `id` et `created_at` exclus DÉLIBÉRÉMENT (ils sont regénérés par la base à la
+    # réinsertion : un chunk restauré est le même chunk, pas la même ligne).
+    # Déclarée ICI et non au niveau module : elle n'a qu'un lecteur, et le filet « rien en dur »
+    # surveille les listes de chaînes de niveau module. Sa liste d'exceptions est GELÉE et ne
+    # s'allonge que sur décision explicite — une constante privée à une fonction n'a pas besoin
+    # de cette décision. (À déplacer si un second lecteur apparaît un jour ; ce sera alors un
+    # vrai contrat partagé, et une entrée d'exception se justifiera, comme _SCHEMA_DECOUPE.)
+    champs = ("referentiel_id", "chunk_index", "option_ab", "page",
+              "texte", "embedding", "embedding_model")
+    if not chemin.exists():
+        raise RuntimeError(
+            f"Sauvegarde introuvable : {chemin}\n"
+            f"  Les sauvegardes vivent dans {BACKUP_DIR} et portent un nom en *.bak-*.jsonl."
+        )
+    lignes: list[dict] = []
+    with chemin.open("r", encoding="utf-8") as f:
+        for no, brute in enumerate(f, start=1):
+            brute = brute.strip()
+            if not brute:
+                continue
+            try:
+                obj = json.loads(brute)
+            except json.JSONDecodeError as e:
+                raise RuntimeError(
+                    f"Sauvegarde illisible : la ligne {no} de {chemin.name} n'est pas du JSON ({e}). "
+                    f"Aucune restauration n'a été tentée, la base est intacte."
+                ) from e
+            manquants = [c for c in champs if c not in obj]
+            if manquants:
+                raise RuntimeError(
+                    f"Sauvegarde incomplète : la ligne {no} de {chemin.name} n'a pas "
+                    f"{', '.join(manquants)}. Ce fichier ne vient pas de la sauvegarde avant purge. "
+                    f"Aucune restauration n'a été tentée, la base est intacte."
+                )
+            lignes.append(obj)
+    if not lignes:
+        # Restaurer un fichier vide, ce serait purger sans rien rendre. C'est la seule
+        # manière dont cet outil pourrait détruire quelque chose : on la ferme ici.
+        raise RuntimeError(
+            f"Sauvegarde vide : {chemin.name} ne porte aucun chunk. Restaurer un fichier vide "
+            f"reviendrait à effacer les chunks sans rien remettre — refusé."
+        )
+    return lignes
+
+
+def restaurer_chunks_depuis_sauvegarde(db, chemin: Path, rid: int, collection: str | None = None,
+                                       modele_courant: str = EMBEDDING_MODEL) -> dict:
+    """Rejoue un dump JSONL dans referentiel_chunks : purge les chunks de `rid` et réinsère ceux
+    du fichier, VECTEURS COMPRIS. L'inverse exact de `_sauvegarder_chunks_avant_purge`.
+
+    TROIS REFUS, et l'ordre entre eux est le sujet.
+      1. le fichier vise un autre référentiel  -> refus
+      2. le fichier vient d'un autre modèle    -> refus
+      3. l'état courant n'a pas pu être sauvé  -> refus (la sauvegarde RAISE, le delete n'est
+                                                  jamais atteint — même garde-fou structurel
+                                                  que dans `ingest_pgvector`)
+    Les deux premiers tombent AVANT le troisième, et les trois AVANT le delete : on ne purge
+    jamais pour découvrir ensuite que le fichier était mauvais. Une restauration est une purge
+    comme une autre — d'où le filet n° 3 : un filet ne détruit pas l'état qu'on voudra peut-être
+    reprendre (on peut se tromper de fichier, et vouloir revenir de la restauration elle-même).
+
+    Pourquoi PAS de contrôle de dimension en plus : c'est exactement le rôle d'`embedding_model`
+    (« garde-fou : interdit de comparer un jour des vecteurs de modèles différents », modèle
+    ReferentielChunk). Même modèle = même dimension ; ajouter un second contrôle du même fait
+    serait le doublon qu'on a démonté trois fois (points 13, 21, 25)."""
+    lignes = lire_sauvegarde(chemin)
+
+    # 1. Le bon référentiel. Un fichier porte le nom de sa collection, mais c'est le
+    #    referentiel_id ÉCRIT DANS CHAQUE LIGNE qui fait foi — un nom de fichier se renomme.
+    autres = sorted({l["referentiel_id"] for l in lignes} - {rid})
+    if autres:
+        raise RuntimeError(
+            f"Refus : {chemin.name} contient les chunks du référentiel {autres} et non {rid}"
+            + (f" (collection '{collection}')" if collection else "")
+            + ".\n  Restaurer ce fichier ici écraserait un couple avec le contenu d'un autre.\n"
+              "  Vérifiez la collection demandée, ou choisissez la sauvegarde de CE couple."
+        )
+
+    # 2. Le bon modèle. Des vecteurs de deux modèles ne se comparent pas : la recherche
+    #    rendrait des résultats faux SANS jamais échouer — le pire des deux mondes.
+    modeles = sorted({(l.get("embedding_model") or "") for l in lignes})
+    if modeles != [modele_courant]:
+        raise RuntimeError(
+            f"Refus : {chemin.name} porte des vecteurs de {modeles} alors que le modèle courant "
+            f"est '{modele_courant}'.\n"
+            "  Deux modèles ne produisent pas des vecteurs comparables : la recherche rendrait\n"
+            "  des résultats faux sans jamais signaler d'erreur.\n"
+            "  Il faut réingérer le couple avec le modèle courant, pas restaurer ce fichier."
+        )
+
+    # 3. Filet avant de remplacer l'existant (RAISE si échec -> le delete n'est jamais atteint).
+    filet = _sauvegarder_chunks_avant_purge(db, rid, collection)
+
+    db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
+    for l in lignes:
+        db.add(ReferentielChunk(
+            referentiel_id=rid,
+            chunk_index=l["chunk_index"],
+            option_ab=l["option_ab"],
+            page=l["page"],
+            texte=l["texte"],
+            embedding=l["embedding"],
+            embedding_model=l["embedding_model"],
+        ))
+    db.commit()
+
+    # Preuve après, comme la sauvegarde a sa preuve avant.
+    n = db.scalar(
+        select(func.count()).select_from(ReferentielChunk)
+        .where(ReferentielChunk.referentiel_id == rid)
+    )
+    if n != len(lignes):
+        raise RuntimeError(
+            f"Restauration incomplète : {n} chunks en base sur {len(lignes)} attendus "
+            f"({chemin.name}). L'état d'avant est dans {filet.get('sauvegarde')}."
+        )
+    logger.info(f"[RAG-pg] Restauration : {n} chunks depuis {chemin.name} (referentiel {rid})")
+    return {
+        "referentiel_id": rid,
+        "fichier": chemin.name,
+        "restaures": n,
+        "sauvegarde_avant_restauration": filet,
+        "embedding_model": modele_courant,
+    }
+
+
 def _decouper_ia(texte: str, prompt: str) -> list[dict]:
     """Découpe d'un référentiel PAR L'IA (SOCLE, générique) : reçoit le TEXTE DE TRAVAIL du
     couple (colonne referentiels.texte_epure, figée à la validation du dépôt — plus aucune

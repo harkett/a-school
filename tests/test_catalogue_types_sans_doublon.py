@@ -19,14 +19,8 @@ ressuscite pas dans le dos de l'admin — mais on ne crée JAMAIS son sosie.
 Ce fichier teste le COMPORTEMENT (l'IA est remplacée par un espion qui rend le libellé voulu),
 pas le texte du source : c'est la panne qu'on veut tenir, pas une tournure de code.
 
-Lancer : docker exec a-school-backend-1 python -m pytest tests/test_catalogue_types_sans_doublon.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_catalogue_types_sans_doublon.py -q
 """
-import os
-
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
 from sqlalchemy import func
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite

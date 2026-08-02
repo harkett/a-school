@@ -14,8 +14,11 @@ from sqlalchemy.orm import Session
 
 from backend.core.models_db import EmailToken, RefreshToken, User
 from backend.core.horloge import maintenant_utc
+# Le secret n'est plus lu ici : une seule résolution, gardée, dans backend/core/cles.py — le
+# repli « change-me-in-production » qui vivait sur cette ligne signait les jetons de TOUS les
+# profs avec une chaîne lisible dans le dépôt, sur tout serveur démarré sans JWT_SECRET.
+from backend.core.cles import SECRET_JETON_PROF
 
-SECRET_KEY = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 30
@@ -167,7 +170,7 @@ def create_access_token(email: str) -> str:
     return jwt.encode(
         {"sub": email, "type": "access",
          "exp": _now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
-        SECRET_KEY, algorithm=ALGORITHM,
+        SECRET_JETON_PROF, algorithm=ALGORITHM,
     )
 
 
@@ -175,7 +178,7 @@ def create_refresh_token(db: Session, email: str) -> str:
     token = jwt.encode(
         {"sub": email, "type": "refresh", "jti": str(uuid.uuid4()),
          "exp": _now() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)},
-        SECRET_KEY, algorithm=ALGORITHM,
+        SECRET_JETON_PROF, algorithm=ALGORITHM,
     )
     db.add(RefreshToken(
         user_id=db.query(User.id).filter(User.email == email).scalar(),
@@ -188,7 +191,7 @@ def create_refresh_token(db: Session, email: str) -> str:
 
 def verify_access_token(token: str) -> Optional[str]:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_JETON_PROF, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
             return None
         return payload.get("sub")
@@ -198,7 +201,7 @@ def verify_access_token(token: str) -> Optional[str]:
 
 def rotate_refresh_token(db: Session, token: str) -> tuple[str, str]:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_JETON_PROF, algorithms=[ALGORITHM])
     except JWTError:
         raise ValueError("Token invalide.")
     if payload.get("type") != "refresh":

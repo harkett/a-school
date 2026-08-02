@@ -11,6 +11,8 @@ Ce que le test PROUVE (base aschool_test via conftest.py — JAMAIS SQLite) :
      DU SERVEUR, lus en base — la copie STATUTS/STATUTS_MODIFIABLES du front est supprimée.
 
 Le catalogue est semé par conftest (_seed_catalogues) — en prod il l'est par migration.
+
+Lancer : docker compose exec backend python -m pytest tests/test_feedback_statuts_en_base.py -q
 """
 
 

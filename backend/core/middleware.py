@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 
 from jose import JWTError, jwt
@@ -6,6 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from backend.core.cles import SECRET_JETON_PROF
 from backend.core.database import SessionLocal
 from backend.core.models_db import User, UserSession
 from backend.core.horloge import maintenant_utc
@@ -23,9 +23,11 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
         # Phase 1 — vérification AVANT traitement (force-logout immédiat)
         if token:
             try:
-                payload = jwt.decode(
-                    token, os.getenv("JWT_SECRET", ""), algorithms=[_ALGO]
-                )
+                # MÊME constante que celle qui a signé le jeton (backend/core/cles.py). Cette
+                # ligne lisait `os.getenv("JWT_SECRET", "")` à CHAQUE requête, quand comptes.py
+                # lisait la variable une fois à l'import, avec un repli DIFFÉRENT : deux valeurs
+                # possibles pour une seule clé, donc des sessions qui tombent sans explication.
+                payload = jwt.decode(token, SECRET_JETON_PROF, algorithms=[_ALGO])
                 if payload.get("type") == "refresh":
                     email = payload.get("sub")
                     session_key = payload.get("jti")

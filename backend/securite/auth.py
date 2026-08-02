@@ -14,7 +14,7 @@ from backend.core.limiter import (
 )
 from backend.core.models_db import ConnexionLog, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.prof.profil import couple_de_travail, matiere_demande_langue
+from backend.prof.profil import couple_de_travail, couple_est_au_programme, matiere_demande_langue
 
 router = APIRouter()
 
@@ -240,12 +240,40 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     # Couple de TRAVAIL résolu EN BASE (travail si posé, sinon profil) — LA lecture unique :
     # le header et l'écran Créer affichent CE couple, le serveur génère avec CE couple.
     tm, tn, ajuste = couple_de_travail(db, user) if user else (None, None, False)
+
+    # Le couple DU PROFIL (subject_id / niveau_id), pas celui de travail : c'est le profil
+    # enregistré qui est en cause, et `couple_ajuste` couvre déjà l'autre cas.
+    matiere_profil = matiere_nom_de_id(db, user.subject_id) if user else None
+    niveau_profil  = niveau_nom_de_id(db, user.niveau_id)  if user else None
+
+    # LE PROFIL ENREGISTRÉ TIENT-IL TOUJOURS DEBOUT ? (rétabli le 02/08/2026)
+    #
+    # L'écran lisait déjà `user.profil_coherent === false` (App.jsx) et le serveur ne l'a
+    # JAMAIS envoyé : le champ valait `undefined`, `undefined === false` est faux, et cette
+    # moitié du garde-fou ne s'exécutait pas une seule fois. Seul `!user.subject` marchait.
+    # Ce qui passait à travers : un prof dont la matière a cessé d'être au programme de son
+    # niveau — référentiel remplacé, matière retirée, niveau renommé — gardait un profil qui
+    # ne veut plus rien dire, sans jamais être ramené sur « Mon profil ».
+    #
+    # La règle n'est PAS recopiée ici : c'est `couple_est_au_programme` (prof/profil.py), déjà
+    # utilisée deux fois pour refuser un couple à l'écriture. Le contrôle d'écriture et celui
+    # de lecture disent donc la même chose, à un seul endroit.
+    #
+    # PROFIL VIDE -> `None` (null), et c'est un choix. `false` prétendrait que le profil est
+    # incohérent alors qu'il est simplement absent — l'écran enverrait le prof réparer quelque
+    # chose qui n'existe pas. `true` prétendrait l'inverse, aussi faux. `null` dit « la question
+    # ne se pose pas encore », et comme `null === false` vaut faux en JavaScript, l'écran se
+    # comporte exactement comme avant : un profil vide continue de partir par `!user.subject`.
+    profil_coherent = (couple_est_au_programme(db, matiere_profil, niveau_profil)
+                       if (matiere_profil and niveau_profil) else None)
+
     return {
         "email":     email,
-        "subject":   matiere_nom_de_id(db, user.subject_id) if user else None,
+        "subject":   matiere_profil,
         "prenom":    user.prenom    if user else None,
         "nom":       user.nom       if user else None,
-        "niveau":    niveau_nom_de_id(db, user.niveau_id) if user else None,
+        "niveau":    niveau_profil,
+        "profil_coherent": profil_coherent,
         "langue_lv": user.langue_lv if user else None,
         "travail_matiere": tm,
         "travail_niveau":  tn,

@@ -10,15 +10,10 @@ Ce que le test PROUVE (Groq MOCKÉ — déterministe, pas « le code existe ») 
   3. Sans cookie d'auth : 401.
 
 Base de test PostgreSQL dédiée (aschool_test via conftest.py) — JAMAIS SQLite.
-Lancer : python -m pytest test_exemple_referentiel.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_exemple_referentiel.py -q
 """
-import os
-
 # Windows : torch embarque son runtime OpenMP. Sans ces garde-fous, l'embedding sous
 # pytest plante en « access violation ». Posés AVANT tout import susceptible de charger torch.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 
 from unittest.mock import patch

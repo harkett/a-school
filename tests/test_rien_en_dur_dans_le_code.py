@@ -26,7 +26,7 @@ On ne l'allonge JAMAIS sans décision explicite de l'utilisateur.
 Les clés sont « fichier:NOM » et « fichier::valeurs », jamais un numéro de ligne : insérer dix
 lignes plus haut ne doit pas faire tomber la suite pour rien.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_rien_en_dur_dans_le_code.py -q
 """
 import ast
 import os
@@ -41,7 +41,7 @@ DETTE = {
         "activites.py:43 — les clés (nb, sous_type, langue) SONT `type_parametres.cle` en base ; "
         "seule leur formulation est recopiée ici.",
     "backend/contenu/mes_contenus.py:JALON_LABELS":
-        "mes_contenus.py:295 — libellés des jalons de l'historique ; aucune table `jalons`.",
+        "mes_contenus.py:303 — libellés des 2 jalons de l’historique ; aucune table `jalons`.",
     "backend/contenu/mes_contenus.py:PHASES_ESQUISSE":
         "mes_contenus.py:898 — les 3 phases A/B/C de l'esquisse ; aucune table.",
     "backend/systeme/maintenance.py:CATEGORIES":
@@ -146,7 +146,20 @@ def _scanner():
                 nom = n.target.id
             else:
                 continue
-            est_dict = (isinstance(valeur, ast.Dict) and len(valeur.keys) >= 3
+            # DEUX clés suffisent pour un dict (02/08/2026), contre trois avant.
+            #
+            # Ce n'est pas un durcissement gratuit : retirer UN libellé mort de JALON_LABELS
+            # (le jalon 'edition', qui n'était écrit nulle part) l'a fait passer de 3 clés à 2.
+            # La dette n'avait pas disparu — le dict est toujours de la donnée métier écrite
+            # dans le code — mais elle était passée SOUS le plancher de détection, et le filet
+            # réclamait de la rayer du registre comme si elle était réglée. Un seuil qui
+            # transforme une correction partielle en dette effacée ne mesure plus rien.
+            #
+            # Coût mesuré avant de toucher au seuil : dans tout le backend, il existe
+            # exactement UN dict de chaînes à 2 clés, et c'est JALON_LABELS lui-même. Le
+            # passage de 3 à 2 n'ajoute donc AUCUNE entrée — il en empêche seulement une de
+            # s'échapper. (Les listes, elles, gardent leur seuil de 3 : rien ne le motive.)
+            est_dict = (isinstance(valeur, ast.Dict) and len(valeur.keys) >= 2
                         and all(isinstance(k, ast.Constant) and isinstance(k.value, str)
                                 for k in valeur.keys))
             if _est_liste_de_chaines(valeur, 3) or est_dict:

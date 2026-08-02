@@ -13,7 +13,7 @@ Ce que ces tests garantissent :
     le navigateur fait respecter n'est pas une limite ;
   - réglage absent = erreur claire, jamais un repli silencieux sur une valeur de code.
 
-Lance avec : pytest (BDD jetable aschool_test via conftest.py — jamais la base dev).
+Lancer : docker compose exec backend python -m pytest tests/test_seuils_en_base.py -q
 """
 
 import pytest

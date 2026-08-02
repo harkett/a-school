@@ -6,7 +6,7 @@ Ce que le test PROUVE (decision reelle de check_cpu_alert, create_alert capturee
      (l'ancienne sonde « flash 1 s » alertait a tort ; la nouvelle ne doit pas).
   3. Le pourcentage est bien la charge 5 min normalisee par le nombre de coeurs.
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_cpu_alert_soutenue.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_cpu_alert_soutenue.py -q
 """
 
 

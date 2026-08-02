@@ -107,11 +107,21 @@ def api_detect_ambiguites(
 
     nb = len(data.get("ambiguites", []))
 
+    # Une statistique ne casse JAMAIS l'outil du prof : si le journal d'usage ne s'écrit pas,
+    # l'analyse est rendue quand même. L'intention était bonne, il manquait le rollback.
+    #
+    # Après un commit() qui échoue, la session reste EN ÉTAT D'ÉCHEC : toute requête suivante
+    # sur cette même session échoue à son tour, avec une erreur qui ne parle pas de statistiques.
+    # Ici la requête se termine juste après et get_db referme — le risque est donc faible
+    # aujourd'hui. Mais le motif se recopie, et le prochain qui le posera au milieu d'une
+    # fonction plus longue héritera d'une session morte sans le savoir.
+    #
+    # Motif déjà correct ailleurs : core/middleware.py, supervision/alerts.py, systeme/admin.py.
     try:
         db.add(ToolUsageLog(user_id=user.id, tool="ambiguites", score_label=str(nb)))
         db.commit()
     except Exception:
-        pass
+        db.rollback()
 
     return AmbigsResponse(
         ambiguites=[Ambiguite(**a) for a in data.get("ambiguites", [])],

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
+import useIsMobile from '../hooks/useIsMobile'
 
 const TIPS = [
   {
@@ -55,7 +56,7 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
   const [tipIndex, setTipIndex] = useState(
     () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
   )
-  const isMobile = window.innerWidth < 768
+  const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
 
   async function charger() {
     setChargementRate(false)

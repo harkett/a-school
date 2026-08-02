@@ -10,14 +10,9 @@ Ce que le test PROUVE (chaine reelle, pas « le code existe ») :
   5. Isolation : PUT /admin/settings (email) n'altere PAS `ai_provider` ; et PUT
      /admin/ai-provider n'altere PAS `ai_model` (endpoints dedies, jamais melanges).
 
-Lancer : .\.venv\Scripts\python.exe -m pytest test_admin_ai_provider.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_admin_ai_provider.py -q
 """
-import os
-
 # Windows : torch + chromadb -> deux runtimes OpenMP. Garde-fous AVANT tout import torch.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
