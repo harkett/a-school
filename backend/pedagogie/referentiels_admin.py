@@ -28,7 +28,10 @@ from backend.core.database import get_db, SessionLocal
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, Setting, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
-from backend.systeme.admin import _require_admin, get_settings_dict, SETTING_DEFAULTS
+# SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
+# usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
+from backend.core.llm_prompts import PROMPTS
+from backend.systeme.admin import _require_admin, get_prompt, get_settings_dict
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1165,10 +1168,30 @@ def _generer_prompt_type(db: Session, label: str, niveau: str) -> str:
     consommerait aussi les emplacements de la génération.
 
     Le résultat, lui, est stocké sur la ligne de liaison ; l'admin peut le relire et le corriger
-    via ✎ Prompt — retoucher le gabarit ne réécrit donc jamais les prompts déjà posés."""
-    gabarit = (get_settings_dict(db).get("prompt_gabarit_type") or "").strip() \
-        or SETTING_DEFAULTS["prompt_gabarit_type"]
-    return gabarit.replace("{label}", label).replace("{niveau}", niveau)
+    via ✎ Prompt — retoucher le gabarit ne réécrit donc jamais les prompts déjà posés.
+
+    LU PAR `get_prompt` DEPUIS LE 02/08/2026, donc EN BASE et sans repli code. Le gabarit est
+    entré au registre (clé `gabarit_type`, mode « replace ») : il se règle enfin depuis l'écran
+    Prompts, et `valider_prompt` le garde à l'écriture. Avant, il n'avait aucune porte — ni
+    route, ni écran — et un gabarit fautif faisait tomber la faute chez le PROF, à la
+    génération, alors que l'auteur du texte est l'admin.
+
+    ET ON CONTRÔLE CE QU'ON PRODUIT. Le garde-fou d'écriture ne couvre pas une valeur posée
+    directement en base (Adminer est là, sur ce poste). Le prompt fabriqué ici est donc relu
+    par la MÊME fonction que ✎ Prompt : si le gabarit produit un prompt invalide, l'admin
+    l'apprend en cochant le type, avec un message qui nomme le défaut — jamais le prof au
+    milieu d'une génération."""
+    from backend.contenu.activites import valider_prompt_couple   # import local : pas de cycle
+    gabarit = get_prompt(db, "gabarit_type")
+    prompt = gabarit.replace("{label}", label).replace("{niveau}", niveau)
+    err = valider_prompt_couple(prompt)
+    if err:
+        raise HTTPException(
+            400,
+            f"Le gabarit des prompts de type (écran Prompts → « {PROMPTS['gabarit_type']['label']} ») "
+            f"produit un prompt inutilisable : {err}"
+        )
+    return prompt
 
 
 class BasculerTypeBody(BaseModel):

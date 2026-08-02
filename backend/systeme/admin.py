@@ -453,8 +453,17 @@ def get_prompt(db: Session, key: str) -> str:
 
 def valider_prompt(key: str, template: str) -> str | None:
     """Garde-fou d'écriture d'un prompt. Renvoie un message d'erreur (langage humain) si le
-    prompt est invalide, sinon None. (1) chaque repère obligatoire `{x}` doit rester présent ;
-    (2) le texte doit `.format()` sans lever (repère inconnu / accolades mal équilibrées)."""
+    prompt est invalide, sinon None.
+
+    (1) Chaque repère obligatoire `{x}` doit rester présent — vrai dans les DEUX modes : c'est
+        la seule garantie que la valeur atteindra vraiment le modèle.
+    (2) Le reste dépend du MODE déclaré au registre (cf. l'en-tête de `PROMPTS`) :
+        - "format" (défaut) : le texte doit `.format()` sans lever — un repère inconnu ou des
+          accolades déséquilibrées casseraient la génération ;
+        - "replace" : on N'APPELLE PAS `.format()`. Ces prompts DÉCRIVENT un autre prompt ;
+          leurs autres accolades sont du texte à préserver, pas des repères. Les formater
+          lèverait sur leur contenu même — donc un tel contrôle refuserait le texte LÉGITIME.
+    """
     meta = PROMPTS.get(key)
     if meta is None:
         return "Prompt inconnu."
@@ -463,6 +472,8 @@ def valider_prompt(key: str, template: str) -> str | None:
         if "{" + ph + "}" not in template:
             return (f"Le repère {{{ph}}} est obligatoire dans ce prompt et a disparu. "
                     f"Remettez-le tel quel avant d'enregistrer.")
+    if meta.get("mode", "format") == "replace":
+        return None
     try:
         template.format(**{ph: "x" for ph in required})
     except (KeyError, IndexError, ValueError):

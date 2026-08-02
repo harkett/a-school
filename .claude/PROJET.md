@@ -259,15 +259,55 @@ travail perdait sa matière sans figurer dans le nombre annoncé à l'admin.
 
 ### Reste ouvert (aucun code écrit)
 
-- **`prompt_meta_decoupe` et `prompt_verif_decoupe` vivent hors du registre.** Pire que noté :
-  `prompt_verif_decoupe` n'a **aucune route** — il est lu à chaque découpe et n'est modifiable
-  par rien. Les faire entrer dans `PROMPTS` exige de changer le contrat de validation : mesuré,
-  leur texte réel **casse `.format()`** (`KeyError: 'texte'` et `KeyError: '"unites"'`), parce
-  qu'ils sont consommés par `.replace()`, pas par `.format()`. Il faut donc un mode d'injection
-  déclaré au registre, plus une migration `PROMPTS_MAJ` pour les semer. Décision à prendre.
 - **`GET /mes-contenus` renvoie le `resultat` COMPLET** de chaque séance et de chaque activité —
   l'écran n'en affiche qu'un titre. Un prof à 200 contenus télécharge 200 documents entiers pour
   dessiner une liste.
-- **Le gabarit `prompt_gabarit_type`** produit les prompts de couple au coche d'un type ; s'il
-  est mal écrit, tous les prompts qu'il produit le seront, et le garde-fou ci-dessus ne
-  s'applique qu'à l'édition manuelle.
+
+---
+
+## 8. Le champ `mode` du registre des prompts — « format » ou « replace »
+
+*(02/08/2026 — suite directe de la section 7.)*
+
+Trois prompts vivaient **hors** du registre `PROMPTS`, donc hors de tout : l'écran Prompts ne
+les voyait pas, `valider_prompt` ne les gardait pas, et rien ne vérifiait qu'une base neuve les
+contenait.
+
+| Prompt | Ce qu'il fait | Sa porte, avant |
+|---|---|---|
+| `prompt_meta_decoupe` | l'IA **rédige** le prompt de découpe du document | deux routes qu'aucun écran n'appelle |
+| `prompt_verif_decoupe` | l'IA **relit** ce prompt et le corrige | **aucune** — lu à chaque découpe, modifiable par rien |
+| `prompt_gabarit_type` | il **fabrique** le prompt de chaque couple×type au coche | **aucune** — pas même une ligne en base, seulement un repli code |
+
+Ils ne pouvaient pas y entrer tels quels, et c'est la raison du champ `mode` :
+
+- **`format`** (défaut, absent = celui-ci) — le prompt part dans `str.format(**valeurs)`. Ses
+  accolades sont du code : les repères obligatoires doivent être là **et** le texte entier doit
+  se formater sans lever. Un exemple JSON s'y écrit accolades doublées.
+- **`replace`** — le prompt part dans `str.replace("{repère}", valeur)`. Ses autres accolades
+  sont du **texte**, et c'est même leur raison d'être : ces prompts **décrivent un autre
+  prompt** (« ton prompt devra contenir `{texte}` », « impose la sortie `{"unites":[…]}` »).
+  On vérifie la **présence** des repères, on n'appelle **jamais** `.format()`.
+
+Deux raisons distinctes, et il vaut la peine de ne pas les confondre :
+
+- `meta_decoupe` et `verif_decoupe` **cassent réellement `.format()`** — mesuré :
+  `KeyError: 'texte'` et `KeyError: '"unites"'`. La règle « format » refuserait leur texte
+  légitime.
+- `gabarit_type`, lui, se formate très bien. Son mode vient de la **consommation** : au coche
+  d'un type on ne remplit que `{label}` et `{niveau}` ; `{texte}` et `{referentiel}` doivent
+  **survivre** jusqu'à la génération du prof. Un `.format()` global les mangerait.
+
+**Le gabarit se règle enfin depuis l'écran Prompts**, et `valider_prompt` le tient à l'écriture.
+En plus, `_generer_prompt_type` **relit ce qu'il produit** avec `valider_prompt_couple` : une
+valeur posée directement en base (Adminer est là) fait tomber la faute chez l'**admin**, au
+moment où il coche le type, pas chez le prof au milieu d'une génération.
+
+**Migration :** `d4f8a2b6c9e3` — `ON CONFLICT DO NOTHING`, c'est une **adoption**, pas une
+correction : les deux premières lignes existent déjà et un texte affiné par l'admin ne doit pas
+être écrasé. Son `downgrade` ne retire que `prompt_gabarit_type`, la seule qu'elle crée. Jouée
+dans les deux sens.
+
+**Tests :** `tests/test_prompts_mode_replace.py` (11 tests) — dont la liste **gelée** des trois
+prompts en mode replace : retirer le contrôle `.format()` d'un prompt se décide, ça ne se glisse
+pas.

@@ -510,6 +510,58 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
+# -----------------------------------------------------------------------------
+# PROMPTS EN MODE « replace » — ils DECRIVENT un autre prompt, ils ne sont pas
+# formates. Leur texte contient des accolades qui doivent SURVIVRE (le repere
+# {texte} que le prompt produit devra porter, un exemple JSON a imposer) : les
+# passer a `.format()` leve. Ils sont donc consommes par `str.replace`, et le
+# registre le DIT (cle « mode »), pour que la validation d'ecriture le sache.
+# -----------------------------------------------------------------------------
+
+PROMPT_META_DECOUPE = """Tu prepares le decoupage d'un referentiel officiel pour un logiciel pedagogique.
+
+On te donne le TEXTE BRUT d'un referentiel (extrait d'un PDF) :
+---
+{document}
+---
+
+Ta mission : REDIGER un PROMPT de decoupe sur mesure pour CE document precis. Ce prompt sera ensuite donne a une IA pour qu'elle decoupe le document en ne gardant QUE ses vraies unites de contenu (les elements concrets et decrits que l'utilisateur exploitera : activites, fiches, competences... selon ce que contient ce document), et en ecartant tout le texte qui les entoure (page de titre, avertissements, introduction, mode d'emploi, en-tetes de partie ou de section, notes, renvois, listes de simples mentions, sources et attribution).
+
+Le prompt que tu rediges DOIT :
+- etre adapte a la structure reelle de CE document : nomme les reperes concrets que tu observes (comment une vraie unite de contenu se presente ici ; ce qui n'est que du texte d'entourage) ;
+- demander, pour chaque unite retenue, UNIQUEMENT sa ligne de titre recopiee exactement telle qu'elle apparait dans le texte ;
+- contenir le marqueur {texte} a l'endroit ou le texte brut du document sera insere ;
+- imposer une sortie JSON stricte : {"unites":[{"titre":"..."}]} et rien d'autre autour.
+
+Reponds UNIQUEMENT par le texte du prompt de decoupe, sans aucun commentaire autour."""
+
+
+PROMPT_VERIF_DECOUPE = """Tu es un relecteur exigeant. On te donne un PROMPT DE DÉCOUPE destiné à découper un référentiel en unités. Vérifie qu'il respecte STRICTEMENT ce contrat :
+
+1. TITRES VERBATIM (priorité absolue) : le prompt doit exiger que chaque unité renvoie sa LIGNE DE TITRE EXACTEMENT telle qu'elle apparaît dans le document, mot pour mot, jamais reformulée ni résumée. C'est vital : le code retrouve ensuite chaque titre dans le texte réel pour trancher ; un titre paraphrasé fait perdre la frontière.
+2. FORMAT JSON EXACT : le prompt doit imposer la sortie {"unites":[{"titre":"..."}]} — une clé "unites" contenant une liste d'objets à clé "titre", et rien d'autre.
+3. PAS DE CONTENU : le prompt ne doit PAS demander le contenu, le déroulé ni le détail des unités. Le code reconstitue le contenu lui-même en tranchant le texte réel ; un contenu demandé à l'IA est du gaspillage de tokens (et serait jeté).
+4. EXCLUSIONS : le prompt doit écarter ce qui n'est pas une unité (page de titre, introduction, avertissements, en-têtes de partie ou de section, notes, renvois, sources, attributions).
+
+Si le prompt viole un ou plusieurs de ces points, RENVOIE une version CORRIGÉE du prompt qui les respecte tous. S'il les respecte déjà, renvoie-le INCHANGÉ.
+
+Ne renvoie QUE le prompt (corrigé ou inchangé), sans commentaire, sans explication, sans balise de code.
+
+PROMPT À VÉRIFIER :
+{prompt}"""
+
+
+PROMPT_GABARIT_TYPE = """Tu es un enseignant expérimenté.
+Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.
+
+Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :
+{texte}
+
+Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activité, sans t'en écarter :
+{referentiel}
+
+Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."""
+
 PROMPT_VERIFIER_COUPLE = """Tu vérifies qu'un document officiel correspond bien au couple (cycle + niveau) déclaré.
 
 Couple déclaré par l'administrateur :
@@ -694,6 +746,20 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 #     l'ancien monde démoli (sequence_standard, sequence_remediation, optimiseur) : plus aucun
 #     `get_prompt` ne les demande. On les RANGE, on ne les supprime pas : décision à part.
 # C'est de la même nature que `label` et `placeholders` — donc ici, pas en base : aucune migration.
+#
+# `mode` dit COMMENT le texte est consommé, et donc comment il se VALIDE (cf. `valider_prompt`) :
+#   - "format" (défaut, absent = celui-ci) : le prompt est passé à `str.format(**valeurs)`. Ses
+#     accolades sont donc du code : chaque repère obligatoire doit être là, et le texte entier
+#     doit se formater sans lever. Un exemple JSON s'y écrit avec des accolades DOUBLÉES.
+#   - "replace" : le prompt est consommé par `str.replace("{repère}", valeur)`. Ses autres
+#     accolades sont du TEXTE, et doivent survivre intactes — c'est même leur raison d'être :
+#     ces prompts-là DÉCRIVENT un autre prompt (« ton prompt devra contenir {texte} », « impose
+#     la sortie {"unites":[…]} »). Les passer à `.format()` lève, mesuré : `KeyError: 'texte'`
+#     et `KeyError: '"unites"'` sur leur texte réel. On vérifie donc la PRÉSENCE des repères, et
+#     on n'appelle jamais `.format()`.
+# Sans ce champ, les trois prompts en mode replace ne pouvaient pas entrer au registre — et
+# `prompt_verif_decoupe` restait lu à chaque découpe sans qu'AUCUNE route ne permette de le
+# corriger (trouvé le 01/08/2026, réparé le 02/08).
 PROMPTS = {
     "ambiguites": {
         "label": "Détecteur d'ambiguïtés",
@@ -832,6 +898,31 @@ PROMPTS = {
         "placeholders": ["texte"],
         "categorie": "admin",
         "default": PROMPT_DECOUPE_AMONT,
+    },
+    # ── Les trois prompts en mode « replace » (cf. l'en-tête du registre) ──────────────
+    "meta_decoupe": {
+        "label": "Découpe — méta-prompt : l'IA RÉDIGE le prompt de découpe du document",
+        "placeholders": ["document"],
+        "categorie": "admin",
+        "mode": "replace",
+        "default": PROMPT_META_DECOUPE,
+    },
+    "verif_decoupe": {
+        "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
+        "placeholders": ["prompt"],
+        "categorie": "admin",
+        "mode": "replace",
+        "default": PROMPT_VERIF_DECOUPE,
+    },
+    "gabarit_type": {
+        "label": "Gabarit du prompt d'un type d'activité (posé au coche d'un type)",
+        # {label} et {niveau} sont remplis ICI (au coche) ; {texte} et {referentiel} doivent
+        # RESTER INTACTS — c'est la génération du prof qui les remplira. D'où le mode replace :
+        # un `.format()` global consommerait aussi les deux derniers.
+        "placeholders": ["label", "niveau", "texte", "referentiel"],
+        "categorie": "admin",
+        "mode": "replace",
+        "default": PROMPT_GABARIT_TYPE,
     },
     "verifier_couple": {
         "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
