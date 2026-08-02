@@ -25,24 +25,25 @@
 #    Plus aucun glisser-déposer : les deux bouts copient et vérifient.
 #
 #  CE QUI VOYAGE : le dossier ENTIER, moins ce qui se refabrique.
-#    Bagage\        la base de données (pg_dump) + la date du départ
-#    REFERENTIELS\  les PDF déposés — hors dépôt, irremplaçables
-#    .env           hors dépôt, identique sur les deux machines
-#    .git           l'historique. Sans lui, plus de dépôt là-bas.
-#    le code        et tout le reste du dossier
+#    Bagage\          la base de données (pg_dump) + la date du départ
+#    REFERENTIELS\    les PDF déposés — hors dépôt, irremplaçables
+#    .env             hors dépôt, identique sur les deux machines
+#    .git             l'historique. Sans lui, plus de dépôt là-bas.
+#    docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Lourd,
+#                     mais il ne se retéléchargera PAS de lui-même :
+#                     backend/main.py:11 pose HF_HUB_OFFLINE=1. Sans lui,
+#                     l'autre poste ne génère plus rien.
+#    le code          et tout le reste du dossier
 #
-#  CE QUI NE VOYAGE PAS, parce que ça se refabrique sur place — et c'est
-#  ça, tout le volume. Six dossiers, 73 100 fichiers, 6,2 Go :
-#    .venv, node_modules          réinstallés par pip et npm
-#    docker\hf-cache              le modèle, 4,3 Go, retéléchargé seul
+#  CE QUI NE VOYAGE PAS, parce que ça se refabrique vraiment sur place :
+#    .venv, node_modules          réinstallés par pip et npm (70 700 fichiers)
 #    docker\pgdata                un reste : la base vit dans le volume
 #                                 nommé pgdata_dev, pas dans le dossier
 #    __pycache__, .pytest_cache   caches de Python
 #
-#    Le dossier fait 79 500 fichiers et 6,5 Go ; il en part 6 342 et
-#    277 Mo. C'est pourquoi la copie ne se fait PAS dans l'explorateur
-#    Windows : il emporte tout, échoue sur les liens du cache du modèle,
-#    et saute .git parce qu'il est caché.
+#    La copie ne se fait PAS dans l'explorateur Windows : il emporte les
+#    70 000 fichiers inutiles, échoue sur les liens du cache du modèle, et
+#    saute .git parce qu'il est caché.
 #
 #  « OÙ COPIER » = n'importe quel endroit atteignable des deux machines :
 #    un chemin réseau de l'autre poste (\\FIXE\D$), une clé USB, un
@@ -595,12 +596,21 @@ Write-Host "  Ouvrez :  http://localhost:5173" -ForegroundColor Green
 if ($premiereFois) {
     Write-Host "  (première fois : laissez-lui une minute ou deux avant d'ouvrir)" -ForegroundColor DarkGray
 }
-# Le modèle qui lit les référentiels ne voyage pas : il pèse 4 Go en 12 fichiers
-# que Windows ne sait pas copier. Il revient tout seul, mais pas instantanément.
+# Ce message disait que le modèle « revient tout seul ». C'était faux, et ça a
+# coûté une bascule : backend/main.py:11 pose HF_HUB_OFFLINE=1, le backend a
+# donc interdiction d'aller le chercher. Absent, il le reste — et sans lui,
+# plus une seule génération ne fonctionne. Ce n'est pas une lenteur au premier
+# usage, c'est une panne, et elle se dit comme telle.
 $cacheVide = -not (Test-Path $cacheModele) -or -not (Get-ChildItem $cacheModele -Force -ErrorAction SilentlyContinue)
 if ($cacheVide) {
     Write-Host ""
-    Write-Host "  La première lecture d'un référentiel sera plus longue sur ce poste :" -ForegroundColor DarkGray
-    Write-Host "  aSchool doit d'abord récupérer de quoi les lire (environ 2 Go, une seule fois)." -ForegroundColor DarkGray
+    Write-Host "  ATTENTION : le modèle qui lit les référentiels n'est pas sur ce poste." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Générer une activité, une séance, un thème, une idée ou un exemple," -ForegroundColor Red
+    Write-Host "  et découper un référentiel, ne fonctionneront pas." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Il ne se retéléchargera pas de lui-même : le backend est réglé en" -ForegroundColor Yellow
+    Write-Host "  mode hors-ligne (backend/main.py:11). Il doit voyager dans la copie." -ForegroundColor Yellow
+    Write-Host "  Relancez je_pars.ps1 depuis l'autre poste : il l'emporte désormais." -ForegroundColor Yellow
 }
 Write-Host ""

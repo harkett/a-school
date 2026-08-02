@@ -25,24 +25,25 @@
 #    Plus aucun glisser-déposer : les deux bouts copient et vérifient.
 #
 #  CE QUI VOYAGE : le dossier ENTIER, moins ce qui se refabrique.
-#    Bagage\        la base de données (pg_dump) + la date du départ
-#    REFERENTIELS\  les PDF déposés — hors dépôt, irremplaçables
-#    .env           hors dépôt, identique sur les deux machines
-#    .git           l'historique. Sans lui, plus de dépôt là-bas.
-#    le code        et tout le reste du dossier
+#    Bagage\          la base de données (pg_dump) + la date du départ
+#    REFERENTIELS\    les PDF déposés — hors dépôt, irremplaçables
+#    .env             hors dépôt, identique sur les deux machines
+#    .git             l'historique. Sans lui, plus de dépôt là-bas.
+#    docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Lourd,
+#                     mais il ne se retéléchargera PAS de lui-même :
+#                     backend/main.py:11 pose HF_HUB_OFFLINE=1. Sans lui,
+#                     l'autre poste ne génère plus rien.
+#    le code          et tout le reste du dossier
 #
-#  CE QUI NE VOYAGE PAS, parce que ça se refabrique sur place — et c'est
-#  ça, tout le volume. Six dossiers, 73 100 fichiers, 6,2 Go :
-#    .venv, node_modules          réinstallés par pip et npm
-#    docker\hf-cache              le modèle, 4,3 Go, retéléchargé seul
+#  CE QUI NE VOYAGE PAS, parce que ça se refabrique vraiment sur place :
+#    .venv, node_modules          réinstallés par pip et npm (70 700 fichiers)
 #    docker\pgdata                un reste : la base vit dans le volume
 #                                 nommé pgdata_dev, pas dans le dossier
 #    __pycache__, .pytest_cache   caches de Python
 #
-#    Le dossier fait 79 500 fichiers et 6,5 Go ; il en part 6 342 et
-#    277 Mo. C'est pourquoi la copie ne se fait PAS dans l'explorateur
-#    Windows : il emporte tout, échoue sur les liens du cache du modèle,
-#    et saute .git parce qu'il est caché.
+#    La copie ne se fait PAS dans l'explorateur Windows : il emporte les
+#    70 000 fichiers inutiles, échoue sur les liens du cache du modèle, et
+#    saute .git parce qu'il est caché.
 #
 #  « OÙ COPIER » = n'importe quel endroit atteignable des deux machines :
 #    un chemin réseau de l'autre poste (\\FIXE\D$), une clé USB, un
@@ -280,19 +281,27 @@ Write-Host "  4/4  Fermeture de l'application..." -ForegroundColor Cyan
 docker compose stop 2>$null | Out-Null
 Write-Host "       fermée." -ForegroundColor Green
 
-# ── Les six dossiers qui ne voyagent pas ────────────────────────────────
-# Ils font le volume et ils se refabriquent tous sur place. Sur 79 500 fichiers
-# et 6,5 Go, ils en représentent 73 100 et 6,2 Go :
+# ── Les cinq dossiers qui ne voyagent pas ───────────────────────────────
+# Ils font du volume et ils se refabriquent tous sur place :
 #
 #   .venv, node_modules   55 400 + 15 300 fichiers, réinstallés par pip et npm
-#   hf-cache              4,3 Go — le modèle, retéléchargé à la première lecture
 #   pgdata                la base ne vit plus là : volume nommé pgdata_dev
 #                         (docker-compose.yml:24). Ce dossier est un reste.
 #   __pycache__, .pytest_cache   caches de Python
 #
-# .git n'en fait PAS partie : il voyage. Sans lui, l'autre poste n'a plus de
-# dépôt, et j_arrive s'arrête à 3/6.
-$ecartes = @('.venv', 'node_modules', '__pycache__', '.pytest_cache', 'pgdata', 'hf-cache')
+# DEUX dossiers lourds voyagent quand même, et il faut savoir pourquoi :
+#
+#   .git             sans lui, l'autre poste n'a plus de dépôt et j_arrive
+#                    s'arrête à 3/6.
+#   docker\hf-cache  4,3 Go, le modèle qui lit les référentiels. Il a été
+#                    écarté d'ici le 02/08/2026, au motif qu'il « se
+#                    retéléchargerait tout seul ». C'était faux :
+#                    backend/main.py:11 pose HF_HUB_OFFLINE=1, le backend a
+#                    donc interdiction d'aller le chercher. Sans ce dossier,
+#                    l'autre poste ne peut plus rien générer — ni activité,
+#                    ni séance, ni thème, ni idée, ni exemple. Il coûte cher
+#                    à copier ; ne pas le copier coûte l'application entière.
+$ecartes = @('.venv', 'node_modules', '__pycache__', '.pytest_cache', 'pgdata')
 
 Write-Host ""
 Write-Host "  C'est prêt." -ForegroundColor Green
@@ -363,7 +372,15 @@ Write-Host ""
 # /NFL tait la liste des fichiers — 6 000 lignes n'apprennent rien. Mais les
 # DOSSIERS s'affichent : sans eux, robocopy reste muet le temps de la copie,
 # et un écran figé pendant vingt minutes se lit comme un plantage.
-robocopy $racine $destination /MIR /XJ /XD @ecartes /NFL /R:2 /W:2
+#
+# PAS de /XJ. Le cache du modèle est bâti en deux étages : blobs\ contient les
+# octets sous des noms illisibles, snapshots\ contient 12 LIENS qui leur
+# donnent leurs vrais noms (config.json, model.safetensors, tokenizer.json…).
+# /XJ sautait ces 12 liens : l'autre poste recevait 4,3 Go de blobs et un
+# snapshots vide, et le modèle ne se chargeait pas davantage. Sans /XJ,
+# robocopy recrée les liens — vérifié : 0 octet chacun, rien n'est dupliqué.
+# Ce sont les seuls liens du dossier ; il n'y a donc aucune boucle à craindre.
+robocopy $racine $destination /MIR /XD @ecartes /NFL /R:2 /W:2
 
 # robocopy ne suit pas la convention des autres commandes : 0 à 7 sont des
 # succès (0 = rien à faire, 1 = fichiers copiés, 2 = extras supprimés, et les
@@ -391,6 +408,20 @@ Write-Host ("       $total fichiers à relire des deux côtés. Les octets de la
 Write-Host  "       repassent par le réseau : comptez le même temps que la copie." -ForegroundColor DarkGray
 Write-Host ""
 
+# Deux cas ne se vérifient PAS par empreinte, et il faut savoir pourquoi.
+#
+#   Les liens (snapshots\ du modèle) : leur contenu EST le blob vers lequel ils
+#   pointent, et ce blob est déjà vérifié pour lui-même. Les relire ferait
+#   repasser les mêmes octets une seconde fois. On contrôle qu'ils existent.
+#
+#   Les gros fichiers : les deux blobs du modèle pèsent 2,2 Go chacun. Les
+#   relire depuis le réseau coûtait quatre heures et demie sur un lien lent,
+#   pour un gain nul — robocopy relit, réessaie et signale ses échecs sur ces
+#   fichiers-là. On compare leur taille, qui est instantanée.
+#
+# Tout le reste — le code, .git, les référentiels, la base — passe à l'empreinte.
+$SEUIL_EMPREINTE = 20MB
+
 $chrono  = [System.Diagnostics.Stopwatch]::StartNew()
 $ecarts  = @()
 $comptes = 0
@@ -411,6 +442,15 @@ foreach ($f in $fichiers) {
     }
 
     if (-not (Test-Path -LiteralPath $arrivee)) { $ecarts += $relatif; continue }
+
+    if ($f.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        continue                                   # un lien : sa présence suffit
+    }
+    if ($f.Length -ge $SEUIL_EMPREINTE) {
+        $la = (Get-Item -LiteralPath $arrivee -Force).Length
+        if ($la -ne $f.Length) { $ecarts += $relatif }
+        continue                                   # gros fichier : taille seulement
+    }
     if ((Get-FileHash -LiteralPath $arrivee).Hash -ne (Get-FileHash -LiteralPath $f.FullName).Hash) { $ecarts += $relatif }
 }
 $chrono.Stop()
