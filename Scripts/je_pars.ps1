@@ -269,9 +269,29 @@ if ((Get-Item $fichierTravail).Length -lt 1024) {
     Echec "Le travail récupéré est vide, ce n'est pas normal. Rien n'a été modifié, vous pouvez relancer ce script."
 }
 
-# La date du départ voyage avec le travail : à l'arrivée, elle sert à
-# vérifier que l'autre poste ne contient pas quelque chose de plus récent.
-[DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString() | Set-Content -Path $fichierDate -Encoding ascii
+# La date du départ voyage avec le travail : à l'arrivée, elle sert à vérifier
+# que l'autre poste ne contient pas quelque chose de plus récent.
+#
+# Le fichier est d'abord RETIRÉ, puis réécrit. Le 02/08/2026, un depart.txt
+# resté verrouillé par un pilote de filtrage a fait échouer Set-Content sans
+# arrêter le script : le fichier est parti VIDE, et j_arrive, incapable de lire
+# la date, réclamait le mot « remplacer » sur une bascule pourtant normale.
+# Un chemin neuf s'écrit toujours ; c'est le fichier existant qui bloquait.
+Remove-Item $fichierDate -Force -ErrorAction SilentlyContinue
+[DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString() | Set-Content -Path $fichierDate -Encoding ascii -ErrorAction SilentlyContinue
+
+# Et on CONSTATE, au lieu de supposer que l'écriture a eu lieu. C'est ce
+# contrôle qui manquait : sans lui, l'échec voyageait jusqu'à l'autre poste.
+$dateEcrite = ''
+if (Test-Path $fichierDate) { $dateEcrite = (Get-Content $fichierDate -Raw -ErrorAction SilentlyContinue).Trim() }
+if ($dateEcrite -notmatch '^\d+$') {
+    Echec ("La date du départ n'a pas pu être écrite dans  Bagage\depart.txt`n" +
+           "  Sans elle, l'autre poste ne saura pas si ce que vous apportez est plus`n" +
+           "  récent que ce qu'il a, et vous demandera de trancher à l'aveugle.`n`n" +
+           "  Le fichier est retenu par un programme — antivirus, sauvegarde, ou`n" +
+           "  synchronisation. Renommez-le à la main, puis relancez ce script.`n" +
+           "  Votre travail est déjà dans le dossier, rien n'est perdu.")
+}
 Write-Host "       c'est fait." -ForegroundColor Green
 
 # ── 4/4  Fermer proprement ──────────────────────────────────────────────
