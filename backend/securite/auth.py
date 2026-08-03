@@ -14,7 +14,9 @@ from backend.core.limiter import (
 )
 from backend.core.models_db import ConnexionLog, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.prof.profil import couple_de_travail, couple_est_au_programme, matiere_demande_langue
+from backend.prof.profil import (MSG_MAJ_EN_COURS, blocage_generation, couple_de_travail,
+                                 couple_est_au_programme, matiere_demande_langue, message_a_lire,
+                                 message_de_fin, profil_en_travaux)
 
 router = APIRouter()
 
@@ -239,7 +241,9 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     user = db.query(User).filter(User.email == email).first()
     # Couple de TRAVAIL résolu EN BASE (travail si posé, sinon profil) — LA lecture unique :
     # le header et l'écran Créer affichent CE couple, le serveur génère avec CE couple.
-    tm, tn, ajuste = couple_de_travail(db, user) if user else (None, None, False)
+    # garde=False : /auth/me doit RAPPORTER une mise à jour en cours, pas échouer dessus — c'est
+    # lui qui fait s'afficher le message au prof.
+    tm, tn, ajuste = couple_de_travail(db, user, garde=False) if user else (None, None, False)
 
     # Le couple DU PROFIL (subject_id / niveau_id), pas celui de travail : c'est le profil
     # enregistré qui est en cause, et `couple_ajuste` couvre déjà l'autre cas.
@@ -267,7 +271,30 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     profil_coherent = (couple_est_au_programme(db, matiere_profil, niveau_profil)
                        if (matiere_profil and niveau_profil) else None)
 
+    # MISE À JOUR D'UN RÉFÉRENTIEL — trois questions distinctes, trois réponses (prof/profil.py) :
+    #   `blocage`           : ce qu'il doit LIRE — soit « mise à jour en cours » (décidé sur le
+    #                         niveau du couple qu'il utilise), soit « c'est terminé » (décidé sur
+    #                         l'ÉTAT de sa ligne, où qu'il travaille : sinon le second message
+    #                         n'aurait aucun véhicule, la ligne n'étant plus `bloque`).
+    #   `profil_en_travaux` : NE PAS l'envoyer compléter son profil (décidé sur le niveau de son
+    #                         PROFIL). Sa matière manque parce que NOUS l'avons détachée.
+    blocage = None
+    if user:
+        ligne_bloque = blocage_generation(db, user)
+        ligne_lire = message_a_lire(db, user)
+        if ligne_bloque is not None:
+            blocage = {"type": "en_cours", "message": MSG_MAJ_EN_COURS,
+                       "matiere": ligne_bloque.matiere_nom,
+                       "niveau": niveau_nom_de_id(db, ligne_bloque.niveau_id)}
+        elif ligne_lire is not None:
+            blocage = {"type": ligne_lire.resultat or "rebranche",
+                       "message": message_de_fin(ligne_lire),
+                       "matiere": ligne_lire.matiere_nom,
+                       "niveau": niveau_nom_de_id(db, ligne_lire.niveau_id)}
+
     return {
+        "blocage": blocage,
+        "profil_en_travaux": profil_en_travaux(db, user) if user else False,
         "email":     email,
         "subject":   matiere_profil,
         "prenom":    user.prenom    if user else None,

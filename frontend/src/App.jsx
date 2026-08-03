@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { showError, registerFeedbackOpener } from './errorDialog'
+import { showConfirm } from './confirmDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Header from './components/Header'
@@ -103,7 +104,13 @@ function MainApp() {
   //
   // (Ce champ n'a longtemps jamais été envoyé par le serveur : il valait `undefined`, donc
   // cette moitié de la condition ne s'exécutait pas une seule fois. Rétabli le 02/08/2026.)
-  const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
+  //
+  // `profil_en_travaux` l'emporte : le référentiel du niveau du prof est en cours de mise à jour,
+  // c'est NOUS qui avons détaché sa matière pour pouvoir le supprimer. L'envoyer « compléter son
+  // profil » lui ferait payer notre chantier — et lui demanderait de choisir dans une liste qui
+  // n'existe pas encore. Il lit le message de mise à jour, et rien d'autre.
+  const profilIncomplet = user && !user.profil_en_travaux
+    && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
   const [page, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
@@ -220,6 +227,34 @@ function MainApp() {
       .forEach(k => localStorage.removeItem(k))
     localStorage.removeItem('aschool_niveau')  // niveau vit en base désormais — on purge le vieux cache
   }, [])
+
+  // MISE À JOUR D'UN RÉFÉRENTIEL — ce que le prof lit. Le serveur (/auth/me) dit s'il y a
+  // quelque chose à lui dire et QUOI : le texte vient de lui, l'écran ne le compose pas.
+  // Un seul bouton : il n'a rien à refuser, une mise à jour ne se décline pas. « C'est terminé »
+  // s'accuse en base (POST /user/maj-lue) pour ne pas revenir à chaque connexion ; « en cours »
+  // ne s'accuse pas — tant que c'est vrai, il doit le relire.
+  const blocageVu = useRef(null)
+  useEffect(() => {
+    const b = user?.blocage
+    if (!b) { blocageVu.current = null; return }
+    const cle = `${b.type}:${b.niveau}`
+    if (blocageVu.current === cle) return      // une seule fois par état, pas à chaque rendu
+    blocageVu.current = cle
+    showConfirm({
+      titre: b.type === 'en_cours' ? 'Mise à jour de votre programme' : 'Votre programme est à jour',
+      message: b.message,
+      icone: b.type === 'en_cours' ? 'interdit' : undefined,
+      boutonUnique: true,
+      confirmLabel: "J'ai compris",
+      onConfirm: async () => {
+        if (b.type === 'en_cours') return      // rien à accuser : la mise à jour continue
+        try {
+          await fetchWithTimeout('/api/user/maj-lue', { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
+          await refreshUser()                  // la ligne est effacée : l'écran relit la base
+        } catch { /* il relira le message à sa prochaine connexion */ }
+      },
+    })
+  }, [user?.blocage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Écran forcé : tant que le profil n'a pas de matière (couple absent), on ramène TOUJOURS
   // sur « Mon profil ». useLayoutEffect (avant peinture) → aucune autre page ne s'affiche, même

@@ -17,6 +17,10 @@ export function registerConfirmHandler(fn) {
 //  - onCancel     : appelé si le prof renonce (bouton, Échap, clic dehors). Facultatif pour un
 //                   appel classique ; INDISPENSABLE à `demanderConfirmation` ci-dessous.
 //  - danger       : true → bouton d'action rouge (action franchement destructrice).
+//  - icone        : 'interdit' → sens interdit rouge à la place du triangle ambre (ce qui est
+//                   déjà connu / déjà fait). Absent = triangle d'avertissement, comme avant.
+//  - boutonUnique : true → un seul bouton (celui d'action), quand il n'y a rien à refuser.
+//                   Échap, la croix et le clic dehors valent alors accusé de réception.
 // Filet de sécurité : si le composant n'est pas encore monté, on retombe sur window.confirm pour
 // ne jamais exécuter une action à perte sans demander.
 export function showConfirm(opts = {}) {

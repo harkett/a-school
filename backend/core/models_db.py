@@ -628,6 +628,51 @@ class AiFournisseur(Base):
     cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
 
 
+class ReferentielDepot(Base):
+    """Un PDF déposé, en zone d'attente — la trace EN BASE du document qu'on vient de fournir.
+
+    Elle précède `referentiels` et ne s'y rattache pas : au dépôt, le couple n'est pas encore
+    connu (c'est l'admin, ou l'IA, qui le dira à l'étape suivante). Impossible donc de ranger ça
+    dans `referentiels`, qui exige un `niveau_id` NOT NULL, UNIQUE — un seul référentiel par
+    niveau —, un `nom_fixe` et une `collection`. Y écrire un dépôt obligerait à inventer un
+    niveau, interdirait deux essais sur le même niveau, et un dépôt abandonné n'y serait plus
+    effaçable sans emporter au passage ses matières et ses chunks (CASCADE).
+
+    Ce que la ligne retient : le VRAI nom du fichier tel que l'admin l'a fourni, ce qu'on a
+    mesuré (taille, pages), par où il est entré, et son EMPLACEMENT — `token` est à la fois le
+    jeton rendu au navigateur et le nom du fichier sur disque, `chemin` dit où. L'aperçu est
+    gardé lui aussi : il coûte 25 lignes de texte et évite de rouvrir le PDF pour réafficher
+    l'écran après un rechargement de page — c'est justement le trou qu'on bouche.
+
+    Aucune ligne n'est écrite pour l'instant : `_stage()` continue comme avant, on branchera
+    après. Aucun lien vers `referentiels` non plus tant que la validation ne le pose pas."""
+    __tablename__ = "referentiel_depots"
+    __table_args__ = (
+        UniqueConstraint("token", name="uq_referentiel_depots_token"),
+        Index("ix_referentiel_depots_empreinte", "empreinte"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    # Le jeton uuid4().hex (32 caractères) : identifiant rendu au navigateur ET nom du fichier
+    # en zone d'attente. Unique — c'est par lui qu'on retrouve le document.
+    token: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Empreinte SHA-256 du CONTENU du fichier (64 caractères hexadécimaux) — c'est elle, et jamais
+    # le nom, qui dit si un document est déjà connu : le même PDF téléchargé deux fois porte
+    # souvent deux noms, et deux documents différents portent parfois le même. Indexée : on la
+    # cherche à chaque dépôt. Pas d'unicité : redéposer le même document reste autorisé (on
+    # PRÉVIENT, on ne bloque pas).
+    empreinte: Mapped[str] = mapped_column(String(64), nullable=False)
+    fichier_origine: Mapped[str] = mapped_column(Text, nullable=False)   # le nom donné par l'admin
+    chemin: Mapped[str] = mapped_column(Text, nullable=False)            # emplacement, relatif à la racine
+    taille_ko: Mapped[int] = mapped_column(Integer, nullable=False)
+    pages: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Par où il est entré : 'depot' (fichier) | 'lien'. `url_source` n'est rempli que pour 'lien'.
+    source: Mapped[str] = mapped_column(String(10), nullable=False)
+    url_source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    apercu: Mapped[str | None] = mapped_column(Text, nullable=True)      # 25 premières lignes, page 1
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
 class Referentiel(Base):
     """Référentiel officiel d'un NIVEAU → collection de recherche + filtres de retrieval.
 
@@ -649,6 +694,11 @@ class Referentiel(Base):
     fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Empreinte SHA-256 du PDF retenu pour ce couple — écrite à la validation, même calcul que
+    # `referentiel_depots.empreinte`. Elle permet de reconnaître, AU DÉPÔT, un document déjà
+    # validé quelque part (« ce PDF est déjà le référentiel de BTS · CIEL Option A »). NULL =
+    # référentiel dont le fichier n'était plus lisible au moment du rétro-remplissage.
+    empreinte: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), puis affiché, corrigé et
     # validé par l'admin. DONNÉE MÉTIER EN BASE (aucun prompt écrit en dur dans le code).
     # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
@@ -783,3 +833,49 @@ class ReferentielTypePrecision(Base):
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")
 
+
+
+class ProfBloqueMaj(Base):
+    """Un prof mis en attente pendant la mise à jour du référentiel d'un niveau — et la MÉMOIRE
+    de ce qu'il faudra lui rebrancher ensuite.
+
+    UNE LIGNE PAR PROF ET PAR NIVEAU : le profil d'un prof peut être sur un niveau et son couple
+    de travail sur un autre, les deux peuvent être mis à jour l'un après l'autre. Une ligne par
+    prof aurait fait échouer la seconde mise à jour.
+
+    ELLE SURVIT À LA SUPPRESSION DU RÉFÉRENTIEL — c'est sa raison d'être. Le niveau, lui, ne
+    bouge pas ; le référentiel disparaît et emporte ses matières (CASCADE), donc la mémoire ne
+    peut pas être un identifiant de matière : on garde le NOM. Au déblocage, `matiere_id_du_nom`
+    (resolution_couple.py) le résout dans le NOUVEAU référentiel — la règle maison, déjà écrite.
+
+    TROIS QUESTIONS DIFFÉRENTES SE LISENT ICI, et elles n'ont pas la même réponse :
+      · peut-il générer ?          → une ligne `etat='bloque'` pour (lui, le niveau du couple
+                                     qu'il s'apprête à utiliser) ;
+      · doit-on lui demander de    → une ligne existe pour (lui, le niveau de son PROFIL), quel
+        compléter son profil ?       que soit son état : c'est NOUS qui avons vidé sa matière ;
+      · a-t-il à lire ?            → `etat='a_informer'`, où qu'il travaille.
+
+    La ligne ne meurt pas au déblocage : elle passe à `a_informer` et porte dans `resultat` de
+    quoi composer le second message. Elle n'est effacée que lorsque le prof en a accusé
+    réception — sinon un prof absent ce jour-là ne saurait jamais que sa matière a disparu."""
+    __tablename__ = "profs_bloques_maj"
+    __table_args__ = (
+        UniqueConstraint("user_id", "niveau_id", name="uq_profs_bloques_maj_user_niveau"),
+        Index("ix_profs_bloques_maj_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
+    # La mémoire : les NOMS, seuls rescapés de la suppression. `matiere_nom` = la matière du
+    # PROFIL détachée ; le couple de TRAVAIL n'est mémorisé que s'il visait ce référentiel.
+    matiere_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
+    travail_niveau_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    travail_matiere_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
+    etat: Mapped[str] = mapped_column(String(12), nullable=False, server_default="bloque", default="bloque")
+    # Écrit au déblocage : 'rebranche' (sa matière a été retrouvée par son nom) | 'matiere_disparue'
+    # (le nouveau document ne la nomme plus — on n'invente rien, il rechoisira). NULL tant que bloqué.
+    resultat: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    bloque_le: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    debloque_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
