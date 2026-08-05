@@ -3,7 +3,7 @@ import threading
 import time
 from contextlib import contextmanager
 
-from backend.config import AI_PROVIDER, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT
+from backend.config import AI_PROVIDER, AI_MODEL, AI_MAX_CONCURRENCY, AI_SLOT_TIMEOUT, AITOOLS_PRODUCT_ID
 
 # Le détail technique d'un échec fournisseur (corps de réponse, identifiant de requête) va ICI,
 # jamais à l'écran : l'admin lit une phrase, le journal garde de quoi diagnostiquer.
@@ -65,13 +65,13 @@ def _traduire_echec_fournisseur(statut: int, corps: str, modele: str) -> None:
     if statut == 413:
         raise LLMQuotaCompteError(
             "Le document est trop volumineux pour le palier de votre compte chez ce fournisseur "
-            "d'IA : il refuse une demande de cette taille. Basculez sur l'autre fournisseur dans "
+            "d'IA : il refuse une demande de cette taille. Basculez sur un autre fournisseur dans "
             "Paramètres → Génération, ou relevez le palier de votre abonnement."
         )
     if statut >= 500:   # 500/502/503 = panne, 529 = « overloaded » (saturation Anthropic)
         raise LLMIndisponibleError(
             "Le service d'IA est saturé ou indisponible en ce moment. Ce n'est pas une panne de "
-            "l'application : réessayez dans quelques minutes, ou basculez sur l'autre fournisseur "
+            "l'application : réessayez dans quelques minutes, ou basculez sur un autre fournisseur "
             "dans Paramètres → Génération."
         )
 
@@ -116,6 +116,30 @@ def _retry_wait(retry_after_raw, wait_max: int) -> float:
     except (TypeError, ValueError):
         wait = float(wait_max)
     return max(0.0, min(wait, float(wait_max)))
+
+
+# --- Fournisseurs qui parlent le dialecte OpenAI (chat/completions) -------------------------
+# Groq et Infomaniak AI Tools servent la MÊME API : mêmes champs, même flux SSE, même
+# `response_format` pour la sortie contrainte (vérifié en appelant les deux). Ils partagent donc
+# l'adaptateur `_groq` / `_groq_stream` — seule l'URL les distingue, d'où ce résolveur plutôt
+# qu'une deuxième copie du même code. (Anthropic, lui, a son SDK et ses propres fonctions.)
+_URL_GROQ = "https://api.groq.com/openai/v1/chat/completions"
+
+
+def _url_chat(fournisseur: str) -> str:
+    """URL de chat/completions du fournisseur OpenAI-compatible demandé.
+
+    L'URL d'Infomaniak porte le NUMÉRO DU PRODUIT du compte (config, pas un secret). Sans lui
+    l'adresse serait trouée (« /1/ai//openai/... ») et reviendrait en 404 illisible : on préfère
+    le dire à la source, en une phrase qui nomme la variable à renseigner."""
+    if fournisseur == "infomaniak":
+        if not AITOOLS_PRODUCT_ID:
+            raise RuntimeError(
+                "Numéro de produit Infomaniak absent : la variable « AITOOLS_PRODUCT_ID » n'est "
+                "pas définie dans le .env. Sans elle, l'appel ne sait pas à quelle adresse aller."
+            )
+        return f"https://api.infomaniak.com/1/ai/{AITOOLS_PRODUCT_ID}/openai/chat/completions"
+    return _URL_GROQ
 
 
 def generate(
@@ -165,22 +189,21 @@ def generate(
     RÉARME à chaque morceau reçu, donc il ne borne jamais une génération qui progresse.
     """
     fournisseur = provider or AI_PROVIDER
-    if fournisseur not in ("groq", "anthropic"):
+    if fournisseur not in ("groq", "anthropic", "infomaniak"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     with _llm_slot():
         if appel_long:
             # Le créneau LLM est tenu par ce `with` pendant TOUTE la consommation du flux (le
             # générateur est vidé ici, pas rendu à l'appelant) — pas de créneau relâché en cours de
             # génération, contrairement à `generate_stream` où l'appelant en a la charge.
-            if fournisseur == "groq":
-                morceaux = _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max)
-            else:  # anthropic
+            if fournisseur == "anthropic":
                 morceaux = _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout)
+            else:  # groq / infomaniak : même dialecte OpenAI, seule l'URL change
+                morceaux = _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max, fournisseur=fournisseur)
             return "".join(morceaux)
-        if fournisseur == "groq":
-            return _groq(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, retry_max=retry_max, retry_wait_max=retry_wait_max)
-        else:  # anthropic
+        if fournisseur == "anthropic":
             return _anthropic(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema)
+        return _groq(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, retry_max=retry_max, retry_wait_max=retry_wait_max, fournisseur=fournisseur)
 
 
 def _groq(
@@ -194,11 +217,15 @@ def _groq(
     schema: dict | None = None,
     retry_max: int = 0,
     retry_wait_max: int = 10,
+    fournisseur: str = "groq",
 ) -> str:
+    """Client des fournisseurs à dialecte OpenAI. `fournisseur` ne sert qu'à choisir l'URL et à
+    nommer le fournisseur dans le journal : le corps de requête, lui, est le même pour tous
+    (défaut « groq » = comportement d'avant, les appelants historiques ne changent pas)."""
     import requests
     if not cle:
         raise RuntimeError("Clé API texte manquante (non résolue en base).")
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = _url_chat(fournisseur)
     headers = {
         "Authorization": f"Bearer {cle}",
         "Content-Type": "application/json",
@@ -231,7 +258,7 @@ def _groq(
         # Traduction à la source : 429 / format refusé / service en panne repartent en message
         # d'humain. Le corps brut du fournisseur ne va JAMAIS à l'écran, seulement au journal.
         _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL)
-        log.warning("Groq %s : %s", response.status_code, response.text[:500])
+        log.warning("%s %s : %s", fournisseur, response.status_code, response.text[:500])
         raise RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
                            "signalez-le : le détail technique est dans les journaux du serveur.")
     return response.json()["choices"][0]["message"]["content"]
@@ -399,12 +426,12 @@ def generate_stream(
     `retry_max` / `retry_wait_max` : résilience 429 (réglages admin en base, passés par l'appelant).
     Le retry n'agit qu'à l'OUVERTURE du flux, avant le 1er mot. Anthropic re-tente déjà côté SDK."""
     fournisseur = provider or AI_PROVIDER
-    if fournisseur == "groq":
-        yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max)
-    elif fournisseur == "anthropic":
-        yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout)
-    else:
+    if fournisseur not in ("groq", "anthropic", "infomaniak"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")
+    if fournisseur == "anthropic":
+        yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout)
+    else:  # groq / infomaniak : même dialecte OpenAI, seule l'URL change
+        yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max, fournisseur=fournisseur)
 
 
 def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, json_mode=False, schema=None, read_timeout=30.0):
@@ -443,12 +470,14 @@ def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, json_mode=Fal
         )
 
 
-def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, json_mode=False, schema=None, read_timeout=30.0, retry_max=0, retry_wait_max=10):
+def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, json_mode=False, schema=None, read_timeout=30.0, retry_max=0, retry_wait_max=10, fournisseur="groq"):
+    """Flux des fournisseurs à dialecte OpenAI (Groq, Infomaniak AI Tools). Comme `_groq` :
+    `fournisseur` ne choisit QUE l'URL et le nom au journal, jamais le corps de la requête."""
     import json
     import requests
     if not cle:
         raise RuntimeError("Clé API texte manquante (non résolue en base).")
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = _url_chat(fournisseur)
     headers = {"Authorization": f"Bearer {cle}", "Content-Type": "application/json"}
     body = {
         "model": model or AI_MODEL,
@@ -482,10 +511,10 @@ def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, 
     with response:
         if not response.ok:
             _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL)
-            log.warning("Groq (flux) %s : %s", response.status_code, response.text[:500])
+            log.warning("%s (flux) %s : %s", fournisseur, response.status_code, response.text[:500])
             raise RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
                                "signalez-le : le détail technique est dans les journaux du serveur.")
-        # Groq n'annonce pas de charset sur son flux SSE -> requests retombe sur ISO-8859-1 et
+        # Ces API n'annoncent pas de charset sur leur flux SSE -> requests retombe sur ISO-8859-1 et
         # decode_unicode=True rendrait les accents UTF-8 en mojibake (« é » -> « Ã© »). On force UTF-8.
         response.encoding = "utf-8"
         finish_reason = None

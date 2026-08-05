@@ -66,9 +66,11 @@ DETTE = {
     "backend/contenu/activites.py::academique|operationnel":
         "activites.py:438 — les deux tons de rédaction ; aucune table `tons` (44 tables, "
         "vérifié). Le PROMPT de chaque ton est en base, la LISTE des tons ne l'est pas.",
-    "backend/llm/generator.py::anthropic|groq":
+    "backend/llm/generator.py::anthropic|groq|infomaniak":
         "generator.py:94 — les fournisseurs IA en dur ALORS QUE la table `ai_fournisseurs` "
-        "existe avec sa colonne `code`. La plus nette des cinq.",
+        "existe avec sa colonne `code`. La plus nette des cinq. Passée de deux à trois valeurs "
+        "le 05/08/2026 avec l'arrivée d'infomaniak : la dette n'est pas réglée, elle s'alourdit "
+        "d'un cran — c'est exactement ce que la gestion des fournisseurs en base doit supprimer.",
 
     # --- RÉVÉLÉES LE 01/08/2026 : elles étaient là depuis toujours, le filet ne les VOYAIT pas.
     # Il lisait les fichiers en « utf-8 » ; quatre fichiers du backend portent un BOM, ast.parse
