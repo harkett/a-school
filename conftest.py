@@ -231,6 +231,22 @@ _CATALOGUES_SEED = {
 }
 
 
+# Outils LLM (table `outils_llm`) : semés par MIGRATION en prod, et il n'existe AUCUNE liste dans
+# le code — c'est le sujet même de cette table. Les recopier ici en ferait une deuxième source qui
+# dériverait ; on lit donc CELLE de la migration, par son chemin. Le fichier n'est pas importable
+# par `import` (les révisions alembic ne sont pas un paquet), d'où importlib.
+def _outils_llm_de_la_migration():
+    import importlib.util
+    chemin = _RACINE / "alembic" / "versions" / "b4e8d2a6f1c9_outils_llm.py"
+    spec = importlib.util.spec_from_file_location("_mig_outils_llm", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.OUTILS
+
+
+_OUTILS_LLM = _outils_llm_de_la_migration()
+
+
 def _seed_catalogues():
     with _test_engine.begin() as conn:
         for row in _CATALOGUES_SEED["feedback_statuts"]:
@@ -271,6 +287,14 @@ def _seed_catalogues():
                 text("INSERT INTO settings (key, value) VALUES (:key, :value) "
                      "ON CONFLICT (key) DO NOTHING"),
                 row,
+            )
+        for outil, libelle, ordre, aide in _OUTILS_LLM:
+            conn.execute(
+                text(
+                    "INSERT INTO outils_llm (outil, libelle, aide, ordre) "
+                    "VALUES (:outil, :libelle, :aide, :ordre) ON CONFLICT (outil) DO NOTHING"
+                ),
+                {"outil": outil, "libelle": libelle, "aide": aide, "ordre": ordre},
             )
         for row in _CATALOGUES_SEED["features_votables"]:
             conn.execute(

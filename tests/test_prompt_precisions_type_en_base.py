@@ -125,13 +125,17 @@ def test_max_tokens_est_lu_en_base_et_non_fige(espion, db):
 
 
 def test_sans_surcharge_on_retombe_sur_le_defaut_global(espion, db):
-    """Comportement par defaut apres la correction : aucune surcharge -> defaut global (2048),
-    donc au-dessus des 2000 d'avant. La marge qui motivait le nombre en dur est preservee."""
+    """Comportement par defaut apres la correction : aucune surcharge -> defaut global, donc
+    au-dessus des 2000 d'avant. La marge qui motivait le nombre en dur est preservee. Le defaut
+    n'est pas ecrit ici : il se lit dans SETTING_DEFAULTS, sinon ce test tombe chaque fois que
+    l'admin ou une migration le change — ce qui est arrive le 05/08 (2048 -> 8000)."""
+    from backend.systeme.admin import SETTING_DEFAULTS
+
     _retirer_reglage(f"max_tokens_{CLE}")
 
     amont.suggerer_precisions_type(LABEL, NIVEAU, TEXTE, db=db)
 
-    assert espion["max_tokens"] == 2048
+    assert espion["max_tokens"] == int(SETTING_DEFAULTS["max_tokens_default"])
     assert espion["max_tokens"] >= 2000
 
 

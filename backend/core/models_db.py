@@ -648,6 +648,38 @@ class AiFournisseur(Base):
     cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
 
 
+class OutilLlm(Base):
+    """LES OUTILS DU LOGICIEL QUI APPELLENT L'IA — un par ligne, pour que l'écran admin
+    « Longueur des réponses » les montre TOUS sans qu'on les recopie dans l'écran.
+
+    POURQUOI CETTE TABLE. L'écran ne réglait que 3 outils sur 17, parce que ces 3 clés étaient
+    écrites à la main dans le backend et dans le front. Les 14 autres prenaient le défaut global
+    en silence : l'admin ne pouvait ni les voir ni les changer, et `max_tokens_referentiel_fusion`
+    (12 000, semé par migration d3b7f5c9e1a2) existait en base sans aucun écran pour l'afficher.
+    Taper les 17 dans l'écran n'aurait fait que remplacer 3 valeurs en dur par 17 : le 18e outil
+    serait redevenu invisible. L'écran lit donc CETTE table — une ligne = un champ.
+
+    QUI ÉCRIT ICI. Le développeur, par migration, le jour où il crée un outil qui appelle
+    `get_max_tokens(db, "<outil>")`. JAMAIS l'admin : un outil n'existe que si du code l'utilise,
+    il n'y a donc pas de bouton « Ajouter un outil ». L'admin règle les valeurs, c'est tout.
+    `tests/test_outils_llm_en_base.py` relit le code et tombe si un appel n'a pas sa ligne.
+
+    OÙ EST LA VALEUR. Pas ici : dans `settings`, sous `max_tokens_<outil>`, comme avant — c'est
+    ce que `get_max_tokens` lit, et sa lecture était déjà générique. Cette table ne porte que
+    l'IDENTITÉ de l'outil (nom technique, libellé lisible, phrase d'aide). Pas de ligne
+    `max_tokens_<outil>` = l'outil suit le défaut global : l'absence est le réglage."""
+    __tablename__ = "outils_llm"
+    __table_args__ = (
+        UniqueConstraint("outil", name="uq_outils_llm_outil"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    outil: Mapped[str] = mapped_column(String(50), nullable=False)    # le mot passé à get_max_tokens()
+    libelle: Mapped[str] = mapped_column(String(150), nullable=False)  # affichage admin
+    aide: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+
+
 class ReferentielDocument(Base):
     """UN PDF fourni pour un couple — un MORCEAU du référentiel, pas le référentiel.
 

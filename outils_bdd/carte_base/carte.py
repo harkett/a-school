@@ -125,7 +125,7 @@ DOMAINS = {
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
          "feature_votes", "features_votables", "few_shot_milestones", "tool_usage_logs"]),
     "systeme":  ("Config, e-mail & systeme", "#e11d48", "#ffe4e6", "#881337",
-        ["settings", "ai_fournisseurs", "ai_modeles", "email_templates",
+        ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "email_templates",
          "email_envois", "incidents", "alembic_version"]),
 }
 

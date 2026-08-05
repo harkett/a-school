@@ -15,7 +15,7 @@ from backend.core.cles import secret_obligatoire
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, OutilLlm, RefreshToken, Seance, Sequence, Setting, User, UserSession
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 from backend.core.horloge import maintenant_utc
 
@@ -99,19 +99,10 @@ SETTING_DEFAULTS = {
         "Parlez-en à vos collègues — plus on est nombreux, plus aSchool s'améliore !\n\n"
         "Bonne utilisation,\nL'équipe aSchool"
     ),
-    # max_tokens administrable (Phase 4.1.c) — HYBRIDE : un défaut global + surcharges
-    # par outil seulement là où c'est nécessaire. Lu au runtime via get_max_tokens(db, outil),
-    # jamais figé au boot (rechargeable à chaud, comme ai_model). Valeurs en chaîne (Setting.value).
-    # SEEDING des 2 surcharges = NON NÉGOCIABLE : sans elles, ambiguïtés et séquence
-    # retomberaient au défaut 2048 -> activités tronquées (régression). activité/exemple/consigne
-    # n'ont PAS de clé -> ils résolvent sur le défaut global.
-    # Il y en avait une TROISIÈME, `max_tokens_optimiseur` : l'outil qu'elle réglait a été démoli
-    # le 30/07 et plus aucun `get_max_tokens` ne la demandait. L'écran admin offrait pourtant
-    # toujours le champ — l'admin saisissait une valeur, elle s'enregistrait, elle ne servait à
-    # rien. Retirée du code et de la base le 02/08 (migration b6d1f4a8c2e7).
-    "max_tokens_default": "2048",
-    "max_tokens_ambiguites": "3000",
-    "max_tokens_sequence": "4000",
+    # max_tokens : UN défaut global, et rien d'autre ici. Aucun outil n'est traité à part — une
+    # surcharge `max_tokens_<outil>` n'existe que si l'admin l'a posée depuis l'écran. Lu au
+    # runtime via get_max_tokens(db, outil), rechargeable à chaud comme ai_model.
+    "max_tokens_default": "8000",
     # Température LLM — administrable à chaud (Phase 4.1.d), GLOBALE (un seul réglage pour tous
     # les outils de génération). Défaut = "" (non réglée) -> get_temperature() renvoie None ->
     # generate() n'envoie rien -> le fournisseur applique SON défaut = comportement historique,
@@ -385,6 +376,17 @@ def get_max_tokens(db: Session, outil: str) -> int:
         return int(raw)
     except (TypeError, ValueError):
         return int(s["max_tokens_default"])
+
+
+def get_outils_llm(db: Session):
+    """Les outils du logiciel qui appellent l'IA, LUS EN BASE (table `outils_llm`), dans l'ordre
+    d'affichage. C'est la seule liste : l'écran des longueurs boucle dessus, il n'en connaît aucun
+    par son nom. Un outil de plus = une ligne de plus par migration, écran inchangé.
+
+    Pas de repli code, volontairement : une table vide n'est pas un cas à rattraper en douce mais
+    une migration non appliquée, et l'écran le dit. La lecture des VALEURS, elle, reste tolérante
+    (get_max_tokens ne lève jamais) — une génération ne doit pas tomber pour un problème d'écran."""
+    return db.query(OutilLlm).order_by(OutilLlm.ordre, OutilLlm.outil).all()
 
 
 # Bornes de température (Phase 4.1.d). Plage standard des API compatibles OpenAI/Groq.
@@ -1233,26 +1235,51 @@ def save_ai_provider(body: AiProviderBody, request: Request, db: Session = Depen
 
 
 class MaxTokensBody(BaseModel):
+    """Le défaut global, et les surcharges par outil sous forme de DICTIONNAIRE — pas un champ
+    nommé par outil. C'est tout le sujet : un corps `{default, ambiguites, sequence}` obligeait à
+    toucher le code à chaque outil nouveau, et un champ ôté d'un seul côté faisait tomber
+    l'enregistrement de TOUT le reste (le corps est validé en bloc). Ici les clés sont vérifiées
+    contre la table `outils_llm`, à l'exécution.
+
+    `None` pour un outil = PAS de surcharge : la ligne `max_tokens_<outil>` est SUPPRIMÉE et
+    l'outil repart sur le défaut global. Un outil absent du dictionnaire n'est pas touché."""
     default: int
-    ambiguites: int
-    sequence: int
-    # Le champ `optimiseur` a été retiré le 02/08 EN MÊME TEMPS que l'écran : l'outil qu'il
-    # réglait n'existe plus depuis le 30/07. Retirer d'un seul côté aurait cassé l'enregistrement
-    # de TOUTES les surcharges — le corps est validé en bloc, un champ en trop ou en moins fait
-    # tomber la requête entière.
+    outils: dict[str, int | None] = {}
 
 
 @router.get("/admin/max-tokens")
 def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Valeurs max_tokens courantes (défaut global + 2 surcharges) + bornes — alimente
-    le formulaire admin et sa validation. Miroir de GET /admin/ai-models."""
+    """Le défaut global + TOUS les outils lus en base + les bornes — alimente le formulaire admin
+    et sa validation. L'écran n'en connaît aucun par son nom : il affiche ce que renvoie cette
+    liste, une ligne = un champ.
+
+    Pour chaque outil : `valeur` = sa surcharge (None s'il n'en a pas), `effectif` = ce que le
+    moteur utilisera vraiment. Les deux, parce que l'admin doit voir la valeur qui s'applique sans
+    croire pour autant qu'une surcharge existe."""
     s = get_settings_dict(db)
+    try:
+        defaut = int(s["max_tokens_default"])
+    except (TypeError, ValueError):
+        defaut = int(SETTING_DEFAULTS["max_tokens_default"])
+
+    outils = []
+    for o in get_outils_llm(db):
+        brut = s.get(f"max_tokens_{o.outil}")
+        try:
+            valeur = int(brut) if brut is not None else None
+        except (TypeError, ValueError):
+            valeur = None  # surcharge illisible = comme si elle n'existait pas (cf. get_max_tokens)
+        outils.append({
+            "outil": o.outil,
+            "libelle": o.libelle,
+            "aide": o.aide,
+            "valeur": valeur,
+            "effectif": valeur if valeur is not None else defaut,
+        })
+
     return {
-        "default": int(s["max_tokens_default"]),
-        "overrides": {
-            "ambiguites": int(s["max_tokens_ambiguites"]),
-            "sequence": int(s["max_tokens_sequence"]),
-        },
+        "default": defaut,
+        "outils": outils,
         # `max: None` = AUCUN plafond côté application (l'écran n'en impose donc pas non plus).
         "bounds": {"min": MAX_TOKENS_MIN, "max": None},
     }
@@ -1260,30 +1287,56 @@ def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_re
 
 @router.put("/admin/max-tokens")
 def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Écrit le défaut global + les 2 surcharges. Endpoint DÉDIÉ (PUT /admin/settings email
-    et PUT /admin/ai-model restent intacts). Validation stricte : chaque valeur doit être un
-    entier dans [MIN, MAX], sinon 400 + message humain pour la modale admin, rien n'est écrit."""
-    valeurs = {
-        "max_tokens_default": body.default,
-        "max_tokens_ambiguites": body.ambiguites,
-        "max_tokens_sequence": body.sequence,
-    }
-    # Plus de plafond : seul le plancher est vérifié. Si la valeur dépasse ce que le modèle
-    # accepte, c'est le fournisseur qui refuse — et son refus arrive à l'admin en français.
-    for cle, v in valeurs.items():
+    """Écrit le défaut global et les surcharges par outil. Endpoint DÉDIÉ (PUT /admin/settings
+    email et PUT /admin/ai-model restent intacts).
+
+    Tout est vérifié AVANT d'écrire quoi que ce soit — un 400 laisse la base intacte :
+      - un outil que la table `outils_llm` ne connaît pas est refusé (sinon on sèmerait des clés
+        `max_tokens_<n'importe quoi>` que personne ne lit jamais — c'est l'histoire de
+        `max_tokens_optimiseur`, réglé pendant des jours dans le vide) ;
+      - une valeur sous le plancher est refusée : elle tronquerait les réponses sans prévenir.
+    Pas de plafond : si la valeur dépasse ce que le modèle accepte, c'est le fournisseur qui
+    refuse, et son refus arrive à l'admin en français clair."""
+    connus = {o.outil for o in get_outils_llm(db)}
+    inconnus = sorted(set(body.outils) - connus)
+    if inconnus:
+        raise HTTPException(
+            400,
+            f"Outil inconnu : {', '.join(inconnus)}. Un outil n'existe que si du code l'utilise ; "
+            f"il doit d'abord être ajouté à la table des outils par une migration.",
+        )
+
+    a_verifier = [("le défaut global", body.default)]
+    a_verifier += [(outil, v) for outil, v in body.outils.items() if v is not None]
+    for quoi, v in a_verifier:
         if v < MAX_TOKENS_MIN:
             raise HTTPException(
                 400,
-                f"Valeur trop basse : {v}. Une longueur en dessous de {MAX_TOKENS_MIN} tronquerait "
-                f"les réponses de l'IA sans prévenir.",
+                f"Valeur trop basse pour {quoi} : {v}. Une longueur en dessous de {MAX_TOKENS_MIN} "
+                f"tronquerait les réponses de l'IA sans prévenir.",
             )
-    for cle, v in valeurs.items():
+
+    def _ecrire(cle: str, valeur: int):
         row = db.query(Setting).filter(Setting.key == cle).first()
         if row:
-            row.value = str(v)
+            row.value = str(valeur)
         else:
-            db.add(Setting(key=cle, value=str(v)))
+            db.add(Setting(key=cle, value=str(valeur)))
+
+    _ecrire("max_tokens_default", body.default)
+    retires = []
+    for outil, v in body.outils.items():
+        cle = f"max_tokens_{outil}"
+        if v is None:
+            # Vider un champ SUPPRIME la surcharge — un vrai DELETE, pas une valeur neutre gardée
+            # en base. L'outil repart sur le défaut global, et le changer le suivra de nouveau.
+            if db.query(Setting).filter(Setting.key == cle).delete():
+                retires.append(outil)
+        else:
+            _ecrire(cle, v)
     db.commit()
+
+    surcharges = sorted(f"{o}={v}" for o, v in body.outils.items() if v is not None)
     log_admin_action(
         db=db,
         admin_email=_get_admin_email(request),
@@ -1291,8 +1344,9 @@ def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends
         target_email=None,
         ip=request.client.host if request.client else None,
         details=(
-            f"max_tokens mis à jour — défaut {body.default}, ambiguïtés {body.ambiguites}, "
-            f"séquence {body.sequence}"
+            f"max_tokens mis à jour — défaut {body.default} ; "
+            f"surcharges : {', '.join(surcharges) or 'aucune'} ; "
+            f"retirées : {', '.join(sorted(retires)) or 'aucune'}"
         ),
     )
     return {"status": "ok"}

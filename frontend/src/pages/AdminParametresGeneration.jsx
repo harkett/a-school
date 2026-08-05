@@ -40,12 +40,17 @@ export default function AdminParametresGeneration() {
   const [allProviders, setAllProviders] = useState([]) // [{ name, label, available }]
   const [providersLoaded, setProvidersLoaded] = useState(false) // distingue « en cours » de « vide »
 
-  // max_tokens (Phase 4.1.c) — défaut global + 2 surcharges + bornes.
-  // La surcharge « optimiseur » est partie le 02/08 : l'outil qu'elle réglait a été démoli le
-  // 30/07, le champ restait affiché et enregistrait une valeur que personne ne lisait. Retiré
-  // ICI ET DANS LE CONTRAT D'API en même temps — un champ ôté d'un seul côté fait tomber
-  // l'enregistrement de TOUTES les surcharges, le corps étant validé en bloc.
-  const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '' })
+  // max_tokens — un défaut global, et UN CHAMP PAR OUTIL, la liste des outils venant du serveur
+  // (table `outils_llm`). Cet écran ne connaît AUCUN outil par son nom : il boucle sur ce qu'on
+  // lui envoie. C'était tout le problème — il affichait 3 outils sur 17 parce que ces 3 noms
+  // étaient tapés ici et dans le backend ; les 14 autres prenaient le défaut sans que l'admin
+  // puisse le savoir. Un outil de plus se pose désormais par migration, sans toucher à ce fichier.
+  const [tokenDefault, setTokenDefault] = useState('')
+  const [outils, setOutils] = useState([])            // [{ outil, libelle, aide, valeur, effectif }]
+  const [outilsCharges, setOutilsCharges] = useState(false)  // distingue « en cours » de « vide »
+  // Champ vide = PAS de surcharge : l'outil suit le défaut global. C'est l'absence qui est le
+  // réglage, donc vider un champ SUPPRIME la surcharge côté base (le serveur fait un vrai DELETE).
+  const [surcharges, setSurcharges] = useState({})    // { outil: '' | '4200' }
   // max: null = pas de plafond (valeur d'attente avant la réponse du serveur, qui n'en pose plus).
   const [bounds, setBounds] = useState({ min: 256, max: null })
   const [savingTokens, setSavingTokens] = useState(false)
@@ -84,14 +89,15 @@ export default function AdminParametresGeneration() {
     fetch('/api/admin/max-tokens', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
-        setTokens({
-          default: String(data.default ?? ''),
-          ambiguites: String(data.overrides?.ambiguites ?? ''),
-          sequence: String(data.overrides?.sequence ?? ''),
-        })
+        setTokenDefault(String(data.default ?? ''))
+        const liste = data.outils || []
+        setOutils(liste)
+        // `valeur: null` = aucune surcharge -> champ vide, l'outil suit le défaut global.
+        setSurcharges(Object.fromEntries(liste.map(o => [o.outil, o.valeur == null ? '' : String(o.valeur)])))
         if (data.bounds) setBounds(data.bounds)
       })
       .catch(() => {})
+      .finally(() => setOutilsCharges(true))
 
     fetch('/api/admin/ai-providers', { credentials: 'include' })
       .then(r => r.json())
@@ -174,24 +180,27 @@ export default function AdminParametresGeneration() {
     }
   }
 
-  // Un champ est invalide s'il est vide, non entier, ou sous le plancher. PAS DE PLAFOND :
-  // le serveur n'en impose plus (bounds.max = null), l'écran n'en invente pas un. Si la valeur
-  // dépasse ce que le modèle accepte, c'est le fournisseur qui refuse, avec un message clair.
+  // Le DÉFAUT GLOBAL doit toujours être renseigné : c'est lui qui s'applique partout où l'admin
+  // n'a rien posé. Vide, non entier ou sous le plancher = invalide. PAS DE PLAFOND : le serveur
+  // n'en impose plus (bounds.max = null), l'écran n'en invente pas un. Si la valeur dépasse ce
+  // que le modèle accepte, c'est le fournisseur qui refuse, avec un message clair.
   const champInvalide = v => {
     const n = Number(v)
     return v === '' || !Number.isInteger(n) || n < bounds.min ||
            (bounds.max != null && n > bounds.max)
   }
+  // Un champ d'OUTIL, lui, a le droit d'être vide : vide = pas de surcharge, il suit le défaut.
+  const surchargeInvalide = v => v !== '' && champInvalide(v)
   const tokensInvalides =
-    champInvalide(tokens.default) || champInvalide(tokens.ambiguites) ||
-    champInvalide(tokens.sequence)
+    champInvalide(tokenDefault) || Object.values(surcharges).some(surchargeInvalide)
 
   async function saveMaxTokens() {
     // Garde-fou principal : incohérence -> modale bloquante (jamais avertissement inline),
     // bouton déjà désactivé en plus. Le 400 backend reste un filet.
     if (tokensInvalides) {
       showError(
-        `Chaque valeur doit être un nombre entier d'au moins ${bounds.min}. ` +
+        `Le défaut global doit être un nombre entier d'au moins ${bounds.min}, et chaque outil ` +
+        `doit être soit vide (il suit alors le défaut global), soit un entier d'au moins ${bounds.min}. ` +
         `Corrigez les champs en rouge avant d'enregistrer : une valeur trop basse tronquerait ` +
         `les réponses de l'IA sans prévenir.`
       )
@@ -205,13 +214,23 @@ export default function AdminParametresGeneration() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          default: Number(tokens.default),
-          ambiguites: Number(tokens.ambiguites),
-          sequence: Number(tokens.sequence),
+          default: Number(tokenDefault),
+          // Champ vide -> null : le serveur SUPPRIME la surcharge, l'outil repart sur le défaut.
+          outils: Object.fromEntries(
+            outils.map(o => [o.outil, surcharges[o.outil] === '' || surcharges[o.outil] == null
+              ? null : Number(surcharges[o.outil])])
+          ),
         }),
       }, TIMEOUT_STD)
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setMessageTokens({ type: 'ok', text: 'Réglages enregistrés.' })
+      if (res.ok) {
+        setMessageTokens({ type: 'ok', text: 'Réglages enregistrés.' })
+        // Relecture : les valeurs « appliquées » des outils sans surcharge suivent le défaut
+        // global, qui vient peut-être de changer. Sans ce rappel, l'écran afficherait l'ancien.
+        const frais = await fetch('/api/admin/max-tokens', { credentials: 'include' })
+          .then(r => r.json()).catch(() => null)
+        if (frais?.outils) setOutils(frais.outils)
+      }
       else showError(data.detail || 'Erreur lors de l\'enregistrement des réglages.')
     } catch {
       showError('Erreur réseau — vérifiez que le backend tourne.')
@@ -328,21 +347,37 @@ export default function AdminParametresGeneration() {
     }
   }
 
-  const champTokens = (cle, label, aide) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <input
-        type="number"
-        min={bounds.min}
-        {...(bounds.max != null ? { max: bounds.max } : {})}
-        value={tokens[cle]}
-        onChange={e => setTokens(t => ({ ...t, [cle]: e.target.value }))}
-        className="w-full border rounded px-3 py-2 text-sm"
-        style={{ borderColor: champInvalide(tokens[cle]) ? '#dc2626' : '#d1d5db' }}
-      />
-      <p className="text-xs text-gray-400 mt-1">{aide}</p>
-    </div>
-  )
+  // Un champ = un outil de la liste envoyée par le serveur. Vide = pas de surcharge : l'espace
+  // réservé montre alors la valeur héritée, pour que l'admin voie ce qui s'applique vraiment.
+  const champOutil = o => {
+    const v = surcharges[o.outil] ?? ''
+    const suitLeDefaut = v === ''
+    return (
+      <div key={o.outil}>
+        <label className="block text-xs font-medium text-gray-600 mb-1">
+          {o.libelle}
+          <span className="text-gray-400 font-normal"> — {o.outil}</span>
+        </label>
+        <input
+          type="number"
+          min={bounds.min}
+          {...(bounds.max != null ? { max: bounds.max } : {})}
+          value={v}
+          onChange={e => setSurcharges(s => ({ ...s, [o.outil]: e.target.value }))}
+          placeholder={`Suit le défaut global${tokenDefault ? ` (${tokenDefault})` : ''}`}
+          title={o.aide}
+          className="w-full border rounded px-3 py-2 text-sm"
+          style={{ borderColor: surchargeInvalide(v) ? '#dc2626' : '#d1d5db' }}
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          {o.aide}
+          {suitLeDefaut && o.effectif != null && (
+            <span className="text-gray-500"> {' '}Actuellement : {o.effectif} (défaut global).</span>
+          )}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -472,9 +507,10 @@ export default function AdminParametresGeneration() {
         </div>
       )}
 
-      {/* Onglet Longueur (tokens) — HYBRIDE : 1 défaut global + 3 surcharges (pas 6 champs nus).
-          Le défaut s'applique aux outils sans surcharge (activité, exemple, consigne).
-          Saisie hors bornes -> bord rouge + modale bloquante + bouton désactivé (jamais inline). */}
+      {/* Onglet Longueur (tokens) — UN DÉFAUT GLOBAL + UN CHAMP PAR OUTIL, la liste des outils
+          venant du serveur (table `outils_llm`). Aucun nom d'outil n'est écrit ici : ajouter un
+          outil est une migration, pas une retouche d'écran. Champ vide = pas de surcharge, l'outil
+          suit le défaut. Saisie invalide -> bord rouge + modale bloquante + bouton désactivé. */}
       {onglet === 'tokens' && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
           <p className="text-xs text-gray-500">
@@ -483,12 +519,38 @@ export default function AdminParametresGeneration() {
             Pris en compte immédiatement, sans redémarrage.
           </p>
 
-          {champTokens('default', 'Défaut global',
-            'S\'applique à tous les outils sans réglage propre : création d\'activité, exemple de référentiel, analyse de consigne. (valeur par défaut : 2048)')}
-          {champTokens('ambiguites', 'Surcharge — Détecteur d\'ambiguïtés',
-            'Sortie souvent plus longue : laisser au-dessus du défaut. (valeur par défaut : 3000)')}
-          {champTokens('sequence', 'Surcharge — Générateur de séquences',
-            'Une séquence complète demande davantage de longueur. (valeur par défaut : 4000)')}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Défaut global</label>
+            <input
+              type="number"
+              min={bounds.min}
+              {...(bounds.max != null ? { max: bounds.max } : {})}
+              value={tokenDefault}
+              onChange={e => setTokenDefault(e.target.value)}
+              className="w-full border rounded px-3 py-2 text-sm"
+              style={{ borderColor: champInvalide(tokenDefault) ? '#dc2626' : '#d1d5db' }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              S'applique à tout outil dont le champ ci-dessous est laissé vide.
+            </p>
+          </div>
+
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+            <h3 className="text-xs font-semibold text-gray-700 mb-1">Réglage par outil</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Laisser un champ vide = l'outil suit le défaut global. Y mettre une valeur crée une
+              exception pour lui seul ; vider le champ la supprime.
+            </p>
+            <div className="flex flex-col gap-5">
+              {!outilsCharges && <p className="text-xs text-gray-400">Chargement des outils…</p>}
+              {outilsCharges && outils.length === 0 && (
+                <p className="text-xs" style={{ color: '#dc2626' }}>
+                  Aucun outil en base — vérifiez que les migrations sont appliquées (table outils_llm).
+                </p>
+              )}
+              {outils.map(champOutil)}
+            </div>
+          </div>
 
           <div className="flex flex-col gap-3 pt-1">
             <button
