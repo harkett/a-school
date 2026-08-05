@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/contexteAuth.js'
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
 const isStandalone = window.navigator.standalone === true

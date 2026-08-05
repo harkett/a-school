@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../context/contexteAuth.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDisponibles, niveauDisponible } from '../utils/profil.js'
 import { showError } from '../errorDialog.js'
@@ -24,9 +25,12 @@ function messageNiveauIndisponible(niveau) {
     + `Choisissez un niveau disponible, indiquez votre matière, puis enregistrez.`
 }
 
+const CLE_OUVERTURE = ['profil', 'ouverture']
+
 export default function MonProfil({ onNavigate }) {
   const { user, refreshUser } = useAuth()
-  const [form, setForm] = useState({
+  const queryClient = useQueryClient()
+  const [brouillon, setForm] = useState({
     prenom:    user?.prenom    || '',
     nom:       user?.nom       || '',
     subject:   user?.subject   || '',
@@ -35,22 +39,7 @@ export default function MonProfil({ onNavigate }) {
     mobile:    user?.mobile    || '',
   })
   const [saving, setSaving] = useState(false)
-  const [niveauxParCycle, setNiveauxParCycle]     = useState([])
-  const [matieresParCycle, setMatieresParCycle]   = useState([])   // repli « tout groupé » sans niveau
-  const [matieresParNiveau, setMatieresParNiveau] = useState([])   // scope fin = programme du niveau
-  const [languesLv, setLanguesLv]                 = useState([])   // catalogue des langues, LU EN BASE (/api/programmes)
-  const [refOfficiel, setRefOfficiel] = useState(null)             // { disponible, fichier } — programme officiel du niveau (lecture seule)
-  const [cahier, setCahier] = useState(null)                       // { present, fichier } — cahier des charges déposé par le prof
   const [cahierBusy, setCahierBusy] = useState(false)              // dépôt en cours (sablier sur le bouton)
-  // Lecture d'ouverture ratée (serveur muet, réseau coupé) : une panne ne se déguise JAMAIS en
-  // « aucun programme », « rien déposé » ni en menus vides — c'est l'écran forcé quand le profil
-  // est incomplet, le prof y serait coincé sans explication. Un message, un bouton « Réessayer ».
-  const [chargementRate, setChargementRate] = useState(false)
-
-  // Le formulaire courant, lisible depuis `charger` sans le remettre en dépendance (le bouton
-  // « Réessayer » rejoue la même lecture, avec le profil tel qu'il est à cet instant).
-  const formRef = useRef(form)
-  useEffect(() => { formRef.current = form })
 
   // « Ouvrir le PDF d'origine » : ouvre le fichier déposé par l'admin dans un NOUVEL ONGLET
   // (visionneuse du navigateur), jamais dans l'appli. On ouvre l'onglet TOUT DE SUITE (le geste
@@ -90,7 +79,7 @@ export default function MonProfil({ onNavigate }) {
     // renvoie un tableau) — le défaut même que corrige l'étape 6.
     apiFetch('/api/user/cahier', { method: 'POST', credentials: 'include', body: form }, TIMEOUT_STD)
       .then(lireReponse)
-      .then(d => setCahier(d))
+      .then(d => queryClient.setQueryData(CLE_OUVERTURE, prev => prev && ({ ...prev, cahier: d })))
       .catch(err => showError(`Le dépôt de votre cahier des charges n'a pas abouti.\n\n${messagePourEcran(err)}`))
       .finally(() => setCahierBusy(false))
   }
@@ -115,45 +104,57 @@ export default function MonProfil({ onNavigate }) {
   // l'état du cahier des charges, et les programmes qui remplissent les menus niveau/matière.
   // Chacune garde son sort : ce qui a répondu s'affiche, ce qui a échoué laisse sa carte en
   // « Réessayer » plutôt qu'en fausse absence. Un seul message pour le prof.
-  const charger = useCallback(async () => {
-    setChargementRate(false)
-    const [ref, cah, prog] = await Promise.allSettled([
-      apiFetch('/api/user/referentiel', { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
-      apiFetch('/api/user/cahier',      { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
-      apiFetch('/api/programmes',       { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
-    ])
-
-    if (ref.status === 'fulfilled') setRefOfficiel(ref.value || { disponible: false })
-    if (cah.status === 'fulfilled') setCahier(cah.value || { present: false })
-    if (prog.status === 'fulfilled') {
-      const data      = prog.value || {}
-      const niveaux   = data.niveaux_par_cycle || []
-      const parNiveau = data.matieres_par_niveau || []
-      setNiveauxParCycle(niveaux)
-      setMatieresParCycle(data.matieres_par_cycle || [])
-      setMatieresParNiveau(parNiveau)
-      setLanguesLv(data.langues_lv || [])
-      const { niveau, subject } = formRef.current
-      // Déclencheur 1 (priorité) : niveau du profil hérité devenu INDISPONIBLE (non disponible,
-      // donc caché — ex. Master) → on vide niveau + matière, le prof doit tout re-choisir.
-      if (niveau && !niveauDisponible(niveaux, niveau)) {
-        showError(messageNiveauIndisponible(niveau))
-        setForm(f => ({ ...f, niveau: '', subject: '' }))
-      // Déclencheur 2 : niveau OK mais matière incohérente (ex. Français + un niveau réel).
-      } else if (matiereIncoherente(parNiveau, niveau, subject)) {
-        showError(messageIncoherence('ouverture', niveau, subject))
-        setForm(f => ({ ...f, subject: '' }))
+  const { data: lu, refetch } = useQuery({
+    queryKey: CLE_OUVERTURE,
+    queryFn: async () => {
+      const [ref, cah, prog] = await Promise.allSettled([
+        apiFetch('/api/user/referentiel', { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+        apiFetch('/api/user/cahier',      { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+        apiFetch('/api/programmes',       { credentials: 'include' }, TIMEOUT_STD).then(lireReponse),
+      ])
+      const data = prog.status === 'fulfilled' ? (prog.value || {}) : null
+      return {
+        refOfficiel: ref.status === 'fulfilled' ? (ref.value || { disponible: false }) : null,
+        cahier:      cah.status === 'fulfilled' ? (cah.value || { present: false })    : null,
+        // { disponible, fichier } / { present, fichier } ci-dessus ; les menus ci-dessous.
+        niveauxParCycle:   data?.niveaux_par_cycle    || [],
+        matieresParCycle:  data?.matieres_par_cycle   || [],   // repli « tout groupé » sans niveau
+        matieresParNiveau: data?.matieres_par_niveau  || [],   // scope fin = programme du niveau
+        languesLv:         data?.langues_lv           || [],   // catalogue des langues, LU EN BASE
+        // Une panne ne se déguise JAMAIS en « aucun programme », « rien déposé » ni en menus
+        // vides — c'est l'écran forcé quand le profil est incomplet, le prof y serait coincé
+        // sans explication. Un message, un bouton « Réessayer ».
+        raté: [ref, cah, prog].find(r => r.status === 'rejected')?.reason || null,
       }
-    }
+    },
+  })
+  const refOfficiel       = lu?.refOfficiel ?? null
+  const cahier            = lu?.cahier ?? null
+  const niveauxParCycle   = lu?.niveauxParCycle || []
+  const matieresParCycle  = lu?.matieresParCycle || []
+  const matieresParNiveau = lu?.matieresParNiveau || []
+  const languesLv         = lu?.languesLv || []
+  const chargementRate    = !!lu?.raté
+  const charger = () => refetch()
 
-    const rate = [ref, cah, prog].find(r => r.status === 'rejected')
-    if (rate) {
-      setChargementRate(true)
-      showError(messagePourEcran(rate.reason))
-    }
-  }, [])
+  useEffect(() => { if (lu?.raté) showError(messagePourEcran(lu.raté)) }, [lu?.raté])
 
-  useEffect(() => { charger() }, [charger])
+  // Le profil hérité peut être devenu FAUX pendant que le prof n'était pas là (un référentiel
+  // remplacé, un niveau retiré du programme). Ce n'est pas une correction à écrire dans le
+  // formulaire après coup : le formulaire AFFICHÉ est simplement le brouillon débarrassé de ce
+  // qui n'existe plus. Ce qu'on lui montre est donc toujours choisissable — et enregistrable.
+  const niveauPerimé  = brouillon.niveau && niveauxParCycle.length > 0 && !niveauDisponible(niveauxParCycle, brouillon.niveau)
+  const matierePerimée = !niveauPerimé && matiereIncoherente(matieresParNiveau, brouillon.niveau, brouillon.subject)
+  const form = niveauPerimé  ? { ...brouillon, niveau: '', subject: '' }
+             : matierePerimée ? { ...brouillon, subject: '' }
+             : brouillon
+
+  // …et on le DIT, une fois, au moment où on l'apprend.
+  useEffect(() => {
+    if (niveauPerimé)  showError(messageNiveauIndisponible(brouillon.niveau))
+    else if (matierePerimée) showError(messageIncoherence('ouverture', brouillon.niveau, brouillon.subject))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [niveauPerimé, matierePerimée])
 
   // Matière en cascade sur le NIVEAU choisi (helper pur testé : utils/profil.js).
   // null = pas de niveau / niveau inconnu → on montre tout, groupé par cycle (repli).

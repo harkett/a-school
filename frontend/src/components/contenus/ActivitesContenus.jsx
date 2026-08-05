@@ -6,6 +6,7 @@
 //  - Partager / Supprimer : pas encore d'équivalent côté monde neuf → boutons visibles
 //    mais « bientôt » (réellement inactifs), comme le veut le motif maison.
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
@@ -93,39 +94,31 @@ const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', line
 const PRE_STYLE    = { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }
 
 export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, sessionNiveau }) {
-  const [activites, setActivites] = useState([])
-  const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
-  const [selected, setSelected]         = useState(null)  // id de l'activité affichée dans le panneau de détail (colonne droite)
+  const [choisi, setChoisi]             = useState(null)  // id CLIQUÉ dans la liste (voir `selected`)
   const [apercuHtml, setApercuHtml]     = useState(null)  // aperçu HTML mis en forme (modale) : chaîne = ouvert, null = fermé ; éphémère
   const [profilDialog, setProfilDialog] = useState(null)  // activité hors profil courant → modale "passez sur le profil"
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (demande utilisateur répétée du 30/07 : ce bouton ne se retire JAMAIS de cette page).
   const [detailCache, setDetailCache] = useState(false)
-  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
-  // Une panne ne se déguise jamais en « Aucune activité » (motif de l'Accueil).
-  const [chargementRate, setChargementRate] = useState(false)
   const [aSupprimer, setASupprimer] = useState(null)   // activité en attente de confirmation
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
-  // les lignes « activite » de /api/mes-contenus (jamais l'ancien monde).
-  const chargerActivites = useCallback(async () => {
-    setChargementRate(false)
-    try {
+  // les lignes « activite » de /api/mes-contenus (jamais l'ancien monde). react-query tient la
+  // lecture ; une lecture ratée (serveur muet, réseau coupé) se DIT et propose « Réessayer » —
+  // une panne ne se déguise jamais en « Aucune activité ».
+  const { data: activites = [], isPending: loading, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['mes-contenus', 'activites'],
+    queryFn: async () => {
       const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
       const lignes = (d.contenus || []).filter(c => c.type === 'activite')
       // Même forme de ligne que l'écran d'origine : l'aperçu (quand pas d'objet) vient du texte source.
-      setActivites(lignes.map(c => ({ ...c, apercu: (c.texte_source || '').slice(0, 120), partagee: false })))
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [])
-
-  useEffect(() => {
-    chargerActivites().finally(() => setLoading(false))
-  }, [chargerActivites])
+      return lignes.map(c => ({ ...c, apercu: (c.texte_source || '').slice(0, 120), partagee: false }))
+    },
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const chargerActivites = useCallback(async () => { await refetch() }, [refetch])
 
   // Échap ferme l'aperçu HTML.
   useEffect(() => {
@@ -159,11 +152,9 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
   const visibles = vue === 'courant' ? filtered : sections.flatMap(s => s.items)
 
   // Sélection par défaut + garde-fou : le panneau de détail montre TOUJOURS une activité visible.
-  useEffect(() => {
-    if (loading) return
-    if (visibles.length === 0) { if (selected !== null) setSelected(null); return }
-    if (!visibles.some(a => a.id === selected)) setSelected(visibles[0].id)
-  }, [loading, vue, activites, sessionMatiere, sessionNiveau])   // eslint-disable-line react-hooks/exhaustive-deps
+  // C'est un CALCUL, pas une correction après coup — la ligne cliquée si elle est encore là, la
+  // première sinon. Changer d'onglet ou de profil suffit donc à recaler le détail.
+  const selected = visibles.some(a => a.id === choisi) ? choisi : (visibles[0]?.id ?? null)
 
   const selectedActivite = activites.find(a => a.id === selected) || null
 
@@ -181,7 +172,7 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
       key={a.id}
       onMouseEnter={() => setHovered(a.id)}
       onMouseLeave={() => setHovered(null)}
-      onClick={() => setSelected(a.id)}
+      onClick={() => setChoisi(a.id)}
       title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
       style={{
         borderBottom: last ? 'none' : '1px solid #e5e7eb',

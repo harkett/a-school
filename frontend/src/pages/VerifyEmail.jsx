@@ -1,14 +1,11 @@
-﻿import { useState, useEffect, useRef } from 'react'
+﻿import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
-
-  const [status, setStatus] = useState('loading')
-  const [message, setMessage] = useState('')
-  const called = useRef(false)
 
   const [resendEmail, setResendEmail] = useState('')
   const [resendStatus, setResendStatus] = useState(null) // null | 'sending' | 'sent'
@@ -26,23 +23,25 @@ export default function VerifyEmail() {
     setResendStatus('sent')
   }
 
-  useEffect(() => {
-    if (called.current) return
-    called.current = true
-    if (!token) {
-      setStatus('error')
-      setMessage('Lien de vérification manquant.')
-      return
-    }
-    fetchWithTimeout(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {}, TIMEOUT_AUTH)
-      .then(async r => {
+  // L'activation est UN appel, joué une seule fois : react-query en tient le résultat, et sa
+  // clé porte le jeton — c'est lui qui dit quand c'est un autre lien, pas un drapeau à la main.
+  // Sans jeton, il n'y a rien à demander au serveur : le verdict est immédiat.
+  const { data: verdict = { status: 'loading', message: '' } } = useQuery({
+    queryKey: ['verify-email', token],
+    enabled: !!token,
+    queryFn: async () => {
+      try {
+        const r = await fetchWithTimeout(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {}, TIMEOUT_AUTH)
         let data = {}
-        try { data = await r.json() } catch { /* empty */ }
-        if (r.ok) setStatus('ok')
-        else { setStatus('error'); setMessage(data.detail || 'Lien invalide ou expiré.') }
-      })
-      .catch(() => { setStatus('error'); setMessage('Erreur réseau — réessayez.') })
-  }, [token])
+        try { data = await r.json() } catch { /* corps vide ou illisible : le code HTTP suffit */ }
+        return r.ok ? { status: 'ok', message: '' }
+                    : { status: 'error', message: data.detail || 'Lien invalide ou expiré.' }
+      } catch {
+        return { status: 'error', message: 'Erreur réseau — réessayez.' }
+      }
+    },
+  })
+  const { status, message } = token ? verdict : { status: 'error', message: 'Lien de vérification manquant.' }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>

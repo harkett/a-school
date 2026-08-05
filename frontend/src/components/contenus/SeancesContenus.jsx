@@ -5,6 +5,7 @@
 //  - Partager / Supprimer : pas encore d'équivalent côté monde neuf → boutons visibles
 //    mais « bientôt » (réellement inactifs), comme le veut le motif maison.
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
@@ -43,27 +44,23 @@ const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', line
 const PRE_STYLE    = { whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, color: '#374151', lineHeight: 1.7, margin: 0, fontFamily: 'inherit' }
 
 export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sessionMatiere, sessionNiveau }) {
-  const [seances, setSeances]   = useState([])
-  const [loading, setLoading]   = useState(true)
   const [hovered, setHovered]   = useState(null)
-  const [selected, setSelected]         = useState(null)  // id de la séance affichée dans le panneau de détail (colonne droite)
+  const [choisi, setChoisi]             = useState(null)  // id CLIQUÉ dans la liste (voir `selected`)
   const [apercuHtml, setApercuHtml]     = useState(null)  // aperçu HTML mis en forme (modale) : chaîne = ouvert, null = fermé ; éphémère
   const [profilDialog, setProfilDialog] = useState(null)  // séance hors profil courant → modale "passez sur le profil"
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (demande utilisateur répétée du 30/07 : ce bouton ne se retire JAMAIS de cette page).
   const [detailCache, setDetailCache] = useState(false)
-  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
-  // Une panne ne se déguise jamais en « Aucune séance » (motif de l'Accueil).
-  const [chargementRate, setChargementRate] = useState(false)
   const [aSupprimer, setASupprimer] = useState(null)   // séance en attente de confirmation
-  const [modeLabels, setModeLabels] = useState({})     // code -> libellé, LU EN BASE avec la liste
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement :
-  // les lignes « seance » de /api/mes-contenus (jamais l'ancien monde).
-  const chargerSeances = useCallback(async () => {
-    setChargementRate(false)
-    try {
+  // les lignes « seance » de /api/mes-contenus (jamais l'ancien monde). react-query tient la
+  // lecture ; une lecture ratée (serveur muet, réseau coupé) se DIT et propose « Réessayer » —
+  // une panne ne se déguise jamais en « Aucune séance ».
+  const { data, isPending: loading, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['mes-contenus', 'seances'],
+    queryFn: async () => {
       // Les séances ET le catalogue des modes (pour écrire « Remédiation » plutôt que
       // « remediation » sous le titre) : les deux lectures partagent le même sort.
       const [d, cat] = await Promise.all([
@@ -71,18 +68,17 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
         lireReponse(await apiFetch('/api/contenus/seances/formulaire', { credentials: 'include' }, TIMEOUT_STD)),
       ])
       const lignes = (d.contenus || []).filter(c => c.type === 'seance')
-      // Même forme de ligne que le motif Activités : l'aperçu (quand pas de titre) vient du contexte.
-      setSeances(lignes.map(c => ({ ...c, apercu: (c.contexte || '').slice(0, 120) })))
-      setModeLabels(Object.fromEntries((cat.modes || []).map(m => [m.code, m.label])))
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [])
-
-  useEffect(() => {
-    chargerSeances().finally(() => setLoading(false))
-  }, [chargerSeances])
+      return {
+        // Même forme de ligne que le motif Activités : l'aperçu (quand pas de titre) vient du contexte.
+        seances: lignes.map(c => ({ ...c, apercu: (c.contexte || '').slice(0, 120) })),
+        modeLabels: Object.fromEntries((cat.modes || []).map(m => [m.code, m.label])),   // code -> libellé, LU EN BASE
+      }
+    },
+  })
+  const seances    = data?.seances || []
+  const modeLabels = data?.modeLabels || {}
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const chargerSeances = useCallback(async () => { await refetch() }, [refetch])
 
   // Échap ferme l'aperçu HTML.
   useEffect(() => {
@@ -116,28 +112,27 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
   const visibles = vue === 'courant' ? filtered : sections.flatMap(s => s.items)
 
   // Sélection par défaut + garde-fou : le panneau de détail montre TOUJOURS une séance visible.
-  useEffect(() => {
-    if (loading) return
-    if (visibles.length === 0) { if (selected !== null) setSelected(null); return }
-    if (!visibles.some(s => s.id === selected)) setSelected(visibles[0].id)
-  }, [loading, vue, seances, sessionMatiere, sessionNiveau])   // eslint-disable-line react-hooks/exhaustive-deps
+  // C'est un CALCUL, pas une correction après coup — la ligne cliquée si elle est encore là, la
+  // première sinon. Changer d'onglet ou de profil suffit donc à recaler le détail.
+  const selected = visibles.some(s => s.id === choisi) ? choisi : (visibles[0]?.id ?? null)
 
   const selectedSeance = seances.find(s => s.id === selected) || null
 
   // Activités RATTACHÉES à la séance sélectionnée (lecture seule ici : le rattachement se
   // gère dans l'écran Séance). null = pas encore chargées. Même filet silencieux que la
-  // liste (chargerSeances) : un échec laisse le bloc vide, la sélection suivante relira.
-  const [activitesLiees, setActivitesLiees] = useState(null)
-  useEffect(() => {
-    if (!selected) { setActivitesLiees(null); return }
-    let annule = false
-    setActivitesLiees(null)
-    apiFetch(`/api/contenus/seances/${selected}/activites`, { credentials: 'include' }, TIMEOUT_STD)
-      .then(lireReponse)
-      .then(d => { if (!annule) setActivitesLiees(d.activites || []) })
-      .catch(() => { if (!annule) setActivitesLiees([]) })
-    return () => { annule = true }
-  }, [selected])
+  // liste : un échec laisse le bloc vide, la sélection suivante relira.
+  const { data: activitesLiees = null } = useQuery({
+    queryKey: ['contenus', 'seance', selected, 'activites'],
+    enabled: !!selected,
+    queryFn: async () => {
+      try {
+        const d = await lireReponse(await apiFetch(`/api/contenus/seances/${selected}/activites`, { credentials: 'include' }, TIMEOUT_STD))
+        return d.activites || []
+      } catch {
+        return []
+      }
+    },
+  })
 
   // Sous-ligne descriptive d'une séance (mode · niveau · durée) — équivalent de la ligne
   // « type · niveau · nb questions » du motif Activités.
@@ -157,7 +152,7 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
       key={s.id}
       onMouseEnter={() => setHovered(s.id)}
       onMouseLeave={() => setHovered(null)}
-      onClick={() => setSelected(s.id)}
+      onClick={() => setChoisi(s.id)}
       title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
       style={{
         borderBottom: last ? 'none' : '1px solid #e5e7eb',

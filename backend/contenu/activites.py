@@ -1,11 +1,12 @@
 """GET /api/activites/{matiere} — les types d'activité d'un couple, LUS EN BASE.
 
-Source UNIQUE : le CATALOGUE `types_activite` + la LIAISON `referentiel_types_activite` (le « coché »
-du référentiel). Aucun type en dur, zéro copie.
+Source UNIQUE : `types_activite`, la table des types DU RÉFÉRENTIEL (05/08/2026). Un type
+d'activité appartient au document qui le nomme, comme une matière — il n'y a plus de catalogue
+global ni de liaison N–N. Le prof ne voit que les types RETENUS par l'admin (`validee`).
 
 Résolution du couple : par le NIVEAU (envoyé par le client, même patron qu'`exemple_referentiel`) →
-le référentiel du niveau (matiere_id NULL). Repli : si le couple n'a aucun type coché (ou pas de
-référentiel), on renvoie le type par DÉFAUT du catalogue (`is_default`) — « Activité d'apprentissage ».
+le référentiel du niveau (matiere_id NULL). Repli : si le couple n'a aucun type retenu (ou pas de
+référentiel), on renvoie le LIBELLÉ DE SECOURS en dur — l'écran du prof n'est jamais vide.
 """
 import json
 import logging
@@ -19,7 +20,7 @@ from backend.securite import comptes
 from backend.core.database import get_db
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
-    Activite, Niveau, Referentiel, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision,
+    Activite, Niveau, Referentiel, ActiviteType, ReferentielTypePrecision,
     User,
 )
 from backend.prof.profil import couple_de_travail, matiere_demande_langue, texte_cahier_du_profil
@@ -49,6 +50,17 @@ _USER_PARAMS = {
 # Les trous que le SERVEUR remplit lui-même (api_generate, étape 5). Avec `texte` et
 # `_USER_PARAMS`, c'est la liste COMPLÈTE de ce qu'un prompt de couple a le droit de nommer.
 _PARAMS_SERVEUR = ("niveau", "referentiel")
+
+# LE REPLI de l'écran du prof, quand son niveau n'a aucun type d'activité au programme. C'était
+# une LIGNE du catalogue global (`types_activite.is_default`) ; ce catalogue a disparu le
+# 05/08/2026 — les types appartiennent désormais au référentiel qui les nomme, exactement comme
+# les matières. Le repli n'a donc plus de table où vivre : il devient ce qu'il a toujours été en
+# pratique, un libellé de secours pour que l'écran ne soit jamais vide. Il n'est PAS générable, et
+# ne l'était déjà pas : le type par défaut n'avait de prompt pour aucun couple. `id = 0` ne
+# désigne aucune ligne — c'est ce qui permet à la génération de reconnaître ce cas et de dire à
+# l'enseignant ce qui manque au lieu de répondre « type inconnu ».
+TYPE_DEFAUT_ID = 0
+TYPE_DEFAUT_LABEL = "Activité d'apprentissage"
 
 
 def valider_prompt_couple(modele: str) -> str | None:
@@ -88,11 +100,12 @@ def type_du_couple_verifie(db: Session, niveau: str, activite_type_id: int):
     """LA porte unique de la question « ce type est-il utilisable pour ce couple ? ».
 
     Trois contrôles, dans l'ordre où ils comptent pour le prof :
-      1. le NIVEAU a un référentiel officiel (sans lui, aucun prompt de couple n'existe) ;
-      2. le TYPE existe au catalogue ET y est actif ;
-      3. le type est COCHÉ pour ce référentiel, avec un prompt non vide (`referentiel_types_activite`).
+      1. le NIVEAU a un référentiel officiel (sans lui, aucun type ni prompt n'existe) ;
+      2. le TYPE appartient à CE référentiel, il est actif et RETENU par l'admin (`validee`) —
+         une simple proposition de la détection n'est jamais générable ;
+      3. son prompt n'est pas vide.
 
-    Renvoie (ref_id, type, prompt du couple). Lève un 400 au message écrit pour le prof sinon.
+    Renvoie (ref_id, type, prompt du type). Lève un 400 au message écrit pour le prof sinon.
 
     Écrite une fois, appelée par les DEUX portes : la génération (/api/generate) et l'écriture
     en base (POST/PUT /contenus/activites). Deux copies auraient fini par dire des choses
@@ -102,20 +115,25 @@ def type_du_couple_verifie(db: Session, niveau: str, activite_type_id: int):
     if ref_id is None:
         raise HTTPException(400, "Ce niveau n'a pas encore de référentiel officiel. La génération n'est pas encore possible ici.")
 
+    # Le type est UNE DONNÉE DU RÉFÉRENTIEL (05/08/2026) : plus de catalogue global, plus de
+    # liaison à traverser. Le filtre sur `referentiel_id` EST le contrôle de portée — un id
+    # emprunté à un autre diplôme ne passe pas.
     t = (db.query(ActiviteType)
-           .filter(ActiviteType.id == activite_type_id, ActiviteType.actif.is_(True))
+           .filter(ActiviteType.id == activite_type_id,
+                   ActiviteType.referentiel_id == ref_id,
+                   ActiviteType.actif.is_(True),
+                   ActiviteType.validee.is_(True))
            .first())
     if t is None:
-        raise HTTPException(400, "Type d'activité inconnu.")
+        if activite_type_id == TYPE_DEFAUT_ID:
+            # L'écran affichait le libellé de secours : ce niveau n'a aucun type au programme.
+            raise HTTPException(400, "Ce niveau n'a pas encore de type d'activité au programme. "
+                                     "L'administrateur doit en retenir au moins un.")
+        raise HTTPException(400, "Type d'activité inconnu pour ce niveau.")
 
-    # Le PROMPT du COUPLE × type, LU EN BASE sur la liaison (coché + non vide). Une seule source
-    # par donnée, zéro prompt en dur, zéro repli sur un prompt global : le prompt est propre au couple.
-    lien = (db.query(ReferentielActiviteType)
-              .filter(ReferentielActiviteType.referentiel_id == ref_id,
-                      ReferentielActiviteType.activite_type_id == t.id,
-                      ReferentielActiviteType.actif.is_(True))
-              .first())
-    modele = lien.prompt if (lien and lien.prompt and lien.prompt.strip()) else None
+    # Le PROMPT, LU EN BASE sur la ligne du type. Une seule source par donnée, zéro prompt en dur,
+    # zéro repli sur un prompt global : le prompt est propre au référentiel.
+    modele = t.prompt if (t.prompt and t.prompt.strip()) else None
     if modele is None:
         raise HTTPException(400, "Ce type d'activité n'est pas encore prêt pour ce niveau.")
 
@@ -200,63 +218,45 @@ def _referentiel_du_niveau(db: Session, niveau: str) -> int | None:
 def types_du_couple(db: Session, niveau: str) -> list[dict]:
     """Types d'activité à afficher pour le couple, LUS EN BASE.
 
-    1) types COCHÉS (`liaison.actif`) du référentiel du niveau, joints au catalogue (`actif`) ;
-    2) si vide (pas de référentiel, ou rien de coché) → le type par DÉFAUT du catalogue.
-    Précisions LUES PAR COUPLE (`referentiel_type_precisions`, ordonnées par `ordre`). Les besoins
-    de saisie ne sont plus stockés : ils se déduisent des trous du prompt du couple×type, à l'instant.
-    Renvoie `[{id, label, sous_types:[...], besoins:[...]}]` (ordre liaison puis catalogue)."""
+    1) les types RETENUS (`validee`) et actifs DU référentiel de ce niveau — ils lui appartiennent,
+       comme ses matières ; une proposition de la détection que l'admin n'a pas retenue ne remonte
+       jamais jusqu'au prof ;
+    2) si vide (pas de référentiel, ou rien de retenu) → LE LIBELLÉ DE SECOURS, en dur.
+
+    Précisions et besoins de saisie viennent du type lui-même : les précisions de sa table fille,
+    les besoins des trous de SON prompt (lus à l'instant, jamais stockés).
+    Renvoie `[{id, label, sous_types:[...], besoins:[...]}]`."""
     ref_id = _referentiel_du_niveau(db, niveau)
     lignes = []
     if ref_id is not None:
         lignes = (db.query(ActiviteType)
-                    .join(ReferentielActiviteType,
-                          ReferentielActiviteType.activite_type_id == ActiviteType.id)
-                    .filter(ReferentielActiviteType.referentiel_id == ref_id,
-                            ReferentielActiviteType.actif.is_(True),
-                            ActiviteType.actif.is_(True))
-                    .order_by(ReferentielActiviteType.ordre, ActiviteType.ordre)
+                    .filter(ActiviteType.referentiel_id == ref_id,
+                            ActiviteType.actif.is_(True),
+                            ActiviteType.validee.is_(True))
+                    .order_by(ActiviteType.ordre, ActiviteType.id)
                     .all())
     if not lignes:
-        lignes = (db.query(ActiviteType)
-                    .filter(ActiviteType.is_default.is_(True), ActiviteType.actif.is_(True))
-                    .order_by(ActiviteType.ordre)
-                    .all())
+        # LE REPLI, EN DUR ET ASSUMÉ (05/08/2026). C'était une ligne du catalogue global
+        # (`is_default`) ; le catalogue a disparu avec la bascule des types vers le référentiel.
+        # Il ne perd rien : ce type n'avait de prompt pour aucun couple, donc il n'était DÉJÀ pas
+        # générable — il ne servait qu'à ce que l'écran du prof ne soit jamais vide. `id = 0` ne
+        # désigne aucune ligne : la génération le refuse avec un message qui dit quoi faire.
+        return [{"id": TYPE_DEFAUT_ID, "label": TYPE_DEFAUT_LABEL, "sous_types": [], "besoins": []}]
 
     # Précisions de chaque type, LUES dans leur table fille (une requête, groupée par type).
-    # Ordre des précisions = `ordre`. Zéro JSON, une donnée = une ligne.
-    type_ids = [t.id for t in lignes]
     prec_par_type: dict[int, list[str]] = {}
-    besoins_par_type: dict[int, list[str]] = {}
-    if type_ids:
-        # Précisions PAR COUPLE (table fille de la liaison `referentiel_type_precisions`), comme le
-        # prompt : chaque couple a SES précisions. On passe par les liaisons de CE référentiel — pas
-        # de repli sur une table globale. Sans référentiel (types par défaut) : aucune précision.
-        if ref_id is not None:
-            type_par_lien = {}
-            for tid, lien_id, prompt in (db.query(ReferentielActiviteType.activite_type_id,
-                                                  ReferentielActiviteType.id,
-                                                  ReferentielActiviteType.prompt)
-                                           .filter(ReferentielActiviteType.referentiel_id == ref_id,
-                                                   ReferentielActiviteType.actif.is_(True),
-                                                   ReferentielActiviteType.activite_type_id.in_(type_ids))
-                                           .all()):
-                type_par_lien[lien_id] = tid
-                # Les besoins du type = les trous de SON prompt (lu à l'instant, jamais stocké).
-                besoins_par_type[tid] = _trous_du_prompt(prompt)
-            if type_par_lien:
-                for lien_id, libelle in (db.query(ReferentielTypePrecision.referentiel_activite_type_id,
-                                                  ReferentielTypePrecision.libelle)
-                                           .filter(ReferentielTypePrecision.referentiel_activite_type_id
-                                                   .in_(list(type_par_lien.keys())))
-                                           .order_by(ReferentielTypePrecision.referentiel_activite_type_id,
-                                                     ReferentielTypePrecision.ordre)
-                                           .all()):
-                    prec_par_type.setdefault(type_par_lien[lien_id], []).append(libelle)
+    for tid, libelle in (db.query(ReferentielTypePrecision.type_activite_id,
+                                  ReferentielTypePrecision.libelle)
+                           .filter(ReferentielTypePrecision.type_activite_id.in_([t.id for t in lignes]))
+                           .order_by(ReferentielTypePrecision.type_activite_id,
+                                     ReferentielTypePrecision.ordre)
+                           .all()):
+        prec_par_type.setdefault(tid, []).append(libelle)
 
     return [
         {"id": t.id, "label": t.label,
          "sous_types": prec_par_type.get(t.id, []),
-         "besoins": besoins_par_type.get(t.id, [])}
+         "besoins": _trous_du_prompt(t.prompt)}
         for t in lignes
     ]
 
@@ -336,15 +336,21 @@ def api_proposer_idee(
     (couple de travail du prof) — l'écran ne l'envoie plus (décision du 25/07)."""
     user, _matiere, niveau = _prof_et_couple(db, aschool_access)
 
-    t = (db.query(ActiviteType)
-           .filter(ActiviteType.id == req.activite_type_id, ActiviteType.actif.is_(True))
-           .first())
-    if t is None:
-        raise HTTPException(400, "Type d'activité inconnu.")
-
+    # Le référentiel d'abord : le type lui APPARTIENT désormais, on ne peut donc pas le chercher
+    # avant de savoir dans quel document le chercher. Pas de référentiel → available:false (règle
+    # d'or ci-dessus), et non « type inconnu » : ce n'est pas la faute du prof.
     ref_id = _referentiel_du_niveau(db, niveau)
     if ref_id is None:
         return ProposerIdeeResponse(available=False)
+
+    t = (db.query(ActiviteType)
+           .filter(ActiviteType.id == req.activite_type_id,
+                   ActiviteType.referentiel_id == ref_id,
+                   ActiviteType.actif.is_(True),
+                   ActiviteType.validee.is_(True))
+           .first())
+    if t is None:
+        raise HTTPException(400, "Type d'activité inconnu pour ce niveau.")
 
     ref = (db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
              .filter(Referentiel.id == ref_id).first())
@@ -368,7 +374,8 @@ def api_proposer_idee(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-idee] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -384,8 +391,8 @@ def api_generate(
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    """Génère une activité EN STREAMING à partir du PROMPT du COUPLE × type, LU EN BASE sur la
-    liaison `referentiel_types_activite` (une seule place, zéro copie) — PAS le catalogue global.
+    """Génère une activité EN STREAMING à partir du PROMPT DU TYPE, LU EN BASE sur la ligne du
+    type — qui appartient au référentiel (une seule place, zéro copie).
     Le couple est résolu par le NIVEAU (même patron que `types_du_couple`). Le prompt contient deux
     marqueurs : {texte} (l'idée du prof, elle mène) et {referentiel} (extraits du programme officiel
     du couple, récupérés par RAG sur l'idée du prof). Provider / modèle / max_tokens / température /
@@ -507,6 +514,7 @@ def api_generate(
                 prompt, cle=cle, provider=provider, model=model,
                 max_tokens=max_toks, temperature=temp, read_timeout=silence,
                 retry_max=retry_max, retry_wait_max=retry_wait_max,
+                outil="activite",
             ):
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"

@@ -231,11 +231,11 @@ def test_decoupe_lit_le_texte_en_base():
     assert args[0] == "TEXTE FIGE EN BASE"     # le texte vient de la colonne, pas du PDF
 
 
-def test_ajouter_type_colle_au_couple():
-    """L'ajout d'un type (saisie manuelle) le crée au catalogue (anti-doublon) ET le COLLE au
-    couple dans le même geste : liaison active, source='admin', prompt gabarit posé. Une
-    suggestion IA (suggestion_ia=true) trace 'ia' sur le type et sur la liaison."""
-    from backend.core.models_db import Referentiel, ActiviteType, ReferentielActiviteType
+def test_ajouter_type_le_cree_dans_le_referentiel():
+    """L'ajout MANUEL d'un type le crée DANS le référentiel du couple : origine 'admin', RETENU
+    d'emblée (l'admin n'a pas à se proposer ce qu'il vient d'écrire), prompt gabarit posé.
+    Anti-doublon par libellé DANS ce référentiel. Rien n'est écrit hors de ce document."""
+    from backend.core.models_db import Referentiel, ActiviteType
     cid = _cycle("DC-Typ", 81)
     nid = _niveau(cid, "DC-NivTyp", 81)
     with dbmod.SessionLocal() as db:
@@ -243,93 +243,108 @@ def test_ajouter_type_colle_au_couple():
                            filtres=None, fichier="doc.pdf"))
         db.commit()
     c = admin_client()
-    r = c.post("/api/admin/referentiels/types-activite/catalogue", json={
+    r = c.post("/api/admin/referentiels/types-activite", json={
         "label": "Atelier cuisine", "cycle_id": cid, "niveau": "DC-NivTyp"})
     assert r.status_code == 200, r.text
     assert r.json()["deja_present"] is False
     with dbmod.SessionLocal() as db:
-        t = db.query(ActiviteType).filter(ActiviteType.label == "Atelier cuisine").first()
+        ref = db.query(Referentiel).filter(Referentiel.niveau_id == nid).one()
+        t = (db.query(ActiviteType)
+               .filter(ActiviteType.referentiel_id == ref.id,
+                       ActiviteType.label == "Atelier cuisine").first())
         assert t is not None and t.origine == "admin"
-        l = (db.query(ReferentielActiviteType)
-               .filter(ReferentielActiviteType.activite_type_id == t.id).first())
-        assert l is not None and l.actif is True and l.source == "admin"
-        assert (l.prompt or "").strip()          # gabarit posé : le type est opérationnel
-    r2 = c.post("/api/admin/referentiels/types-activite/catalogue", json={
-        "label": "Mise en situation", "cycle_id": cid, "niveau": "DC-NivTyp", "suggestion_ia": True})
+        assert t.validee is True and t.actif is True
+        assert (t.prompt or "").strip()          # gabarit posé : le type est opérationnel
+    # Deuxieme fois, meme libelle : la ligne existante est renvoyee, jamais un sosie.
+    r2 = c.post("/api/admin/referentiels/types-activite", json={
+        "label": "atelier CUISINE", "cycle_id": cid, "niveau": "DC-NivTyp"})
     assert r2.status_code == 200, r2.text
+    assert r2.json()["deja_present"] is True
     with dbmod.SessionLocal() as db:
-        t2 = db.query(ActiviteType).filter(ActiviteType.label == "Mise en situation").first()
-        l2 = (db.query(ReferentielActiviteType)
-                .filter(ReferentielActiviteType.activite_type_id == t2.id).first())
-        assert t2.origine == "ia" and l2.source == "ia"
+        ref = db.query(Referentiel).filter(Referentiel.niveau_id == nid).one()
+        assert db.query(ActiviteType).filter(ActiviteType.referentiel_id == ref.id).count() == 1
 
 
-def test_detecter_types_coche_par_correspondance_avec_prompt():
-    """La détection (IA mockée) colle TOUT au couple : un libellé qui correspond au catalogue
-    réutilise le type (badge Système·IA à l'écran) ; un libellé inconnu est CRÉÉ au catalogue
-    (origine='ia') dans le même geste. Chaque liaison naît active, source='ia', prompt gabarit posé."""
-    from backend.core.models_db import Referentiel, ActiviteType, ReferentielActiviteType
+def test_detecter_types_propose_dans_le_referentiel():
+    """La détection (IA mockée) écrit les types DANS le référentiel, NON RETENUS : ce sont des
+    propositions, l'admin garde ce qu'il veut. Un type déjà présent est laissé tel quel (jamais
+    de doublon). Chaque ligne naît origine='ia', avec son prompt gabarit."""
+    from backend.core.models_db import Cycle, Referentiel, ActiviteType
     cid = _cycle("DC-Det", 82)
     nid = _niveau(cid, "DC-NivDet", 82)
     with dbmod.SessionLocal() as db:
-        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_det", collection="dc_det",
-                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE DE TRAVAIL"))
-        db.add(ActiviteType(label="Évaluation", ordre=1, actif=True, origine="systeme"))
+        ref = Referentiel(niveau_id=nid, nom_fixe="dc_det", collection="dc_det",
+                          filtres=None, fichier="doc.pdf", texte_epure="TEXTE DE TRAVAIL")
+        db.add(ref); db.flush()
+        # Type DEJA present dans CE referentiel (l'admin l'avait retenu).
+        db.add(ActiviteType(referentiel_id=ref.id, label="Évaluation", ordre=1, actif=True,
+                            validee=True, origine="admin", prompt="P {texte} {referentiel}"))
+        # Le prompt de types du cycle existe : la detection ne le fait pas ecrire par l'IA.
+        db.get(Cycle, cid).prompt_types = "Lis {texte}."
         db.commit()
     with patch("backend.rag.analyse_amont.detecter_types_activite",
-               return_value=["Évaluation", "Type inconnu du catalogue"]):
+               return_value=["Évaluation", "Type que le document nomme"]):
         r = admin_client().post("/api/admin/referentiels/types-activite/detecter", json={
             "cycle_id": cid, "niveau": "DC-NivDet"})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert [x["label"] for x in d["coches_ia"]] == ["Évaluation", "Type inconnu du catalogue"]
-    assert [x["label"] for x in d["crees"]] == ["Type inconnu du catalogue"]   # créé au catalogue
+    assert [x["label"] for x in d["proposes"]] == ["Type que le document nomme"]
+    assert [x["label"] for x in d["deja_presents"]] == ["Évaluation"]
     with dbmod.SessionLocal() as db:
-        nouveau = db.query(ActiviteType).filter(ActiviteType.label == "Type inconnu du catalogue").first()
+        ref = db.query(Referentiel).filter(Referentiel.niveau_id == nid).one()
+        nouveau = (db.query(ActiviteType)
+                     .filter(ActiviteType.referentiel_id == ref.id,
+                             ActiviteType.label == "Type que le document nomme").first())
         assert nouveau is not None and nouveau.origine == "ia" and nouveau.actif is True
-        liens = db.query(ReferentielActiviteType).order_by(ReferentielActiviteType.id).all()
-        assert len(liens) == 2
-        for l in liens:
-            assert l.source == "ia" and l.actif is True and (l.prompt or "").strip()
+        assert nouveau.validee is False, "Un type détecté ne doit jamais être retenu d'office."
+        assert (nouveau.prompt or "").strip()
+        # Le type deja retenu n'a pas bouge.
+        deja = (db.query(ActiviteType)
+                  .filter(ActiviteType.referentiel_id == ref.id,
+                          ActiviteType.label == "Évaluation").one())
+        assert deja.validee is True and deja.origine == "admin"
 
 
-def test_retirer_type_supprime_le_lien_et_la_detection_le_recree():
-    """Modèle SIMPLE : le ✕ SUPPRIME le lien couple×type pour de vrai (ses précisions partent en
-    cascade — plus rien en base, on n'en parle plus). Une détection ultérieure recrée la ligne si
-    l'IA relit le type dans le document (avec prompt gabarit), sans mémoire des retraits passés."""
-    from backend.core.models_db import (Referentiel, ActiviteType, ReferentielActiviteType,
+def test_supprimer_type_efface_vraiment_et_la_detection_le_recree():
+    """Le ✕ SUPPRIME le type du référentiel pour de vrai (ses précisions partent en cascade —
+    plus rien en base, on n'en parle plus). Une détection ultérieure le recrée si l'IA le relit
+    dans le document, sans mémoire des retraits passés — mais en PROPOSITION."""
+    from backend.core.models_db import (Cycle, Referentiel, ActiviteType,
                                         ReferentielTypePrecision)
     cid = _cycle("DC-Rel", 83)
     nid = _niveau(cid, "DC-NivRel", 83)
     with dbmod.SessionLocal() as db:
         ref = Referentiel(niveau_id=nid, nom_fixe="dc_rel", collection="dc_rel",
                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE")
-        t1 = ActiviteType(label="Évaluation", ordre=1, actif=True, origine="systeme")
-        db.add_all([ref, t1]); db.flush()
-        lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t1.id,
-                                       actif=True, source="ia", prompt="P")
-        db.add(lien); db.flush()
-        db.add(ReferentielTypePrecision(referentiel_activite_type_id=lien.id,
+        db.add(ref); db.flush()
+        t1 = ActiviteType(referentiel_id=ref.id, label="Évaluation", ordre=1, actif=True,
+                          validee=True, origine="ia", prompt="P {texte} {referentiel}")
+        db.add(t1); db.flush()
+        db.add(ReferentielTypePrecision(type_activite_id=t1.id,
                                         libelle="évaluation pratique", ordre=0, source="ia"))
+        db.get(Cycle, cid).prompt_types = "Lis {texte}."
         db.commit()
         t1_id = t1.id
+        ref_id = ref.id
     c = admin_client()
-    # RETRAIT (✕) : le lien ET sa précision disparaissent de la base.
-    r = c.put("/api/admin/referentiels/types-activite", json={
-        "cycle_id": cid, "niveau": "DC-NivRel", "activite_type_id": t1_id, "actif": False})
+    # SUPPRESSION (✕) : le type ET sa précision disparaissent de la base.
+    r = c.delete(f"/api/admin/referentiels/types-activite/{t1_id}"
+                 f"?cycle_id={cid}&niveau=DC-NivRel")
     assert r.status_code == 200, r.text
     with dbmod.SessionLocal() as db:
-        assert db.query(ReferentielActiviteType).count() == 0     # supprimé, vraiment
-        assert db.query(ReferentielTypePrecision).count() == 0    # précisions parties en cascade
-    # DÉTECTION relancée : l'IA relit le type → la ligne se RECRÉE, prompt gabarit posé.
+        assert db.query(ActiviteType).filter(
+            ActiviteType.referentiel_id == ref_id).count() == 0     # supprimé, vraiment
+        assert db.query(ReferentielTypePrecision).filter(
+            ReferentielTypePrecision.type_activite_id == t1_id).count() == 0   # cascade
+    # DÉTECTION relancée : l'IA relit le type → la ligne se RECRÉE, en proposition.
     with patch("backend.rag.analyse_amont.detecter_types_activite", return_value=["Évaluation"]):
         r2 = c.post("/api/admin/referentiels/types-activite/detecter", json={
             "cycle_id": cid, "niveau": "DC-NivRel"})
     assert r2.status_code == 200, r2.text
-    assert [x["label"] for x in r2.json()["coches_ia"]] == ["Évaluation"]
+    assert [x["label"] for x in r2.json()["proposes"]] == ["Évaluation"]
     with dbmod.SessionLocal() as db:
-        l = db.query(ReferentielActiviteType).first()
-        assert l is not None and l.actif is True and (l.prompt or "").strip()
+        t = db.query(ActiviteType).filter(ActiviteType.referentiel_id == ref_id).one()
+        assert t.actif is True and t.validee is False and (t.prompt or "").strip()
 
 
 def test_creation_cycle_niveau_relogee():
@@ -494,7 +509,7 @@ def test_page_contenu_arbre_complet():
     ne voit pas — retirée du programme (actif=false) ou seulement proposée (validee=false) — et
     l'id du référentiel, qu'il faut pour y créer une matière."""
     from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere,
-                                        ActiviteType, ReferentielActiviteType, ReferentielTypePrecision)
+                                        ActiviteType, ReferentielTypePrecision)
     cid = _cycle("DC-Cont", 84)
     nid = _niveau(cid, "DC-NivCont", 84)
     nid_vide = _niveau(cid, "DC-NivVide", 85)
@@ -502,18 +517,18 @@ def test_page_contenu_arbre_complet():
         ref = Referentiel(niveau_id=nid, nom_fixe="dc_cont", collection="dc_cont",
                           filtres=None, fichier="doc.pdf", source="education.gouv.fr",
                           texte_epure="TEXTE FIGE", decoupe_valide=True)
-        t1 = ActiviteType(label="DC-Évaluation", ordre=1, actif=True, origine="systeme")
-        db.add_all([ref, t1]); db.flush()
+        db.add(ref); db.flush()
+        t1 = ActiviteType(referentiel_id=ref.id, label="DC-Évaluation", ordre=1, actif=True,
+                          validee=True, origine="ia", prompt="P")
+        db.add(t1); db.flush()
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Cuisine", ordre=1, actif=True, validee=True,
                        demande_langue=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Retiree", ordre=2, actif=False, validee=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Proposee", ordre=3, actif=True, validee=False))
         db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
                                 texte="Unité 1", embedding=[0.0] * 1024, embedding_model="test"))
-        lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t1.id,
-                                       actif=True, source="ia", prompt="P")
-        db.add(lien); db.flush()
-        db.add(ReferentielTypePrecision(referentiel_activite_type_id=lien.id,
+
+        db.add(ReferentielTypePrecision(type_activite_id=t1.id,
                                         libelle="évaluation pratique", ordre=0, source="ia"))
         db.commit()
 
@@ -539,7 +554,7 @@ def test_page_contenu_arbre_complet():
     langue = {m["nom"]: m["demande_langue"] for m in plein["matieres"]}
     assert langue == {"DC-Cuisine": True, "DC-Retiree": False, "DC-Proposee": False}
     assert plein["types"] == [{"id": plein["types"][0]["id"], "label": "DC-Évaluation",
-                               "source": "ia", "origine": "systeme",
+                               "validee": True, "actif": True, "origine": "ia",
                                "precisions": ["évaluation pratique"]}]
 
     vide = par_nom["DC-NivVide"]

@@ -42,12 +42,20 @@ def _couple(nom, ordre, avec_ref=True):
         db.add(cy); db.flush()
         niv = Niveau(cycle_id=cy.id, nom=f"PI-Niv{nom}", ordre=ordre)
         db.add(niv); db.flush()
+        # Sans référentiel, AUCUN type ne peut exister (ils lui appartiennent) : le test du cas
+        # « pas de référentiel » envoie donc un id qui ne désigne rien — exactement ce que
+        # l'écran d'un prof enverrait, puisqu'il n'aurait que le libellé de secours (id 0).
+        t_id = 0
         if avec_ref:
-            db.add(Referentiel(niveau_id=niv.id, nom_fixe=f"pi_{nom.lower()}",
-                               collection=f"pi_{nom.lower()}", filtres=None, fichier="doc.pdf",
-                               texte_epure="TEXTE"))
-        t = ActiviteType(label=f"PI-Manuelle-{nom}", ordre=1, actif=True, origine="systeme")
-        db.add(t); db.flush()
+            ref = Referentiel(niveau_id=niv.id, nom_fixe=f"pi_{nom.lower()}",
+                              collection=f"pi_{nom.lower()}", filtres=None, fichier="doc.pdf",
+                              texte_epure="TEXTE")
+            db.add(ref); db.flush()
+            t = ActiviteType(referentiel_id=ref.id, label=f"PI-Manuelle-{nom}", ordre=1,
+                             actif=True, validee=True, origine="admin",
+                             prompt="P {texte} {referentiel}")
+            db.add(t); db.flush()
+            t_id = t.id
         from _profil import matiere_id, user_couple
         if avec_ref:
             db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
@@ -61,7 +69,7 @@ def _couple(nom, ordre, avec_ref=True):
                         subject_id=matiere_id(db, f"PI-Matiere-{nom}", "PI-NivAilleurs"),
                         niveau_id=niv.id))
         db.commit()
-        return niv.nom, t.id
+        return niv.nom, t_id
 
 
 def test_proposer_idee_nominal_ancre_sur_type_precision_niveau():
@@ -137,4 +145,4 @@ def test_type_inconnu_400_humain():
     _couple("Inconnu", 98)
     r = _client_prof().post("/api/proposer-idee", json={"activite_type_id": 999999})
     assert r.status_code == 400, r.text
-    assert r.json()["detail"] == "Type d'activité inconnu."
+    assert r.json()["detail"] == "Type d'activité inconnu pour ce niveau."

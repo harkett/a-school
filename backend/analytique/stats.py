@@ -2,10 +2,12 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import Integer, func
 
 from backend.core.database import get_db
-from backend.core.models_db import Activite, ConnexionLog, Seance, Sequence, User
+from backend.core.models_db import (
+    Activite, AiModele, ConnexionLog, OutilLlm, Seance, Sequence, UsageLlm, User,
+)
 from backend.securite import comptes
 from backend.systeme.admin import _require_admin, get_minutes_par_activite, get_few_shot_seuil
 from backend.core.horloge import maintenant_utc
@@ -294,4 +296,163 @@ def admin_stats_vitalite(db: Session = Depends(get_db), _=Depends(_require_admin
         "activites_total": activites_total,
         "seances_total": seances_total,
         "sequences_total": sequences_total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# IA › Statistiques — ce que l'IA a consommé, et ce que ça coûte.
+# ---------------------------------------------------------------------------
+
+def _tarifs(db: Session) -> dict:
+    """Grille de prix par modèle, telle qu'elle est EN BASE (`ai_modeles`). Un modèle sans tarif
+    n'est pas une erreur : ses tokens se comptent, son montant reste inconnu — l'écran le dit."""
+    return {
+        m.modele: (
+            float(m.cout_entree_million) if m.cout_entree_million is not None else None,
+            float(m.cout_sortie_million) if m.cout_sortie_million is not None else None,
+        )
+        for m in db.query(AiModele).all()
+    }
+
+
+# Cache de prompt du fournisseur : ce que coûtent ses tokens, en multiple du tarif d'ENTRÉE.
+# Faire garder un préambule se paie un peu plus cher qu'un envoi normal (1,25×) ; le relire ensuite
+# ne coûte qu'un dixième (0,10×). C'est tout l'intérêt de la mécanique, et c'est pourquoi les deux
+# ne peuvent pas être additionnés avant d'être multipliés.
+_CACHE_ECRITURE = 1.25
+_CACHE_LECTURE = 0.10
+
+
+def _cout(tarifs: dict, modele: str, entree: int, sortie: int,
+          cache_ecriture: int = 0, cache_lecture: int = 0):
+    """Montant estimé en dollars, ou None si le modèle n'a pas de tarif renseigné.
+
+    None n'est PAS zéro, et l'écran ne doit pas les confondre : zéro veut dire « n'a rien coûté »,
+    None veut dire « on ne sait pas encore ». Les additionner donnerait un total faussement bas.
+
+    Les tokens de cache s'ajoutent à l'entrée, à leurs propres multiplicateurs. Les oublier ne
+    rendrait pas le total « approximatif » : Anthropic les sort de `input_tokens`, donc un appel
+    servi par le cache paraîtrait presque gratuit alors qu'il a lu un référentiel entier."""
+    entree_prix, sortie_prix = tarifs.get(modele, (None, None))
+    if entree_prix is None and sortie_prix is None:
+        return None
+    prix_entree = entree_prix or 0
+    return round(((entree or 0)
+                  + (cache_ecriture or 0) * _CACHE_ECRITURE
+                  + (cache_lecture or 0) * _CACHE_LECTURE) / 1_000_000 * prix_entree
+                 + (sortie or 0) / 1_000_000 * (sortie_prix or 0), 4)
+
+
+@router.get("/admin/ia/usage")
+def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
+                   db: Session = Depends(get_db), _=Depends(_require_admin)):
+    """Consommation LLM sur les N derniers jours, vue sous les trois angles de l'écran.
+
+    Une seule route pour les trois onglets : les trois regroupent LES MÊMES lignes, et trois
+    requêtes séparées feraient trois fois le même filtre pour des totaux qui doivent rester
+    cohérents entre eux. `jours` borne la fenêtre — sans borne, l'écran ralentirait avec l'âge de
+    l'installation, et personne ne lit « depuis toujours »."""
+    depuis = maintenant_utc() - timedelta(days=jours)
+    tarifs = _tarifs(db)
+
+    somme_entree = func.coalesce(func.sum(UsageLlm.tokens_entree), 0)
+    somme_sortie = func.coalesce(func.sum(UsageLlm.tokens_sortie), 0)
+    # Appels REJOUÉS par le cache disque : comptés à part, pas retirés. Un rejeu n'a rien envoyé et
+    # rien coûté, mais il a bien eu lieu — le soustraire ferait disparaître le travail du cache de
+    # l'écran, alors que c'est précisément ce qu'on veut voir.
+    somme_cache = func.coalesce(func.sum(func.cast(UsageLlm.depuis_cache, Integer)), 0)
+    # Tokens du cache de PROMPT (fournisseur) : comptés à part parce qu'ils se paient à un autre
+    # tarif — et parce qu'Anthropic les sort de `input_tokens`, donc les ignorer sous-estimerait
+    # la facture d'un facteur dix sur les appels qui relisent un référentiel.
+    somme_cache_ecriture = func.coalesce(func.sum(UsageLlm.tokens_cache_ecriture), 0)
+    somme_cache_lecture = func.coalesce(func.sum(UsageLlm.tokens_cache_lecture), 0)
+
+    # Libellés lisibles des outils : « referentiel_fusion » n'est pas un mot d'écran.
+    libelles = {o.outil: o.libelle for o in db.query(OutilLlm).all()}
+
+    def _lignes(colonne, nommer):
+        lignes = []
+        for r in (db.query(colonne.label("cle"), somme_entree.label("entree"),
+                           somme_sortie.label("sortie"),
+                           somme_cache_ecriture.label("cache_ecriture"),
+                           somme_cache_lecture.label("cache_lecture"),
+                           func.count(UsageLlm.id).label("appels"))
+                    .filter(UsageLlm.created_at >= depuis)
+                    .group_by(colonne).all()):
+            # Cache compris, comme dans « par modèle » : les trois onglets doivent donner le même
+            # volume pour les mêmes appels, sinon l'un des trois passe pour cassé.
+            entree = int(r.entree) + int(r.cache_ecriture) + int(r.cache_lecture)
+            sortie = int(r.sortie)
+            lignes.append({
+                "cle": r.cle, "libelle": nommer(r.cle), "appels": r.appels,
+                "tokens_entree": entree, "tokens_sortie": sortie,
+                # Le coût se calcule TOUJOURS par modèle, jamais sur un agrégat multi-modèles :
+                # additionner des tokens de modèles à prix différents puis multiplier donnerait
+                # un montant inventé. D'où le calcul par ligne quand la clé est le modèle, et
+                # l'absence de montant sur les regroupements qui mélangent les modèles.
+                "cout_usd": None,
+            })
+        return sorted(lignes, key=lambda l: l["tokens_entree"] + l["tokens_sortie"], reverse=True)
+
+    # « Par modèle » croise le MODÈLE et L'ORIGINE (l'outil qui a déclenché l'appel). Regroupé sur
+    # le seul modèle, le tableau répondait « claude-sonnet-5 : 210 000 tokens, 0,85 $ » sans dire
+    # QUI avait dépensé — la question que l'admin pose en premier devant un montant. Le croisement
+    # la met sur la même ligne, sans changer d'onglet.
+    #
+    # Le coût reste calculable ligne par ligne : chacune ne porte qu'UN modèle, donc un seul tarif.
+    # Et les totaux du haut ne bougent pas — un découpage plus fin couvre exactement les mêmes
+    # appels ; c'est une partition, pas un filtre.
+    par_modele = []
+    for r in (db.query(UsageLlm.modele.label("modele"), UsageLlm.outil.label("outil"),
+                       somme_entree.label("entree"), somme_sortie.label("sortie"),
+                       somme_cache.label("cache"), somme_cache_ecriture.label("cache_ecriture"),
+                       somme_cache_lecture.label("cache_lecture"),
+                       func.count(UsageLlm.id).label("appels"))
+                .filter(UsageLlm.created_at >= depuis)
+                .group_by(UsageLlm.modele, UsageLlm.outil).all()):
+        entree, sortie = int(r.entree), int(r.sortie)
+        cache_e, cache_l = int(r.cache_ecriture), int(r.cache_lecture)
+        par_modele.append({
+            "cle": r.modele, "libelle": r.modele or "—",
+            # Combien de ces appels ont été rejoués gratuitement (cache disque, dev).
+            "appels_cache": int(r.cache),
+            # Tokens confiés au cache de prompt du fournisseur, et tokens relus depuis lui.
+            "tokens_cache_ecriture": cache_e, "tokens_cache_lecture": cache_l,
+            # `outil` = le mot du code (`outils_llm.outil`) ; `origine` = ce que l'admin lit.
+            # Un appel non nommé garde sa ligne et se dit « Non précisé » : le faire disparaître
+            # amputerait la facture de la dépense qu'on cherche justement à identifier.
+            "outil": r.outil,
+            "origine": libelles.get(r.outil) or r.outil or "Non précisé",
+            # `tokens_entree` = TOUT ce qui est parti chez le fournisseur, cache compris.
+            # Anthropic sort les tokens de cache de son `input_tokens` : les laisser dehors ferait
+            # afficher « 42 tokens envoyés » pour un appel qui vient de lire 7 800 tokens de
+            # référentiel. L'écran dirait vrai sur la facture et faux sur le volume.
+            "appels": r.appels, "tokens_entree": entree + cache_e + cache_l,
+            "tokens_sortie": sortie,
+            "cout_usd": _cout(tarifs, r.modele, entree, sortie, cache_e, cache_l),
+        })
+    par_modele.sort(key=lambda l: l["tokens_entree"] + l["tokens_sortie"], reverse=True)
+
+    par_outil = _lignes(UsageLlm.outil, lambda c: libelles.get(c) or c or "Non précisé")
+    par_jour = _lignes(func.date(UsageLlm.created_at), lambda c: str(c))
+    par_jour.sort(key=lambda l: str(l["cle"]))
+
+    # Total : la somme des seuls modèles TARIFÉS. `cout_partiel` prévient l'écran qu'une part de la
+    # consommation n'est pas chiffrée — un total muet sur ce point se lirait comme une facture.
+    total_cout = sum(l["cout_usd"] for l in par_modele if l["cout_usd"] is not None)
+    return {
+        "jours": jours,
+        "appels": sum(l["appels"] for l in par_modele),
+        # Sur ces appels, ceux que le cache disque a rejoués sans rien envoyer ni payer.
+        "appels_cache": sum(l["appels_cache"] for l in par_modele),
+        # Et, chez le fournisseur, ce qui a été confié au cache de prompt puis relu à 10 %.
+        "tokens_cache_ecriture": sum(l["tokens_cache_ecriture"] for l in par_modele),
+        "tokens_cache_lecture": sum(l["tokens_cache_lecture"] for l in par_modele),
+        "tokens_entree": sum(l["tokens_entree"] for l in par_modele),
+        "tokens_sortie": sum(l["tokens_sortie"] for l in par_modele),
+        "cout_usd": round(total_cout, 4),
+        "cout_partiel": any(l["cout_usd"] is None for l in par_modele),
+        "par_modele": par_modele,
+        "par_outil": par_outil,
+        "par_jour": par_jour,
     }

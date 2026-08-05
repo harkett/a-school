@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 
@@ -56,31 +57,30 @@ const ICONE_DEFAUT = (
   </svg>
 )
 
+const CLE_VOTES = ['feature-votes']
+
 export default function BientotDisponible() {
   const [idee, setIdee] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [erreur, setErreur] = useState(false)
-  const [features, setFeatures] = useState(null)      // null = chargement en cours
-  const [chargementRate, setChargementRate] = useState(false)
-  const [mesVotes, setMesVotes] = useState([])
   const [voteEnCours, setVoteEnCours] = useState(null) // key du vote qui attend le serveur
+  const queryClient = useQueryClient()
 
-  async function charger() {
-    setFeatures(null)
-    setChargementRate(false)
-    try {
+  // Les cartes votables ET les votes du prof arrivent du même get : une seule lecture, tenue
+  // par react-query. `features` à null = chargement en cours (l'écran le dit).
+  const { data, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: CLE_VOTES,
+    queryFn: async () => {
       const r = await fetchWithTimeout('/api/feature-votes', { credentials: 'include' }, TIMEOUT_STD)
       const d = await lireReponse(r)
-      setFeatures(d.features)
-      setMesVotes(d.mes_votes)
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }
-
-  useEffect(() => { charger() }, [])
+      return { features: d.features, mesVotes: d.mes_votes }
+    },
+  })
+  const features = data?.features ?? null
+  const mesVotes = data?.mesVotes ?? []
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = () => refetch()
 
   // Pas de compteur monté en avance : le clic envoie, la RÉPONSE du serveur fait foi.
   // Vote refusé = boîte de dialogue, l'écran ne bouge pas.
@@ -95,8 +95,11 @@ export default function BientotDisponible() {
         body: JSON.stringify({ feature_key }),
       })
       const d = await lireReponse(r)
-      setFeatures(prev => prev.map(f => f.key === feature_key ? { ...f, count: d.count } : f))
-      setMesVotes(prev => d.voted ? [...new Set([...prev, feature_key])] : prev.filter(k => k !== feature_key))
+      // La RÉPONSE du serveur fait foi : on la range là où la lecture est gardée, sans relire.
+      queryClient.setQueryData(CLE_VOTES, prev => prev && ({
+        features: prev.features.map(f => f.key === feature_key ? { ...f, count: d.count } : f),
+        mesVotes: d.voted ? [...new Set([...prev.mesVotes, feature_key])] : prev.mesVotes.filter(k => k !== feature_key),
+      }))
     } catch (e) {
       showError(messagePourEcran(e))
     } finally {

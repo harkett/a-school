@@ -351,10 +351,11 @@ Règles :
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
 
-PROMPT_DECOUPE_AMONT = """Tu reçois le TEXTE BRUT d'un référentiel officiel, extrait d'un PDF. Tu ne connais rien de ce document à l'avance : tu le comprends en le lisant.
+PROMPT_DECOUPE_AMONT = """{texte}
 
-Texte brut :
-{texte}
+---
+
+Ci-dessus, le TEXTE BRUT d'un référentiel officiel, extrait d'un PDF. Tu ne connais rien de ce document à l'avance : tu le comprends en le lisant.
 
 Ta mission : DÉCOUPER ce document et ne garder QUE ses vraies UNITÉS DE CONTENU. Une unité de contenu = un élément concret, décrit pour lui-même avec sa propre description, que l'utilisateur exploitera directement (par exemple une activité, une fiche, une compétence…) — tu déduis leur nature en lisant, on ne te souffle aucun critère.
 
@@ -403,7 +404,7 @@ Ta mission : REDIGER un PROMPT de decoupe sur mesure pour CE document precis. Ce
 Le prompt que tu rediges DOIT :
 - etre adapte a la structure reelle de CE document : nomme les reperes concrets que tu observes (comment une vraie unite de contenu se presente ici ; ce qui n'est que du texte d'entourage) ;
 - demander, pour chaque unite retenue, UNIQUEMENT sa ligne de titre recopiee exactement telle qu'elle apparait dans le texte ;
-- contenir le marqueur {texte} a l'endroit ou le texte brut du document sera insere ;
+- COMMENCER par le marqueur {texte}, en toute PREMIÈRE position : le texte du document doit être le tout début du prompt, avant la moindre consigne. Aucune phrase, aucun titre, aucun mot ne doit le précéder — les consignes viennent APRÈS lui, séparées par une ligne « --- ». Rédige-les en désignant le document comme étant « ci-dessus » ;
 - imposer une sortie JSON stricte : {"unites":[{"titre":"..."}]} et rien d'autre autour.
 
 Reponds UNIQUEMENT par le texte du prompt de decoupe, sans aucun commentaire autour."""
@@ -433,13 +434,42 @@ Le prompt que tu rédiges DOIT :
 - écarter ce qui ne concerne pas le référentiel visé : autre option du même diplôme, autre niveau, tableaux de correspondance avec un ancien programme ;
 - demander le nom de chaque matière TEL QU'IL APPARAÎT dans le document (orthographe, majuscules, accents), sans le normaliser ni le reformuler ;
 - demander une relecture avant de répondre : toute ligne de l'endroit repéré a-t-elle été reprise ?
-- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré ;
+- COMMENCER par le marqueur {texte}, en toute PREMIÈRE position : le texte du document doit être le tout début du prompt, avant la moindre consigne. Aucune phrase, aucun titre, aucun mot ne doit le précéder — les consignes viennent APRÈS lui, séparées par une ligne « --- ». Rédige-les en désignant le document comme étant « ci-dessus » ;
 - imposer une sortie JSON stricte : {"matieres":["...","..."]} et rien d'autre autour.
 
 Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
 
 
-PROMPT_VERIF_DECOUPE = """Tu es un relecteur exigeant. On te donne un PROMPT DE DÉCOUPE destiné à découper un référentiel en unités. Vérifie qu'il respecte STRICTEMENT ce contrat :
+# Méta-prompt des TYPES D'ACTIVITÉ — le troisième du même geste (découpe, matières, types). La
+# DONNÉE (le type) appartient au référentiel qui la nomme ; la RECETTE (le prompt qui la lit)
+# appartient au CYCLE, parce qu'une famille de documents bâtis pareil se lit avec la même recette.
+# Il ne nomme AUCUN type : il fait écrire, par l'IA, le prompt qui les cherchera.
+PROMPT_META_TYPES = """Tu prépares la lecture des TYPES D'ACTIVITÉ d'un référentiel officiel pour un logiciel pédagogique.
+
+Un type d'activité est un FORMAT de travail que le document met en œuvre (atelier, mise en situation, travaux pratiques, projet, évaluation…), pas une matière ni une compétence.
+
+On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
+---
+{document}
+---
+
+Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille, en sortira la liste COMPLÈTE des types d'activité qu'il met en œuvre. Tu ne nommes aucun type toi-même.
+
+Observe d'abord CE document : où ses formats de travail apparaissent-ils ? Des modalités décrites dans les unités, un tableau d'activités professionnelles, des verbes de mise en œuvre répétés, une partie « démarche pédagogique » — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
+
+Le prompt que tu rédiges DOIT :
+- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais un type précis en exemple, ni un intitulé propre à ce document) ;
+- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
+- s'en tenir aux formats RÉELLEMENT mis en œuvre par le document, sans compléter par ce qui se pratique ailleurs dans l'enseignement ;
+- demander des libellés COURTS et lisibles (le nom du format, pas une phrase), avec les mots du document ;
+- écarter ce qui n'est pas un format de travail : matières, compétences, savoirs, blocs de certification ;
+- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré ;
+- imposer une sortie JSON stricte : {"types":["...","..."]} et rien d'autre autour.
+
+Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
+
+
+PROMPT_VERIF_DECOUPE ="""Tu es un relecteur exigeant. On te donne un PROMPT DE DÉCOUPE destiné à découper un référentiel en unités. Vérifie qu'il respecte STRICTEMENT ce contrat :
 
 1. TITRES VERBATIM (priorité absolue) : le prompt doit exiger que chaque unité renvoie sa LIGNE DE TITRE EXACTEMENT telle qu'elle apparaît dans le document, mot pour mot, jamais reformulée ni résumée. C'est vital : le code retrouve ensuite chaque titre dans le texte réel pour trancher ; un titre paraphrasé fait perdre la frontière.
 2. FORMAT JSON EXACT : le prompt doit imposer la sortie {"unites":[{"titre":"..."}]} — une clé "unites" contenant une liste d'objets à clé "titre", et rien d'autre.
@@ -465,14 +495,15 @@ Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activi
 
 Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."""
 
-PROMPT_VERIFIER_COUPLE = """Tu vérifies qu'un document officiel correspond bien au couple (cycle + niveau) déclaré.
+PROMPT_VERIFIER_COUPLE = """{texte}
+
+---
+
+Ci-dessus, le texte d'un document officiel. Tu vérifies qu'il correspond bien au couple (cycle + niveau) déclaré.
 
 Couple déclaré par l'administrateur :
 - Cycle : {cycle}
 - Niveau : {niveau}
-
-Texte du document :
-{texte}
 
 Ta tâche :
 - Lis à quel cycle et à quel niveau ce document s'adresse réellement.
@@ -511,10 +542,11 @@ Forme attendue :
 Réponds uniquement par ce texte."""
 
 
-PROMPT_DETECTER_MATIERES = """Tu lis un référentiel officiel et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
+PROMPT_DETECTER_MATIERES = """{texte}
 
-Texte du référentiel :
-{texte}
+---
+
+Ci-dessus, le texte d'un référentiel officiel. Tu le lis et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
 
 Ta tâche :
 - Repère les matières, disciplines ou domaines d'apprentissage que ce référentiel organise (ses grands champs).
@@ -537,31 +569,35 @@ Réponds UNIQUEMENT en JSON, avec exactement cette clé : matieres (un tableau d
 # Repris ICI MOT POUR MOT, retours à la ligne compris : la seule différence est que les valeurs
 # interpolées deviennent des repères. On ne profite pas d'un déménagement pour réécrire un texte
 # qui marche — sinon un changement de comportement voyage sous couvert de rangement.
-PROMPT_SUGGERER_PRECISIONS_TYPE = """Tu es un concepteur pédagogique.
+PROMPT_SUGGERER_PRECISIONS_TYPE = """{texte}
+
+---
+
+Ci-dessus, le référentiel officiel sur lequel t'appuyer pour rester dans le programme.
+
+Tu es un concepteur pédagogique.
 Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propose 3 à 6 PRÉCISIONS : des déclinaisons concrètes de ce type, réellement adaptées à ce niveau (ni trop enfantines, ni trop avancées).
-Appuie-toi sur le référentiel officiel ci-dessous pour rester dans le programme :
-{texte}
 
 Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."""
 
 
-PROMPT_DETECTER_TYPES_ACTIVITE = """Tu lis un référentiel officiel et tu en dégages la liste des TYPES D'ACTIVITÉ (formats ou modalités d'activité pédagogique) qu'il met en œuvre à ce niveau.
+# {types_existants} RETIRÉ (05/08/2026) : il n'y a plus de catalogue commun auquel ramener le
+# document. Chaque référentiel possède SES types d'activité, nommés comme LUI les nomme — même
+# geste que `detecter_matieres`. L'IA ne reçoit donc que le texte.
+PROMPT_DETECTER_TYPES_ACTIVITE = """{texte}
 
-Types d'activité déjà connus de l'application :
-{types_existants}
+---
 
-Texte du référentiel :
-{texte}
+Ci-dessus, le texte d'un référentiel officiel. Tu le lis et tu en dégages la liste des TYPES D'ACTIVITÉ (formats ou modalités d'activité pédagogique) qu'il met en œuvre à ce niveau.
 
 Ta tâche :
 - Repère les types d'activité, formats ou modalités de travail que ce référentiel met réellement en œuvre (par exemple : atelier, mise en situation, travaux pratiques, projet, évaluation — selon ce qui apparaît réellement).
-- Fais CORRESPONDRE ce que tu lis avec les types déjà connus :
-  - Si ce que tu lis correspond à un type déjà connu, reprends EXACTEMENT le libellé de la liste (même orthographe, mêmes majuscules), pas la formulation du document.
-  - Si ce que tu lis ne correspond à aucun type connu, donne son nom tel qu'il ressort du document, court et lisible (le nom du type, pas une phrase).
+- Donne le nom de chaque type TEL QU'IL RESSORT DU DOCUMENT : ses mots, son orthographe. Ce document met en œuvre SES formats de travail ; il n'existe aucune liste extérieure à laquelle les ramener, et aucun libellé à normaliser.
+- Garde des libellés courts et lisibles : le nom du type, pas une phrase ni un intitulé de chapitre.
 
 Règle :
 - "types" : la liste des libellés de types d'activité, sans doublon.
-- N'invente aucun type absent du document : la liste des types connus sert à faire correspondre, jamais à ajouter un type que le document ne met pas en œuvre. Si aucun n'apparaît clairement, renvoie une liste vide.
+- N'invente aucun type absent du document. Si aucun n'apparaît clairement, renvoie une liste vide.
 
 Réponds UNIQUEMENT en JSON, avec exactement cette clé : types (un tableau de chaînes)."""
 
@@ -658,13 +694,14 @@ Contraintes : reste dans le périmètre du référentiel ; ne rédige PAS l'acti
 PROMPT_ENTETE_CAHIER = """Cahier des charges de l'établissement (à respecter par-dessus le programme officiel) :"""
 
 
-PROMPT_DETECTER_COUPLE = """Tu lis le début d'un référentiel officiel et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
+PROMPT_DETECTER_COUPLE = """{texte}
+
+---
+
+Ci-dessus, le début d'un référentiel officiel. Tu le lis et tu identifies à quel CYCLE et à quel NIVEAU (diplôme, spécialité ou tranche d'âge) il s'adresse.
 
 Cycles et niveaux déjà connus de l'application (un cycle par ligne, suivi de ses niveaux) :
 {cycles_existants}
-
-Texte du document :
-{texte}
 
 Ta tâche :
 - Lis à quel cycle et à quel niveau ce document s'adresse réellement.
@@ -845,6 +882,15 @@ PROMPTS = {
         "mode": "replace",
         "default": PROMPT_META_MATIERES,
     },
+    "meta_types": {
+        "label": "Types d'activité — méta-prompt : l'IA RÉDIGE le prompt qui lira les types du cycle",
+        "placeholders": ["document"],
+        "categorie": "admin",
+        # replace, pour la même raison que meta_matieres : le prompt rédigé porte {texte} et un
+        # exemple JSON à accolades, que `.format()` consommerait.
+        "mode": "replace",
+        "default": PROMPT_META_TYPES,
+    },
     "verif_decoupe": {
         "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
         "placeholders": ["prompt"],
@@ -886,8 +932,11 @@ PROMPTS = {
         "default": PROMPT_DETECTER_MATIERES,
     },
     "detecter_types_activite": {
-        "label": "Détection des types d'activité proposés à partir du référentiel (chunks du couple)",
-        "placeholders": ["types_existants", "texte"],
+        "label": "Détection des types d'activité proposés à partir du référentiel (au dépôt du PDF)",
+        # {types_existants} RETIRÉ : plus de catalogue commun auquel comparer le document. Chaque
+        # référentiel nomme SES types — l'IA ne reçoit donc que le texte. Ce prompt est le REPLI
+        # GÉNÉRAL : dès que le cycle a le sien (`cycles.prompt_types`), c'est celui-là qui lit.
+        "placeholders": ["texte"],
         "categorie": "admin",
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
     },

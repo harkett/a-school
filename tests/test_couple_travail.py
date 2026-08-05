@@ -42,7 +42,7 @@ def _programme():
     génération suit le TRAVAIL). « CT-Fr » existe DEUX fois — une par référentiel : c'est le
     cœur du modèle, deux matières distinctes qui portent le même nom. Renvoie (type_id_5e)."""
     from backend.core.models_db import (Cycle, Niveau, Matiere, User,
-                                        Referentiel, ActiviteType, ReferentielActiviteType)
+                                        Referentiel, ActiviteType)
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom="CT-College", ordre=80)
         db.add(cy); db.flush()
@@ -60,11 +60,10 @@ def _programme():
         db.add_all([mfr6, mfr5, mhg5]); db.flush()
         db.add(User(email=EMAIL, password_hash="x", is_verified=True,
                     subject_id=mfr6.id, niveau_id=n6.id))
-        t = ActiviteType(label="CT-Type", ordre=1, actif=True, origine="systeme")
+        t = ActiviteType(referentiel_id=ref5.id, label="CT-Type", ordre=1, actif=True,
+                         validee=True, origine="admin",
+                         prompt="Texte : {texte}\nNiveau {niveau}.\n{referentiel}")
         db.add(t); db.flush()
-        db.add(ReferentielActiviteType(referentiel_id=ref5.id, activite_type_id=t.id,
-                                       actif=True, source="admin", ordre=1,
-                                       prompt="Texte : {texte}\nNiveau {niveau}.\n{referentiel}"))
         db.commit()
         return t.id
 

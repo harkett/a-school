@@ -95,11 +95,11 @@ def test_type_inconnu_refuse_et_rien_ecrit():
     avant = _nb_activites()
     r = _client().post("/api/contenus/activites", json=_corps(999999))
     assert r.status_code == 400
-    assert r.json()["detail"] == "Type d'activité inconnu."   # le message de la génération
+    assert r.json()["detail"] == "Type d'activité inconnu pour ce niveau."   # le message de la génération
     assert _nb_activites() == avant
 
 
-def test_type_desactive_au_catalogue_refuse():
+def test_type_desactive_refuse():
     from backend.core.models_db import ActiviteType
     tid = _prof_et_type(label="Type à désactiver")
     with dbmod.SessionLocal() as db:
@@ -108,26 +108,38 @@ def test_type_desactive_au_catalogue_refuse():
     avant = _nb_activites()
     r = _client().post("/api/contenus/activites", json=_corps(tid))
     assert r.status_code == 400
-    assert r.json()["detail"] == "Type d'activité inconnu."
+    assert r.json()["detail"] == "Type d'activité inconnu pour ce niveau."
     assert _nb_activites() == avant
 
 
-def test_type_non_coche_pour_le_couple_refuse():
-    """Le type existe et est actif, mais il n'est pas coché pour le référentiel du niveau :
-    c'est exactement ce que la génération refuse déjà."""
-    from backend.core.models_db import ActiviteType, ReferentielActiviteType
-    _prof_et_type()
+def test_type_seulement_propose_refuse():
+    """Le type appartient bien au référentiel du niveau, mais l'admin ne l'a PAS retenu : c'est
+    une proposition de la détection. Elle ne doit pas pouvoir servir — sinon la règle « l'IA
+    propose, l'admin retient » ne tiendrait qu'à l'affichage."""
+    from backend.core.models_db import ActiviteType
+    tid = _prof_et_type(label="Type seulement proposé")
     with dbmod.SessionLocal() as db:
-        orphelin = ActiviteType(label="Type non coché", ordre=9, actif=True, origine="systeme")
-        db.add(orphelin)
+        db.query(ActiviteType).filter(ActiviteType.id == tid).one().validee = False
         db.commit()
-        tid = orphelin.id
-        assert db.query(ReferentielActiviteType).filter(
-            ReferentielActiviteType.activite_type_id == tid).count() == 0
     avant = _nb_activites()
     r = _client().post("/api/contenus/activites", json=_corps(tid))
     assert r.status_code == 400
-    assert r.json()["detail"] == "Ce type d'activité n'est pas encore prêt pour ce niveau."
+    assert r.json()["detail"] == "Type d'activité inconnu pour ce niveau."
+    assert _nb_activites() == avant
+
+
+def test_type_d_un_autre_referentiel_refuse():
+    """La garde de PORTÉE : un id de type emprunté à un AUTRE référentiel ne donne pas accès au
+    niveau du prof. C'est le filtre `referentiel_id` de `type_du_couple_verifie`."""
+    from _profil import type_pret
+    _prof_et_type()
+    with dbmod.SessionLocal() as db:
+        tid_ailleurs = type_pret(db, "EAC-Autre-Niveau", label="Type d'ailleurs")
+        db.commit()
+    avant = _nb_activites()
+    r = _client().post("/api/contenus/activites", json=_corps(tid_ailleurs))
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Type d'activité inconnu pour ce niveau."
     assert _nb_activites() == avant
 
 

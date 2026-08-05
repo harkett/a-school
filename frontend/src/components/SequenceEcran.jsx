@@ -19,6 +19,7 @@
 // LA BOUCLE (30/07) : chaque ligne du plan s'OUVRE (écran Séance pré-rempli, la séance est
 // déjà en base) — le prof y génère le déroulé, y accroche ses activités, puis revient ici.
 import { useEffect, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import SplitPane from './SplitPane.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
@@ -138,7 +139,7 @@ function FriseSequence({ objectifOk, precisionsFaites, loading, planEcrit, nbSea
 
 // `onOuvrirSeance(seanceRow, sequenceId)` : ouvre une séance du plan dans l'écran Séance,
 // pré-remplie — avec retour automatique ici (la boucle séquence→séance→activités).
-export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, onOuvrirSeance }) {
+export default function SequenceEcran({ sequence, onNavigate, onOuvrirSeance }) {
   // ── Le formulaire entier (chaque champ vit en base — reprise complète à terme) ──
   const [objectif, setObjectif] = useState(sequence?.titre || '')
   const [contexte, setContexte] = useState(sequence?.contexte || '')
@@ -150,8 +151,8 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
   // ── Génération + règle 0 ──
   const [loading, setLoading] = useState(false)
   const [fluxTexte, setFluxTexte] = useState('')          // le flux brut — les lignes s'en déduisent en direct
-  const [seancesCreees, setSeancesCreees] = useState(null) // les VRAIES lignes seances écrites en base (POST)
   const [lignesPretes, setLignesPretes] = useState(null)   // lignes du flux terminé, gardées pour « Réessayer l'enregistrement »
+  const queryClient = useQueryClient()
   const [sequenceId, setSequenceId] = useState(sequence?.id || null)
   const [enregistrement, setEnregistrement] = useState(sequence ? 'ok' : null)  // null | 'ok' | 'echec'
   const [baseReplie, setBaseReplie] = useState(false)      // repli manuel de la cartouche ①
@@ -162,18 +163,22 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
 
   // Les séances de la séquence = SOURCE UNIQUE en base (get, zéro copie) : relues à la
   // reprise ET après l'écriture du plan — les états « à générer / générée » sont toujours vrais.
-  async function chargerSeances(id, { silencieux = false } = {}) {
-    try {
-      const d = await lireReponse(await apiFetch(`/api/contenus/sequences/${id}/seances`, { credentials: 'include' }, TIMEOUT_STD))
-      setSeancesCreees(d.seances || [])
-    } catch (err) {
-      if (!silencieux) showError(`Impossible de charger les séances de cette séquence.\n\n${messagePourEcran(err)}`)
-    }
-  }
-
+  // null = pas encore lues (le plan affiché vient alors du flux, avec ses « … »).
+  const { data: seancesCreees = null, error: seancesErreur, refetch: relireSeances } = useQuery({
+    queryKey: ['contenus', 'sequence', sequenceId, 'seances'],
+    enabled: !!sequenceId,
+    queryFn: async () => {
+      const d = await lireReponse(await apiFetch(`/api/contenus/sequences/${sequenceId}/seances`, { credentials: 'include' }, TIMEOUT_STD))
+      return d.seances || []
+    },
+  })
+  // Une relecture ratée alors que le plan est DÉJÀ affiché ne parle pas : il n'y a rien de neuf
+  // à dire au prof. Elle ne se dit que quand on n'a encore aucune séance à montrer.
   useEffect(() => {
-    if (sequence?.id) chargerSeances(sequence.id)
-  }, [sequence?.id])   // eslint-disable-line react-hooks/exhaustive-deps
+    if (seancesErreur && !seancesCreees) {
+      showError(`Impossible de charger les séances de cette séquence.\n\n${messagePourEcran(seancesErreur)}`)
+    }
+  }, [seancesErreur, seancesCreees])
 
   // ── Corriger une séquence DÉJÀ NÉE (auto-save, règle 0) ──────────────────────────────
   // Une séquence écrite n'était plus modifiable du tout : ni renommer, ni corriger l'objectif.
@@ -286,10 +291,11 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
         body: JSON.stringify({ ...corpsFormulaire(), seances: lignes }),
       }, TIMEOUT_STD))
       setSequenceId(d.id)
-      setSeancesCreees(d.seances || [])
       setEnregistrement('ok')
-      // Relecture canonique en base (get, source unique) — en silencieux : le plan est déjà affiché.
-      chargerSeances(d.id, { silencieux: true })
+      // Le POST a déjà rendu les lignes écrites : on les range là où la lecture est gardée, puis
+      // relecture canonique en base (get, source unique) — muette, le plan est déjà affiché.
+      queryClient.setQueryData(['contenus', 'sequence', d.id, 'seances'], d.seances || [])
+      relireSeances()
     } catch {
       // Un échec d'auto-save DOIT se voir (règle 0 : rien n'attend en mémoire « pour plus tard »).
       setEnregistrement('echec')
@@ -304,7 +310,8 @@ export default function SequenceEcran({ sequence, matiere, niveau, onNavigate, o
       return
     }
     setFluxTexte('')
-    setSeancesCreees(null)
+    // On regénère : les séances déjà lues ne décrivent plus rien — le plan repart du flux.
+    queryClient.setQueryData(['contenus', 'sequence', sequenceId, 'seances'], null)
     setLignesPretes(null)
     setEnregistrement(null)
     setLoading(true)

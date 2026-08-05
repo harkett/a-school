@@ -388,7 +388,7 @@ def _referentiel_complet(cycle="LB-Supp", niveau="LB-NivSupp", ordre=83, avec_pd
     coché et ses précisions, plus le PDF sur disque. C'est exactement ce que le refus « déjà
     ingéré » rendait indestructible."""
     from backend.core.models_db import (Referentiel, Matiere, ReferentielChunk, ActiviteType,
-                                        ReferentielActiviteType, ReferentielTypePrecision)
+                                        ReferentielTypePrecision)
     cid = _cycle(cycle, ordre)
     nid = _niveau(cid, niveau, ordre)
     with dbmod.SessionLocal() as db:
@@ -400,11 +400,10 @@ def _referentiel_complet(cycle="LB-Supp", niveau="LB-NivSupp", ordre=83, avec_pd
         db.add_all([ReferentielChunk(referentiel_id=ref.id, chunk_index=i, option_ab="", page=1,
                                      texte=f"unité {i}", embedding=[0.0] * 1024, embedding_model="test")
                     for i in range(5)])
-        typ = ActiviteType(label=f"Type {ordre}", origine="admin")
+        typ = ActiviteType(referentiel_id=ref.id, label=f"Type {ordre}", origine="admin",
+                           validee=True, prompt="P")
         db.add(typ); db.commit(); db.refresh(typ)
-        lien = ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=typ.id, source="admin")
-        db.add(lien); db.commit(); db.refresh(lien)
-        db.add_all([ReferentielTypePrecision(referentiel_activite_type_id=lien.id, libelle=f"Précision {i}")
+        db.add_all([ReferentielTypePrecision(type_activite_id=typ.id, libelle=f"Précision {i}")
                     for i in range(2)])
         db.commit()
         ref_id = ref.id
@@ -439,7 +438,7 @@ def test_supprimer_un_referentiel_deja_decoupe_marche():
     et le PDF sur disque."""
     import shutil as _shutil
     from backend.core.models_db import (Referentiel, Matiere, ReferentielChunk,
-                                        ReferentielActiviteType, ReferentielTypePrecision)
+                                        ActiviteType, ReferentielTypePrecision)
     cid, _, ref_id = _referentiel_complet(ordre=85)
     pdf = reflabo.REFERENTIELS_DIR / "LB_SUPP" / "LB_NIVSUPP" / "referentiel.pdf"
     try:
@@ -451,9 +450,8 @@ def test_supprimer_un_referentiel_deja_decoupe_marche():
             assert db.query(Referentiel).filter(Referentiel.id == ref_id).count() == 0
             assert db.query(Matiere).filter(Matiere.referentiel_id == ref_id).count() == 0
             assert db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref_id).count() == 0
-            liens = db.query(ReferentielActiviteType).filter(
-                ReferentielActiviteType.referentiel_id == ref_id).all()
-            assert liens == []
+            assert db.query(ActiviteType).filter(
+                ActiviteType.referentiel_id == ref_id).all() == []
             assert db.query(ReferentielTypePrecision).count() == 0
         assert not pdf.exists()                      # le document part aussi
     finally:

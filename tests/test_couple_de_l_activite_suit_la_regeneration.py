@@ -35,7 +35,12 @@ def _client():
 
 
 def _prof_sur_6e():
-    """Le prof, couple de PROFIL Français/6e, et un type prêt pour 6e ET pour 3e."""
+    """Le prof, couple de PROFIL Français/6e, et le type « Compréhension » prêt des DEUX côtés.
+
+    Deux types DISTINCTS, un par référentiel : depuis le 05/08/2026 un type appartient au document
+    qui le nomme, donc « Compréhension » en 6e et « Compréhension » en 3e sont deux lignes — comme
+    deux matières homonymes dans deux diplômes. Le test renvoie les deux ids : après la bascule de
+    couple, c'est celui de la 3e que l'écran du prof enverrait."""
     from _profil import matiere_id, niveau_id, type_pret, user_couple
     with dbmod.SessionLocal() as db:
         u = db.query(User).filter(User.email == EMAIL).first()
@@ -46,14 +51,14 @@ def _prof_sur_6e():
             db.flush()
         # Le MÊME type est prêt des deux côtés : le test porte sur le couple écrit, pas sur un refus.
         tid = type_pret(db, "6e", label="Compréhension")
-        type_pret(db, "3e", label="Compréhension")
+        tid_3e = type_pret(db, "3e", label="Compréhension")
         matiere_3e = matiere_id(db, "Français", "3e")
         niveau_3e = niveau_id(db, "3e")
         # On repart toujours du profil : les tests ne se marchent pas dessus.
         u.travail_matiere_id = None
         u.travail_niveau_id = None
         db.commit()
-        return tid, u.id, matiere_3e, niveau_3e
+        return tid, u.id, matiere_3e, niveau_3e, tid_3e
 
 
 def _corps(tid, resultat="# v1"):
@@ -71,7 +76,7 @@ def _basculer_sur_3e(user_id, matiere_3e, niveau_3e):
 
 
 def test_a_la_naissance_le_couple_est_celui_du_moment():
-    tid, _, _, _ = _prof_sur_6e()
+    tid, _, _, _, _ = _prof_sur_6e()
     r = _client().post("/api/contenus/activites", json=_corps(tid))
     assert r.status_code == 200, r.text
     with dbmod.SessionLocal() as db:
@@ -82,13 +87,14 @@ def test_a_la_naissance_le_couple_est_celui_du_moment():
 def test_apres_un_changement_de_couple_la_regeneration_reetiquette_la_ligne():
     """LA régression à empêcher : la ligne ne doit pas rester en 6e alors que son type vient
     d'être validé contre la 3e."""
-    tid, user_id, matiere_3e, niveau_3e = _prof_sur_6e()
+    tid, user_id, matiere_3e, niveau_3e, tid_3e = _prof_sur_6e()
     c = _client()
     aid = c.post("/api/contenus/activites", json=_corps(tid)).json()["id"]
 
     _basculer_sur_3e(user_id, matiere_3e, niveau_3e)
 
-    r = c.put(f"/api/contenus/activites/{aid}", json=_corps(tid, resultat="# v2"))
+    # Le type de la 3e : le prof qui a basculé de couple voit les types de SON nouveau niveau.
+    r = c.put(f"/api/contenus/activites/{aid}", json=_corps(tid_3e, resultat="# v2"))
     assert r.status_code == 200, r.text
     with dbmod.SessionLocal() as db:
         a = db.get(Activite, aid)

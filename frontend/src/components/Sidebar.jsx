@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
 const IconHome = () => (
@@ -91,15 +91,20 @@ const MES_ANALYSES_PAGES = ['ambiguites', 'consigne', 'equite']
 // fini le mélange des trois dans un seul écran). Les écrans seance/activite en font partie.
 const MES_CONTENUS_PAGES = ['mes-contenus', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'seance', 'activite']
 
-export default function Sidebar({ page, onNavigate, onFeedback, onNotation }) {
+export default function Sidebar({ page, onNavigate, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
-  const [analysesOpen, setAnalysesOpen] = useState(() => MES_ANALYSES_PAGES.includes(page))
   const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
   const [evalOpen, setEvalOpen] = useState(false)
 
-  useEffect(() => {
-    if (MES_ANALYSES_PAGES.includes(page)) setAnalysesOpen(true)
-  }, [page])
+  // Le groupe « Mes analyses » est ouvert dès qu'on est SUR une de ses pages — c'est un calcul,
+  // pas une ouverture à déclencher après la navigation. Le prof peut le plier ou le déplier à la
+  // main : son geste vaut pour la page où il l'a fait, et la navigation reprend la main ensuite.
+  const [analysesChoisi, setAnalysesChoisi] = useState(null)   // { pour: page, valeur } | null
+  const analysesOpen = analysesChoisi?.pour === page ? analysesChoisi.valeur : MES_ANALYSES_PAGES.includes(page)
+  const setAnalysesOpen = (maj) => setAnalysesChoisi({
+    pour: page,
+    valeur: typeof maj === 'function' ? maj(analysesOpen) : maj,
+  })
 
   const navItem = (id, label, Icon, title) => (
     <a

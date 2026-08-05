@@ -124,6 +124,12 @@ EXCEPTIONS_PERMANENTES = {
     "backend/pedagogie/referentiels_labo.py:_MARQUES_PROGRAMME":
         "referentiels_labo.py — les mots qui font reconnaître un programme dans un libellé. "
         "Même nature : une règle de lecture, interne à l'algorithme de tri.",
+    # Faux ami de plus : des noms de PARAMÈTRES PYTHON, pas des données. Les mettre en base
+    # n'aurait aucun sens — ils ne décrivent que la signature de `generate()`. Et ils sont déjà
+    # gardés ailleurs : test_cache_llm.py les compare à la signature réelle, dans les deux sens.
+    "backend/llm/cache.py:PARAMS_EMPREINTE":
+        "cache.py — les paramètres de generate() qui entrent dans l'empreinte du cache disque. "
+        "Registre technique, vérifié contre le code par test_cache_llm.py.",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -252,6 +258,8 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # 5 -> 8 le 04/08/2026 : les trois listes de tri de la recherche du lien officiel. Ce ne sont
     # pas des données métier (personne ne les modifie depuis un écran), mais le scanner ne sait pas
     # faire cette différence — voir l'en-tête du fichier.
-    assert len(EXCEPTIONS_PERMANENTES) == 8, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 8 attendues."
+    # 8 -> 9 le 05/08/2026 : `cache.PARAMS_EMPREINTE`, la liste des paramètres de generate() qui
+    # entrent dans l'empreinte du cache disque. Des noms de paramètres Python, pas des données.
+    assert len(EXCEPTIONS_PERMANENTES) == 9, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 9 attendues."
     )

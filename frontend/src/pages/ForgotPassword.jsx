@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')

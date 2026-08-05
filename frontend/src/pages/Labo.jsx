@@ -107,7 +107,7 @@ export default function Labo() {
   // CE QU'ON VA DEMANDER AU MOTEUR, ÉCRIT NOIR SUR BLANC. L'admin le lit et le corrige AVANT de
   // chercher — c'est son texte qui part, pas une phrase fabriquée dans son dos. Il se repropose
   // (cycle + niveau) à chaque changement de couple, jamais par-dessus une saisie en cours.
-  const [question, setQuestion] = useState('')
+  const [saisieQuestion, setSaisieQuestion] = useState(null)   // { couple, texte } — voir plus bas
   // La piste qu'on REGARDE avant de la choisir (fenêtre de relecture). Le PDF est lu là où il
   // est, chez l'Éducation nationale : rien n'est téléchargé chez nous, rien n'est déposé.
   const [apercuLien, setApercuLien] = useState(null)
@@ -555,9 +555,13 @@ export default function Labo() {
   // La question se REPROPOSE à chaque couple : le cycle et le niveau, rien d'autre — les deux
   // seules choses qu'on sache à coup sûr du document cherché. Elle est écrasée sans état d'âme au
   // changement de couple : celle du couple précédent n'a plus de sens ici.
-  useEffect(() => {
-    setQuestion(`${cycleNom} ${niveau}`.trim())
-  }, [cycleNom, niveau])
+  // La saisie de l'admin est donc gardée AVEC le couple auquel elle appartient : dès qu'on change
+  // de couple elle ne correspond plus, et la proposition reprend la main — sans rien à effacer.
+  const coupleCle = `${cycleNom}|${niveau}`
+  const question = saisieQuestion?.couple === coupleCle
+    ? saisieQuestion.texte
+    : `${cycleNom} ${niveau}`.trim()
+  const setQuestion = (texte) => setSaisieQuestion({ couple: coupleCle, texte })
 
   // Les étapes de la frise, LUES de l'état réel de l'écran — jamais un compteur qu'on avance à la
   // main. Un couple ouvert depuis la colonne a forcément les deux : il a son référentiel.

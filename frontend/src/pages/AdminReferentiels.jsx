@@ -63,41 +63,46 @@ const btnTypes = (bg, off = false) => ({
 // module (pas dans un état de page) : le badge est posé une dizaine de fois, il ne doit pas
 // déclencher une dizaine d'appels. Échec silencieux : un badge sans modèle vaut mieux qu'un écran
 // qui tombe pour un libellé.
-let _modeleIACache = null
-function useModeleIA() {
-  const [modele, setModele] = useState(_modeleIACache)
+let _moteurIACache = null
+function useMoteurIA() {
+  const [moteur, setMoteur] = useState(_moteurIACache)
   useEffect(() => {
-    if (_modeleIACache) return
+    if (_moteurIACache) return
     let vivant = true
     fetch('/api/admin/ai-models', { credentials: 'include' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
-        if (!d?.current) return
-        _modeleIACache = d.current
-        if (vivant) setModele(d.current)
+        if (!d?.courant?.modele) return
+        _moteurIACache = d.courant
+        if (vivant) setMoteur(d.courant)
       })
       .catch(() => {})
     return () => { vivant = false }
   }, [])
-  return modele
+  return moteur
 }
 
 // Repère « IA » — petit badge violet posé là où l'IA agit SANS bouton dédié (vérification du
 // couple, ingestion). Il signale à l'admin que le résultat vient de l'IA, ET avec quel modèle.
 // Même palette IA que les badges d'origine (SOURCE_STYLE.ia) : cohérence, aucune couleur en double.
 function BadgeIA({ titre }) {
-  const modele = useModeleIA()
+  const moteur = useMoteurIA()
   return (
-    <span title={`${titre || "Réalisé par l'IA"}${modele ? ` — modèle en service : ${modele}` : ''}`} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
-      padding: '2px 7px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed',
-      textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>
+    <span
+      title={`${titre || "Réalisé par l'IA"}${moteur
+        ? ` — moteur en service : ${moteur.fournisseur} / ${moteur.modele}, réponse plafonnée à ${moteur.max_tokens} tokens`
+        : ''}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+        padding: '2px 7px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed',
+        textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>
       <span aria-hidden="true">🤖</span> IA
-      {modele && (
-        // Le modèle en minuscules et sans graisse : il informe, il ne crie pas — le badge reste
-        // un repère, pas une étiquette technique qui mange la ligne.
+      {moteur && (
+        // Les trois valeurs qu'on cherche devant une réponse ratée : QUI a répondu, avec QUEL
+        // modèle, et jusqu'à COMBIEN il pouvait écrire. En minuscules et sans graisse — le badge
+        // informe, il ne crie pas. La place existe sur la ligne, autant la remplir utilement.
         <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, opacity: 0.85 }}>
-          · {modele}
+          · {moteur.fournisseur} · {moteur.modele} · {moteur.max_tokens} tok
         </span>
       )}
     </span>
@@ -246,25 +251,23 @@ export default function AdminReferentiels() {
   const [pdfOuvert, setPdfOuvert] = useState(true)
   const [decoupeOuvert, setDecoupeOuvert] = useState(true)
   const [typesOuvert, setTypesOuvert] = useState(true)
-  // ── Types d'activité du couple (dernière cartouche) : fenêtre sur le CATALOGUE global
-  //    `types_activite` + la LIAISON `referentiel_types_activite`. Cocher/décocher = écriture
-  //    directe en base au clic (put), puis re-GET. Zéro donnée en dur, zéro tampon.
-  const [typesCatalogue, setTypesCatalogue] = useState([])     // [{id, key, label, is_default}]
-  const [typesChecked, setTypesChecked] = useState(new Set())  // ids cochés (reflet base, relu à chaque put)
-  const [typesSource, setTypesSource] = useState({})           // {id: 'ia'|'admin'|'systeme'} → badge d'origine
-  const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter un type à ce couple »
+  // ── Types d'activité DU RÉFÉRENTIEL (dernière cartouche) : fenêtre sur `types_activite`, où
+  //    chaque ligne appartient au document qui la nomme — exactement comme les matières
+  //    (05/08/2026 : plus de catalogue global, plus de liaison N–N). Une seule liste : les
+  //    propositions de la détection et les types retenus s'y côtoient, `validee` les distingue.
+  //    Cocher = retenir (put en base au clic), puis re-GET. Zéro donnée en dur, zéro tampon.
+  const [types, setTypes] = useState([])                       // [{id,label,validee,origine,prompt,nb_precisions}]
+  const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter un type à ce référentiel »
   const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
   const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
-  const [typesInit, setTypesInit] = useState(false)            // 1re lecture des liaisons du couple faite (base lue)
+  const [typesInit, setTypesInit] = useState(false)            // 1re lecture des types du couple faite (base lue)
   const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
   const autoDetectFait = useRef('')                            // clé couple : l'auto-détection ne se lance qu'UNE fois par couple affiché
-  // MAQUETTE prompt par type (spécifique au couple) : éditeur déplié sous la ligne. `promptEditId` = id du
-  // type dont l'éditeur est ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base).
-  // La génération IA et l'enregistrement PAR COUPLE (colonne prompt sur le lien) = chantier backend d'après.
+  // Prompt par type : éditeur déplié sous la ligne. `promptEditId` = id du type dont l'éditeur est
+  // ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base). Le
+  // prompt lui-même vit sur la ligne du type (`t.prompt`), lu en base — aucune copie ici.
   const [promptEditId, setPromptEditId] = useState(null)
   const [promptBrouillon, setPromptBrouillon] = useState('')
-  const [typesPrompt, setTypesPrompt] = useState({})   // {activite_type_id: prompt} — prompt PAR couple, lu en base
-  const [typesNbPrecis, setTypesNbPrecis] = useState({})   // {activite_type_id: nb} — comptage précisions PAR couple, lu en base (/etat)
   const [promptSaving, setPromptSaving] = useState(false)
 
   // Précisions PAR COUPLE × type (table `referentiel_type_precisions`, fille de la liaison — comme le prompt).
@@ -321,7 +324,7 @@ export default function AdminReferentiels() {
   // un effet : on le fait là où l'admin agit, une bonne fois.
   function viderCeQuiDependDuCouple() {
     setEtat(null); setMatieres([])
-    setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
+    setTypes([]); setTypesNouveau(''); setTypesInit(false)
   }
 
   // « + Nouveau » (colonne 2) : remet l'écran en création — aucun couple choisi, tout vide.
@@ -464,20 +467,16 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) setDecoupeUnites(d && d.unites && d.unites.length ? d.unites : null) })
       .catch(() => { if (!annule) setDecoupeUnites(null) })
-    // Types d'activité du couple (catalogue + cases cochées) — lu en base, badges compris (get, zéro copie).
+    // Types d'activité DU référentiel (propositions + retenus) — lu en base (get, zéro copie).
     fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (annule || !d) return
-        setTypesCatalogue(d.catalogue || [])
-        setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
-        setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
-        setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
-        setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
-        setTypesInit(true)   // 1re lecture des liaisons faite → l'auto-détection peut juger
+        setTypes(d.types || [])
+        setTypesInit(true)   // 1re lecture des types faite → l'auto-détection peut juger
       })
-      .catch(() => { if (!annule) { setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesPrompt({}) } })
+      .catch(() => { if (!annule) setTypes([]) })
     return () => { annule = true }
   }, [cycleId, niveau])
 
@@ -863,7 +862,7 @@ export default function AdminReferentiels() {
     finally { setBusy(false) }
   }
 
-  // ── Types d'activité du couple : re-GET (la base fait foi) après chaque écriture.
+  // ── Types d'activité du référentiel : re-GET (la base fait foi) après chaque écriture.
   async function chargerTypes() {
     if (!cycleId || !niveau) return
     try {
@@ -871,22 +870,18 @@ export default function AdminReferentiels() {
         { credentials: 'include' }, TIMEOUT_STD)
       if (!r.ok) return
       const d = await r.json()
-      setTypesCatalogue(d.catalogue || [])
-      setTypesChecked(new Set((d.coches || []).map(x => x.activite_type_id)))
-      setTypesSource(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.source])))
-      setTypesPrompt(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.prompt || ''])))
-      setTypesNbPrecis(Object.fromEntries((d.coches || []).map(x => [x.activite_type_id, x.nb_precisions || 0])))
+      setTypes(d.types || [])
     } catch { /* réseau : on garde l'affichage courant */ }
   }
 
-  // ✎ Prompt → Valider : PUT réel du prompt de CE type POUR CE couple (réécrit la colonne du lien), puis re-GET.
+  // ✎ Prompt → Valider : PUT réel du prompt de CE type (réécrit la colonne de sa ligne), puis re-GET.
   async function validerPromptType(t) {
     if (!promptBrouillon.trim()) return
     setPromptSaving(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/prompt', {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, prompt: promptBrouillon }),
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: t.id, prompt: promptBrouillon }),
       }, TIMEOUT_STD)
       if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`); return }
       setPromptEditId(null); setPromptBrouillon('')
@@ -895,11 +890,11 @@ export default function AdminReferentiels() {
     finally { setPromptSaving(false) }
   }
 
-  // GET (lecture pure) des précisions de CE type POUR CE couple. Aucune écriture, aucun sablier IA.
-  // Renvoie le tableau lu (et l'affiche). Utilisé à l'ouverture ET après ajout/suppression (re-lecture).
-  async function chargerPrecisCouple(typeId) {
+  // GET (lecture pure) des précisions de CE type. Aucune écriture, aucun sablier IA. Renvoie le
+  // tableau lu (et l'affiche). Utilisé à l'ouverture ET après ajout/suppression (re-lecture).
+  async function chargerPrecisType(typeId) {
     try {
-      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${typeId}`,
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&type_id=${typeId}`,
         { credentials: 'include' }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Lecture des précisions impossible (${r.status}).`); setPrecisList([]); return null }
@@ -910,23 +905,25 @@ export default function AdminReferentiels() {
   }
 
   // Ouvre/ferme le panneau. À l'ouverture : GET (lecture). S'il y a des précisions → on les affiche.
-  // S'il n'y en a AUCUNE → on lance l'IA pour aller les chercher (seul cas où l'IA tourne).
+  // S'il n'y en a AUCUNE et que le type est RETENU → on lance l'IA pour aller les chercher. Sur une
+  // simple proposition, on ne dépense rien : le serveur refuserait (422), et il a raison — les
+  // précisions se travaillent sur ce qui est au programme.
   function ouvrirPrecisions(t) {
     if (precisEditId === t.id) { setPrecisEditId(null); setPrecisList([]); setNewPrecis(''); return }
     setPrecisEditId(t.id); setNewPrecis(''); setPrecisList([])
-    chargerPrecisCouple(t.id).then(list => {
-      if (Array.isArray(list) && list.length === 0) genererPrecisCouple(t.id)
+    chargerPrecisType(t.id).then(list => {
+      if (Array.isArray(list) && list.length === 0 && t.validee) genererPrecisType(t.id)
     })
   }
 
   // Lance l'IA (sablier 🤖) : génère les précisions et les ÉCRIT en base, puis les affiche. Appelé
-  // UNIQUEMENT quand la lecture est vide — jamais après une suppression manuelle.
-  async function genererPrecisCouple(typeId) {
+  // UNIQUEMENT quand la lecture est vide sur un type RETENU — jamais après une suppression manuelle.
+  async function genererPrecisType(typeId) {
     setPrecisLoading(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: typeId }),
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: typeId }),
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Génération des précisions impossible (${r.status}).`); return }
@@ -936,28 +933,28 @@ export default function AdminReferentiels() {
     finally { setPrecisLoading(false) }
   }
 
-  // CREATE encadré (précision du couple) : Ajouter = POST. Doublon refusé côté back (deja_present) → message humain.
-  async function ajouterPrecisCouple(t) {
+  // CREATE encadré (précision du type) : Ajouter = POST. Doublon refusé côté back (deja_present) → message humain.
+  async function ajouterPrecisType(t) {
     const libelle = newPrecis.trim()
     if (!libelle) { showError('Indiquez un libellé pour la précision.'); return }
     setPrecisBusy(true)
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: t.id, libelle }),
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: t.id, libelle }),
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Ajout impossible (${r.status}).`); return }
       setNewPrecis('')
-      if (d.deja_present) showError(`La précision « ${d.libelle} » existe déjà pour ce couple.`)
-      await chargerPrecisCouple(t.id)
+      if (d.deja_present) showError(`La précision « ${d.libelle} » existe déjà pour ce type.`)
+      await chargerPrecisType(t.id)
       await chargerTypes()   // met à jour le badge « N précisions » de la ligne
     } catch { showError('Ajout impossible.') }
     finally { setPrecisBusy(false) }
   }
 
-  // DELETE encadré (précision du couple) : après confirmation, puis re-get.
-  async function supprimerPrecisCouple(t, p) {
+  // DELETE encadré (précision du type) : après confirmation, puis re-get.
+  async function supprimerPrecisType(t, p) {
     if (!await demanderConfirmation({
       titre: `Supprimer la précision « ${p.libelle} » ?`,
       message: 'Cette action est irréversible.',
@@ -966,35 +963,58 @@ export default function AdminReferentiels() {
     })) return
     setPrecisBusy(true)
     try {
-      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions/${p.id}?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&activite_type_id=${t.id}`,
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/precisions/${p.id}?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}&type_id=${t.id}`,
         { method: 'DELETE', credentials: 'include' }, TIMEOUT_STD)
       if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Suppression impossible (${r.status}).`) }
-      await chargerPrecisCouple(t.id)
+      await chargerPrecisType(t.id)
       await chargerTypes()   // met à jour le badge « N précisions » de la ligne
     } catch { showError('Suppression impossible.') }
     finally { setPrecisBusy(false) }
   }
 
-  // La case EST le put : cocher = lien actif, décocher = lien inactif — écrit direct en base au clic, puis re-GET.
-  async function basculerType(id) {
+  // La case EST le put : cocher = type RETENU (le prof le voit), décocher = il redevient une
+  // proposition. Écrit direct en base au clic, puis re-GET. C'est LE geste de l'admin sur cette
+  // cartouche — celui des matières, une ligne à la fois.
+  async function retenirType(t, veutRetenir) {
     if (!cycleId || !niveau) return
-    const veutCocher = !typesChecked.has(id)
-    setTypesChecked(prev => { const n = new Set(prev); veutCocher ? n.add(id) : n.delete(id); return n })  // optimiste
+    setTypes(ts => ts.map(x => (x.id === t.id ? { ...x, validee: veutRetenir } : x)))   // optimiste
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: id, actif: veutCocher }),
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: t.id, validee: veutRetenir }),
       }, TIMEOUT_STD)
       if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`) }
       await chargerTypes()
+      // Un type qu'on vient de retenir n'a en général aucune précision : on va les chercher tout
+      // de suite, comme après la détection. Aucun appel si on décoche.
+      if (veutRetenir) await genererPrecisionsManquantes()
     } catch { showError('Enregistrement impossible.'); await chargerTypes() }
   }
 
-  // Détection : l'IA lit le document épuré AVEC le catalogue des types sous les yeux — tout ce
-  // qu'elle retient est collé au couple (correspondance = type de la table, nouveauté = type créé
-  // origine 'ia'), prompt gabarit posé. Puis, DANS LA FOULÉE, les précisions manquantes sont
-  // générées type par type (jauge réelle). Se lance TOUTE SEULE à l'arrivée sur un couple sans
-  // types (auto-détection) ; le bouton ne sert qu'à RELANCER.
+  // DELETE réel du type (le ✕) : il disparaît du référentiel avec ses précisions. Refusé (409) par
+  // le serveur si des activités déjà générées s'y rattachent — on relaie SON message.
+  async function supprimerType(t) {
+    if (!await demanderConfirmation({
+      titre: `Supprimer « ${t.label} » de ce référentiel ?`,
+      message: "Ses précisions sont supprimées avec lui. Une future détection le remettra si l’IA le relit dans le document.\n\nLes autres référentiels ne sont pas touchés.",
+      confirmLabel: 'Supprimer',
+      danger: true,
+    })) return
+    setTypesBusy(true)
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/types-activite/${t.id}?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}`,
+        { method: 'DELETE', credentials: 'include' }, TIMEOUT_STD)
+      if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Suppression impossible (${r.status}).`); return }
+      if (precisEditId === t.id) { setPrecisEditId(null); setPrecisList([]) }
+      if (promptEditId === t.id) { setPromptEditId(null); setPromptBrouillon('') }
+      await chargerTypes()
+    } catch { showError('Suppression impossible.') }
+    finally { setTypesBusy(false) }
+  }
+
+  // Détection : l'IA lit le document épuré et PROPOSE les types que CE référentiel met en œuvre.
+  // Tout ce qu'elle rend est écrit NON RETENU — l'admin coche ce qu'il garde. Se lance TOUTE SEULE
+  // à l'arrivée sur un couple sans types (auto-détection) ; le bouton ne sert qu'à RELANCER.
   async function detecterTypes() {
     if (!cycleId || !niveau) return
     setTypesBusy(true); setTypesDetecting(true)
@@ -1002,55 +1022,55 @@ export default function AdminReferentiels() {
       const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/detecter', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_LONG)
+        // TIMEOUT_XLONG : au premier référentiel du cycle, cet appel écrit d'abord le prompt de
+        // types du cycle (l'IA lit le document entier) puis détecte — deux appels IA à la suite.
+      }, TIMEOUT_XLONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Détection impossible (${r.status}).`); return }
       await chargerTypes()
-      setTypesDetecting(false)
-      await genererPrecisionsManquantes()   // dans la foulée : prompts déjà posés, précisions générées
     } catch { showError('Détection impossible.') }
     finally { setTypesBusy(false); setTypesDetecting(false) }
   }
 
-  // Précisions MANQUANTES du couple, générées type par type avec une jauge RÉELLE (fait/total).
-  // Idempotent côté serveur : un type qui a déjà des précisions n'est jamais réécrasé — on ne
-  // dépense l'IA que sur les types à 0 précision. Relit la base à la fin (badges à jour).
+  // Précisions MANQUANTES des types RETENUS, générées un par un avec une jauge RÉELLE (fait/total).
+  // Seuls les types au programme comptent : on ne dépense pas l'IA sur une proposition que l'admin
+  // n'a pas gardée (le serveur refuse d'ailleurs, 422). Idempotent : un type qui a déjà ses
+  // précisions n'est jamais réécrasé. Relit la base à la fin (badges à jour).
   async function genererPrecisionsManquantes() {
     const rg = await fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
     const dg = await rg.json().catch(() => ({}))
     if (!rg.ok) return
-    const aFaire = (dg.coches || []).filter(x => !(x.nb_precisions > 0))
+    const aFaire = (dg.types || []).filter(x => x.validee && !(x.nb_precisions > 0))
     if (aFaire.length === 0) return
-    const labels = Object.fromEntries((dg.catalogue || []).map(t => [t.id, t.label]))
     try {
       for (let i = 0; i < aFaire.length; i++) {
         const x = aFaire[i]
-        setPrecisProgress({ fait: i, total: aFaire.length, label: labels[x.activite_type_id] || '' })
+        setPrecisProgress({ fait: i, total: aFaire.length, label: x.label || '' })
         const rp = await fetchWithTimeout('/api/admin/referentiels/types-activite/precisions/generer', {
           method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, activite_type_id: x.activite_type_id }),
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: x.id }),
         }, TIMEOUT_LONG)
         if (!rp.ok) { const e = await rp.json().catch(() => ({})); showError(e.detail || `Génération des précisions impossible (${rp.status}).`); break }
       }
     } finally { setPrecisProgress(null); await chargerTypes() }
   }
 
-  // Ajout d'un type À CE COUPLE (create encadré : anti-doublon par libellé au catalogue global, puis
-  // coche pour le couple). fromSuggestion → badge 'ia' (suggestion de la détection) ; sinon 'admin'.
-  async function ajouterTypeCatalogue(label, fromSuggestion = false) {
+  // Ajout MANUEL d'un type À CE RÉFÉRENTIEL (create encadré : anti-doublon par libellé dans ce
+  // document). Il naît RETENU, badge 'admin' : l'admin n'a pas à se proposer ce qu'il vient d'écrire.
+  async function ajouterType(label) {
     const lib = (label || '').trim()
     if (!lib) return
     setTypesBusy(true)
     try {
-      const payload = { label: lib, cycle_id: Number(cycleId), niveau, suggestion_ia: fromSuggestion }
-      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite/catalogue', {
+      const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ label: lib, cycle_id: Number(cycleId), niveau }),
       }, TIMEOUT_STD)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Ajout impossible (${r.status}).`); return }
       setTypesNouveau('')
+      if (d.deja_present) showError(`« ${d.label} » est déjà dans les types de ce référentiel.`)
       await chargerTypes()
       await genererPrecisionsManquantes()   // le type ajouté reçoit ses précisions dans la foulée
     } catch { showError('Ajout impossible.') }
@@ -1058,22 +1078,24 @@ export default function AdminReferentiels() {
   }
 
   const dejaTraite = !!(etat && etat.existe_referentiel)
-  // Types RETENUS pour ce couple = liaisons actives (reflet base). L'écran n'affiche plus le
-  // catalogue entier : le couple ne voit que SES types.
-  const typesDuCouple = typesCatalogue.filter(t => typesChecked.has(t.id))
+  // Deux comptages DÉRIVÉS de la liste lue (jamais stockés), comme pour les matières : combien de
+  // types sont au programme, et combien attendent encore la décision de l'admin.
+  const nbTypesRetenus = types.filter(t => t.validee).length
+  const nbTypesProposes = types.length - nbTypesRetenus
 
   // AUTO-DÉTECTION : à l'arrivée sur un couple dont la découpe est validée et qui n'a ENCORE AUCUN
   // type, l'IA se lance toute seule (une seule fois par couple affiché — clé dans autoDetectFait).
-  // Tout est proposition d'IA de toute façon : l'admin fait ensuite le ménage sur la liste (✕ / ajout).
+  // Elle ne fait que PROPOSER : rien n'entre au programme sans que l'admin coche. C'est ce qui rend
+  // ce départ automatique inoffensif — il remplit l'écran, il ne décide de rien.
   useEffect(() => {
     if (!cycleId || !niveau || !typesInit || typesDetecting || typesBusy) return
     if (!etat?.decoupe_valide) return            // la carte Types n'existe qu'après la découpe validée
-    if (typesChecked.size > 0) return            // le couple a déjà ses types : rien d'automatique
+    if (types.length > 0) return                 // le référentiel a déjà ses types : rien d'automatique
     const cle = `${cycleId}|${niveau}`
     if (autoDetectFait.current === cle) return   // déjà lancée pour ce couple
     autoDetectFait.current = cle
     detecterTypes()
-  }, [cycleId, niveau, typesInit, typesChecked, etat, typesDetecting, typesBusy])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cycleId, niveau, typesInit, types, etat, typesDetecting, typesBusy])  // eslint-disable-line react-hooks/exhaustive-deps
   // Cycle courant + libellé « Cycle · Niveau », lus dans l'arbre des programmes (get, zéro copie).
   const cycleCourant = arbre.find(c => String(c.id) === String(cycleId))
   const coupleLabel = cycleCourant && niveau ? `${cycleCourant.nom} · ${niveau}` : niveau
@@ -1107,7 +1129,9 @@ export default function AdminReferentiels() {
     // Plus d'étape « Prompt » (05/08/2026) : le prompt de découpe est celui du CYCLE, écrit par
     // l'IA à la première découpe — l'admin n'a plus rien à valider avant de découper.
     { id: 'decoupe',       label: 'Découpe',           done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
-    { id: 'types',         label: 'Types d’activité',  done: typesChecked.size > 0 },           // dernière étape : au moins un type coché
+    // Comme pour les matières : l'étape n'est faite que si un type est RETENU. Une proposition
+    // non cochée ne met aucun type au programme, donc elle ne fait pas avancer la procédure.
+    { id: 'types',         label: 'Types d’activité',  done: nbTypesRetenus > 0 },
   ]
   function estVisible(id) {
     const i = steps.findIndex(s => s.id === id)
@@ -1978,18 +2002,20 @@ export default function AdminReferentiels() {
         </div>
       )}
 
-      {/* Carte 6 (DERNIÈRE étape de la chaîne) — Types d'activité de ce couple. Visible seulement une
-          fois le découpage (N-1) validé (estVisible, comme les autres cartouches). Cocher/décocher =
-          écriture directe en base au clic (put) ; badges = origine du type (IA/ADMIN/SYSTÈME). */}
+      {/* Carte 6 (DERNIÈRE étape de la chaîne) — Types d'activité DU RÉFÉRENTIEL. Visible seulement
+          une fois le découpage (N-1) validé (estVisible, comme les autres cartouches). MÊME GESTE QUE
+          LES MATIÈRES : la détection propose (case décochée), l'admin coche ce qui entre au programme
+          — écriture directe en base au clic (put). Le badge dit l'ORIGINE du type (IA / ADMIN),
+          jamais qui l'a retenu : ça, c'est la case. */}
       {estVisible('types') && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
             <div>
               <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
-                <Pastille etat={typesChecked.size > 0 ? 'vert' : 'rouge'} titre="Vert = au moins un type d'activité coché pour ce couple." />
-                Types d'activité de ce couple
+                <Pastille etat={nbTypesRetenus > 0 ? 'vert' : 'rouge'} titre="Vert = au moins un type d'activité est au programme de ce niveau." />
+                Types d'activité de ce référentiel
                 <span style={{ marginLeft: 8 }}>
-                  <BadgeIA titre="Types détectés et suggérés par l'IA (lecture du référentiel) — cochés par l'admin" />
+                  <BadgeIA titre="Types lus dans le document par l'IA — elle propose, vous cochez ce qui entre au programme" />
                 </span>
                 <InfoGuide {...aideReferentiels('types_activite')} />
               </h2>
@@ -2001,26 +2027,28 @@ export default function AdminReferentiels() {
           </div>
 
           {typesOuvert && (<>
-          {/* Ligne du haut : le compte des types retenus + le seul bouton restant (RELANCER la
-              détection — la première se lance toute seule à l'arrivée sur un couple vierge). */}
+          {/* Ligne du haut : les deux comptages (au programme / en attente de décision) + le seul
+              bouton (RELANCER la détection — la première se lance toute seule sur un couple vierge). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>
-              Types retenus pour ce couple
-              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>({typesDuCouple.length})</span>
+              Types d’activité de ce référentiel
+              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
+                ({nbTypesRetenus} au programme{nbTypesProposes > 0 ? `, ${nbTypesProposes} proposé${nbTypesProposes > 1 ? 's' : ''}` : ''})
+              </span>
             </h3>
             <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
-              title="Relancer la lecture du document par l'IA (utile après un nouveau dépôt ou une table enrichie)">
+              title="Relancer la lecture du document par l'IA (utile après un nouveau dépôt). Elle propose : rien n'entre au programme sans votre coche.">
               {typesDetecting ? <><Spinner /> Détection en cours…</> : '🤖 Relancer la détection'}
             </button>
           </div>
           {typesDetecting && (
-            <JaugeAttente libelle="L’IA lit le document épuré et le compare à la table des types…" />
+            <JaugeAttente libelle="L’IA lit le document épuré et relève les formats de travail qu’il met en œuvre…" />
           )}
-          {/* Jauge RÉELLE des précisions : générées type par type juste après la détection. */}
+          {/* Jauge RÉELLE des précisions : générées type par type, sur les types RETENUS seulement. */}
           {precisProgress && (
             <div>
               <div style={{ fontSize: 12, color: '#1d4ed8', marginBottom: 4 }}>
-                <BadgeIA titre="L'IA prépare les précisions de chaque type d'activité pour ce niveau" />{' '}
+                <BadgeIA titre="L'IA prépare les précisions de chaque type d'activité retenu, pour ce niveau" />{' '}
                 Précisions en cours de préparation ({precisProgress.fait + 1}/{precisProgress.total})
                 {precisProgress.label ? ` — ${precisProgress.label}` : ''}…
               </div>
@@ -2031,86 +2059,81 @@ export default function AdminReferentiels() {
             </div>
           )}
 
-          {/* Types RETENUS pour ce couple — chaque ligne = une ligne de lien en base, rien d'autre.
-              Retirer (✕) = confirmation puis SUPPRESSION réelle du lien (+ ses précisions, cascade) ;
-              une future détection recrée la ligne si l'IA relit le type dans le document. */}
+          {/* La liste des types DU RÉFÉRENTIEL — propositions et types retenus ensemble, la case
+              les distingue. Cocher = mettre au programme (le prof le voit). ✕ = SUPPRIMER la ligne
+              (et ses précisions) ; une future détection la remettra si l'IA relit le type. */}
           <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              {typesDuCouple.length === 0 ? (
+              {types.length === 0 ? (
                 <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>
                   {typesDetecting ? 'La liste se remplit dès que l’IA a fini sa lecture…'
-                    : 'Aucun type d’activité pour ce couple — la détection se lance toute seule, ou ajoute un type d’activité ci-dessous.'}
+                    : 'Aucun type d’activité pour ce référentiel — la détection se lance toute seule, ou ajoutez-en un ci-dessous.'}
                 </p>
-              ) : typesDuCouple.map((t, i) => {
-                const coche = true
+              ) : types.map((t, i) => {
                 const editOuvert = promptEditId === t.id
                 const precisOuvert = precisEditId === t.id
                 return (
                   <Fragment key={t.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                    borderBottom: (i < typesDuCouple.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
-                      {t.is_default && <span style={{ ...badgeOrigine('admin'), background: '#fefce8', color: '#a16207' }}>défaut</span>}
-                      {/* Badge DOUBLE : d'où vient le type × qui l'a retenu. « SYSTÈME · IA » = type de
-                          notre table retenu par l'IA ; « IA » = type né de la détection ; « ADMIN » = ajout manuel. */}
-                      {typesSource[t.id] && (
-                        <span style={badgeOrigine(typesSource[t.id])}>
-                          {typesSource[t.id] === 'ia'
-                            ? (t.origine === 'ia' ? 'IA' : 'SYSTÈME · IA')
-                            : (SOURCE_LABEL[typesSource[t.id]] || typesSource[t.id])}
-                        </span>
-                      )}
-                    </span>
-                    {/* Prompt du type POUR CE COUPLE — état lu en base + bouton d'édition. */}
-                    {coche && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                        {(typesPrompt[t.id] || '').trim()
-                          ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>✓ prompt</span>
-                          : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#dc2626', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚠ vide</span>}
-                        <button type="button" onClick={() => { setPromptEditId(editOuvert ? null : t.id); setPromptBrouillon(editOuvert ? '' : (typesPrompt[t.id] || '')) }}
-                          title={`Voir / corriger le prompt de « ${t.label} » pour ce couple`}
-                          style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
-                            background: editOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
-                          ✎ Prompt
-                        </button>
-                        {(typesNbPrecis[t.id] || 0) > 0
-                          ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚑ {typesNbPrecis[t.id]} précision{typesNbPrecis[t.id] > 1 ? 's' : ''}</span>
-                          : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>0 précision</span>}
-                        <button type="button" onClick={() => ouvrirPrecisions(t)}
-                          title={`Précisions de « ${t.label} » pour ce couple`}
-                          style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
-                            background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
-                          ✎ Précisions
-                        </button>
-                        <button type="button"
-                          onClick={async () => {
-                            if (await demanderConfirmation({
-                              titre: `Retirer « ${t.label} » des types de ce couple ?`,
-                              message: "Ses précisions pour ce couple seront supprimées aussi.\n\nUne future détection le remettra si l'IA le relit dans le document.",
-                              confirmLabel: 'Retirer',
-                              danger: true,
-                            })) basculerType(t.id)
-                          }}
-                          title={`Retirer « ${t.label} » de ce couple — supprime ce type d'activité et ses précisions pour ce couple (les autres niveaux ne sont pas touchés)`}
-                          style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2',
-                            color: '#dc2626', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                            justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>✕</button>
+                    background: t.validee ? 'white' : '#fcfcfd',
+                    borderBottom: (i < types.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                      title={t.validee
+                        ? `« ${t.label} » est au programme : les professeurs de ce niveau le voient. Décocher le remet en proposition.`
+                        : `Proposition lue dans le document. Cocher pour la mettre au programme de ce niveau.`}>
+                      <input type="checkbox" checked={!!t.validee} onChange={e => retenirType(t, e.target.checked)}
+                        style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }} />
+                      <span style={{ fontWeight: t.validee ? 600 : 400, color: t.validee ? '#1e293b' : '#64748b', fontSize: 13 }}>
+                        {t.label}
                       </span>
-                    )}
+                      {/* Badge d'ORIGINE : d'où vient le type — lu dans le document (IA) ou ajouté
+                          à la main (ADMIN). Il ne dit jamais qui l'a retenu : ça, c'est la case. */}
+                      <span style={badgeOrigine(t.origine)}>{SOURCE_LABEL[t.origine] || t.origine}</span>
+                      {!t.validee && (
+                        <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>proposé, pas encore au programme</span>
+                      )}
+                    </label>
+                    {/* Prompt et précisions : le travail de mise au point, sur les types au programme. */}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      {t.validee && ((t.prompt || '').trim()
+                        ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>✓ prompt</span>
+                        : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#dc2626', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚠ vide</span>)}
+                      <button type="button" onClick={() => { setPromptEditId(editOuvert ? null : t.id); setPromptBrouillon(editOuvert ? '' : (t.prompt || '')) }}
+                        title={`Voir / corriger le prompt de « ${t.label} » pour ce référentiel`}
+                        style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+                          background: editOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        ✎ Prompt
+                      </button>
+                      {(t.nb_precisions || 0) > 0
+                        ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚑ {t.nb_precisions} précision{t.nb_precisions > 1 ? 's' : ''}</span>
+                        : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>0 précision</span>}
+                      <button type="button" onClick={() => ouvrirPrecisions(t)}
+                        title={t.validee
+                          ? `Précisions de « ${t.label} » pour ce référentiel`
+                          : `Précisions de « ${t.label} » — mettez-le d'abord au programme pour que l'IA les prépare`}
+                        style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+                          background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        ✎ Précisions
+                      </button>
+                      <button type="button" disabled={typesBusy} onClick={() => supprimerType(t)}
+                        title={`Supprimer « ${t.label} » de ce référentiel — efface le type et ses précisions ici (les autres référentiels ne sont pas touchés)`}
+                        style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2',
+                          color: '#dc2626', cursor: typesBusy ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center',
+                          justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>✕</button>
+                    </span>
                   </div>
                   {editOuvert && (
                     <div style={{ padding: '12px 14px', background: '#f8fafc',
-                      borderBottom: i < typesDuCouple.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      borderBottom: i < types.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
                         Prompt de « {t.label} » — pour {coupleLabel}
                       </div>
                       <textarea value={promptBrouillon} onChange={e => setPromptBrouillon(e.target.value)}
-                        rows={8} placeholder="Prompt généré automatiquement au coche, avec {texte} et {referentiel} — éditable ici."
+                        rows={8} placeholder="Prompt posé automatiquement à la création du type, avec {texte} et {referentiel} — éditable ici."
                         style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, padding: 10, border: '1px solid #cbd5e1', borderRadius: 8, resize: 'vertical', boxSizing: 'border-box' }} />
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button type="button" onClick={() => validerPromptType(t)} disabled={promptSaving || !promptBrouillon.trim()}
                           style={btnTypes('#16a34a', promptSaving || !promptBrouillon.trim())}
-                          title="Enregistrer ce prompt pour ce couple">{promptSaving ? 'Enregistrement…' : 'Valider'}</button>
+                          title="Enregistrer ce prompt pour ce type">{promptSaving ? 'Enregistrement…' : 'Valider'}</button>
                         <button type="button" onClick={() => { setPromptEditId(null); setPromptBrouillon('') }}
                           style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Annuler</button>
                       </div>
@@ -2118,7 +2141,7 @@ export default function AdminReferentiels() {
                   )}
                   {precisOuvert && (
                     <div style={{ padding: '12px 14px', background: '#f8fafc',
-                      borderBottom: i < typesDuCouple.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                      borderBottom: i < types.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
                         Précisions de « {t.label} » — pour {coupleLabel}
                       </div>
@@ -2134,7 +2157,7 @@ export default function AdminReferentiels() {
                               padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', fontSize: 13, color: '#1e293b' }}>
                               <span style={{ fontWeight: 500 }}>{p.libelle}</span>
                               <button type="button" disabled={precisBusy}
-                                onClick={() => supprimerPrecisCouple(t, p)}
+                                onClick={() => supprimerPrecisType(t, p)}
                                 title={`Supprimer « ${p.libelle} »`}
                                 style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626',
                                   cursor: precisBusy ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🗑</button>
@@ -2142,16 +2165,20 @@ export default function AdminReferentiels() {
                           ))}
                         </ul>
                       ) : (
-                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune précision pour ce couple.</p>
+                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
+                          {t.validee
+                            ? 'Aucune précision pour ce type.'
+                            : 'Ce type n’est pas encore au programme : cochez-le pour que l’IA prépare ses précisions.'}
+                        </p>
                       )}
                       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                         <input value={newPrecis} onChange={e => setNewPrecis(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); ajouterPrecisCouple(t) } }}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); ajouterPrecisType(t) } }}
                           placeholder="Ajouter une précision…"
                           style={{ flex: 1, minWidth: 0, height: 36, padding: '0 12px', fontSize: 13, borderRadius: 8, border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
-                        <button type="button" onClick={() => ajouterPrecisCouple(t)} disabled={precisBusy || !newPrecis.trim()}
+                        <button type="button" onClick={() => ajouterPrecisType(t)} disabled={precisBusy || !newPrecis.trim()}
                           style={btnTypes('#0f172a', precisBusy || !newPrecis.trim())}
-                          title="Ajouter cette précision pour ce couple">＋ Ajouter</button>
+                          title="Ajouter cette précision pour ce type">＋ Ajouter</button>
                         <button type="button" onClick={() => { setPrecisEditId(null); setPrecisList([]); setNewPrecis('') }}
                           style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Fermer</button>
                       </div>
@@ -2162,16 +2189,17 @@ export default function AdminReferentiels() {
               })}
             </div>
 
-          {/* Zone d'ajout MANUEL (champ + bouton) : le libellé rejoint le catalogue s'il est nouveau
-              (anti-doublon) et est collé à CE couple dans le même geste (badge admin). */}
+          {/* Zone d'ajout MANUEL (champ + bouton) : le libellé crée un type DANS CE référentiel,
+              retenu d'emblée (badge ADMIN). Rien n'est écrit ailleurs — aucun autre document ne
+              le verra jamais. */}
           <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
             <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') ajouterTypeCatalogue(typesNouveau) }}
-              placeholder="Ajouter un type d'activité à ce couple…"
+              onKeyDown={e => { if (e.key === 'Enter') ajouterType(typesNouveau) }}
+              placeholder="Ajouter un type d'activité à ce référentiel…"
               style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
-            <button onClick={() => ajouterTypeCatalogue(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
+            <button onClick={() => ajouterType(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
               style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
-              title="Ajouter ce type d'activité pour ce couple (rejoint le catalogue s'il est nouveau)"><span aria-hidden="true">＋</span> Ajouter</button>
+              title="Ajouter ce type d'activité à ce référentiel (il est au programme d'emblée)"><span aria-hidden="true">＋</span> Ajouter</button>
           </div>
           </>)}
         </div>

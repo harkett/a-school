@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Feedback from './Feedback'
 import Notation from './Notation'
 import { APP_VERSION } from '../version'
@@ -17,29 +18,22 @@ const chipAvenir = {
   background: '#f8fafc', color: '#b4bac3', border: '1px solid #f1f5f9',
 }
 
-export default function APropos({ email, matiere }) {
-  // Arbre des programmes (get, zéro copie) : cycles → niveaux, chacun avec refDisponible (DÉRIVÉ
-  // en base = référentiel réellement ingéré). C'est LUI qui décide gras (disponible) / gris (à venir).
-  const [programmes, setProgrammes] = useState(null)
+export default function APropos({ email }) {
   const [showFeedback, setShowFeedback] = useState(false)
   const [showNotation, setShowNotation] = useState(false)
   const [onglet, setOnglet] = useState('apropos')   // onglet actif : 'apropos' | 'programmes'
-  const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « Chargement… » sans fin
 
+  // Arbre des programmes (get, zéro copie) : cycles → niveaux, chacun avec refDisponible (DÉRIVÉ
+  // en base = référentiel réellement ingéré). C'est LUI qui décide gras (disponible) / gris (à venir).
   // Lecture ratée : l'onglet ne reste pas figé sur « Chargement… » — message en boîte de
   // dialogue et bouton « Réessayer » (motif de l'Accueil).
-  async function charger() {
-    setChargementRate(false)
-    try {
-      setProgrammes(await lireReponse(await fetchWithTimeout(
-        '/api/programmes/couverture', { credentials: 'include' }, TIMEOUT_STD)))
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }
-
-  useEffect(() => { charger() }, [])
+  const { data: programmes = null, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['programmes', 'couverture'],
+    queryFn: async () => await lireReponse(await fetchWithTimeout(
+      '/api/programmes/couverture', { credentials: 'include' }, TIMEOUT_STD)),
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = () => refetch()
 
   const cycles = programmes?.cycles || []
   const totalNiv = cycles.reduce((s, b) => s + b.niveaux.length, 0)

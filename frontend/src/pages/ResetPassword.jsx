@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import EyeIcon from '../components/EyeIcon'
-import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams()

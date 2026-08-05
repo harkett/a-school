@@ -1,7 +1,7 @@
 ﻿import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/contexteAuth.js'
 import EyeIcon from '../components/EyeIcon'
 
 export default function Login() {

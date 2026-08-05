@@ -115,28 +115,29 @@ def test_les_trois_reperes_sont_remplaces(espion, db):
 
 def test_max_tokens_est_lu_en_base_et_non_fige(espion, db):
     """`max_tokens=2000` etait ecrit en dur. La raison tenait (300 coupait la reponse), pas le
-    nombre : il devient reglable, avec le meme moule que les autres outils."""
-    _ecrire_reglage(f"max_tokens_{CLE}", "3333")
+    nombre : il se lit en base. Depuis le 05/08/2026 la source n'est plus un reglage d'ecran mais
+    la FICHE DU MODELE en service — un reglage par outil ne faisait que couper (cf.
+    tests/test_settings_max_tokens.py). On prouve ici que cet outil suit bien cette source."""
+    from backend.systeme.admin import get_max_tokens
 
     amont.suggerer_precisions_type(LABEL, NIVEAU, TEXTE, db=db)
 
-    assert espion["max_tokens"] == 3333, (
-        "max_tokens ne suit pas la base : la valeur est restee figee dans le code")
+    assert espion["max_tokens"] == get_max_tokens(db, CLE), (
+        "max_tokens ne suit pas la fiche du modele : la valeur est restee figee dans le code")
 
 
-def test_sans_surcharge_on_retombe_sur_le_defaut_global(espion, db):
-    """Comportement par defaut apres la correction : aucune surcharge -> defaut global, donc
-    au-dessus des 2000 d'avant. La marge qui motivait le nombre en dur est preservee. Le defaut
-    n'est pas ecrit ici : il se lit dans SETTING_DEFAULTS, sinon ce test tombe chaque fois que
-    l'admin ou une migration le change — ce qui est arrive le 05/08 (2048 -> 8000)."""
-    from backend.systeme.admin import SETTING_DEFAULTS
+def test_un_ancien_reglage_residuel_ne_rabaisse_plus_rien(espion, db):
+    """Un `max_tokens_<outil>` oublie en base ne doit plus JAMAIS brider cet outil : c'est
+    exactement ce qui avait fait couper une decoupe de referentiel a 5 000 jetons."""
+    from backend.systeme.admin import get_max_tokens
 
-    _retirer_reglage(f"max_tokens_{CLE}")
-
-    amont.suggerer_precisions_type(LABEL, NIVEAU, TEXTE, db=db)
-
-    assert espion["max_tokens"] == int(SETTING_DEFAULTS["max_tokens_default"])
-    assert espion["max_tokens"] >= 2000
+    _ecrire_reglage(f"max_tokens_{CLE}", "300")
+    try:
+        amont.suggerer_precisions_type(LABEL, NIVEAU, TEXTE, db=db)
+        assert espion["max_tokens"] == get_max_tokens(db, CLE)
+        assert espion["max_tokens"] > 300, "le reglage residuel bride encore l'outil"
+    finally:
+        _retirer_reglage(f"max_tokens_{CLE}")
 
 
 def test_prompt_absent_en_base_leve_au_lieu_de_se_rattraper(espion, db):

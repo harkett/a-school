@@ -7,8 +7,7 @@ référentiel, puis SA matière. Ce helper fait cette chaîne en get-or-create i
 ce qui est déjà semé) et renvoie un objet User prêt à `db.add(...)`.
 Préfixé « _ » → non collecté par pytest.
 """
-from backend.core.models_db import (ActiviteType, Cycle, Matiere, Niveau, Referentiel,
-                                    ReferentielActiviteType, User)
+from backend.core.models_db import (ActiviteType, Cycle, Matiere, Niveau, Referentiel, User)
 
 
 def niveau_id(db, nom):
@@ -70,27 +69,22 @@ def user_couple(db, email, subject=None, niveau=None, **kw):
 
 def type_pret(db, niveau_nom, label="Compréhension", prompt="Texte : {texte}\n{referentiel}"):
     """Un type d'activité RÉELLEMENT utilisable pour un niveau — la précondition que le serveur
-    exige désormais À L'ÉCRITURE comme à la génération (`type_du_couple_verifie`) :
+    exige À L'ÉCRITURE comme à la génération (`type_du_couple_verifie`) :
 
       1. le niveau a un référentiel officiel (`referentiels`) ;
-      2. le type existe au catalogue et y est actif ;
-      3. il est COCHÉ pour ce référentiel, avec un prompt non vide.
+      2. le type appartient À CE référentiel et y est actif ;
+      3. il est RETENU par l'admin (`validee`), avec un prompt non vide.
 
-    Un type créé seul (sans référentiel ni liaison) n'a jamais existé dans la vraie vie : c'est
-    ce raccourci de test que les contrôles de l'étape 8 ont mis en évidence. Get-or-create
-    idempotent, renvoie l'id du type.
+    Un type créé seul, sans référentiel, n'existe plus du tout depuis que les types sont une
+    donnée DU document (05/08/2026, migration e4a7c2b9d5f8) : il n'y a plus de catalogue global
+    où le poser. Get-or-create idempotent DANS le référentiel du niveau, renvoie l'id du type.
     """
     ref_id = referentiel_id(db, niveau_nom)
-    t = db.query(ActiviteType).filter(ActiviteType.label == label).first()
+    t = (db.query(ActiviteType)
+           .filter(ActiviteType.referentiel_id == ref_id, ActiviteType.label == label).first())
     if not t:
-        t = ActiviteType(label=label, ordre=1, actif=True, origine="systeme")
+        t = ActiviteType(referentiel_id=ref_id, label=label, ordre=1, actif=True,
+                         validee=True, origine="admin", prompt=prompt)
         db.add(t)
-        db.flush()
-    lien = (db.query(ReferentielActiviteType)
-              .filter(ReferentielActiviteType.referentiel_id == ref_id,
-                      ReferentielActiviteType.activite_type_id == t.id).first())
-    if not lien:
-        db.add(ReferentielActiviteType(referentiel_id=ref_id, activite_type_id=t.id,
-                                       actif=True, source="admin", prompt=prompt, ordre=1))
     db.flush()
     return t.id

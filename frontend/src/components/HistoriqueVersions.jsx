@@ -15,6 +15,7 @@
 //                 appelant remette son affichage sur l'état courant tout juste restauré ;
 //  - aide       : l'entrée « i » de l'écran appelant (facultative).
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import InfoGuide from './InfoGuide.jsx'
@@ -34,26 +35,23 @@ function dateLisible(iso) {
 }
 
 export default function HistoriqueVersions({ base, variante = 'ton', titre, aide, onFermer, onRestaure }) {
-  const [versions, setVersions] = useState(null)      // null = chargement en cours
-  const [chargementRate, setChargementRate] = useState(false)
   const [choisie, setChoisie] = useState(null)        // id de la version ouverte à droite
   const [contenu, setContenu] = useState(null)        // { resultat, … } de la version ouverte
   const [contenuRate, setContenuRate] = useState(false)
   const [restauration, setRestauration] = useState(null)   // version en attente de confirmation
   const [enCours, setEnCours] = useState(false)
 
-  const charger = useCallback(async () => {
-    setChargementRate(false)
-    try {
+  // `versions` reste à null tant que la réponse n'est pas là — l'écran affiche « Chargement… »,
+  // il ne montre pas une liste vide qui ferait croire à un historique inexistant.
+  const { data: versions = null, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['versions', base],
+    queryFn: async () => {
       const d = await lireReponse(await apiFetch(`${base}/versions`, {}, TIMEOUT_STD))
-      setVersions(d.versions || [])
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [base])
-
-  useEffect(() => { charger() }, [charger])
+      return d.versions || []
+    },
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = useCallback(() => { refetch() }, [refetch])
 
   // Échap ferme la fenêtre (même geste que les autres modales de l'appli).
   useEffect(() => {

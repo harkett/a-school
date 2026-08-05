@@ -1,8 +1,9 @@
-﻿import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { showError, registerFeedbackOpener } from './errorDialog'
 import { showConfirm } from './confirmDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './context/contexteAuth.js'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
@@ -37,6 +38,8 @@ import AdminLogs from './pages/AdminLogs'
 import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
+import AdminIAFournisseurs from './pages/AdminIAFournisseurs'
+import AdminIAStatistiques from './pages/AdminIAStatistiques'
 import AdminPrompts from './pages/AdminPrompts'
 import AdminPromptsCycle from './pages/AdminPromptsCycle'
 import AdminParametresEmail from './pages/AdminParametresEmail'
@@ -114,7 +117,14 @@ function MainApp() {
     && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
-  const [page, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
+  // Écran forcé : tant que le profil n'a pas de matière (couple absent), l'écran affiché est
+  // TOUJOURS « Mon profil ». Ce n'est pas une correction après coup (on posait autrefois
+  // setPage('mon-profil') dans un useLayoutEffect, ce qui repeignait l'écran une fois de trop) :
+  // `page` est simplement CALCULÉ — tant que profilIncomplet est vrai, il n'existe pas d'autre
+  // page, donc aucune autre ne peut s'afficher, même une fraction de seconde. Le choix de
+  // l'utilisateur dort dans `pageChoisie` et revient dès que la matière est enregistrée.
+  const [pageChoisie, setPage] = useState(profilIncomplet ? 'mon-profil' : 'accueil')
+  const page = profilIncomplet ? 'mon-profil' : pageChoisie
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackIncidentRef, setFeedbackIncidentRef] = useState(null)  // réf d'incident jointe au feedback (échec de génération) ; null = feedback ouvert manuellement
   const [showNotation, setShowNotation] = useState(false)
@@ -215,7 +225,7 @@ function MainApp() {
             logout()
           }
         }
-      } catch {}
+      } catch { /* battement raté (réseau, serveur) : le suivant reposera la question dans 60 s */ }
     }, 60000)
     return () => clearInterval(id)
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -257,19 +267,13 @@ function MainApp() {
     })
   }, [user?.blocage])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Écran forcé : tant que le profil n'a pas de matière (couple absent), on ramène TOUJOURS
-  // sur « Mon profil ». useLayoutEffect (avant peinture) → aucune autre page ne s'affiche, même
-  // une fraction de seconde. Se relâche seul dès que la matière est enregistrée (profilIncomplet=false).
-  useLayoutEffect(() => {
-    if (profilIncomplet && page !== 'mon-profil') setPage('mon-profil')
-  }, [profilIncomplet, page])
-
   // Le niveau vit EN BASE (users.niveau) : `params` n'en est que le reflet du get /auth/me,
   // jamais dupliqué en localStorage. Les autres champs de l'ancien écran Créer sont partis
   // avec lui le 30/07 — il ne reste que le niveau, seul champ lu.
-  const [params, setParams] = useState({
-    niveau: user?.travail_niveau || '',
-  })
+  // Reflet veut dire CALCULÉ, comme `sessionMatiere` juste au-dessus : plus de copie locale à
+  // resynchroniser après coup (PUT/DELETE du couple, sauvegarde du profil) — le get fait foi
+  // au rendu même où il arrive.
+  const params = { niveau: user?.travail_niveau || '' }
 
   // « Revenir à mon profil » = EFFACER l'écart en base (DELETE), puis relire /auth/me :
   // le header et l'écran suivent le même get — jamais une remise à zéro locale.
@@ -301,14 +305,6 @@ function MainApp() {
     }
   }
 
-  // Resynchronise params.niveau quand le couple de travail change en base (PUT/DELETE
-  // ci-dessus, ou sauvegarde du profil) — params reste un simple reflet du get.
-  useEffect(() => {
-    if (user?.travail_niveau && user.travail_niveau !== params.niveau) {
-      setParams(p => ({ ...p, niveau: user.travail_niveau }))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.travail_niveau])
   // Écran Séance de MES CONTENUS (maquette 29/07) : la ligne cliquée dans la bibliothèque,
   // ou null pour un formulaire vierge (« + Créer → Une séance »). Additif — rien d'existant ne bouge.
   const [seanceOuverte, setSeanceOuverte] = useState(null)
@@ -478,8 +474,8 @@ function MainApp() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
 
-      {/* Profil sans matière : le blocage se fait en amont — page initiale forcée à « mon-profil »
-          + snap-back useLayoutEffect (voir profilIncomplet plus haut). Pas de modale ici. */}
+      {/* Profil sans matière : le blocage se fait en amont — `page` vaut « mon-profil » tant que
+          profilIncomplet est vrai (voir plus haut), il n'y a rien d'autre à afficher. Pas de modale ici. */}
 
       <Header
         matiere={matiereLabel}
@@ -499,7 +495,7 @@ function MainApp() {
       />
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
-        <Sidebar page={page} onNavigate={naviguer} onFeedback={() => ouvrirFeedback()} onNotation={() => setShowNotation(true)} />
+        <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
@@ -591,8 +587,6 @@ function MainApp() {
             <SequenceEcran
               key={sequenceOuverte?.id ?? 'nouvelle'}
               sequence={sequenceOuverte}
-              matiere={sessionMatiere}
-              niveau={params.niveau}
               onNavigate={naviguer}
               onOuvrirSeance={ouvrirSeanceDepuisSequence}
             />
@@ -640,7 +634,7 @@ function MainApp() {
 
           {page === 'mes-stats' && <MesStats user={user} />}
 
-          {page === 'apropos' && <APropos email={user?.email} matiere={user?.subject} />}
+          {page === 'apropos' && <APropos email={user?.email} />}
 
           {/* « Comment ça marche » de la page courante — rendu UNE seule fois, piloté par le
               registre guidesParPage (fenêtre déplaçable FenetrePro, par-dessus l'écran).
@@ -742,6 +736,14 @@ export default function App() {
               <Route path="matieres" element={<AdminPromptsCycle key="matieres" sujet="matieres" />} />
               <Route path="decoupe"  element={<AdminPromptsCycle key="decoupe"  sujet="decoupe" />} />
               <Route path="autres" element={<AdminPrompts key="autres" categorie="autres" />} />
+            </Route>
+            {/* IA — les deux écrans nés avec la rubrique (05/08/2026). Prompts et Génération gardent
+                leurs URL d'origine : le menu a changé, pas les adresses, donc aucun lien ni favori
+                existant ne casse. */}
+            <Route path="ia">
+              <Route index element={<Navigate to="/admin/ia/fournisseurs" replace />} />
+              <Route path="fournisseurs" element={<AdminIAFournisseurs />} />
+              <Route path="statistiques" element={<AdminIAStatistiques />} />
             </Route>
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />

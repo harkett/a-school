@@ -29,7 +29,10 @@ from backend.core.database import get_db, SessionLocal
 # Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
+from backend.core.models_db import (
+    Activite, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType,
+    ReferentielTypePrecision,
+)
 # SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
 # usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
 from backend.core.llm_prompts import PROMPTS
@@ -260,16 +263,17 @@ def lire_contenu(db: Session = Depends(get_db)):
     for m in db.query(Matiere).order_by(Matiere.ordre, Matiere.id).all():
         mat_par_ref.setdefault(m.referentiel_id, []).append(m)
 
-    # Types d'activité liés par référentiel, puis précisions par lien (couple × type).
-    liens_par_ref: dict[int, list] = {}
-    for lien, t in (db.query(ReferentielActiviteType, ActiviteType)
-                      .join(ActiviteType, ActiviteType.id == ReferentielActiviteType.activite_type_id)
-                      .order_by(ActiviteType.ordre, ActiviteType.id).all()):
-        liens_par_ref.setdefault(lien.referentiel_id, []).append((lien, t))
-    precs_par_lien: dict[int, list[str]] = {}
+    # Types d'activité par RÉFÉRENTIEL (ils lui appartiennent, comme les matières), puis leurs
+    # précisions. TOUS, sans filtrer : même raison que les matières ci-dessus — l'admin gère ici,
+    # il doit voir aussi ce que le prof ne voit pas (proposé, pas encore retenu).
+    types_par_ref: dict[int, list] = {}
+    for t in (db.query(ActiviteType)
+                .order_by(ActiviteType.ordre, ActiviteType.id).all()):
+        types_par_ref.setdefault(t.referentiel_id, []).append(t)
+    precs_par_type: dict[int, list[str]] = {}
     for p in (db.query(ReferentielTypePrecision)
                 .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all()):
-        precs_par_lien.setdefault(p.referentiel_activite_type_id, []).append(p.libelle)
+        precs_par_type.setdefault(p.type_activite_id, []).append(p.libelle)
 
     arbre = []
     for c in cycles:
@@ -294,9 +298,9 @@ def lire_contenu(db: Session = Depends(get_db)):
                               "demande_langue": m.demande_langue}
                              for m in (mat_par_ref.get(ref.id, []) if ref else [])],
                 "types": [] if ref is None else [
-                    {"id": t.id, "label": t.label, "source": lien.source, "origine": t.origine,
-                     "precisions": precs_par_lien.get(lien.id, [])}
-                    for lien, t in liens_par_ref.get(ref.id, [])],
+                    {"id": t.id, "label": t.label, "validee": t.validee, "actif": t.actif,
+                     "origine": t.origine, "precisions": precs_par_type.get(t.id, [])}
+                    for t in types_par_ref.get(ref.id, [])],
             })
         arbre.append({"id": c.id, "nom": c.nom, "niveaux": blocs_niveaux})
     return {"cycles": arbre}
@@ -1499,70 +1503,85 @@ def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db))
     return {"ok": True}
 
 
-# ── Types d'activité d'un couple : CATALOGUE global (types_activite) coché/décoché via la LIAISON
-#    (referentiel_types_activite). Exact calque du patron matières (catalogue partagé + paire N-N),
-#    mais ici le référentiel ne fait que COCHER des lignes d'un catalogue global — il ne les possède
-#    pas. get pour lire (l'écran), put pour écrire (le coché), zéro donnée en dur.
+# ── Types d'activité D'UN RÉFÉRENTIEL — exact calque du patron MATIÈRES (05/08/2026) ─────────
+#
+# Un type d'activité est une donnée LUE DANS LE DOCUMENT, au même titre qu'une matière : le
+# référentiel dit quels formats de travail il met en œuvre. Il lui appartient donc (table
+# `types_activite`, colonne `referentiel_id`), et le geste est celui des matières :
+#
+#   la détection PROPOSE (validee=false) → l'admin RETIENT (validee=true) → le prof voit.
+#
+# CE QUE ÇA REMPLACE. Il y avait ici un CATALOGUE GLOBAL coché/décoché par une liaison N–N. Ce
+# catalogue était le vestige d'un seed en dur (migration a1b2c3d4e5f6, 13 familles) : la liste
+# précédait les référentiels, il fallait donc un moyen de s'y raccrocher. Sa conséquence était
+# qu'un type lu dans UN document était créé dans la table PARTAGÉE par tous les couples, sans
+# clic et sans retour possible — et que son libellé repartait ensuite comme vocabulaire dans le
+# prompt de détection de tous les autres. Voir la migration e4a7c2b9d5f8.
+#
+# get pour lire, put/post/delete pour écrire, zéro donnée en dur.
+
+
+def _type_du_couple(db: Session, cycle_id: int, niveau: str, type_id: int) -> ActiviteType:
+    """Résout LE type d'activité du référentiel de ce couple. Remplace `_lien_couple_type` : il n'y
+    a plus de liaison à traverser, le type porte lui-même son référentiel. 404 si le couple n'a pas
+    de référentiel, ou si ce type n'est pas le sien (garde de portée : un id d'un autre référentiel
+    ne donne jamais accès à ses précisions)."""
+    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    t = (db.query(ActiviteType)
+           .filter(ActiviteType.id == type_id, ActiviteType.referentiel_id == ref.id).first())
+    if t is None:
+        raise HTTPException(404, "Ce type d'activité n'appartient pas à ce référentiel.")
+    return t
 
 
 @router.get("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
 def lire_types_activite(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Fenêtre de l'écran (lecture seule) : le CATALOGUE global des types actifs + lesquels sont COCHÉS
-    (liaison `actif`) pour le référentiel de CE couple. L'écran rend une case par type du catalogue,
-    cochée si son id est dans `coches`. `coches` vide si le couple n'a pas encore de référentiel (rien
-    à cocher) — 404/422 seulement pour cycle inconnu / niveau manquant (via `_ref_du_couple`)."""
-    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau ; None si pas de référentiel
-    catalogue = [
-        {"id": t.id, "label": t.label, "is_default": bool(t.is_default), "origine": t.origine}
-        for t in (db.query(ActiviteType)
-                    .filter(ActiviteType.actif.is_(True))
-                    .order_by(ActiviteType.ordre, ActiviteType.id).all())
-    ]
-    coches = []
-    if ref is not None:
-        liens = (db.query(ReferentielActiviteType)
-                   .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                           ReferentielActiviteType.actif.is_(True))
-                   .order_by(ReferentielActiviteType.ordre, ReferentielActiviteType.id).all())
-        # Comptage RÉEL des précisions par lien (get, zéro copie) : un count groupé, pas de N+1.
-        nb_par_lien = dict(
-            db.query(ReferentielTypePrecision.referentiel_activite_type_id, func.count())
-              .filter(ReferentielTypePrecision.referentiel_activite_type_id.in_([l.id for l in liens]))
-              .group_by(ReferentielTypePrecision.referentiel_activite_type_id).all()
-        ) if liens else {}
-        coches = [
-            {"activite_type_id": l.activite_type_id, "source": l.source, "prompt": l.prompt or "",
-             "nb_precisions": int(nb_par_lien.get(l.id, 0))}
-            for l in liens
-        ]
-    return {"catalogue": catalogue, "coches": coches}
+    """Les types d'activité DU référentiel de ce couple (lecture seule, get pur). Une seule liste :
+    propositions et types retenus s'y côtoient, `validee` les distingue — comme la table des
+    matières. Liste vide si le couple n'a pas encore de référentiel (rien à montrer) ; 404/422
+    seulement pour cycle inconnu / niveau manquant (via `_ref_du_couple`).
+
+    `nb_precisions` est COMPTÉ en base (un count groupé, pas de N+1) : l'écran affiche un nombre
+    réel, jamais un nombre stocké à côté qui finirait par mentir."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"types": []}
+    types = (db.query(ActiviteType)
+               .filter(ActiviteType.referentiel_id == ref.id, ActiviteType.actif.is_(True))
+               .order_by(ActiviteType.ordre, ActiviteType.id).all())
+    nb_par_type = dict(
+        db.query(ReferentielTypePrecision.type_activite_id, func.count())
+          .filter(ReferentielTypePrecision.type_activite_id.in_([t.id for t in types]))
+          .group_by(ReferentielTypePrecision.type_activite_id).all()
+    ) if types else {}
+    return {"types": [
+        {"id": t.id, "label": t.label, "validee": bool(t.validee), "origine": t.origine,
+         "prompt": t.prompt or "", "nb_precisions": int(nb_par_type.get(t.id, 0))}
+        for t in types
+    ]}
 
 
 def _generer_prompt_type(db: Session, label: str, niveau: str) -> str:
-    """Prompt de génération d'un type d'activité POUR CE couple, produit AUTOMATIQUEMENT au coche.
+    """Prompt de génération d'un type d'activité POUR CE référentiel, produit AUTOMATIQUEMENT à la
+    création du type (détection ou ajout manuel).
 
     Le GABARIT vit EN BASE (réglage `prompt_gabarit_type`) — il était écrit en dur ici alors que
-    tous les autres prompts du produit sont administrables (méta-prompt de découpe en Setting,
-    prompt du couple en colonne) : le retoucher demandait un redéploiement. Deux emplacements
-    sont remplis ici, {label} et {niveau} (le type et le niveau du couple) ; deux autres sont
-    laissés INTACTS pour la génération : {texte} (l'idée du prof, elle mène) et {referentiel}
-    (le programme officiel). D'où le remplacement ciblé plutôt qu'un format() global, qui
-    consommerait aussi les emplacements de la génération.
+    tous les autres prompts du produit sont administrables : le retoucher demandait un
+    redéploiement. Deux emplacements sont remplis ici, {label} et {niveau} ; deux autres sont
+    laissés INTACTS pour la génération : {texte} (l'idée du prof, elle mène) et {referentiel} (le
+    programme officiel). D'où le remplacement ciblé plutôt qu'un format() global, qui consommerait
+    aussi les emplacements de la génération.
 
-    Le résultat, lui, est stocké sur la ligne de liaison ; l'admin peut le relire et le corriger
-    via ✎ Prompt — retoucher le gabarit ne réécrit donc jamais les prompts déjà posés.
-
-    LU PAR `get_prompt` DEPUIS LE 02/08/2026, donc EN BASE et sans repli code. Le gabarit est
-    entré au registre (clé `gabarit_type`, mode « replace ») : il se règle enfin depuis l'écran
-    Prompts, et `valider_prompt` le garde à l'écriture. Avant, il n'avait aucune porte — ni
-    route, ni écran — et un gabarit fautif faisait tomber la faute chez le PROF, à la
-    génération, alors que l'auteur du texte est l'admin.
+    Le résultat est stocké sur la ligne du type ; l'admin peut le relire et le corriger via
+    ✎ Prompt — retoucher le gabarit ne réécrit donc jamais les prompts déjà posés.
 
     ET ON CONTRÔLE CE QU'ON PRODUIT. Le garde-fou d'écriture ne couvre pas une valeur posée
-    directement en base (Adminer est là, sur ce poste). Le prompt fabriqué ici est donc relu
-    par la MÊME fonction que ✎ Prompt : si le gabarit produit un prompt invalide, l'admin
-    l'apprend en cochant le type, avec un message qui nomme le défaut — jamais le prof au
-    milieu d'une génération."""
+    directement en base (Adminer est là, sur ce poste). Le prompt fabriqué ici est donc relu par
+    la MÊME fonction que ✎ Prompt : si le gabarit produit un prompt invalide, l'admin l'apprend en
+    créant le type, avec un message qui nomme le défaut — jamais le prof au milieu d'une
+    génération."""
     from backend.contenu.activites import valider_prompt_couple   # import local : pas de cycle
     gabarit = get_prompt(db, "gabarit_type")
     prompt = gabarit.replace("{label}", label).replace("{niveau}", niveau)
@@ -1576,270 +1595,288 @@ def _generer_prompt_type(db: Session, label: str, niveau: str) -> str:
     return prompt
 
 
-class BasculerTypeBody(BaseModel):
+def _creer_type(db: Session, ref: Referentiel, label: str, niveau: str, *,
+                origine: str, validee: bool) -> ActiviteType:
+    """CREATE encadré d'un type POUR CE référentiel. Anti-doublon par LIBELLÉ insensible à la casse
+    DANS CE référentiel (la clé métier, comme `matieres.nom`) : un libellé déjà présent renvoie la
+    ligne existante au lieu d'en créer une seconde. Prompt gabarit posé dès la création — un type
+    du référentiel est opérationnel tout de suite, jamais « prompt vide »."""
+    existant = (db.query(ActiviteType)
+                  .filter(ActiviteType.referentiel_id == ref.id,
+                          func.lower(ActiviteType.label) == label.lower()).first())
+    if existant is not None:
+        return existant
+    ordre_max = (db.query(func.coalesce(func.max(ActiviteType.ordre), -1))
+                   .filter(ActiviteType.referentiel_id == ref.id).scalar())
+    t = ActiviteType(referentiel_id=ref.id, label=label, ordre=ordre_max + 1,
+                     origine=origine, validee=validee, actif=True,
+                     prompt=_generer_prompt_type(db, label, niveau))
+    db.add(t)
+    db.flush()
+    return t
+
+
+class RetenirTypeBody(BaseModel):
     cycle_id: int
     niveau: str
-    activite_type_id: int               # LE type basculé (un seul)
-    actif: bool                         # True = cocher (lien actif), False = décocher (lien inactif)
+    type_id: int
+    validee: bool                       # True = retenu (le prof le voit) · False = remis en proposition
 
 
 @router.put("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
-def basculer_type_activite(body: BasculerTypeBody, db: Session = Depends(get_db)):
-    """Écrit DIRECTEMENT en base l'état d'UN type pour le couple — modèle SIMPLE (décision admin) :
-    un type retenu = une ligne de lien, rien d'autre. `actif=True` → get-or-create du lien (à la
-    création : `source` = origine du type, prompt gabarit posé). `actif=False` → le lien est
-    SUPPRIMÉ, vraiment (ses précisions partent avec lui — CASCADE) : supprimé = plus en base, on
-    n'en parle plus ; une future détection le recréera si l'IA relit le type dans le document.
-    Idempotent. 404 si le couple n'a pas de référentiel ; 400 si le type n'existe pas au catalogue."""
+def retenir_type_activite(body: RetenirTypeBody, db: Session = Depends(get_db)):
+    """RETENIR (ou remettre en proposition) UN type du référentiel — LE geste de l'admin, écrit
+    direct en base au clic. `validee=true` : le type entre au programme, le prof le voit.
+    `validee=false` : il redevient une proposition, invisible du prof, mais il reste à l'écran.
+
+    C'est ici que se joue la règle : une lecture d'IA n'entre jamais dans les menus d'un
+    professeur toute seule. Idempotent."""
+    t = _type_du_couple(db, body.cycle_id, body.niveau, body.type_id)
+    t.validee = body.validee
+    db.commit()
+    return {"ok": True, "type_id": t.id, "validee": t.validee}
+
+
+class AjouterTypeBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    label: str
+
+
+@router.post("/admin/referentiels/types-activite", dependencies=[Depends(_require_admin)])
+def ajouter_type_activite(body: AjouterTypeBody, db: Session = Depends(get_db)):
+    """Ajout MANUEL d'un type à CE référentiel (l'admin le nomme lui-même) : `origine='admin'` et
+    RETENU d'emblée — il n'a pas à se proposer à lui-même ce qu'il vient d'écrire. Anti-doublon par
+    libellé dans ce référentiel (`deja_present`). Rien de global : ce type n'existe que pour ce
+    document."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
+    label = (body.label or "").strip()
+    if not label:
+        raise HTTPException(400, "Le libellé du type d'activité est requis.")
+    deja = (db.query(ActiviteType)
+              .filter(ActiviteType.referentiel_id == ref.id,
+                      func.lower(ActiviteType.label) == label.lower()).first())
+    t = _creer_type(db, ref, label, body.niveau, origine="admin", validee=True)
+    if deja is None:
+        db.commit()
+        db.refresh(t)
+    else:
+        db.rollback()
+    return {"id": t.id, "label": t.label, "deja_present": deja is not None}
 
-    # Origine + libellé du type (→ source du lien + génération du prompt). Contrôle d'existence AVANT écriture.
-    t = (db.query(ActiviteType.id, ActiviteType.origine, ActiviteType.label)
-           .filter(ActiviteType.id == body.activite_type_id).first())
-    if t is None:
-        raise HTTPException(400, f"Type d'activité inconnu au catalogue : {body.activite_type_id}.")
 
-    l = (db.query(ReferentielActiviteType)
-           .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                   ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
-    if body.actif:
-        if l is None:                        # retenir un type sans lien → on crée le lien (source = origine)
-            # Génération AUTO du prompt de ce type POUR CE couple, dès la création du lien (zéro copie).
-            db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=body.activite_type_id,
-                                           actif=True, source=t.origine,
-                                           prompt=_generer_prompt_type(db, t.label, body.niveau)))
-        elif not (l.prompt or "").strip():   # lien déjà là mais sans prompt (ancien) → on le pose
-            l.prompt = _generer_prompt_type(db, t.label, body.niveau)
-    elif l is not None:
-        db.delete(l)                         # retirer = SUPPRIMER le lien (précisions en cascade)
+@router.delete("/admin/referentiels/types-activite/{type_id}", dependencies=[Depends(_require_admin)])
+def supprimer_type_activite(type_id: int, cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """DELETE encadré d'un type du référentiel : un VRAI delete (ses précisions partent avec lui,
+    CASCADE), jamais un `actif=false` caché — le mot du bouton dit le geste.
+
+    REFUS (409) si des activités déjà générées s'appuient sur ce type : elles y sont rattachées par
+    clé étrangère, l'effacer casserait l'historique d'un professeur. Le message dit combien, comme
+    pour la suppression d'un référentiel. Une future détection recréera le type si le document le
+    nomme encore."""
+    t = _type_du_couple(db, cycle_id, niveau, type_id)
+    faites = db.query(Activite).filter(Activite.activite_type_id == t.id).count()
+    if faites > 0:
+        raise HTTPException(409, f"{faites} activité(s) déjà générée(s) s'appuient sur « {t.label} » — "
+                                 "suppression impossible. L'historique des professeurs y est rattaché.")
+    db.delete(t)
     db.commit()
-    return {"ok": True, "activite_type_id": body.activite_type_id, "actif": body.actif}
+    logger.info("Type d'activité supprimé : id=%s label=%s", type_id, t.label)
+    return {"ok": True, "id": type_id}
 
 
-def _generer_precisions_ia(db: Session, lien: ReferentielActiviteType, label: str, cycle_id: int, niveau: str) -> None:
-    """Écrit les précisions IA du type POUR CE COUPLE dans `referentiel_type_precisions` (source='ia'), au
-    coche. IDEMPOTENT : ne fait rien si la liaison a déjà des précisions (recocher ne réécrase pas, et
-    n'écrase JAMAIS les précisions 'admin' saisies à la main). Toute panne (PDF absent, IA down) est
-    ABSORBÉE (loggée) — la coche réussit quoi qu'il arrive."""
+def _generer_precisions_ia(db: Session, t: ActiviteType, niveau: str) -> None:
+    """Écrit les précisions IA d'un type (source='ia'). IDEMPOTENT : ne fait rien si le type en a
+    déjà (relancer ne réécrase pas, et n'écrase JAMAIS les précisions 'admin' saisies à la main).
+    Toute panne (texte absent, IA down) est ABSORBÉE (loggée) : les précisions sont une aide au
+    remplissage, leur échec ne doit pas faire tomber le geste qui les a demandées."""
     deja = (db.query(ReferentielTypePrecision.id)
-              .filter(ReferentielTypePrecision.referentiel_activite_type_id == lien.id).first())
+              .filter(ReferentielTypePrecision.type_activite_id == t.id).first())
     if deja is not None:
         return
     try:
-        ref = db.get(Referentiel, lien.referentiel_id)
+        ref = db.get(Referentiel, t.referentiel_id)
         texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
         if not texte.strip():
             return
         from backend.rag.analyse_amont import suggerer_precisions_type
-        libelles = suggerer_precisions_type(label, niveau, texte, db=db)
+        libelles = suggerer_precisions_type(t.label, niveau, texte, db=db)
     except Exception as e:
-        logger.warning("Précisions IA non générées (coche non bloquée) lien=%s : %s", lien.id, e)
+        logger.warning("Précisions IA non générées (geste non bloqué) type=%s : %s", t.id, e)
         return
     for i, lib in enumerate(libelles):
         lib = (lib or "").strip()
         if not lib:
             continue
         existe = (db.query(ReferentielTypePrecision.id)
-                    .filter(ReferentielTypePrecision.referentiel_activite_type_id == lien.id,
+                    .filter(ReferentielTypePrecision.type_activite_id == t.id,
                             func.lower(ReferentielTypePrecision.libelle) == lib.lower()).first())
         if existe is None:
-            db.add(ReferentielTypePrecision(referentiel_activite_type_id=lien.id, libelle=lib, ordre=i, source="ia"))
+            db.add(ReferentielTypePrecision(type_activite_id=t.id, libelle=lib, ordre=i, source="ia"))
 
 
-class PromptLienBody(BaseModel):
+class PromptTypeBody(BaseModel):
     cycle_id: int
     niveau: str
-    activite_type_id: int
+    type_id: int
     prompt: str
 
 
 @router.put("/admin/referentiels/types-activite/prompt", dependencies=[Depends(_require_admin)])
-def ecrire_prompt_type_couple(body: PromptLienBody, db: Session = Depends(get_db)):
-    """UPDATE (règle 4) du prompt d'un type POUR CE couple — réécrit la colonne `prompt` de la ligne de
-    liaison (une seule place, zéro copie). Contrôles : 404 si le couple n'a pas de référentiel ou si le
-    type n'est pas lié à ce couple ; 422 si le prompt est vide (un prompt vide = type non opérationnel)."""
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    l = (db.query(ReferentielActiviteType)
-           .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                   ReferentielActiviteType.activite_type_id == body.activite_type_id).first())
-    if l is None:
-        raise HTTPException(404, "Ce type n'est pas coché pour ce couple.")
+def ecrire_prompt_type(body: PromptTypeBody, db: Session = Depends(get_db)):
+    """UPDATE du prompt d'un type — réécrit la colonne `prompt` de sa ligne (une seule place, zéro
+    copie). Contrôles : type du référentiel (404), prompt non vide (422), et le MÊME garde-fou
+    d'écriture que partout : ce prompt part ensuite dans `modele.format(...)` (api_generate), qui
+    n'attrape que KeyError. Un prompt sans {texte} ignorerait l'idée du prof en silence ; une
+    accolade seule rendrait un 500 nu au premier clic d'un enseignant. On refuse AVANT d'écrire."""
+    t = _type_du_couple(db, body.cycle_id, body.niveau, body.type_id)
     if not (body.prompt or "").strip():
         raise HTTPException(422, "Le prompt est vide.")
-    # Garde-fou d'écriture — il manquait ICI, et seulement ici, de tout le produit : ce prompt
-    # part ensuite dans `modele.format(...)` (api_generate), qui n'attrape que KeyError. Un
-    # prompt sans {texte} ignorait l'idée du prof en silence ; une accolade seule rendait un
-    # 500 nu au premier clic d'un enseignant. On refuse AVANT d'écrire, avec un message humain.
     from backend.contenu.activites import valider_prompt_couple   # import local : pas de cycle
     err = valider_prompt_couple(body.prompt)
     if err:
         raise HTTPException(400, err)
-    l.prompt = body.prompt
+    t.prompt = body.prompt
     db.commit()
-    return {"ok": True, "activite_type_id": body.activite_type_id}
-
-
-def _lien_couple_type(db: Session, cycle_id: int, niveau: str, activite_type_id: int) -> ReferentielActiviteType:
-    """Résout la ligne de liaison (couple × type) — le SEUL endroit où vit ce qui est propre au couple
-    (prompt, et désormais précisions). 404 si le couple n'a pas de référentiel ou si le type n'y est pas lié."""
-    ref = _ref_du_couple(db, cycle_id, niveau)   # 404 cycle / 422 niveau
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    l = (db.query(ReferentielActiviteType)
-           .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                   ReferentielActiviteType.activite_type_id == activite_type_id).first())
-    if l is None:
-        raise HTTPException(404, "Ce type n'est pas coché pour ce couple.")
-    return l
+    return {"ok": True, "type_id": t.id}
 
 
 @router.get("/admin/referentiels/types-activite/precisions", dependencies=[Depends(_require_admin)])
-def lister_precisions_couple(cycle_id: int, niveau: str, activite_type_id: int, db: Session = Depends(get_db)):
-    """Précisions d'un type POUR CE COUPLE — get direct dans `referentiel_type_precisions`, ordonné
-    (ordre, id). Lecture seule : la liste est LUE, jamais recopiée (règle 4). Clé = la liaison couple×type."""
-    l = _lien_couple_type(db, cycle_id, niveau, activite_type_id)
+def lister_precisions_type(cycle_id: int, niveau: str, type_id: int, db: Session = Depends(get_db)):
+    """Précisions d'un type — get direct dans `referentiel_type_precisions`, ordonné (ordre, id).
+    Lecture seule : la liste est LUE, jamais recopiée. Elles pendent sur le type, donc sur le
+    référentiel : « exploration sensorielle » n'existe que pour le document qui l'a nommée."""
+    t = _type_du_couple(db, cycle_id, niveau, type_id)
     precs = (db.query(ReferentielTypePrecision)
-               .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id)
+               .filter(ReferentielTypePrecision.type_activite_id == t.id)
                .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all())
     return {"precisions": [
         {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
 
 
-class PrecisionCoupleIn(BaseModel):
+class PrecisionTypeIn(BaseModel):
     cycle_id: int
     niveau: str
-    activite_type_id: int
+    type_id: int
     libelle: str
 
 
 @router.post("/admin/referentiels/types-activite/precisions", dependencies=[Depends(_require_admin)])
-def creer_precision_couple(body: PrecisionCoupleIn, db: Session = Depends(get_db)):
-    """Ajoute une précision au type POUR CE COUPLE (`referentiel_type_precisions`). CREATE encadré
-    (règle 4) : couple×type valide (404), libellé non vide (400), REFUS DU DOUBLON par libellé insensible
-    à la casse DANS CE couple×type → renvoie l'existante (`deja_present`). Sinon crée `source='admin'`,
-    `ordre = max(ordre)+1`. Rien de global : c'est propre au couple, jamais partagé avec un autre niveau."""
-    l = _lien_couple_type(db, body.cycle_id, body.niveau, body.activite_type_id)
+def creer_precision_type(body: PrecisionTypeIn, db: Session = Depends(get_db)):
+    """Ajoute une précision à un type. CREATE encadré : type du référentiel (404), libellé non vide
+    (400), REFUS DU DOUBLON par libellé insensible à la casse DANS CE type → renvoie l'existante
+    (`deja_present`). Sinon crée `source='admin'`, `ordre = max(ordre)+1`."""
+    t = _type_du_couple(db, body.cycle_id, body.niveau, body.type_id)
     libelle = (body.libelle or "").strip()
     if not libelle:
         raise HTTPException(400, "Indiquez un libellé pour la précision.")
     existante = (db.query(ReferentielTypePrecision)
-                   .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id,
+                   .filter(ReferentielTypePrecision.type_activite_id == t.id,
                            func.lower(ReferentielTypePrecision.libelle) == libelle.lower()).first())
     if existante is not None:
         return {"id": existante.id, "libelle": existante.libelle, "deja_present": True}
     ordre_max = (db.query(func.coalesce(func.max(ReferentielTypePrecision.ordre), -1))
-                   .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id).scalar())
-    p = ReferentielTypePrecision(referentiel_activite_type_id=l.id, libelle=libelle, ordre=ordre_max + 1, source="admin")
+                   .filter(ReferentielTypePrecision.type_activite_id == t.id).scalar())
+    p = ReferentielTypePrecision(type_activite_id=t.id, libelle=libelle,
+                                 ordre=ordre_max + 1, source="admin")
     db.add(p)
     db.commit()
     db.refresh(p)
-    logger.info("Précision couple ajoutée : lien=%s id=%s libelle=%s", l.id, p.id, p.libelle)
+    logger.info("Précision ajoutée : type=%s id=%s libelle=%s", t.id, p.id, p.libelle)
     return {"id": p.id, "libelle": p.libelle, "deja_present": False}
 
 
 @router.delete("/admin/referentiels/types-activite/precisions/{prec_id}", dependencies=[Depends(_require_admin)])
-def supprimer_precision_couple(prec_id: int, cycle_id: int, niveau: str, activite_type_id: int,
-                               db: Session = Depends(get_db)):
-    """Supprime une précision d'un couple×type. DELETE encadré : la précision doit exister ET appartenir
-    au bon couple×type (404 sinon). CASCADE côté base si la liaison disparaît ; ici suppression unitaire."""
-    l = _lien_couple_type(db, cycle_id, niveau, activite_type_id)
+def supprimer_precision_type(prec_id: int, cycle_id: int, niveau: str, type_id: int,
+                             db: Session = Depends(get_db)):
+    """Supprime une précision d'un type. DELETE encadré : la précision doit exister ET appartenir
+    au bon type (404 sinon)."""
+    t = _type_du_couple(db, cycle_id, niveau, type_id)
     p = db.get(ReferentielTypePrecision, prec_id)
-    if p is None or p.referentiel_activite_type_id != l.id:
-        raise HTTPException(404, "Précision introuvable pour ce couple.")
+    if p is None or p.type_activite_id != t.id:
+        raise HTTPException(404, "Précision introuvable pour ce type.")
     db.delete(p)
     db.commit()
-    logger.info("Précision couple supprimée : lien=%s id=%s libelle=%s", l.id, prec_id, p.libelle)
+    logger.info("Précision supprimée : type=%s id=%s libelle=%s", t.id, prec_id, p.libelle)
     return {"ok": True, "id": prec_id}
 
 
-class CoupleTypeRef(BaseModel):
+class TypeRef(BaseModel):
     cycle_id: int
     niveau: str
-    activite_type_id: int
+    type_id: int
 
 
 @router.post("/admin/referentiels/types-activite/precisions/generer", dependencies=[Depends(_require_admin)])
-def generer_precisions_couple(body: CoupleTypeRef, db: Session = Depends(get_db)):
-    """ÉCRITURE : l'IA génère les précisions du couple×type et les enregistre (`source='ia'`), puis renvoie
-    la liste. Appelé par le front UNIQUEMENT quand la LECTURE (GET) est revenue vide — jamais autrement.
-    Garde-fou : si la liaison a déjà des précisions, le helper ne régénère pas. Pannes IA absorbées."""
-    l = _lien_couple_type(db, body.cycle_id, body.niveau, body.activite_type_id)
-    t = db.get(ActiviteType, body.activite_type_id)
-    _generer_precisions_ia(db, l, t.label if t else "", body.cycle_id, body.niveau)
+def generer_precisions_type(body: TypeRef, db: Session = Depends(get_db)):
+    """ÉCRITURE : l'IA génère les précisions d'un type et les enregistre (`source='ia'`), puis
+    renvoie la liste.
+
+    RÉSERVÉ AUX TYPES RETENUS (422 sinon). On ne dépense l'IA que sur ce que l'admin a gardé : une
+    proposition qu'il n'a pas retenue n'a pas à coûter un appel — c'est la même règle que les
+    matières, où rien ne se travaille avant d'être au programme. Garde-fou : un type qui a déjà des
+    précisions n'est jamais réécrasé. Pannes IA absorbées."""
+    t = _type_du_couple(db, body.cycle_id, body.niveau, body.type_id)
+    if not t.validee:
+        raise HTTPException(422, "Retenez d'abord ce type d'activité : les précisions ne se "
+                                 "génèrent que pour les types au programme.")
+    _generer_precisions_ia(db, t, body.niveau)
     db.commit()
     precs = (db.query(ReferentielTypePrecision)
-               .filter(ReferentielTypePrecision.referentiel_activite_type_id == l.id)
+               .filter(ReferentielTypePrecision.type_activite_id == t.id)
                .order_by(ReferentielTypePrecision.ordre, ReferentielTypePrecision.id).all())
     return {"precisions": [
         {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
 
 
-class AjouterTypeCatalogueBody(BaseModel):
-    label: str
-    cycle_id: int | None = None    # couple fourni → le type est aussi COCHÉ pour ce couple
-    niveau: str | None = None
-    suggestion_ia: bool = False    # True = l'ajout vient d'une SUGGESTION IA (badge 'ia' sur le lien)
+def _prompt_types_du_cycle(db: Session, cycle_id: int, texte: str) -> str | None:
+    """LE prompt qui lit les types d'activité de ce cycle. Troisième exemplaire du geste de
+    `_prompt_matieres_du_cycle` et `_prompt_decoupe_du_cycle` : s'il n'existe pas encore, il est
+    ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce référentiel comme exemple de la
+    famille), puis rangé sur le cycle — le référentiel suivant du même cycle le trouvera déjà fait.
 
+    Le prompt SERT dès qu'il existe. `prompt_types_valide` ne commande pas son usage : il dit
+    seulement si l'admin l'a relu.
 
-@router.post("/admin/referentiels/types-activite/catalogue", dependencies=[Depends(_require_admin)])
-def ajouter_type_catalogue(body: AjouterTypeCatalogueBody, db: Session = Depends(get_db)):
-    """Ajoute un type au CATALOGUE GLOBAL (Create encadré) ET le COCHE pour le couple si le couple
-    est fourni. Anti-doublon par LIBELLÉ insensible à la casse — la clé métier du catalogue, comme
-    `matieres.nom` : un libellé déjà connu RÉUTILISE le type existant (jamais deux types de même
-    libellé). Renvoie le type (créé ou réutilisé) + `deja_present`.
-
-    ORIGINE (badge) : `suggestion_ia=True` = l'ajout vient d'une suggestion de la détection → type
-    créé `origine='ia'`, lien coché `source='ia'`. Sinon (saisie manuelle de l'admin) → 'admin'.
-    Le coche est un get-or-create encadré : lien déjà présent → rien, jamais de doublon."""
-    label = (body.label or "").strip()
-    if not label:
-        raise HTTPException(400, "Le libellé du type d'activité est requis.")
-    origine = "ia" if body.suggestion_ia else "admin"
-    t = db.query(ActiviteType).filter(func.lower(ActiviteType.label) == label.lower()).first()
-    deja_present = t is not None
-    if t is None:
-        maxo = db.query(func.max(ActiviteType.ordre)).scalar()
-        t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True, origine=origine)
-        db.add(t); db.commit(); db.refresh(t)
-
-    # Couple fourni → coller le type au couple (coche = lien actif), avec la bonne origine.
-    coche = False
-    if body.cycle_id is not None and (body.niveau or "").strip():
-        ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
-        if ref is not None:
-            l = (db.query(ReferentielActiviteType)
-                   .filter(ReferentielActiviteType.referentiel_id == ref.id,
-                           ReferentielActiviteType.activite_type_id == t.id).first())
-            if l is None:
-                db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                               actif=True, source=origine,
-                                               prompt=_generer_prompt_type(db, t.label, body.niveau)))
-                coche = True
-            db.commit()
-
-    return {"id": t.id, "label": t.label, "deja_present": deja_present, "coche_ia": coche}
+    None si la rédaction échoue : la détection retombe alors sur le prompt général, sans casser le
+    geste (une panne de l'IA ne doit pas empêcher de proposer des types)."""
+    cyc = db.get(Cycle, cycle_id)
+    if cyc is None:
+        return None
+    deja = (cyc.prompt_types or "").strip()
+    if deja:
+        return deja
+    from backend.rag.analyse_amont import generer_prompt_types
+    try:
+        prompt = generer_prompt_types(texte, db=db).strip()
+    except Exception:
+        logger.exception("types : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        return None
+    if not prompt:
+        return None
+    cyc.prompt_types = prompt
+    cyc.prompt_types_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    db.commit()
+    logger.info("types : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    return prompt
 
 
 @router.post("/admin/referentiels/types-activite/detecter", dependencies=[Depends(_require_admin)])
 def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """L'IA LIT le document épuré du couple AVEC le catalogue des types sous les yeux
-    (`detecter_types_activite`), et TOUT ce qu'elle retient est collé au couple (liaison
-    `source='ia'`, prompt gabarit posé) : un libellé qui correspond au catalogue réutilise le type
-    existant (badge Système · IA à l'écran) ; un libellé NOUVEAU est créé au catalogue
-    (`origine='ia'`) dans le même geste — plus d'étape « suggestions » (décision admin : tout est
-    déjà une proposition d'IA, l'admin fait le ménage sur la liste avec ✕).
+    """Bouton « Détecter les types » — UN seul clic, deux temps chez le serveur, exactement comme
+    « Proposer les matières » :
 
-    Modèle SIMPLE (décision admin) : un type retenu = une ligne de lien, le ✕ la SUPPRIME pour de
-    vrai. La détection n'a donc qu'une règle : type lu AVEC un lien → rien à faire ; type lu SANS
-    lien → lien créé. Un type retiré puis relu dans le document revient naturellement (sa ligne se
-    recrée) ; un type retiré que l'IA ne lit plus reste dehors.
+    1. le prompt du CYCLE : déjà en base, sinon écrit à l'instant par l'IA (le référentiel sert
+       d'exemple de sa famille) — la RECETTE est au cycle, elle resservira à tous les suivants ;
+    2. la lecture des types avec ce prompt-là, sur le texte DÉJÀ figé en base (aucune
+       ré-extraction du PDF).
 
-    CREATE encadré : type réutilisé par libellé (anti-doublon, insensible à la casse) ; une liaison
-    n'est créée que si elle n'existe pas ENCORE — jamais de doublon."""
+    Les types lus sont écrits NON RETENUS (`validee=false`) : ce sont des propositions, l'admin
+    garde ce qu'il veut. Un type déjà présent (même libellé, casse ignorée) est laissé tel quel —
+    une nouvelle détection ne déretient jamais ce que l'admin avait retenu, et ne crée pas de
+    doublon. Rien n'est écrit hors de ce référentiel."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
@@ -1849,16 +1886,12 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
 
     from backend.rag.analyse_amont import detecter_types_activite
     try:
-        detectes = detecter_types_activite(texte, db=db)
+        detectes = detecter_types_activite(
+            texte, db=db, prompt_cycle=_prompt_types_du_cycle(db, body.cycle_id, texte))
     except Exception as e:
         raise HTTPException(400, f"Détection des types par l'IA impossible : {e}{detail_admin(e)}")
 
-    # Liaisons EXISTANTES du couple, indexées par type — pour ne jamais doublonner.
-    liaisons = {l.activite_type_id
-                for l in (db.query(ReferentielActiviteType.activite_type_id)
-                            .filter(ReferentielActiviteType.referentiel_id == ref.id).all())}
-
-    coches_ia, deja_lies, crees = [], [], []
+    proposes, deja = [], []
     vus: set[str] = set()
     for label in detectes:
         label = label.strip()
@@ -1866,31 +1899,15 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
         if not cle or cle in vus:          # même libellé (à la casse près) : une seule fois
             continue
         vus.add(cle)
-        # Recherche par LIBELLÉ SEUL, sans filtrer sur `actif` — comme `ajouter_type_catalogue`.
-        # Avec le filtre, un type que l'admin avait DÉSACTIVÉ devenait invisible ici, et la
-        # détection en recréait un second portant le MÊME libellé : exactement le doublon que le
-        # catalogue interdit (models_db.py:696), et que rien n'empêche en base (aucun unique sur
-        # `label`). Un type désactivé reste désactivé : on ne le ressuscite pas en douce, on
-        # passe simplement notre tour.
-        t = (db.query(ActiviteType)
-               .filter(func.lower(ActiviteType.label) == cle).first())
-        if t is not None and not t.actif:
-            continue                          # désactivé par l'admin : sa décision tient
-        if t is None:
-            # Type NOUVEAU : créé au catalogue (origine='ia') puis collé au couple, même geste.
-            maxo = db.query(func.max(ActiviteType.ordre)).scalar()
-            t = ActiviteType(label=label, ordre=(maxo or 0) + 1, actif=True, origine="ia")
-            db.add(t); db.flush()
-            crees.append({"id": t.id, "label": t.label})
-        elif t.id in liaisons:
-            deja_lies.append({"id": t.id, "label": t.label})   # déjà retenu : rien à faire
+        existant = (db.query(ActiviteType)
+                      .filter(ActiviteType.referentiel_id == ref.id,
+                              func.lower(ActiviteType.label) == cle).first())
+        if existant is not None:
+            deja.append({"id": existant.id, "label": existant.label})
             continue
-        # Prompt gabarit posé dès la création du lien : un type collé au couple est opérationnel
-        # tout de suite, jamais « prompt vide ».
-        db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                       actif=True, source="ia",
-                                       prompt=_generer_prompt_type(db, t.label, body.niveau)))
-        coches_ia.append({"id": t.id, "label": t.label})
+        t = _creer_type(db, ref, label, body.niveau, origine="ia", validee=False)
+        proposes.append({"id": t.id, "label": t.label})
     db.commit()
-    return {"detectes": detectes, "coches_ia": coches_ia,
-            "deja_lies": deja_lies, "crees": crees}
+    return {"detectes": detectes, "proposes": proposes, "deja_presents": deja}
+
+

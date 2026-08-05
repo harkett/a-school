@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
@@ -70,9 +71,6 @@ const btnAjout = (busy) => ({
 })
 
 export default function AdminContenu() {
-  const [cycles, setCycles] = useState([])   // l'arbre COMPLET : référentiel, matières, types
-  const [loading, setLoading] = useState(true)
-  const [panne, setPanne]     = useState(false)    // lecture échouée (réseau/serveur)
   const [busy, setBusy]       = useState(false)    // une écriture (et sa relecture) est en cours
   const [nivOuverts, setNivOuverts] = useState(() => new Set())      // niveaux dépliés
   const [typesOuverts, setTypesOuverts] = useState(() => new Set())  // `${niveauId}|${typeId}` → précisions dépliées
@@ -84,22 +82,26 @@ export default function AdminContenu() {
   const navigate = useNavigate()
 
   // Lecture COMPLÈTE en base, en UN appel : l'arbre porte le référentiel de chaque niveau, ses
-  // matières avec leur état, et ses types. Une panne (réseau, serveur) n'affiche JAMAIS le faux
-  // « Aucun cycle en base. » : erreur en modale (règle maison), l'écran ne garde qu'un « Réessayer ».
-  async function recharger() {
-    try {
+  // matières avec leur état, et ses types. C'est react-query qui tient cette lecture — « en
+  // cours », « en panne » et la relecture ne sont plus des états posés à la main : ils SONT le
+  // get. Une panne (réseau, serveur) n'affiche JAMAIS le faux « Aucun cycle en base. » : erreur
+  // en modale (règle maison), l'écran ne garde qu'un « Réessayer ».
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['admin-contenu'],
+    queryFn: async () => {
       const rc = await fetchWithTimeout('/api/admin/contenu', { credentials: 'include' }, TIMEOUT_STD)
-      if (rc.status === 401) { navigate('/admin/login'); return }
-      const contenu = await lireReponse(rc)
-      setCycles(contenu.cycles || [])
-      setPanne(false)
-    } catch (err) {
-      setPanne(true)
-      showError(messagePourEcran(err))
-    }
-  }
+      if (rc.status === 401) { navigate('/admin/login'); return { cycles: [] } }
+      return await lireReponse(rc)
+    },
+  })
+  const cycles = data?.cycles || []
+  const panne  = isError
 
-  useEffect(() => { recharger().finally(() => setLoading(false)) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // L'erreur de lecture se dit en modale (règle maison) — react-query la porte, il ne l'affiche
+  // pas. Chaque échec produit un nouvel objet d'erreur : une relecture ratée reparle.
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+
+  async function recharger() { await refetch() }
 
   // Enveloppe commune des écritures : écrit, montre l'erreur en modale, puis RELIT la base
   // (read-after-write — succès OU échec, l'écran raconte toujours l'état réel des tables).
@@ -223,14 +225,14 @@ export default function AdminContenu() {
     })
   }
 
-  if (loading) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
+  if (isPending) return <p className="text-sm text-gray-400 p-6">Chargement…</p>
 
   // Panne de lecture : l'erreur est déjà passée en modale ; l'écran ne garde que « Réessayer ».
   if (panne) return (
     <div style={{ textAlign: 'center', padding: '3rem' }}>
       <button
         type="button"
-        onClick={() => { setLoading(true); recharger().finally(() => setLoading(false)) }}
+        onClick={() => refetch()}
         title="Relancer la lecture du contenu pédagogique"
         style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
                  background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}

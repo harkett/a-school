@@ -285,10 +285,8 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
         db.add(u); db.flush()
         uid = u.id
 
-        typ = db.query(ActiviteType).first()
-        if not typ:
-            typ = ActiviteType(label="Test suppression", ordre=900)
-            db.add(typ); db.flush()
+        from _profil import type_pret
+        typ = db.get(ActiviteType, type_pret(db, "3e", label="Test suppression"))
         # Tout ce qui peut pendre à un compte, dont les 5 liens qui cassaient la suppression.
         db.add(FeatureVote(user_id=uid, feature_key="quiz-interactif"))       # cassait (FK)
         db.add(ToolUsageLog(user_id=uid, tool="consigne", score_label="3"))   # cassait (FK)

@@ -42,8 +42,7 @@ def _couple_avec_type(nom, ordre, prompt):
     """Cycle + niveau + référentiel + un type relié avec son prompt + LE PROF EN BASE (son
     profil porte ce niveau : la génération lit le couple EN BASE, plus le corps — 25/07).
     Renvoie (niveau_nom, type_id)."""
-    from backend.core.models_db import (Cycle, Niveau, Referentiel, ActiviteType,
-                                        ReferentielActiviteType, User)
+    from backend.core.models_db import (Cycle, Niveau, Referentiel, ActiviteType, User)
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom=f"CO-{nom}", ordre=ordre)
         db.add(cy); db.flush()
@@ -53,10 +52,9 @@ def _couple_avec_type(nom, ordre, prompt):
                           collection=f"co_{nom.lower()}", filtres=None, fichier="doc.pdf",
                           texte_epure="TEXTE")
         db.add(ref); db.flush()
-        t = ActiviteType(label=f"CO-Type{nom}", ordre=1, actif=True, origine="systeme")
+        t = ActiviteType(referentiel_id=ref.id, label=f"CO-Type{nom}", ordre=1, actif=True,
+                         validee=True, origine="admin", prompt=prompt)
         db.add(t); db.flush()
-        db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                       actif=True, source="admin", prompt=prompt, ordre=1))
         from _profil import user_couple
         db.add(user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject=f"CO-Matiere-{nom}", niveau=niv.nom))

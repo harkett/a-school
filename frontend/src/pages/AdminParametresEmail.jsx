@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchWithTimeout } from '../utils/api.js'
 import { demanderConfirmation } from '../confirmDialog'
 import { VARIABLES_EMAIL, apercuVariables } from '../utils/variablesEmail.js'
 
+const CLE_MODELES = ['admin', 'email-templates']
+
 export default function AdminParametresEmail() {
-  const [templates, setTemplates] = useState([])
+  const queryClient = useQueryClient()
   const [selectedId, setSelectedId] = useState(null)
-  const [form, setForm]     = useState({ description: '', objet: '', corps: '' })
-  const [loading, setLoading] = useState(true)
+  // Le formulaire est un BROUILLON de la ligne lue : null = « rien de tapé, montre la base ».
+  // Il n'y a donc rien à recopier quand la sélection change — le brouillon repart à null et
+  // l'écran réaffiche ce que le serveur dit, sans effet de synchronisation.
+  const [brouillon, setBrouillon] = useState(null)
   const [saving, setSaving]   = useState(false)
   const [busy, setBusy]       = useState(false)      // envoi / test en cours
   const [message, setMessage] = useState(null)       // { type: 'ok'|'err', text }
@@ -18,41 +23,47 @@ export default function AdminParametresEmail() {
   const [sendTo, setSendTo]     = useState('')
 
   const [tab, setTab]           = useState('modeles') // 'modeles' | 'suivi'
-  const [envois, setEnvois]     = useState([])
-  const [envoisLoading, setEnvoisLoading] = useState(false)
 
-  const selected = templates.find(t => t.id === selectedId) || null
+  // Les modèles d'e-mail, lus en base — react-query tient la lecture ; l'écran n'a plus d'état
+  // « en cours » à poser lui-même.
+  const { data: templates = [], isPending: loading } = useQuery({
+    queryKey: CLE_MODELES,
+    queryFn: async () => {
+      const res = await fetch('/api/admin/email-templates', { credentials: 'include' })
+      return await res.json()
+    },
+  })
 
-  useEffect(() => { loadTemplates(true) }, [])
-
-  useEffect(() => { if (tab === 'suivi') loadEnvois() }, [tab])
-
-  async function loadEnvois() {
-    setEnvoisLoading(true)
-    try {
+  // L'historique des envois ne se lit QUE si l'onglet « Suivi » est ouvert — inutile de le
+  // demander au serveur pour un onglet que l'admin ne regarde pas.
+  const { data: envois = [], isFetching: envoisLoading } = useQuery({
+    queryKey: ['admin', 'email-envois'],
+    enabled: tab === 'suivi',
+    queryFn: async () => {
       const res = await fetch('/api/admin/email-envois', { credentials: 'include' })
       const data = await res.json()
-      setEnvois(Array.isArray(data) ? data : [])
-    } finally {
-      setEnvoisLoading(false)
-    }
-  }
+      return Array.isArray(data) ? data : []
+    },
+  })
 
-  async function loadTemplates(selectFirst = false) {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/admin/email-templates', { credentials: 'include' })
-      const data = await res.json()
-      setTemplates(data)
-      if (selectFirst && data.length) selectTemplate(data[0])
-    } finally {
-      setLoading(false)
-    }
+  // Le modèle affiché : celui qu'on a choisi, sinon le premier de la liste. C'est un CALCUL,
+  // pas une sélection posée après coup — la liste arrive, le premier modèle s'affiche.
+  const selected = templates.find(t => t.id === selectedId) || templates[0] || null
+
+  const form = brouillon ?? {
+    description: selected?.description || '',
+    objet: selected?.objet || '',
+    corps: selected?.corps || '',
   }
+  const setForm = (maj) => setBrouillon(f => (typeof maj === 'function' ? maj(f ?? form) : maj))
+
+  // Remplace l'ancien setTemplates : la liste lue reste LA liste, on la corrige au même
+  // endroit que react-query la garde — pas de seconde copie dans l'écran.
+  function majTemplates(maj) { queryClient.setQueryData(CLE_MODELES, maj) }
 
   function selectTemplate(t) {
     setSelectedId(t.id)
-    setForm({ description: t.description || '', objet: t.objet || '', corps: t.corps || '' })
+    setBrouillon(null)     // on repart de ce qui est en base pour ce modèle
     setMessage(null)
   }
 
@@ -69,7 +80,8 @@ export default function AdminParametresEmail() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setTemplates(ts => ts.map(t => t.id === data.id ? data : t))
+        majTemplates(ts => (ts || []).map(t => t.id === data.id ? data : t))
+        setBrouillon(null)   // c'est enregistré : la base redevient la vérité affichée
         setMessage({ type: 'ok', text: 'Modèle enregistré.' })
       } else {
         setMessage({ type: 'err', text: data.detail || 'Erreur lors de l\'enregistrement.' })
@@ -94,7 +106,7 @@ export default function AdminParametresEmail() {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setTemplates(ts => [...ts, data])
+        majTemplates(ts => [...(ts || []), data])
         selectTemplate(data)
         setShowAdd(false)
         setNewName('')
@@ -121,8 +133,8 @@ export default function AdminParametresEmail() {
       })
       if (res.ok) {
         const rest = templates.filter(t => t.id !== selected.id)
-        setTemplates(rest)
-        if (rest.length) selectTemplate(rest[0]); else { setSelectedId(null); setForm({ description: '', objet: '', corps: '' }) }
+        majTemplates(rest)
+        if (rest.length) selectTemplate(rest[0]); else { setSelectedId(null); setBrouillon(null) }
       } else {
         const data = await res.json().catch(() => ({}))
         setMessage({ type: 'err', text: data.detail || 'Erreur lors de la suppression.' })

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
@@ -126,8 +127,6 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
 // ── Page principale ────────────────────────────────────────────────────────────
 export default function MesFeedbacks() {
   const [onglet, setOnglet] = useState('envoyer')
-  const [retours, setRetours] = useState(null)
-  const [chargementRate, setChargementRate] = useState(false)   // lecture ratée ≠ « aucun retour »
   // Taille, nombre et formats des pièces jointes : LUS EN BASE via le serveur (crochet partagé
   // avec l'Aide, qui annonce les mêmes chiffres). Cet écran ne les connaît plus.
   const { limites } = useLimitesPiecesJointes()
@@ -158,19 +157,16 @@ export default function MesFeedbacks() {
   const [envoiId, setEnvoiId]       = useState(null)
 
   // Read-after-write : après chaque écriture on relit le serveur, jamais de miroir local.
-  async function recharger() {
-    setChargementRate(false)
-    const res = await fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })
-    setRetours(await lireReponse(res))
-  }
-
   // Lecture ratée : ni « Chargement… » sans fin, ni liste vide trompeuse — message en boîte de
   // dialogue et bouton « Réessayer » (motif de l'Accueil).
-  function chargerRetours() {
-    recharger().catch(e => { setChargementRate(true); showError(messagePourEcran(e)) })
-  }
-
-  useEffect(() => { chargerRetours() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: retours = null, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['feedback', 'mes-feedbacks'],
+    queryFn: async () => await lireReponse(
+      await fetchWithTimeout('/api/feedback/mes-feedbacks', { credentials: 'include' })),
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  async function recharger() { await refetch() }
+  const chargerRetours = () => refetch()
 
   // L'envoi du fichier passe par lireReponse : le message du serveur remonte s'il est écrit
   // pour le prof, sinon c'est le message serveur générique — jamais un « Failed to fetch ».

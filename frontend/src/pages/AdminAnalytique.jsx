@@ -266,7 +266,7 @@ export default function AdminAnalytique() {
                           onClick={() => toggleExpand(prof.email, mat)}
                           title={isExpanded ? 'Masquer le détail' : 'Voir le détail par type d\'activité'}
                           style={{
-                            background: 'none', border: '1px solid #e2e8f0', borderRadius: 6,
+                            border: '1px solid #e2e8f0', borderRadius: 6,
                             padding: '4px 10px', fontSize: 11, cursor: 'pointer',
                             color: isExpanded ? '#1d4ed8' : '#64748b',
                             borderColor: isExpanded ? '#bfdbfe' : '#e2e8f0',

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import useIsMobile from '../hooks/useIsMobile'
@@ -14,30 +15,26 @@ function KpiCard({ label, value, sub, color }) {
 }
 
 export default function MesStats() {
-  const [perso,     setPerso]     = useState(null)
-  const [commu,     setCommu]     = useState(null)
-  const [chargementRate, setChargementRate] = useState(false)
   const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
 
   // Monde NEUF uniquement : perso + communauté (l'appel au dashboard a disparu avec la
-  // tuile « Partagées » — le partage n'existe pas encore dans le monde neuf).
-  async function charger() {
-    setChargementRate(false)
-    try {
+  // tuile « Partagées » — le partage n'existe pas encore dans le monde neuf). Les deux
+  // lectures partagent le même sort : elles arrivent ensemble ou pas du tout.
+  const { data, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['stats', 'perso-et-communaute'],
+    queryFn: async () => {
       const opts = { credentials: 'include' }
-      const [p, c] = await Promise.all([
+      const [perso, commu] = await Promise.all([
         fetchWithTimeout('/api/stats/perso', opts, TIMEOUT_STD).then(lireReponse),
         fetchWithTimeout('/api/stats/communaute', opts, TIMEOUT_STD).then(lireReponse),
       ])
-      setPerso(p)
-      setCommu(c)
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }
-
-  useEffect(() => { charger() }, [])
+      return { perso, commu }
+    },
+  })
+  const perso = data?.perso ?? null
+  const commu = data?.commu ?? null
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = () => refetch()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>

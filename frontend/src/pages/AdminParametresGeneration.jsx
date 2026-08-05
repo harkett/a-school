@@ -28,6 +28,9 @@ const AIDE = {
 export default function AdminParametresGeneration() {
   const [onglet, setOnglet] = useState('modele')
   const [aiModel, setAiModel] = useState('')
+  // Le modèle en service accepte-t-il `temperature` ? Certains Claude la REFUSENT (erreur 400).
+  const [tempSupportee, setTempSupportee] = useState(true)
+  const [tempModele, setTempModele] = useState('')
   const [supportedModels, setSupportedModels] = useState([])
   const [recommandeModel, setRecommandeModel] = useState('') // modèle marqué « recommandé » (affiché entre parenthèses)
   const [saving, setSaving]   = useState(false)
@@ -113,6 +116,10 @@ export default function AdminParametresGeneration() {
       .then(data => {
         setTemperature(data.temperature == null ? '' : String(data.temperature))
         if (data.bounds) setTempBounds(data.bounds)
+        // `supportee` vient de la fiche du modèle en service. On le montre au lieu de laisser
+        // régler une valeur que le moteur ne transmettra pas.
+        setTempSupportee(data.supportee !== false)
+        setTempModele(data.modele || '')
       })
       .catch(() => {})
 
@@ -379,14 +386,54 @@ export default function AdminParametresGeneration() {
     )
   }
 
+  // Ce que le bouton du bandeau fait, section par section. Une table plutôt que cinq boutons
+  // recopiés : ajouter une section demain, c'est ajouter une ligne ici — et le bouton reste
+  // seul, donc il ne peut pas y en avoir deux qui divergent.
+  const ACTIONS = {
+    modele:      { onClick: saveFournisseurModele, disabled: saving || !aiProvider || !aiModel, libelle: saving ? 'Enregistrement…' : 'Enregistrer',            titre: 'Enregistrer le fournisseur et le modèle' },
+    tokens:      { onClick: saveMaxTokens,         disabled: savingTokens || tokensInvalides,   libelle: savingTokens ? 'Enregistrement…' : 'Enregistrer',      titre: 'Enregistrer les longueurs maximales' },
+    temperature: { onClick: saveTemperature,       disabled: savingTemp || tempInvalide(temperature), libelle: savingTemp ? 'Enregistrement…' : 'Enregistrer',  titre: 'Enregistrer la température' },
+    stream:      { onClick: saveStreamTimeout,     disabled: savingStream || streamInvalide(streamTimeout), libelle: savingStream ? 'Enregistrement…' : 'Enregistrer', titre: 'Enregistrer la coupure du flux' },
+    retry:       { onClick: saveRetry,             disabled: savingRetry || retryInvalide,      libelle: savingRetry ? 'Enregistrement…' : 'Enregistrer',       titre: 'Enregistrer la résilience' },
+  }
+  const action = ACTIONS[onglet]
+
   return (
     <div className="flex flex-col gap-6">
 
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Génération LLM</h2>
-        <p className="text-xs text-gray-400">
-          Réglages du moteur de génération des textes.
-        </p>
+      {/* Bandeau FIXE : le titre et le bouton d'enregistrement de la section ouverte, toujours
+          visibles. Les cinq sections avaient chacune son bouton, posé sous ses champs — dans
+          « Longueur », qui aligne dix-sept outils, il fallait dérouler tout l'écran pour le
+          retrouver, et rien ne rappelait en cours de route qu'une modification attendait d'être
+          enregistrée. Un seul bouton, à un seul endroit, qui ne s'en va jamais.
+          `top: -24` : le conteneur de page a une marge haute ; sans ce décalage le bandeau se
+          décollerait avec elle et laisserait passer les champs par-dessous. */}
+      <div style={{
+        position: 'sticky', top: -24, zIndex: 20, background: '#f0f4f8',
+        padding: '24px 0 12px', marginBottom: -12,
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap',
+      }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h2 className="text-sm font-semibold text-gray-700 mb-1">Génération LLM</h2>
+          <p className="text-xs text-gray-400">
+            Réglages du moteur de génération des textes.
+          </p>
+        </div>
+        <button
+          onClick={action.onClick}
+          disabled={action.disabled}
+          title={action.titre}
+          style={{
+            background: '#1F6EEB', color: 'white', border: 'none',
+            borderRadius: 7, height: 34, padding: '0 20px', fontSize: 13, fontWeight: 500,
+            cursor: action.disabled ? 'not-allowed' : 'pointer',
+            opacity: action.disabled ? 0.6 : 1,
+            flexShrink: 0,
+          }}
+        >
+          {action.libelle}
+        </button>
       </div>
 
       {/* Maître-détail : liste verticale des sections à gauche, détail à droite (motif admin qui
@@ -396,9 +443,11 @@ export default function AdminParametresGeneration() {
         {/* ── Colonne gauche : liste verticale des sections ── */}
         <div style={{ width: 210, flexShrink: 0 }}>
           <div className="bg-white rounded-lg border border-gray-200" style={{ overflow: 'hidden' }}>
+            {/* « Longueur (tokens) » a été RETIRÉ : la longueur maximale n'est plus un réglage, elle
+                vient du `max_tokens` de la fiche du modèle (IA › Fournisseurs & modèles). Laisser
+                l'onglet aurait été pire que l'enlever — il aurait accepté des valeurs sans effet. */}
             {[
               ['modele', 'Fournisseur & modèle'],
-              ['tokens', 'Longueur (tokens)'],
               ['temperature', 'Température'],
               ['stream', 'Coupure du flux'],
               ['retry', 'Résilience'],
@@ -481,20 +530,6 @@ export default function AdminParametresGeneration() {
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveFournisseurModele}
-              disabled={saving || !aiProvider || !aiModel}
-              title="Enregistrer le fournisseur et le modèle"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (saving || !aiProvider || !aiModel) ? 'not-allowed' : 'pointer',
-                opacity: (saving || !aiProvider || !aiModel) ? 0.6 : 1,
-              }}
-            >
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
-            </button>
             {message && (
               <div style={{
                 background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
@@ -553,20 +588,6 @@ export default function AdminParametresGeneration() {
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveMaxTokens}
-              disabled={savingTokens || tokensInvalides}
-              title="Enregistrer les longueurs maximales"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (savingTokens || tokensInvalides) ? 'not-allowed' : 'pointer',
-                opacity: (savingTokens || tokensInvalides) ? 0.6 : 1,
-              }}
-            >
-              {savingTokens ? 'Enregistrement…' : 'Enregistrer les réglages'}
-            </button>
             {messageTokens && (
               <div style={{
                 background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
@@ -589,6 +610,22 @@ export default function AdminParametresGeneration() {
             Pour des activités fiables, rester bas à modéré : une valeur élevée rend les réponses moins sûres (erreurs, format cassé).
             Laisser vide = défaut du fournisseur. Pris en compte immédiatement, sans redémarrage.
           </p>
+
+          {/* Le modèle en service refuse ce paramètre : on le DIT. Avant, la valeur était saisie,
+              enregistrée, puis jetée en silence par le moteur — l'admin croyait avoir agi. */}
+          {!tempSupportee && (
+            <div style={{
+              background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e',
+              borderRadius: 8, padding: '10px 14px', fontSize: 12,
+            }}>
+              Le modèle en service{tempModele ? ` (${tempModele})` : ''} <strong>n’accepte pas</strong> la
+              température : elle ne lui sera pas envoyée. La valeur ci-dessous reste enregistrée et
+              redeviendra active dès qu’un modèle qui l’accepte sera choisi.
+              <br />
+              Cela se règle sur la fiche du modèle, case <strong>supporte_temperature</strong>
+              {' '}(IA → Fournisseurs &amp; modèles).
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">
               Température (vide = défaut du fournisseur)
@@ -607,20 +644,6 @@ export default function AdminParametresGeneration() {
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveTemperature}
-              disabled={savingTemp || tempInvalide(temperature)}
-              title="Enregistrer la température"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (savingTemp || tempInvalide(temperature)) ? 'not-allowed' : 'pointer',
-                opacity: (savingTemp || tempInvalide(temperature)) ? 0.6 : 1,
-              }}
-            >
-              {savingTemp ? 'Enregistrement…' : 'Enregistrer la température'}
-            </button>
             {messageTemp && (
               <div style={{
                 background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
@@ -664,20 +687,6 @@ export default function AdminParametresGeneration() {
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveStreamTimeout}
-              disabled={savingStream || streamInvalide(streamTimeout)}
-              title="Enregistrer la coupure du flux"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (savingStream || streamInvalide(streamTimeout)) ? 'not-allowed' : 'pointer',
-                opacity: (savingStream || streamInvalide(streamTimeout)) ? 0.6 : 1,
-              }}
-            >
-              {savingStream ? 'Enregistrement…' : 'Enregistrer la coupure'}
-            </button>
             {messageStream && (
               <div style={{
                 background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
@@ -738,20 +747,6 @@ export default function AdminParametresGeneration() {
           </div>
 
           <div className="flex flex-col gap-3 pt-1">
-            <button
-              onClick={saveRetry}
-              disabled={savingRetry || retryInvalide}
-              title="Enregistrer la résilience"
-              style={{
-                background: '#1F6EEB', color: 'white', border: 'none',
-                borderRadius: 7, padding: '8px 20px', fontSize: 13, fontWeight: 500,
-                alignSelf: 'flex-start',
-                cursor: (savingRetry || retryInvalide) ? 'not-allowed' : 'pointer',
-                opacity: (savingRetry || retryInvalide) ? 0.6 : 1,
-              }}
-            >
-              {savingRetry ? 'Enregistrement…' : 'Enregistrer la résilience'}
-            </button>
             {messageRetry && (
               <div style={{
                 background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',

@@ -122,7 +122,7 @@ export default function AdminReferentielsConsulter() {
                   {/* Verdict IA du couple figé à la validation (referentiels.verif_couple via /etat).
                       Lecture seule, JSON parsé à l'affichage — zéro copie. */}
                   {etat?.referentiel?.verif_couple && (() => {
-                    let v = null
+                    let v
                     try { v = JSON.parse(etat.referentiel.verif_couple) } catch { v = null }
                     if (!v) return null
                     // Libellé du couple : lu dans la ligne du référentiel choisi (liste),

@@ -53,14 +53,13 @@ def _user(db, email=EMAIL):
     return u
 
 
-def _type(db, label):
-    t = db.query(ActiviteType).filter(ActiviteType.label == label).first()
-    if not t:
-        t = ActiviteType(label=label)
-        db.add(t)
-        db.commit()
-        db.refresh(t)
-    return t
+def _type(db, label, niveau="6e"):
+    """Un type d'activité DU référentiel du niveau : depuis le 05/08/2026 un type ne peut pas
+    exister hors d'un document (plus de catalogue global). `type_pret` monte la chaîne complète."""
+    from _profil import type_pret
+    tid = type_pret(db, niveau, label=label)
+    db.commit()
+    return db.get(ActiviteType, tid)
 
 
 def _activite(db, user, type_id, resultat, matiere="Français", niveau="6e", label="Compréhension"):

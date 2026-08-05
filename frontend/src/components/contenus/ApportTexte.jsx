@@ -83,10 +83,13 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   // l'activité — classes btn-action / chase-on du CSS global).
   const actionEnCours = !!ocrLoading || propLoading || isListening || isTranscribing
   const chaseActif = !zoneRemplie && !disabled && !actionEnCours
+  // Le rang allumé n'est lu que quand la course tourne (`btnChase` juste dessous le vérifie) :
+  // il n'y a donc rien à remettre à zéro quand elle s'arrête.
   const [chaseIndex, setChaseIndex] = useState(0)
   useEffect(() => {
-    if (!chaseActif) { setChaseIndex(0); return }
-    const id = setInterval(() => setChaseIndex(i => (i + 1) % 5), 800)
+    if (!chaseActif) return
+    let i = 0
+    const id = setInterval(() => { i = (i + 1) % 5; setChaseIndex(i) }, 800)
     return () => clearInterval(id)
   }, [chaseActif])
   const btnChase = i => `btn-action${chaseActif && chaseIndex === i ? ' chase-on' : ''}`
@@ -115,7 +118,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
         osc.start(t)
         osc.stop(t + 0.12)
       }
-    } catch {}
+    } catch { /* le bip est un confort : un navigateur qui refuse l'AudioContext dicte quand même */ }
   }, [])
 
   function pickAudioMime() {
@@ -127,14 +130,14 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   }
 
   function stopMediaStream() {
-    try { mediaStreamRef.current && mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+    try { mediaStreamRef.current && mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch { /* pistes déjà coupées (onglet fermé, micro débranché) : on voulait juste ça */ }
     mediaStreamRef.current = null
     mediaRecorderRef.current = null
   }
 
   function teardownAnalyser() {
-    try { sourceRef.current && sourceRef.current.disconnect() } catch {}
-    try { analyserRef.current && analyserRef.current.disconnect() } catch {}
+    try { sourceRef.current && sourceRef.current.disconnect() } catch { /* nœud déjà débranché : c'est l'état voulu */ }
+    try { analyserRef.current && analyserRef.current.disconnect() } catch { /* idem */ }
     sourceRef.current = null
     analyserRef.current = null
   }
@@ -192,7 +195,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
         sourceRef.current = src
         analyserRef.current = analyser
       }
-    } catch {}
+    } catch { /* le vumètre est un confort : sans lui la dictée s'enregistre pareil */ }
     const mime = pickAudioMime()
     audioMimeRef.current = mime || 'audio/webm'
     audioChunksRef.current = []
@@ -231,7 +234,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
       activeRef.current = false
       setIsListening(false)
       setIsReady(false)
-      try { mediaRecorderRef.current && mediaRecorderRef.current.stop() } catch {}
+      try { mediaRecorderRef.current && mediaRecorderRef.current.stop() } catch { /* enregistreur déjà arrêté (fin de flux) : c'est le but du clic */ }
     } else {
       if (!isSupported) {
         showError("La dictée vocale n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent.")
@@ -240,6 +243,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
       activeRef.current = true
       setIsListening(true)
       setIsReady(false)
+      setElapsed(0)          // nouvelle dictée : le chrono repart de zéro, dès le clic
       startRecording()
     }
   }
@@ -248,7 +252,7 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   useEffect(() => {
     if (!(isListening && isReady)) return
     startTimeRef.current = performance.now()
-    setElapsed(0)
+    // Rien à remettre à zéro ici : le clic qui lance la dictée l'a déjà fait (handleDicteClick).
     chronoRef.current = setInterval(() => {
       setElapsed((performance.now() - startTimeRef.current) / 1000)
     }, 250)
@@ -275,9 +279,11 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
   // Filet : composant démonté en pleine dictée → tout couper proprement.
   useEffect(() => {
     return () => {
-      try { cancelAnimationFrame(rafRef.current) } catch {}
-      try { clearInterval(chronoRef.current) } catch {}
-      try { if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop() } catch {}
+      // Démontage : chaque coupure est indépendante des autres — une qui échoue (déjà coupée)
+      // ne doit pas empêcher les suivantes, c'est tout l'intérêt des trois try séparés.
+      try { cancelAnimationFrame(rafRef.current) } catch { /* boucle déjà arrêtée */ }
+      try { clearInterval(chronoRef.current) } catch { /* chrono déjà arrêté */ }
+      try { if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop() } catch { /* enregistreur déjà arrêté */ }
       teardownAnalyser()
       stopMediaStream()
     }

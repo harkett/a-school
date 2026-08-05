@@ -79,11 +79,11 @@ def test_la_route_refuse_avant_d_ecrire():
     """Le raccordement : la validation est bien branchée sur ✎ Prompt, pas seulement écrite."""
     import inspect
     from backend.pedagogie import referentiels_admin
-    source = inspect.getsource(referentiels_admin.ecrire_prompt_type_couple)
+    source = inspect.getsource(referentiels_admin.ecrire_prompt_type)
     assert "valider_prompt_couple" in source, (
         "PUT /admin/referentiels/types-activite/prompt n'appelle plus le garde-fou : "
         "un prompt cassé redeviendrait écrivable, et le prof aurait le 500."
     )
-    assert source.index("valider_prompt_couple") < source.index("l.prompt = body.prompt"), (
+    assert source.index("valider_prompt_couple") < source.index("t.prompt = body.prompt"), (
         "Le contrôle doit passer AVANT l'écriture : sinon le mauvais prompt est déjà en base."
     )

@@ -24,17 +24,20 @@ export default function VisiteGuidee({ onFermer, onOuvrirAide }) {
   }, [etape])
 
   // Élément absent de l'écran (conditionnel) → étape sautée ; dernière étape absente → fin.
+  // Tout se décide APRÈS peinture : c'est l'écran réel qui dit si l'étape a une cible à montrer,
+  // et où elle est. Le saut d'étape comme la mesure sortent donc de la même image.
   useEffect(() => {
     if (!etape) { onFermer(); return }
-    const el = document.querySelector(`[data-guide="${etape.cible}"]`)
-    if (!el) {
-      if (index + 1 < GUIDE_CREER.length) setIndex(index + 1)
-      else onFermer()
-      return
-    }
-    el.scrollIntoView({ block: 'nearest' })
-    // Mesure après le scroll éventuel (le rect est en coordonnées de la fenêtre).
-    const id = requestAnimationFrame(mesurer)
+    const id = requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-guide="${etape.cible}"]`)
+      if (!el) {
+        if (index + 1 < GUIDE_CREER.length) setIndex(index + 1)
+        else onFermer()
+        return
+      }
+      el.scrollIntoView({ block: 'nearest' })
+      mesurer()   // le rect est en coordonnées de la fenêtre : après le scroll éventuel
+    })
     return () => cancelAnimationFrame(id)
   }, [index, etape, mesurer, onFermer])
 

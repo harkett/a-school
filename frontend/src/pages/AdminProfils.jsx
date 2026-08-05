@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { showConfirm } from '../confirmDialog'
@@ -29,9 +30,6 @@ function SortTh({ label, sKey, current, dir, onSort, style }) {
 
 export default function AdminProfils() {
   const { matieres, chargement: matieresChargement } = useMatieres()
-  const [users, setUsers]           = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [panne, setPanne]           = useState(false)   // lecture de la liste échouée
   const [filterText, setFilterText] = useState('')
   const [filterMatiere, setFilterMatiere] = useState('')
   const [filterStatut, setFilterStatut]   = useState('tous')
@@ -47,38 +45,44 @@ export default function AdminProfils() {
   const [emailModal, setEmailModal] = useState(null)
   const [emailForm, setEmailForm]   = useState({ subject: '', body: '' })
   const [sending, setSending]       = useState(false)
-  const [niveauxParCycle, setNiveauxParCycle] = useState([])
   const navigate = useNavigate()
 
-  useEffect(() => {
-    fetch('/api/programmes', { credentials: 'include' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setNiveauxParCycle(d.niveaux_par_cycle || []) })
-      .catch(() => {})
-  }, [])
+  // Les niveaux par cycle : lecture d'appoint pour le menu déroulant de la fiche. Un échec ne
+  // se dit pas — le menu se contente d'être vide, l'écran reste utilisable.
+  const { data: niveauxParCycle = [] } = useQuery({
+    queryKey: ['programmes', 'niveaux-par-cycle'],
+    queryFn: async () => {
+      const r = await fetch('/api/programmes', { credentials: 'include' })
+      const d = r.ok ? await r.json() : null
+      return d?.niveaux_par_cycle || []
+    },
+  })
 
   // Lecture de la liste des profs. C'est la SEULE source de vérité de l'écran : après chaque
   // écriture on la rejoue (read-after-write), jamais de mise à jour locale « optimiste » qui
   // afficherait un changement que le serveur a refusé.
-  async function chargerUsers({ silencieux = false } = {}) {
-    try {
+  const { data: users, isPending: loading, isError, error, refetch } = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: async () => {
       const r = await fetchWithTimeout('/api/admin/users', { credentials: 'include' }, TIMEOUT_STD)
-      if (r.status === 401) { navigate('/admin/login'); return }
-      setUsers(await lireReponse(r))
-      setPanne(false)
-    } catch (err) {
-      if (!silencieux) { setPanne(true); showError(messagePourEcran(err)) }
-    }
-  }
+      if (r.status === 401) { navigate('/admin/login'); return [] }
+      return await lireReponse(r)
+    },
+  })
 
-  useEffect(() => { chargerUsers().finally(() => setLoading(false)) }, [navigate])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Une relecture ratée APRÈS une écriture ne casse pas l'écran et ne parle pas : la liste
+  // déjà lue reste affichée et l'échec de l'écriture, lui, a sa propre modale. « En panne » et
+  // modale ne valent donc que tant qu'on n'a jamais rien réussi à lire.
+  const panne = isError && !users
+  useEffect(() => { if (error && !users) showError(messagePourEcran(error)) }, [error, users])
+  async function chargerUsers() { await refetch() }
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const filtered = users.filter(u => {
+  const filtered = (users || []).filter(u => {
     const text = filterText.toLowerCase()
     const matchText = !text ||
       u.email.toLowerCase().includes(text) ||
@@ -214,7 +218,7 @@ export default function AdminProfils() {
     <div style={{ textAlign: 'center', padding: '3rem' }}>
       <button
         type="button"
-        onClick={() => { setLoading(true); chargerUsers().finally(() => setLoading(false)) }}
+        onClick={() => refetch()}
         title="Relancer la lecture de la liste des profs"
         style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
                  background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}

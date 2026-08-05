@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { showError } from '../errorDialog'
 
 // Écran « Paramètres » — LECTURE SEULE. La table `settings` (clé / valeur) lue
@@ -17,24 +18,19 @@ const CHAMP_FR = {
 }
 
 export default function AdminParametres() {
-  const [params, setParams] = useState([])   // [{ key, value, label, ecran_dedie, pointe_vers }]
-  const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)    // { titre, texte } | { titre, details } | null
 
-  async function charger() {
-    setLoading(true)
-    try {
+  // La table `settings`, lue en base — react-query tient la lecture, l'écran n'en garde rien.
+  const { data: params = [], isPending: loading, error } = useQuery({   // [{ key, value, label, ecran_dedie, pointe_vers }]
+    queryKey: ['admin', 'parametres'],
+    queryFn: async () => {
       const res = await fetch('/api/admin/parametres', { credentials: 'include' })
       const data = await res.json()
-      setParams(Array.isArray(data) ? data : [])
-    } catch {
-      showError('Erreur réseau — vérifiez que le backend tourne.')
-    } finally {
-      setLoading(false)
-    }
-  }
+      return Array.isArray(data) ? data : []
+    },
+  })
 
-  useEffect(() => { charger() }, [])
+  useEffect(() => { if (error) showError('Erreur réseau — vérifiez que le backend tourne.') }, [error])
 
   const cellStyle = { padding: '8px', color: '#374151', wordBreak: 'break-word' }
   const btnVoir = {

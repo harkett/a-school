@@ -100,7 +100,10 @@ def test_la_decoupe_demande_le_mode_long(monkeypatch):
         recu.update(kw)
         return '{"unites":[]}'
 
-    monkeypatch.setattr(amont, "generate", faux_generate)
+    # `generate_cached` et non `generate` : la découpe passe désormais par le cache disque (c'est
+    # l'appel le plus cher du logiciel). Le bouchon se pose donc sur le nom RÉELLEMENT appelé —
+    # sinon le test traverse jusqu'au vrai moteur et part au réseau.
+    monkeypatch.setattr(amont, "generate_cached", faux_generate)
     monkeypatch.setattr(amont, "get_cle_texte", lambda db: "k")
     monkeypatch.setattr(amont, "get_ai_provider", lambda db: "anthropic")
     monkeypatch.setattr(amont, "get_ai_model", lambda db: "m")

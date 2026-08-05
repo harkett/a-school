@@ -13,7 +13,8 @@
 //   « généré », pour ne jamais confondre avec le « Déroulé généré » de la colonne de droite.
 // ④ Générer la séance : SA cartouche en bas, avec le bouton uniquement (retouche 30/07).
 // Les cartouches facultatives passent au vert quand elles sont remplies, mais ne clignotent jamais.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import SplitPane from './SplitPane.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
@@ -232,10 +233,6 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
   const [esqNotes, setEsqNotes] = useState({ a: false, b: false, c: false })  // zone proposée par aSchool → pastille
   // Catalogues du formulaire, LUS EN BASE (aucune liste en dur ici). Tant qu'ils ne sont pas
   // arrivés, les choix ne s'affichent pas : l'écran ne montre jamais une liste inventée.
-  const [modes, setModes] = useState([])
-  const [styles, setStyles] = useState([])
-  const [bornesDuree, setBornesDuree] = useState(null)   // { min, max } — réglages lus en base
-  const [catalogueRate, setCatalogueRate] = useState(false)
   const [seanceId, setSeanceId] = useState(seance?.id || null)
   const [historiqueOuvert, setHistoriqueOuvert] = useState(false)   // fenêtre « Historique des versions »
   const [enregistrement, setEnregistrement] = useState(seance ? 'ok' : null)   // null | 'ok' | 'echec'
@@ -243,7 +240,6 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
 
   // ── Activités RATTACHÉES à la séance (activites.seance_id) — la zone n'existe que
   // lorsque la séance EST en base (seanceId posé par l'auto-save ou la reprise). ──
-  const [activitesLiees, setActivitesLiees] = useState([])
   const [actReplie, setActReplie] = useState(false)     // repli manuel de la cartouche (même geste)
   const [derouleCache, setDerouleCache] = useState(false) // colonne « Déroulé généré » escamotée (bouton à droite de la frise)
   const [selecteur, setSelecteur] = useState(false)     // fenêtre « Ajouter une activité existante »
@@ -359,34 +355,31 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
 
   // ── Modes et styles : lus au serveur, qui les lit en base. Une panne ne fait pas semblant
   // d'une liste vide — les choix disparaissent et un « Réessayer » prend leur place. ──
-  const chargerCatalogues = useCallback(async () => {
-    setCatalogueRate(false)
-    try {
+  const { data: catalogues, isError: catalogueRate, error: catalogueErreur, refetch: chargerCatalogues } = useQuery({
+    queryKey: ['contenus', 'seances', 'formulaire'],
+    queryFn: async () => {
       const d = await lireReponse(await apiFetch('/api/contenus/seances/formulaire', { credentials: 'include' }, TIMEOUT_STD))
-      setModes(d.modes || [])
-      setStyles(d.styles || [])
-      setBornesDuree({ min: d.duree_min, max: d.duree_max })
-    } catch (err) {
-      setCatalogueRate(true)
-      showError(messagePourEcran(err))
-    }
-  }, [])
-
-  useEffect(() => { chargerCatalogues() }, [chargerCatalogues])
+      return { modes: d.modes || [], styles: d.styles || [], bornesDuree: { min: d.duree_min, max: d.duree_max } }
+    },
+  })
+  const modes       = catalogues?.modes || []
+  const styles      = catalogues?.styles || []
+  const bornesDuree = catalogues?.bornesDuree || null   // { min, max } — réglages lus en base
+  useEffect(() => { if (catalogueErreur) showError(messagePourEcran(catalogueErreur)) }, [catalogueErreur])
 
   // ── Activités de la séance : lecture + rattacher + détacher (jamais supprimer). ──
-  async function chargerActivitesLiees(id) {
-    try {
-      const d = await lireReponse(await apiFetch(`/api/contenus/seances/${id}/activites`, { credentials: 'include' }, TIMEOUT_STD))
-      setActivitesLiees(d.activites || [])
-    } catch (err) {
-      showError(`Impossible de charger les activités de cette séance.\n\n${messagePourEcran(err)}`)
-    }
-  }
-
+  const { data: activitesLiees = [], error: activitesErreur, refetch: relireActivitesLiees } = useQuery({
+    queryKey: ['contenus', 'seance', seanceId, 'activites'],
+    enabled: !!seanceId,
+    queryFn: async () => {
+      const d = await lireReponse(await apiFetch(`/api/contenus/seances/${seanceId}/activites`, { credentials: 'include' }, TIMEOUT_STD))
+      return d.activites || []
+    },
+  })
   useEffect(() => {
-    if (seanceId) chargerActivitesLiees(seanceId)
-  }, [seanceId])
+    if (activitesErreur) showError(`Impossible de charger les activités de cette séance.\n\n${messagePourEcran(activitesErreur)}`)
+  }, [activitesErreur])
+  async function chargerActivitesLiees() { await relireActivitesLiees() }
 
   async function detacherActivite(a) {
     if (!await demanderConfirmation({

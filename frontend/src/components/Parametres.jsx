@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState } from 'react'
 import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
@@ -21,16 +21,21 @@ const IconPrecision = () => (
   </svg>
 )
 
-export default function Parametres({ activites, params, onChange, onGenerer, loading, hasResultat, canGenerer, onFeedback, verrouille = false }) {
+export default function Parametres({ activites, params, onChange, onFeedback, verrouille = false }) {
   // Aucun repli sur activites[0] : tant qu'aucun type n'est CHOISI, `activite` est null (sinon la
   // carte se croirait remplie et « Nombre de questions » s'afficherait avant tout choix).
   const activite = activites.find(a => a.id === params.activite_type_id) || null
 
   // Repli automatique : la carte se replie quand elle se verrouille (phase résultat) et se déplie
   // quand elle se déverrouille (« Changer votre demande »). Le prof peut plier/déplier à la main
-  // via le chevron tant que c'est verrouillé.
-  const [replie, setReplie] = useState(false)
-  useEffect(() => { setReplie(verrouille) }, [verrouille])
+  // via le chevron tant que c'est verrouillé. C'est un CALCUL : le repli suit le verrou, sauf si
+  // le prof a dit autre chose pour ce verrou-là — son geste tombe de lui-même au verrou suivant.
+  const [replieChoisi, setReplieChoisi] = useState(null)   // { pour: verrouille, valeur } | null
+  const replie = replieChoisi?.pour === verrouille ? replieChoisi.valeur : verrouille
+  const setReplie = (maj) => setReplieChoisi({
+    pour: verrouille,
+    valeur: typeof maj === 'function' ? maj(replie) : maj,
+  })
 
   function set(field, value) {
     onChange({ ...params, [field]: value })

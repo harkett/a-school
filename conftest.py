@@ -236,12 +236,24 @@ _CATALOGUES_SEED = {
 # dériverait ; on lit donc CELLE de la migration, par son chemin. Le fichier n'est pas importable
 # par `import` (les révisions alembic ne sont pas un paquet), d'où importlib.
 def _outils_llm_de_la_migration():
+    """La liste de b4e8d2a6f1c9, PLUS les outils ajoutés par les migrations suivantes.
+
+    Un outil de plus arrive par migration (c'est la règle : `outils_llm` n'a aucune liste dans le
+    code). Ne lire que la migration d'origine ferait donc échouer la base de test au premier ajout,
+    alors que la prod, elle, l'aurait — et le filet de test_outils_llm_en_base accuserait le code
+    au lieu du seed. Toute migration qui expose une constante `OUTILS` de la même forme
+    (outil, libelle, ordre, aide) est prise en compte, dans l'ordre des noms de fichier."""
     import importlib.util
-    chemin = _RACINE / "alembic" / "versions" / "b4e8d2a6f1c9_outils_llm.py"
-    spec = importlib.util.spec_from_file_location("_mig_outils_llm", chemin)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.OUTILS
+    dossier = _RACINE / "alembic" / "versions"
+    outils = []
+    for chemin in sorted(dossier.glob("*.py")):
+        if "OUTILS" not in chemin.read_text(encoding="utf-8"):
+            continue
+        spec = importlib.util.spec_from_file_location(f"_mig_outils_{chemin.stem}", chemin)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        outils.extend(getattr(module, "OUTILS", []))
+    return outils
 
 
 _OUTILS_LLM = _outils_llm_de_la_migration()

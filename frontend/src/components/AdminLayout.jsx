@@ -5,6 +5,12 @@ import { registerErrorHandler } from '../errorDialog'
 
 const SEP = { separator: true }
 
+// Une sous-entrée est « active » sur l'égalité stricte de son URL — sauf si elle déclare un
+// `prefix` : c'est le cas d'un écran dont les ONGLETS sont des URL distinctes (Prompts). Sans ça,
+// ouvrir l'onglet « Admin » éteindrait l'entrée « Prompts » du menu, et le fil d'Ariane perdrait
+// la page. La règle vit ici, pas recopiée aux quatre endroits qui s'en servent.
+const estActive = (sub, chemin) => (sub.prefix ? chemin.startsWith(sub.prefix) : chemin === sub.to)
+
 // Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
 // RÈGLE : un menu se range du général au détaillé — familles, puis options. Toute nouvelle
 // page se loge SOUS une famille existante, jamais en entrée à plat de plus : une liste plate
@@ -49,29 +55,41 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Prompts (sortis de Système → Génération LLM le 31/07) : un prompt n'est pas de la plomberie,
-  //   c'est le texte qui décide de ce que le prof reçoit — sa place est près du contenu pédagogique.
-  //   Rubrique à sous-options (même mécanique que « Base de données ») : un prompt sert soit au
-  //   prof, soit à l'admin — ce ne sont ni les mêmes textes ni les mêmes moments ; « Autres » est
-  //   le filet pour ce qui n'entre dans aucune des deux.
+  // — IA — tout ce qui touche au moteur, réuni (05/08/2026). Les trois morceaux vivaient à trois
+  //   endroits sans rapport : « Prompts » en entrée de premier niveau, « Génération LLM » perdue
+  //   dans Système, et rien du tout pour les fournisseurs. Un troisième fournisseur les a rendus
+  //   indissociables — on choisit un modèle, on règle sa longueur, on écrit son prompt : c'est le
+  //   même sujet, ce sont trois clics au même endroit.
+  //
+  //   RÈGLE DE RÉPARTITION : le menu porte la NAVIGATION (une entrée = un écran), la page porte
+  //   les OPTIONS (les onglets). D'où quatre entrées ici et pas quinze : les cinq catégories de
+  //   prompts sont devenues les onglets de leur page, comme les cinq sections de Génération.
   {
     group:  true,
-    label:  'Prompts',
-    prefix: '/admin/prompts',
-    aide:   'Les textes d’instruction envoyés à l’IA, un par outil. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.',
+    label:  'IA',
+    // Pas de `prefix` de groupe ici : ses écrans ne partagent pas une racine d'URL (Prompts et
+    // Génération gardent les leurs, aucun lien existant ne casse). L'activité du groupe se déduit
+    // donc de ses entrées, une par une.
+    aide:   'Le moteur d’intelligence artificielle : quels fournisseurs et modèles sont disponibles, lequel est en service, avec quels textes d’instruction et quelles longueurs de réponse.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 7V4h16v3"/>
-        <path d="M9 20h6"/>
-        <path d="M12 4v16"/>
+        <rect x="4" y="7" width="16" height="12" rx="2"/>
+        <path d="M12 3v4"/>
+        <circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>
       </svg>
     ),
     items: [
-      { to: '/admin/prompts/prof',   label: 'Prof',   aide: 'Les textes qui servent à l\'enseignant : séances et séquences, propositions, tons de rédaction, correction et contrôle qualité.' },
-      { to: '/admin/prompts/admin',  label: 'Admin',  aide: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.' },
-      { to: '/admin/prompts/matieres', label: 'Matières par cycle', aide: 'Le texte qui lit les matières d\'un référentiel : il est rangé sur le cycle, une famille de documents bâtis pareil, et sert à tous ses référentiels — d\'où une entrée par cycle.' },
-      { to: '/admin/prompts/decoupe',  label: 'Découpe (chunk) par cycle',  aide: 'Le texte qui découpe un référentiel en unités : même logique, rangé sur le cycle et réutilisé par tous ses référentiels. C\'est ici qu\'il se corrige — l\'écran Référentiels ne fait que le montrer.' },
-      { to: '/admin/prompts/autres', label: 'Autres', aide: 'Le filet : ce qui ne sert ni au prof ni à l\'admin — vide aujourd\'hui.' },
+      { to: '/admin/ia/fournisseurs', label: 'Fournisseurs & modèles',
+        aide: 'Le CATALOGUE : quels fournisseurs d’IA sont raccordés, quels modèles ils offrent, et les bornes de chacun (fenêtre, longueur de réponse). C’est ici qu’on ajoute — pas ici qu’on choisit.' },
+      // `prefix` : les cinq catégories restent des URL distinctes (les onglets de la page les
+      // pointent), mais le menu ne montre plus qu'une entrée — qui doit rester allumée sur
+      // n'importe laquelle d'entre elles, d'où le préfixe plutôt qu'une égalité stricte.
+      { to: '/admin/prompts', prefix: '/admin/prompts', label: 'Prompts',
+        aide: 'Les textes d’instruction envoyés à l’IA, un par outil. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.' },
+      { to: '/admin/parametres/generation', label: 'Génération',
+        aide: 'Le RÉGLAGE : quel fournisseur et quel modèle sont en service, et comment ils répondent — longueur, température, coupure du flux, re-tentatives. C’est ici qu’on choisit dans le catalogue.' },
+      { to: '/admin/ia/statistiques', label: 'Statistiques',
+        aide: 'Ce que l’IA a consommé — par modèle, par tâche, par période. Chantier à venir : rien n’est encore mesuré.' },
     ],
   },
   // — Profs & communication —
@@ -161,7 +179,8 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/parametres/generation', label: 'Génération LLM', aide: 'Modèle d\'IA et réglages du moteur de génération des textes.' },
+      // « Génération LLM » est partie sous IA (05/08/2026) : c'est le réglage du moteur, pas de la
+      // plomberie système. Système ne garde que ce qui l'est vraiment.
       { to: '/admin/parametres/email',      label: 'Email',          aide: 'Email de bienvenue envoyé automatiquement à chaque nouvel inscrit.' },
       { to: '/admin/parametres/general',    label: 'Paramètres',     aide: 'Table des paramètres du projet (clé / valeur / description), en consultation.' },
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
@@ -216,7 +235,7 @@ export default function AdminLayout() {
 
   // Accordéon : la catégorie dépliée. Initialisée sur celle qui contient la page courante.
   const _activeGroup = NAV_ITEMS.find(
-    it => it.group && (it.prefix ? location.pathname.startsWith(it.prefix) : it.items.some(s => location.pathname === s.to))
+    it => it.group && (it.prefix ? location.pathname.startsWith(it.prefix) : it.items.some(s => estActive(s, location.pathname)))
   )
   const [openGroup, setOpenGroup] = useState(_activeGroup ? _activeGroup.label : null)
 
@@ -269,7 +288,7 @@ export default function AdminLayout() {
   let crumbCat = null, crumbPage = ''
   for (const it of NAV_ITEMS) {
     if (it.group) {
-      const sub = it.items.find(s => location.pathname === s.to)
+      const sub = it.items.find(s => estActive(s, location.pathname))
       if (sub) { crumbCat = it.label; crumbPage = sub.label; break }
     } else if (it.to && location.pathname === it.to) {
       crumbPage = it.label; break
@@ -303,7 +322,7 @@ export default function AdminLayout() {
               // « Active » = la catégorie contient la page courante (surbrillance).
               const isGroupActive = item.prefix
                 ? location.pathname.startsWith(item.prefix)
-                : item.items.some(s => location.pathname === s.to)
+                : item.items.some(s => estActive(s, location.pathname))
               // « Ouverte » = dépliée (accordéon), indépendant de l'active → on peut replier.
               const isOpen = openGroup === item.label
               // Badges des enfants remontés sur l'en-tête : visibles quand la catégorie est repliée.
@@ -350,7 +369,7 @@ export default function AdminLayout() {
                   {isOpen && (
                     <div style={{ marginLeft: 18, borderLeft: '1px solid rgba(255,255,255,0.10)', marginTop: 2, marginBottom: 4 }}>
                       {item.items.map(sub => {
-                        const isSubActive = location.pathname === sub.to
+                        const isSubActive = estActive(sub, location.pathname)
                         const subBadge = sub.badgeKey && notifs[sub.badgeKey] > 0 ? notifs[sub.badgeKey] : null
                         return (
                           <Link

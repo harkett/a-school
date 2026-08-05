@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from './api.js'
 import { showError } from '../errorDialog'
 
@@ -15,21 +16,17 @@ import { showError } from '../errorDialog'
 // `limites` vaut null tant que la réponse n'est pas là : l'appelant n'a alors RIEN à annoncer
 // et n'accepte aucun fichier — il ne devine pas une limite, et le serveur reste l'arbitre.
 export function useLimitesPiecesJointes() {
-  const [limites, setLimites] = useState(null)
-  const [rate, setRate] = useState(false)
+  const { data: limites = null, isError: rate, error, refetch } = useQuery({
+    queryKey: ['feedback', 'limites'],
+    queryFn: async () => await lireReponse(
+      await apiFetch('/api/feedback/limites', { credentials: 'include' }, TIMEOUT_STD)),
+  })
 
-  const charger = useCallback(async () => {
-    setRate(false)
-    try {
-      setLimites(await lireReponse(
-        await apiFetch('/api/feedback/limites', { credentials: 'include' }, TIMEOUT_STD)))
-    } catch (e) {
-      setRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [])
+  // L'échec se dit en modale (règle maison). Chaque tentative ratée produit un nouvel objet
+  // d'erreur : une relecture qui rate à son tour reparle.
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
 
-  useEffect(() => { charger() }, [charger])
+  const recharger = useCallback(async () => { await refetch() }, [refetch])
 
-  return { limites, rate, recharger: charger }
+  return { limites, rate, recharger }
 }

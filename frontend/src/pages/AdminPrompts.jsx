@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import OngletsPrompts from '../components/OngletsPrompts'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
@@ -33,9 +35,22 @@ const CATEGORIES = {
 
 export default function AdminPrompts({ categorie }) {
   // Prompts des outils (administrables en base). Liste depuis le backend ; un éditeur par prompt.
-  const [prompts, setPrompts] = useState([])      // [{ key, label, placeholders, categorie, current, default, is_default }]
-  const [promptKey, setPromptKey] = useState('')  // '' = rien de choisi (on ne présélectionne pas)
-  const [promptText, setPromptText] = useState('')
+  // [{ key, label, placeholders, categorie, current, default, is_default }] — lus en base.
+  const { data: prompts = [], refetch: relirePrompts } = useQuery({
+    queryKey: ['admin', 'prompts'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/prompts', { credentials: 'include' })
+      const data = await r.json()
+      return data.prompts || []
+    },
+  })
+  const [cleChoisie, setPromptKey] = useState('')  // '' = rien de choisi (on ne présélectionne pas)
+  // Un prompt disparu de la base n'est plus sélectionné : c'est un calcul, pas un rattrapage.
+  const promptKey = prompts.some(p => p.key === cleChoisie) ? cleChoisie : ''
+  // Le texte est un BROUILLON du prompt lu : null = « rien de tapé, montre la base ».
+  const [brouillonTexte, setBrouillonTexte] = useState(null)
+  const promptText = brouillonTexte ?? (prompts.find(p => p.key === promptKey)?.current || '')
+  const setPromptText = (t) => setBrouillonTexte(t)
   const [savingPrompt, setSavingPrompt] = useState(false)
   const [messagePrompt, setMessagePrompt] = useState(null)
   const [detailCache, setDetailCache] = useState(false)
@@ -43,21 +58,12 @@ export default function AdminPrompts({ categorie }) {
 
   const meta = CATEGORIES[categorie] || CATEGORIES.autres
 
-  useEffect(() => { loadPrompts() }, [])
-
-  // Recharge la liste des prompts et réaffiche le texte courant de l'outil sélectionné
+  // Relit la liste des prompts et réaffiche le texte courant de l'outil sélectionné
   // (réutilisé après Enregistrer / Revenir au défaut pour refléter l'état réel de la base).
   async function loadPrompts(selectKey) {
-    try {
-      const r = await fetch('/api/admin/prompts', { credentials: 'include' })
-      const data = await r.json()
-      const list = data.prompts || []
-      setPrompts(list)
-      const cle = selectKey || promptKey
-      const actif = list.find(p => p.key === cle)
-      setPromptKey(actif ? cle : '')
-      setPromptText(actif ? actif.current : '')
-    } catch { /* chargement best-effort : en cas d'échec réseau, on laisse la liste en l'état */ }
+    if (selectKey) setPromptKey(selectKey)
+    setBrouillonTexte(null)   // ce qui est en base redevient ce qu'on affiche
+    await relirePrompts()
   }
 
   // Seuls les prompts de CETTE sous-option. La catégorie vient du registre serveur (llm_prompts).
@@ -87,8 +93,7 @@ export default function AdminPrompts({ categorie }) {
 
   function choisirPrompt(key) {
     setPromptKey(key)
-    const actif = listeCategorie.find(p => p.key === key)
-    setPromptText(actif ? actif.current : '')
+    setBrouillonTexte(null)   // on repart du texte en base pour ce prompt
     setMessagePrompt(null)
     setDetailCache(false)   // cliquer une ligne veut dire « montre-moi le détail »
   }
@@ -362,6 +367,8 @@ export default function AdminPrompts({ categorie }) {
 
   return (
     <div className="flex flex-col gap-4">
+
+      <OngletsPrompts />
 
       {/* En-tête : titre + compteur à gauche ; « Cacher le détail » tout à droite, au-dessus de
           la liste — permanent sur les pages listes (règle maison, il ne se retire jamais). */}

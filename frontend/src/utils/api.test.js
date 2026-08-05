@@ -20,7 +20,7 @@ beforeEach(() => {
 test('1. 200 → passe tel quel, aucun renouvellement, aucune redirection', async () => {
   let refreshHits = 0, redirects = 0
   setSessionExpiredHandler(() => { redirects++ })
-  global.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     if (url === '/api/auth/refresh') { refreshHits++; return r401() }
     return ok200()
   }
@@ -33,7 +33,7 @@ test('1. 200 → passe tel quel, aucun renouvellement, aucune redirection', asyn
 test('2. 401 → renouvellement OK → rejeu 200, PAS de redirection', async () => {
   let refreshHits = 0, redirects = 0, xHits = 0
   setSessionExpiredHandler(() => { redirects++ })
-  global.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     if (url === '/api/auth/refresh') { refreshHits++; return ok200() }
     xHits++
     return xHits === 1 ? r401() : ok200()   // appel initial 401, rejeu 200
@@ -48,7 +48,7 @@ test('2. 401 → renouvellement OK → rejeu 200, PAS de redirection', async () 
 test('3. 401 → renouvellement 401 (pass long mort) → UNE redirection', async () => {
   let refreshHits = 0, redirects = 0
   setSessionExpiredHandler(() => { redirects++ })
-  global.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     if (url === '/api/auth/refresh') { refreshHits++; return r401() }
     return r401()
   }
@@ -61,7 +61,7 @@ test('3. 401 → renouvellement 401 (pass long mort) → UNE redirection', async
 test('4. deux 401 simultanés → UN SEUL renouvellement, UNE SEULE redirection', async () => {
   let refreshHits = 0, redirects = 0
   setSessionExpiredHandler(() => { redirects++ })
-  global.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     if (url === '/api/auth/refresh') {
       refreshHits++
       await new Promise(r => setTimeout(r, 20))   // lent → garantit le partage de la promesse
@@ -78,7 +78,7 @@ test('4. deux 401 simultanés → UN SEUL renouvellement, UNE SEULE redirection'
 
 test('5. refresh « façon AuthContext » + apiFetch au même instant → UN SEUL renouvellement', async () => {
   let refreshHits = 0
-  global.fetch = async (url) => {
+  globalThis.fetch = async (url) => {
     if (url === '/api/auth/refresh') {
       refreshHits++
       await new Promise(r => setTimeout(r, 20))   // lent → l'in-flight est encore vivant quand apiFetch arrive
@@ -95,7 +95,7 @@ test('5. refresh « façon AuthContext » + apiFetch au même instant → UN SEU
 test('6. appel multipart (FormData) → 401 terminal → UNE redirection + corps FormData intact', async () => {
   let redirects = 0, sentBody = 'pas-passé'
   setSessionExpiredHandler(() => { redirects++ })
-  global.fetch = async (url, opts) => {
+  globalThis.fetch = async (url, opts) => {
     if (url === '/api/auth/refresh') return r401()
     sentBody = opts.body          // corps réellement transmis à fetch (OCR/dictée)
     return r401()

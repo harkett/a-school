@@ -25,7 +25,7 @@ from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_contexte_max, get_max_tokens, get_prompt,
     get_settings_dict,
 )
-from backend.llm.generator import generate
+from backend.llm.generator import generate, generate_cached
 
 _CLE_PROMPT = "analyse_amont"
 _CLE_DECOUPE = "decoupe_amont"
@@ -39,6 +39,10 @@ _CLE_VERIF = "prompt_verif_decoupe"
 # Clé EN BASE du méta-prompt des MATIÈRES : même geste que `_CLE_META`, mais il fait rédiger le
 # prompt qui LIT LES MATIÈRES. Le prompt rédigé est rangé sur le CYCLE (cycles.prompt_matieres).
 _CLE_META_MATIERES = "prompt_meta_matieres"
+# Clé EN BASE du méta-prompt des TYPES D'ACTIVITÉ (05/08/2026) — le troisième du même geste. Le
+# prompt rédigé est rangé sur le CYCLE (cycles.prompt_types) : la DONNÉE (le type) appartient au
+# référentiel qui la nomme, la RECETTE qui la lit appartient à la famille.
+_CLE_META_TYPES = "prompt_meta_types"
 
 # Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
 # `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
@@ -129,6 +133,7 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
         max_tokens=get_max_tokens(db, _CLE_PROMPT),
         temperature=0,
         json_mode=True,
+        outil=_CLE_PROMPT,
     )
     return parser_reponse(raw)
 
@@ -294,6 +299,7 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
+        outil="meta_decoupe",
     ).strip()
     # Passe d'auto-critique AVANT de renvoyer : l'IA relit son propre prompt et corrige les défauts
     # grossiers (titre paraphrasé, contenu demandé, JSON non conforme, exclusion oubliée).
@@ -324,6 +330,38 @@ def generer_prompt_matieres(texte: str, *, db: Session) -> str:
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
+        outil="meta_matieres",
+    ).strip()
+
+
+def generer_prompt_types(texte: str, *, db: Session) -> str:
+    """L'IA GÉNÈRE le prompt qui lira les TYPES D'ACTIVITÉ des référentiels de ce cycle. Troisième
+    exemplaire du même geste que `generer_prompt_decoupe` et `generer_prompt_matieres` :
+    méta-prompt lu EN BASE (`Setting[prompt_meta_types]`) + le texte d'un référentiel du cycle,
+    pris comme exemple de sa famille ; elle rend un prompt sur mesure (texte libre).
+
+    LA RÈGLE DES DEUX ÉTAGES (05/08/2026) : la DONNÉE appartient au référentiel qui la nomme (un
+    type d'activité est lu dans le document, comme une matière), la RECETTE qui la lit appartient
+    au CYCLE — une famille de documents bâtis pareil se lit avec la même recette. Le résultat est
+    stocké sur le cycle. Lève si le méta-prompt n'est pas en base. Laisse remonter les pannes IA."""
+    meta = (get_settings_dict(db).get(_CLE_META_TYPES) or "").strip()
+    if not meta:
+        raise RuntimeError(
+            f"Méta-prompt absent en base (Setting '{_CLE_META_TYPES}'). L'admin doit le "
+            f"renseigner avant de générer un prompt de types (cap « tout en base »)."
+        )
+    # {document} = le référentiel exemple ; {texte} doit rester INTACT (le prompt généré le porte).
+    prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
+    return generate(
+        prompt,
+        cle=get_cle_texte(db),
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, "meta_types"),
+        temperature=0,
+        appel_long=True,  # le méta-prompt embarque le référentiel complet
+        contexte_max=get_contexte_max(db),
+        outil="meta_types",
     ).strip()
 
 
@@ -348,6 +386,7 @@ def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=0,
+        outil="meta_decoupe",
     ).strip()
 
 
@@ -380,6 +419,7 @@ def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, 
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
+        outil="meta_decoupe",
     ).strip()
 
 
@@ -391,7 +431,12 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
     l'IA. SOCLE : aucun axe (âge, matière…) codé. Laisse remonter les pannes IA. Renvoie
     `[{"titre","texte"}]`."""
     p = prompt.replace("{texte}", texte) if "{texte}" in prompt else f"{prompt}\n\nTEXTE BRUT :\n{texte}"
-    raw = generate(
+    # `generate_cached` et non `generate` : c'est L'APPEL LE PLUS CHER du logiciel (~210 000 tokens
+    # d'entrée — le référentiel entier), et celui qu'on relance le plus souvent en développement,
+    # où seul l'affichage du résultat change. Une même découpe rejouée est alors relue sur disque :
+    # zéro appel, zéro token, zéro dollar. En production, `LLM_CACHE` n'existe pas et cette ligne se
+    # comporte exactement comme `generate` — un cache de développement ne sert jamais un prof.
+    raw = generate_cached(
         p,
         cle=get_cle_texte(db),
         provider=get_ai_provider(db),
@@ -404,6 +449,11 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         # long, la requête est bornée par un délai total et se fait couper avant la fin.
         appel_long=True,
         contexte_max=get_contexte_max(db),
+        outil=_CLE_DECOUPE,
+        # Le référentiel est en TÊTE du prompt (le prompt en base commence par {texte}) : on le
+        # désigne au fournisseur, qui le gardera pour les cinq autres outils qui liront le même
+        # document — eux ne le paieront qu'à 10 %. Sans effet sur la réponse.
+        prefixe_cache=texte,
     )
     data = parser_reponse(raw)
     # Les entrées arrivent DANS L'ORDRE du document, unités et bornes entremêlées : c'est cet ordre
@@ -464,6 +514,8 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
         schema=_schema_couple(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
         contexte_max=get_contexte_max(db),
+        outil=_CLE_COUPLE,
+        prefixe_cache=texte,   # le document est en tête du prompt : le fournisseur le garde
     )
     data = parser_reponse(raw)
     return {
@@ -522,6 +574,8 @@ def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = Non
         schema=_schema_matieres(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
         contexte_max=get_contexte_max(db),
+        outil=_CLE_MATIERES,
+        prefixe_cache=texte,   # le document est en tête du prompt : le fournisseur le garde
     )
     data = parser_reponse(raw)
     noms: list[str] = []
@@ -579,6 +633,8 @@ def detecter_couple(texte: str, *, db: Session) -> dict:
         temperature=0,
         json_mode=True,
         schema=_schema_detecter_couple(),
+        outil=_CLE_DETECTER_COUPLE,
+        prefixe_cache=texte,   # le document est en tête du prompt : le fournisseur le garde
     )
     data = parser_reponse(raw)
     return {
@@ -605,23 +661,26 @@ def _schema_types_activite() -> dict:
     }
 
 
-def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
+def detecter_types_activite(texte: str, *, db: Session, prompt_cycle: str | None = None) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des TYPES D'ACTIVITÉ (formats /
-    modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin coche ce qu'il garde
-    (jamais un type coché d'office). L'IA reçoit AUSSI le catalogue des types actifs (get, zéro
-    copie) pour faire CORRESPONDRE le document avec l'existant — libellé exact du catalogue quand ça
-    correspond, libellé du document sinon (même patron que `detecter_matieres`). Prompt / provider /
-    modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie les noms nettoyés, sans doublon
-    (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en lit aucun. Lève `ValueError`
-    si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes IA (l'appelant traduit)."""
-    from backend.core.models_db import ActiviteType
-    existants = [lbl for (lbl,) in (db.query(ActiviteType.label)
-                                      .filter(ActiviteType.actif == True)
-                                      .order_by(ActiviteType.ordre, ActiviteType.id).all())]
-    prompt = (get_prompt(db, _CLE_TYPES_ACTIVITE)
-              .replace("{types_existants}",
-                       "\n".join(f"- {n}" for n in existants) or "(aucun pour le moment)")
-              .replace("{texte}", texte))
+    modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin retient ce qu'il
+    garde (jamais un type retenu d'office).
+
+    `prompt_cycle` : le prompt du CYCLE (cycles.prompt_types), écrit par l'IA pour cette famille de
+    référentiels. Quand il est fourni, c'est LUI qui lit. Absent (cycle pas encore doté) : on
+    retombe sur le prompt général `detecter_types_activite`.
+
+    Elle ne reçoit QUE le texte. Le catalogue des types ne lui est plus donné (05/08/2026) : il
+    n'existe plus de liste commune à laquelle ramener le document. Chaque référentiel met en œuvre
+    SES formats, nommés comme LUI les nomme — il n'y a donc rien à faire correspondre, et aligner
+    le vocabulaire sur un autre diplôme serait une erreur, pas une aide. C'est le même
+    raisonnement, et le même geste, que `detecter_matieres`.
+
+    Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie les noms
+    nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en lit
+    aucun. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
+    IA (l'appelant traduit)."""
+    prompt = (prompt_cycle or get_prompt(db, _CLE_TYPES_ACTIVITE)).replace("{texte}", texte)
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
@@ -633,6 +692,8 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
         schema=_schema_types_activite(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
         contexte_max=get_contexte_max(db),
+        outil=_CLE_TYPES_ACTIVITE,
+        prefixe_cache=texte,   # le document est en tête du prompt : le fournisseur le garde
     )
     data = parser_reponse(raw)
     noms: list[str] = []
@@ -690,6 +751,8 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
         temperature=0,
         json_mode=True,
         schema=_schema_precisions_type(),
+        outil=_CLE_PRECISIONS_TYPE,
+        prefixe_cache=texte,   # le document est en tête du prompt : le fournisseur le garde
     )
     data = parser_reponse(raw)
     noms: list[str] = []

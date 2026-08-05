@@ -43,3 +43,7 @@ db_backup/
 # A <-> B. Ce sont des DONNEES, elles voyagent par la COPIE DU DOSSIER, jamais par
 # le depot (un binaire complet ajoute a l'historique a chaque bascule).
 Bagage/
+# Cache disque des reponses LLM (dev, LLM_CACHE=1) : evite de repayer la meme decoupe a chaque
+# essai. Ce sont des reponses de modele et les prompts qui les ont produites — artefacts de
+# travail d'un poste, jamais du depot. Purge = supprimer le dossier.
+.llm_cache/

@@ -169,3 +169,82 @@ def test_isolation_endpoint_email_n_altere_pas_la_temperature():
     })
     assert r.status_code == 200, r.text
     assert _row("ai_temperature") == "0.6"  # intact
+
+
+# ---------------------------------------------------------------------------
+# La temperature depend du MODELE (05/08/2026)
+#
+# Le moteur portait la regle en dur : « temperature : volontairement IGNOREE — les Claude Opus 4.x
+# la rejettent (400) ». Ecrite deux fois, au nom du fournisseur entier. Consequence pour l'admin :
+# il reglait une temperature sur un Claude, validait, et elle etait jetee en silence. Rien ne le
+# lui disait. La regle vit desormais sur la fiche du modele (`ai_modeles.supporte_temperature`).
+# ---------------------------------------------------------------------------
+
+from backend.core.models_db import AiFournisseur, AiModele  # noqa: E402
+from backend.systeme.admin import modele_supporte_temperature  # noqa: E402
+
+_F_TEMP = "fournisseur_test_temperature"
+_M_TEMP = "modele-test-temperature"
+
+
+def _poser_modele(db, *, supporte):
+    """Met en service un couple fournisseur/modele dont on choisit la capacite."""
+    db.query(AiModele).filter(AiModele.modele == _M_TEMP).delete()
+    db.query(AiFournisseur).filter(AiFournisseur.code == _F_TEMP).delete()
+    db.add(AiFournisseur(code=_F_TEMP, label="Test", cle_env="TEST_KEY"))
+    db.add(AiModele(fournisseur=_F_TEMP, modele=_M_TEMP, label="Test",
+                    supporte_temperature=supporte))
+    db.add(Setting(key="ai_provider", value=_F_TEMP))
+    db.add(Setting(key="ai_model", value=_M_TEMP))
+    db.add(Setting(key="ai_temperature", value="0.7"))
+    db.commit()
+
+
+def _nettoyer_modele(db):
+    db.query(Setting).delete()
+    db.query(AiModele).filter(AiModele.modele == _M_TEMP).delete()
+    db.query(AiFournisseur).filter(AiFournisseur.code == _F_TEMP).delete()
+    db.commit()
+    db.close()
+
+
+def test_modele_qui_accepte_la_temperature_la_recoit():
+    """Cas general : la valeur reglee arrive telle quelle au moteur."""
+    db = _fresh_db()
+    try:
+        _poser_modele(db, supporte=True)
+        assert modele_supporte_temperature(db) is True
+        assert get_temperature(db) == 0.7
+    finally:
+        _nettoyer_modele(db)
+
+
+def test_modele_qui_refuse_la_temperature_ne_la_recoit_pas():
+    """LE COEUR DE LA CORRECTION. La valeur reste en base — elle n'est pas effacee — mais elle
+    n'est PAS transmise au moteur : c'est ce qui evitait le 400 par un `if Anthropic` en dur."""
+    db = _fresh_db()
+    try:
+        _poser_modele(db, supporte=False)
+        assert modele_supporte_temperature(db) is False
+        assert get_temperature(db) is None
+        # La valeur reglee n'a pas ete perdue : elle redeviendra active au prochain modele qui
+        # l'accepte. L'ecran l'affiche toujours, avec un avertissement.
+        from backend.systeme.admin import get_settings_dict
+        assert get_settings_dict(db)["ai_temperature"] == "0.7"
+    finally:
+        _nettoyer_modele(db)
+
+
+def test_bascule_de_modele_a_chaud():
+    """Changer de modele suffit a rendre la temperature active ou inactive — pas de redemarrage,
+    pas de modification du moteur."""
+    db = _fresh_db()
+    try:
+        _poser_modele(db, supporte=False)
+        assert get_temperature(db) is None
+        db.query(AiModele).filter(AiModele.modele == _M_TEMP).update(
+            {"supporte_temperature": True})
+        db.commit()
+        assert get_temperature(db) == 0.7
+    finally:
+        _nettoyer_modele(db)

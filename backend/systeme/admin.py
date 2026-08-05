@@ -369,7 +369,7 @@ def get_contexte_max(db: Session) -> int | None:
     """Fenêtre TOTALE du modèle courant (entrée + sortie), lue EN BASE (ai_modeles.contexte_max).
     None = fenêtre inconnue → aucun contrôle en amont, comme avant.
 
-    Deux bornes à ne pas confondre : `sortie_max` limite ce que le modèle ÉCRIT, celle-ci ce qu'il
+    Deux bornes à ne pas confondre : `max_tokens` limite ce que le modèle ÉCRIT, celle-ci ce qu'il
     peut TENIR. Plafonner la sortie ne sauve pas un document trop gros — l'entrée seule suffit à
     faire refuser l'appel (400), après plusieurs minutes d'attente."""
     modele = (
@@ -380,8 +380,8 @@ def get_contexte_max(db: Session) -> int | None:
     return modele.contexte_max if modele else None
 
 
-def get_sortie_max(db: Session) -> int | None:
-    """Plafond de SORTIE applicable au modèle courant, lu EN BASE. None = aucun plafond connu.
+def get_max_tokens_modele(db: Session) -> int | None:
+    """`max_tokens` applicable au modèle courant, lu EN BASE. None = aucune valeur connue.
 
     HÉRITAGE : la valeur du MODÈLE l'emporte si elle existe, sinon celle de son FOURNISSEUR. Les
     5 000 tokens d'Infomaniak ne tiennent pas à un modèle en particulier — les trois du produit les
@@ -389,37 +389,47 @@ def get_sortie_max(db: Session) -> int | None:
     modèle qui ferait exception garde le droit de les surcharger.
 
     Ce n'est pas un réglage : c'est ce que le fournisseur ACCEPTE. Il refuse la requête en 422
-    au-delà — sans ce garde-fou, tout réglage plus haut fait échouer la génération entière au lieu
-    de la raccourcir."""
+    au-delà — sans ce garde-fou, toute demande plus haute fait échouer la génération entière au
+    lieu de la raccourcir.
+
+    Nom en `_modele` pour ne pas se confondre avec `get_max_tokens(db, outil)`, qui lit encore les
+    réglages d'écran : celle-ci dit ce que le MODÈLE accepte, l'autre ce qu'on lui DEMANDE."""
     provider = get_ai_provider(db)
     modele = (
         db.query(AiModele)
         .filter(AiModele.fournisseur == provider, AiModele.modele == get_ai_model(db))
         .first()
     )
-    if modele is not None and modele.sortie_max:
-        return modele.sortie_max
+    if modele is not None and modele.max_tokens:
+        return modele.max_tokens
     fournisseur = db.query(AiFournisseur).filter(AiFournisseur.code == provider).first()
-    return fournisseur.sortie_max if fournisseur else None
+    return fournisseur.max_tokens if fournisseur else None
+
+
+# Valeur envoyée quand le modèle en service n'a PAS de `max_tokens` en base. Ce n'est pas un
+# réglage : c'est un filet, parce que l'API exige toujours un nombre et qu'une fiche incomplète ne
+# doit pas empêcher de générer. Volontairement modeste — une réponse courte se voit et se corrige
+# en remplissant la fiche ; un grand nombre envoyé à un modèle qui le refuse fait échouer l'appel.
+MAX_TOKENS_SANS_FICHE = 4096
 
 
 def get_max_tokens(db: Session, outil: str) -> int:
-    """max_tokens courant pour un outil, lu en base au moment de l'appel (HYBRIDE :
-    surcharge `max_tokens_<outil>` si présente, sinon défaut global `max_tokens_default`,
-    sinon défaut code). Même motif que get_ai_model : lecture par requête -> rechargeable
-    à chaud. Renvoie un int (Setting.value est une chaîne).
+    """Ce qu'on demande au modèle d'écrire au plus, POUR TOUS LES OUTILS : son `max_tokens` de
+    fiche (modèle, sinon fournisseur). Lecture par requête -> rechargeable à chaud.
 
-    BORNÉ au plafond de sortie du modèle courant (get_sortie_max) quand il en a un : un réglage
-    au-dessus de ce que le modèle accepte ne produit pas une réponse plus longue, il produit un
-    REFUS (422) et zéro texte. Mieux vaut la réponse la plus longue possible que rien du tout."""
-    s = get_settings_dict(db)
-    raw = s.get(f"max_tokens_{outil}", s["max_tokens_default"])
-    try:
-        valeur = int(raw)
-    except (TypeError, ValueError):
-        valeur = int(s["max_tokens_default"])
-    plafond = get_sortie_max(db)
-    return min(valeur, plafond) if plafond else valeur
+    POURQUOI PLUS DE RÉGLAGE PAR OUTIL. `max_tokens` n'allonge ni ne raccourcit une réponse : le
+    modèle s'arrête quand il a fini. Ce nombre ne fait QUE couper s'il dépasse. Régler 17 outils à
+    la main, c'était donc régler 17 couperets — et un seul avait une valeur voulue. Le résultat
+    tenait de la panne : un référentiel découpé à 5 000 jetons parce qu'un réglage hérité
+    d'Infomaniak survivait au passage chez Anthropic, alors que le modèle en service en acceptait
+    128 000. Le seul chiffre qui a du sens est celui du modèle, et il est déjà sur sa fiche.
+
+    LA LONGUEUR VOULUE SE DIT DANS LE PROMPT, pas ici — la découpe le fait déjà (« le texte doit
+    tenir en N caractères »). C'est la seule consigne que le modèle sait respecter.
+
+    `outil` reste dans la signature : les 17 appelants ne changent pas, et le jour où un outil aura
+    besoin d'une exception, elle se posera ici sans les toucher."""
+    return get_max_tokens_modele(db) or MAX_TOKENS_SANS_FICHE
 
 
 def get_outils_llm(db: Session):
@@ -440,11 +450,32 @@ TEMPERATURE_MIN = 0.0
 TEMPERATURE_MAX = 2.0
 
 
+def modele_supporte_temperature(db: Session) -> bool:
+    """Le modèle en service accepte-t-il `temperature` ? Lu EN BASE (ai_modeles). Vrai par défaut :
+    c'est le cas général, et un modèle absent de la fiche ne doit pas faire perdre un réglage.
+
+    Les Claude Opus 4.x et les modèles 5 la REJETTENT en 400. C'était écrit en dur dans le moteur,
+    au nom du fournisseur entier — donc invisible ici, et faux pour tout modèle Anthropic futur qui
+    l'accepterait. La question se pose au modèle, pas au code."""
+    modele = (
+        db.query(AiModele)
+        .filter(AiModele.fournisseur == get_ai_provider(db), AiModele.modele == get_ai_model(db))
+        .first()
+    )
+    return True if modele is None else bool(modele.supporte_temperature)
+
+
 def get_temperature(db: Session):
     """Température courante (GLOBALE), lue en base au moment de l'appel (rechargeable à chaud,
     même motif que get_max_tokens). Renvoie un float dans [MIN, MAX], ou None si non réglée ->
     generate() n'envoie alors RIEN et le fournisseur applique son défaut (comportement
-    historique = zéro régression). Valeur corrompue / hors bornes -> None (jamais d'exception)."""
+    historique = zéro régression). Valeur corrompue / hors bornes -> None (jamais d'exception).
+
+    None AUSSI quand le modèle en service ne la supporte pas. Un seul endroit décide, ici : les 17
+    outils appellent tous cette fonction, aucun n'a à connaître la question. C'est ce qui permet au
+    moteur d'oublier « Anthropic refuse la température » — il envoie ce qu'on lui donne."""
+    if not modele_supporte_temperature(db):
+        return None
     raw = get_settings_dict(db).get("ai_temperature", "")
     if raw is None or str(raw).strip() == "":
         return None
@@ -1177,6 +1208,17 @@ def get_ai_models(fournisseur: str | None = Query(None), db: Session = Depends(g
         "supported": [{"modele": m.modele, "label": m.label} for m in modeles],
         "current": get_ai_model(db),
         "recommande": recommande,
+        # Ce qui TRAVAILLE en ce moment, en un bloc : le fournisseur, son modèle et le `max_tokens`
+        # qui s'applique vraiment (celui de la fiche du modèle, sinon de son fournisseur). Les
+        # écrans qui posent le repère « IA » l'affichent — devant une réponse coupée ou un refus,
+        # ces trois valeurs sont exactement ce qu'on cherche, et les aller chercher ailleurs
+        # demandait trois requêtes. On passe par `get_max_tokens_modele` et non `get_max_tokens` :
+        # il n'y a pas d'outil nommé « default », et en inventer un ferait croire à un réglage.
+        "courant": {
+            "fournisseur": get_ai_provider(db),
+            "modele": get_ai_model(db),
+            "max_tokens": get_max_tokens_modele(db) or MAX_TOKENS_SANS_FICHE,
+        },
     }
 
 
@@ -1222,6 +1264,266 @@ def save_ai_model(body: AiModelBody, request: Request, db: Session = Depends(get
         ip=request.client.host if request.client else None,
         details=f"Modèle LLM mis à jour : {valeur}",
     )
+    return {"status": "ok"}
+
+
+@router.get("/admin/ia/catalogue")
+def get_ia_catalogue(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """LE CATALOGUE : tous les fournisseurs et tous leurs modèles, avec leurs caractéristiques —
+    écran « IA › Fournisseurs & modèles ». À ne pas confondre avec /admin/ai-providers et
+    /admin/ai-models, qui alimentent les COMBOS de l'écran Génération : ceux-là ne montrent que ce
+    qui est sélectionnable, celui-ci montre tout, y compris ce qui est désactivé et les bornes.
+
+    AUCUNE clé n'est renvoyée. Seulement le NOM de sa variable d'environnement et un booléen qui
+    dit si elle est renseignée : un fournisseur raccordé mais sans clé est la panne la plus
+    fréquente, et la seule chose que l'écran doit en dire, c'est « présente ou pas »."""
+    fournisseurs = db.query(AiFournisseur).order_by(AiFournisseur.ordre.asc()).all()
+    modeles = db.query(AiModele).order_by(AiModele.fournisseur.asc(), AiModele.ordre.asc()).all()
+    return {
+        "fournisseurs": [
+            {
+                "code": f.code, "label": f.label, "actif": f.actif, "ordre": f.ordre,
+                "type_api": f.type_api, "base_url": f.base_url, "max_tokens": f.max_tokens,
+                "cle_env": f.cle_env,
+                "cle_configuree": bool(f.cle_env and os.getenv(f.cle_env, "").strip()),
+            }
+            for f in fournisseurs
+        ],
+        "modeles": [
+            {
+                "fournisseur": m.fournisseur, "modele": m.modele, "label": m.label,
+                "recommande": m.recommande, "actif": m.actif, "ordre": m.ordre,
+                "contexte_max": m.contexte_max, "max_tokens": m.max_tokens,
+                "supporte_schema": m.supporte_schema, "supporte_stream": m.supporte_stream,
+                "supporte_temperature": m.supporte_temperature,
+            }
+            for m in modeles
+        ],
+        # Ce qui est EN SERVICE, pour que l'écran marque la ligne active : le catalogue et le
+        # réglage sont deux écrans différents, mais lire l'un sans savoir où pointe l'autre oblige
+        # à faire l'aller-retour.
+        "courant": {"fournisseur": get_ai_provider(db), "modele": get_ai_model(db)},
+        # Les types d'API que le moteur sait construire : l'écran ne doit proposer que ceux-là,
+        # sinon on raccorde un fournisseur que rien ne sait appeler.
+        "types_api": list(_TYPES_API),
+    }
+
+
+# --- CRUD du catalogue IA -------------------------------------------------------------------
+#
+# Jusqu'ici, raccorder un fournisseur ou offrir un modèle de plus demandait une MIGRATION, donc un
+# développeur. Ces cinq endpoints le rendent à l'administrateur.
+#
+# Ce qui reste interdit, et pourquoi :
+#   - la CLÉ ne passe jamais par ici : on écrit le NOM de sa variable d'environnement, la valeur
+#     reste au .env. Un secret qui transite par une API d'écran finit dans un journal.
+#   - on ne supprime pas ce qui est EN SERVICE : l'application se retrouverait à appeler un
+#     fournisseur qui n'existe plus, et l'erreur tomberait chez le prof, pas ici.
+#   - on ne supprime pas un fournisseur qui a des modèles : ils partiraient avec, en silence.
+#     L'ordre est explicite — ses modèles d'abord, lui ensuite.
+# Supprimer supprime VRAIMENT (DELETE) : « désactiver » est un autre geste, il a sa case.
+
+
+class FournisseurBody(BaseModel):
+    """Un fournisseur. `code` est l'identifiant technique : il ne change jamais après création
+    (le réglage en service et les modèles le référencent)."""
+    code: str
+    label: str
+    type_api: str
+    base_url: str | None = None
+    cle_env: str
+    max_tokens: int | None = None
+    actif: bool = True
+    ordre: int = 0
+
+
+class ModeleBody(BaseModel):
+    model_config = {"protected_namespaces": ()}
+    fournisseur: str
+    modele: str
+    label: str
+    contexte_max: int | None = None
+    max_tokens: int | None = None
+    supporte_schema: bool = True
+    supporte_stream: bool = True
+    supporte_temperature: bool = True
+    recommande: bool = False
+    actif: bool = True
+    ordre: int = 0
+
+
+# Les deux familles d'API que le moteur sait construire. Écrites ici parce que ce sont des
+# BRANCHES DE CODE (un adaptateur chacune), pas des données : offrir « mistral_natif » dans une
+# combo alors qu'aucun client ne sait le parler ne raccorderait rien.
+_TYPES_API = ("openai_compat", "anthropic")
+
+
+def _verifie_pas_en_service(db: Session, code: str, modele: str | None = None) -> None:
+    """Refuse de toucher à ce qui travaille. Message qui dit le geste à faire d'abord."""
+    if get_ai_provider(db) != code:
+        return
+    if modele is None:
+        raise HTTPException(400, f"« {code} » est le fournisseur en service : choisissez-en un "
+                                 f"autre dans IA → Génération avant de le supprimer.")
+    if get_ai_model(db) == modele:
+        raise HTTPException(400, f"« {modele} » est le modèle en service : choisissez-en un autre "
+                                 f"dans IA → Génération avant de le supprimer.")
+
+
+@router.post("/admin/ia/fournisseurs")
+def creer_fournisseur(body: FournisseurBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Raccorde un fournisseur. Le code doit être libre et le type d'API connu du moteur."""
+    code = (body.code or "").strip().lower()
+    if not code or not (body.label or "").strip():
+        raise HTTPException(400, "Le code et le libellé sont obligatoires.")
+    if body.type_api not in _TYPES_API:
+        raise HTTPException(400, f"Type d'API inconnu. Le moteur sait parler : {', '.join(_TYPES_API)}.")
+    if db.query(AiFournisseur).filter(AiFournisseur.code == code).first():
+        raise HTTPException(400, f"Le fournisseur « {code} » existe déjà.")
+    db.add(AiFournisseur(
+        code=code, label=body.label.strip(), type_api=body.type_api,
+        base_url=(body.base_url or "").strip() or None, cle_env=(body.cle_env or "").strip(),
+        max_tokens=body.max_tokens, actif=body.actif, ordre=body.ordre,
+    ))
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="CREATE_AI_FOURNISSEUR",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Fournisseur IA ajouté : {code}")
+    return {"status": "ok"}
+
+
+@router.put("/admin/ia/fournisseurs/{code}")
+def modifier_fournisseur(code: str, body: FournisseurBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Modifie un fournisseur. Le `code` de l'URL fait foi : renommer l'identifiant technique
+    orpheliserait ses modèles et le réglage en service, donc il ne bouge pas."""
+    f = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
+    if f is None:
+        raise HTTPException(404, f"Fournisseur « {code} » introuvable.")
+    if body.type_api not in _TYPES_API:
+        raise HTTPException(400, f"Type d'API inconnu. Le moteur sait parler : {', '.join(_TYPES_API)}.")
+    if not (body.label or "").strip():
+        raise HTTPException(400, "Le libellé est obligatoire.")
+    # Désactiver celui qui travaille le retirerait de la combo tout en le laissant répondre :
+    # l'écran Génération montrerait un choix impossible à reprendre.
+    if not body.actif and get_ai_provider(db) == code:
+        raise HTTPException(400, f"« {code} » est le fournisseur en service : il ne peut pas être "
+                                 f"désactivé. Choisissez-en un autre dans IA → Génération d'abord.")
+    f.label = body.label.strip()
+    f.type_api = body.type_api
+    f.base_url = (body.base_url or "").strip() or None
+    f.cle_env = (body.cle_env or "").strip()
+    f.max_tokens = body.max_tokens
+    f.actif = body.actif
+    f.ordre = body.ordre
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="UPDATE_AI_FOURNISSEUR",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Fournisseur IA modifié : {code}")
+    return {"status": "ok"}
+
+
+@router.delete("/admin/ia/fournisseurs/{code}")
+def supprimer_fournisseur(code: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Supprime un fournisseur — un vrai DELETE. Refusé s'il travaille ou s'il a des modèles."""
+    f = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
+    if f is None:
+        raise HTTPException(404, f"Fournisseur « {code} » introuvable.")
+    _verifie_pas_en_service(db, code)
+    restants = db.query(AiModele).filter(AiModele.fournisseur == code).count()
+    if restants:
+        raise HTTPException(400, f"« {code} » a encore {restants} modèle(s). Supprimez-les d'abord : "
+                                 f"les effacer avec lui, sans le dire, serait pire.")
+    db.delete(f)
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DELETE_AI_FOURNISSEUR",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Fournisseur IA supprimé : {code}")
+    return {"status": "ok"}
+
+
+@router.post("/admin/ia/modeles")
+def creer_modele(body: ModeleBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Ajoute un modèle à un fournisseur existant. `modele` est l'identifiant EXACT attendu par
+    son API — une approximation est refusée par le fournisseur, pas par nous."""
+    nom = (body.modele or "").strip()
+    if not nom or not (body.label or "").strip():
+        raise HTTPException(400, "L'identifiant du modèle et son libellé sont obligatoires.")
+    if db.query(AiFournisseur).filter(AiFournisseur.code == body.fournisseur).first() is None:
+        raise HTTPException(400, f"Fournisseur « {body.fournisseur} » inconnu.")
+    if db.query(AiModele).filter(AiModele.fournisseur == body.fournisseur, AiModele.modele == nom).first():
+        raise HTTPException(400, f"Le modèle « {nom} » existe déjà chez ce fournisseur.")
+    if body.recommande:
+        _retirer_recommande(db, body.fournisseur)
+    db.add(AiModele(
+        fournisseur=body.fournisseur, modele=nom, label=body.label.strip(),
+        contexte_max=body.contexte_max, max_tokens=body.max_tokens,
+        supporte_schema=body.supporte_schema, supporte_stream=body.supporte_stream,
+        supporte_temperature=body.supporte_temperature,
+        recommande=body.recommande, actif=body.actif, ordre=body.ordre,
+    ))
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="CREATE_AI_MODELE",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Modèle IA ajouté : {body.fournisseur}/{nom}")
+    return {"status": "ok"}
+
+
+def _retirer_recommande(db: Session, fournisseur: str) -> None:
+    """UN SEUL modèle recommandé par fournisseur : « recommandé » veut dire « celui-là », pas
+    « ceux-là ». Poser la marque la retire donc aux autres, au lieu de laisser l'écran choisir
+    au hasard lequel afficher en premier."""
+    (db.query(AiModele)
+       .filter(AiModele.fournisseur == fournisseur, AiModele.recommande.is_(True))
+       .update({"recommande": False}))
+
+
+@router.put("/admin/ia/modeles/{code}/{modele:path}")
+def modifier_modele(code: str, modele: str, body: ModeleBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Modifie un modèle. Le couple (fournisseur, identifiant) de l'URL fait foi : le réglage en
+    service pointe dessus par son nom, le renommer le rendrait introuvable.
+
+    `{modele:path}` : certains identifiants contiennent une barre oblique (« openai/gpt-oss-120b »)
+    — sans `:path`, la route ne les attraperait jamais."""
+    m = (db.query(AiModele)
+           .filter(AiModele.fournisseur == code, AiModele.modele == modele).first())
+    if m is None:
+        raise HTTPException(404, f"Modèle « {modele} » introuvable chez « {code} ».")
+    if not (body.label or "").strip():
+        raise HTTPException(400, "Le libellé est obligatoire.")
+    if not body.actif and get_ai_provider(db) == code and get_ai_model(db) == modele:
+        raise HTTPException(400, f"« {modele} » est le modèle en service : il ne peut pas être "
+                                 f"désactivé. Choisissez-en un autre dans IA → Génération d'abord.")
+    if body.recommande and not m.recommande:
+        _retirer_recommande(db, code)
+    m.label = body.label.strip()
+    m.contexte_max = body.contexte_max
+    m.max_tokens = body.max_tokens
+    m.supporte_schema = body.supporte_schema
+    m.supporte_stream = body.supporte_stream
+    m.supporte_temperature = body.supporte_temperature
+    m.recommande = body.recommande
+    m.actif = body.actif
+    m.ordre = body.ordre
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="UPDATE_AI_MODELE",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Modèle IA modifié : {code}/{modele}")
+    return {"status": "ok"}
+
+
+@router.delete("/admin/ia/modeles/{code}/{modele:path}")
+def supprimer_modele(code: str, modele: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Supprime un modèle — un vrai DELETE. Refusé s'il est en service."""
+    m = (db.query(AiModele)
+           .filter(AiModele.fournisseur == code, AiModele.modele == modele).first())
+    if m is None:
+        raise HTTPException(404, f"Modèle « {modele} » introuvable chez « {code} ».")
+    _verifie_pas_en_service(db, code, modele)
+    db.delete(m)
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DELETE_AI_MODELE",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Modèle IA supprimé : {code}/{modele}")
     return {"status": "ok"}
 
 
@@ -1403,7 +1705,12 @@ class TemperatureBody(BaseModel):
 @router.get("/admin/temperature")
 def get_temperature_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     """Température courante (float, ou None = défaut fournisseur) + bornes — alimente le
-    formulaire admin et sa validation. Miroir de GET /admin/max-tokens."""
+    formulaire admin et sa validation.
+
+    `supportee` dit si le MODÈLE EN SERVICE accepte ce paramètre. L'écran s'en sert pour le dire au
+    lieu de laisser régler une valeur qui ne partira pas : jusqu'ici l'admin saisissait une
+    température sur un Claude, validait, et elle était jetée en silence par le moteur. La valeur
+    reste lisible et modifiable — elle redeviendra active au prochain modèle qui l'accepte."""
     raw = get_settings_dict(db).get("ai_temperature", "")
     val = None
     if raw not in (None, ""):
@@ -1411,7 +1718,12 @@ def get_temperature_settings(db: Session = Depends(get_db), _: None = Depends(_r
             val = float(raw)
         except (TypeError, ValueError):
             val = None
-    return {"temperature": val, "bounds": {"min": TEMPERATURE_MIN, "max": TEMPERATURE_MAX}}
+    return {
+        "temperature": val,
+        "bounds": {"min": TEMPERATURE_MIN, "max": TEMPERATURE_MAX},
+        "supportee": modele_supporte_temperature(db),
+        "modele": get_ai_model(db),
+    }
 
 
 @router.put("/admin/temperature")

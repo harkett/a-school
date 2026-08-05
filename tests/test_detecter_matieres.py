@@ -50,17 +50,14 @@ def test_detecter_matieres_ne_recoit_que_le_texte(monkeypatch):
     assert "{texte}" not in p and "texte du référentiel" in p        # le seul trou est rempli
 
 
-def test_detecter_types_injecte_le_catalogue(monkeypatch):
-    """Calque des matières pour les TYPES D'ACTIVITÉ : l'IA reçoit le catalogue des types ACTIFS
-    dans son prompt (get, zéro copie) pour faire correspondre le document avec l'existant. Preuve :
-    les types actifs figurent dans le prompt envoyé à `generate`, pas les inactifs, et les deux
-    trous {types_existants}/{texte} sont remplis."""
-    from backend.core.models_db import ActiviteType
-    with dbmod.SessionLocal() as db:
-        db.add(ActiviteType(label="Travaux pratiques", ordre=1, actif=True, origine="systeme"))
-        db.add(ActiviteType(label="Évaluation", ordre=2, actif=True, origine="systeme"))
-        db.add(ActiviteType(label="Vieux type", ordre=3, actif=False, origine="admin"))
-        db.commit()
+def test_detecter_types_ne_recoit_que_le_texte(monkeypatch):
+    """Calque des matières pour les TYPES D'ACTIVITÉ (05/08/2026) : l'IA ne reçoit PLUS de
+    catalogue. Il n'existe plus de liste commune à laquelle ramener le document — chaque
+    référentiel met en œuvre SES formats, nommés comme LUI les nomme. Preuve : le prompt envoyé
+    ne porte ni le repère {types_existants}, ni aucun libellé venu d'un autre référentiel.
+
+    Et le PROMPT DU CYCLE l'emporte quand il existe : la donnée appartient au référentiel, la
+    recette qui la lit appartient à la famille."""
     capture = {}
 
     def faux_generate(prompt, **k):
@@ -71,10 +68,13 @@ def test_detecter_types_injecte_le_catalogue(monkeypatch):
     with dbmod.SessionLocal() as db:
         amont.detecter_types_activite("texte du référentiel", db=db)
     p = capture["prompt"]
-    assert "- Travaux pratiques" in p and "- Évaluation" in p
-    assert "Vieux type" not in p                          # inactif = hors liste
     assert "{types_existants}" not in p and "{texte}" not in p
     assert "texte du référentiel" in p
+
+    with dbmod.SessionLocal() as db:
+        amont.detecter_types_activite("texte du référentiel", db=db,
+                                      prompt_cycle="RECETTE DU CYCLE : {texte}")
+    assert capture["prompt"] == "RECETTE DU CYCLE : texte du référentiel"
 
 
 def test_detecter_matieres_parse_nettoie_dedoublonne(monkeypatch):

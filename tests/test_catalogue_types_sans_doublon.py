@@ -1,23 +1,24 @@
-r"""Le catalogue des types d'activité n'a jamais deux fois le même libellé.
+r"""Les types d'activité appartiennent au référentiel : jamais deux fois le même libellé DANS un
+référentiel, et aucune contagion d'un référentiel à l'autre.
 
-CE QUE CE TEST PROUVE, et pourquoi il existe. Le catalogue s'identifie par LIBELLÉ, insensible
-à la casse — c'est écrit dans le modèle lui-même (models_db.py, ActiviteType : « l'anti-doublon
-du catalogue se fait par `label` »). Mais AUCUN unique ne le tient en base : la règle vivait
-uniquement dans le code, et le code la disait de deux façons différentes.
+CE QUE CE FICHIER PROUVE, et pourquoi il a changé de sujet le 05/08/2026. Il gardait auparavant
+un CATALOGUE GLOBAL de types (partagé crèche -> doctorat) contre les doublons de libellé : la
+détection ne voyait pas les types désactivés et en recréait des sosies. Ce catalogue n'existe
+plus. Un type d'activité est une donnée LUE DANS LE DOCUMENT, comme une matière, et il vit sur
+le référentiel qui le nomme (migration e4a7c2b9d5f8).
 
-  - `ajouter_type_catalogue` cherchait le libellé SANS filtrer sur `actif` ;
-  - `detecter_types_activite_couple` (la détection IA) cherchait AVEC `actif.is_(True)`.
+La règle à tenir a donc changé d'échelle, et c'est elle qui compte maintenant :
 
-Conséquence : un type que l'admin avait DÉSACTIVÉ devenait invisible pour la détection, qui en
-recréait un SECOND portant exactement le même libellé. Le catalogue se retrouvait avec deux
-lignes homonymes, sans que rien ne tombe — et l'écran des types en affichait deux identiques,
-l'une utilisable, l'autre non.
+  1. dans UN référentiel, un libellé n'apparaît qu'une fois (l'anti-doublon de `matieres.nom`,
+     transposé — et désormais tenu par un UNIQUE en base, plus seulement par le code) ;
+  2. deux référentiels peuvent porter le MÊME libellé sans rien partager : c'est tout le sujet du
+     chantier. Lire « Projet » dans un BTS ne doit rien écrire chez la crèche ;
+  3. la détection PROPOSE (`validee=false`) et ne retient jamais d'office : une lecture d'IA
+     n'entre pas dans les menus d'un professeur toute seule ;
+  4. relancer la détection ne DÉ-retient pas ce que l'admin avait retenu.
 
-Le choix retenu : recherche par libellé SEUL. Un type désactivé reste désactivé — on ne le
-ressuscite pas dans le dos de l'admin — mais on ne crée JAMAIS son sosie.
-
-Ce fichier teste le COMPORTEMENT (l'IA est remplacée par un espion qui rend le libellé voulu),
-pas le texte du source : c'est la panne qu'on veut tenir, pas une tournure de code.
+L'IA est remplacée par un espion qui rend le libellé voulu : c'est le COMPORTEMENT qu'on tient,
+pas une tournure de code.
 
 Lancer : docker compose exec backend python -m pytest tests/test_catalogue_types_sans_doublon.py -q
 """
@@ -26,12 +27,13 @@ from sqlalchemy import func
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
 import backend.core.database as dbmod
 
-from backend.core.models_db import ActiviteType, Niveau, ReferentielActiviteType
+from backend.core.models_db import ActiviteType, Cycle, Niveau
 from backend.main import app
 from backend.systeme.admin import _make_admin_token
 from fastapi.testclient import TestClient
 
 NIVEAU = "5e"
+AUTRE_NIVEAU = "TAD-Creche"
 LIBELLE = "Exercice de repérage"
 
 
@@ -41,91 +43,114 @@ def _admin():
     return c
 
 
-def _decor(actif: bool) -> tuple[int, int]:
-    """Le couple (cycle, niveau) avec son référentiel, et LE type au libellé visé, actif ou non.
-    Renvoie (cycle_id, id du type)."""
+def _decor(niveau=NIVEAU) -> tuple[int, int]:
+    """Le couple (cycle, niveau) avec son référentiel, table rase sur nos libellés. Le prompt de
+    types du cycle est POSÉ EN BASE : sans lui, la détection le ferait écrire par l'IA (appel réel).
+    Renvoie (cycle_id, referentiel_id)."""
     from _profil import referentiel_id
     with dbmod.SessionLocal() as db:
-        ref_id = referentiel_id(db, NIVEAU)
-        niv = db.query(Niveau).filter(Niveau.nom == NIVEAU).one()
-        # Table rase sur ce libellé : chaque test part du même point.
-        for t in db.query(ActiviteType).filter(func.lower(ActiviteType.label) == LIBELLE.lower()).all():
-            db.query(ReferentielActiviteType).filter(
-                ReferentielActiviteType.activite_type_id == t.id).delete()
-            db.delete(t)
-        db.flush()
-        t = ActiviteType(label=LIBELLE, ordre=42, actif=actif, origine="admin")
-        db.add(t)
-        db.flush()
-        # Aucune liaison pour ce couple : la détection doit vouloir en créer une.
-        db.query(ReferentielActiviteType).filter(
-            ReferentielActiviteType.referentiel_id == ref_id,
-            ReferentielActiviteType.activite_type_id == t.id).delete()
+        ref_id = referentiel_id(db, niveau)
+        niv = db.query(Niveau).filter(Niveau.nom == niveau).one()
+        db.query(ActiviteType).filter(
+            ActiviteType.referentiel_id == ref_id,
+            func.lower(ActiviteType.label) == LIBELLE.lower()).delete(synchronize_session=False)
+        cyc = db.get(Cycle, niv.cycle_id)
+        cyc.prompt_types = "Lis {texte} et donne les types."
         db.commit()
-        return niv.cycle_id, t.id
+        return niv.cycle_id, ref_id
 
 
-def _detecter(monkeypatch, cycle_id):
-    """Lance la détection en remplaçant l'IA par un espion qui rend NOTRE libellé."""
+def _detecter(monkeypatch, cycle_id, niveau=NIVEAU, libelles=(LIBELLE,)):
+    """Lance la détection en remplaçant l'IA par un espion qui rend NOS libellés."""
     import backend.rag.analyse_amont as amont
-    monkeypatch.setattr(amont, "detecter_types_activite", lambda texte, db: [LIBELLE])
+    monkeypatch.setattr(amont, "detecter_types_activite",
+                        lambda texte, db=None, prompt_cycle=None: list(libelles))
     return _admin().post("/api/admin/referentiels/types-activite/detecter",
-                         json={"cycle_id": cycle_id, "niveau": NIVEAU})
+                         json={"cycle_id": cycle_id, "niveau": niveau})
 
 
-def _lignes_du_libelle():
+def _lignes(ref_id):
     with dbmod.SessionLocal() as db:
-        return db.query(ActiviteType).filter(
-            func.lower(ActiviteType.label) == LIBELLE.lower()).all()
+        return (db.query(ActiviteType)
+                  .filter(ActiviteType.referentiel_id == ref_id,
+                          func.lower(ActiviteType.label) == LIBELLE.lower()).all())
 
 
-def test_un_type_actif_est_reutilise_jamais_recree(monkeypatch):
-    """Le cas nominal, pour que le test suivant veuille dire quelque chose."""
-    cycle_id, tid = _decor(actif=True)
+def test_la_detection_propose_sans_retenir(monkeypatch):
+    """Le cœur de la décision : l'IA propose, l'admin retient. Un type détecté arrive NON retenu."""
+    cycle_id, ref_id = _decor()
     r = _detecter(monkeypatch, cycle_id)
     assert r.status_code == 200, r.text
-    lignes = _lignes_du_libelle()
-    assert len(lignes) == 1 and lignes[0].id == tid
-    assert [t["id"] for t in r.json()["coches_ia"]] == [tid]
-
-
-def test_un_type_desactive_ne_produit_pas_un_sosie(monkeypatch):
-    """LA régression à empêcher : c'est ici qu'une SECONDE ligne du même libellé apparaissait."""
-    cycle_id, tid = _decor(actif=False)
-    r = _detecter(monkeypatch, cycle_id)
-    assert r.status_code == 200, r.text
-    lignes = _lignes_du_libelle()
-    assert len(lignes) == 1, (
-        f"Le catalogue contient maintenant {len(lignes)} lignes « {LIBELLE} » : la détection a "
-        f"recréé le type parce qu'elle ne voyait pas celui que l'admin avait désactivé. "
-        f"Aucun unique en base ne l'empêche — la règle ne tient que par le code."
+    lignes = _lignes(ref_id)
+    assert len(lignes) == 1
+    assert lignes[0].validee is False, (
+        "Le type détecté est arrivé RETENU : une lecture d'IA entrerait directement dans les "
+        "menus des professeurs, sans que l'admin ait rien décidé."
     )
-    assert lignes[0].id == tid
+    assert lignes[0].origine == "ia"
+    assert [t["id"] for t in r.json()["proposes"]] == [lignes[0].id]
 
 
-def test_un_type_desactive_reste_desactive(monkeypatch):
-    """L'autre moitié du choix : ne pas doublonner ne veut pas dire réactiver sans le dire."""
-    cycle_id, tid = _decor(actif=False)
+def test_relancer_la_detection_ne_cree_pas_de_doublon(monkeypatch):
+    """Deux passages, une seule ligne : l'anti-doublon par libellé DANS le référentiel."""
+    cycle_id, ref_id = _decor()
+    _detecter(monkeypatch, cycle_id)
+    r = _detecter(monkeypatch, cycle_id)
+    assert r.status_code == 200, r.text
+    assert len(_lignes(ref_id)) == 1
+    assert [t["label"] for t in r.json()["deja_presents"]] == [LIBELLE]
+
+
+def test_relancer_la_detection_ne_deretient_pas(monkeypatch):
+    """La décision de l'admin tient : un type qu'il a retenu reste retenu après une relecture."""
+    cycle_id, ref_id = _decor()
+    _detecter(monkeypatch, cycle_id)
+    tid = _lignes(ref_id)[0].id
+    r = _admin().put("/api/admin/referentiels/types-activite",
+                     json={"cycle_id": cycle_id, "niveau": NIVEAU, "type_id": tid, "validee": True})
+    assert r.status_code == 200, r.text
+
     _detecter(monkeypatch, cycle_id)
     with dbmod.SessionLocal() as db:
-        assert db.get(ActiviteType, tid).actif is False, (
-            "Le type désactivé a été ressuscité : la décision de l'admin doit tenir."
-        )
-        assert db.query(ReferentielActiviteType).filter(
-            ReferentielActiviteType.activite_type_id == tid).count() == 0, (
-            "Une liaison a été créée vers un type désactivé : le prof ne le verra jamais "
-            "(types_du_couple filtre sur `actif`), mais l'écran admin le comptera."
+        assert db.get(ActiviteType, tid).validee is True, (
+            "Une nouvelle détection a dé-retenu un type que l'admin avait mis au programme."
         )
 
 
-def test_aucun_libelle_en_double_dans_le_catalogue():
-    """Le fait, mesuré : deux lignes de même libellé (à la casse près) = la panne, quelle qu'en
-    soit la cause. Ce test-là survivrait à une réécriture complète des deux routes."""
+def test_deux_referentiels_ne_se_contaminent_pas(monkeypatch):
+    """LE point du chantier. Le même libellé lu dans deux documents donne DEUX lignes distinctes,
+    chacune chez elle : rien n'est partagé, et retenir l'une ne retient pas l'autre."""
+    cycle_a, ref_a = _decor(NIVEAU)
+    cycle_b, ref_b = _decor(AUTRE_NIVEAU)
+    _detecter(monkeypatch, cycle_a, NIVEAU)
+    _detecter(monkeypatch, cycle_b, AUTRE_NIVEAU)
+
+    a, b = _lignes(ref_a), _lignes(ref_b)
+    assert len(a) == 1 and len(b) == 1
+    assert a[0].id != b[0].id, (
+        "Les deux référentiels partagent la MÊME ligne de type : le catalogue global est de "
+        "retour, et le vocabulaire d'un diplôme déborde sur l'autre."
+    )
+
+    r = _admin().put("/api/admin/referentiels/types-activite",
+                     json={"cycle_id": cycle_a, "niveau": NIVEAU, "type_id": a[0].id,
+                           "validee": True})
+    assert r.status_code == 200, r.text
     with dbmod.SessionLocal() as db:
-        doublons = (db.query(func.lower(ActiviteType.label), func.count())
-                      .group_by(func.lower(ActiviteType.label))
+        assert db.get(ActiviteType, b[0].id).validee is False, (
+            "Retenir un type dans un référentiel l'a retenu dans l'autre."
+        )
+
+
+def test_aucun_libelle_en_double_dans_un_referentiel():
+    """Le fait, mesuré sur toute la base : deux lignes de même libellé DANS un référentiel = la
+    panne, quelle qu'en soit la cause. Ce test survivrait à une réécriture complète des routes."""
+    with dbmod.SessionLocal() as db:
+        doublons = (db.query(ActiviteType.referentiel_id, func.lower(ActiviteType.label),
+                             func.count())
+                      .group_by(ActiviteType.referentiel_id, func.lower(ActiviteType.label))
                       .having(func.count() > 1).all())
     assert not doublons, (
-        "Le catalogue contient des libellés en double : "
-        + ", ".join(f"« {lib} » ×{n}" for lib, n in doublons)
+        "Des libellés en double dans un même référentiel : "
+        + ", ".join(f"référentiel {r} : « {lib} » ×{n}" for r, lib, n in doublons)
     )

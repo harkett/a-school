@@ -757,7 +757,8 @@ def proposer_theme_seance(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-theme] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -820,7 +821,8 @@ def proposer_competences_seance(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-competences] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -873,7 +875,8 @@ def _proposer_ligne(cle_prompt: str, corps: ProposerLigneBody, user: User, db: S
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[%s] service très demandé : %s", cle_prompt, e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -951,7 +954,8 @@ def proposer_esquisse_seance(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-esquisse] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -1010,6 +1014,7 @@ def generer_seance(
                 prompt, cle=cle, provider=provider, model=model,
                 max_tokens=max_toks, temperature=temp, read_timeout=silence,
                 retry_max=retry_max, retry_wait_max=retry_wait_max,
+                outil="sequence",
             ):
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"
@@ -1194,7 +1199,8 @@ def proposer_objectif_sequence(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-objectif] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -1248,7 +1254,8 @@ def proposer_competences_sequence(
     try:
         texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
-                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db))
+                         retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
+                         outil="idee")
     except LLMRateLimitError as e:
         log.warning("[proposer-competences-seq] service très demandé : %s", e)
         raise HTTPException(429, "Le service est très demandé en ce moment. Réessayez dans un instant.")
@@ -1400,6 +1407,7 @@ def generer_plan_sequence(
                 prompt, cle=cle, provider=provider, model=model,
                 max_tokens=max_toks, temperature=temp, read_timeout=silence,
                 retry_max=retry_max, retry_wait_max=retry_wait_max,
+                outil="sequence",
             ):
                 yield f"event: delta\ndata: {json.dumps({'text': morceau}, ensure_ascii=False)}\n\n"
             yield "event: done\ndata: {}\n\n"

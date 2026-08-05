@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
 import { GUIDE_CREER } from '../utils/aideCreer.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
@@ -185,20 +186,13 @@ function telechargerProcedure(titre, html) {
 // Panne de lecture : la liste ne s'affiche pas et propose « Réessayer » — jamais une liste
 // inventée, jamais un pavé rouge dans la page (règle maison).
 const StatutsFeedback = () => {
-  const [statuts, setStatuts] = useState(null)
-  const [rate, setRate] = useState(false)
-
-  const charger = useCallback(async () => {
-    setRate(false)
-    try {
-      setStatuts(await lireReponse(await apiFetch('/api/feedback/statuts', { credentials: 'include' }, TIMEOUT_STD)))
-    } catch (e) {
-      setRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [])
-
-  useEffect(() => { charger() }, [charger])
+  const { data: statuts = null, isError: rate, error, refetch } = useQuery({
+    queryKey: ['feedback', 'statuts'],
+    queryFn: async () => await lireReponse(
+      await apiFetch('/api/feedback/statuts', { credentials: 'include' }, TIMEOUT_STD)),
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = () => refetch()
 
   if (rate) {
     return <button type="button" onClick={charger} className="btn-secondary" style={{ fontSize: 12, padding: '5px 12px', alignSelf: 'flex-start' }}>Réessayer</button>

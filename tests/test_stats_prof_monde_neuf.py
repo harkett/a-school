@@ -32,10 +32,10 @@ def _semer():
     with dbmod.SessionLocal() as db:
         u = User(email=EMAIL, password_hash="x", is_verified=True)
         db.add(u); db.flush()
-        t = ActiviteType(label="SP-Compréhension")
-        db.add(t); db.flush()
+        from _profil import type_pret
+        t_id = type_pret(db, "3e", label="SP-Compréhension")
         for label in ("Compréhension", "Compréhension", "Compréhension", "Dictée"):
-            db.add(Activite(user_id=u.id, activite_type_id=t.id, activite_label=label,
+            db.add(Activite(user_id=u.id, activite_type_id=t_id, activite_label=label,
                             matiere="SVT", niveau="3e", texte_source="t", resultat="r"))
         db.add(Seance(user_id=u.id, titre="Séance neuve"))
         db.add(Sequence(user_id=u.id, titre="Séquence neuve"))

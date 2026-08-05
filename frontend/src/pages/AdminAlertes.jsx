@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 const LEVEL_STYLE = {
@@ -8,26 +8,24 @@ const LEVEL_STYLE = {
   info:     { bg: '#dbeafe', color: '#1d4ed8', label: 'Info' },
 }
 
+const CLE_ALERTES = ['admin', 'alerts']
+
 export default function AdminAlertes() {
-  const [alerts, setAlerts] = useState([])
-  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  function load() {
-    fetch('/api/admin/alerts', { credentials: 'include' })
-      .then(r => {
-        if (r.status === 401) { navigate('/admin/login'); return null }
-        return r.json()
-      })
-      .then(data => { if (data) setAlerts(data) })
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
+  const { data: alerts = [], isPending: loading } = useQuery({
+    queryKey: CLE_ALERTES,
+    queryFn: async () => {
+      const r = await fetch('/api/admin/alerts', { credentials: 'include' })
+      if (r.status === 401) { navigate('/admin/login'); return [] }
+      return await r.json()
+    },
+  })
 
   async function markRead(id) {
     await fetchWithTimeout(`/api/admin/alerts/${id}/read`, { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
-    setAlerts(prev => prev.map(a => a.id === id ? { ...a, is_read: true } : a))
+    queryClient.setQueryData(CLE_ALERTES, prev => (prev || []).map(a => a.id === id ? { ...a, is_read: true } : a))
   }
 
   const nonLues = alerts.filter(a => !a.is_read).length

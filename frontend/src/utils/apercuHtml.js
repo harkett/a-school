@@ -62,7 +62,9 @@ export function imprimerApercu(corps) {
     <body>${corps}<div class="pied-aschool">Généré avec aSchool — aschool.fr</div></body></html>`)
   doc.close()
   const win = iframe.contentWindow
-  const nettoyer = () => setTimeout(() => { try { document.body.removeChild(iframe) } catch (_) {} }, 500)
+  const nettoyer = () => setTimeout(() => {
+    try { document.body.removeChild(iframe) } catch { /* déjà retiré (double appel onafterprint + filet) : rien à faire */ }
+  }, 500)
   win.onafterprint = nettoyer
   win.focus()
   win.print()

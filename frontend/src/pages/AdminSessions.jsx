@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 export default function AdminSessions() {
   const [sessions, setSessions] = useState([])

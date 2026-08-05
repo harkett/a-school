@@ -5,7 +5,8 @@
 // à la génération même (POST à la 1re, PUT + version aux suivantes), dans les tables NEUVES
 // (`activites` + `activite_versions`). L'écran existant n'est PAS touché : il reste le
 // modèle dans Mes outils jusqu'à la suppression finale de l'ancien monde.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Parametres from './Parametres'
 import TexteSource from './TexteSource'
 import ZoneResultat from './ZoneResultat'
@@ -52,9 +53,7 @@ const libelleTon = t => (t === 'academique' ? 'académique' : t === 'operationne
 // (écran Séance) — l'activité NAÎTRA rattachée à cette séance, et l'écran REVIENT tout seul
 // à la séance dès la génération enregistrée (onRetourSeance). Null = création libre.
 export default function ActiviteEcran({ activite, seanceParente = null, onRetourSeance, matiere, niveau, email, onNavigate }) {
-  // ── État miroir de l'écran modèle (types, params, texte, résultat…) ──
-  const [typesActivite, setTypesActivite] = useState([])
-  const [typesRate, setTypesRate] = useState(false)   // catalogue des types illisible (panne) ≠ aucun type
+  // ── État miroir de l'écran modèle (params, texte, résultat…) ──
   const [params, setParams] = useState(() => ({
     ...typeVierge(),
     niveau,
@@ -72,7 +71,6 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   const [loading, setLoading] = useState(false)
   const [genererReplie, setGenererReplie] = useState(false)
   const [entreeDeverrouillee, setEntreeDeverrouillee] = useState(false)
-  const [cahierPresent, setCahierPresent] = useState(false)
   // Règle 0 : l'identité EN BASE de l'activité de ce plan de travail (null = pas encore née).
   const [activiteId, setActiviteId] = useState(activite?.id || null)
   const [enregistrement, setEnregistrement] = useState(activite ? 'ok' : null)   // null | 'ok' | 'echec'
@@ -82,28 +80,30 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   // Catalogue des types (même endpoint que l'écran modèle — un référentiel partagé, en lecture).
   // Lecture ratée : la cartouche ① ne disparaît PAS en silence (le prof croirait qu'aucun type
   // n'existe pour son couple) — message en boîte de dialogue + bouton « Réessayer » à sa place.
-  const chargerTypes = useCallback(async () => {
-    if (!matiere) return
-    setTypesRate(false)
-    try {
+  const { data: typesActivite = [], isError: typesRate, error: typesErreur, refetch: chargerTypes } = useQuery({
+    queryKey: ['activites', 'types', matiere, niveau || ''],
+    enabled: !!matiere,
+    queryFn: async () => {
       const liste = await lireReponse(await apiFetch(
         `/api/activites/${encodeURIComponent(matiere)}?niveau=${encodeURIComponent(niveau || '')}`, {}, TIMEOUT_STD))
-      setTypesActivite(Array.isArray(liste) ? liste : [])
-    } catch (e) {
-      setTypesRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [matiere, niveau])
-
-  useEffect(() => { chargerTypes() }, [chargerTypes])
+      return Array.isArray(liste) ? liste : []
+    },
+  })
+  useEffect(() => { if (typesErreur) showError(messagePourEcran(typesErreur)) }, [typesErreur])
 
   // Cahier des charges déposé ? (get, zéro copie — adapte les bulles d'aide, comme le modèle.)
-  useEffect(() => {
-    apiFetch('/api/user/cahier', {}, TIMEOUT_STD)
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => setCahierPresent(!!(d && d.present)))
-      .catch(() => setCahierPresent(false))
-  }, [])
+  const { data: cahierPresent = false } = useQuery({
+    queryKey: ['user', 'cahier'],
+    queryFn: async () => {
+      try {
+        const r = await apiFetch('/api/user/cahier', {}, TIMEOUT_STD)
+        const d = r.ok ? await r.json() : null
+        return !!(d && d.present)
+      } catch {
+        return false   // question d'ergonomie, pas de vérité : sans réponse on n'annonce rien
+      }
+    },
+  })
 
   const pretAGenerer = !!texte.trim() && !!params.activite_type_id
 
@@ -384,10 +384,6 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                   activites={typesActivite}
                   params={params}
                   onChange={setParams}
-                  onGenerer={generer}
-                  loading={loading}
-                  hasResultat={!!resultat}
-                  canGenerer={pretAGenerer}
                   onFeedback={() => openFeedbackFromError()}
                   verrouille={(loading || !!resultat) && !entreeDeverrouillee}
                 />

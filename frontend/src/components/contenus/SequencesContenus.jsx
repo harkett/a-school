@@ -8,6 +8,7 @@
 //  - Partager / Supprimer : pas encore d'équivalent monde neuf → « bientôt », inactifs ;
 //  - bouton « Cacher le détail » à droite des onglets : PERMANENT (règle maison).
 import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../../utils/api.js'
 import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
@@ -40,35 +41,27 @@ const LABEL_STYLE  = { fontSize: 11, fontWeight: 600, color: '#94a3b8', textTran
 const SOURCE_STYLE = { fontSize: 13, color: '#64748b', fontStyle: 'italic', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, padding: '10px 14px' }
 
 export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, sessionNiveau }) {
-  const [sequences, setSequences] = useState([])
-  const [loading, setLoading]     = useState(true)
   const [hovered, setHovered]     = useState(null)
-  const [selected, setSelected]         = useState(null)  // id de la séquence affichée dans le panneau de détail
+  const [choisi, setChoisi]             = useState(null)  // id CLIQUÉ dans la liste (voir `selected`)
   const [profilDialog, setProfilDialog] = useState(null)  // séquence hors profil courant → modale "passez sur le profil"
   const [vue, setVue]               = useState('courant')  // 'courant' (couple du profil) | 'toutes' (groupé par couple)
   // Colonne de détail (droite) escamotée — bouton PERMANENT à droite des onglets
   // (règle maison du 30/07 : toute page liste naît avec, aucune correction ne le retire).
   const [detailCache, setDetailCache] = useState(false)
-  // Lecture ratée (serveur muet, réseau coupé) : l'écran le DIT et propose « Réessayer ».
-  // Une panne ne se déguise jamais en « Aucune séquence » (motif de l'Accueil).
-  const [chargementRate, setChargementRate] = useState(false)
   const [aSupprimer, setASupprimer] = useState(null)   // séquence en attente de confirmation
 
   // RELECTURE de la base = seule source de vérité de la liste. MONDE NEUF uniquement.
-  const chargerSequences = useCallback(async () => {
-    setChargementRate(false)
-    try {
+  // react-query tient la lecture ; une lecture ratée (serveur muet, réseau coupé) se DIT et
+  // propose « Réessayer » — une panne ne se déguise jamais en « Aucune séquence ».
+  const { data: sequences = [], isPending: loading, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['mes-contenus', 'sequences'],
+    queryFn: async () => {
       const d = await lireReponse(await apiFetch('/api/mes-contenus', { credentials: 'include' }, TIMEOUT_STD))
-      setSequences((d.contenus || []).filter(c => c.type === 'sequence'))
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }, [])
-
-  useEffect(() => {
-    chargerSequences().finally(() => setLoading(false))
-  }, [chargerSequences])
+      return (d.contenus || []).filter(c => c.type === 'sequence')
+    },
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const chargerSequences = useCallback(async () => { await refetch() }, [refetch])
 
   // « Reprendre » : on ne travaille QUE des séquences du profil courant (règle maison).
   function tenterReprendre(q) {
@@ -89,28 +82,28 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
   const headerCount = vue === 'courant' ? filtered.length : sequences.length
   const visibles = vue === 'courant' ? filtered : sections.flatMap(s => s.items)
 
-  // Sélection par défaut + garde-fou : le détail montre TOUJOURS une séquence visible.
-  useEffect(() => {
-    if (loading) return
-    if (visibles.length === 0) { if (selected !== null) setSelected(null); return }
-    if (!visibles.some(q => q.id === selected)) setSelected(visibles[0].id)
-  }, [loading, vue, sequences, sessionMatiere, sessionNiveau])   // eslint-disable-line react-hooks/exhaustive-deps
+  // Sélection par défaut + garde-fou : le détail montre TOUJOURS une séquence visible. C'est un
+  // CALCUL, pas une correction après coup — la ligne cliquée si elle est encore là, la première
+  // sinon. Changer d'onglet ou de profil suffit donc à recaler le détail, sans rien réécrire.
+  const selected = visibles.some(q => q.id === choisi) ? choisi : (visibles[0]?.id ?? null)
 
   const selectedSequence = sequences.find(q => q.id === selected) || null
 
   // Séances de la séquence sélectionnée (lecture seule ici : le TRAVAIL des séances se fait
-  // dans l'écran Séquence, via « Reprendre »). null = pas encore chargées.
-  const [seancesLiees, setSeancesLiees] = useState(null)
-  useEffect(() => {
-    if (!selected) { setSeancesLiees(null); return }
-    let annule = false
-    setSeancesLiees(null)
-    apiFetch(`/api/contenus/sequences/${selected}/seances`, { credentials: 'include' }, TIMEOUT_STD)
-      .then(lireReponse)
-      .then(d => { if (!annule) setSeancesLiees(d.seances || []) })
-      .catch(() => { if (!annule) setSeancesLiees([]) })
-    return () => { annule = true }
-  }, [selected])
+  // dans l'écran Séquence, via « Reprendre »). null = pas encore chargées — un échec laisse le
+  // bloc vide, la sélection suivante relira.
+  const { data: seancesLiees = null } = useQuery({
+    queryKey: ['contenus', 'sequence', selected, 'seances'],
+    enabled: !!selected,
+    queryFn: async () => {
+      try {
+        const d = await lireReponse(await apiFetch(`/api/contenus/sequences/${selected}/seances`, { credentials: 'include' }, TIMEOUT_STD))
+        return d.seances || []
+      } catch {
+        return []
+      }
+    },
+  })
 
   // Sous-ligne descriptive d'une séquence (nb de séances · niveau).
   const sousLigne = q => [
@@ -131,7 +124,7 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
       key={q.id}
       onMouseEnter={() => setHovered(q.id)}
       onMouseLeave={() => setHovered(null)}
-      onClick={() => setSelected(q.id)}
+      onClick={() => setChoisi(q.id)}
       title={dt.complet ? `Créée le ${dt.complet} à ${dt.heure}` : undefined}
       style={{
         borderBottom: last ? 'none' : '1px solid #e5e7eb',

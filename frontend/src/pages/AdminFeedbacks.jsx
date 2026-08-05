@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { fetchWithTimeout } from '../utils/api.js'
 import { demanderConfirmation } from '../confirmDialog'
 import FilEchange from '../components/FilEchange'
 
@@ -23,35 +24,45 @@ const PALETTE_STATUTS = [
 // donc tous les statuts sauf celui en cours — ce qu'il montre est ce que le serveur fait.
 
 export default function AdminFeedbacks() {
-  const [items, setItems]   = useState(null)
-  const [statuts, setStatuts] = useState(null)   // catalogue lu en base (code, label, ordre)
-  const [erreur, setErreur] = useState(null)
   const [onglet, setOnglet] = useState('notations')
   const [filtre, setFiltre] = useState('tous')
-  const [featureVotes, setFeatureVotes] = useState(null)
   const [brouillons, setBrouillons] = useState({})   // réponse en cours de frappe, par retour
   const [envoiId, setEnvoiId] = useState(null)       // retour dont la réponse part (sablier)
   const [avis, setAvis] = useState(null)             // { type: 'ok' | 'err', texte }
 
-  // Read-after-write : après chaque écriture on relit le serveur, jamais de miroir local.
-  async function recharger() {
-    const res = await fetch('/api/admin/feedbacks', { credentials: 'include' })
-    if (!res.ok) throw new Error()
-    setItems(await res.json())
-  }
+  // Les trois lectures de l'écran, tenues par react-query. Read-after-write : après chaque
+  // écriture on relit le serveur (refetch), jamais de miroir local.
+  const { data: items, isError: itemsRate, refetch: rechargerItems } = useQuery({
+    queryKey: ['admin', 'feedbacks'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/feedbacks', { credentials: 'include' })
+      if (!res.ok) throw new Error('feedbacks illisibles')
+      return await res.json()
+    },
+  })
+  // Catalogue des statuts : lu en base, il fabrique les filtres, les pastilles et les boutons.
+  const { data: statuts, isError: statutsRate } = useQuery({
+    queryKey: ['admin', 'feedback-statuts'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/feedback-statuts', { credentials: 'include' })
+      if (!r.ok) throw new Error('statuts illisibles')
+      return await r.json()
+    },
+  })
+  // Les votes ne bloquent pas l'écran : illisibles, la section se montre simplement vide.
+  const { data: featureVotes = null } = useQuery({
+    queryKey: ['admin', 'feature-votes'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/feature-votes', { credentials: 'include' })
+      return r.ok ? await r.json() : []
+    },
+  })
 
-  useEffect(() => {
-    recharger().catch(() => setErreur('Impossible de charger les données.'))
-    // Catalogue des statuts : lu en base, il fabrique les filtres, les pastilles et les boutons.
-    fetch('/api/admin/feedback-statuts', { credentials: 'include' })
-      .then(r => { if (!r.ok) throw new Error(); return r.json() })
-      .then(setStatuts)
-      .catch(() => setErreur('Impossible de charger les statuts de feedback.'))
-    fetch('/api/admin/feature-votes', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(setFeatureVotes)
-      .catch(() => setFeatureVotes([]))
-  }, [])
+  async function recharger() { await rechargerItems() }
+
+  const erreur = itemsRate ? 'Impossible de charger les données.'
+    : statutsRate ? 'Impossible de charger les statuts de feedback.'
+    : null
 
   if (erreur) return <p className="text-red-600 text-sm">{erreur}</p>
   if (!items || !statuts) return <p className="text-gray-400 text-sm">Chargement…</p>

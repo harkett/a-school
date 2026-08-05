@@ -119,14 +119,17 @@ DOMAINS = {
         # et la memoire de la matiere a leur rebrancher. Elle parle de profs mais elle appartient
         # au cycle de vie du referentiel — c'est lui qui la cree et lui qui la vide.
         ["referentiels", "referentiel_documents", "referentiel_chunks",
-         "referentiel_types_activite", "referentiel_type_precisions", "profs_bloques_maj"]),
+         "types_activite", "referentiel_type_precisions", "profs_bloques_maj"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
          "feature_votes", "features_votables", "few_shot_milestones", "tool_usage_logs"]),
+    # `usage_llm` : une ligne par appel LLM reussi (modele, outil, tokens, duree). Elle est du
+    # meme cote que `ai_modeles` — la configuration de l'IA et ce qu'elle consomme se lisent
+    # ensemble : le cout d'un appel est ses tokens multiplies par le tarif porte par sa fiche.
     "systeme":  ("Config, e-mail & systeme", "#e11d48", "#ffe4e6", "#881337",
-        ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "email_templates",
-         "email_envois", "incidents", "alembic_version"]),
+        ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "usage_llm",
+         "email_templates", "email_envois", "incidents", "alembic_version"]),
 }
 
 TYPE_MAP = {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import OngletsPrompts from '../components/OngletsPrompts'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import SplitPane from '../components/SplitPane.jsx'
@@ -308,6 +309,8 @@ export default function AdminPromptsCycle({ sujet }) {
 
   return (
     <div className="flex flex-col gap-4">
+
+      <OngletsPrompts />
 
       <div className="flex items-start gap-3" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 260 }}>

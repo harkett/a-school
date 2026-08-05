@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 export default function AdminCompte() {
   const [form, setForm] = useState({ old_password: '', new_password: '', new_password_confirm: '' })

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import useIsMobile from '../hooks/useIsMobile'
@@ -50,26 +51,21 @@ const SUB_LABEL = { fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransfo
 const EMPTY_MSG = { fontSize: 12, color: '#cbd5e1', fontStyle: 'italic' }
 
 export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvrir }) {
-  const [data,     setData]     = useState(null)
-  const [chargementRate, setChargementRate] = useState(false)
   const [tipModal, setTipModal] = useState(null)
   const [tipIndex, setTipIndex] = useState(
     () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
   )
   const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
 
-  async function charger() {
-    setChargementRate(false)
-    try {
-      const r = await fetchWithTimeout('/api/dashboard', { credentials: 'include' }, TIMEOUT_STD)
-      setData(await lireReponse(r))
-    } catch (e) {
-      setChargementRate(true)
-      showError(messagePourEcran(e))
-    }
-  }
-
-  useEffect(() => { charger() }, [])
+  // Le tableau de bord, lu en base — react-query tient la lecture. Une lecture ratée se DIT
+  // (modale + « Réessayer ») : elle ne se déguise jamais en tableau de bord vide.
+  const { data = null, isError: chargementRate, error, refetch } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: async () => await lireReponse(
+      await fetchWithTimeout('/api/dashboard', { credentials: 'include' }, TIMEOUT_STD)),
+  })
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
+  const charger = () => refetch()
 
   function goTip(dir) {
     setTipIndex(i => {

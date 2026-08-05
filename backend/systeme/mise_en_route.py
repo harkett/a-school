@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.models_db import (
     Cycle, Niveau, Matiere, Referentiel, ReferentielChunk,
-    ReferentielActiviteType, EmailEnvoi, Activite, AiFournisseur,
+    ActiviteType, EmailEnvoi, Activite, AiFournisseur,
 )
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model
 
@@ -62,9 +62,12 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
         and db.query(ReferentielChunk).count() > 0
     )
 
-    # 6 — Au moins un type d'activité coché pour un référentiel (sinon le prof n'a que le défaut).
-    types_ok = (db.query(ReferentielActiviteType)
-                  .filter(ReferentielActiviteType.actif == True).first() is not None)
+    # 6 — Au moins un type d'activité RETENU sur un référentiel (sinon le prof n'a que le libellé
+    #     de secours). `validee` et pas seulement l'existence : un type simplement PROPOSÉ par la
+    #     détection ne remonte pas jusqu'au prof, l'étape ne serait donc pas faite.
+    types_ok = (db.query(ActiviteType)
+                  .filter(ActiviteType.actif == True, ActiviteType.validee == True)
+                  .first() is not None)
 
     # 7 — Au moins un email envoyé avec succès (le test SMTP).
     email_ok = (db.query(EmailEnvoi)

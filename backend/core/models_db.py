@@ -562,6 +562,15 @@ class Cycle(Base):
     # dès qu'il existe : ce drapeau dit seulement s'il a été relu.
     prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
                                                         server_default="0", default=False)
+    # Prompt de lecture des TYPES D'ACTIVITÉ, propre à ce cycle (05/08/2026). MÊME RÈGLE que les
+    # deux précédents : la DONNÉE (le type) appartient au référentiel, la RECETTE (le prompt qui la
+    # lit) appartient au cycle — une famille de documents bâtis pareil se lit avec la même recette.
+    # Écrit par l'IA au premier référentiel du cycle (méta-prompt `prompt_meta_types`). NULL = pas
+    # encore écrit, la détection retombe sur le prompt général `detecter_types_activite`.
+    prompt_types: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # false = écrit par l'IA, pas encore relu par l'admin. Le prompt SERT dès qu'il existe.
+    prompt_types_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                      server_default="0", default=False)
 
 
 class Niveau(Base):
@@ -626,13 +635,14 @@ class AiModele(Base):
     recommande: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
-    # Plafond de SORTIE imposé par le fournisseur pour CE modèle (tokens). NULL = aucun plafond
-    # connu, le réglage admin s'applique tel quel. Ce n'est pas un réglage de confort : Infomaniak
-    # REFUSE la requête (422) au-delà de 5 000, sans rien générer. Le connaître ici permet de
-    # borner la demande au lieu de la faire échouer — cf. get_sortie_max / get_max_tokens.
-    sortie_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Ce que CE modèle peut ÉCRIRE au plus (tokens) — le paramètre `max_tokens` envoyé tel quel au
+    # fournisseur, d'où son nom : c'est le mot de l'API, celui des erreurs (« max_tokens=5000 ») et
+    # celui de l'écran. NULL = pas de valeur propre, celle du fournisseur s'applique. Ce n'est pas
+    # un réglage de confort : Infomaniak REFUSE la requête (422) au-delà de 5 000, sans rien
+    # générer — cf. get_max_tokens_modele.
+    max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Fenêtre TOTALE du modèle (entrée + sortie). Deux bornes distinctes, qu'on a confondues une
-    # fois : `sortie_max` limite ce que le modèle ÉCRIT, `contexte_max` ce qu'il peut TENIR. Un
+    # fois : `max_tokens` limite ce que le modèle ÉCRIT, `contexte_max` ce qu'il peut TENIR. Un
     # référentiel entier pèse ~46 000 tokens — au-delà de la fenêtre, le fournisseur refuse en 400
     # après avoir fait attendre. NULL = fenêtre inconnue, aucun contrôle en amont.
     contexte_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -640,6 +650,10 @@ class AiModele(Base):
     # d'aujourd'hui — vérifiés en appelant chacun ; la colonne existe pour le modèle qui ne saura pas.
     supporte_schema: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     supporte_stream: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    # `temperature` : les Claude Opus 4.x et les modèles 5 la REJETTENT (400). C'était écrit en dur
+    # dans le moteur, deux fois, au nom du fournisseur entier — donc invisible pour l'admin, qui
+    # réglait une valeur silencieusement jetée. La contrainte tient au MODÈLE : elle se déclare ici.
+    supporte_temperature: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     # Tarifs $/million de tokens, pour l'estimation de coût de l'écran statistiques. VIDES tant
     # qu'ils n'ont pas été relevés : un tarif inventé serait pire qu'un tarif absent.
     cout_entree_million: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
@@ -673,9 +687,10 @@ class AiFournisseur(Base):
     # Adresse d'appel. Celle d'Infomaniak porte le NUMÉRO DE PRODUIT du compte, propre à chaque
     # installation : elle est stockée avec le marqueur `{produit}`, substitué depuis l'env.
     base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Plafond de sortie du FOURNISSEUR, dont ses modèles héritent faute de valeur propre. Les
-    # 5 000 tokens d'Infomaniak ne tiennent pas au modèle : les trois du produit les partagent.
-    sortie_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # `max_tokens` du FOURNISSEUR, dont ses modèles héritent faute de valeur propre. Les 5 000
+    # tokens d'Infomaniak ne tiennent pas au modèle : les trois du produit les partagent. Même nom
+    # que sur le modèle, parce que c'est la même valeur — seule la portée diffère.
+    max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -710,6 +725,70 @@ class OutilLlm(Base):
     libelle: Mapped[str] = mapped_column(String(150), nullable=False)  # affichage admin
     aide: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+
+
+class UsageLlm(Base):
+    """UNE LIGNE PAR APPEL LLM RÉUSSI — ce que l'écran « IA › Statistiques » compte.
+
+    POURQUOI CETTE TABLE. Les tokens consommés étaient calculés à chaque appel puis écrits dans
+    le journal applicatif (`log.info`), c'est-à-dire perdus : un journal défile et s'efface, il ne
+    s'additionne pas. L'écran de statistiques existait donc en disant « rien n'est encore mesuré »,
+    faute d'un endroit où lire. Poser la trace ICI est la seule chose qui manquait.
+
+    CE QU'ON GARDE. Les tokens, PAS le coût : le prix vit dans `ai_modeles` et peut être corrigé
+    (un tarif se relève, un fournisseur change sa grille). Figer un montant obligerait à réécrire
+    l'historique à chaque correction ; multiplier à la lecture donne toujours le chiffre cohérent
+    avec la grille du jour. C'est une ESTIMATION affichée, pas une facture.
+
+    CE QU'ON NE GARDE PAS. Le prompt et la réponse — jamais. Cette table sert à compter, pas à
+    relire : y stocker du contenu de prof en ferait un second entrepôt de données personnelles,
+    et le volume la rendrait inexploitable. Pour diagnostiquer un appel, c'est `incidents`.
+
+    ÉCHECS. Seuls les appels RÉUSSIS sont ici — un appel refusé ne consomme rien de facturable et
+    laisse déjà sa trace dans `incidents`. Un appel COUPÉ (`motif_arret = "max_tokens"`), lui, est
+    bien enregistré : il a été payé, et le voir est précisément ce qui explique une facture."""
+    __tablename__ = "usage_llm"
+    __table_args__ = (
+        Index("ix_usage_llm_created_at", "created_at"),
+        Index("ix_usage_llm_modele", "modele"),
+        Index("ix_usage_llm_outil", "outil"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    fournisseur: Mapped[str] = mapped_column(String(50), nullable=False)   # "groq" / "anthropic" / "infomaniak"
+    modele: Mapped[str] = mapped_column(String(100), nullable=False)       # id API exact, rapproché de ai_modeles.modele
+    # L'outil du logiciel qui a déclenché l'appel (cf. `outils_llm.outil`). NULLABLE, et sans clé
+    # étrangère : une statistique ne doit JAMAIS refuser une ligne. Un appel dont l'outil n'est pas
+    # encore nommé se compte quand même — il apparaît sous « non précisé » plutôt que de disparaître.
+    outil: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Tokens tels que RENVOYÉS PAR LE FOURNISSEUR — jamais l'estimation maison de `_tokens_estimes`
+    # (3,5 caractères/token), qui n'est qu'un garde-fou d'envoi. NULL = le fournisseur ne les a pas
+    # donnés : on garde la ligne (l'appel a bien eu lieu) sans inventer de chiffre.
+    tokens_entree: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_sortie: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # CACHE DE PROMPT DU FOURNISSEUR (à ne pas confondre avec `depuis_cache`, qui est notre cache
+    # disque de développement). Six outils envoient le même référentiel : le premier le fait garder
+    # (écriture), les suivants le relisent (lecture) à 10 % du prix.
+    #
+    # CES DEUX COLONNES NE SONT PAS UN LUXE STATISTIQUE. Anthropic SORT ces tokens de
+    # `input_tokens` : sans elles, un appel qui relit 70 000 tokens en cache s'afficherait comme un
+    # appel de 200 tokens, et la facture estimée serait dix fois trop basse. On les compte à part
+    # parce qu'ils ne se paient pas au même prix — écriture 1,25×, relecture 0,10× du tarif d'entrée.
+    tokens_cache_ecriture: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_cache_lecture: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duree_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Pourquoi le modèle s'est arrêté ("end_turn", "max_tokens", "stop"…). Le même champ que le
+    # journal : devant une découpe qui ne rend que deux unités, c'est lui qui dit si le modèle a
+    # fini ou s'il a été coupé.
+    motif_arret: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # L'appel a été SERVI PAR LE CACHE DISQUE (dev) : rien n'a été envoyé, rien n'a été payé, d'où
+    # tokens et coût à 0. La ligne existe quand même, sinon l'écran afficherait 3 appels pour 10
+    # lancés et le cache travaillerait invisible. Une COLONNE, et non un faux fournisseur « cache » :
+    # le modèle et l'outil restent les vrais — c'est justement ce qu'on veut lire (« la découpe sur
+    # Sonnet 5 a été rejouée »). Faux par défaut : tout l'historique d'avant est de vrais appels.
+    depuis_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
 
 
 class ReferentielDocument(Base):
@@ -861,78 +940,75 @@ class ReferentielChunk(Base):
 
 
 class ActiviteType(Base):
-    """Catalogue GLOBAL des types d'activité — défini UNE seule fois, partagé (crèche → doctorat).
+    """Un type d'activité DU référentiel qui le met en œuvre — jamais un catalogue partagé.
 
-    Un type d'activité N'APPARTIENT PAS à un référentiel : il vit dans ce catalogue. Le référentiel
-    (PDF d'un couple) ne fait que COCHER/DÉCOCHER quels types s'appliquent, via la table de liaison
-    `referentiel_types_activite` (relation N–N). Le PROMPT n'est PAS ici : il est SPÉCIFIQUE au couple
-    (référentiel × type) et vit sur la liaison `referentiel_types_activite.prompt`, à un seul endroit
-    — un type seul ne porte aucun prompt. Le type est identifié par son `id` (plus de slug `key`) ;
-    l'anti-doublon du catalogue se fait par `label` (insensible à la casse), comme `matieres.nom`.
-    `is_default` = le type de repli « Activité d'apprentissage », affiché quand un couple n'a coché
-    aucun type (ou n'a pas de référentiel) ; UN SEUL défaut garanti par l'index partiel `ux_default`.
-    Les précisions vivent PAR COUPLE sur la liaison (`referentiel_type_precisions`). Les besoins de
-    saisie du type ne sont PAS stockés : ils se lisent des trous de son prompt, à l'instant."""
+    MÊME PATRON QUE `Matiere` (05/08/2026). Un type d'activité est une donnée LUE DANS LE DOCUMENT,
+    au même titre qu'une matière : le référentiel dit quels formats il met en œuvre. Il appartient
+    donc au référentiel, avec l'unicité sur (referentiel_id, label) — deux « Projet » dans deux
+    diplômes sont deux types distincts, et ils ne se comparent jamais. CASCADE : la disparition du
+    référentiel emporte ses types.
+
+    CE QUE ÇA REMPLACE. Il y avait ici un CATALOGUE GLOBAL (crèche → doctorat) semé en dur par la
+    migration `a1b2c3d4e5f6` (13 familles + un défaut), plus une table de liaison N–N
+    `referentiel_types_activite` qui disait quels types un couple avait cochés. Ce catalogue était
+    le vestige du temps où la liste précédait les référentiels : tout ce qui avait du sens métier
+    l'avait déjà quitté (le prompt vivait sur la liaison ; les précisions avaient déjà migré depuis
+    l'ancien catalogue global `type_precisions`, supprimé). Le seed était ce qui forçait le reste
+    du montage — liaison N–N, `is_default`, et surtout la création automatique d'un type dans la
+    table PARTAGÉE dès que l'IA en lisait un nouveau dans UN référentiel.
+
+    `validee` = le point de fond, repris de `Matiere` : la détection PROPOSE (false), l'admin
+    RETIENT (true). Le prof ne voit que les types validés — une lecture d'IA n'entre jamais dans
+    ses menus toute seule. `actif` = retiré du programme (historique conservé), comme une matière.
+    `origine` = qui a nommé ce type : 'ia' (lu dans le document) | 'admin' (ajouté à la main) ;
+    c'est le badge affiché, jamais « qui a coché ».
+
+    `is_default` a disparu avec le catalogue : le repli « Activité d'apprentissage » servi au prof
+    quand un couple n'a aucun type est désormais UN LIBELLÉ DE SECOURS EN DUR (backend.contenu.
+    activites). Il ne perd rien : le type par défaut n'avait de prompt pour aucun couple, donc il
+    n'était déjà pas générable — il ne servait que d'affichage.
+
+    Le `prompt` (génération de CE type pour CE référentiel) est descendu de la liaison sur la ligne,
+    à un seul endroit. Les besoins de saisie ne sont PAS stockés : ils se lisent des trous du prompt,
+    à l'instant."""
     __tablename__ = "types_activite"
-    __table_args__ = (
-        Index("ux_default", "is_default", unique=True, postgresql_where=text("is_default")),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    label: Mapped[str] = mapped_column(String(128), nullable=False)
-    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
-    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
-    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
-    # Origine du type dans le catalogue : 'systeme' (fourni par aSchool, pré-rempli) | 'admin' (ajouté
-    # à la main via « Ajouter ») | 'ia' (issu d'une suggestion IA). Sert de source du LIEN quand l'admin
-    # COCHE le type — le badge affiché = l'origine, jamais « qui a coché ».
-    origine: Mapped[str] = mapped_column(String(16), nullable=False, server_default="systeme", default="systeme")
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-
-
-class ReferentielActiviteType(Base):
-    """Liaison référentiel ↔ type d'activité (N–N) : LE « coché / décoché ».
-
-    Le référentiel (PDF d'un couple) active/désactive des types du catalogue `types_activite` :
-    une ligne = « ce type est proposé pour ce couple ». `actif` = coché ou non (l'admin décoche sans
-    supprimer). `source` = origine de la coche : 'ia' (détectée dans le PDF) ou 'admin' (ajout manuel).
-    CASCADE des DEUX côtés : supprimer le référentiel OU le type retire les liaisons. Unicité
-    (referentiel_id, activite_type_id) : un type ne peut être coché qu'une fois par référentiel."""
-    __tablename__ = "referentiel_types_activite"
-    __table_args__ = (
-        UniqueConstraint("referentiel_id", "activite_type_id", name="uq_ref_activite_type"),
-    )
+    __table_args__ = (UniqueConstraint("referentiel_id", "label", name="uq_types_activite_referentiel_label"),)
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     referentiel_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False, index=True)
-    activite_type_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
-    source: Mapped[str] = mapped_column(String(16), nullable=False)   # origine du LIEN : 'ia' | 'admin' | 'systeme'
+    # PROPOSÉ par la détection (false) vs RETENU par l'admin (true) — comme `matieres.validee`.
+    validee: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
-    # Prompt de génération de CE type POUR CE couple (référentiel × type) — une seule place, zéro copie.
-    # Écrit automatiquement au coche (généré), réécrit à l'édition. Le décoche ne le touche pas (il reste).
-    # Contient les deux emplacements {texte} (idée du prof) et {referentiel} (programme officiel). Vide = pas encore généré.
+    # Qui a nommé ce type : 'ia' (lu dans le document) | 'admin' (ajouté à la main).
+    origine: Mapped[str] = mapped_column(String(16), nullable=False, server_default="ia", default="ia")
+    # Prompt de génération de CE type POUR CE référentiel — descendu de l'ancienne liaison, une
+    # seule place, zéro copie. Écrit automatiquement à la création (gabarit en base), réécrit à
+    # l'édition. Porte les deux emplacements {texte} (idée du prof) et {referentiel} (programme
+    # officiel). Vide = pas encore généré.
     prompt: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
 class ReferentielTypePrecision(Base):
-    """Précision d'un type d'activité POUR UN COUPLE — fille de la liaison `referentiel_types_activite`.
+    """Précision d'un type d'activité — fille de `types_activite`, donc PROPRE au référentiel.
 
-    Contrairement à l'ancien catalogue GLOBAL `type_precisions` (supprimé — même valeur crèche→doctorat), ici la précision
-    est PROPRE AU COUPLE × TYPE : elle pend sur la ligne de liaison (comme le `prompt`), donc « exploration
-    sensorielle » n'existe que pour le couple qui l'a saisie — le doctorat n'hérite plus du vocabulaire
-    crèche. `source` = 'admin' (saisie manuelle) | 'ia' (proposée). CASCADE : supprimer la liaison retire
-    ses précisions. UNIQUE (referentiel_activite_type_id, libelle) : pas de doublon dans un couple×type."""
+    « exploration sensorielle » n'existe que pour le référentiel qui l'a nommée : le doctorat
+    n'hérite pas du vocabulaire crèche. Elle pendait sur la liaison N–N ; la liaison ayant disparu
+    (le type appartient désormais au référentiel), elle pend directement sur le type — même portée,
+    un intermédiaire en moins. `source` = 'admin' (saisie manuelle) | 'ia' (proposée). CASCADE :
+    supprimer le type retire ses précisions. UNIQUE (type_activite_id, libelle) : pas de doublon
+    dans un type."""
     __tablename__ = "referentiel_type_precisions"
     __table_args__ = (
-        UniqueConstraint("referentiel_activite_type_id", "libelle", name="uq_ref_type_precisions_lien_libelle"),
+        UniqueConstraint("type_activite_id", "libelle", name="uq_ref_type_precisions_type_libelle"),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    referentiel_activite_type_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("referentiel_types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
+    type_activite_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("types_activite.id", ondelete="CASCADE"), nullable=False, index=True)
     libelle: Mapped[str] = mapped_column(String(128), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")

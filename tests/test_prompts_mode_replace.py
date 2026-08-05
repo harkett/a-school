@@ -32,7 +32,10 @@ from backend.main import app
 from backend.systeme.admin import _make_admin_token, get_prompts_settings, valider_prompt
 from fastapi.testclient import TestClient
 
-EN_REPLACE = ("meta_decoupe", "verif_decoupe", "gabarit_type")
+# Les prompts en mode « replace ». `meta_types` rejoint la liste le 05/08/2026 (la recette qui
+# lit les types monte au cycle, comme celles de la découpe et des matières) — et `meta_matieres`,
+# qui y était en mode mais pas dans cette liste, y entre du même coup.
+EN_REPLACE = ("meta_decoupe", "meta_matieres", "meta_types", "verif_decoupe", "gabarit_type")
 
 
 def _admin():
@@ -51,7 +54,7 @@ def test_le_mode_declare_est_toujours_l_un_des_deux_connus():
     assert not inconnus, f"Modes inconnus au registre : {inconnus}"
 
 
-def test_seuls_ces_trois_prompts_sont_en_replace():
+def test_seuls_ces_prompts_sont_en_replace():
     """Liste GELÉE. Passer un prompt en « replace » lui retire le contrôle `.format()` : ça se
     décide, ça ne se glisse pas. Ce test tombe dans les deux sens."""
     reels = tuple(sorted(cle for cle, meta in PROMPTS.items()

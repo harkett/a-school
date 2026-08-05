@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { useMatieres } from '../utils/useMatieres.js'
@@ -7,8 +8,6 @@ import { VARIABLES_EMAIL } from '../utils/variablesEmail.js'
 
 export default function AdminCommunication() {
   const { matieres, chargement: matieresChargement } = useMatieres()
-  const [users, setUsers]               = useState([])
-  const [loading, setLoading]           = useState(true)
   const [selected, setSelected]         = useState(new Set())
   const [filterText, setFilterText]     = useState('')
   const [filterMatiere, setFilterMatiere] = useState('')
@@ -19,21 +18,19 @@ export default function AdminCommunication() {
   const [result, setResult]             = useState(null)
   const navigate = useNavigate()
 
-  const [panne, setPanne] = useState(false)   // lecture de la liste échouée
-
-  async function chargerUsers() {
-    try {
+  // La liste des comptes est UNE lecture en base tenue par react-query — « en cours », « en
+  // panne » et la relecture SONT le get, l'écran n'en pose plus les états à la main.
+  const { data: users = [], isPending: loading, isError: panne, error, refetch } = useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: async () => {
       const r = await fetchWithTimeout('/api/admin/users', { credentials: 'include' }, TIMEOUT_STD)
-      if (r.status === 401) { navigate('/admin/login'); return }
-      setUsers(await lireReponse(r))
-      setPanne(false)
-    } catch (err) {
-      setPanne(true)
-      showError(messagePourEcran(err))
-    }
-  }
+      if (r.status === 401) { navigate('/admin/login'); return [] }
+      return await lireReponse(r)
+    },
+  })
 
-  useEffect(() => { chargerUsers().finally(() => setLoading(false)) }, [navigate])  // eslint-disable-line react-hooks/exhaustive-deps
+  // L'erreur de lecture se dit en modale (règle maison) — react-query la porte, il ne l'affiche pas.
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
 
   const filtered = users.filter(u => {
     const text = filterText.toLowerCase()
@@ -97,7 +94,7 @@ export default function AdminCommunication() {
     <div style={{ textAlign: 'center', padding: '3rem' }}>
       <button
         type="button"
-        onClick={() => { setLoading(true); chargerUsers().finally(() => setLoading(false)) }}
+        onClick={() => refetch()}
         title="Relancer la lecture de la liste des profs"
         style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
                  background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}

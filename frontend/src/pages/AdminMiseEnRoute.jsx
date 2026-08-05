@@ -1,29 +1,28 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 
 // Assistant de PREMIÈRE MISE EN ROUTE (admin). Chaque pastille est un REFLET lu en direct
 // dans la base (get, zéro copie) via /api/admin/mise-en-route/etat — jamais une case cochée
 // à la main. Les boutons NE FONT QUE NAVIGUER vers l'écran où l'admin agit réellement.
 export default function AdminMiseEnRoute() {
-  const [data, setData]     = useState(null)
-  const [erreur, setErreur] = useState(false)
   const navigate = useNavigate()
 
-  async function charger() {
-    setErreur(false)
-    try {
+  // L'état de la mise en route est UNE lecture en base : react-query la tient (première
+  // lecture, panne, relecture), l'écran n'en garde aucune copie.
+  const { data, isError: erreur, refetch } = useQuery({
+    queryKey: ['admin', 'mise-en-route'],
+    queryFn: async () => {
       const r = await fetchWithTimeout('/api/admin/mise-en-route/etat', { credentials: 'include' }, TIMEOUT_STD)
-      if (!r.ok) throw new Error()
-      setData(await r.json())
-    } catch { setErreur(true) }
-  }
-  useEffect(() => { charger() }, [])
+      if (!r.ok) throw new Error('état de la mise en route illisible')
+      return await r.json()
+    },
+  })
 
   if (erreur) return (
     <div style={{ fontSize: 13, color: '#64748b' }}>
       Impossible de lire l'état de la mise en route pour le moment.{' '}
-      <button onClick={charger} style={lienStyle}>Réessayer</button>
+      <button onClick={() => refetch()} style={lienStyle}>Réessayer</button>
     </div>
   )
   if (!data) return <div style={{ fontSize: 13, color: '#94a3b8' }}>Chargement…</div>
@@ -94,7 +93,7 @@ export default function AdminMiseEnRoute() {
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <button onClick={charger} style={lienStyle} title="Relire l'état en base">Rafraîchir l'état</button>
+        <button onClick={() => refetch()} style={lienStyle} title="Relire l'état en base">Rafraîchir l'état</button>
       </div>
     </div>
   )

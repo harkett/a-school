@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { showConfirm } from '../confirmDialog'
@@ -24,31 +25,23 @@ function ProgressBar({ value, max, color }) {
 }
 
 export default function AdminMaintenance() {
-  const [data, setData]       = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [panne, setPanne]     = useState(false)   // lecture échouée (réseau/serveur)
   const [purging, setPurging] = useState(null)
   const [results, setResults] = useState({})
   const navigate = useNavigate()
 
-  // Lecture des compteurs. Une panne ne laisse JAMAIS l'écran vide en silence (l'ancien code
-  // rendait `null` : écran blanc, aucun message) : erreur en modale + bouton « Réessayer ».
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
+  // Lecture des compteurs, tenue par react-query. Une panne ne laisse JAMAIS l'écran vide en
+  // silence (l'ancien code rendait `null` : écran blanc, aucun message) : erreur en modale +
+  // bouton « Réessayer ».
+  const { data, isPending: loading, isError: panne, error, refetch } = useQuery({
+    queryKey: ['admin', 'maintenance', 'stats'],
+    queryFn: async () => {
       const r = await fetchWithTimeout('/api/admin/maintenance/stats', { credentials: 'include' }, TIMEOUT_STD)
-      if (r.status === 401) { navigate('/admin/login'); return }
-      setData(await lireReponse(r))
-      setPanne(false)
-    } catch (err) {
-      setPanne(true)
-      showError(messagePourEcran(err))
-    } finally {
-      setLoading(false)
-    }
-  }, [navigate])
+      if (r.status === 401) { navigate('/admin/login'); return null }
+      return await lireReponse(r)
+    },
+  })
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
 
   // Purge = suppression IRRÉVERSIBLE : confirmation dans la vraie boîte de dialogue (rouge),
   // puis compte rendu honnête — un échec se dit, il ne s'affiche pas comme « ✓ purgés ».
@@ -69,7 +62,7 @@ export default function AdminMaintenance() {
           showError(messagePourEcran(err))
         } finally {
           setPurging(null)
-          load()   // relecture : les compteurs affichés viennent toujours de la base
+          refetch()   // relecture : les compteurs affichés viennent toujours de la base
         }
       },
     })
@@ -82,7 +75,7 @@ export default function AdminMaintenance() {
     <div style={{ textAlign: 'center', padding: '3rem' }}>
       <button
         type="button"
-        onClick={load}
+        onClick={() => refetch()}
         title="Relancer la lecture des compteurs de la base"
         style={{ padding: '9px 24px', borderRadius: 8, border: '1px solid #cbd5e1',
                  background: '#fff', color: '#334155', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -104,7 +97,7 @@ export default function AdminMaintenance() {
           <h2 className="text-sm font-semibold text-gray-700">Maintenance base de données</h2>
           <p className="text-xs text-gray-400 mt-0.5">Base PostgreSQL · {data.db_size_mb} Mo · {totalRecords.toLocaleString('fr')} enregistrements au total</p>
         </div>
-        <button onClick={load}
+        <button onClick={() => refetch()}
           style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'white', border: '1px solid #d1d5db', borderRadius: 7, padding: '6px 14px', fontSize: 12, color: '#374151', cursor: 'pointer' }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>

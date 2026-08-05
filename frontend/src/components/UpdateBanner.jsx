@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { APP_VERSION } from '../version'
 
@@ -17,7 +17,7 @@ export default function UpdateBanner() {
         if (!res.ok) return
         const { version } = await res.json()
         if (version && version !== APP_VERSION) setWebUpdate(true)
-      } catch {}
+      } catch { /* version illisible (hors ligne, serveur qui redémarre) : la prochaine visite reposera la question */ }
     }
     check()
     const onVisible = () => { if (!document.hidden) check() }
@@ -27,21 +27,27 @@ export default function UpdateBanner() {
 
   const showBanner = needRefresh || webUpdate
 
+  // LE geste de mise à jour, gardé dans une ref : le service worker en donne une version neuve
+  // à chaque rendu, et le décompte ne doit pas repartir de zéro pour autant. La ref est posée à
+  // chaque rendu, le décompte ne dépend que de l'apparition de la bannière.
+  const appliquerRef = useRef(null)
+  useEffect(() => {
+    appliquerRef.current = () => { needRefresh ? updateServiceWorker(true) : window.location.reload() }
+  })
+
+  // Le décompte : un tic par seconde, jamais remis à zéro en cours de route — la bannière ne
+  // disparaît plus une fois montrée (la page se recharge au bout), `secondes` part de COUNTDOWN.
   useEffect(() => {
     if (!showBanner) return
-    setSecondes(COUNTDOWN)
-    const interval = setInterval(() => {
-      setSecondes(s => {
-        if (s <= 1) {
-          clearInterval(interval)
-          needRefresh ? updateServiceWorker(true) : window.location.reload()
-          return 0
-        }
-        return s - 1
-      })
-    }, 1000)
+    const interval = setInterval(() => setSecondes(s => Math.max(0, s - 1)), 1000)
     return () => clearInterval(interval)
   }, [showBanner])
+
+  // Fin du décompte → on applique. Séparé du tic : recharger la page est un effet de bord, il
+  // n'a rien à faire dans le calcul de la seconde suivante.
+  useEffect(() => {
+    if (showBanner && secondes === 0) appliquerRef.current?.()
+  }, [showBanner, secondes])
 
   if (!showBanner) return null
 

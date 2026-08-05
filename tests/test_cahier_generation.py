@@ -36,8 +36,7 @@ def _preparer(nom, ordre, prompt, cahier_texte=None):
     """Cycle + niveau + référentiel + type relié (avec son prompt) + LE PROF EN BASE (son profil
     porte ce niveau). Si `cahier_texte` est fourni, dépose un cahier des charges pour ce prof
     (cahiers_prof.texte_epure). Renvoie (niveau_nom, type_id)."""
-    from backend.core.models_db import (Cycle, Niveau, Referentiel, ActiviteType,
-                                        ReferentielActiviteType, CahierProf)
+    from backend.core.models_db import (Cycle, Niveau, Referentiel, ActiviteType, CahierProf)
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom=f"CG-{nom}", ordre=ordre); db.add(cy); db.flush()
         niv = Niveau(cycle_id=cy.id, nom=f"CG-Niv{nom}", ordre=ordre); db.add(niv); db.flush()
@@ -45,10 +44,9 @@ def _preparer(nom, ordre, prompt, cahier_texte=None):
                           collection=f"cg_{nom.lower()}", filtres=None, fichier="doc.pdf",
                           texte_epure="TEXTE")
         db.add(ref); db.flush()
-        t = ActiviteType(label=f"CG-Type{nom}", ordre=1, actif=True, origine="systeme")
+        t = ActiviteType(referentiel_id=ref.id, label=f"CG-Type{nom}", ordre=1, actif=True,
+                         validee=True, origine="admin", prompt=prompt)
         db.add(t); db.flush()
-        db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                       actif=True, source="admin", prompt=prompt, ordre=1))
         from _profil import user_couple
         u = user_couple(db, email="prof.test@aschool.fr", password_hash="x", is_verified=True,
                     subject=f"CG-Matiere-{nom}", niveau=niv.nom)

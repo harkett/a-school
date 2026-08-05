@@ -79,8 +79,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   const [ideeLoading, setIdeeLoading] = useState(false)       // « Propose-moi une idée » en cours
   // Origine du texte courant → bandeau dans la carte (quand elle est dépliée). Une seule note à la
   // fois : le dernier geste gagne. Effacée dès que la zone est vidée. Clavier = pas de note.
-  const [sourceNote, setSourceNote] = useState(null)          // 'idee'|'exemple'|'dictee'|'txt'|'image'|'pdf'|null
-  const [replie, setReplie] = useState(false)                 // carte repliée en phase résultat (verrouillée) ; le prof peut déplier
+  const [sourceNoteBrute, setSourceNote] = useState(null)     // 'idee'|'exemple'|'dictee'|'txt'|'image'|'pdf'|null
+  // Carte repliée en phase résultat (verrouillée) ; le prof peut déplier. Son geste est gardé
+  // AVEC l'état de verrouillage pour lequel il l'a fait : quand la carte se verrouille ou se
+  // déverrouille, ce choix ne vaut plus et le repli automatique reprend la main (voir `replie`).
+  const [replieChoisi, setReplieChoisi] = useState(null)      // { pour: verrouille, valeur } | null
   const audioCtxRef = useRef(null)
   const textareaRef = useRef(null)
   const texteRef = useRef(texte)
@@ -100,8 +103,13 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
 
   // Repli automatique : la carte se replie quand elle se verrouille (phase résultat) et se déplie
   // quand elle se déverrouille (« Changer votre demande »). Le prof peut plier/déplier à la main
-  // via le chevron tant que c'est verrouillé.
-  useEffect(() => { setReplie(verrouille) }, [verrouille])
+  // via le chevron tant que c'est verrouillé. C'est un CALCUL : le repli suit le verrou, sauf
+  // si le prof a dit autre chose pour ce verrou-là.
+  const replie = replieChoisi?.pour === verrouille ? replieChoisi.valeur : verrouille
+  const setReplie = (maj) => setReplieChoisi({
+    pour: verrouille,
+    valeur: typeof maj === 'function' ? maj(replie) : maj,
+  })
 
   // Zone déjà remplie = le chemin est choisi : tout geste qui REMPLACERAIT le texte demande
   // d'abord confirmation (jamais de destruction au clic direct). C'est la confirmation qui
@@ -140,18 +148,22 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   // arrive tout de suite après le choix du fichier).
   const actionEnCours = !!ocrLoading || exempleLoading || ideeLoading || isListening || isTranscribing
   const chaseActif = !zoneRemplie && !verrouille && !actionEnCours
+  // Le rang allumé n'est lu que quand la course tourne (`btnChase` ci-dessous le vérifie) : il
+  // n'y a donc rien à remettre à zéro quand elle s'arrête. Chaque course repart de son côté.
   const [chaseIndex, setChaseIndex] = useState(0)
   useEffect(() => {
-    if (!chaseActif) { setChaseIndex(0); return }
-    const id = setInterval(() => setChaseIndex(i => (i + 1) % 6), 800)
+    if (!chaseActif) return
+    let i = 0
+    const id = setInterval(() => { i = (i + 1) % 6; setChaseIndex(i) }, 800)
     return () => clearInterval(id)
   }, [chaseActif])
   // Classe d'un bouton d'apport selon son rang (0→5) : « allumé » quand la course est sur lui.
   const btnChase = i => `btn-action${chaseActif && chaseIndex === i ? ' chase-on' : ''}`
 
   // Le bandeau d'origine est attaché au texte courant : si le texte est vidé (ex. « Créer » repart
-  // d'une activité vierge), il n'a plus de sens → effacé.
-  useEffect(() => { if (!texte) setSourceNote(null) }, [texte])
+  // d'une activité vierge), il n'a plus rien à décrire — il ne s'affiche pas. Zone vide = pas de
+  // provenance, c'est un CALCUL, il n'y a rien à effacer après coup.
+  const sourceNote = texte ? sourceNoteBrute : null
 
   // Dictée vocale en mode BATCH : enregistrer → stop → POST /api/transcribe (Groq
   // Whisper) → texte inséré à la fin. Le streaming temps réel Deepgram est une
@@ -179,7 +191,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         osc.start(t)
         osc.stop(t + 0.12)
       }
-    } catch {}
+    } catch { /* le bip est un confort : un navigateur qui refuse l'AudioContext dicte quand même */ }
   }, [])
 
   // Choisit un format d'enregistrement supporté par le navigateur ET accepté par Groq.
@@ -192,15 +204,15 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   }
 
   function stopMediaStream() {
-    try { mediaStreamRef.current && mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch {}
+    try { mediaStreamRef.current && mediaStreamRef.current.getTracks().forEach(t => t.stop()) } catch { /* pistes déjà coupées (onglet fermé, micro débranché) : on voulait juste ça */ }
     mediaStreamRef.current = null
     mediaRecorderRef.current = null
   }
 
   // Débranche l'analyseur de volume (sans fermer l'AudioContext, réutilisé pour les bips).
   function teardownAnalyser() {
-    try { sourceRef.current && sourceRef.current.disconnect() } catch {}
-    try { analyserRef.current && analyserRef.current.disconnect() } catch {}
+    try { sourceRef.current && sourceRef.current.disconnect() } catch { /* nœud déjà débranché : c'est l'état voulu */ }
+    try { analyserRef.current && analyserRef.current.disconnect() } catch { /* idem */ }
     sourceRef.current = null
     analyserRef.current = null
   }
@@ -263,7 +275,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
         sourceRef.current = src
         analyserRef.current = analyser
       }
-    } catch {}
+    } catch { /* le vumètre est un confort : sans lui la dictée s'enregistre pareil */ }
     const mime = pickAudioMime()
     audioMimeRef.current = mime || 'audio/webm'
     audioChunksRef.current = []
@@ -419,7 +431,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       activeRef.current = false
       setIsListening(false)
       setIsReady(false)
-      try { mediaRecorderRef.current && mediaRecorderRef.current.stop() } catch {}
+      try { mediaRecorderRef.current && mediaRecorderRef.current.stop() } catch { /* enregistreur déjà arrêté (fin de flux) : c'est le but du clic */ }
     } else {
       if (!isSupported) {
         showError("La dictée vocale n'est pas disponible sur ce navigateur. Utilisez Edge ou un Chrome récent.")
@@ -428,6 +440,7 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
       activeRef.current = true
       setIsListening(true)
       setIsReady(false)
+      setElapsed(0)          // nouvelle dictée : le chrono repart de zéro, dès le clic
       textareaRef.current?.focus()
       startRecording()
     }
@@ -440,7 +453,8 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   useEffect(() => {
     if (!(isListening && isReady)) return
     startTimeRef.current = performance.now()
-    setElapsed(0)
+    // Pas de remise à zéro à poser ici : le chrono affiché se CALCULE de l'instant de départ,
+    // et il n'est montré que pendant l'enregistrement — il part donc toujours de 00:00.
     chronoRef.current = setInterval(() => {
       setElapsed((performance.now() - startTimeRef.current) / 1000)
     }, 250)
@@ -467,9 +481,11 @@ export default function TexteSource({ texte, onChange, objet, onObjetChange, mat
   // Filet de sécurité : composant démonté en pleine dictée → tout couper proprement.
   useEffect(() => {
     return () => {
-      try { cancelAnimationFrame(rafRef.current) } catch {}
-      try { clearInterval(chronoRef.current) } catch {}
-      try { if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop() } catch {}
+      // Démontage : chaque coupure est indépendante des autres — une qui échoue (déjà coupée)
+      // ne doit pas empêcher les suivantes, c'est tout l'intérêt des trois try séparés.
+      try { cancelAnimationFrame(rafRef.current) } catch { /* boucle déjà arrêtée */ }
+      try { clearInterval(chronoRef.current) } catch { /* chrono déjà arrêté */ }
+      try { if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop() } catch { /* enregistreur déjà arrêté */ }
       teardownAnalyser()
       stopMediaStream()
     }

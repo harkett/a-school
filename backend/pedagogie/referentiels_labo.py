@@ -53,7 +53,7 @@ from backend.core.database import get_db
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
                                     ReferentielDocument, Matiere, User,
-                                    ReferentielActiviteType, ReferentielTypePrecision)
+                                    ActiviteType, ReferentielTypePrecision)
 from backend.systeme.admin import (_require_admin, get_settings_dict, get_prompt, get_cle_texte,
                                    get_ai_provider, get_ai_model, get_max_tokens, get_temperature,
                                    get_retry_max, get_retry_wait_max)
@@ -683,7 +683,8 @@ def _fusionner_par_ia(db: Session, cycle: Cycle, niveau: Niveau,
     texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db),
                      model=get_ai_model(db), max_tokens=max_tokens,
                      temperature=get_temperature(db), retry_max=get_retry_max(db),
-                     retry_wait_max=get_retry_wait_max(db)).strip()
+                     retry_wait_max=get_retry_wait_max(db),
+                     outil="referentiel_fusion").strip()
     if not texte:
         raise HTTPException(502, "L'IA n'a rien produit à partir de ces documents. Réessayez.")
     _ecrire_pdf(texte, destination, f"Référentiel — {cycle.nom} · {niveau.nom}")
@@ -895,8 +896,10 @@ def bilan_suppression(cycle_id: int, niveau: str, db: Session = Depends(get_db))
     if ref is None:
         return {"existe": False, "matieres": 0, "unites": 0, "types": 0, "precisions": 0,
                 "pdf": False, "profs": 0, "profs_liste": [], "fichier": None}
-    liens = db.query(ReferentielActiviteType).filter(ReferentielActiviteType.referentiel_id == ref.id)
-    ids_liens = [l.id for l in liens.all()]
+    # Les types appartiennent au référentiel (comme ses matières) : on les compte directement,
+    # sans traverser de liaison — elle n'existe plus depuis e4a7c2b9d5f8.
+    ids_types = [t.id for t in db.query(ActiviteType.id)
+                                 .filter(ActiviteType.referentiel_id == ref.id).all()]
     # Les profs NOMMÉMENT : c'est eux que l'admin s'apprête à mettre en attente. La matière
     # affichée est celle qui les rattache À CE référentiel (profil, sinon couple de travail).
     noms_matieres = {m.id: m.nom for m in db.query(Matiere).filter(Matiere.referentiel_id == ref.id).all()}
@@ -909,10 +912,10 @@ def bilan_suppression(cycle_id: int, niveau: str, db: Session = Depends(get_db))
         "fichier": ref.fichier,
         "matieres": db.query(Matiere).filter(Matiere.referentiel_id == ref.id).count(),
         "unites": db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count(),
-        "types": len(ids_liens),
+        "types": len(ids_types),
         "precisions": (db.query(ReferentielTypePrecision)
-                         .filter(ReferentielTypePrecision.referentiel_activite_type_id.in_(ids_liens))
-                         .count() if ids_liens else 0),
+                         .filter(ReferentielTypePrecision.type_activite_id.in_(ids_types))
+                         .count() if ids_types else 0),
         "pdf": _pdf_du_couple(db, cycle_id, niveau).exists(),
         "profs": _profs_du_referentiel(db, ref.id),
         "profs_liste": profs_liste,

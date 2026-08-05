@@ -36,8 +36,7 @@ def _client_prof():
 
 def _couple_avec_types(nom, ordre, prompts):
     """Cycle + niveau + référentiel + un type par prompt fourni. Renvoie (niveau_nom, [type_ids])."""
-    from backend.core.models_db import (Cycle, Niveau, Referentiel, ActiviteType,
-                                        ReferentielActiviteType)
+    from backend.core.models_db import Cycle, Niveau, Referentiel, ActiviteType
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom=f"BT-{nom}", ordre=ordre)
         db.add(cy); db.flush()
@@ -49,10 +48,9 @@ def _couple_avec_types(nom, ordre, prompts):
         db.add(ref); db.flush()
         type_ids = []
         for i, (label, prompt) in enumerate(prompts):
-            t = ActiviteType(label=label, ordre=i + 1, actif=True, origine="systeme")
+            t = ActiviteType(referentiel_id=ref.id, label=label, ordre=i + 1, actif=True,
+                             validee=True, origine="admin", prompt=prompt)
             db.add(t); db.flush()
-            db.add(ReferentielActiviteType(referentiel_id=ref.id, activite_type_id=t.id,
-                                           actif=True, source="admin", prompt=prompt, ordre=i + 1))
             type_ids.append(t.id)
         db.commit()
         return niv.nom, type_ids

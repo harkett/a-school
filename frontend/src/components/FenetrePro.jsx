@@ -8,11 +8,15 @@ export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = '
                                      minWidth = 340, minHeight = 240, zIndex = 450, children }) {
   const [pos, setPos] = useState({ x: Math.max(12, window.innerWidth - largeur - 28), y: 90 })
   const dragRef = useRef(null)   // décalage souris→coin pendant le glisser
+  // « On est en train de glisser » est une chose QUI SE VOIT (le curseur passe en main fermée) :
+  // c'est donc un état, pas une ref. La ref ne garde que le décalage, dont l'écran n'a rien à faire.
+  const [enDrag, setEnDrag] = useState(false)
 
   function commencerDrag(e) {
     if (e.target.closest('button')) return   // le × garde son clic — pas de capture dessus
     e.preventDefault()
     dragRef.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y }
+    setEnDrag(true)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
@@ -26,6 +30,7 @@ export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = '
 
   function finirDrag(e) {
     dragRef.current = null
+    setEnDrag(false)
     e.currentTarget.releasePointerCapture(e.pointerId)
   }
 
@@ -46,7 +51,7 @@ export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = '
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
           padding: '10px 14px', background: 'var(--bleu)', color: '#fff', flexShrink: 0,
-          cursor: dragRef.current ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none',
+          cursor: enDrag ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none',
         }}
       >
         <div style={{ fontWeight: 700, fontSize: 13 }}>{titre}</div>
