@@ -365,17 +365,61 @@ def get_retry_wait_max(db: Session) -> int:
     return max(RETRY_WAIT_MIN, min(RETRY_WAIT_MAX, v))
 
 
+def get_contexte_max(db: Session) -> int | None:
+    """Fenêtre TOTALE du modèle courant (entrée + sortie), lue EN BASE (ai_modeles.contexte_max).
+    None = fenêtre inconnue → aucun contrôle en amont, comme avant.
+
+    Deux bornes à ne pas confondre : `sortie_max` limite ce que le modèle ÉCRIT, celle-ci ce qu'il
+    peut TENIR. Plafonner la sortie ne sauve pas un document trop gros — l'entrée seule suffit à
+    faire refuser l'appel (400), après plusieurs minutes d'attente."""
+    modele = (
+        db.query(AiModele)
+        .filter(AiModele.fournisseur == get_ai_provider(db), AiModele.modele == get_ai_model(db))
+        .first()
+    )
+    return modele.contexte_max if modele else None
+
+
+def get_sortie_max(db: Session) -> int | None:
+    """Plafond de SORTIE applicable au modèle courant, lu EN BASE. None = aucun plafond connu.
+
+    HÉRITAGE : la valeur du MODÈLE l'emporte si elle existe, sinon celle de son FOURNISSEUR. Les
+    5 000 tokens d'Infomaniak ne tiennent pas à un modèle en particulier — les trois du produit les
+    partagent — les poser sur le fournisseur évite de les recopier à chaque modèle ajouté, et un
+    modèle qui ferait exception garde le droit de les surcharger.
+
+    Ce n'est pas un réglage : c'est ce que le fournisseur ACCEPTE. Il refuse la requête en 422
+    au-delà — sans ce garde-fou, tout réglage plus haut fait échouer la génération entière au lieu
+    de la raccourcir."""
+    provider = get_ai_provider(db)
+    modele = (
+        db.query(AiModele)
+        .filter(AiModele.fournisseur == provider, AiModele.modele == get_ai_model(db))
+        .first()
+    )
+    if modele is not None and modele.sortie_max:
+        return modele.sortie_max
+    fournisseur = db.query(AiFournisseur).filter(AiFournisseur.code == provider).first()
+    return fournisseur.sortie_max if fournisseur else None
+
+
 def get_max_tokens(db: Session, outil: str) -> int:
     """max_tokens courant pour un outil, lu en base au moment de l'appel (HYBRIDE :
     surcharge `max_tokens_<outil>` si présente, sinon défaut global `max_tokens_default`,
     sinon défaut code). Même motif que get_ai_model : lecture par requête -> rechargeable
-    à chaud. Renvoie un int (Setting.value est une chaîne)."""
+    à chaud. Renvoie un int (Setting.value est une chaîne).
+
+    BORNÉ au plafond de sortie du modèle courant (get_sortie_max) quand il en a un : un réglage
+    au-dessus de ce que le modèle accepte ne produit pas une réponse plus longue, il produit un
+    REFUS (422) et zéro texte. Mieux vaut la réponse la plus longue possible que rien du tout."""
     s = get_settings_dict(db)
     raw = s.get(f"max_tokens_{outil}", s["max_tokens_default"])
     try:
-        return int(raw)
+        valeur = int(raw)
     except (TypeError, ValueError):
-        return int(s["max_tokens_default"])
+        valeur = int(s["max_tokens_default"])
+    plafond = get_sortie_max(db)
+    return min(valeur, plafond) if plafond else valeur
 
 
 def get_outils_llm(db: Session):

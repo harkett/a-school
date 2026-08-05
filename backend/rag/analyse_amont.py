@@ -22,7 +22,8 @@ import re
 from sqlalchemy.orm import Session
 
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_prompt, get_settings_dict,
+    get_ai_model, get_ai_provider, get_cle_texte, get_contexte_max, get_max_tokens, get_prompt,
+    get_settings_dict,
 )
 from backend.llm.generator import generate
 
@@ -292,6 +293,7 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
+        contexte_max=get_contexte_max(db),
     ).strip()
     # Passe d'auto-critique AVANT de renvoyer : l'IA relit son propre prompt et corrige les défauts
     # grossiers (titre paraphrasé, contenu demandé, JSON non conforme, exclusion oubliée).
@@ -321,6 +323,7 @@ def generer_prompt_matieres(texte: str, *, db: Session) -> str:
         max_tokens=get_max_tokens(db, "meta_matieres"),
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
+        contexte_max=get_contexte_max(db),
     ).strip()
 
 
@@ -376,6 +379,7 @@ def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, 
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=0,
         appel_long=True,  # le méta-prompt embarque le référentiel complet
+        contexte_max=get_contexte_max(db),
     ).strip()
 
 
@@ -399,6 +403,7 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         # Le modèle lit ici un référentiel ENTIER : plusieurs minutes de génération. Sans le mode
         # long, la requête est bornée par un délai total et se fait couper avant la fin.
         appel_long=True,
+        contexte_max=get_contexte_max(db),
     )
     data = parser_reponse(raw)
     # Les entrées arrivent DANS L'ORDRE du document, unités et bornes entremêlées : c'est cet ordre
@@ -458,6 +463,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
         json_mode=True,
         schema=_schema_couple(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
+        contexte_max=get_contexte_max(db),
     )
     data = parser_reponse(raw)
     return {
@@ -515,6 +521,7 @@ def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = Non
         json_mode=True,
         schema=_schema_matieres(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
+        contexte_max=get_contexte_max(db),
     )
     data = parser_reponse(raw)
     noms: list[str] = []
@@ -625,6 +632,7 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
         json_mode=True,
         schema=_schema_types_activite(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
+        contexte_max=get_contexte_max(db),
     )
     data = parser_reponse(raw)
     noms: list[str] = []

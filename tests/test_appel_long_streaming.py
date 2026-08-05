@@ -105,6 +105,9 @@ def test_la_decoupe_demande_le_mode_long(monkeypatch):
     monkeypatch.setattr(amont, "get_ai_provider", lambda db: "anthropic")
     monkeypatch.setattr(amont, "get_ai_model", lambda db: "m")
     monkeypatch.setattr(amont, "get_max_tokens", lambda db, cle: 8000)
+    # La fenêtre du modèle descend elle aussi depuis la base (ai_modeles.contexte_max) : même
+    # motif que les autres résolutions, donc même bouchon ici. None = fenêtre inconnue.
+    monkeypatch.setattr(amont, "get_contexte_max", lambda db: None)
     amont.decouper_texte("TEXTE", db=None, prompt="Découpe : {texte}")
     assert recu["appel_long"] is True
     assert recu["schema"] is amont._SCHEMA_DECOUPE

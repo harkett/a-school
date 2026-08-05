@@ -33,6 +33,11 @@ from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk,
 # SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
 # usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
 from backend.core.llm_prompts import PROMPTS
+# `detail_admin` : le corps brut renvoyé par le fournisseur (avec son nom et le modèle), collé au
+# message d'erreur. Cet écran est un écran d'ADMINISTRATION — celui qui le lit est celui qui doit
+# corriger. Renvoyer « le détail est dans les journaux du serveur » l'envoyait chercher ailleurs
+# ce que l'application tenait déjà en main.
+from backend.llm.generator import detail_admin
 from backend.systeme.admin import _require_admin, get_prompt, get_settings_dict
 
 router = APIRouter()
@@ -816,7 +821,7 @@ def generer_prompt_matieres_cycle(body: GenererPromptMatieresBody, db: Session =
     try:
         prompt = generer_prompt_matieres(texte, db=db)
     except Exception as e:
-        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}")
+        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}{detail_admin(e)}")
     cyc = db.get(Cycle, body.cycle_id)
     cyc.prompt_matieres = prompt
     cyc.prompt_matieres_valide = False
@@ -1041,7 +1046,7 @@ def _prompt_decoupe_du_cycle(db: Session, cycle_id: int, texte: str) -> str:
         prompt = generer_prompt_decoupe(texte, db=db).strip()
     except Exception as e:
         logger.exception("decoupe : rédaction du prompt du cycle impossible (%s)", cyc.nom)
-        raise HTTPException(400, f"Génération du prompt de découpe par l'IA impossible : {e}")
+        raise HTTPException(400, f"Génération du prompt de découpe par l'IA impossible : {e}{detail_admin(e)}")
     if not prompt:
         raise HTTPException(400, "L'IA n'a rendu aucun prompt de découpe.")
     cyc.prompt_decoupe = prompt
@@ -1088,7 +1093,7 @@ def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
     try:
         chunks = _decouper_ia(texte, prompt)
     except Exception as e:
-        raise HTTPException(400, f"Découpe par l'IA impossible : {e}")
+        raise HTTPException(400, f"Découpe par l'IA impossible : {e}{detail_admin(e)}")
     # On garde ce résultat (avec le prompt qui l'a produit) : la validation écrira EXACTEMENT
     # cette découpe — celle que l'admin voit — au lieu de refaire l'appel IA.
     with _DECOUPES_LOCK:
@@ -1846,7 +1851,7 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
     try:
         detectes = detecter_types_activite(texte, db=db)
     except Exception as e:
-        raise HTTPException(400, f"Détection des types par l'IA impossible : {e}")
+        raise HTTPException(400, f"Détection des types par l'IA impossible : {e}{detail_admin(e)}")
 
     # Liaisons EXISTANTES du couple, indexées par type — pour ne jamais doublonner.
     liaisons = {l.activite_type_id

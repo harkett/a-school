@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, Float, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
+from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
@@ -626,6 +626,26 @@ class AiModele(Base):
     recommande: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Plafond de SORTIE imposé par le fournisseur pour CE modèle (tokens). NULL = aucun plafond
+    # connu, le réglage admin s'applique tel quel. Ce n'est pas un réglage de confort : Infomaniak
+    # REFUSE la requête (422) au-delà de 5 000, sans rien générer. Le connaître ici permet de
+    # borner la demande au lieu de la faire échouer — cf. get_sortie_max / get_max_tokens.
+    sortie_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Fenêtre TOTALE du modèle (entrée + sortie). Deux bornes distinctes, qu'on a confondues une
+    # fois : `sortie_max` limite ce que le modèle ÉCRIT, `contexte_max` ce qu'il peut TENIR. Un
+    # référentiel entier pèse ~46 000 tokens — au-delà de la fenêtre, le fournisseur refuse en 400
+    # après avoir fait attendre. NULL = fenêtre inconnue, aucun contrôle en amont.
+    contexte_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Sortie contrainte (json_schema / output_config) et flux. Vrais pour les trois fournisseurs
+    # d'aujourd'hui — vérifiés en appelant chacun ; la colonne existe pour le modèle qui ne saura pas.
+    supporte_schema: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    supporte_stream: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    # Tarifs $/million de tokens, pour l'estimation de coût de l'écran statistiques. VIDES tant
+    # qu'ils n'ont pas été relevés : un tarif inventé serait pire qu'un tarif absent.
+    cout_entree_million: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    cout_sortie_million: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class AiFournisseur(Base):
@@ -646,6 +666,18 @@ class AiFournisseur(Base):
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
+    # « anthropic » (SDK natif) ou « openai_compat » (chat/completions). C'est CE champ qui doit
+    # remplacer le `if fournisseur == ...` du moteur : un fournisseur de plus devient une ligne,
+    # pas une modification de code.
+    type_api: Mapped[str] = mapped_column(String(30), nullable=False, server_default="openai_compat", default="openai_compat")
+    # Adresse d'appel. Celle d'Infomaniak porte le NUMÉRO DE PRODUIT du compte, propre à chaque
+    # installation : elle est stockée avec le marqueur `{produit}`, substitué depuis l'env.
+    base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Plafond de sortie du FOURNISSEUR, dont ses modèles héritent faute de valeur propre. Les
+    # 5 000 tokens d'Infomaniak ne tiennent pas au modèle : les trois du produit les partagent.
+    sortie_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class OutilLlm(Base):

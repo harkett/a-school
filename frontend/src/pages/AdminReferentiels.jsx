@@ -57,16 +57,49 @@ const btnTypes = (bg, off = false) => ({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
 })
 
+// Le MODÈLE réellement en service, lu une seule fois pour tout l'écran. Trois fournisseurs
+// cohabitent désormais : « c'est l'IA qui l'a fait » ne suffit plus à comprendre un résultat —
+// devant une découpe ratée, la première question est LEQUEL a répondu. Le cache vit au niveau
+// module (pas dans un état de page) : le badge est posé une dizaine de fois, il ne doit pas
+// déclencher une dizaine d'appels. Échec silencieux : un badge sans modèle vaut mieux qu'un écran
+// qui tombe pour un libellé.
+let _modeleIACache = null
+function useModeleIA() {
+  const [modele, setModele] = useState(_modeleIACache)
+  useEffect(() => {
+    if (_modeleIACache) return
+    let vivant = true
+    fetch('/api/admin/ai-models', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d?.current) return
+        _modeleIACache = d.current
+        if (vivant) setModele(d.current)
+      })
+      .catch(() => {})
+    return () => { vivant = false }
+  }, [])
+  return modele
+}
+
 // Repère « IA » — petit badge violet posé là où l'IA agit SANS bouton dédié (vérification du
-// couple, ingestion). Il signale à l'admin que le résultat vient de l'IA.
+// couple, ingestion). Il signale à l'admin que le résultat vient de l'IA, ET avec quel modèle.
 // Même palette IA que les badges d'origine (SOURCE_STYLE.ia) : cohérence, aucune couleur en double.
 function BadgeIA({ titre }) {
+  const modele = useModeleIA()
   return (
-    <span title={titre || "Réalisé par l'IA"} style={{
+    <span title={`${titre || "Réalisé par l'IA"}${modele ? ` — modèle en service : ${modele}` : ''}`} style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
       padding: '2px 7px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed',
       textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>
       <span aria-hidden="true">🤖</span> IA
+      {modele && (
+        // Le modèle en minuscules et sans graisse : il informe, il ne crie pas — le badge reste
+        // un repère, pas une étiquette technique qui mange la ligne.
+        <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, opacity: 0.85 }}>
+          · {modele}
+        </span>
+      )}
     </span>
   )
 }
@@ -265,13 +298,37 @@ export default function AdminReferentiels() {
   // niveau_id et le nom du niveau : la cascade se cale directement dessus.
   function ouvrirRef(r) {
     setCycleId(String(r.cycle_id)); setNiveauId(String(r.niveau_id)); setNiveau(r.niveau)
+    preparerCouple()
+  }
+
+  // On vient de choisir un couple → l'écran repart propre pour LUI. C'est un geste de l'admin
+  // (cliquer une ligne, changer un menu), pas une conséquence à rattraper dans un effet : le
+  // get qui suit ne fait plus que remplir ce qui vient d'être vidé.
+  function preparerCouple() {
+    // Un document EN ATTENTE survit à la sélection du couple — la décision de le garder se
+    // prend après lecture de l'état (dans l'effet). Sans document en attente : reset simple.
+    if (!apercu) setResultat(null)
+    setBilanApercu(''); setShowPdf(false)
+    setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
+    setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
+    setUniteOuverteId(null); setUniteTexte('')   // changement de couple : on referme la lecture d'unité
+    // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
+    setCoupleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
+  }
+
+  // Plus aucun couple choisi → l'écran n'a plus rien à montrer de ce couple-là. C'est un GESTE
+  // (« + Nouveau », ou vider un des deux menus), pas une conséquence à rattraper après coup dans
+  // un effet : on le fait là où l'admin agit, une bonne fois.
+  function viderCeQuiDependDuCouple() {
+    setEtat(null); setMatieres([])
+    setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
   }
 
   // « + Nouveau » (colonne 2) : remet l'écran en création — aucun couple choisi, tout vide.
   function nouveau() {
     // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
     setCycleId(''); setNiveauId(''); setNiveau('')  // → couple.done = false
-    setEtat(null)                                   // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
+    viderCeQuiDependDuCouple()                      // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
     // Carte « Document PDF » : on repart d'une zone vierge — l'effet [cycleId, niveau] ne vide
     // pas ces états-là quand le couple est déjà vide.
     setApercu(null); setVerif(null); setResultat(null); setNomFichier(''); setUrl('')
@@ -361,23 +418,15 @@ export default function AdminReferentiels() {
   }
 
 
+  // Le document en attente, lisible depuis la lecture du couple sans en devenir un déclencheur.
+  const apercuRef = useRef(apercu)
+  useEffect(() => { apercuRef.current = apercu })
+
   // À la sélection d'un couple (cycle + niveau) : lire son état en base. Si un référentiel
   // est DÉJÀ enregistré (« déjà traité »), on affiche son nom réel + ses matières existantes
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
-    if (!cycleId || !niveau) {
-      setEtat(null); setMatieres([])
-      setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
-      return
-    }
-    // Un document EN ATTENTE survit à la sélection du couple — la décision de le garder se
-    // prend après lecture de l'état, plus bas. Sans document en attente : reset simple.
-    if (!apercu) setResultat(null)
-    setBilanApercu(''); setShowPdf(false)
-    setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
-    setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
-    // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
-    setCoupleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
+    if (!cycleId || !niveau) return   // pas de couple : rien à lire (le vidage se fait au geste)
     let annule = false
     fetchWithTimeout(`/api/admin/referentiels/etat?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
@@ -391,7 +440,9 @@ export default function AdminReferentiels() {
         setPdfOuvert(!(d && d.existe_referentiel))
         // Document EN ATTENTE : couple DÉJÀ TRAITÉ → le document ne le concerne pas, on le jette
         // (l'écran passe en relecture). Couple libre → on le garde tel quel, sans rien vérifier.
-        if (apercu && d && d.existe_referentiel) { setApercu(null); setVerif(null); setResultat(null) }
+        // Le document en attente est lu par une ref : sa présence est une CONSÉQUENCE de ce que
+        // le serveur vient de répondre, elle ne doit pas relancer la lecture du couple.
+        if (apercuRef.current && d && d.existe_referentiel) { setApercu(null); setVerif(null); setResultat(null) }
       })
       .catch(() => { if (!annule) setEtat(null) })
     // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
@@ -408,7 +459,6 @@ export default function AdminReferentiels() {
       .then(d => { if (!annule) { setPromptMatieres(d && d.prompt ? d.prompt : ''); setPromptMatieresValide(!!(d && d.valide)) } })
       .catch(() => { if (!annule) { setPromptMatieres(''); setPromptMatieresValide(false) } })
     // Unités du découpage DÉJÀ en base (referentiel_chunks) → réaffichées telles quelles (get, zéro recalcul).
-    setUniteOuverteId(null); setUniteTexte('')   // changement de couple : on referme la lecture d'unité
     fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
@@ -1156,7 +1206,7 @@ export default function AdminReferentiels() {
           <div style={{ flex: 1, minWidth: 180 }}>
             <label className="block text-xs text-gray-500 mb-1">Cycle</label>
             <select style={{ ...champ, background: '#fff' }} value={cycleId}
-              onChange={e => { setCycleId(e.target.value); setNiveauId(''); setNiveau('') }}
+              onChange={e => { setCycleId(e.target.value); setNiveauId(''); setNiveau(''); viderCeQuiDependDuCouple() }}
               title="Choisissez d'abord le cycle — les niveaux de ce cycle apparaissent à droite">
               <option value="">— Choisissez un cycle —</option>
               {arbre.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
@@ -1171,6 +1221,8 @@ export default function AdminReferentiels() {
                 const n = (arbre.find(c => String(c.id) === String(cycleId))?.niveaux || [])
                   .find(x => String(x.id) === String(id))
                 setNiveau(n ? n.nom : '')
+                if (n) preparerCouple()
+                else viderCeQuiDependDuCouple()   // retour sur « — Choisissez un niveau — »
               }}
               title={cycleId ? 'Choisissez le niveau du cycle' : 'Choisissez d’abord le cycle'}>
               <option value="">{cycleId ? '— Choisissez un niveau —' : '—'}</option>
@@ -1420,7 +1472,7 @@ export default function AdminReferentiels() {
                 rechargement de la page, contrairement à l'affichage du moment du dépôt.
                 Absente (dépôt antérieur à la colonne) = rien affiché. */}
             {etat.referentiel?.controle_niveau && (() => {
-              let c = null
+              let c
               try { c = JSON.parse(etat.referentiel.controle_niveau) } catch { c = null }
               if (!c || !c.trouve) return null
               return (
@@ -1441,7 +1493,7 @@ export default function AdminReferentiels() {
             {/* Verdict IA du couple, FIGÉ à la validation (referentiels.verif_couple via /etat).
                 Lecture seule, JSON parsé à l'affichage — zéro copie. Absent = rien affiché. */}
             {etat.referentiel?.verif_couple && (() => {
-              let v = null
+              let v
               try { v = JSON.parse(etat.referentiel.verif_couple) } catch { v = null }
               if (!v) return null
               // Libellé du cycle : lu dans l'arbre des programmes déjà en main, jamais recopié.

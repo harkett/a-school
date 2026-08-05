@@ -38,42 +38,72 @@ class LLMQuotaCompteError(RuntimeError):
     du document peuvent changer — d'où un message qui dit CE geste-là et pas un autre."""
 
 
-def _traduire_echec_fournisseur(statut: int, corps: str, modele: str) -> None:
+def _avec_technique(e: Exception, fournisseur: str, modele: str, statut: int, corps: str) -> Exception:
+    """Accroche à l'exception le détail BRUT de l'échec, sans jamais l'injecter dans son message.
+
+    Deux publics, deux besoins : le prof lit la phrase d'humain et rien d'autre ; l'admin, lui,
+    doit pouvoir corriger — et « le détail est dans les journaux du serveur » l'envoie chercher
+    ailleurs ce que l'application sait déjà. Le détail voyage donc À CÔTÉ du message, et seuls les
+    écrans d'administration le montrent (cf. `detail_admin`). Le fournisseur et le modèle en font
+    partie : avec trois fournisseurs, savoir QUI a refusé est la moitié du diagnostic."""
+    e.technique = f"{fournisseur} · {modele} · HTTP {statut} — {(corps or '').strip()[:400]}"
+    return e
+
+
+def detail_admin(e: Exception) -> str:
+    """Le complément technique à coller au message, RÉSERVÉ aux écrans d'administration.
+    Chaîne vide si l'exception n'en porte pas : l'appelant concatène sans se poser de question."""
+    technique = getattr(e, "technique", "")
+    return f"\n\nDétail technique : {technique}" if technique else ""
+
+
+def _traduire_echec_fournisseur(statut: int, corps: str, modele: str, fournisseur: str = "") -> None:
     """Traduit un échec HTTP du fournisseur en exception MÉTIER portant un message d'HUMAIN.
 
     Le message part d'ici, à la source, et pas de chaque écran : tous les appelants font déjà
     `f\"... impossible : {e}\"`, donc corriger le texte ici les corrige tous d'un coup — et un
     nouvel appelant hérite du bon message sans rien savoir de tout ça.
 
-    On ne recopie JAMAIS le JSON du fournisseur dans le message : `{'type': 'error', 'error':
-    {'details': None, 'type': 'overloaded_error'...}}` ne dit rien à un admin, sinon que le
-    logiciel lui parle une langue qui n'est pas la sienne. Le détail technique reste dans les
-    journaux, où il sert."""
+    On ne recopie JAMAIS le JSON du fournisseur dans le MESSAGE : `{'type': 'error', 'error':
+    {'details': None, 'type': 'overloaded_error'...}}` ne dit rien à un prof, sinon que le
+    logiciel lui parle une langue qui n'est pas la sienne. Il voyage à CÔTÉ, sur l'exception
+    (`_avec_technique`), et seuls les écrans d'administration l'affichent (`detail_admin`)."""
     texte = (corps or "").lower()
+    tech = lambda e: _avec_technique(e, fournisseur, modele, statut, corps)  # noqa: E731
     if statut == 429:
-        raise LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant.")
+        raise tech(LLMRateLimitError("Trop de demandes en ce moment. Réessayez dans un instant."))
+    # Fenêtre dépassée. Le filet DERRIÈRE `verifier_fenetre` : celui-ci refuse sur une ESTIMATION,
+    # volontairement basse pour ne jamais bloquer à tort — quand elle est trop optimiste, c'est le
+    # fournisseur qui trancne, et il le dit en clair (« inputs tokens + max_tokens = 46235 but must
+    # be < 32000 »). Le geste attendu est le même : changer de modèle, pas réessayer.
+    if statut == 400 and "must be <" in texte:
+        raise tech(LLMModeleIncompatibleError(
+            f"Le document est trop volumineux pour le modèle « {modele} » : sa fenêtre ne peut pas "
+            f"le contenir en entier. Choisissez un modèle à plus grande fenêtre dans "
+            f"Paramètres → Génération."
+        ))
     # Format de sortie refusé : c'est le MODÈLE qui ne sait pas, pas le service qui flanche.
     if statut == 400 and ("json_schema" in texte or "response_format" in texte or "output_config" in texte):
-        raise LLMModeleIncompatibleError(
+        raise tech(LLMModeleIncompatibleError(
             f"Le modèle « {modele} » ne sait pas rendre une réponse au format exigé par cette "
             f"opération. Choisissez un autre modèle dans Paramètres → Génération : cette étape a "
             f"besoin d'un modèle capable de sortie contrainte."
-        )
+        ))
     # 413 : la demande dépasse ce que le PALIER DU COMPTE accepte (Groq plafonne les tokens par
     # minute). Rien à voir avec une panne ni avec le modèle : ni attendre ni changer de modèle n'y
     # changera quoi que ce soit — c'est l'abonnement ou la taille du document qui doit bouger.
     if statut == 413:
-        raise LLMQuotaCompteError(
+        raise tech(LLMQuotaCompteError(
             "Le document est trop volumineux pour le palier de votre compte chez ce fournisseur "
             "d'IA : il refuse une demande de cette taille. Basculez sur un autre fournisseur dans "
             "Paramètres → Génération, ou relevez le palier de votre abonnement."
-        )
+        ))
     if statut >= 500:   # 500/502/503 = panne, 529 = « overloaded » (saturation Anthropic)
-        raise LLMIndisponibleError(
+        raise tech(LLMIndisponibleError(
             "Le service d'IA est saturé ou indisponible en ce moment. Ce n'est pas une panne de "
             "l'application : réessayez dans quelques minutes, ou basculez sur un autre fournisseur "
             "dans Paramètres → Génération."
-        )
+        ))
 
 
 # Régulation de concurrence : UN seul sémaphore pour TOUS les appels sortants Groq
@@ -126,6 +156,43 @@ def _retry_wait(retry_after_raw, wait_max: int) -> float:
 _URL_GROQ = "https://api.groq.com/openai/v1/chat/completions"
 
 
+def _tokens_estimes(texte: str) -> int:
+    """Estimation GROSSIÈRE du nombre de tokens d'un texte français : ~3,5 caractères par token.
+
+    Aucun tokenizer n'est embarqué (il faudrait celui de chaque fournisseur, et il change avec le
+    modèle). L'estimation ne sert qu'à un garde-fou : décider s'il est inutile d'envoyer."""
+    return int(len(texte) / 3.5) + 1
+
+
+# Marge de sécurité sur la fenêtre : l'estimation ci-dessus est approximative, et frôler la borne
+# revient à se faire refuser quand même — après plusieurs minutes d'attente. On ne s'autorise donc
+# que 90 % de la fenêtre annoncée. Le prix de la marge est un refus un peu plus tôt ; le prix de
+# son absence est un appel long pour rien.
+_MARGE_FENETRE = 0.90
+
+
+def verifier_fenetre(prompt: str, *, max_tokens: int, contexte_max: int | None, modele: str) -> None:
+    """Refuse AVANT l'appel un document qui ne tient manifestement pas dans la fenêtre du modèle.
+
+    Sans ce contrôle, l'admin attend plusieurs minutes pour recevoir « le service a refusé la
+    demande » : le fournisseur ne se prononce qu'après avoir tout reçu. Le message nomme le modèle
+    ET sa borne, parce que le geste attendu est de CHANGER de modèle — pas de réessayer.
+    `contexte_max` None (fenêtre inconnue) = aucun contrôle, comportement d'avant."""
+    if not contexte_max:
+        return
+    # La fenêtre porte sur l'ENTRÉE **ET** la sortie : c'est leur somme que le fournisseur compare
+    # à sa borne (« inputs tokens + max_tokens = 46235 but must be < 32000 »). Compter le seul
+    # texte laisserait passer des appels qui échouent à coup sûr.
+    besoin = _tokens_estimes(prompt) + max_tokens
+    if besoin <= int(contexte_max * _MARGE_FENETRE):
+        return
+    raise LLMModeleIncompatibleError(
+        f"Le document est trop volumineux pour le modèle « {modele} » : il faudrait environ "
+        f"{besoin:,} tokens (texte + réponse) alors que ce modèle n'en tient que {contexte_max:,}. "
+        f"Choisissez un modèle à plus grande fenêtre dans Paramètres → Génération.".replace(",", " ")
+    )
+
+
 def _url_chat(fournisseur: str) -> str:
     """URL de chat/completions du fournisseur OpenAI-compatible demandé.
 
@@ -156,6 +223,7 @@ def generate(
     read_timeout: float = 60.0,
     retry_max: int = 0,
     retry_wait_max: int = 10,
+    contexte_max: int | None = None,
 ) -> str:
     """Point d'entrée UNIQUE pour tout appel LLM texte.
 
@@ -191,6 +259,9 @@ def generate(
     fournisseur = provider or AI_PROVIDER
     if fournisseur not in ("groq", "anthropic", "infomaniak"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
+    # Fenêtre du modèle : contrôlée AVANT le créneau, comme le fournisseur. Un appel voué au refus
+    # ne doit ni occuper une place ni faire attendre le temps d'un envoi complet.
+    verifier_fenetre(prompt, max_tokens=max_tokens, contexte_max=contexte_max, modele=model or AI_MODEL)
     with _llm_slot():
         if appel_long:
             # Le créneau LLM est tenu par ce `with` pendant TOUTE la consommation du flux (le
@@ -257,10 +328,13 @@ def _groq(
     if not response.ok:
         # Traduction à la source : 429 / format refusé / service en panne repartent en message
         # d'humain. Le corps brut du fournisseur ne va JAMAIS à l'écran, seulement au journal.
-        _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL)
+        _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL, fournisseur)
         log.warning("%s %s : %s", fournisseur, response.status_code, response.text[:500])
-        raise RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
-                           "signalez-le : le détail technique est dans les journaux du serveur.")
+        raise _avec_technique(
+            RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
+                         "signalez-le : le détail technique est dans les journaux du serveur."),
+            fournisseur, model or AI_MODEL, response.status_code, response.text,
+        )
     return response.json()["choices"][0]["message"]["content"]
 
 
@@ -316,7 +390,7 @@ def _echec_anthropic(e, modele: str) -> None:
     statut = getattr(e, "status_code", 0) or 0
     corps = str(e)  # le SDK met déjà le corps de la réponse dans le texte de l'exception
     log.warning("Anthropic %s : %s", statut, corps[:500])
-    _traduire_echec_fournisseur(statut, corps, modele)
+    _traduire_echec_fournisseur(statut, corps, modele, "anthropic")
     raise e  # statut non répertorié : on ne masque rien, l'erreur d'origine repart telle quelle
 
 
@@ -418,6 +492,7 @@ def generate_stream(
     read_timeout: float = 30.0,
     retry_max: int = 0,
     retry_wait_max: int = 10,
+    contexte_max: int | None = None,
 ):
     """Itérateur de morceaux de texte (deltas), au fil de l'écriture par le modèle. Même résolution
     fournisseur/modèle que generate() (chaînes déjà résolues par l'appelant). NE prend PAS le créneau
@@ -428,6 +503,7 @@ def generate_stream(
     fournisseur = provider or AI_PROVIDER
     if fournisseur not in ("groq", "anthropic", "infomaniak"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")
+    verifier_fenetre(prompt, max_tokens=max_tokens, contexte_max=contexte_max, modele=model or AI_MODEL)
     if fournisseur == "anthropic":
         yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout)
     else:  # groq / infomaniak : même dialecte OpenAI, seule l'URL change
@@ -510,10 +586,13 @@ def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, 
         break
     with response:
         if not response.ok:
-            _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL)
+            _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL, fournisseur)
             log.warning("%s (flux) %s : %s", fournisseur, response.status_code, response.text[:500])
-            raise RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
-                               "signalez-le : le détail technique est dans les journaux du serveur.")
+            raise _avec_technique(
+                RuntimeError("Le service d'IA a refusé la demande. Réessayez ; si cela persiste, "
+                             "signalez-le : le détail technique est dans les journaux du serveur."),
+                fournisseur, model or AI_MODEL, response.status_code, response.text,
+            )
         # Ces API n'annoncent pas de charset sur leur flux SSE -> requests retombe sur ISO-8859-1 et
         # decode_unicode=True rendrait les accents UTF-8 en mojibake (« é » -> « Ã© »). On force UTF-8.
         response.encoding = "utf-8"
