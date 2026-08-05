@@ -252,7 +252,11 @@ def _decouper_ia(texte: str, prompt: str) -> list[dict]:
         unites = decouper_texte(texte, db=db, prompt=prompt)
     finally:
         db.close()
-    return [{"text": u["texte"], "page": 1, "meta": {"option": ""}} for u in unites]
+    # `option` vient de la découpe (05/08/2026) : "A"/"B" quand la section n'appartient qu'à une
+    # option, "commune" quand le document la dit commune, "" quand il n'a pas d'options. C'est ce
+    # qui remplit `referentiel_chunks.option_ab` — jamais déduit ici, seulement transporté.
+    return [{"text": u["texte"], "page": 1, "meta": {"option": u.get("option", "")}}
+            for u in unites]
 
 
 def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
@@ -279,8 +283,13 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
             )
         rid = ref.id
         pdf_path = _pdf_path_for(db, ref)
-        prompt_ok = ref.prompt_decoupe_valide
-        prompt_txt = ref.prompt_decoupe or ""
+        # LE prompt de découpe est celui du CYCLE (05/08/2026) : un cycle est une famille de
+        # documents bâtis pareil, le prompt écrit sur le premier référentiel sert à tous. Il SERT
+        # dès qu'il existe — `prompt_decoupe_valide` dit seulement s'il a été relu par l'admin.
+        from backend.core.models_db import Cycle, Niveau
+        niv = db.get(Niveau, ref.niveau_id)
+        cyc = db.get(Cycle, niv.cycle_id) if niv else None
+        prompt_txt = (cyc.prompt_decoupe or "") if cyc else ""
         # LE texte de travail : colonne texte_epure, figée à la validation du dépôt (get).
         # Filet pour un dépôt antérieur à la colonne (NULL) : calcul UNIQUE depuis le PDF
         # d'origine (porte unique rag.extraction) puis ÉCRIT en base — plus jamais recalculé.
@@ -295,10 +304,10 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
     finally:
         db.close()
 
-    if not prompt_ok:
+    if not prompt_txt.strip():
         raise RuntimeError(
-            "Découpe refusée : le prompt de découpe du couple n'est pas validé. "
-            "L'admin doit le générer puis le valider (cap « aSchool n'invente rien »)."
+            "Découpe refusée : ce cycle n'a pas de prompt de découpe. Il est écrit par l'IA au "
+            "premier référentiel du cycle, à la découpe (cap « aSchool n'invente rien »)."
         )
 
     # 2. Découpe : on RÉUTILISE celle que l'admin a vue et acceptée (aperçu) si elle vient bien
@@ -416,7 +425,11 @@ def retrieve_pg(
             .where(ReferentielChunk.referentiel_id == rid)
         )
         if option is not None:
-            stmt = stmt.where(ReferentielChunk.option_ab == option)
+            # Demander l'option B, c'est demander CE QUI CONCERNE l'option B : ses propres unités,
+            # celles que le document dit COMMUNES aux options, et celles qui n'en portent aucune
+            # (documents sans options, ou découpes d'avant le champ). Un `== option` strict
+            # amputerait un prof d'option B de la moitié de son référentiel. (05/08/2026)
+            stmt = stmt.where(ReferentielChunk.option_ab.in_([option, "commune", ""]))
         stmt = stmt.order_by(dist).limit(top_k)
         rows = db.execute(stmt).all()
     finally:

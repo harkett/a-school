@@ -38,6 +38,7 @@ import AdminFeedbacks from './pages/AdminFeedbacks'
 import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
 import AdminPrompts from './pages/AdminPrompts'
+import AdminPromptsCycle from './pages/AdminPromptsCycle'
 import AdminParametresEmail from './pages/AdminParametresEmail'
 import AdminParametres from './pages/AdminParametres'
 import AdminSessions from './pages/AdminSessions'
@@ -734,6 +735,12 @@ export default function App() {
               <Route index element={<Navigate to="/admin/prompts/prof" replace />} />
               <Route path="prof"   element={<AdminPrompts key="prof"   categorie="prof" />} />
               <Route path="admin"  element={<AdminPrompts key="admin"  categorie="admin" />} />
+              {/* Les prompts rangés sur le CYCLE ont leurs sous-options : ils ne sont pas dans le
+                  registre des prompts d'outils (cycles.prompt_matieres, cycles.prompt_decoupe) —
+                  une entrée par cycle, d'où un écran à part. MÊME composant pour les deux : c'est
+                  le même geste sur une autre colonne, ils ne peuvent pas diverger. */}
+              <Route path="matieres" element={<AdminPromptsCycle key="matieres" sujet="matieres" />} />
+              <Route path="decoupe"  element={<AdminPromptsCycle key="decoupe"  sujet="decoupe" />} />
               <Route path="autres" element={<AdminPrompts key="autres" categorie="autres" />} />
             </Route>
             <Route path="audit"       element={<AdminAudit />} />

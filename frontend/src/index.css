@@ -160,10 +160,15 @@ select { appearance: auto; cursor: pointer; }
    s'étirer jusqu'en bas. Sur petit écran les colonnes s'empilent : on rend la hauteur au contenu. */
 .admin-prompts-corps { height: calc(100vh - 250px); min-height: 420px; }
 
+/* Corps de l'écran admin « Programmes & contenu » : même mécanique, l'arbre à gauche défile dans
+   sa colonne pendant que le prompt du cycle reste lisible à droite. */
+.admin-contenu-corps { height: calc(100vh - 300px); min-height: 420px; }
+
 @media (max-width: 900px) {
   .creer-corps { overflow-y: auto; }
   .split-pane { flex-direction: column; height: auto; }
   .split-col { width: auto !important; overflow: visible; }
   .split-divider { display: none; }
   .admin-prompts-corps { height: auto; }
+  .admin-contenu-corps { height: auto; }
 }

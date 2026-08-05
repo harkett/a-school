@@ -69,6 +69,8 @@ const NAV_ITEMS = [
     items: [
       { to: '/admin/prompts/prof',   label: 'Prof',   aide: 'Les textes qui servent à l\'enseignant : séances et séquences, propositions, tons de rédaction, correction et contrôle qualité.' },
       { to: '/admin/prompts/admin',  label: 'Admin',  aide: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.' },
+      { to: '/admin/prompts/matieres', label: 'Matières par cycle', aide: 'Le texte qui lit les matières d\'un référentiel : il est rangé sur le cycle, une famille de documents bâtis pareil, et sert à tous ses référentiels — d\'où une entrée par cycle.' },
+      { to: '/admin/prompts/decoupe',  label: 'Découpe (chunk) par cycle',  aide: 'Le texte qui découpe un référentiel en unités : même logique, rangé sur le cycle et réutilisé par tous ses référentiels. C\'est ici qu\'il se corrige — l\'écran Référentiels ne fait que le montrer.' },
       { to: '/admin/prompts/autres', label: 'Autres', aide: 'Le filet : ce qui ne sert ni au prof ni à l\'admin — vide aujourd\'hui.' },
     ],
   },

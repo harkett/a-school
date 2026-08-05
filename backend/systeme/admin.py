@@ -307,12 +307,20 @@ def get_rag_top_k(db: Session) -> int:
     return max(RAG_TOP_K_MIN, min(RAG_TOP_K_MAX, v))
 
 
-# Bornes de max_tokens (Phase 4.1.c). MIN = plancher dur : empêche une valeur si basse
-# qu'elle tronquerait tout (garde-fou répondant au risque de troncature silencieuse).
-# MAX = plafond INTERNE CIEL, VOLONTAIREMENT bien en-dessous du max output théorique du
-# modèle — ce n'est PAS le plafond du fournisseur, c'est notre garde-fou coût/quota figé.
+# Borne de max_tokens. Il n'en reste QU'UNE : le plancher.
+#
+# MIN = plancher dur : une valeur si basse qu'elle tronquerait toutes les réponses, sans que
+# personne ne s'en aperçoive (la sortie est coupée, pas refusée). Ça, ça mérite un garde-fou.
+#
+# Le PLAFOND a été SUPPRIMÉ le 05/08, et il ne doit pas revenir. Il valait 8 000, présenté
+# comme un « garde-fou coût/quota » — c'est faux : `max_tokens` ne coûte rien en soi, on paie
+# les tokens réellement produits, jamais la valeur demandée. Il n'y avait donc aucune raison
+# technique de choisir un chiffre ici, et ce chiffre a fini par bloquer un besoin réel (la
+# découpe d'un référentiel, tronquée à 8 000, alors que l'admin voulait 32 000 — il ne pouvait
+# pas les saisir). La seule vraie limite est celle du MODÈLE : c'est le fournisseur qui la
+# connaît et qui la fait respecter, et son refus arrive maintenant à l'écran en français clair
+# (cf. `_traduire_echec_fournisseur`). Un plafond écrit ici ne ferait que dater et gêner.
 MAX_TOKENS_MIN = 256
-MAX_TOKENS_MAX = 8000
 
 
 # Bornes de la coupure de silence du flux (secondes). MIN = un plancher qui laisse le modèle
@@ -1245,7 +1253,8 @@ def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_re
             "ambiguites": int(s["max_tokens_ambiguites"]),
             "sequence": int(s["max_tokens_sequence"]),
         },
-        "bounds": {"min": MAX_TOKENS_MIN, "max": MAX_TOKENS_MAX},
+        # `max: None` = AUCUN plafond côté application (l'écran n'en impose donc pas non plus).
+        "bounds": {"min": MAX_TOKENS_MIN, "max": None},
     }
 
 
@@ -1259,12 +1268,14 @@ def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends
         "max_tokens_ambiguites": body.ambiguites,
         "max_tokens_sequence": body.sequence,
     }
+    # Plus de plafond : seul le plancher est vérifié. Si la valeur dépasse ce que le modèle
+    # accepte, c'est le fournisseur qui refuse — et son refus arrive à l'admin en français.
     for cle, v in valeurs.items():
-        if not (MAX_TOKENS_MIN <= v <= MAX_TOKENS_MAX):
+        if v < MAX_TOKENS_MIN:
             raise HTTPException(
                 400,
-                f"Valeur hors limites : {v}. Chaque max_tokens doit être un nombre entier "
-                f"entre {MAX_TOKENS_MIN} et {MAX_TOKENS_MAX}.",
+                f"Valeur trop basse : {v}. Une longueur en dessous de {MAX_TOKENS_MIN} tronquerait "
+                f"les réponses de l'IA sans prévenir.",
             )
     for cle, v in valeurs.items():
         row = db.query(Setting).filter(Setting.key == cle).first()

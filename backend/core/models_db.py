@@ -542,6 +542,26 @@ class Cycle(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Prompt de lecture des MATIÈRES, propre à ce cycle. Écrit par l'IA à partir d'un référentiel
+    # du cycle (méta-prompt `prompt_meta_matieres`), relu et validé par l'admin, puis réutilisé par
+    # TOUS les référentiels du cycle : un cycle = une famille de documents bâtis pareil (tous les
+    # BTS ont la même architecture, tous les programmes de collège aussi). NULL = pas encore écrit,
+    # la détection retombe alors sur le prompt général `detecter_matieres`. DONNÉE MÉTIER EN BASE.
+    prompt_matieres: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # false = prompt écrit mais pas encore relu par l'admin → il ne sert PAS (on reste sur le
+    # prompt général). Seul un prompt VALIDÉ remplace le prompt général.
+    prompt_matieres_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                         server_default="0", default=False)
+    # Prompt de DÉCOUPE du cycle — même raisonnement, même geste : l'ossature d'un référentiel
+    # (activités, compétences, unités certificatives, ce qu'on écarte) est celle de toute la
+    # famille ; seuls les identifiants changent d'un document à l'autre. Écrit par l'IA à partir
+    # du premier référentiel du cycle (méta-prompt `prompt_meta_decoupe`), puis réutilisé par tous.
+    # NULL = pas encore écrit. DONNÉE MÉTIER EN BASE.
+    prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # false = écrit par l'IA, pas encore relu par l'admin. Comme pour les matières, le prompt SERT
+    # dès qu'il existe : ce drapeau dit seulement s'il a été relu.
+    prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                        server_default="0", default=False)
 
 
 class Niveau(Base):
@@ -628,42 +648,55 @@ class AiFournisseur(Base):
     cle_env: Mapped[str] = mapped_column(String(100), nullable=False, server_default="", default="")  # nom var env clé texte
 
 
-class ReferentielDepot(Base):
-    """Un PDF déposé, en zone d'attente — la trace EN BASE du document qu'on vient de fournir.
+class ReferentielDocument(Base):
+    """UN PDF fourni pour un couple — un MORCEAU du référentiel, pas le référentiel.
 
-    Elle précède `referentiels` et ne s'y rattache pas : au dépôt, le couple n'est pas encore
-    connu (c'est l'admin, ou l'IA, qui le dira à l'étape suivante). Impossible donc de ranger ça
-    dans `referentiels`, qui exige un `niveau_id` NOT NULL, UNIQUE — un seul référentiel par
-    niveau —, un `nom_fixe` et une `collection`. Y écrire un dépôt obligerait à inventer un
-    niveau, interdirait deux essais sur le même niveau, et un dépôt abandonné n'y serait plus
-    effaçable sans emporter au passage ses matières et ses chunks (CASCADE).
+    Pourquoi cette table. Un niveau n'a pas toujours un document unique : au collège et à l'école,
+    le programme complet du cycle tient en un PDF ; au lycée, il n'existe qu'éclaté, un fichier par
+    matière et par série. Un couple doit donc pouvoir recevoir PLUSIEURS documents, les garder,
+    les ordonner, en retirer un — puis les fusionner en un seul `referentiel.pdf`.
 
-    Ce que la ligne retient : le VRAI nom du fichier tel que l'admin l'a fourni, ce qu'on a
-    mesuré (taille, pages), par où il est entré, et son EMPLACEMENT — `token` est à la fois le
-    jeton rendu au navigateur et le nom du fichier sur disque, `chemin` dit où. L'aperçu est
-    gardé lui aussi : il coûte 25 lignes de texte et évite de rouvrir le PDF pour réafficher
-    l'écran après un rechargement de page — c'est justement le trou qu'on bouche.
+    LA BASE DIT CE QUI EXISTE, LE DISQUE NE PORTE QUE LES OCTETS. Chaque ligne est la trace d'un
+    fichier rangé dans le dossier du couple (REFERENTIELS/<CYCLE>/<NIVEAU>/) : son vrai nom, celui
+    qu'il porte sur le disque, ce qu'on a mesuré, et son rang dans la fusion. Rien ne se déduit du
+    contenu d'un dossier — un écran quitté puis rouvert retrouve tout en relisant la base.
 
-    Aucune ligne n'est écrite pour l'instant : `_stage()` continue comme avant, on branchera
-    après. Aucun lien vers `referentiels` non plus tant que la validation ne le pose pas."""
-    __tablename__ = "referentiel_depots"
+    DEUX LIENS, ET C'EST VOULU :
+      • `niveau_id` — le couple, posé DÈS le dépôt. À ce moment la ligne `referentiels` n'existe
+        pas encore (elle naît à la fusion) : sans ce lien, un document déposé ne pointerait rien.
+        La créer plus tôt serait pire — `profil.py` lit `referentiels` par `niveau_id` pour dire
+        si un prof a un référentiel, et le côté prof croirait le niveau servi alors qu'il n'y a
+        rien à lire.
+      • `referentiel_id` — vide au dépôt, REMPLI À LA FUSION. C'est lui qui dit ensuite de quoi
+        le `referentiel.pdf` est fait : les morceaux survivent au montage, on peut en retirer un
+        et refusionner sans tout redéposer.
+
+    Remplace `referentiel_depots` (zone d'attente à jeton), morte depuis que le couple est demandé
+    avant le document : la destination étant connue d'entrée, plus rien n'attend."""
+    __tablename__ = "referentiel_documents"
     __table_args__ = (
-        UniqueConstraint("token", name="uq_referentiel_depots_token"),
-        Index("ix_referentiel_depots_empreinte", "empreinte"),
+        UniqueConstraint("niveau_id", "fichier_disque", name="uq_ref_documents_fichier"),
+        Index("ix_ref_documents_niveau", "niveau_id"),
+        Index("ix_ref_documents_referentiel", "referentiel_id"),
+        Index("ix_ref_documents_empreinte", "empreinte"),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    # Le jeton uuid4().hex (32 caractères) : identifiant rendu au navigateur ET nom du fichier
-    # en zone d'attente. Unique — c'est par lui qu'on retrouve le document.
-    token: Mapped[str] = mapped_column(String(32), nullable=False)
-    # Empreinte SHA-256 du CONTENU du fichier (64 caractères hexadécimaux) — c'est elle, et jamais
-    # le nom, qui dit si un document est déjà connu : le même PDF téléchargé deux fois porte
-    # souvent deux noms, et deux documents différents portent parfois le même. Indexée : on la
-    # cherche à chaque dépôt. Pas d'unicité : redéposer le même document reste autorisé (on
-    # PRÉVIENT, on ne bloque pas).
-    empreinte: Mapped[str] = mapped_column(String(64), nullable=False)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id", ondelete="CASCADE"),
+                                           nullable=False)
+    # Rempli à la fusion seulement. ondelete=CASCADE : supprimer le référentiel emporte la trace de
+    # ses morceaux — comme ses matières et ses unités, ils n'existent pas sans lui.
+    referentiel_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     fichier_origine: Mapped[str] = mapped_column(Text, nullable=False)   # le nom donné par l'admin
-    chemin: Mapped[str] = mapped_column(Text, nullable=False)            # emplacement, relatif à la racine
+    # Le nom sur le disque, DANS le dossier du couple. Distinct du nom d'origine : deux documents
+    # peuvent porter le même nom, et un nom fourni n'est jamais un nom de fichier sûr.
+    fichier_disque: Mapped[str] = mapped_column(Text, nullable=False)
+    # Empreinte SHA-256 du CONTENU du morceau (64 caractères hexadécimaux) — jamais le nom : le
+    # même PDF téléchargé deux fois porte souvent deux noms. Sert à reconnaître un morceau déjà
+    # déposé pour ce couple. Le doublon entre COUPLES, lui, se juge sur le fusionné.
+    empreinte: Mapped[str] = mapped_column(String(64), nullable=False)
     taille_ko: Mapped[int] = mapped_column(Integer, nullable=False)
     pages: Mapped[int] = mapped_column(Integer, nullable=False)
     # Par où il est entré : 'depot' (fichier) | 'lien'. `url_source` n'est rempli que pour 'lien'.
@@ -718,6 +751,13 @@ class Referentiel(Base):
     # intitulé Cycle 4 · 5e… ») serait perdue. Donnée NEUVE (n'existe nulle part ailleurs) → EN BASE,
     # sur la ligne du document, comme forcage_motif. NULL = non renseigné (ancien dépôt / non transmis).
     verif_couple: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # CONTRÔLE N°1, celui qui autorise le dépôt : le document NOMME-T-IL le niveau du couple ?
+    # Recherche de texte, SANS IA, faite au moment où l'admin choisit le fichier, puis FIGÉE ici à
+    # la validation : JSON {niveau: str, trouve: bool, manquants: [str]}. C'est une PREUVE de
+    # contrôle — sans elle, plus moyen de dire sur quoi on s'est appuyé pour accepter ce document,
+    # et elle ne se recalcule pas (elle porte sur le texte du PDF et le nom du niveau de CE
+    # moment-là). Donnée NEUVE → EN BASE, comme forcage_motif et verif_couple. NULL = ancien dépôt.
+    controle_niveau: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Texte ÉPURÉ du document — LE texte de travail. Calculé UNE SEULE FOIS à la validation du
     # dépôt (porte rag.extraction, règles d'épuration du jour) puis FIGÉ ici : toutes les étapes
     # suivantes le LISENT (matières, prompt de découpe, découpe, re-découpe). Plus aucune
@@ -874,8 +914,12 @@ class ProfBloqueMaj(Base):
     travail_niveau_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     travail_matiere_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
     etat: Mapped[str] = mapped_column(String(12), nullable=False, server_default="bloque", default="bloque")
-    # Écrit au déblocage : 'rebranche' (sa matière a été retrouvée par son nom) | 'matiere_disparue'
-    # (le nouveau document ne la nomme plus — on n'invente rien, il rechoisira). NULL tant que bloqué.
+    # Écrit au déblocage : 'rebranche' (le nouveau document porte le MÊME nom) | 'remplace' (l'admin
+    # a désigné celle qui prend sa place — `remplacee_par` la nomme) | 'matiere_disparue' (elle s'en
+    # va pour de bon, et seulement si PLUS AUCUN prof ne l'attendait). NULL tant que bloqué.
     resultat: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # La matière qui a PRIS LA PLACE de `matiere_nom`, par son NOM (même raison : ce que le prof
+    # lira doit survivre à la prochaine suppression). NULL = rien n'a été remplacé.
+    remplacee_par: Mapped[str | None] = mapped_column(Text, nullable=True)
     bloque_le: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
     debloque_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -35,12 +35,24 @@ _CLE_META = "prompt_meta_decoupe"
 # générer et le corrige s'il viole le contrat (titres verbatim, JSON exact, pas de contenu,
 # exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
 _CLE_VERIF = "prompt_verif_decoupe"
+# Clé EN BASE du méta-prompt des MATIÈRES : même geste que `_CLE_META`, mais il fait rédiger le
+# prompt qui LIT LES MATIÈRES. Le prompt rédigé est rangé sur le CYCLE (cycles.prompt_matieres).
+_CLE_META_MATIERES = "prompt_meta_matieres"
 
 # Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
 # `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
 # contrainte token par token, la réponse reste petite : ni troncature, ni dépassement de délai. On
 # ne lit de toute façon que le titre (`_trancher_par_titres` tranche le texte réel) : le contenu que
 # le modèle produisait était du poids mort. GÉNÉRIQUE : aucun axe métier ici, juste la forme.
+#
+# `garder` et `option` (05/08/2026). Le tranchage va d'un titre au titre SUIVANT : une zone sans
+# titre reconnu se colle à sa voisine, et tout ce qui suit le dernier titre part avec lui (mesuré
+# sur le BTS CIEL : deux blocs de 15 800 et 21 600 caractères, gonflés du programme des
+# enseignements généraux et de la queue du document). Le prompt émet donc AUSSI les en-têtes des
+# sections qu'on écarte, `garder:false` : ce sont des BORNES, elles servent à couper puis sont
+# jetées. `option` porte l'option à laquelle l'unité appartient ("A", "B", "commune", ou "" si le
+# document n'en a pas) : c'est ce qui remplit `referentiel_chunks.option_ab` et permet de ne
+# montrer à un prof que ce qui le concerne. GÉNÉRIQUE : aucun axe métier ici, juste la forme.
 _SCHEMA_DECOUPE = {
     "type": "object",
     "properties": {
@@ -48,8 +60,12 @@ _SCHEMA_DECOUPE = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"titre": {"type": "string"}},
-                "required": ["titre"],
+                "properties": {
+                    "titre": {"type": "string"},
+                    "option": {"type": "string"},
+                    "garder": {"type": "boolean"},
+                },
+                "required": ["titre", "option", "garder"],
                 "additionalProperties": False,
             },
         },
@@ -169,12 +185,17 @@ def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[
     return trouvees
 
 
-def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
+def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     """Tranche le TEXTE RÉEL aux lignes de titre rendues par l'IA — jamais réécrit par l'IA
     (cap « aSchool n'invente rien »). Pur, sans IA, sans base : testable seul.
     Chaque unité = du titre retenu jusqu'au titre suivant, dans l'ordre du document. Un titre
     introuvable est ignoré (on ne fabrique pas de frontière). Les numéros de page
-    (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte"}]` dans l'ordre.
+    (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte","option"}]` dans l'ordre.
+
+    ENTRÉES ACCEPTÉES : une chaîne (le titre seul, tout est gardé) ou un dict
+    `{"titre", "option", "garder"}`. Les entrées `garder:false` sont des BORNES : elles servent à
+    couper — c'est tout leur rôle — puis elles sont retirées du résultat. Sans elles, une section
+    sans titre reconnu se colle à sa voisine et la queue du document part avec la dernière unité.
 
     LE CHOIX ENTRE PLUSIEURS OCCURRENCES. Un même intitulé figure souvent DEUX fois : une
     première dans un sommaire ou un récapitulatif, une seconde en tête de la vraie section.
@@ -198,10 +219,18 @@ def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
     préférer. On garde alors la première plutôt que de perdre l'unité : un défaut connu vaut
     mieux qu'une disparition silencieuse.
     """
+    # Une entrée = un titre + ce qu'on en fait. Une simple chaîne vaut « unité à garder, sans
+    # option » : les appels d'avant les bornes continuent de marcher tels quels.
+    entrees = [{"titre": t, "option": "", "garder": True} if isinstance(t, str)
+               else {"titre": (t.get("titre") or "").strip(),
+                     "option": (t.get("option") or "").strip(),
+                     "garder": t.get("garder", True) is not False}
+               for t in titres]
+
     lignes = _sans_numeros_de_page(texte).split("\n")
     lignes_repliees = [_replier_blancs(l) for l in lignes]
 
-    occurrences = [_occurrences_du_titre(lignes_repliees, t) for t in titres]
+    occurrences = [_occurrences_du_titre(lignes_repliees, e["titre"]) for e in entrees]
     # Les lignes qui PORTENT le début d'un titre — de n'importe lequel. C'est le seul signal
     # dont la règle a besoin, et il se calcule une fois.
     portent_un_titre = {debut for liste in occurrences for debut, _ in liste}
@@ -212,9 +241,11 @@ def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
                 return j
         return None
 
-    debuts: list[int] = []
+    # `debuts` garde le rang de l'entrée qui l'a produit : une borne coupe comme les autres, elle
+    # est seulement retirée à la fin.
+    debuts: list[tuple[int, int]] = []
     curseur = 0
-    for places in occurrences:
+    for rang, places in enumerate(occurrences):
         candidates = [(d, f) for d, f in places if d >= curseur]
         if not candidates:
             continue                                  # titre introuvable : aucune frontière
@@ -223,14 +254,17 @@ def _trancher_par_titres(texte: str, titres: list[str]) -> list[dict]:
              if (j := _suivante_non_vide(f)) is None or j not in portent_un_titre),
             candidates[0][0],                         # tout est en liste : on garde la première
         )
-        debuts.append(choisi)
+        debuts.append((choisi, rang))
         curseur = choisi + 1
 
     unites: list[dict] = []
-    for k, i in enumerate(debuts):
-        fin = debuts[k + 1] if k + 1 < len(debuts) else len(lignes)
+    for k, (i, rang) in enumerate(debuts):
+        if not entrees[rang]["garder"]:
+            continue          # BORNE : elle a fait son travail en fermant l'unité d'avant
+        fin = debuts[k + 1][0] if k + 1 < len(debuts) else len(lignes)
         bloc = "\n".join(lignes[i:fin]).strip()
-        unites.append({"titre": lignes[i].strip(), "texte": bloc})
+        unites.append({"titre": lignes[i].strip(), "texte": bloc,
+                       "option": entrees[rang]["option"]})
     return unites
 
 
@@ -257,10 +291,37 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=0,
+        appel_long=True,  # le méta-prompt embarque le référentiel complet
     ).strip()
     # Passe d'auto-critique AVANT de renvoyer : l'IA relit son propre prompt et corrige les défauts
     # grossiers (titre paraphrasé, contenu demandé, JSON non conforme, exclusion oubliée).
     return verifier_prompt_decoupe(prompt_genere, db=db)
+
+
+def generer_prompt_matieres(texte: str, *, db: Session) -> str:
+    """L'IA GÉNÈRE le prompt qui lira les MATIÈRES des référentiels de ce cycle. Même geste que
+    `generer_prompt_decoupe` : méta-prompt lu EN BASE (`Setting[prompt_meta_matieres]`) + le texte
+    d'un référentiel du cycle, pris comme exemple de sa famille ; elle rend un prompt sur mesure
+    (texte libre). SOCLE, générique : aucun prompt en dur, aucune famille de diplôme codée ici —
+    c'est le document qui dicte. Le résultat est stocké sur le CYCLE et validé par l'admin avant
+    usage. Lève si le méta-prompt n'est pas en base. Laisse remonter les pannes IA."""
+    meta = (get_settings_dict(db).get(_CLE_META_MATIERES) or "").strip()
+    if not meta:
+        raise RuntimeError(
+            f"Méta-prompt absent en base (Setting '{_CLE_META_MATIERES}'). L'admin doit le "
+            f"renseigner avant de générer un prompt de matières (cap « tout en base »)."
+        )
+    # {document} = le référentiel exemple ; {texte} doit rester INTACT (le prompt généré le porte).
+    prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
+    return generate(
+        prompt,
+        cle=get_cle_texte(db),
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, "meta_matieres"),
+        temperature=0,
+        appel_long=True,  # le méta-prompt embarque le référentiel complet
+    ).strip()
 
 
 def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
@@ -314,6 +375,7 @@ def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, 
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=0,
+        appel_long=True,  # le méta-prompt embarque le référentiel complet
     ).strip()
 
 
@@ -334,15 +396,25 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         temperature=0,
         json_mode=True,
         schema=_SCHEMA_DECOUPE,
+        # Le modèle lit ici un référentiel ENTIER : plusieurs minutes de génération. Sans le mode
+        # long, la requête est bornée par un délai total et se fait couper avant la fin.
+        appel_long=True,
     )
     data = parser_reponse(raw)
-    titres: list[str] = []
+    # Les entrées arrivent DANS L'ORDRE du document, unités et bornes entremêlées : c'est cet ordre
+    # qui fait les frontières. On ne trie rien, on ne filtre que les titres vides.
+    entrees: list[dict] = []
     for u in data.get("unites", []):
-        t = (u.get("titre") if isinstance(u, dict) else str(u)) or ""
-        t = t.strip()
-        if t:
-            titres.append(t)
-    return _trancher_par_titres(texte, titres)
+        if isinstance(u, dict):
+            t = (u.get("titre") or "").strip()
+            if t:
+                entrees.append({"titre": t, "option": (u.get("option") or "").strip(),
+                                "garder": u.get("garder", True) is not False})
+        else:
+            t = str(u).strip()
+            if t:
+                entrees.append({"titre": t, "option": "", "garder": True})
+    return _trancher_par_titres(texte, entrees)
 
 
 # Clé EN BASE du prompt de vérification du couple (cycle + niveau) — vérif n°1 au dépôt.
@@ -385,6 +457,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
         temperature=0,
         json_mode=True,
         schema=_schema_couple(),
+        appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
     )
     data = parser_reponse(raw)
     return {
@@ -412,10 +485,15 @@ def _schema_matieres() -> dict:
     }
 
 
-def detecter_matieres(texte: str, *, db: Session) -> list[str]:
+def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = None) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des matières (disciplines / domaines)
     qu'il structure. Proposition seulement : l'admin coche ce qu'il retient (jamais une matière
     écrite d'office).
+
+    `prompt_cycle` : le prompt VALIDÉ du cycle (cycles.prompt_matieres), écrit par l'IA pour cette
+    famille de référentiels. Quand il est fourni, c'est LUI qui lit — un prompt taillé pour des BTS
+    trouve ce qu'un prompt passe-partout laisse tomber. Absent (cycle pas encore doté, prompt non
+    validé) : on retombe sur le prompt général `detecter_matieres`, comme avant.
 
     Elle ne reçoit QUE le texte. La table des matières ne lui est plus donnée : il n'existe plus
     de catalogue commun auquel ramener le document. Chaque référentiel possède SES matières,
@@ -426,7 +504,7 @@ def detecter_matieres(texte: str, *, db: Session) -> list[str]:
     les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
     lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit / absorbe)."""
-    prompt = get_prompt(db, _CLE_MATIERES).replace("{texte}", texte)
+    prompt = (prompt_cycle or get_prompt(db, _CLE_MATIERES)).replace("{texte}", texte)
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
@@ -436,6 +514,7 @@ def detecter_matieres(texte: str, *, db: Session) -> list[str]:
         temperature=0,
         json_mode=True,
         schema=_schema_matieres(),
+        appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
     )
     data = parser_reponse(raw)
     noms: list[str] = []
@@ -545,6 +624,7 @@ def detecter_types_activite(texte: str, *, db: Session) -> list[str]:
         temperature=0,
         json_mode=True,
         schema=_schema_types_activite(),
+        appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
     )
     data = parser_reponse(raw)
     noms: list[str] = []

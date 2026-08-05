@@ -1,5 +1,22 @@
 """Rien en dur dans le code : une donnée métier ou un choix de config vit EN BASE.
 
+CE QUE LA RÈGLE VISE, ET RIEN D'AUTRE (précisé le 04/08/2026, par l'utilisateur).
+La règle parle des DONNÉES MÉTIER : ce qu'un administrateur consulte ou modifie — catalogues,
+seuils, prompts, réglages, textes affichés. Elle n'a jamais parlé des CONSTANTES TECHNIQUES
+INTERNES à un algorithme.
+
+Ce test, lui, ne fait pas la différence : il signale toute liste, tuple, ensemble ou dictionnaire
+de chaînes déclaré en tête de fichier, quelle qu'en soit la nature. C'est mécanique, et c'est
+voulu — mais ça produit des signalements qui ne relèvent PAS de la règle. Deux exemples :
+un mot de tri interne, une règle de grammaire française servant à filtrer un résultat de
+recherche. Aucun administrateur n'irait les modifier ; elles restent dans le code et se rangent
+aux EXCEPTIONS PERMANENTES.
+
+La question à se poser devant un signalement est donc toujours la même : « un administrateur
+irait-il changer ça depuis son écran ? » Oui → en base. Non → exception permanente, avec sa
+raison écrite. Ce qui ne change pas : on n'allonge la liste que sur décision explicite de
+l'utilisateur, et jamais pour faire taire un vrai signalement métier.
+
 CE QUE CE TEST ATTRAPE — deux formes, celles que la règle nomme explicitement :
   (1) un dictionnaire, une liste, un tuple ou un ensemble de chaînes déclaré AU NIVEAU MODULE
       (« valeur, constante, dict, mapping, liste ») ;
@@ -93,6 +110,18 @@ EXCEPTIONS_PERMANENTES = {
         "analyse_amont.py:43 — schéma JSON attendu du modèle. Technique.",
     "backend/dictee/ocr.py::jpeg|jpg|png":
         "ocr.py:65 — extensions d'image acceptées. Technique.",
+    # Les trois qui suivent servent la RECHERCHE DU LIEN OFFICIEL (labo Référentiels) : elles
+    # trient des résultats de moteur de recherche. Ce sont des mots de tri et des règles de
+    # français, pas des données que l'admin consulte ou modifie — décision du 04/08/2026.
+    "backend/pedagogie/referentiels_labo.py:RECHERCHE_REJETS":
+        "referentiels_labo.py — ce qui n'est pas un programme en vigueur (projets du CSP, "
+        "vademecums, ressources d'accompagnement). Filtre interne du tri des résultats.",
+    "backend/pedagogie/referentiels_labo.py:_MOTS_GENERIQUES":
+        "referentiels_labo.py — les mots qui, après « programme de / d' », annoncent le document "
+        "COMPLET et non une matière (« d'enseignement », « de l'école »). Règle de français.",
+    "backend/pedagogie/referentiels_labo.py:_MARQUES_PROGRAMME":
+        "referentiels_labo.py — les mots qui font reconnaître un programme dans un libellé. "
+        "Même nature : une règle de lecture, interne à l'algorithme de tri.",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -218,6 +247,9 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     assert len(DETTE) == 12, (
         f"Dette « en dur » : {len(DETTE)} entrées, 12 attendues (état mesuré du 01/08/2026)."
     )
-    assert len(EXCEPTIONS_PERMANENTES) == 5, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 5 attendues."
+    # 5 -> 8 le 04/08/2026 : les trois listes de tri de la recherche du lien officiel. Ce ne sont
+    # pas des données métier (personne ne les modifie depuis un écran), mais le scanner ne sait pas
+    # faire cette différence — voir l'en-tête du fichier.
+    assert len(EXCEPTIONS_PERMANENTES) == 8, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 8 attendues."
     )

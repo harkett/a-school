@@ -33,7 +33,7 @@ from backend.core.limiter import limiter, plafond_depasse
 from backend.core.middleware import UserSessionMiddleware
 from backend.securite import auth
 from backend.systeme import admin
-from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
+from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin, referentiels_labo
 from backend.contenu import activites, mes_contenus
 from backend.prof import profil
 from backend.communication import feedback, votes
@@ -112,6 +112,10 @@ app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
 app.include_router(referentiels_admin.router, prefix="/api")
+# LABO — la procédure « Référentiels » en cours de reconstruction, sur SES routes
+# (/api/admin/labo/referentiels/…). Elle ne partage rien avec l'écran historique ci-dessus :
+# ce qu'on corrige au labo ne change pas l'existant. Le jour de la bascule, l'ancien s'en va.
+app.include_router(referentiels_labo.router, prefix="/api")
 app.include_router(mise_en_route.router, prefix="/api")
 
 @app.get("/api/health")

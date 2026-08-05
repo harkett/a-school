@@ -26,7 +26,7 @@ from backend.main import app
 from backend.securite.comptes import create_access_token
 from backend.core.models_db import Setting
 from backend.systeme.admin import (
-    get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN, MAX_TOKENS_MAX,
+    get_max_tokens, SETTING_DEFAULTS, MAX_TOKENS_MIN,
     _make_admin_token,
 )
 import backend.llm.generator as gen
@@ -141,7 +141,7 @@ def test_get_max_tokens_defauts_et_bornes():
     data = r.json()
     assert data["default"] == 2048
     assert data["overrides"] == {"ambiguites": 3000, "sequence": 4000}
-    assert data["bounds"] == {"min": MAX_TOKENS_MIN, "max": MAX_TOKENS_MAX}
+    assert data["bounds"] == {"min": MAX_TOKENS_MIN, "max": None}   # aucun plafond imposé
 
 
 def test_put_valide_ecrit_les_3_cles():
@@ -163,17 +163,23 @@ def test_put_trop_bas_refuse_400_rien_ecrit():
         "default": 10, "ambiguites": 3000, "sequence": 4000,
     })
     assert r.status_code == 400, r.text
-    assert "hors limites" in r.json()["detail"]
+    assert "trop basse" in r.json()["detail"]
     assert _row("max_tokens_default") is None  # rien ecrit
 
 
-def test_put_trop_haut_refuse_400_rien_ecrit():
+def test_put_valeur_haute_acceptee_il_n_y_a_plus_de_plafond():
+    """Le plafond a ete SUPPRIME le 05/08 et ne doit pas revenir. Il valait 8 000 « pour le
+    cout » — c'est faux : on paie les tokens PRODUITS, jamais la valeur demandee. Ce chiffre a
+    fini par empecher l'admin de saisir 32 000 pour la decoupe d'un referentiel, qui se faisait
+    tronquer. La seule vraie limite est celle du modele, et c'est le fournisseur qui la fait
+    respecter. Ce test tombe si quelqu'un remet un plafond dans le code."""
     _reset_settings()
     r = _admin().put("/api/admin/max-tokens", json={
-        "default": 2048, "ambiguites": 3000, "sequence": 99999,
+        "default": 32000, "ambiguites": 3000, "sequence": 99999,
     })
-    assert r.status_code == 400, r.text
-    assert _row("max_tokens_sequence") is None
+    assert r.status_code == 200, r.text
+    assert _row("max_tokens_default") == "32000"
+    assert _row("max_tokens_sequence") == "99999"
 
 
 def test_sans_cookie_admin_401():

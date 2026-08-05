@@ -94,17 +94,29 @@ def message_a_lire(db: Session, user: User | None):
 
 
 def message_de_fin(ligne) -> str:
-    """Le second message, composé depuis la ligne. Deux issues, et on n'invente rien dans la
-    seconde : si le nouveau document ne nomme plus sa matière, on la NOMME et on l'envoie
-    rechoisir — plutôt qu'un profil vide sans explication."""
-    debut = "La mise à jour est terminée. Vous pouvez de nouveau générer.\n\n"
-    nom = ligne.matiere_nom or "votre matière"
+    """Le second message, composé depuis la ligne. Quatre issues, et on n'invente rien dans
+    aucune :
+      · rien ne partait de son profil (il était rattaché par son seul couple de travail) : on ne
+        lui parle pas d'une matière qu'il n'a pas perdue ;
+      · le nouveau document porte le MÊME nom : sa matière a été rebranchée ;
+      · l'admin a désigné une REMPLAÇANTE : le message nomme l'ancienne ET la nouvelle — sans les
+        deux, le prof découvre une autre matière à son profil sans savoir pourquoi ;
+      · elle a réellement disparu : on la NOMME et on l'envoie rechoisir, plutôt qu'un profil vide
+        sans explication."""
+    debut = "La mise à jour est terminée. Vous pouvez de nouveau générer."
+    if not ligne.matiere_nom:
+        return debut
+    nom = ligne.matiere_nom
     if ligne.resultat == "matiere_disparue":
-        return (debut + f"En revanche, la matière « {nom} » ne figure plus dans le nouveau "
-                        "programme officiel de votre niveau.\n\n"
-                        "Ouvrez « Mon profil » pour choisir votre matière parmi celles du nouveau "
-                        "programme. Tout ce que vous avez créé est conservé.")
-    return debut + f"Votre matière « {nom} » a été rebranchée sur le nouveau programme."
+        return (f"{debut}\n\nEn revanche, la matière « {nom} » ne figure plus dans le nouveau "
+                "programme officiel de votre niveau.\n\n"
+                "Ouvrez « Mon profil » pour choisir votre matière parmi celles du nouveau "
+                "programme. Tout ce que vous avez créé est conservé.")
+    if ligne.resultat == "remplace" and ligne.remplacee_par:
+        return (f"{debut}\n\nDans le nouveau programme officiel, votre matière « {nom} » est "
+                f"devenue « {ligne.remplacee_par} » : votre profil a suivi, vous n'avez rien à "
+                "faire. Tout ce que vous avez créé est conservé.")
+    return f"{debut}\n\nVotre matière « {nom} » a été rebranchée sur le nouveau programme."
 
 
 def couple_de_travail(db: Session, user: User, garde: bool = True) -> tuple[str | None, str | None, bool]:

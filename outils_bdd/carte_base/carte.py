@@ -111,12 +111,15 @@ DOMAINS = {
         ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
          "seance_styles", "langues_lv"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
-        # `referentiel_depots` : le PDF en zone d'attente, avant validation.
+        # `referentiel_documents` : les PDF fournis pour un couple — un referentiel tient parfois
+        # en plusieurs fichiers (au lycee, un par matiere). Ils s'empilent, puis la fusion les
+        # assemble et cree la ligne `referentiels`. Remplace `referentiel_depots` (zone d'attente
+        # a jeton), supprimee : le couple etant demande avant le document, plus rien n'attend.
         # `profs_bloques_maj` : les profs mis en attente pendant la mise a jour d'un referentiel,
         # et la memoire de la matiere a leur rebrancher. Elle parle de profs mais elle appartient
         # au cycle de vie du referentiel — c'est lui qui la cree et lui qui la vide.
-        ["referentiels", "referentiel_chunks", "referentiel_types_activite",
-         "referentiel_type_precisions", "referentiel_depots", "profs_bloques_maj"]),
+        ["referentiels", "referentiel_documents", "referentiel_chunks",
+         "referentiel_types_activite", "referentiel_type_precisions", "profs_bloques_maj"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",

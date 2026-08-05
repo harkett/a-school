@@ -14,12 +14,15 @@ Ce que ces tests verrouillent, dans l'ordre du chantier :
   4. les quatre situations réelles : bloqué ; profil en travaux mais travaille ailleurs ;
      débloqué et rebranché ; matière disparue du nouveau document.
 
+Le back visé est celui du LABO (backend/pedagogie/referentiels_labo.py), sur ses propres
+routes /api/admin/labo/… — l'écran historique n'est plus concerné.
+
 Lancer : docker compose exec backend python -m pytest tests/test_maj_referentiel.py -q
 """
 from unittest.mock import patch
 
 import backend.core.database as dbmod
-import backend.pedagogie.referentiels_admin as refadm
+import backend.pedagogie.referentiels_labo as reflabo
 from backend.core.models_db import Matiere, ProfBloqueMaj, Referentiel, User
 from backend.main import app
 from backend.securite.comptes import create_access_token
@@ -60,21 +63,45 @@ def _monde(niveau="MAJ-Niv", matiere="Mathématiques", email="maj.prof@test.fr",
 
 
 def _supprimer(m, bloquer):
-    return admin_client().post("/api/admin/referentiels/supprimer", json={
+    return admin_client().post("/api/admin/labo/referentiels/supprimer", json={
         "cycle_id": m["cycle_id"], "niveau": m["niveau"], "bloquer_profs": bloquer})
 
 
-def _recreer_referentiel(m, matieres):
+def _propose(m, nom):
+    """L'identifiant que l'écran propose d'office pour une matière attendue : celle du nouveau
+    référentiel qui porte le MÊME nom."""
+    q = f"cycle_id={m['cycle_id']}&niveau={m['niveau']}"
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    return next(a["propose"] for a in etat["attendues"] if a["nom"] == nom)
+
+
+def _recreer_referentiel(m, matieres, validee=True):
     """Ce que fait la procédure refaite : un NOUVEAU référentiel pour le même niveau, avec de
-    NOUVEAUX identifiants de matières. C'est tout l'enjeu du rebranchement par le nom."""
+    NOUVEAUX identifiants de matières. C'est tout l'enjeu du remplacement par le nom.
+    `validee=False` = les matières sont PROPOSÉES par la détection, l'admin ne les a pas encore
+    cochées — un profil ne peut pas les porter."""
     with dbmod.SessionLocal() as db:
         ref = Referentiel(niveau_id=m["niveau_id"], nom_fixe=f"maj_{m['niveau_id']}",
                           collection=f"maj_{m['niveau_id']}", fichier="nouveau.pdf",
                           texte_epure="NOUVEAU TEXTE")
         db.add(ref); db.commit(); db.refresh(ref)
         for i, nom in enumerate(matieres):
-            db.add(Matiere(referentiel_id=ref.id, nom=nom, ordre=i, actif=True, validee=True))
+            db.add(Matiere(referentiel_id=ref.id, nom=nom, ordre=i, actif=True, validee=validee))
         db.commit()
+
+
+def _valider_matieres(m):
+    """L'admin coche les matières du nouveau document."""
+    with dbmod.SessionLocal() as db:
+        rid = db.query(Referentiel.id).filter(Referentiel.niveau_id == m["niveau_id"]).scalar()
+        db.query(Matiere).filter(Matiere.referentiel_id == rid).update({"validee": True})
+        db.commit()
+
+
+def _debloquer(m, correspondances):
+    with patch.object(reflabo, "_avis_maj"):
+        return admin_client().post("/api/admin/labo/referentiels/debloquer", json={
+            "cycle_id": m["cycle_id"], "niveau": m["niveau"], "correspondances": correspondances})
 
 
 def test_le_refus_reste_la_regle_seul_le_geste_assume_le_contourne():
@@ -88,7 +115,7 @@ def test_le_refus_reste_la_regle_seul_le_geste_assume_le_contourne():
         assert db.query(Referentiel).filter(Referentiel.niveau_id == m["niveau_id"]).count() == 1
         assert db.query(ProfBloqueMaj).filter(ProfBloqueMaj.user_id == m["user_id"]).count() == 0
 
-    with patch.object(refadm, "_avis_maj"):                # l'e-mail part après le commit
+    with patch.object(reflabo, "_avis_maj"):                # l'e-mail part après le commit
         r = _supprimer(m, bloquer=True)
     assert r.status_code == 200, r.text                    # AVANT : impossible, quoi qu'on fasse
     assert r.json()["profs_bloques"] == 1
@@ -113,7 +140,7 @@ def test_le_detachement_vide_les_deux_colonnes_du_couple_de_travail():
         u.travail_matiere_id = matiere_id(db, "Mathématiques", "MAJ-N2")
         u.travail_niveau_id = niveau_id(db, "MAJ-N2")
         db.commit()
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
     with dbmod.SessionLocal() as db:
         u = db.get(User, m["user_id"])
@@ -128,7 +155,7 @@ def test_situation_1_prof_bloque_sur_son_couple():
     """Il ne peut plus générer, il lit le message, et on ne lui demande PAS de compléter son
     profil — c'est nous qui avons vidé sa matière."""
     m = _monde(niveau="MAJ-N3", email="maj3@test.fr")
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
     c = prof_client(m["email"])
 
@@ -155,7 +182,7 @@ def test_situation_2_profil_en_travaux_mais_travaille_sur_un_niveau_intact():
         u.travail_matiere_id = matiere_id(db, "Histoire", "MAJ-Intact")
         u.travail_niveau_id = niveau_id(db, "MAJ-Intact")
         db.commit()
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
     c = prof_client(m["email"])
 
@@ -171,16 +198,18 @@ def test_situation_2_profil_en_travaux_mais_travaille_sur_un_niveau_intact():
 
 
 def test_situation_3_debloque_et_rebranche():
-    """La procédure refaite recrée les matières avec de NOUVEAUX identifiants. Le prof les
-    retrouve sans rien faire — rebranchement par le NOM — et lit le second message quand il
-    revient, pas au moment où l'admin clique."""
+    """La procédure refaite recrée les matières avec de NOUVEAUX identifiants. Le nouveau document
+    porte le MÊME nom : la correspondance est proposée d'office, l'admin n'a qu'à la valider. Le
+    prof retrouve sa matière sans rien faire, et lit le second message quand il revient, pas au
+    moment où l'admin clique."""
     m = _monde(niveau="MAJ-N5", email="maj5@test.fr")
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
     _recreer_referentiel(m, ["Mathématiques", "Français"])
-    with patch.object(refadm, "_avis_maj"):
-        r = admin_client().post("/api/admin/referentiels/debloquer",
-                                json={"cycle_id": m["cycle_id"], "niveau": m["niveau"]})
+    with patch.object(reflabo, "_avis_maj"):
+        r = admin_client().post("/api/admin/labo/referentiels/debloquer",
+                                json={"cycle_id": m["cycle_id"], "niveau": m["niveau"],
+                                      "correspondances": {"Mathématiques": _propose(m, "Mathématiques")}})
     assert r.status_code == 200, r.text
     assert [p["email"] for p in r.json()["rebranches"]] == [m["email"]]
     assert r.json()["non_rebranches"] == []
@@ -206,40 +235,184 @@ def test_situation_3_debloque_et_rebranche():
     assert me["blocage"] is None and me["profil_en_travaux"] is False
 
 
-def test_situation_4_matiere_disparue_du_nouveau_document():
-    """Le nouveau document ne nomme plus sa matière : on n'invente rien. Il est libéré, le
-    message la NOMME et l'envoie à son profil, et l'admin lit la liste nominative."""
+def test_situation_4_la_matiere_est_remplacee_pas_perdue():
+    """Le nouveau document ne porte plus le même nom : la matière n'a pas disparu, elle a été
+    RENOMMÉE. L'admin désigne celle qui prend sa place, le prof est rebranché dessus, et son
+    message nomme l'ancienne ET la nouvelle — sans les deux, il découvrirait une autre matière à
+    son profil sans savoir pourquoi."""
     m = _monde(niveau="MAJ-N6", email="maj6@test.fr")
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
-    _recreer_referentiel(m, ["Sciences numériques"])            # plus de « Mathématiques »
-    with patch.object(refadm, "_avis_maj"):
-        r = admin_client().post("/api/admin/referentiels/debloquer",
-                                json={"cycle_id": m["cycle_id"], "niveau": m["niveau"]})
+    _recreer_referentiel(m, ["Sciences numériques"])            # « Mathématiques » a été renommée
+
+    # Ce que l'écran affiche pour trancher : la matière attendue, et ce que le document propose.
+    q = f"cycle_id={m['cycle_id']}&niveau={m['niveau']}"
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    assert etat["prete"] is True
+    assert etat["attendues"] == [{"nom": "Mathématiques", "profs": 1,
+                                  "propose": None,            # aucun même nom : rien d'évident
+                                  "peut_disparaitre": False}]  # un prof l'attend : elle ne peut pas
+    cible = etat["matieres"][0]["id"]
+
+    with patch.object(reflabo, "_avis_maj"):
+        r = admin_client().post("/api/admin/labo/referentiels/debloquer",
+                                json={"cycle_id": m["cycle_id"], "niveau": m["niveau"],
+                                      "correspondances": {"Mathématiques": cible}})
     assert r.status_code == 200, r.text
-    assert r.json()["rebranches"] == []
-    assert [p["email"] for p in r.json()["non_rebranches"]] == [m["email"]]
+    assert r.json()["rebranches"] == [] and r.json()["non_rebranches"] == []
+    assert r.json()["remplaces"] == [{"prenom": "Ada", "nom": "Lovelace", "email": m["email"],
+                                      "avant": "Mathématiques", "apres": "Sciences numériques"}]
+
+    with dbmod.SessionLocal() as db:
+        u = db.get(User, m["user_id"])
+        assert db.get(Matiere, u.subject_id).nom == "Sciences numériques"   # rebranché, pas perdu
 
     c = prof_client(m["email"])
     me = c.get("/api/auth/me").json()
-    assert me["blocage"]["type"] == "matiere_disparue"
-    assert "Mathématiques" in me["blocage"]["message"]          # elle est NOMMÉE
-    assert "Mon profil" in me["blocage"]["message"]             # et il sait quoi faire
-    with dbmod.SessionLocal() as db:
-        assert db.get(User, m["user_id"]).subject_id is None    # rien d'inventé
+    assert me["blocage"]["type"] == "remplace"
+    assert "Mathématiques" in me["blocage"]["message"]          # l'ancienne est nommée…
+    assert "Sciences numériques" in me["blocage"]["message"]    # …et la nouvelle aussi
 
     # L'admin garde la trace nominative après coup — pas seulement dans la boîte affichée au clic.
-    b = admin_client().get(f"/api/admin/referentiels/blocages?cycle_id={m['cycle_id']}&niveau={m['niveau']}")
+    b = admin_client().get(f"/api/admin/labo/referentiels/blocages?{q}")
     assert b.json()["a_informer"] == 1 and b.json()["bloques"] == 0
-    assert b.json()["profs"][0]["resultat"] == "matiere_disparue"
+    assert b.json()["profs"][0]["resultat"] == "remplace"
     assert b.json()["profs"][0]["matiere"] == "Mathématiques"
+
+
+def test_le_deblocage_est_refuse_tant_que_tout_n_est_pas_tranche():
+    """Les trois refus, dans l'ordre où l'admin les rencontre. Avant, débloquer trop tôt passait —
+    et détachait tout le monde SANS RETOUR : la ligne quitte l'état `bloque`, aucun second
+    déblocage ne la reprend."""
+    m = _monde(niveau="MAJ-N8", email="maj8@test.fr")
+    q = f"cycle_id={m['cycle_id']}&niveau={m['niveau']}"
+    with patch.object(reflabo, "_avis_maj"):
+        assert _supprimer(m, bloquer=True).status_code == 200
+
+    # 1. Aucun référentiel sur le niveau : la procédure n'a pas été refaite.
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    assert etat["prete"] is False and "Aucun référentiel" in etat["empechement"]
+    r = _debloquer(m, {})
+    assert r.status_code == 409 and "Aucun référentiel" in r.json()["detail"]
+
+    # 2. Un référentiel, mais ses matières ne sont que PROPOSÉES — l'admin ne les a pas cochées.
+    #    C'est LE cas qui détachait tout le monde en silence : `matiere_id_du_nom` n'accepte que
+    #    les matières retenues, le nom ne se résolvait pas, tout passait en « matière disparue ».
+    _recreer_referentiel(m, ["Mathématiques"], validee=False)
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    assert etat["prete"] is False and "aucune matière retenue" in etat["empechement"]
+    assert _debloquer(m, {}).status_code == 409
+
+    # 3. Tout est en place, mais l'admin n'a pas dit par quoi remplacer.
+    _valider_matieres(m)
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    assert etat["prete"] is True
+    r = _debloquer(m, {})
+    assert r.status_code == 409 and "Mathématiques" in r.json()["detail"]
+
+    with dbmod.SessionLocal() as db:                    # RIEN n'a bougé pendant ces trois refus
+        ligne = db.query(ProfBloqueMaj).filter(ProfBloqueMaj.user_id == m["user_id"]).one()
+        assert ligne.etat == "bloque" and ligne.resultat is None
+
+
+def test_une_matiere_qu_un_prof_attend_ne_peut_pas_disparaitre():
+    """La règle métier : une matière utilisée ne s'efface pas, elle se remplace. « Elle disparaît
+    vraiment » n'est même pas proposé à l'écran (`peut_disparaitre`), et le serveur le refuse."""
+    m = _monde(niveau="MAJ-N9", email="maj9@test.fr")
+    with patch.object(reflabo, "_avis_maj"):
+        assert _supprimer(m, bloquer=True).status_code == 200
+    _recreer_referentiel(m, ["Sciences numériques"])
+    q = f"cycle_id={m['cycle_id']}&niveau={m['niveau']}"
+    etat = admin_client().get(f"/api/admin/labo/referentiels/correspondances?{q}").json()
+    assert etat["attendues"][0]["peut_disparaitre"] is False
+
+    r = _debloquer(m, {"Mathématiques": None})
+    assert r.status_code == 409, r.text
+    assert "ne peuvent pas disparaître" in r.json()["detail"]
+    assert "1 professeur(s)" in r.json()["detail"]
+
+    # Et une matière de remplacement qui n'appartient pas à ce référentiel est refusée aussi.
+    from _profil import matiere_id
+    with dbmod.SessionLocal() as db:
+        ailleurs = matiere_id(db, "Histoire", "MAJ-N9-Ailleurs")
+        db.commit()
+    r = _debloquer(m, {"Mathématiques": ailleurs})
+    assert r.status_code == 422, r.text
+
+    with dbmod.SessionLocal() as db:
+        assert db.query(ProfBloqueMaj).filter(
+            ProfBloqueMaj.user_id == m["user_id"]).one().etat == "bloque"
+
+
+def test_le_prof_rattache_par_son_seul_couple_de_travail_ne_perd_rien():
+    """Il travaillait sur ce niveau sans y avoir son profil : rien ne partait de son profil, donc
+    on ne lui parle pas d'une matière perdue. Avant, il était compté dans « n'ont PAS pu être
+    rebranchés » et lisait « la matière « votre matière » ne figure plus au programme » — faux
+    des deux côtés."""
+    from _profil import matiere_id, niveau_id
+    m = _monde(niveau="MAJ-N10", email="maj10@test.fr")          # le prof du niveau, pour le blocage
+    voisin = _monde(niveau="MAJ-Intact", matiere="Histoire", email="maj10b@test.fr")
+    with dbmod.SessionLocal() as db:                             # son PROFIL est ailleurs…
+        u = db.get(User, voisin["user_id"])
+        u.travail_matiere_id = matiere_id(db, "Mathématiques", "MAJ-N10")   # …son TRAVAIL ici
+        u.travail_niveau_id = niveau_id(db, "MAJ-N10")
+        db.commit()
+    with patch.object(reflabo, "_avis_maj"):
+        assert _supprimer(m, bloquer=True).status_code == 200
+    _recreer_referentiel(m, ["Mathématiques"])
+    r = _debloquer(m, {"Mathématiques": _propose(m, "Mathématiques")})
+    assert r.status_code == 200, r.text
+    assert voisin["email"] in [p["email"] for p in r.json()["rebranches"]]
+    assert r.json()["non_rebranches"] == []                      # il n'a rien perdu
+
+    me = prof_client(voisin["email"]).get("/api/auth/me").json()
+    assert me["blocage"]["type"] == "rebranche"
+    assert "ne figure plus" not in me["blocage"]["message"]       # on ne lui invente pas une perte
+    with dbmod.SessionLocal() as db:
+        u = db.get(User, voisin["user_id"])
+        assert db.get(Matiere, u.subject_id).nom == "Histoire"    # son profil n'a jamais bougé
+        assert db.get(Matiere, u.travail_matiere_id).nom == "Mathématiques"   # son travail est rebranché
+
+
+def test_l_e_mail_de_fin_ne_repete_pas_la_phrase_du_modele():
+    """Le modèle `referentiel_maj_fin` porte DÉJÀ « La mise à jour est terminée… » suivi de
+    {suite} : {suite} ne doit donc porter que CE QUI S'AJOUTE — le second paragraphe, et rien
+    quand il n'y en a pas. Le prof rattaché par son seul couple de travail, dont le message tient
+    en une phrase, la recevait deux fois."""
+    from _profil import matiere_id, niveau_id
+    m = _monde(niveau="MAJ-N11", email="maj11@test.fr")
+    voisin = _monde(niveau="MAJ-Intact2", matiere="Histoire", email="maj11b@test.fr")
+    with dbmod.SessionLocal() as db:
+        u = db.get(User, voisin["user_id"])
+        u.travail_matiere_id = matiere_id(db, "Mathématiques", "MAJ-N11")
+        u.travail_niveau_id = niveau_id(db, "MAJ-N11")
+        db.commit()
+    with patch.object(reflabo, "_avis_maj"):
+        assert _supprimer(m, bloquer=True).status_code == 200
+    _recreer_referentiel(m, ["Sciences numériques"])
+
+    q = f"cycle_id={m['cycle_id']}&niveau={m['niveau']}"
+    cible = admin_client().get(
+        f"/api/admin/labo/referentiels/correspondances?{q}").json()["matieres"][0]["id"]
+    with patch.object(reflabo, "_avis_maj") as avis:
+        r = admin_client().post("/api/admin/labo/referentiels/debloquer", json={
+            "cycle_id": m["cycle_id"], "niveau": m["niveau"],
+            "correspondances": {"Mathématiques": cible}})
+    assert r.status_code == 200, r.text
+    suites = {c.args[1].email: c.kwargs["suite"] for c in avis.call_args_list}
+
+    # Lui : une seule phrase à l'écran → RIEN à ajouter dans l'e-mail.
+    assert suites[voisin["email"]] == ""
+    # L'autre : sa matière a été remplacée → la suite le dit, et ne redit pas la phrase du modèle.
+    assert "est devenue" in suites[m["email"]]
+    assert "La mise à jour est terminée" not in suites[m["email"]]
 
 
 def test_les_lectures_de_contenus_survivent_au_blocage():
     """« Tout ce que vous avez créé est conservé » doit être VRAI : les lectures ne passent pas
     par la porte gardée, un prof bloqué consulte donc toujours son travail."""
     m = _monde(niveau="MAJ-N7", email="maj7@test.fr")
-    with patch.object(refadm, "_avis_maj"):
+    with patch.object(reflabo, "_avis_maj"):
         assert _supprimer(m, bloquer=True).status_code == 200
     c = prof_client(m["email"])
     assert c.get("/api/mes-contenus").status_code == 200

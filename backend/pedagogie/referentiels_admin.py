@@ -8,18 +8,19 @@ Périmètre étape 1 UNIQUEMENT : pas d'extraction de matières (étape 2), pas 
 (étape 6), pas de recherche web automatique (palier suivant, branché « devant » plus tard).
 On reçoit un PDF que l'admin fournit, on le lui montre, on le range et on trace sa provenance.
 """
-import hashlib
 import json
 import logging
+import re
 import shutil
 import threading
 import time
+import unicodedata
 import uuid
 from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -28,7 +29,7 @@ from backend.core.database import get_db, SessionLocal
 # Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, ReferentielDepot, Matiere, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
+from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType, ReferentielActiviteType, ReferentielTypePrecision
 # SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
 # usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
 from backend.core.llm_prompts import PROMPTS
@@ -55,7 +56,18 @@ def _ecrire_matieres_proposees(db: Session, referentiel_id: int, noms: list[str]
     Plus de table `matieres_candidates` à côté : la proposition et la matière retenue sont la
     MÊME ligne, cocher ne fait que basculer `validee`. Rien n'est écrasé ni supprimé : une
     matière déjà là (retenue ou non) est laissée telle quelle, seules les vraiment nouvelles
-    sont ajoutées. Anti-doublon par nom, insensible à la casse, DANS ce référentiel."""
+    sont ajoutées. Anti-doublon par nom, insensible à la casse, DANS ce référentiel.
+
+    Ménage préalable : les PROPOSITIONS désactivées d'avant (`validee=false`, `actif=false`) sont
+    effacées ici. Vestiges d'un temps où écarter ne faisait que désactiver, elles n'apparaissaient
+    plus à l'écran mais bloquaient encore l'anti-doublon — une liste vidée puis relue revenait
+    presque vide, la lecture étant refusée nom par nom. Une matière RETENUE désactivée, elle, n'est
+    jamais touchée : c'est un retrait de programme, décidé par l'admin."""
+    (db.query(Matiere)
+       .filter(Matiere.referentiel_id == referentiel_id,
+               Matiere.validee.is_(False), Matiere.actif.is_(False))
+       .delete(synchronize_session=False))
+    db.commit()
     deja = {nom.lower(): True for (nom,) in
             db.query(Matiere.nom).filter(Matiere.referentiel_id == referentiel_id).all()}
     maxo = (db.query(func.max(Matiere.ordre))
@@ -83,108 +95,28 @@ def _apercu(pdf_path: Path) -> tuple[int, str]:
 
 
 def _nettoyer_staging(db: Session) -> None:
-    """Nettoyage de la zone d'attente — fichier ET ligne partent ENSEMBLE (constat du 24/07 :
-    33 aperçus abandonnés, 202 Mo depuis le 13/07 — rien ne les effaçait jamais).
-
-    Le dépôt est désormais inscrit en base (`referentiel_depots`) : le balayage ne se fait plus
-    à l'aveugle sur le dossier, il part des LIGNES et traite les trois cas possibles —
-      · ligne + fichier trop vieux (> TTL)  → les deux partent, l'abandon est consommé ;
-      · ligne SANS fichier                  → la ligne part tout de suite (rien à garder :
-        le fichier a été validé, déplacé ou effacé à la main) ;
-      · fichier SANS ligne                  → héritage d'avant la table (ou dépôt interrompu
-        avant son commit) : effacé une fois périmé, jamais tant qu'il est récent — un dépôt
-        en cours ne doit pas se faire faucher son PDF par le dépôt du voisin.
-
-    L'âge se lit sur le fichier (`st_mtime`), pas sur `created_at` : c'est la même horloge que
-    l'objet qu'on supprime, alors que `created_at` vient de celle du serveur de base. TTL
-    réglable en base (`staging_ttl_heures`, défaut 24), lu comme `depot_max_pages`.
-    Best-effort : un raté de suppression ne bloque jamais le dépôt en cours."""
+    """Nettoyage paresseux de la zone d'attente (constat du 24/07 : 33 aperçus abandonnés,
+    202 Mo depuis le 13/07 — rien ne les effaçait jamais). Un fichier plus vieux que le TTL
+    n'est plus référencé par personne : le jeton ne vit que le temps d'un aperçu ouvert à
+    l'écran, et aucune table en base ne le retient. TTL réglable en base (`staging_ttl_heures`,
+    défaut 24), lu comme `depot_max_pages`. Best-effort : un raté de suppression ne bloque
+    jamais le dépôt en cours."""
     try:
         ttl_h = float(get_settings_dict(db).get("staging_ttl_heures", 24))
     except (TypeError, ValueError):
         ttl_h = 24.0
     seuil = time.time() - ttl_h * 3600
-
-    connus: set[str] = set()          # les fichiers qu'une ligne référence — les autres sont orphelins
-    a_effacer: list[ReferentielDepot] = []
-    for depot in db.query(ReferentielDepot).all():
-        f = _ROOT / depot.chemin
-        connus.add(f.name)
-        if not f.exists():
-            a_effacer.append(depot)
-            logger.info("Zone d'attente : ligne sans fichier supprimée (%s)", depot.token)
-            continue
-        try:
-            if f.stat().st_mtime < seuil:
-                f.unlink()
-                a_effacer.append(depot)
-                logger.info("Zone d'attente : dépôt abandonné supprimé (%s — %s)",
-                            depot.token, depot.fichier_origine)
-        except OSError:
-            logger.warning("Zone d'attente : suppression impossible de %s", f.name)
-    for depot in a_effacer:
-        db.delete(depot)
-    if a_effacer:
-        db.commit()
-
     for f in STAGING_DIR.glob("*.pdf"):
-        if f.name in connus:
-            continue
         try:
             if f.stat().st_mtime < seuil:
                 f.unlink()
-                logger.info("Zone d'attente : fichier sans ligne supprimé (%s)", f.name)
+                logger.info("Zone d'attente : aperçu abandonné supprimé (%s)", f.name)
         except OSError:
             logger.warning("Zone d'attente : suppression impossible de %s", f.name)
 
 
-def _oublier_depot(db: Session, token: str) -> None:
-    """Retire la ligne de zone d'attente d'un jeton — le fichier, lui, est déjà parti (déplacé
-    par la validation, ou disparu). Sans effet si aucune ligne ne porte ce jeton (dépôt d'avant
-    la table, jeton inventé) : effacer ce qui n'existe pas ne doit jamais faire échouer un geste
-    qui, par ailleurs, a réussi."""
-    n = db.query(ReferentielDepot).filter(ReferentielDepot.token == token).delete()
-    if n:
-        db.commit()
-        logger.info("Zone d'attente : dépôt %s sorti (fichier validé ou disparu)", token)
-
-
-def _deja_connu(db: Session, empreinte: str) -> dict | None:
-    """Ce document est-il DÉJÀ connu ? Recherche par empreinte du contenu, jamais par le nom.
-
-    Deux endroits où il peut être déjà passé, dans cet ordre de proximité :
-      · la zone d'attente — un dépôt du même document attend déjà d'être validé ;
-      · un référentiel validé — ce PDF est déjà LE référentiel d'un couple.
-    Rend de quoi le DIRE à l'admin ({ou, …}) ou None. Ne bloque rien, n'écrit rien : la décision
-    reste à l'admin, qui peut parfaitement vouloir redéposer le même document."""
-    depot = (db.query(ReferentielDepot)
-               .filter(ReferentielDepot.empreinte == empreinte)
-               .order_by(ReferentielDepot.created_at.desc()).first())
-    if depot is not None:
-        return {"ou": "attente", "fichier": depot.fichier_origine,
-                "depose_le": depot.created_at.isoformat(timespec="minutes")}
-    ligne = (db.query(Referentiel, Niveau, Cycle)
-               .join(Niveau, Niveau.id == Referentiel.niveau_id)
-               .join(Cycle, Cycle.id == Niveau.cycle_id)
-               .filter(Referentiel.empreinte == empreinte).first())
-    if ligne is not None:
-        ref, niveau, cycle = ligne
-        return {"ou": "valide", "fichier": ref.fichier,
-                "cycle": cycle.nom, "niveau": niveau.nom}
-    return None
-
-
-def _stage(content: bytes, filename: str, db: Session, source: str, url: str | None = None) -> dict:
-    """Valide que c'est un PDF, le range en zone d'attente, l'INSCRIT EN BASE, renvoie l'aperçu.
-
-    Porte unique des deux dépôts (fichier et lien) : c'est donc ici, et ici seulement, que la
-    ligne `referentiel_depots` naît — le jeton ne vivait jusqu'à présent que dans l'état de
-    l'écran, et un rechargement de page laissait le PDF orphelin sur le disque. `source` dit par
-    quelle porte il est entré ('depot' | 'lien'), `url` n'accompagne que la seconde.
-
-    La ligne est écrite EN DERNIER, quand le document a passé tous les contrôles : un PDF refusé
-    (trop gros, illisible, trop long) n'en laisse aucune. Et si l'écriture en base échoue, le
-    fichier est retiré du disque — les deux vivent et meurent ensemble, jamais l'un sans l'autre."""
+def _stage(content: bytes, filename: str, db: Session) -> dict:
+    """Valide que c'est un PDF, le range en zone d'attente, renvoie l'aperçu pour le contrôle."""
     _nettoyer_staging(db)   # zone transitoire : chaque dépôt balaie les aperçus abandonnés
     # Plafond de TAILLE (réglage EN BASE `depot_max_mo`, défaut 30) — il était en dur alors que
     # ses deux voisins du même geste (pages, TTL) se réglaient déjà en base.
@@ -218,44 +150,12 @@ def _stage(content: bytes, filename: str, db: Session, source: str, url: str | N
             400,
             f"Document trop long : {n_pages} pages. Veuillez déposer un document de {max_pages} pages maximum.",
         )
-    taille_ko = round(len(content) / 1024)
-    # Reconnaissance du document : empreinte du CONTENU, cherchée AVANT d'inscrire la nouvelle
-    # ligne (sinon elle se reconnaîtrait elle-même). Le résultat est rendu à l'écran pour
-    # information — le dépôt aboutit normalement dans tous les cas.
-    empreinte = hashlib.sha256(content).hexdigest()
-    deja = _deja_connu(db, empreinte)
-    if deja:
-        logger.info("Dépôt : document déjà connu (%s) — empreinte %s", deja["ou"], empreinte[:12])
-    # Le document existe maintenant EN BASE : nom d'origine, mesures, emplacement, aperçu. Si ce
-    # commit échoue, le PDF ne doit pas rester seul sur le disque — on le retire avant de rendre
-    # la main. (`chemin` en séparateurs POSIX : c'est une donnée, pas un chemin Windows.)
-    db.add(ReferentielDepot(
-        token=token,
-        empreinte=empreinte,
-        fichier_origine=filename,
-        chemin=staged.relative_to(_ROOT).as_posix(),
-        taille_ko=taille_ko,
-        pages=n_pages,
-        source=source,
-        url_source=url,
-        apercu=apercu,
-    ))
-    try:
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        staged.unlink(missing_ok=True)
-        logger.exception("Dépôt : inscription en base impossible (%s)", filename)
-        raise HTTPException(500, f"Enregistrement du dépôt impossible : {e}")
     return {
         "token": token,
         "filename": filename,
-        "taille_ko": taille_ko,
+        "taille_ko": round(len(content) / 1024),
         "pages": n_pages,
         "apercu": apercu,
-        # `deja` : null (document inconnu) ou ce qu'on a reconnu. Clé AJOUTÉE — les écrans qui
-        # l'ignorent continuent de fonctionner à l'identique.
-        "deja": deja,
     }
 
 
@@ -278,13 +178,13 @@ def preparer_lien(body: PreparerLienBody, db: Session = Depends(get_db)):
     filename = (url.rsplit("/", 1)[-1].split("?")[0]) or "referentiel.pdf"
     if not filename.lower().endswith(".pdf"):
         filename += ".pdf"
-    return _stage(r.content, filename, db, source="lien", url=url)
+    return _stage(r.content, filename, db)
 
 
 @router.post("/admin/referentiels/preparer-depot", dependencies=[Depends(_require_admin)])
 async def preparer_depot(file: UploadFile = File(...), db: Session = Depends(get_db)):
     content = await file.read()
-    return _stage(content, file.filename or "referentiel.pdf", db, source="depot")
+    return _stage(content, file.filename or "referentiel.pdf", db)
 
 
 # ── Validation : range + extrait le texte + enregistre la provenance ──────────
@@ -408,6 +308,62 @@ def _texte_staged(token: str, max_pages: int = 6) -> str:
     return extraire_texte(staged, max_pages=max_pages)
 
 
+def _texte_cherchable(s: str) -> str:
+    """Texte rendu COMPARABLE : accents retirés, minuscules, tout ce qui n'est ni lettre ni
+    chiffre devient une espace, espaces réduits à un seul. « Option  B », « OPTION-B » et
+    « option b » deviennent alors la même chaîne."""
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
+
+
+class ControleCoupleBody(BaseModel):
+    token: str
+    cycle_id: int
+    niveau_id: int
+
+
+@router.post("/admin/referentiels/controle-couple", dependencies=[Depends(_require_admin)])
+def controle_couple(body: ControleCoupleBody, db: Session = Depends(get_db)):
+    """CONTRÔLE N°1, au dépôt du document et SANS IA : le document NOMME-T-IL le NIVEAU du couple
+    choisi ? Simple recherche de texte (accents, casse et ponctuation ignorés), aucun appel
+    extérieur, aucune interprétation.
+
+    C'est le NIVEAU qui décide, pas le cycle : « BTS » se trouve dans les 164 référentiels de BTS
+    et ne prouve donc rien. Et on cherche les MOTS du niveau, pas la phrase entière — aucun
+    document officiel n'écrit son titre comme nous (« BTS CIEL Option B » y devient « Brevet de
+    technicien supérieur Cybersécurité… option B »). Le cycle est cherché en plus, seulement pour
+    que le message d'erreur puisse dire ce qui a été trouvé.
+
+    On regarde d'abord les premières pages (le titre s'y trouve — réponse immédiate), et seulement
+    si le niveau n'y est pas, le document ENTIER : un document valable n'est jamais refusé à tort.
+    Lecture seule : ne range rien, n'écrit rien."""
+    cycle = db.get(Cycle, body.cycle_id)
+    if not cycle:
+        raise HTTPException(404, "Cycle inconnu.")
+    niv = db.get(Niveau, body.niveau_id)
+    if not niv or niv.cycle_id != cycle.id:
+        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
+
+    cible_cycle = _texte_cherchable(cycle.nom)
+    mots_niveau = list(dict.fromkeys(_texte_cherchable(niv.nom).split()))   # sans doublon, ordre gardé
+    trouve_cycle = False
+    manquants: list[str] = list(mots_niveau)
+    for max_pages in (6, None):
+        texte = _texte_cherchable(_texte_staged(body.token, max_pages=max_pages))
+        trouve_cycle = bool(cible_cycle) and re.search(rf"\b{re.escape(cible_cycle)}\b", texte) is not None
+        manquants = [m for m in mots_niveau if not re.search(rf"\b{re.escape(m)}\b", texte)]
+        if not manquants:
+            break
+
+    trouve_niveau = bool(mots_niveau) and not manquants
+    return {
+        "trouve": trouve_niveau,          # le niveau, et lui seul, autorise le dépôt
+        "cycle": cycle.nom, "cycle_trouve": trouve_cycle,
+        "niveau": niv.nom, "niveau_trouve": trouve_niveau,
+        "manquants": manquants,           # les mots du niveau absents du document (pour le message)
+    }
+
+
 class VerifierDepotBody(BaseModel):
     token: str
     cycle_id: int
@@ -485,15 +441,41 @@ class ValiderBody(BaseModel):
     date_doc: str | None = None
     forcage_motif: str | None = None     # motif si l'admin FORCE malgré une alerte du couple ; NULL sinon
     verif_couple: dict | None = None     # verdict IA du couple {correspond, niveau_lu, raison} — figé à la validation
+    controle_niveau: dict | None = None  # PREUVE du contrôle n°1 {niveau, trouve, manquants} — figée à la validation
 
 
-@router.post("/admin/referentiels/valider", dependencies=[Depends(_require_admin)])
-def valider(body: ValiderBody, db: Session = Depends(get_db)):
+def _nom_origine_sur_disque(nom: str | None) -> str:
+    """Nom d'origine rendu SÛR pour le disque : on ne garde que le nom de fichier (jamais un
+    chemin), les caractères interdits deviennent « _ », et l'extension .pdf est forcée. Chaîne
+    vide si rien d'exploitable — dans ce cas on ne dépose pas de copie."""
+    base = Path((nom or "").strip()).name
+    base = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", base).strip(" .")
+    if not base:
+        return ""
+    return base if base.lower().endswith(".pdf") else f"{base}.pdf"
+
+
+# Les TROIS tâches du bouton « Valider le référentiel », dans leur ordre d'exécution. UNE seule
+# source : le serveur les fait ET les annonce (première ligne du flux), l'écran ne fait que les
+# afficher — il n'en garde aucune copie en dur. Une tâche de plus = une ligne de plus ici.
+TACHES_VALIDATION = [
+    {"id": "rangement", "libelle": "Rangement du document"},
+    {"id": "lecture",   "libelle": "Lecture du document"},
+    {"id": "base",      "libelle": "Enregistrement en base"},
+]
+
+
+def _etapes_enregistrement(body: "ValiderBody", db: Session):
+    """LE dépôt proprement dit, SANS AUCUN APPEL IA (bouton « Valider le référentiel »), raconté
+    TÂCHE PAR TÂCHE : le document est rangé, son texte est extrait, nettoyé et figé, et la ligne
+    du référentiel est écrite.
+
+    Générateur : il émet ("tache", id) dès qu'une tâche des `TACHES_VALIDATION` est TERMINÉE —
+    l'écran la coche à cet instant, pas à la fin —, puis ("fin", (réponse, id du référentiel,
+    texte épuré)). L'id vaut None quand le jeton était déjà consommé (rien n'a été refait) :
+    l'appelant n'a alors aucune suite à donner."""
     staged = STAGING_DIR / f"{body.token}.pdf"
     if not staged.exists():
-        # Plus de fichier → plus de ligne : le dépôt n'existe plus, sa trace en zone d'attente
-        # non plus (elle serait exactement l'orphelin que la table sert à empêcher).
-        _oublier_depot(db, body.token)
         # Jeton déjà CONSOMMÉ : le PDF a été rangé par une validation précédente qui a ABOUTI.
         # Cas réel du 24/07 : la validation travaille plusieurs minutes (épuration + matières IA),
         # l'écran perdait patience à 45 s et l'admin recliquait — le reclic recevait un mensonge
@@ -513,7 +495,7 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
                         pages_deja = len(pdf.pages)
                 except Exception:
                     pages_deja = None
-            return {
+            yield ("fin", ({
                 "ok": True,
                 "deja_valide": True,
                 "cycle": cycle_deja.nom if cycle_deja else "",
@@ -524,7 +506,8 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
                 "fichier_origine": deja.fichier or "referentiel.pdf",
                 "nom_fixe": deja.nom_fixe,
                 "pages": pages_deja,
-            }
+            }, None, ""))
+            return
         raise HTTPException(400, "Le document en attente n'existe plus. Recommencez le dépôt (nouveau lien ou nouveau fichier).")
 
     cycle = db.get(Cycle, body.cycle_id)
@@ -552,10 +535,19 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     dossier.mkdir(parents=True, exist_ok=True)
     pdf_final = dossier / "referentiel.pdf"
     shutil.move(str(staged), str(pdf_final))
-    # Le document vient de QUITTER la zone d'attente : sa ligne de dépôt n'a plus d'objet. Effacée
-    # ici, dans la foulée du déplacement — et pas en fin de fonction : ce qui suit (épuration,
-    # matières IA) peut échouer, la ligne resterait alors à désigner un fichier absent.
-    _oublier_depot(db, body.token)
+
+    # Le document est AUSSI posé sous SON NOM D'ORIGINE, à côté : en ouvrant le dossier on voit
+    # tout de suite quel document a été téléchargé, sans avoir à consulter la base. Un
+    # remplacement laisse l'original précédent en place (l'historique du dossier reste lisible).
+    # Une copie qui échoue ne fait jamais échouer le dépôt : c'est un confort, pas la pièce maîtresse.
+    nom_origine = _nom_origine_sur_disque(body.fichier_origine)
+    if nom_origine and nom_origine.lower() != "referentiel.pdf":
+        try:
+            shutil.copy2(str(pdf_final), str(dossier / nom_origine))
+        except OSError:
+            logger.exception("depot : copie sous le nom d'origine impossible (%s)", nom_origine)
+
+    yield ("tache", "rangement")   # le document est à sa place définitive
 
     # LE moment de l'épuration : le texte de travail est extrait UNE SEULE FOIS ici, épuré avec
     # les règles du jour (porte unique rag.extraction), puis FIGÉ en base (texte_epure). Toutes
@@ -573,6 +565,8 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(400, f"Lecture du PDF impossible : {e}")
 
+    yield ("tache", "lecture")     # pages comptées, texte extrait et épuré
+
     # Disque = nom fixe `referentiel.pdf` (le code ne dépend jamais du nom mouvant de l'EN).
     # Base = `fichier` garde le VRAI nom d'origine (trace, affiché à l'admin), sans contrainte
     # de système de fichiers (c'est du texte). Repli sur le nom de disque si non fourni.
@@ -587,13 +581,15 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
     # C'est une donnée NEUVE (n'existe nulle part ailleurs) : on la FIGE ici en JSON. Réécrit sur les
     # deux branches → une mise à jour de PDF ne laisse jamais traîner l'ancien verdict. None = non fourni.
     verif_couple_json = json.dumps(body.verif_couple, ensure_ascii=False) if body.verif_couple else None
-    # Empreinte du PDF retenu : même calcul qu'au dépôt, sur le fichier qui vient d'être rangé.
-    # C'est elle qui fera reconnaître ce document s'il est redéposé un jour.
-    empreinte = hashlib.sha256(pdf_final.read_bytes()).hexdigest()
+    # PREUVE du contrôle n°1 ({niveau, trouve, manquants}), celui qui a AUTORISÉ ce dépôt. Il ne se
+    # recalcule pas (texte du PDF + nom du niveau du jour du dépôt) : on le fige, comme au-dessus.
+    controle_niveau_json = json.dumps(body.controle_niveau, ensure_ascii=False) if body.controle_niveau else None
 
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
-        # On remet à zéro ce qui découlait de l'ANCIEN PDF : prompt de découpe, chunks.
+        # On remet à zéro ce qui découlait de l'ANCIEN PDF : chunks, et l'ancien prompt de découpe
+        # du couple (colonne d'historique depuis le 05/08/2026 — le prompt qui SERT est celui du
+        # cycle, et lui ne bouge pas : un nouveau PDF dans la même famille se découpe pareil).
         existing.fichier = fichier_origine
         existing.source = (body.source.strip() if body.source else None)
         existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
@@ -601,8 +597,8 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
         existing.prompt_decoupe_valide = False
         existing.forcage_motif = forcage_motif
         existing.verif_couple = verif_couple_json
+        existing.controle_niveau = controle_niveau_json   # le NOUVEAU document a son propre contrôle
         existing.texte_epure = texte_epure   # le NOUVEAU PDF impose SON texte de travail
-        existing.empreinte = empreinte       # …et SON empreinte (l'ancienne ne vaut plus)
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
         # Matières PROPOSÉES par l'ANCIEN PDF et jamais retenues : effacées ici (le nouveau document
         # refera sa propre proposition juste après). Si la détection échoue, on reste sur une liste
@@ -621,33 +617,266 @@ def valider(body: ValiderBody, db: Session = Depends(get_db)):
             date_doc=(body.date_doc.strip() if body.date_doc else None),
             forcage_motif=forcage_motif,
             verif_couple=verif_couple_json,
+            controle_niveau=controle_niveau_json,
             texte_epure=texte_epure,
-            empreinte=empreinte,
         )
         db.add(ref)
         db.commit()
 
-    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne retient jamais une
-    # matière d'office : elle les écrit sur le référentiel avec `validee=false` — l'admin coche
-    # ce qu'il garde. Best-effort : une panne IA ne casse pas la validation du référentiel (une
-    # proposition n'est qu'une aide au remplissage, jamais une donnée figée).
-    try:
-        from backend.rag.analyse_amont import detecter_matieres
-        if texte_epure.strip():                     # le texte de travail qui vient d'être figé (get)
-            _ecrire_matieres_proposees(db, ref.id, detecter_matieres(texte_epure, db=db))
-    except Exception:
-        logger.exception("valider : détection des matières échouée (%s / %s)", cycle.nom, niveau_nom)
+    yield ("tache", "base")        # la fiche du référentiel est écrite (commit fait)
 
-    return {
+    yield ("fin", ({
         "ok": True,
         "cycle": cycle.nom,
         "niveau": niveau_nom,
         "dossier": f"{_dossier_cle(cycle.nom)}/{_dossier_cle(niveau_nom)}",
         "fichier_disque": "referentiel.pdf",   # nom physique sur le disque (chemin du message)
         "fichier_origine": fichier_origine,     # vrai nom conservé en base
+        "fichier_copie": nom_origine,           # le document sous son nom d'origine, à côté
         "nom_fixe": nom_fixe,
         "pages": n_pages,
-    }
+    }, ref.id, texte_epure))
+
+
+def _enregistrer_referentiel(body: "ValiderBody", db: Session) -> tuple[dict, int | None, str]:
+    """Le même dépôt, déroulé d'un trait : les tâches défilent sans être racontées et seule la
+    réponse finale sort. C'est la porte des appels qui veulent UN résultat (endpoints classiques) ;
+    le flux, lui, égrène les mêmes tâches. Un seul code, deux façons de le lire."""
+    for genre, charge in _etapes_enregistrement(body, db):
+        if genre == "fin":
+            return charge
+    raise HTTPException(500, "Dépôt interrompu avant son terme.")   # inatteignable : le générateur finit toujours par ("fin", …)
+
+
+@router.post("/admin/referentiels/verifier", dependencies=[Depends(_require_admin)])
+def verifier(body: ValiderBody, db: Session = Depends(get_db)):
+    """Bouton « Vérifier le référentiel » : le dépôt SANS IA — le document est rangé (sous son nom
+    fixe ET sous son nom d'origine), son texte est figé, la ligne du référentiel est écrite.
+    Aucune matière n'est proposée ici : c'est le bouton « Valider » qui appelle l'IA."""
+    reponse, _ref_id, _texte = _enregistrer_referentiel(body, db)
+    return reponse
+
+
+@router.post("/admin/referentiels/valider-flux", dependencies=[Depends(_require_admin)])
+def valider_flux(body: ValiderBody):
+    """Bouton « Valider le référentiel » : le MÊME dépôt que /verifier, mais raconté TÂCHE PAR
+    TÂCHE. Une ligne JSON par événement (NDJSON) :
+
+        {"taches": [...]}        les tâches annoncées, dans l'ordre — l'écran dresse sa liste
+        {"faite": "rangement"}   … puis une ligne par tâche TERMINÉE, au fil du travail
+        {"fin": {…}}             le résultat, identique à celui de /verifier
+        {"erreur": "…"}          un échec en cours de route (rien de plus ne suivra)
+
+    L'écran coche donc au fur et à mesure et n'a plus de raison de perdre patience : chaque ligne
+    reçue prouve que le serveur travaille (le cas du 24/07 — reclic après 45 s de silence).
+
+    La session est ouverte ICI, et non par `Depends(get_db)` : depuis FastAPI 0.106 une dépendance
+    à `yield` est refermée AVANT que le corps streamé ne soit produit — la session serait déjà
+    close à la première tâche."""
+    def flux():
+        db = SessionLocal()
+        try:
+            yield json.dumps({"taches": TACHES_VALIDATION}, ensure_ascii=False) + "\n"
+            for genre, charge in _etapes_enregistrement(body, db):
+                if genre == "tache":
+                    yield json.dumps({"faite": charge}, ensure_ascii=False) + "\n"
+                else:
+                    yield json.dumps({"fin": charge[0]}, ensure_ascii=False) + "\n"
+        except HTTPException as e:
+            yield json.dumps({"erreur": e.detail}, ensure_ascii=False) + "\n"
+        except Exception:
+            logger.exception("valider-flux : dépôt interrompu")
+            yield json.dumps({"erreur": "Validation impossible : le dépôt a été interrompu."},
+                             ensure_ascii=False) + "\n"
+        finally:
+            db.close()
+    # `X-Accel-Buffering: no` : sans lui un proxy (nginx) garderait les lignes en réserve et les
+    # livrerait toutes à la fin — l'affichage progressif n'aurait plus rien de progressif.
+    return StreamingResponse(flux(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post("/admin/referentiels/valider", dependencies=[Depends(_require_admin)])
+def valider(body: ValiderBody, db: Session = Depends(get_db)):
+    """Dépôt COMPLET en un seul geste : le rangement (ci-dessus) puis la proposition des matières
+    par l'IA. Conservé tel quel pour les appels qui font tout d'un coup."""
+    reponse, ref_id, texte_epure = _enregistrer_referentiel(body, db)
+    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne retient jamais une
+    # matière d'office : elle les écrit sur le référentiel avec `validee=false` — l'admin coche
+    # ce qu'il garde. Best-effort : une panne IA ne casse pas la validation du référentiel (une
+    # proposition n'est qu'une aide au remplissage, jamais une donnée figée).
+    if ref_id is not None:
+        try:
+            from backend.rag.analyse_amont import detecter_matieres
+            if texte_epure.strip():                 # le texte de travail qui vient d'être figé (get)
+                _ecrire_matieres_proposees(db, ref_id, detecter_matieres(texte_epure, db=db))
+        except Exception:
+            logger.exception("valider : détection des matières échouée (%s)", reponse.get("niveau"))
+    return reponse
+
+
+class MatieresProposerBody(BaseModel):
+    cycle_id: int
+    niveau: str
+
+
+def _prompt_matieres_du_cycle(db: Session, cycle_id: int, texte: str) -> str | None:
+    """LE prompt qui lit les matières de ce cycle. S'il n'existe pas encore, il est ÉCRIT ICI,
+    tout de suite, par l'IA (méta-prompt en base + ce référentiel comme exemple de la famille),
+    puis rangé sur le cycle : le geste de l'admin reste UN clic sur « Proposer les matières », et
+    le référentiel suivant du même cycle le trouvera déjà fait.
+
+    Le prompt SERT dès qu'il existe. `prompt_matieres_valide` ne commande pas son usage : il dit
+    seulement si l'admin l'a relu — il peut l'ouvrir, le corriger et le valider quand il veut.
+
+    None si la rédaction échoue : la détection retombe alors sur le prompt général, sans casser le
+    geste (une panne de l'IA ne doit pas empêcher de proposer des matières)."""
+    cyc = db.get(Cycle, cycle_id)
+    if cyc is None:
+        return None
+    deja = (cyc.prompt_matieres or "").strip()
+    if deja:
+        return deja
+    from backend.rag.analyse_amont import generer_prompt_matieres
+    try:
+        prompt = generer_prompt_matieres(texte, db=db).strip()
+    except Exception:
+        logger.exception("matieres : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        return None
+    if not prompt:
+        return None
+    cyc.prompt_matieres = prompt
+    cyc.prompt_matieres_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    db.commit()
+    logger.info("matieres : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    return prompt
+
+
+@router.post("/admin/referentiels/matieres-proposer", dependencies=[Depends(_require_admin)])
+def matieres_proposer(body: MatieresProposerBody, db: Session = Depends(get_db)):
+    """Bouton « Proposer les matières » — UN seul clic, deux temps chez le serveur :
+
+    1. le prompt du CYCLE : déjà en base, sinon écrit à l'instant par l'IA (le référentiel sert
+       d'exemple de sa famille) — un prompt taillé pour des BTS lit ce qu'un prompt passe-partout
+       laisse tomber, et il resservira à tous les BTS suivants ;
+    2. la lecture des matières avec ce prompt-là, sur le texte DÉJÀ figé en base (aucune
+       ré-extraction du PDF). Elles sont écrites non cochées — l'admin coche ce qu'il retient."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel enregistré pour ce couple : vérifiez d'abord le document.")
+    texte = ref.texte_epure or ""
+    if not texte.strip():
+        raise HTTPException(400, "Le texte de travail de ce référentiel est vide : rien à lire.")
+    from backend.rag.analyse_amont import detecter_matieres
+    try:
+        noms = detecter_matieres(texte, db=db,
+                                 prompt_cycle=_prompt_matieres_du_cycle(db, body.cycle_id, texte))
+    except Exception:
+        logger.exception("matieres_proposer : détection des matières échouée (%s)", body.niveau)
+        raise HTTPException(400, "La proposition des matières par l'IA a échoué.")
+    _ecrire_matieres_proposees(db, ref.id, noms)
+    return {"ok": True, "proposees": len(noms)}
+
+
+# ── Le prompt de MATIÈRES du cycle : écrit par l'IA, relu et validé par l'admin ──────
+#
+# Même geste que le prompt de découpe, mais rangé sur le CYCLE : un cycle = une famille de
+# documents bâtis pareil, donc le prompt écrit sur le premier BTS sert à tous les BTS.
+
+class PromptMatieresBody(BaseModel):
+    cycle_id: int
+    prompt: str
+
+
+class GenererPromptMatieresBody(BaseModel):
+    cycle_id: int
+    niveau: str        # le référentiel de ce couple sert d'EXEMPLE de la famille
+
+
+@router.get("/admin/cycles/prompt-matieres", dependencies=[Depends(_require_admin)])
+def lire_prompt_matieres(cycle_id: int, db: Session = Depends(get_db)):
+    """Lit le prompt de matières du cycle (EN BASE) + son statut de validation."""
+    cyc = db.get(Cycle, cycle_id)
+    if cyc is None:
+        raise HTTPException(404, "Cycle inconnu.")
+    return {"cycle": cyc.nom, "prompt": cyc.prompt_matieres or "",
+            "valide": bool(cyc.prompt_matieres_valide)}
+
+
+@router.post("/admin/cycles/prompt-matieres/generer", dependencies=[Depends(_require_admin)])
+def generer_prompt_matieres_cycle(body: GenererPromptMatieresBody, db: Session = Depends(get_db)):
+    """L'IA REDIGE le prompt qui lira les matières des référentiels de ce cycle, à partir du
+    référentiel du couple pris comme EXEMPLE de la famille (méta-prompt lu EN BASE + son texte).
+    Stocké sur le cycle, `valide=false` : l'admin doit le relire puis le valider avant qu'il serve."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord un document.")
+    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
+    from backend.rag.analyse_amont import generer_prompt_matieres
+    try:
+        prompt = generer_prompt_matieres(texte, db=db)
+    except Exception as e:
+        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}")
+    cyc = db.get(Cycle, body.cycle_id)
+    cyc.prompt_matieres = prompt
+    cyc.prompt_matieres_valide = False
+    db.commit()
+    return {"ok": True, "prompt": prompt, "valide": False}
+
+
+class PromptDecoupeCycleBody(BaseModel):
+    cycle_id: int
+    prompt: str
+
+
+@router.get("/admin/cycles/prompt-decoupe", dependencies=[Depends(_require_admin)])
+def lire_prompt_decoupe_cycle(cycle_id: int, db: Session = Depends(get_db)):
+    """Lit le prompt de DÉCOUPE du cycle (EN BASE) + son statut de validation."""
+    cyc = db.get(Cycle, cycle_id)
+    if cyc is None:
+        raise HTTPException(404, "Cycle inconnu.")
+    return {"cycle": cyc.nom, "prompt": cyc.prompt_decoupe or "",
+            "valide": bool(cyc.prompt_decoupe_valide)}
+
+
+@router.post("/admin/cycles/prompt-decoupe/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_decoupe_cycle(body: PromptDecoupeCycleBody, db: Session = Depends(get_db)):
+    """L'admin enregistre le prompt de découpe (éventuellement corrigé à la main) et le VALIDE →
+    c'est lui qui découpera TOUS les référentiels de ce cycle. Prompt vide refusé ; sans le
+    marqueur {texte}, refusé aussi : sans lui, le document ne serait jamais inséré dedans."""
+    cyc = db.get(Cycle, body.cycle_id)
+    if cyc is None:
+        raise HTTPException(404, "Cycle inconnu.")
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "Le prompt de découpe est vide.")
+    if "{texte}" not in prompt:
+        raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
+                                 "document sera inséré.")
+    cyc.prompt_decoupe = prompt
+    cyc.prompt_decoupe_valide = True
+    db.commit()
+    return {"ok": True, "valide": True}
+
+
+@router.post("/admin/cycles/prompt-matieres/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_matieres_cycle(body: PromptMatieresBody, db: Session = Depends(get_db)):
+    """L'admin enregistre le prompt (éventuellement corrigé à la main) et le VALIDE → c'est lui
+    qui lira les matières de TOUS les référentiels de ce cycle. Prompt vide refusé ; sans le
+    marqueur {texte}, refusé aussi : sans lui, le document ne serait jamais inséré dedans."""
+    cyc = db.get(Cycle, body.cycle_id)
+    if cyc is None:
+        raise HTTPException(404, "Cycle inconnu.")
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "Le prompt des matières est vide.")
+    if "{texte}" not in prompt:
+        raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
+                                 "document sera inséré.")
+    cyc.prompt_matieres = prompt
+    cyc.prompt_matieres_valide = True
+    db.commit()
+    return {"ok": True, "valide": True}
 
 
 # ── État d'un couple : le référentiel est-il DÉJÀ enregistré ? nom réel + matières ──
@@ -690,17 +919,35 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
         "existe_referentiel": ref is not None,
         "referentiel": (
             {"fichier": ref.fichier, "source": ref.source, "date_doc": ref.date_doc,
-             "forcage_motif": ref.forcage_motif, "verif_couple": ref.verif_couple}
+             "forcage_motif": ref.forcage_motif, "verif_couple": ref.verif_couple,
+             # La preuve du contrôle n°1, telle qu'elle a été figée au dépôt (get, zéro copie).
+             "controle_niveau": ref.controle_niveau}
             if ref else None
         ),
         "matieres": matieres,
-        # Drapeaux de validation lus sur la MÊME ligne `ref` (get) — la table front les lit via etat.
-        "prompt_decoupe_valide": bool(ref.prompt_decoupe_valide) if ref else False,
+        # Le prompt de découpe qui SERT est celui du CYCLE : c'est SON drapeau qu'on renvoie.
+        "prompt_decoupe_valide": bool(db.get(Cycle, cycle_id).prompt_decoupe_valide),
         "decoupe_valide": bool(ref.decoupe_valide) if ref else False,
     }
 
 
 # ── Relecture : servir le PDF d'origine d'un couple déjà enregistré (lecture seule) ──
+
+@router.get("/admin/referentiels/depot-pdf", dependencies=[Depends(_require_admin)])
+def voir_depot_pdf(token: str):
+    """Sert le PDF EN ATTENTE (zone de dépôt), pour que l'admin l'OUVRE avant de valider —
+    « Voir » dans la liste des documents déposés. Lecture seule : ne range rien, ne modifie rien.
+    Le jeton est un uuid4 hexadécimal ; toute autre forme est refusée, donc aucun chemin ne peut
+    être fabriqué depuis l'extérieur."""
+    jeton = (token or "").strip().lower()
+    if len(jeton) != 32 or any(c not in "0123456789abcdef" for c in jeton):
+        raise HTTPException(400, "Jeton de document invalide.")
+    staged = STAGING_DIR / f"{jeton}.pdf"
+    if not staged.exists():
+        raise HTTPException(404, "Document introuvable (aperçu expiré ?). Recommencez le dépôt.")
+    return FileResponse(str(staged), media_type="application/pdf",
+                        headers={"Content-Disposition": "inline; filename=document.pdf"})
+
 
 @router.get("/admin/referentiels/pdf", dependencies=[Depends(_require_admin)])
 def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
@@ -712,26 +959,6 @@ def voir_pdf(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     pdf = REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.strip()) / "referentiel.pdf"
     if not pdf.exists():
         raise HTTPException(404, "Aucun référentiel enregistré pour ce couple.")
-    return FileResponse(str(pdf), media_type="application/pdf",
-                        headers={"Content-Disposition": "inline; filename=referentiel.pdf"})
-
-
-@router.get("/admin/referentiels/depot-pdf", dependencies=[Depends(_require_admin)])
-def voir_pdf_depot(token: str, db: Session = Depends(get_db)):
-    """Sert le PDF qui est EN ZONE D'ATTENTE, désigné par son jeton — l'admin doit pouvoir
-    regarder le document qu'il vient de déposer, avant toute validation.
-
-    Même geste que `voir_pdf` juste au-dessus (lecture seule, inline, visionneuse du navigateur),
-    mais l'adresse du fichier ne vient pas du couple — il n'est pas encore connu : elle vient de
-    la ligne de dépôt (`referentiel_depots.chemin`). Ligne sans fichier : l'invariant de la zone
-    d'attente veut qu'aucune des deux ne survive seule, la ligne part et on répond 404."""
-    depot = db.query(ReferentielDepot).filter(ReferentielDepot.token == token).first()
-    if depot is None:
-        raise HTTPException(404, "Aucun document en attente pour ce jeton.")
-    pdf = _ROOT / depot.chemin
-    if not pdf.exists():
-        _oublier_depot(db, token)
-        raise HTTPException(404, "Le document en attente n'existe plus.")
     return FileResponse(str(pdf), media_type="application/pdf",
                         headers={"Content-Disposition": "inline; filename=referentiel.pdf"})
 
@@ -760,10 +987,10 @@ class RegleStatutBody(BaseModel):
     niveau: str                 # couple = cycle + niveau ; entre dans le chemin de la découpe
 
 
-# ── Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché/corrigé/validé ──
-#    par l'admin. Aucun prompt écrit en dur : le méta-prompt vit en base (Setting), le prompt du
-#    couple aussi (colonnes referentiels.prompt_decoupe / prompt_decoupe_valide). La découpe refuse
-#    de tourner tant que le prompt du couple n'est pas validé (garde-fou, cap « aSchool n'invente rien »).
+# ── Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base) et rangé sur le CYCLE depuis le ──
+#    05/08/2026 (cycles.prompt_decoupe) : l'ossature d'un référentiel est celle de toute sa famille.
+#    Aucun prompt écrit en dur : le méta-prompt vit en base (Setting), le prompt du cycle aussi.
+#    L'écran Référentiels ne fait plus que le MONTRER — il s'écrit dans Prompts → Découpe par cycle.
 
 def _pdf_du_couple(db: Session, cycle_id: int, niveau: str) -> Path:
     """Chemin du PDF déposé pour le couple (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf)."""
@@ -792,104 +1019,80 @@ def _texte_du_couple(db: Session, ref: Referentiel) -> str:
     return ref.texte_epure
 
 
-class PromptDecoupeBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    prompt: str
+def _prompt_decoupe_du_cycle(db: Session, cycle_id: int, texte: str) -> str:
+    """LE prompt qui découpe les référentiels de ce cycle. Même geste que `_prompt_matieres_du_cycle` :
+    s'il n'existe pas encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce
+    référentiel comme exemple de la famille), puis rangé sur le cycle — le référentiel suivant du
+    même cycle le trouvera déjà fait.
+
+    Le prompt SERT dès qu'il existe. `prompt_decoupe_valide` ne commande pas son usage : il dit
+    seulement si l'admin l'a relu — il peut l'ouvrir, le corriger et le valider quand il veut.
+
+    Lève si la rédaction échoue : sans prompt, il n'y a pas de découpe possible (contrairement aux
+    matières, aucun prompt général ne peut prendre le relais)."""
+    cyc = db.get(Cycle, cycle_id)
+    if cyc is None:
+        raise HTTPException(404, "Cycle inconnu.")
+    deja = (cyc.prompt_decoupe or "").strip()
+    if deja:
+        return deja
+    from backend.rag.analyse_amont import generer_prompt_decoupe
+    try:
+        prompt = generer_prompt_decoupe(texte, db=db).strip()
+    except Exception as e:
+        logger.exception("decoupe : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        raise HTTPException(400, f"Génération du prompt de découpe par l'IA impossible : {e}")
+    if not prompt:
+        raise HTTPException(400, "L'IA n'a rendu aucun prompt de découpe.")
+    cyc.prompt_decoupe = prompt
+    cyc.prompt_decoupe_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    db.commit()
+    logger.info("decoupe : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    return prompt
 
 
 @router.get("/admin/referentiels/prompt-decoupe", dependencies=[Depends(_require_admin)])
 def lire_prompt_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit le prompt de découpe du couple (EN BASE) + son statut de validation. `existe:false` si
-    aucun référentiel pour ce couple."""
+    """Lit le prompt de découpe qui SERT à ce couple — celui du CYCLE (05/08/2026) — et son statut
+    de validation. L'écran Référentiels ne fait que le MONTRER : il se corrige dans Prompts →
+    Découpe par cycle. `existe:false` si aucun référentiel pour ce couple.
+    `decoupe_valide` reste, lui, propre au couple : c'est SON découpage qui a été ingéré."""
     ref = _ref_du_couple(db, cycle_id, niveau)
     if ref is None:
         return {"existe": False}
-    return {"existe": True, "prompt": ref.prompt_decoupe or "", "valide": bool(ref.prompt_decoupe_valide),
+    cyc = db.get(Cycle, cycle_id)
+    return {"existe": True, "prompt": (cyc.prompt_decoupe or "") if cyc else "",
+            "valide": bool(cyc.prompt_decoupe_valide) if cyc else False,
             "decoupe_valide": bool(ref.decoupe_valide)}
 
 
-@router.post("/admin/referentiels/prompt-decoupe/generer", dependencies=[Depends(_require_admin)])
-def generer_prompt_decoupe_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """L'IA GÉNÈRE le prompt de découpe adapté à CE document (méta-prompt lu EN BASE + texte du PDF).
-    Stocké sur le couple, `valide=false` (l'admin doit le relire puis valider). Renvoie le prompt."""
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
-    from backend.rag.analyse_amont import generer_prompt_decoupe
-    try:
-        prompt = generer_prompt_decoupe(texte, db=db)
-    except Exception as e:
-        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}")
-    ref.prompt_decoupe = prompt
-    ref.prompt_decoupe_valide = False
-    db.commit()
-    return {"ok": True, "prompt": prompt, "valide": False}
-
-
-class RegenererPromptBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    prompt_actuel: str
-    remarques: str
-
-
-@router.post("/admin/referentiels/prompt-decoupe/regenerer", dependencies=[Depends(_require_admin)])
-def regenerer_prompt_decoupe_couple(body: RegenererPromptBody, db: Session = Depends(get_db)):
-    """L'IA CORRIGE le prompt de découpe à partir des REMARQUES de l'admin (français clair). Reprend
-    le prompt actuel + les remarques, produit un NOUVEAU prompt qui en tient compte, le stocke sur le
-    couple avec `valide=false` (l'admin relit puis valide). Répétable à volonté. N'efface rien."""
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
-    from backend.rag.analyse_amont import regenerer_prompt_decoupe
-    try:
-        prompt = regenerer_prompt_decoupe(
-            texte, prompt_actuel=body.prompt_actuel, remarques=body.remarques, db=db)
-    except Exception as e:
-        raise HTTPException(400, f"Régénération du prompt par l'IA impossible : {e}")
-    ref.prompt_decoupe = prompt
-    ref.prompt_decoupe_valide = False
-    db.commit()
-    return {"ok": True, "prompt": prompt, "valide": False}
-
-
-@router.post("/admin/referentiels/prompt-decoupe/valider", dependencies=[Depends(_require_admin)])
-def valider_prompt_decoupe_couple(body: PromptDecoupeBody, db: Session = Depends(get_db)):
-    """L'admin enregistre le prompt (éventuellement corrigé à la main) et le VALIDE (`valide=true`)
-    → la découpe pourra tourner. Prompt vide refusé."""
-    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
-    if ref is None:
-        raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    if not (body.prompt or "").strip():
-        raise HTTPException(422, "Le prompt de découpe est vide.")
-    ref.prompt_decoupe = body.prompt
-    ref.prompt_decoupe_valide = True
-    db.commit()
-    return {"ok": True, "valide": True}
+# Les trois portes qui ÉCRIVAIENT le prompt de découpe sur le couple (generer / regenerer /
+# valider) ont été retirées le 05/08/2026 : le prompt vit désormais sur le CYCLE, et un seul écran
+# l'écrit (Prompts → Découpe par cycle, POST /admin/cycles/prompt-decoupe/valider). Deux éditeurs
+# sur la même colonne finissaient par s'écraser sans prévenir. `referentiels.prompt_decoupe` reste
+# en base : c'est l'historique des couples déjà traités, plus une source.
 
 
 @router.post("/admin/referentiels/prompt-decoupe/decouper", dependencies=[Depends(_require_admin)])
 def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """Déclenche la découpe (LECTURE SEULE, aucune ingestion) avec le prompt VALIDÉ du couple, et
-    renvoie les unités produites par l'IA (titre + taille). Refuse si le prompt n'est pas validé."""
+    """Déclenche la découpe (LECTURE SEULE, aucune ingestion) avec le prompt du CYCLE, et renvoie
+    les unités produites par l'IA (titre + taille). Le prompt du cycle est écrit par l'IA au premier
+    référentiel de ce cycle, puis réutilisé par tous les suivants : le geste de l'admin reste UN
+    clic. Il SERT dès qu'il existe — `valide` dit seulement s'il a été relu."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    if not ref.prompt_decoupe_valide:
-        raise HTTPException(400, "Prompt de découpe non validé : validez-le avant de découper.")
     texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
+    prompt = _prompt_decoupe_du_cycle(db, body.cycle_id, texte)
     from backend.rag.pgvector_store import _decouper_ia
     try:
-        chunks = _decouper_ia(texte, ref.prompt_decoupe or "")
+        chunks = _decouper_ia(texte, prompt)
     except Exception as e:
         raise HTTPException(400, f"Découpe par l'IA impossible : {e}")
     # On garde ce résultat (avec le prompt qui l'a produit) : la validation écrira EXACTEMENT
     # cette découpe — celle que l'admin voit — au lieu de refaire l'appel IA.
     with _DECOUPES_LOCK:
-        _DECOUPES_APERCU[ref.collection] = {"prompt": ref.prompt_decoupe or "", "chunks": chunks}
+        _DECOUPES_APERCU[ref.collection] = {"prompt": prompt, "chunks": chunks}
     unites = [{"titre": c["text"].split("\n")[0].strip(), "taille": len(c["text"])} for c in chunks]
     return {"ok": True, "total": len(unites), "unites": unites}
 
@@ -1036,12 +1239,16 @@ def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
     """Bouton FINAL : l'admin accepte la découpe. LANCE l'ingestion (découpe + embeddings + chunks
     EN BASE, puis `decoupe_valide=true`) en TÂCHE DE FOND et rend la main aussitôt — l'opération est
     trop longue pour tenir dans une requête HTTP. L'écran surveille ensuite via /decoupe/statut.
-    Garde métier : on ne valide pas la découpe tant que le PROMPT n'est pas validé (elle en dépend)."""
+    Garde métier : il faut un prompt de découpe pour ce cycle (elle en dépend). Il est écrit par
+    l'IA au premier référentiel du cycle, donc le seul cas refusé ici est celui d'un couple dont on
+    n'a jamais lancé la découpe."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    if not ref.prompt_decoupe_valide:
-        raise HTTPException(400, "Validez d'abord le prompt de découpe.")
+    cyc = db.get(Cycle, body.cycle_id)
+    if not (cyc and (cyc.prompt_decoupe or "").strip()):
+        raise HTTPException(400, "Ce cycle n'a pas encore de prompt de découpe : lancez d'abord "
+                                 "la découpe (l'IA l'écrit à ce moment-là).")
     collection = ref.collection
     with _INGESTIONS_LOCK:
         deja = _INGESTIONS.get(collection, {}).get("status") == "running"
@@ -1217,20 +1424,30 @@ class RetirerMatiereBody(BaseModel):
 
 @router.post("/admin/referentiels/retirer-matiere", dependencies=[Depends(_require_admin)])
 def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
-    """Retire une matière du programme = `actif=False` sur SA ligne (historique conservé, JAMAIS
-    de suppression dure). Garde : la matière doit bien appartenir au référentiel de ce couple —
-    on ne retire pas la matière d'un autre diplôme depuis cet écran. Signale, sans rien casser,
-    combien de profs l'ont encore à leur profil.
+    """Deux gestes, selon ce qu'est la ligne — et c'est la seule différence qui compte :
 
-    Le comptage des « référentiels qui utilisent cette matière » a disparu avec la colonne
-    `referentiels.matiere_id` : le référentiel ne pointe plus vers une matière, il la POSSÈDE —
-    il y en a donc exactement un, celui du couple affiché, et le dire n'apprend rien."""
+    • une PROPOSITION (`validee=false`) : elle n'est JAMAIS entrée au programme, aucun prof ne la
+      voit. Elle est SUPPRIMÉE, vraiment (DELETE). La désactiver serait pire qu'inutile : la ligne
+      resterait en base et l'anti-doublon de la lecture suivante refuserait de la reproposer — le
+      document semblait alors ne plus rien contenir (constat du 04/08 : une liste vidée puis relue
+      revenait avec UNE matière).
+    • une matière RETENUE (`validee=true`) : elle est au programme, des profs peuvent y être
+      rattachés. Elle est DÉSACTIVÉE (`actif=False`), historique conservé, retrait réversible.
+
+    Garde commune : la matière doit appartenir au référentiel de ce couple — on ne touche pas à
+    la matière d'un autre diplôme depuis cet écran. Signale, sans rien casser, combien de profs
+    l'ont encore à leur profil."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
     mat = db.get(Matiere, body.matiere_id)
     if not mat or mat.referentiel_id != ref.id:
         raise HTTPException(404, "Cette matière n'appartient pas au référentiel de ce couple.")
+    if not mat.validee:
+        nom = mat.nom
+        db.delete(mat)
+        db.commit()
+        return {"ok": True, "supprimee": True, "matiere": nom, "profs": 0}
     if not mat.actif:
         return {"ok": True, "deja_absente": True, "matiere": mat.nom, "profs": 0}
     # Comptage PAR CLÉ, sur les DEUX rattachements — comme le fait la suppression du référentiel
@@ -1246,259 +1463,35 @@ def retirer_matiere(body: RetirerMatiereBody, db: Session = Depends(get_db)):
 
 # ── CRUD référentiel : supprimer ────────────────────────────────────────────
 
-def _profs_lies(db: Session, referentiel_id: int) -> list[User]:
-    """Les professeurs rattachés à une matière de ce référentiel — NOMMÉMENT, pas un nombre.
-    L'admin doit savoir QUI il met en attente avant de le faire. Les deux rattachements comptent :
-    la matière du profil et celle du couple de travail."""
-    return (db.query(User)
-              .join(Matiere, (Matiere.id == User.subject_id) | (Matiere.id == User.travail_matiere_id))
-              .filter(Matiere.referentiel_id == referentiel_id)
-              .order_by(User.nom, User.prenom, User.email).distinct().all())
-
-
-def _profs_du_referentiel(db: Session, referentiel_id: int) -> int:
-    """Combien de professeurs travaillent sur une matière de ce référentiel — LA règle qui décide
-    du refus de suppression, à UN SEUL endroit.
-
-    Les deux rattachements comptent : la matière du profil (`subject_id`) et celle du couple de
-    TRAVAIL (`travail_matiere_id`) — n'en compter qu'un sous-estimerait, et un prof perdrait sa
-    matière sans figurer dans le nombre annoncé.
-
-    Écrite une fois parce qu'elle est lue deux fois : le bilan l'ANNONCE avant le clic, la
-    suppression l'APPLIQUE. Recopiée, elle dériverait — le bilan dirait « 0 professeur » et la
-    suppression refuserait quand même."""
-    return (db.query(User)
-              .join(Matiere, (Matiere.id == User.subject_id) | (Matiere.id == User.travail_matiere_id))
-              .filter(Matiere.referentiel_id == referentiel_id).count())
-
-
-@router.get("/admin/referentiels/supprimer-bilan", dependencies=[Depends(_require_admin)])
-def bilan_suppression(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """CE QUI PARTIRA si on supprime le référentiel de ce couple — compté EN BASE, jamais estimé.
-
-    L'admin doit LIRE ce qu'il perd avant de décider, pas le deviner : matières, unités de
-    découpe, types d'activité et leurs précisions, et le PDF sur disque. `profs` dit combien de
-    professeurs travaillent sur une matière de ce référentiel : au-dessus de zéro, la suppression
-    sera refusée (409) — autant l'annoncer avant plutôt que de le découvrir au clic.
-
-    Lecture seule, aucune écriture. `existe` faux = rien à supprimer, tous les comptes à zéro."""
-    ref = _ref_du_couple(db, cycle_id, niveau)             # 404 cycle / 422 niveau
-    if ref is None:
-        return {"existe": False, "matieres": 0, "unites": 0, "types": 0, "precisions": 0,
-                "pdf": False, "profs": 0, "profs_liste": [], "fichier": None}
-    liens = db.query(ReferentielActiviteType).filter(ReferentielActiviteType.referentiel_id == ref.id)
-    ids_liens = [l.id for l in liens.all()]
-    # Les profs NOMMÉMENT : c'est eux que l'admin s'apprête à mettre en attente. La matière
-    # affichée est celle qui les rattache À CE référentiel (profil, sinon couple de travail).
-    noms_matieres = {m.id: m.nom for m in db.query(Matiere).filter(Matiere.referentiel_id == ref.id).all()}
-    profs_liste = [{
-        "id": u.id, "prenom": u.prenom, "nom": u.nom, "email": u.email,
-        "matiere": noms_matieres.get(u.subject_id) or noms_matieres.get(u.travail_matiere_id),
-    } for u in _profs_lies(db, ref.id)]
-    return {
-        "existe": True,
-        "fichier": ref.fichier,
-        "matieres": db.query(Matiere).filter(Matiere.referentiel_id == ref.id).count(),
-        "unites": db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count(),
-        "types": len(ids_liens),
-        "precisions": (db.query(ReferentielTypePrecision)
-                         .filter(ReferentielTypePrecision.referentiel_activite_type_id.in_(ids_liens))
-                         .count() if ids_liens else 0),
-        "pdf": _pdf_du_couple(db, cycle_id, niveau).exists(),
-        "profs": _profs_du_referentiel(db, ref.id),
-        "profs_liste": profs_liste,
-    }
-
-
 class SupprimerRefBody(BaseModel):
     cycle_id: int
     niveau: str
-    # Le geste ASSUMÉ de l'admin : il a vu les profs nommément et confirmé deux fois. C'est le
-    # SEUL chemin qui contourne le refus 409 — une suppression appelée autrement reste refusée.
-    bloquer_profs: bool = False
-
-
-def _avis_maj(db: Session, user: User, slug: str, suite: str = "") -> None:
-    """Envoie au prof l'avis de début ou de fin de mise à jour. Le texte vient de la BASE
-    (`email_templates`, semés en migration) : l'admin le corrige dans Admin → Email sans nous,
-    et aucun texte de repli n'est inventé ici. Ne lève jamais — un serveur de mail muet ne doit
-    pas faire échouer une suppression déjà commitée ; l'échec est tracé, et le prof lira de
-    toute façon le même message à l'écran."""
-    from backend.securite import comptes
-    from backend.systeme.admin import record_email_envoi
-    from backend.core.models_db import EmailTemplate
-    modele = db.query(EmailTemplate).filter(EmailTemplate.slug == slug).first()
-    if modele is None:
-        logger.error("Avis de mise à jour : modèle '%s' absent de la base.", slug)
-        return
-    statut, erreur = "envoye", None
-    try:
-        comptes.send_custom_email(user.email, user.prenom, modele.objet,
-                                  modele.corps.replace("{suite}", suite))
-    except Exception as e:
-        statut, erreur = "echec", f"{type(e).__name__}: {e}"
-        logger.error("Avis de mise à jour non envoyé à %s : %s", user.email, erreur)
-    record_email_envoi(db, modele_slug=modele.slug, modele_nom=modele.nom,
-                       destinataire=user.email, objet=modele.objet, statut=statut, erreur=erreur)
-
-
-def _bloquer_et_detacher(db: Session, ref: Referentiel, niveau_id: int) -> list[User]:
-    """Met les profs de ce référentiel en attente et DÉTACHE leurs matières — c'est ce
-    détachement, et lui seul, qui rend la suppression possible : `fk_users_subject_id` est en
-    NO ACTION, une matière encore pointée fait ÉCHOUER l'écriture (pas un refus poli).
-
-    La ligne mémorise les NOMS avant de vider les clés : les identifiants meurent avec le
-    référentiel, les noms se re-résolvent dans le suivant.
-
-    LES DEUX COLONNES DU COUPLE DE TRAVAIL SONT VIDÉES ENSEMBLE. `couple_de_travail` exige les
-    deux : n'en vider qu'une la ferait retomber SILENCIEUSEMENT sur le couple du profil — un
-    autre niveau, non bloqué, sur lequel le prof n'a jamais demandé à travailler.
-
-    N'écrit rien d'autre : la suppression et le commit sont à l'appelant, dans la même
-    transaction. Renvoie les profs concernés, pour les prévenir APRÈS le commit."""
-    from backend.core.models_db import ProfBloqueMaj
-    profs = _profs_lies(db, ref.id)
-    noms = {m.id: m.nom for m in db.query(Matiere).filter(Matiere.referentiel_id == ref.id).all()}
-    for u in profs:
-        ligne = (db.query(ProfBloqueMaj)
-                   .filter(ProfBloqueMaj.user_id == u.id, ProfBloqueMaj.niveau_id == niveau_id)
-                   .first())
-        if ligne is None:
-            ligne = ProfBloqueMaj(user_id=u.id, niveau_id=niveau_id)
-            db.add(ligne)
-        ligne.etat, ligne.resultat, ligne.debloque_le = "bloque", None, None
-        if u.subject_id in noms:                 # sa matière de PROFIL part avec le référentiel
-            ligne.matiere_nom = noms[u.subject_id]
-            u.subject_id = None
-        if u.travail_matiere_id in noms:         # son couple de TRAVAIL visait ce référentiel
-            ligne.travail_matiere_nom = noms[u.travail_matiere_id]
-            ligne.travail_niveau_id = u.travail_niveau_id
-            u.travail_matiere_id = None
-            u.travail_niveau_id = None           # LES DEUX, jamais une seule
-    return profs
 
 
 @router.post("/admin/referentiels/supprimer", dependencies=[Depends(_require_admin)])
 def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db)):
-    """Supprime le référentiel d'un couple — refusé (409) tant qu'un prof est rattaché à l'une de
-    ses matières. Efface la ligne `referentiels` + le PDF sur disque. Ses matières, ses unités,
-    ses types d'activité et leurs précisions partent avec lui (CASCADE) : rien de tout cela
-    n'existe sans le document qui le nomme.
-
-    Le refus « déjà ingéré : n unité(s) » A ÉTÉ RETIRÉ. Il protégeait la mauvaise chose : les
-    unités ne sont pas du travail humain, elles se RECALCULENT à partir du PDF. Ce qu'il
-    verrouillait, en revanche, c'était le catalogue — un référentiel mené au bout de la procédure
-    ne pouvait plus jamais être retiré, alors que c'est exactement ce qu'il faut faire quand
-    l'Éducation nationale publie une nouvelle version : tout supprimer et refaire la procédure.
-    Le seul refus qui reste est celui qui protège du VRAI monde : des profs au travail."""
+    """Supprime le référentiel d'un couple — UNIQUEMENT s'il n'a JAMAIS servi (aucun chunk ingéré)
+    et si aucun prof n'est rattaché à l'une de ses matières ; sinon refus (409). Efface la ligne
+    `referentiels` + le PDF sur disque. Ses matières partent avec lui (CASCADE) : une matière
+    n'existe pas sans le document qui la nomme."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)   # 404 cycle / 422 niveau
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    # DELETE encadré : ses matières tombent avec lui, or un prof peut en avoir une à son profil ou à
-    # son couple de travail. On refuse AVANT d'écrire, avec un message qui dit quoi faire. MÊME
-    # comptage que celui annoncé par le bilan — une seule source, sinon les deux chiffres dérivent.
-    profs = _profs_du_referentiel(db, ref.id)
-    bloques: list[User] = []
-    if profs > 0 and not body.bloquer_profs:
+    n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
+    if n > 0:
+        raise HTTPException(409, f"Référentiel utilisé (déjà ingéré : {n} unité(s)) — suppression impossible.")
+    # DELETE encadré : ses matières tombent avec lui, or un prof peut en avoir une à son
+    # profil ou à son couple de travail. On refuse AVANT d'écrire, avec un message qui dit quoi faire.
+    profs = (db.query(User)
+               .join(Matiere, (Matiere.id == User.subject_id) | (Matiere.id == User.travail_matiere_id))
+               .filter(Matiere.referentiel_id == ref.id).count())
+    if profs > 0:
         raise HTTPException(409, f"{profs} professeur(s) travaillent sur une matière de ce référentiel — "
                                  "suppression impossible. Changez d'abord leur matière.")
-    if profs > 0:
-        # Geste assumé : mise en attente + détachement, DANS la même transaction que la
-        # suppression. Ni l'un ni l'autre ne peut exister seul — sinon on aurait des profs
-        # bloqués devant un référentiel toujours là.
-        bloques = _bloquer_et_detacher(db, ref, ref.niveau_id)
+    _pdf_du_couple(db, body.cycle_id, body.niveau).unlink(missing_ok=True)
     db.delete(ref)
     db.commit()
-
-    # APRÈS le commit, et seulement après : ce qui ne s'annule pas. Le PDF effacé ne revient pas,
-    # un e-mail parti ne se rappelle pas — les mettre dans la transaction, c'est risquer des
-    # profs prévenus d'une mise à jour qui n'a pas eu lieu. (Le PDF était effacé AVANT le commit
-    # jusqu'ici : un commit en échec laissait le document perdu et la fiche en place.)
-    _pdf_du_couple(db, body.cycle_id, body.niveau).unlink(missing_ok=True)
-    for u in bloques:
-        _avis_maj(db, u, "referentiel_maj_debut")
-    return {"ok": True, "profs_bloques": len(bloques)}
-
-
-class DebloquerBody(BaseModel):
-    cycle_id: int
-    niveau: str
-
-
-@router.get("/admin/referentiels/blocages", dependencies=[Depends(_require_admin)])
-def blocages_du_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Qui est en attente sur ce niveau, nommément, et où il en est. Sert au bouton de déblocage
-    (visible tant qu'il reste des lignes) et à la liste que l'admin relit après coup — la boîte
-    affichée au moment du déblocage ne doit pas être la seule trace."""
-    from backend.core.models_db import ProfBloqueMaj
-    niv = (db.query(Niveau).filter(Niveau.nom == (niveau or "").strip(),
-                                   Niveau.cycle_id == cycle_id).first())
-    if not niv:
-        return {"niveau_id": None, "bloques": 0, "a_informer": 0, "profs": []}
-    lignes = (db.query(ProfBloqueMaj, User).join(User, User.id == ProfBloqueMaj.user_id)
-                .filter(ProfBloqueMaj.niveau_id == niv.id)
-                .order_by(User.nom, User.prenom, User.email).all())
-    return {
-        "niveau_id": niv.id,
-        "bloques": sum(1 for l, _ in lignes if l.etat == "bloque"),
-        "a_informer": sum(1 for l, _ in lignes if l.etat == "a_informer"),
-        "profs": [{"id": u.id, "prenom": u.prenom, "nom": u.nom, "email": u.email,
-                   "matiere": l.matiere_nom, "etat": l.etat, "resultat": l.resultat}
-                  for l, u in lignes],
-    }
-
-
-@router.post("/admin/referentiels/debloquer", dependencies=[Depends(_require_admin)])
-def debloquer_profs(body: DebloquerBody, db: Session = Depends(get_db)):
-    """Geste EXPLICITE de l'admin : la nouvelle procédure est en place, les profs reprennent.
-    Jamais déclenché tout seul par la fin de la découpe — l'admin seul sait si c'est prêt.
-
-    Rebranche chaque prof PAR LE NOM de sa matière, dans le NOUVEAU référentiel du niveau
-    (`matiere_id_du_nom`, la règle maison). Deux issues, toutes deux assumées : retrouvée, il
-    reprend là où il était ; absente du nouveau document, on n'invente rien — il est libéré, le
-    message NOMME sa matière disparue et l'envoie à son profil, et l'admin lit ici la liste
-    nominative de ceux qui n'ont pas pu être rebranchés.
-
-    La ligne n'est PAS effacée : elle passe à `a_informer` et attend que le prof ait lu. Les
-    e-mails partent après le commit — ils ne s'annulent pas."""
-    from backend.core.models_db import ProfBloqueMaj
-    from backend.core.resolution_couple import matiere_id_du_nom
-    from backend.prof.profil import message_de_fin
-    niv = (db.query(Niveau).filter(Niveau.nom == (body.niveau or "").strip(),
-                                   Niveau.cycle_id == body.cycle_id).first())
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
-    lignes = (db.query(ProfBloqueMaj).filter(ProfBloqueMaj.niveau_id == niv.id,
-                                             ProfBloqueMaj.etat == "bloque").all())
-    rebranches, perdus, avis = [], [], []
-    for ligne in lignes:
-        u = db.get(User, ligne.user_id)
-        matiere_id = matiere_id_du_nom(db, ligne.matiere_nom, niv.id)
-        if matiere_id and u is not None:
-            u.subject_id = matiere_id
-            ligne.resultat = "rebranche"
-            rebranches.append(u)
-        else:
-            ligne.resultat = "matiere_disparue"
-            if u is not None:
-                perdus.append(u)
-        # Le couple de TRAVAIL se rebranche pareil, par le nom, dans SON niveau — et les deux
-        # colonnes repartent ensemble ou pas du tout.
-        if ligne.travail_matiere_nom and ligne.travail_niveau_id and u is not None:
-            tid = matiere_id_du_nom(db, ligne.travail_matiere_nom, ligne.travail_niveau_id)
-            if tid:
-                u.travail_matiere_id, u.travail_niveau_id = tid, ligne.travail_niveau_id
-        ligne.etat, ligne.debloque_le = "a_informer", func.now()
-        avis.append((u, ligne))
-    db.commit()
-
-    for u, ligne in avis:                      # après le commit : un e-mail ne se rappelle pas
-        if u is not None:
-            _avis_maj(db, u, "referentiel_maj_fin", suite=message_de_fin(ligne).split("\n\n", 1)[-1])
-    fiche = lambda u: {"prenom": u.prenom, "nom": u.nom, "email": u.email}
-    return {"ok": True,
-            "rebranches": [fiche(u) for u in rebranches],
-            "non_rebranches": [fiche(u) for u in perdus]}
+    return {"ok": True}
 
 
 # ── Types d'activité d'un couple : CATALOGUE global (types_activite) coché/décoché via la LIAISON

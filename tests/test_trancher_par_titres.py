@@ -179,3 +179,68 @@ def test_les_unites_sont_dans_l_ordre_et_ne_se_chevauchent_pas():
 
 def test_aucun_titre_rendu_par_l_ia_donne_zero_unite():
     assert _trancher_par_titres("du texte\net encore\n", []) == []
+
+
+# ── Les BORNES (05/08/2026) ────────────────────────────────────────────────────────────────
+# Le tranchage va d'un titre au titre SUIVANT : ce qui suit le dernier titre part avec lui, et
+# une section sans titre reconnu se colle à sa voisine. Mesuré sur le BTS CIEL : « C11 MAINTENIR
+# UN SYSTÈME ÉLECTRONIQUE » pesait 15 793 caractères (il avait avalé tout le programme des
+# enseignements généraux) et « ÉPREUVE EF2 » 21 559 (la grille horaire, le stage et le tableau de
+# correspondance). Le prompt émet donc AUSSI les en-têtes des sections écartées, `garder:false` :
+# elles ferment l'unité d'avant, puis disparaissent du résultat.
+
+def test_une_borne_ferme_l_unite_precedente_et_ne_sort_pas():
+    texte = "Unité A\ncontenu de A\n\nANNEXE V - ORGANISATION\nhoraires\ntableau\n"
+    unites = _trancher_par_titres(texte, [
+        {"titre": "Unité A", "option": "", "garder": True},
+        {"titre": "ANNEXE V - ORGANISATION", "option": "", "garder": False},
+    ])
+    assert [u["titre"] for u in unites] == ["Unité A"]        # la borne n'est pas une unité
+    assert "horaires" not in unites[0]["texte"]               # ...mais elle a coupé
+
+
+def test_sans_borne_finale_la_queue_du_document_part_avec_la_derniere_unite():
+    """Le défaut que les bornes corrigent — laissé ici comme témoin : c'est le comportement
+    normal du tranchage, pas un bug de la fonction."""
+    texte = "Unité A\ncontenu de A\n\nANNEXE V - ORGANISATION\nhoraires\n"
+    unites = _trancher_par_titres(texte, ["Unité A"])
+    assert "horaires" in unites[0]["texte"]
+
+
+def test_une_borne_au_milieu_ne_coupe_pas_les_unites_suivantes():
+    texte = ("Unité A\naaa\n\nSECTION ÉCARTÉE\nbruit\n\nUnité B\nbbb\n")
+    unites = _trancher_par_titres(texte, [
+        {"titre": "Unité A", "option": "", "garder": True},
+        {"titre": "SECTION ÉCARTÉE", "option": "", "garder": False},
+        {"titre": "Unité B", "option": "", "garder": True},
+    ])
+    assert [u["titre"] for u in unites] == ["Unité A", "Unité B"]
+    assert "bruit" not in unites[0]["texte"] and "bruit" not in unites[1]["texte"]
+
+
+def test_l_option_de_chaque_unite_est_transportee_telle_quelle():
+    """`option` n'est jamais déduite ici : elle vient de la découpe et va remplir `option_ab`."""
+    texte = "Activité R2\ncommune\n\nActivité E1\nélectronique\n"
+    unites = _trancher_par_titres(texte, [
+        {"titre": "Activité R2", "option": "commune", "garder": True},
+        {"titre": "Activité E1", "option": "B", "garder": True},
+    ])
+    assert [u["option"] for u in unites] == ["commune", "B"]
+
+
+def test_une_liste_de_chaines_reste_acceptee_et_tout_est_garde():
+    """Les appels d'avant les bornes ne changent pas de comportement."""
+    unites = _trancher_par_titres("T1\naaa\n\nT2\nbbb\n", ["T1", "T2"])
+    assert [u["titre"] for u in unites] == ["T1", "T2"]
+    assert all(u["option"] == "" for u in unites)
+
+
+def test_une_borne_introuvable_ne_casse_rien():
+    """Borne mal recopiée : on retombe simplement sur le comportement d'avant, sans planter."""
+    texte = "Unité A\ncontenu\n\nANNEXE V\nqueue\n"
+    unites = _trancher_par_titres(texte, [
+        {"titre": "Unité A", "option": "", "garder": True},
+        {"titre": "ANNEXE INEXISTANTE", "option": "", "garder": False},
+    ])
+    assert [u["titre"] for u in unites] == ["Unité A"]
+    assert "queue" in unites[0]["texte"]

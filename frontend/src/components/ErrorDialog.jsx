@@ -16,8 +16,12 @@ export default function ErrorDialog() {
   const okRef = useRef(null)
 
   useEffect(() => {
-    registerErrorHandler((text, opts = {}) => setDialog({ text, feedback: !!opts.feedback, ref: opts.ref || null }))
-    registerServerHealthHandler((degraded) => { if (degraded) setDialog({ text: MSG_SERVEUR_INDISPONIBLE, feedback: false, ref: null }) })
+    registerErrorHandler((text, opts = {}) => setDialog({
+      text, feedback: !!opts.feedback, ref: opts.ref || null,
+      danger: !!opts.danger, titre: opts.titre || '',
+    }))
+    registerServerHealthHandler((degraded) => { if (degraded) setDialog({
+      text: MSG_SERVEUR_INDISPONIBLE, feedback: false, ref: null, danger: true, titre: '' }) })
   }, [])
 
   // Ouverture : focus sur OK (Entrée ferme) ; Échap ferme aussi — les gestes standard.
@@ -39,6 +43,12 @@ export default function ErrorDialog() {
   // proprement sur le texte simple.
   const [avant, apres] = dialog.feedback ? dialog.text.split('cliquez ici') : [dialog.text, null]
 
+  // TON de la boîte : bandeau BLEU par défaut (un message à lire), ROUGE quand c'est grave
+  // (showError(msg, { danger: true }) ou serveur indisponible). Le bandeau est plein, avec son
+  // titre et sa croix en blanc — le patron d'une vraie application.
+  const accent = dialog.danger ? '#dc2626' : 'var(--bleu)'
+  const titre = dialog.titre || (dialog.danger ? 'Attention' : 'Information')
+
   return (
     <div
       role="alertdialog"
@@ -47,20 +57,20 @@ export default function ErrorDialog() {
     >
       <div style={{ background: '#fff', borderRadius: 12, maxWidth: 460, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
 
-        {/* ── Barre de titre : icône + titre + croix de fermeture ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', borderBottom: '1px solid #e2e8f0' }}>
+        {/* ── Bandeau de titre PLEIN (bleu, ou rouge si c'est grave) : icône + titre + croix ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: accent }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="10" fill="#dc2626" />
-            <rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff" />
-            <circle cx="12" cy="16.6" r="1.25" fill="#fff" />
+            <circle cx="12" cy="12" r="10" fill="#fff" />
+            <rect x="11" y={dialog.danger ? 6.5 : 10.5} width="2" height="7" rx="1" fill={accent} />
+            <circle cx="12" cy={dialog.danger ? 16.6 : 7.4} r="1.25" fill={accent} />
           </svg>
-          <span style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', flex: 1 }}>Attention</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', flex: 1 }}>{titre}</span>
           <button
             type="button"
             onClick={fermer}
             title="Fermer ce message"
             aria-label="Fermer"
-            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
+            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.45)', background: 'transparent', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -105,7 +115,7 @@ export default function ErrorDialog() {
             type="button"
             onClick={fermer}
             title="Fermer ce message"
-            style={{ background: 'var(--bleu)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            style={{ background: accent, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             OK
           </button>

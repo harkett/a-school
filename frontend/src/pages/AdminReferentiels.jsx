@@ -9,6 +9,9 @@ import { lignesMatieres, nbRetenues as compterRetenues, aRetenir as resteAReteni
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
+import FriseProgression from '../components/FriseProgression.jsx'
+import InfoGuide from '../components/InfoGuide.jsx'
+import { aideReferentiels } from '../utils/aideReferentiels.js'
 import { Spinner } from '../components/icones.jsx'
 
 // Sablier — indicateur d'attente pendant un appel IA lent (génération / découpe). Même motif
@@ -76,8 +79,6 @@ export default function AdminReferentiels() {
   const [refsListe, setRefsListe] = useState([])  // colonne 2 : référentiels déposés (GET /admin/referentiels/liste)
   const [cycleId, setCycleId] = useState('')    // cycle choisi (cascade, 1er select)
   const [niveauId, setNiveauId] = useState('')  // niveau choisi (cascade, 2e select) — envoyé à valider/verifier-depot
-  const [manuelCycle, setManuelCycle]   = useState('')  // sélecteur MANUEL du couple (secours quand la détection IA ne convient pas)
-  const [manuelNiveau, setManuelNiveau] = useState('')
   const [niveau, setNiveau] = useState('')      // NOM du niveau choisi (requis par les endpoints post-dépôt)
   const [mode, setMode] = useState('depot')       // 'depot' | 'lien'
   const [url, setUrl] = useState('')
@@ -90,10 +91,6 @@ export default function AdminReferentiels() {
   // 'loading' pendant l'appel, null au repos. Le document à valider ne s'affiche que si elle passe.
   const [verif, setVerif] = useState(null)
   const [forcageMotif, setForcageMotif] = useState('')   // motif obligatoire si l'admin force malgré une alerte
-  // Détection du couple depuis le PDF (dépôt « PDF d'abord ») : réponse du serveur
-  // { cycle:{id,nom}|null, niveau:{id,nom}|null, cycle_lu, niveau_lu } | null au repos.
-  const [detection, setDetection] = useState(null)
-  const [detectBusy, setDetectBusy] = useState(false)
   // Table des matières du référentiel — INTERFACE seule ; le code (lecture des
   // candidats + enregistrement en base) sera branché à l'étape suivante.
   const [matieres, setMatieres] = useState([])
@@ -103,21 +100,36 @@ export default function AdminReferentiels() {
   const [bilanApercu, setBilanApercu] = useState('')
   // État du couple sélectionné : { existe_referentiel, referentiel:{fichier,source,date_doc}, matieres:[{id,nom}] }
   const [etat, setEtat] = useState(null)
+  const [voirDepot, setVoirDepot] = useState(false)  // « Voir » de la liste des documents déposés
+  // Contrôle n°1 au dépôt (SANS IA) : { cycle, cycle_trouve, niveau, niveau_trouve } | null.
+  // Gardé pour l'AFFICHER sur la ligne du document déposé.
+  const [controle, setControle] = useState(null)
+  // Les tâches du bouton « Valider le référentiel ». `taches` est la liste ANNONCÉE par le serveur
+  // (première ligne du flux — l'écran n'en garde aucune copie en dur), `tachesFaites` les ids reçus
+  // au fur et à mesure. La tâche en cours = la première qui n'est pas encore dans `tachesFaites`.
+  const [taches, setTaches] = useState([])
+  const [tachesFaites, setTachesFaites] = useState([])
+  // Prompt des MATIÈRES du CYCLE (cycles.prompt_matieres) : écrit par l'IA, relu et validé par
+  // l'admin, puis utilisé par tous les référentiels du cycle. Vide = pas encore écrit → la
+  // détection retombe sur le prompt général.
+  const [promptMatieres, setPromptMatieres] = useState('')
+  const [promptMatieresValide, setPromptMatieresValide] = useState(false)
+  const [promptMatieresOuvert, setPromptMatieresOuvert] = useState(false)
+  // Attente PROPRE aux deux boutons de la liste : 'verifier' | 'valider' | ''. Séparée de `busy`
+  // (le dépôt du fichier), sinon un clic sur Vérifier rallume le sablier et la jauge de la lecture.
+  const [actionBusy, setActionBusy] = useState('')
+  // Phase en cours du dépôt : 'lecture' (le fichier monte et on lit ses pages) puis 'controle'
+  // (recherche du cycle et du niveau DANS le document). La jauge dit laquelle des deux tourne.
+  const [depotPhase, setDepotPhase] = useState('')
   const [showPdf, setShowPdf] = useState(false)   // fenêtre de relecture du PDF déjà enregistré
   const [showSuppr, setShowSuppr] = useState(false)  // modale de confirmation de suppression du référentiel
   const [supprBusy, setSupprBusy] = useState(false)  // suppression en cours (bouton grisé)
-  // Cas exceptionnel Matières → Prompt : interrupteur d'AFFICHAGE (navigation front, pas de la donnée
-  // métier). Le bouton « Générer le prompt » de la carte Matières le passe à true → la cartouche Prompt
-  // s'affiche. Remis à false à chaque changement de couple / « Nouveau ». La carte Prompt s'affiche aussi
-  // toute seule si un prompt existe déjà en base (promptDecoupe non vide) — travail déjà fait.
-  const [afficherPrompt, setAfficherPrompt] = useState(false)
   const [matieresOuvert, setMatieresOuvert] = useState(false)   // bloc Matières repliable (vue d'ensemble) — démarre replié
-  // Prompt de découpe du couple — GÉNÉRÉ PAR L'IA, stocké en base, corrigé/validé par l'admin.
-  const [promptDecoupe, setPromptDecoupe] = useState('')       // texte éditable du prompt
-  const [promptValide, setPromptValide] = useState(false)      // garde-fou : découpe refusée tant que false
+  // Prompt de découpe DU CYCLE — lu ici en LECTURE SEULE (il s'écrit dans Prompts → Découpe par cycle).
+  const [promptDecoupe, setPromptDecoupe] = useState('')       // texte du prompt, affiché tel quel
+  const [promptValide, setPromptValide] = useState(false)      // relu par l'admin (voyant seulement)
   const [decoupeValide, setDecoupeValide] = useState(false)    // étape FINALE : découpe validée → puce verte (lu via /prompt-decoupe)
-  const [promptBusy, setPromptBusy] = useState('')             // 'generer' | 'regenerer' | 'valider' | 'decouper' | ''
-  const [remarques, setRemarques] = useState('')              // remarques admin (français clair) pour régénérer le prompt
+  const [promptBusy, setPromptBusy] = useState('')             // 'decouper' | 'valider-decoupe' | ''
   const [decoupeUnites, setDecoupeUnites] = useState(null)     // résultat de la découpe : [{titre, taille}]
   const [decoupeProgress, setDecoupeProgress] = useState(null) // jauge : avancement RÉEL lu via /decoupe/statut ({etape, fait, total})
   const [uniteOuverteId, setUniteOuverteId] = useState(null)   // lecture d'une unité : id choisi dans la liste (unités EN BASE seulement)
@@ -213,9 +225,6 @@ export default function AdminReferentiels() {
   const [typesInit, setTypesInit] = useState(false)            // 1re lecture des liaisons du couple faite (base lue)
   const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
   const autoDetectFait = useRef('')                            // clé couple : l'auto-détection ne se lance qu'UNE fois par couple affiché
-  // Couple posé par la DÉTECTION (PDF d'abord) : l'effet [cycleId, niveau] garde alors le document
-  // en attente à l'écran (au lieu de le vider comme lors d'un changement de couple à la main).
-  const detectionApplique = useRef(false)
   // MAQUETTE prompt par type (spécifique au couple) : éditeur déplié sous la ligne. `promptEditId` = id du
   // type dont l'éditeur est ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base).
   // La génération IA et l'enregistrement PAR COUPLE (colonne prompt sur le lien) = chantier backend d'après.
@@ -263,10 +272,10 @@ export default function AdminReferentiels() {
     // resetSteps : remet TOUS les done à false via leur source (la table les calcule depuis ces valeurs).
     setCycleId(''); setNiveauId(''); setNiveau('')  // → couple.done = false
     setEtat(null)                                   // → pdf / matieres / prompt / decoupe.done = false (tous lus depuis etat)
-    // Carte « Document PDF » (en haut, visible sans couple) : on repart d'une zone vierge —
-    // l'effet [cycleId, niveau] ne vide pas ces états-là quand le couple est déjà vide.
-    setApercu(null); setVerif(null); setDetection(null); setResultat(null); setNomFichier(''); setUrl('')
-    setManuelCycle(''); setManuelNiveau('')         // sélecteur manuel remis à blanc
+    // Carte « Document PDF » : on repart d'une zone vierge — l'effet [cycleId, niveau] ne vide
+    // pas ces états-là quand le couple est déjà vide.
+    setApercu(null); setVerif(null); setResultat(null); setNomFichier(''); setUrl('')
+    setTaches([]); setTachesFaites([])
     setCoupleOuvert(true)                           // repartir en création : la carte Couple s'ouvre (bouton « Réduire »)
   }
 
@@ -357,17 +366,14 @@ export default function AdminReferentiels() {
   // et on grise la zone de dépôt. Sinon, dépôt normal.
   useEffect(() => {
     if (!cycleId || !niveau) {
-      setEtat(null); setMatieres([]); setAfficherPrompt(false)
+      setEtat(null); setMatieres([])
       setTypesCatalogue([]); setTypesChecked(new Set()); setTypesSource({}); setTypesNouveau(''); setTypesInit(false)
       return
     }
-    // « PDF d'abord » : un document EN ATTENTE survit à la sélection du couple (détection OU
-    // cascade à la main) — la décision de le garder se prend après lecture de l'état, plus bas.
-    // Sans document en attente : reset simple, comme avant.
-    const parDetection = detectionApplique.current
-    detectionApplique.current = false
-    if (!apercu) { setResultat(null); setDetection(null) }
-    setBilanApercu(''); setShowPdf(false); setAfficherPrompt(false)
+    // Un document EN ATTENTE survit à la sélection du couple — la décision de le garder se
+    // prend après lecture de l'état, plus bas. Sans document en attente : reset simple.
+    if (!apercu) setResultat(null)
+    setBilanApercu(''); setShowPdf(false)
     setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
     setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
     // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
@@ -383,13 +389,9 @@ export default function AdminReferentiels() {
         // Mode AJOUT (couple sans référentiel) : la carte PDF s'ouvre pour déposer tout de suite.
         // Mode « déjà traité » : elle reste repliée (simple relecture).
         setPdfOuvert(!(d && d.existe_referentiel))
-        // Document EN ATTENTE (PDF d'abord) : couple LIBRE → on le garde et la vérif n°1 part
-        // pour CE couple (sauf si la détection vient de la lancer) ; couple DÉJÀ TRAITÉ → le
-        // document ne le concerne pas, on le jette (l'écran passe en relecture).
-        if (apercu) {
-          if (d && d.existe_referentiel) { setApercu(null); setVerif(null); setDetection(null); setResultat(null) }
-          else if (!parDetection) lancerVerifDepot(apercu.token, cycleId, niveauId)
-        }
+        // Document EN ATTENTE : couple DÉJÀ TRAITÉ → le document ne le concerne pas, on le jette
+        // (l'écran passe en relecture). Couple libre → on le garde tel quel, sans rien vérifier.
+        if (apercu && d && d.existe_referentiel) { setApercu(null); setVerif(null); setResultat(null) }
       })
       .catch(() => { if (!annule) setEtat(null) })
     // Prompt de découpe du couple (EN BASE) — généré par l'IA, corrigé/validé par l'admin.
@@ -398,6 +400,13 @@ export default function AdminReferentiels() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (!annule) { setPromptDecoupe(d && d.prompt ? d.prompt : ''); setPromptValide(!!(d && d.valide)); setDecoupeValide(!!(d && d.decoupe_valide)) } })
       .catch(() => { if (!annule) { setPromptDecoupe(''); setPromptValide(false); setDecoupeValide(false) } })
+    // Prompt des MATIÈRES du CYCLE (EN BASE, cycles.prompt_matieres) — il ne dépend pas du niveau :
+    // tous les référentiels du cycle partagent le même. Vide = le cycle n'en a pas encore.
+    fetchWithTimeout(`/api/admin/cycles/prompt-matieres?cycle_id=${cycleId}`,
+      { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!annule) { setPromptMatieres(d && d.prompt ? d.prompt : ''); setPromptMatieresValide(!!(d && d.valide)) } })
+      .catch(() => { if (!annule) { setPromptMatieres(''); setPromptMatieresValide(false) } })
     // Unités du découpage DÉJÀ en base (referentiel_chunks) → réaffichées telles quelles (get, zéro recalcul).
     setUniteOuverteId(null); setUniteTexte('')   // changement de couple : on referme la lecture d'unité
     fetchWithTimeout(`/api/admin/referentiels/decoupe?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
@@ -423,60 +432,30 @@ export default function AdminReferentiels() {
   }, [cycleId, niveau])
 
 
-  // L'IA génère le prompt de découpe du document → rempli dans la zone éditable (non validé).
-  async function genererPromptDecoupe() {
-    setPromptBusy('generer')
+  // ── Prompt des MATIÈRES, propre au CYCLE ────────────────────────────────────────────
+  // Même geste que le prompt de découpe, monté d'un cran : il est rangé sur le CYCLE, parce qu'un
+  // cycle est une famille de documents bâtis pareil (tous les BTS, tous les programmes de collège).
+  // Le prompt écrit sur le premier référentiel du cycle sert donc à tous les suivants.
+  // Relit le prompt de matières du cycle (get, zéro copie). Appelée au changement de couple ET
+  // après « Proposer les matières », qui peut l'avoir fait écrire par l'IA côté serveur.
+  async function chargerPromptMatieres() {
+    if (!cycleId) return
     try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/generer', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_LONG)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La génération du prompt par l'IA a échoué."); return }
-      setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
-    } catch { showError("La génération du prompt a échoué (réseau).") }
-    finally { setPromptBusy('') }
+      const r = await fetchWithTimeout(`/api/admin/cycles/prompt-matieres?cycle_id=${cycleId}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      const d = r.ok ? await r.json().catch(() => null) : null
+      setPromptMatieres(d && d.prompt ? d.prompt : '')
+      setPromptMatieresValide(!!(d && d.valide))
+    } catch { /* la zone reste en l'état : une lecture ratée n'efface rien */ }
   }
 
-  // L'IA régénère le prompt en tenant compte des remarques (français clair) → remplace la zone.
-  // Répétable à volonté : l'admin relit, remet une remarque, régénère, jusqu'à ce que ça lui convienne.
-  async function regenererPromptDecoupe() {
-    if (!promptDecoupe.trim()) { showError('Générez d’abord un prompt, puis écrivez vos remarques.'); return }
-    if (!remarques.trim()) { showError('Écrivez ce qui ne va pas dans le prompt (zone « Remarques »).'); return }
-    setPromptBusy('regenerer')
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/regenerer', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, prompt_actuel: promptDecoupe, remarques }),
-      }, TIMEOUT_LONG)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La régénération du prompt par l'IA a échoué."); return }
-      setPromptDecoupe(d.prompt || ''); setPromptValide(false); setDecoupeUnites(null)
-    } catch { showError("La régénération du prompt a échoué (réseau).") }
-    finally { setPromptBusy('') }
-  }
+  // Pas d'écriture du prompt des matières depuis cet écran : il est rangé sur le CYCLE et sert à
+  // TOUS ses référentiels — un seul endroit pour le corriger, Prompts → Matières par cycle. Ici on
+  // ne fait que le lire (fenêtre en lecture seule).
 
-  // Enregistre le prompt (corrigé ou non) et le VALIDE → puis LANCE la découpe dans la foulée.
-  // Un seul point d'arrêt : ma validation. Valider = enregistré + validé + découpe lancée.
-  async function validerPromptDecoupe() {
-    if (!promptDecoupe.trim()) { showError('Le prompt de découpe est vide.'); return }
-    setPromptBusy('valider')
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/prompt-decoupe/valider', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: Number(cycleId), niveau, prompt: promptDecoupe }),
-      }, TIMEOUT_STD)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La validation a échoué."); return }
-      setPromptValide(true)   // la découpe est une ÉTAPE À PART (cartouche « Découpe » en dessous) — pas lancée ici
-      await rafraichirEtat()  // relit /etat → prompt_decoupe_valide passe à true → estVisible('decoupe') devient vrai (la cartouche apparaît)
-      setDecoupeOuvert(true)  // prompt validé → ouvrir la cartouche Découpe (dépliée)
-    } catch { showError("La validation a échoué (réseau)."); return }
-    finally { setPromptBusy('') }
-  }
+  // Le prompt de découpe ne s'écrit plus depuis cet écran (05/08/2026) : il est rangé sur le
+  // CYCLE et découpe tous ses référentiels. L'IA le rédige à la première découpe du cycle, et il
+  // se corrige dans Prompts → Découpe par cycle. Ici, on ne fait que le lire.
 
   // Déclenche la découpe (lecture seule) avec le prompt validé → affiche les unités produites.
   async function declencherDecoupe() {
@@ -486,76 +465,60 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
-      }, TIMEOUT_LONG)
+        // TIMEOUT_XLONG (05/08/2026), la MÊME valeur que le dépôt : l'IA lit le document entier
+        // et rend la liste de ses unités — sur un référentiel de 88 pages, ça dure plusieurs
+        // minutes. À 45 s le navigateur abandonnait un travail que le serveur, lui, finissait
+        // dans le vide. Et au premier référentiel d'un cycle, cet appel écrit d'abord le prompt
+        // de découpe du cycle : deux appels IA à la suite.
+      }, TIMEOUT_XLONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || "La découpe a échoué."); return }
       setDecoupeUnites(d.unites || [])
     } catch (e) {
       showError(e?.message === MSG_TIMEOUT
-        ? "La découpe a dépassé le délai de 45 secondes et a été interrompue (délai dépassé) — ce n'est pas une panne réseau."
+        ? "La découpe a dépassé le délai de 5 minutes et a été interrompue (délai dépassé) — ce n'est pas une panne réseau."
         : "La découpe a échoué (réseau).")
     }
     finally { setPromptBusy('') }
   }
 
-  // Applique un couple trouvé par la détection : mêmes setters que la cascade, drapeau levé pour
-  // que l'effet [cycleId, niveau] GARDE le document en attente, puis la vérif n°1 part avec les
-  // valeurs fraîches (pas l'état, pas encore à jour).
-  function appliquerCouple(cid, nid, nom) {
-    detectionApplique.current = true
-    setCoupleOuvert(false)   // la carte Couple apparaît REPLIÉE (pastille verte, « Développer ») — étape validée
-    setCycleId(String(cid)); setNiveauId(String(nid)); setNiveau(nom)
-    if (apercu) lancerVerifDepot(apercu.token, cid, nid)
-  }
-
-  // « Détecter le cycle » : l'IA lit le document en attente, le SERVEUR fait la correspondance
-  // avec les tables (lecture seule). Couple complet → sélection automatique ; niveau absent →
-  // bouton « Ajouter ce niveau » (sur clic) ; cycle inconnu → renvoi vers Programmes.
-  async function detecterCycle() {
-    if (!apercu) return
-    setDetectBusy(true); setDetection(null)
+  // CONTRÔLE N°1, avant que le document entre dans la liste : le PDF nomme-t-il le cycle OU le
+  // niveau choisi ? Recherche de texte côté serveur, sans IA. Faux → boîte de message et le
+  // document N'EST PAS déposé (rien ne s'affiche dans la liste).
+  async function coupleNommeDansDocument(token) {
+    setControle(null); setDepotPhase('controle')
     try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/detecter-couple', {
+      const r = await fetchWithTimeout('/api/admin/referentiels/controle-couple', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: apercu.token }),
+        body: JSON.stringify({ token, cycle_id: Number(cycleId), niveau_id: Number(niveauId) }),
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || "La détection du cycle a échoué."); return }
-      setDetection(d)   // PROPOSITION seulement : rien n'est sélectionné sans le clic « Choisir ce couple »
-      // aSchool PRÉ-REMPLIT les 2 listes avec sa proposition (l'admin peut corriger avant de valider).
-      // Niveau lu absent → on remplit juste le cycle et on laisse « Ajouter ce niveau » sous les listes.
-      if (d.cycle) { setManuelCycle(String(d.cycle.id)); setManuelNiveau(d.niveau ? String(d.niveau.id) : '') }
-    } catch { showError("La détection du cycle a échoué (réseau).") }
-    finally { setDetectBusy(false) }
-  }
-
-  // « Ajouter ce niveau » (sur MON clic) : la porte UNIQUE de création — POST /admin/niveaux,
-  // mêmes contrôles que l'écran Programmes (409 doublon, 404 cycle inconnu). Puis on recharge
-  // l'arbre (la cascade doit montrer le nouveau niveau) et on sélectionne le couple.
-  async function ajouterNiveauDetecte() {
-    if (!detection?.cycle || !detection?.niveau_lu) return
-    setDetectBusy(true)
-    try {
-      const r = await fetchWithTimeout('/api/admin/niveaux', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cycle_id: detection.cycle.id, nom: detection.niveau_lu }),
-      }, TIMEOUT_STD)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) { showError(d.detail || `Ajout du niveau impossible (${r.status}).`); return }
-      const ra = await fetchWithTimeout('/api/admin/programmes', { credentials: 'include' }, TIMEOUT_STD)
-      const da = await ra.json().catch(() => null)
-      if (da) setArbre(da.cycles || [])
-      setDetection(det => (det ? { ...det, niveau: { id: d.id, nom: d.nom } } : det))  // l'encadré passe au vert
-      appliquerCouple(detection.cycle.id, d.id, d.nom)
-    } catch { showError("Ajout du niveau impossible (réseau).") }
-    finally { setDetectBusy(false) }
+      if (!r.ok) { showError(d.detail || `Contrôle du document impossible (${r.status}).`, { danger: true }); return false }
+      if (!d.trouve) {
+        // Le message DIT ce qui a été trouvé et ce qui manque : « BTS » présent mais pas le
+        // niveau, c'est justement le cas piégeux (164 référentiels de BTS contiennent « BTS »).
+        const debut = d.cycle_trouve
+          ? `Le cycle « ${d.cycle} » a bien été trouvé dans le document, mais pas le niveau « ${d.niveau} ».`
+          : `Ni le cycle « ${d.cycle} » ni le niveau « ${d.niveau} » n’ont été trouvés dans le document.`
+        const manque = (d.manquants && d.manquants.length)
+          ? `\n\nMots du niveau absents du document : ${d.manquants.map(m => `« ${m} »`).join(', ')}.` : ''
+        showError(`${debut}${manque}\n\nCe n’est donc pas le bon référentiel : le document n’a pas été déposé.`,
+          { danger: true, titre: 'Document refusé' })
+        return false
+      }
+      setControle(d)   // gardé pour l'afficher sur la ligne du document
+      return true
+    } catch { showError('Contrôle du document impossible (réseau).'); return false }
+    finally { setDepotPhase('') }
   }
 
   async function recupererLien() {
     if (!url.trim()) { showError('Collez d’abord le lien du PDF.'); return }
-    setBusy(true); setApercu(null); setResultat(null); setDetection(null)
+    // Nouveau document = nouvelle validation à faire : le constat et les tâches cochées du
+    // document précédent s'effacent, sinon le bouton resterait remplacé par son « ✓ ».
+    setBusy(true); setDepotPhase('lecture'); setApercu(null); setResultat(null)
+    setTaches([]); setTachesFaites([])
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/preparer-lien', {
         method: 'POST', credentials: 'include',
@@ -564,34 +527,19 @@ export default function AdminReferentiels() {
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource(url.trim()); setBilanApercu(''); lancerVerifDepot(d.token)
+      if (!(await coupleNommeDansDocument(d.token))) { setUrl(''); return }
+      setApercu(d); setSource(url.trim()); setBilanApercu('')
     } catch (e) { showError(`Récupération impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
-  }
-
-  // Dès qu'un PDF est récupéré : vérif n°1 au dépôt — l'IA lit le couple visé par le document
-  // et le compare au couple cycle → niveau déclaré. Le document à valider ne s'affiche qu'après.
-  async function lancerVerifDepot(token, cid = cycleId, nid = niveauId) {
-    // cid/nid : la détection du couple passe SES valeurs (les setters React sont asynchrones —
-    // l'état cycleId/niveauId n'est pas encore à jour au moment de l'appel).
-    if (!token || !cid || !nid) return
-    setVerif('loading'); setForcageMotif('')
-    try {
-      const r = await fetchWithTimeout('/api/admin/referentiels/verifier-depot', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, cycle_id: Number(cid), niveau_id: Number(nid) }),
-      }, TIMEOUT_LONG)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setVerif(d)
-    } catch (e) { setVerif(null); showError(`Vérification du dépôt impossible.\n\n${e.message}`) }
   }
 
   async function recupererDepot(file) {
     if (!file) return
     setNomFichier(file.name)
-    setBusy(true); setApercu(null); setResultat(null); setDetection(null)
+    // Nouveau document = nouvelle validation à faire : le constat et les tâches cochées du
+    // document précédent s'effacent, sinon le bouton resterait remplacé par son « ✓ ».
+    setBusy(true); setDepotPhase('lecture'); setApercu(null); setResultat(null)
+    setTaches([]); setTachesFaites([])
     try {
       const form = new FormData()
       form.append('file', file)
@@ -600,9 +548,90 @@ export default function AdminReferentiels() {
       }, TIMEOUT_LONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
-      setApercu(d); setSource('dépôt manuel'); setBilanApercu(''); lancerVerifDepot(d.token)
+      if (!(await coupleNommeDansDocument(d.token))) { setNomFichier(''); return }
+      setApercu(d); setSource('dépôt manuel'); setBilanApercu('')
     } catch (e) { showError(`Lecture du fichier impossible.\n\n${e.message}`) }
     finally { setBusy(false) }
+  }
+
+  // Bouton BLEU « Valider le référentiel » — LE geste du dépôt, SANS IA : le document est rangé,
+  // son texte est lu et figé, la ligne du référentiel est écrite. Les trois tâches arrivent une
+  // par une (flux NDJSON) : chacune se coche À L'INSTANT où le serveur l'a terminée, au lieu d'un
+  // écran figé jusqu'au bout. Pas de fetchWithTimeout ici, et c'est voulu : le flux dit lui-même
+  // que le serveur travaille, il n'y a donc plus de silence à interrompre.
+  async function validerLeReferentiel() {
+    if (!apercu) return
+    setActionBusy('verifier'); setTaches([]); setTachesFaites([])
+    try {
+      const r = await fetch('/api/admin/referentiels/valider-flux', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        // `controle_niveau` : la preuve du contrôle n°1 qui a autorisé ce dépôt, transmise pour
+        // être FIGÉE en base — sinon elle mourrait avec l'écran. null si le contrôle manque.
+        body: JSON.stringify({ token: apercu.token, cycle_id: Number(cycleId), niveau_id: Number(niveauId),
+                               source, fichier_origine: apercu.filename,
+                               controle_niveau: controle
+                                 ? { niveau: controle.niveau, trouve: controle.niveau_trouve,
+                                     manquants: controle.manquants || [] }
+                                 : null }),
+      })
+      if (!r.ok || !r.body) throw new Error(`Erreur ${r.status}`)
+      const lecteur = r.body.getReader()
+      const decodeur = new TextDecoder()
+      let reste = '', fin = null, erreur = ''
+      for (;;) {
+        const { value, done } = await lecteur.read()
+        if (done) break
+        reste += decodeur.decode(value, { stream: true })
+        const lignes = reste.split('\n')
+        reste = lignes.pop()          // la dernière peut être coupée en deux : elle attend la suite
+        for (const ligne of lignes) {
+          if (!ligne.trim()) continue
+          let msg
+          try { msg = JSON.parse(ligne) } catch { continue }
+          if (msg.taches) setTaches(msg.taches)
+          else if (msg.faite) setTachesFaites(f => [...f, msg.faite])
+          else if (msg.fin) fin = msg.fin
+          else if (msg.erreur) erreur = msg.erreur
+        }
+      }
+      if (erreur) throw new Error(erreur)
+      if (!fin) throw new Error('Le serveur n’a pas confirmé la validation.')
+      // Le document a quitté la zone d'attente : la cartouche « Document PDF » se referme, comme
+      // avant. Tout ce qui le concerne (nom, contrôle du niveau) se lit maintenant EN BASE, dans
+      // la cartouche « Référentiel au format PDF » — plus rien ne vit à l'écran.
+      setResultat(fin); setEpureTexte(null)
+      setApercu(null); setControle(null); setNomFichier(''); setBilanApercu('')
+      setTaches([]); setTachesFaites([])
+      chargerListe()
+      await rafraichirEtat()   // le référentiel existe désormais en base (get, zéro copie)
+    } catch (e) { showError(`Validation impossible.\n\n${e.message}`, { danger: true }) }
+    finally { setActionBusy('') }
+  }
+
+  // Bouton « Proposer les matières (IA) » — il vit dans la cartouche MATIÈRES, qui est l'étape
+  // d'après : la validation du document ne touche pas aux matières. LE seul appel IA de cette
+  // partie : l'IA lit le texte déjà figé en base et PROPOSE des matières (non cochées).
+  async function proposerMatieres() {
+    setActionBusy('valider')
+    try {
+      const r = await fetchWithTimeout('/api/admin/referentiels/matieres-proposer', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cycle_id: Number(cycleId), niveau }),
+      }, TIMEOUT_XLONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
+      // La cartouche du document n'est plus touchée ici : la proposition des matières est l'étape
+      // d'après, elle n'a pas à effacer le constat de la validation.
+      await rafraichirEtat()
+      setMatieresOuvert(true)
+      // Le serveur a pu ÉCRIRE le prompt du cycle au passage (premier référentiel de ce cycle).
+      // On ne relit la zone QUE si elle est vide : sinon on écraserait, sans prévenir, un texte
+      // que l'admin est en train d'écrire ou de coller.
+      if (!promptMatieres.trim()) await chargerPromptMatieres()
+    } catch (e) { showError(`Proposition des matières impossible.\n\n${e.message}`, { danger: true }) }
+    finally { setActionBusy('') }
   }
 
   async function valider(forcageArg = null) {
@@ -642,6 +671,9 @@ export default function AdminReferentiels() {
     border: actif ? '1px solid #1F6EEB' : '1px solid #e2e8f0',
     background: actif ? '#eff6ff' : '#f8fafc', color: actif ? '#1d4ed8' : '#64748b', fontWeight: 600,
   })
+  // Petites flèches d'ordre de la liste des documents déposés.
+  const btnOrdre = { width: 28, height: 28, borderRadius: 6, border: '1px solid #e2e8f0',
+    background: '#f8fafc', color: '#64748b', fontSize: 11, lineHeight: 1 }
 
   // ── Table des matières : cocher est une interaction d'écran, c'est « Récupérer » qui écrit
   //    (il RETIENT les matières cochées : `validee` passe à vrai en base). Une matière déjà
@@ -704,16 +736,17 @@ export default function AdminReferentiels() {
       setMatieres(ms => ms.filter((_, j) => j !== i))   // ajoutée à la main, jamais écrite : retrait local
       return
     }
-    // Une matière RETENUE sort du programme des profs ; une simple PROPOSITION n'y était pas
-    // encore entrée. Deux gestes de poids différents, donc deux questions différentes.
+    // Une matière RETENUE sort du programme des profs (désactivation réversible) ; une simple
+    // PROPOSITION est SUPPRIMÉE, elle n'est jamais entrée au programme. Deux gestes de poids
+    // différents, donc deux questions différentes.
     if (!await demanderConfirmation({
       titre: ligne.validee
         ? `Retirer « ${ligne.nom} » du programme de « ${niveau} » ?`
-        : `Écarter la proposition « ${ligne.nom} » ?`,
+        : `Supprimer la proposition « ${ligne.nom} » ?`,
       message: ligne.validee
         ? "Elle disparaîtra des menus des profs. Désactivation réversible : l'historique est conservé, rien n'est supprimé."
-        : "Elle quitte la liste sans jamais être entrée au programme. Réversible : un nouveau dépôt du document peut la reproposer.",
-      confirmLabel: ligne.validee ? 'Retirer' : 'Écarter',
+        : "Elle est effacée de la liste. Elle n'est jamais entrée au programme, personne ne la voit. « Proposer les matières » peut la reproposer.",
+      confirmLabel: ligne.validee ? 'Retirer' : 'Supprimer',
     })) return
     try {
       const r = await fetchWithTimeout('/api/admin/referentiels/retirer-matiere', {
@@ -729,6 +762,36 @@ export default function AdminReferentiels() {
       await rafraichirEtat()
     } catch (e) { showError(`Retrait impossible.\n\n${e.message}`) }
   }
+  // « Supprimer tout » — le même geste que la ligne, en boucle sur les seules PROPOSITIONS. Sert
+  // avant de relancer une lecture : la liste repart VRAIMENT vide, on voit ce que le prompt du
+  // moment donne, sans l'empilement des lectures précédentes. Les matières RETENUES ne sont
+  // jamais touchées — elles sont au programme, des profs les voient.
+  async function ecarterTout() {
+    const aEcarter = matieres.filter(m => !m.validee && m.id)
+    if (!aEcarter.length) { setBilanApercu('Aucune proposition à supprimer.'); return }
+    if (!await demanderConfirmation({
+      titre: `Supprimer les ${aEcarter.length} propositions ?`,
+      message: "Elles sont effacées de la liste. Elles ne sont jamais entrées au programme, personne ne les voit. Les matières que vous avez retenues ne bougent pas. « Proposer les matières » relira le document.",
+      confirmLabel: 'Supprimer tout',
+    })) return
+    setActionBusy('ecarter-tout')
+    try {
+      for (const m of aEcarter) {
+        const r = await fetchWithTimeout('/api/admin/referentiels/retirer-matiere', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, matiere_id: m.id }),
+        }, TIMEOUT_STD)
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          throw new Error(d.detail || `Erreur ${r.status} sur « ${m.nom} »`)
+        }
+      }
+      await rafraichirEtat()   // la liste se relit EN BASE (get, zéro copie)
+    } catch (e) { showError(`La suppression des propositions a échoué.\n\n${e.message}`) }
+    finally { setActionBusy('') }
+  }
+
   async function recuperer() {
     // On envoie les matières que l'admin RETIENT : les cochées (propositions acceptées et lignes
     // ajoutées à la main). Les déjà retenues n'ont pas besoin d'être renvoyées — le serveur les
@@ -969,21 +1032,32 @@ export default function AdminReferentiels() {
   // programme, et reste-t-il quelque chose à retenir (une case cochée qui n'y est pas encore).
   const nbRetenues = compterRetenues(matieres)
   const aRetenir = resteARetenir(matieres)
+  // Le document a-t-il déjà été lu pour ce couple ? Oui dès qu'une proposition est à l'écran.
+  // C'est ce qui éteint « Proposer les matières » : on ne relit pas par-dessus une liste remplie.
+  // « Supprimer tout » vide les propositions → le bouton se rallume de lui-même.
+  const dejaPropose = matieres.some(m => !m.validee)
 
-  // Les 5 cartouches = 5 étapes, ordre FIXE. `done` = REFLET lu en base (get, zéro copie), jamais un
-  // booléen stocké en double : couple = couple choisi ; pdf = référentiel enregistré ;
-  // matieres = matières reliées ; prompt = prompt validé ; decoupe = découpage validé. Règle unique
-  // d'affichage : une carte n'est visible que si TOUT ce qui la précède est fait (estVisible). Le
-  // tableau ne change jamais ; « Nouveau » ne fait que revider l'état lu → les `done` repassent à false.
+  // UNE cartouche = UNE étape, ordre FIXE. `done` = le MÊME critère que la pastille de la
+  // cartouche (reflet lu en base, jamais un booléen stocké en double). Règle unique d'affichage,
+  // valable pour TOUTES les cartouches : la cartouche N+1 n'apparaît que si la N est VERTE
+  // (estVisible = tout ce qui précède est fait). Le tableau ne change jamais ; « Nouveau » ne fait
+  // que revider l'état lu → les `done` repassent à false.
+  // Le `label` sert AUSSI de libellé dans la frise du haut (même composant que les écrans prof) :
+  // une seule liste d'étapes pour l'affichage des cartouches ET pour la frise, jamais deux.
   const steps = [
-    { id: 'couple',        done: !!(cycleId && niveau) },
-    { id: 'pdf',           done: dejaTraite },   // = etat.existe_referentiel (une seule source : etat)
+    { id: 'couple',        label: 'Cycle et niveau',   done: !!(cycleId && niveau) },
+    // Dépôt : VERT quand le document a fini son parcours — enregistré en base, et soit plus aucun
+    // document en cours dans la liste, soit celui qui y est VIENT d'être validé. C'est « Valider le
+    // référentiel » qui ouvre la suite : le constat des trois tâches reste affiché pendant ce temps.
+    { id: 'depot',         label: 'Document PDF',      done: dejaTraite && !apercu },
+    { id: 'pdf',           label: 'Référentiel PDF',   done: dejaTraite || !!resultat },   // même critère que la pastille de la cartouche
     // L'étape n'est faite que si une matière est RETENUE : une proposition non cochée ne met
     // aucune matière au programme, donc elle ne fait pas avancer la procédure.
-    { id: 'matieres',      done: (etat?.matieres || []).some(m => m.validee) },
-    { id: 'prompt',        done: !!etat?.prompt_decoupe_valide },   // lu depuis etat (get), comme matieres
-    { id: 'decoupe',       done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
-    { id: 'types',         done: typesChecked.size > 0 },           // dernière étape : au moins un type coché
+    { id: 'matieres',      label: 'Matières',          done: (etat?.matieres || []).some(m => m.validee) },
+    // Plus d'étape « Prompt » (05/08/2026) : le prompt de découpe est celui du CYCLE, écrit par
+    // l'IA à la première découpe — l'admin n'a plus rien à valider avant de découper.
+    { id: 'decoupe',       label: 'Découpe',           done: !!etat?.decoupe_valide },          // lu depuis etat (get), comme matieres
+    { id: 'types',         label: 'Types d’activité',  done: typesChecked.size > 0 },           // dernière étape : au moins un type coché
   ]
   function estVisible(id) {
     const i = steps.findIndex(s => s.id === id)
@@ -1042,168 +1116,33 @@ export default function AdminReferentiels() {
       <div className="flex flex-col gap-6" style={{ flex: 1, minWidth: 0 }}>
       <div>
         <h2 className="text-base font-semibold text-gray-800">Référentiels</h2>
-        <p className="text-xs text-gray-400 mt-0.5">
-          Fournissez le référentiel officiel (par lien ou en déposant le PDF), vérifiez que c’est le bon document, puis validez : le système le range et en extrait le texte.
-        </p>
+        {/* Frise de progression — MÊME composant que les écrans prof (components/FriseProgression.jsx).
+            Les étapes viennent de `steps` : un seul endroit décide de l'avancement (reflet base). */}
+        <div style={{ marginTop: 10 }}>
+          <FriseProgression etapes={steps.map(s => ({ label: s.label, fait: s.done }))} />
+        </div>
       </div>
 
-      {/* Carte 0 — Document PDF : le dépôt vient EN PREMIER (« PDF d'abord »). Mêmes portes
-          qu'avant (dépôt / lien → zone d'attente), puis « Détecter le cycle » : l'IA lit le
-          document, le serveur fait la correspondance avec les tables, et la carte Couple en
-          dessous se pré-remplit. Masquée quand le couple affiché a déjà son référentiel (la
-          mise à jour du PDF reste dans la carte « Référentiel au format PDF »). */}
-      {!dejaTraite && (
-      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-        <div>
-          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
-            <Pastille etat={apercu ? 'vert' : 'rouge'} titre="Vert = un document PDF est en zone d'attente." />
-            Document PDF
-          </h2>
-          <p className="text-sm text-gray-500" style={{ margin: 0 }}>
-            Fournissez le référentiel officiel (dépôt ou lien), puis laissez l’IA détecter le cycle et le niveau — la carte Couple s’ouvre une fois le couple validé.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" title="Déposer le fichier PDF du référentiel" style={onglet(mode === 'depot')} onClick={() => setMode('depot')}>Par dépôt</button>
-          <button type="button" title="Fournir le référentiel par un lien vers le PDF" style={onglet(mode === 'lien')} onClick={() => setMode('lien')}>Par lien</button>
-        </div>
-        {mode === 'lien' ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
-              <label className="block text-xs text-gray-500 mb-1">Lien du PDF</label>
-              <input style={champ} value={url} onChange={e => setUrl(e.target.value)}
-                placeholder="https://…/referentiel.pdf" />
-            </div>
-            <button type="button" className="btn-primary" title="Télécharger le PDF depuis ce lien pour vérification"
-              onClick={recupererLien} disabled={busy}>
-              {busy ? 'Récupération…' : 'Récupérer'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
-              <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
-              <input style={champ} value={nomFichier} readOnly placeholder="Aucun fichier choisi" />
-            </div>
-            <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
-              disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
-            <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
-              style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {busy ? <><Spinner /> Lecture…</> : 'Choisir le fichier'}
-            </label>
-          </div>
-        )}
-        {apercu && (
-          <div style={{ fontSize: 12, color: '#475569' }}>
-            Document en attente : <strong>{apercu.filename}</strong> · {apercu.pages} page(s) · {apercu.taille_ko} Ko
-          </div>
-        )}
-        {/* Cycle + niveau du document — UN seul bloc (fini le rafistolage en 3 encadrés) :
-            1) les 2 listes d'abord (la seule vérité de l'écran) ; 2) « Détecter le cycle »
-            (aSchool lit le PDF et PRÉ-REMPLIT les listes) et « Choisir ce couple » sur la même
-            rangée ; 3) le retour sous les boutons seulement quand utile. « Choisir ce couple »
-            = appliquerCouple → la carte Couple s'ouvre EN DESSOUS (aucun écrit en base ici).
-            Masqué dès qu'un couple est choisi. Largeur bornée à 800 px. */}
-        {apercu && (!cycleId || !niveauId) && (
-          <div style={{ maxWidth: 800, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Cycle et niveau du document</div>
-
-            {/* Rangée 1 — les 2 listes, côte à côte */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <label className="block text-xs text-gray-500 mb-1">Cycle</label>
-                <select style={{ ...champ, background: '#fff' }} value={manuelCycle}
-                  onChange={e => { setManuelCycle(e.target.value); setManuelNiveau('') }}
-                  title="Choisissez le cycle, puis le niveau">
-                  <option value="">— Choisissez un cycle —</option>
-                  {arbre.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                </select>
-              </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <label className="block text-xs text-gray-500 mb-1">Niveau</label>
-                <select style={{ ...champ, background: '#fff' }} value={manuelNiveau} disabled={!manuelCycle}
-                  onChange={e => setManuelNiveau(e.target.value)}
-                  title={manuelCycle ? 'Choisissez le niveau du cycle' : 'Choisissez d’abord le cycle'}>
-                  <option value="">{manuelCycle ? '— Choisissez un niveau —' : '—'}</option>
-                  {(arbre.find(c => String(c.id) === String(manuelCycle))?.niveaux || []).map(n => (
-                    <option key={n.id} value={n.id}>{n.nom}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Rangée 2 — les 2 boutons, même rangée */}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              <button type="button" onClick={detecterCycle} disabled={detectBusy}
-                style={{ ...btnTypes('#7c3aed', detectBusy), cursor: detectBusy ? 'wait' : 'pointer' }}
-                title="aSchool lit le document et remplit le cycle et le niveau — vous validez ensuite">
-                {detectBusy ? <><Spinner /> Détection…</> : <><span aria-hidden="true">🤖</span> Détecter le cycle</>}
-              </button>
-              <button type="button" className="btn-primary"
-                disabled={!manuelCycle || !manuelNiveau}
-                onClick={() => {
-                  const c = arbre.find(x => String(x.id) === String(manuelCycle))
-                  const n = (c?.niveaux || []).find(x => String(x.id) === String(manuelNiveau))
-                  if (c && n) appliquerCouple(c.id, n.id, n.nom)
-                }}
-                style={{ whiteSpace: 'nowrap', opacity: (!manuelCycle || !manuelNiveau) ? 0.55 : 1,
-                         cursor: (!manuelCycle || !manuelNiveau) ? 'not-allowed' : 'pointer' }}
-                title="Ouvrir la carte Couple avec le cycle et le niveau choisis ci-dessus">
-                Choisir ce couple
-              </button>
-            </div>
-
-            {/* Retour sous les boutons — seulement quand c'est utile */}
-            {detectBusy && (
-              <JaugeAttente libelle="aSchool lit le document et cherche le cycle et le niveau correspondants…" />
-            )}
-            {detection && !detectBusy && detection.cycle && detection.niveau && (
-              <div style={{ fontSize: 12.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span>Proposition remplie dans les listes : <strong>{detection.cycle.nom} · {detection.niveau.nom}</strong> — vérifiez, puis « Choisir ce couple ».</span>
-                <BadgeIA titre="Couple proposé par la lecture du document — la correspondance est confirmée par la base" />
-              </div>
-            )}
-            {detection && !detectBusy && detection.cycle && !detection.niveau && (
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fffbeb',
-                border: '1px solid #fde68a', fontSize: 12.5, color: '#92400e' }}>
-                Le document vise le cycle <strong>{detection.cycle.nom}</strong>, niveau lu : <strong>« {detection.niveau_lu || '?'} »</strong> — ce niveau n’existe pas encore dans ce cycle.
-                <div style={{ marginTop: 8 }}>
-                  <button type="button" className="btn-primary" onClick={ajouterNiveauDetecte}
-                    disabled={detectBusy || !detection.niveau_lu}
-                    title="Créer ce niveau dans le cycle (même porte que l'écran Programmes) puis le sélectionner">
-                    Ajouter ce niveau « {detection.niveau_lu} »
-                  </button>
-                </div>
-              </div>
-            )}
-            {detection && !detectBusy && !detection.cycle && (
-              <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fef2f2',
-                border: '1px solid #fecaca', fontSize: 12.5, color: '#991b1b' }}>
-                Le document vise <strong>« {detection.cycle_lu || '?'}{detection.niveau_lu ? ` / ${detection.niveau_lu}` : ''} »</strong>, qui ne correspond à aucun cycle existant. Créez d’abord ce cycle dans l’écran Programmes, puis relancez la détection.
-              </div>
-            )}
-            {manuelCycle && (arbre.find(c => String(c.id) === String(manuelCycle))?.niveaux || []).length === 0 && (
-              <p style={{ fontSize: 12, color: '#b45309', margin: 0 }}>
-                Ce cycle n’a encore aucun niveau — créez-le d’abord dans l’écran Programmes.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Carte 1 — Couple : n'apparaît que lorsqu'un couple EST choisi — clic « Valider ce
-          couple » / « Ajouter ce niveau » (détection), ou ouverture d'un référentiel depuis la
-          colonne 2. Tant que la détection n'est qu'une PROPOSITION, rien ne s'affiche ici
-          (règle : l'IA propose, l'admin valide, alors seulement l'étape suivante s'ouvre). */}
-      {cycleId && (
+      {/* Carte 0 — Couple : le choix du couple vient EN PREMIER. Toujours affichée (c'est le
+          point de départ de l'écran) ; la cascade cycle → niveau ouvre les étapes suivantes. */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
-            <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
-            Couple (cycle + niveau)
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+              <Pastille etat={(cycleId && niveau) ? 'vert' : 'rouge'} titre="Vert = un couple est choisi." />
+              Cycle et niveau
+              <InfoGuide {...aideReferentiels('couple')} />
+              {/* La place vide après le « i » porte l'essentiel de la cartouche : ici le couple
+                  choisi, lu dans l'arbre des programmes. Rien tant qu'il n'est pas complet. */}
+              {cycleId && niveau && (
+                <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 8, fontSize: 13 }}
+                  title="Le couple choisi : c'est lui qui décide où le document est rangé">
+                  {cycleCourant?.nom || ''} · {niveau}
+                </span>
+              )}
+            </h2>
+          </div>
           <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
             title={coupleOuvert ? 'Réduire' : 'Développer'} onClick={() => setCoupleOuvert(o => !o)}>
             {coupleOuvert ? 'Réduire' : 'Développer'}
@@ -1249,42 +1188,215 @@ export default function AdminReferentiels() {
         </>)}
 
       </div>
+
+      {/* Carte 1 — Document PDF : le dépôt du référentiel officiel pour le couple choisi
+          au-dessus (dépôt / lien → zone d'attente). Règle N-1 comme les autres cartouches :
+          CACHÉE tant que l'étape Couple est rouge (estVisible). Masquée aussi quand le couple
+          a déjà son référentiel (la mise à jour reste dans « Référentiel au format PDF »). */}
+      {estVisible('depot') && (!dejaTraite || !!apercu) && (
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+            <Pastille etat={apercu ? 'jaune' : dejaTraite ? 'vert' : 'rouge'}
+              titre="Rouge = aucun document · Jaune = un document en cours, pas encore validé · Vert = référentiel validé." />
+            Document PDF
+            <InfoGuide {...aideReferentiels('document_pdf')} />
+          </h2>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" title="Déposer le fichier PDF du référentiel" style={onglet(mode === 'depot')} onClick={() => setMode('depot')}>Par dépôt</button>
+          <button type="button" title="Fournir le référentiel par un lien vers le PDF" style={onglet(mode === 'lien')} onClick={() => setMode('lien')}>Par lien</button>
+        </div>
+        {mode === 'lien' ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="block text-xs text-gray-500 mb-1">Lien du PDF</label>
+              <input style={champ} value={url} onChange={e => setUrl(e.target.value)}
+                placeholder="https://…/referentiel.pdf" />
+            </div>
+            <button type="button" className="btn-primary" title="Télécharger le PDF depuis ce lien pour vérification"
+              onClick={recupererLien} disabled={busy}>
+              {busy ? 'Récupération…' : 'Récupérer'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="block text-xs text-gray-500 mb-1">Fichier PDF</label>
+              <input style={champ} value={nomFichier} readOnly placeholder="Aucun fichier choisi" />
+            </div>
+            <input id="pdf-depot" type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+              disabled={busy} onChange={e => recupererDepot(e.target.files[0])} />
+            <label htmlFor="pdf-depot" className="btn-primary" title="Choisir le fichier PDF du référentiel à téléverser"
+              style={{ cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {busy ? <><Spinner /> Lecture…</> : 'Choisir le fichier'}
+            </label>
+          </div>
+        )}
+        {/* Règle générale : sablier DANS le bouton + jauge d'attente JUSTE EN DESSOUS pendant
+            toute lecture / appel long (même composant que les écrans prof). */}
+        {busy && (
+          <JaugeAttente libelle={depotPhase === 'controle'
+            ? <>Contrôle du couple : recherche du <strong>cycle</strong> et du <strong>niveau</strong> dans le document…</>
+            : (mode === 'lien'
+              ? 'Téléchargement du PDF depuis le lien…'
+              : 'Lecture du document PDF (nombre de pages et aperçu)…')} />
+        )}
+        {/* Liste des documents déposés — apparaît dès qu'un fichier est en zone d'attente. */}
+        {apercu && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+              {/* Bandeau : combien de documents, et le total à lire */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '8px 12px' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                  1 document(s) déposé(s)
+                </span>
+                <span style={{ fontSize: 12, color: '#64748b' }}>
+                  {apercu.pages} page(s) à lire · {apercu.taille_ko} Ko
+                </span>
+              </div>
+              {/* La ligne du document */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+                <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, background: '#f1f5f9',
+                  color: '#64748b', fontSize: 12, fontWeight: 700, display: 'inline-flex',
+                  alignItems: 'center', justifyContent: 'center' }}>1</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden',
+                    textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{apercu.filename}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {apercu.pages} page(s) · {apercu.taille_ko} Ko · {source === 'dépôt manuel' ? 'par dépôt' : 'par lien'}
+                  </div>
+                  {/* Résultat du contrôle n°1 : ce que le document nomme vraiment (recherche de
+                      texte, sans IA). Le document ne serait pas dans la liste sans au moins un des deux. */}
+                  {controle && controle.niveau_trouve && (
+                    <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>
+                      ✓ contient bien le niveau « {controle.niveau} »
+                    </div>
+                  )}
+                </div>
+                {/* Ordre : un seul document déposé → les deux flèches sont sans objet (grisées). */}
+                <button type="button" disabled title="Monter ce document dans la liste"
+                  style={{ ...btnOrdre, opacity: 0.45, cursor: 'not-allowed' }}>▲</button>
+                <button type="button" disabled title="Descendre ce document dans la liste"
+                  style={{ ...btnOrdre, opacity: 0.45, cursor: 'not-allowed' }}>▼</button>
+                <button type="button" onClick={() => setVoirDepot(true)}
+                  title="Ouvrir le document déposé"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                    fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
+                    background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                  👁 Voir
+                </button>
+                <button type="button" onClick={() => { setApercu(null); setVerif(null); setVoirDepot(false); setNomFichier(''); setForcageMotif(''); setControle(null); setTaches([]); setTachesFaites([]) }}
+                  title="Retirer ce document de la liste"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                    fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, cursor: 'pointer',
+                    background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
+                  ⛔ Retirer
+                </button>
+              </div>
+            </div>
+            {/* UNE SEULE ligne : les tâches à gauche, le « i » et le bouton à droite. UN SEUL geste,
+                VALIDER : tout le travail du document (rangement, lecture, écriture en base), sans
+                aucune IA — les matières sont la cartouche d'après. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 16, flexWrap: 'wrap' }}>
+              {/* Les tâches, cochées UNE À UNE pendant que le serveur travaille : ✓ verte pour la
+                  tâche finie, sablier pour celle en cours, puce grise pour celles qui attendent.
+                  La liste vient du serveur (flux) — elle n'est écrite nulle part ici. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', fontSize: 12.5 }}>
+                {taches.map((t, i) => {
+                  const faite = tachesFaites.includes(t.id)
+                  const enCours = !faite && tachesFaites.length === i && !!actionBusy
+                  return (
+                    <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                      whiteSpace: 'nowrap',
+                      color: faite ? '#166534' : enCours ? '#1e293b' : '#94a3b8',
+                      fontWeight: faite || enCours ? 600 : 400 }}>
+                      <span aria-hidden="true">{faite ? '✓' : enCours ? '⏳' : '○'}</span>
+                      {t.libelle}
+                    </span>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              {/* Le « i » de la maison (InfoGuide, comme chez les profs) : bulle courte au SURVOL,
+                  fiche complète épinglée au CLIC, qui se referme par ✕, clic dehors ou Échap. Ses
+                  textes viennent du catalogue utils/aideReferentiels.js — jamais réécrits ici. */}
+              <InfoGuide {...aideReferentiels('valider_document')} />
+              {/* Validation réussie = la cartouche entière disparaît (le document n'est plus en
+                  attente) : ce bouton n'a donc pas d'« après » à afficher. */}
+              <button type="button" onClick={validerLeReferentiel} disabled={!!actionBusy}
+                title="Range le document dans le dossier du référentiel, lit et fige son texte nettoyé, puis écrit sa fiche en base. Aucune IA n'est appelée."
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                  fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 6,
+                  cursor: actionBusy ? 'wait' : 'pointer', opacity: actionBusy ? 0.6 : 1,
+                  background: 'var(--bleu)', color: '#fff', border: '1px solid var(--bleu)' }}>
+                {actionBusy === 'verifier' ? <><Spinner /> Validation en cours…</> : <>✓ Valider le référentiel</>}
+              </button>
+              </div>
+            </div>
+            {/* Sablier + jauge pendant l'attente — celle de CE bouton seulement. Le libellé suit la
+                tâche en cours (celle que le flux n'a pas encore déclarée faite). */}
+            {actionBusy === 'verifier' && (
+              <JaugeAttente libelle={`${(taches[tachesFaites.length] || {}).libelle || 'Validation du référentiel'}…`} />
+            )}
+          </div>
+        )}
+      </div>
       )}
 
-      {/* Carte 2 — visible seulement si l'étape 1 (Couple) est faite (estVisible, règle N-1). */}
+      {/* Carte 2 — Référentiel au format PDF : règle générale, elle n'apparaît que si la cartouche
+          précédente (« Document PDF ») est VERTE, c'est-à-dire un document en zone d'attente ou un
+          référentiel déjà enregistré. */}
       {estVisible('pdf') && (
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
 
+        {/* L'essentiel de la cartouche vit sur la LIGNE DU TITRE : l'état du document, sa relecture
+            et sa suppression. Il reste donc visible même quand la cartouche est réduite — c'est
+            tout l'intérêt de la réduire. « Réduire » seul à droite, comme partout. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
-            <Pastille etat={(dejaTraite || resultat) ? 'vert' : 'rouge'} titre="Vert = une ligne référentiel existe en base pour ce couple." />
-            Référentiel au format PDF
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* DELETE encadré : visible seulement si un référentiel existe (sinon rien à supprimer).
-                Rouge + sens interdit ; ouvre une modale de confirmation (jamais de suppression au clic). */}
-            {dejaTraite && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+            <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+              <Pastille etat={(dejaTraite || resultat) ? 'vert' : 'rouge'} titre="Vert = une ligne référentiel existe en base pour ce couple." />
+              Référentiel au format PDF
+              <InfoGuide {...aideReferentiels('referentiel_pdf')} />
+            </h2>
+            {dejaTraite && (<>
+              <span style={{ fontSize: 12, color: '#166534' }}>
+                Déjà téléchargé, déjà traité.{' '}
+                <button type="button" onClick={() => setShowPdf(true)}
+                  title="Ouvrir le PDF du référentiel pour le relire"
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#1d4ed8',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                  Voir le référentiel
+                </button>
+              </span>
+              {/* DELETE encadré : le mot suffit — la bulle d'aide dit ce qui est effacé et quand
+                  c'est refusé. Rouge + sens interdit ; ouvre une modale de confirmation (jamais de
+                  suppression au clic). */}
               <button type="button" onClick={() => setShowSuppr(true)} disabled={supprBusy}
                 title="Supprimer définitivement ce référentiel (efface la fiche + le PDF). Refusé s'il a déjà servi."
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                  fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 6,
+                  fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
                   cursor: supprBusy ? 'wait' : 'pointer',
                   background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
-                ⛔ Supprimer le référentiel
+                ⛔ Supprimer
               </button>
-            )}
-            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-              title={pdfOuvert ? 'Réduire' : 'Développer'} onClick={() => setPdfOuvert(o => !o)}>
-              {pdfOuvert ? 'Réduire' : 'Développer'}
-            </button>
+            </>)}
           </div>
+          <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}
+            title={pdfOuvert ? 'Réduire' : 'Développer'} onClick={() => setPdfOuvert(o => !o)}>
+            {pdfOuvert ? 'Réduire' : 'Développer'}
+          </button>
         </div>
 
         {pdfOuvert && (<>
         {/* ── Zone 1 : le PDF ORIGINAL — la pièce téléchargée, conservée telle quelle, relue par l'admin. ── */}
         {dejaTraite && (
         <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-          Fichier PDF original <span style={{ fontWeight: 400, color: '#64748b' }}>(téléchargé — pièce d’origine consultable, matière première du dépôt, réserve pour l’avenir)</span>
+          Fichier PDF original
+          <InfoGuide {...aideReferentiels('pdf_original')} />
         </div>
         )}
         {dejaTraite ? (
@@ -1303,15 +1415,21 @@ export default function AdminReferentiels() {
                 {busy ? 'Lecture…' : 'Mettre à jour le référentiel'}
               </label>
             </div>
-            <p style={{ fontSize: 12, color: '#166534', marginTop: 6 }}>
-              Déjà téléchargé, déjà traité.{' '}
-              <button type="button" onClick={() => setShowPdf(true)}
-                title="Ouvrir le PDF du référentiel pour le relire"
-                style={{ background: 'none', border: 'none', padding: 0, color: '#1d4ed8',
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
-                Voir le référentiel
-              </button>
-            </p>
+            {/* PREUVE du contrôle n°1 — le document nomme bien le niveau. Lue EN BASE
+                (referentiels.controle_niveau via /etat), figée au dépôt : elle survit au
+                rechargement de la page, contrairement à l'affichage du moment du dépôt.
+                Absente (dépôt antérieur à la colonne) = rien affiché. */}
+            {etat.referentiel?.controle_niveau && (() => {
+              let c = null
+              try { c = JSON.parse(etat.referentiel.controle_niveau) } catch { c = null }
+              if (!c || !c.trouve) return null
+              return (
+                <p style={{ fontSize: 12, color: '#166534', marginTop: 4 }}
+                   title="Contrôle fait à la remise du document, sans IA : les mots du niveau ont été cherchés dans son texte.">
+                  ✓ contient bien le niveau « {c.niveau} »
+                </p>
+              )
+            })()}
             {/* Trace du forçage : motif lu EN BASE (referentiels.forcage_motif via /etat), affiché
                 si l'admin a validé ce référentiel malgré une alerte. Lecture seule (zéro copie). */}
             {etat.referentiel?.forcage_motif && (
@@ -1345,7 +1463,7 @@ export default function AdminReferentiels() {
           </div>
         ) : !apercu ? (
           <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
-            Déposez d’abord le document dans la cartouche « Document PDF » tout en haut — sa vérification et sa validation s’afficheront ici.
+            Déposez d’abord le document dans la cartouche « Document PDF » au-dessus — sa vérification et sa validation s’afficheront ici.
           </p>
         ) : null}
 
@@ -1353,11 +1471,13 @@ export default function AdminReferentiels() {
             Le document à valider n'apparaît que si elle a répondu (garde-fou). */}
         {apercu && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {verif === 'loading' && (
+            {verif === 'loading' && (<>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#1d4ed8' }}>
                 <Spinner /> Vérification du couple…
               </span>
-            )}
+              {/* Règle : sablier + jauge d'attente en dessous à chaque appel IA. */}
+              <JaugeAttente libelle="L’IA lit le document et vérifie qu’il vise bien ce cycle et ce niveau…" />
+            </>)}
             {verif && verif !== 'loading' && (
               <div style={{ padding: '10px 12px', borderRadius: 8,
                 border: `2px solid ${verif.couple.correspond ? '#16a34a' : '#dc2626'}`,
@@ -1387,7 +1507,7 @@ export default function AdminReferentiels() {
               borderRadius: 6, padding: 10, maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
               {apercu.apercu || '(aucun texte lisible sur la première page — PDF scanné ?)'}
             </pre>
-            {verif.couple.correspond ? (
+            {verif.couple.correspond ? (<>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <button type="button" className="btn-primary" title="Confirmer que c’est le bon document : ranger, extraire le texte, enregistrer la provenance"
                   onClick={() => valider(null)} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1398,6 +1518,9 @@ export default function AdminReferentiels() {
                   Recommencer
                 </button>
               </div>
+              {/* Règle : sablier + jauge d'attente en dessous à chaque appel IA. */}
+              {busy && <JaugeAttente libelle="L’IA épure le texte du document et en lit les matières (jusqu’à 2-3 min)…" />}
+              </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                 <label className="block text-xs text-gray-500">Motif du forçage (obligatoire — tracé en base)</label>
@@ -1415,6 +1538,8 @@ export default function AdminReferentiels() {
                     Recommencer
                   </button>
                 </div>
+                {/* Règle : sablier + jauge d'attente en dessous à chaque appel IA. */}
+                {busy && <JaugeAttente libelle="L’IA épure le texte du document et en lit les matières (jusqu’à 2-3 min)…" />}
               </div>
             )}
           </div>
@@ -1478,40 +1603,86 @@ export default function AdminReferentiels() {
 
       {estVisible('matieres') && (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          {/* Le titre garde sa ligne, « Réduire » reste en haut à droite comme dans toutes les
+              cartouches. Les gestes de la cartouche descendent sur la ligne d'en dessous. */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">
-                <Pastille etat={nbRetenues > 0 ? 'vert' : 'rouge'} titre="Vert = au moins une matière est retenue au programme de ce niveau." />
-                Matières de ce référentiel
-                <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
-                  ({nbRetenues} retenue{nbRetenues > 1 ? 's' : ''}
-                  {matieres.length - nbRetenues > 0 ? `, ${matieres.length - nbRetenues} proposée${matieres.length - nbRetenues > 1 ? 's' : ''}` : ''})
-                </span>
-                <span style={{ marginLeft: 8 }}>
-                  <BadgeIA titre="Matières proposées par la lecture du document — ce référentiel nomme les siennes" />
-                </span>
-              </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Ce référentiel possède ses propres matières, avec l'orthographe de son document.
-                {' '}Cochez les propositions que vous retenez, puis « Récupérer » : elles entrent au
-                {' '}programme et apparaissent aux profs de « {niveau} ».
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              {matieresOuvert && matieres.some(m => !m.validee && !m.cochee) && (
-                <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                  title="Cocher d'un coup toutes les propositions — « Récupérer » s'active ensuite"
-                  onClick={selectionnerTout}>
-                  Sélectionner tout
-                </button>
-              )}
-              <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                title={matieresOuvert ? 'Réduire la liste des matières' : 'Développer la liste des matières'}
-                onClick={() => setMatieresOuvert(o => !o)}>
-                {matieresOuvert ? 'Réduire' : 'Développer'}
-              </button>
-            </div>
+            <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+              <Pastille etat={nbRetenues > 0 ? 'vert' : 'rouge'} titre="Vert = au moins une matière est retenue au programme de ce niveau." />
+              Matières de ce référentiel
+              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
+                ({nbRetenues} retenue{nbRetenues > 1 ? 's' : ''}
+                {matieres.length - nbRetenues > 0 ? `, ${matieres.length - nbRetenues} proposée${matieres.length - nbRetenues > 1 ? 's' : ''}` : ''})
+              </span>
+              <span style={{ marginLeft: 8 }}>
+                <BadgeIA titre="Matières proposées par la lecture du document — ce référentiel nomme les siennes" />
+              </span>
+              <InfoGuide {...aideReferentiels('matieres', { niveau })} />
+            </h2>
+            <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}
+              title={matieresOuvert ? 'Réduire la liste des matières' : 'Développer la liste des matières'}
+              onClick={() => setMatieresOuvert(o => !o)}>
+              {matieresOuvert ? 'Réduire' : 'Développer'}
+            </button>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: -6 }}>
+            {/* La proposition IA vit ICI, dans la cartouche des matières : elle vient APRÈS la
+                validation du document, elle n'en fait pas partie. Violet = geste d'IA.
+                GRISÉ dès qu'il y a des propositions à l'écran : relire le document par-dessus une
+                liste déjà remplie n'a pas de sens. Pour relire, on vide d'abord (« Supprimer
+                tout ») — le bouton se rallume tout seul. */}
+            <button type="button" onClick={proposerMatieres} disabled={!!actionBusy || dejaPropose}
+              title={dejaPropose
+                ? 'Le document a déjà été lu : ses propositions sont dans la liste. Pour le relire, supprimez d’abord les propositions (« Supprimer tout »).'
+                : "Faire lire le texte du référentiel par l'IA : elle propose des matières, sans en retenir aucune — vous cochez ce que vous gardez."}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+                fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                cursor: actionBusy ? 'wait' : dejaPropose ? 'not-allowed' : 'pointer',
+                opacity: (actionBusy || dejaPropose) ? 0.5 : 1,
+                background: '#7c3aed', color: '#fff', border: '1px solid #7c3aed' }}>
+              {actionBusy === 'valider' ? <><Spinner /> Lecture…</> : <>🤖 Proposer les matières</>}
+            </button>
+            {/* Le prompt qui lit les matières : on le VOIT d'ici, on ne le modifie pas. Il est rangé
+                sur le CYCLE et sert à tous ses référentiels — le corriger depuis un couple
+                laisserait croire à un réglage local. Un seul endroit pour l'écrire : l'écran
+                Prompts → Matières par cycle. */}
+            <button type="button" className="btn-secondary"
+              style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title="Voir le prompt qui lit les matières des référentiels de ce cycle (lecture seule — il se modifie dans Prompts → Matières par cycle)"
+              onClick={() => setPromptMatieresOuvert(true)}>
+              👁 Voir le prompt des matières
+            </button>
+            <InfoGuide {...aideReferentiels('prompt_matieres')} />
+
+            {/* Les deux gestes de masse restent À DROITE, collés l'un à l'autre. */}
+            {matieresOuvert && matieres.some(m => !m.validee && !m.cochee) && (
+              <button type="button" className="btn-secondary"
+                style={{ marginLeft: 'auto', fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                title="Cocher d'un coup toutes les propositions — « Récupérer » s'active ensuite"
+                onClick={selectionnerTout}>
+                Sélectionner tout
+              </button>
+            )}
+            {/* « Supprimer tout » ne vide que les PROPOSITIONS — d'où son absence quand il n'y en
+                a aucune. `marginLeft: auto` seulement s'il est le premier des deux à droite. */}
+            {matieresOuvert && matieres.some(m => !m.validee && m.id) && (
+              <button type="button" onClick={ecarterTout} disabled={!!actionBusy}
+                title="Supprimer d'un coup toutes les propositions (les matières retenues ne bougent pas) — pour relire le document sur une liste vide"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
+                  ...(matieres.some(m => !m.validee && !m.cochee) ? {} : { marginLeft: 'auto' }),
+                  whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                  cursor: actionBusy ? 'wait' : 'pointer', opacity: actionBusy ? 0.6 : 1,
+                  background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' }}>
+                {actionBusy === 'ecarter-tout' ? <><Spinner /> Suppression…</> : <>⛔ Supprimer tout</>}
+              </button>
+            )}
+          </div>
+
+          {/* Règle générale : sablier DANS le bouton + jauge d'attente juste en dessous à chaque
+              appel IA. */}
+          {actionBusy === 'valider' && (
+            <JaugeAttente libelle="L’IA lit le référentiel et propose les matières…" />
+          )}
 
           {matieresOuvert && (
           <>
@@ -1541,9 +1712,9 @@ export default function AdminReferentiels() {
                   Renommer
                 </button>
                 <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px' }}
-                  title={m.validee ? 'Sortir cette matière du programme de ce niveau' : 'Écarter cette proposition'}
+                  title={m.validee ? 'Sortir cette matière du programme de ce niveau' : 'Supprimer cette proposition'}
                   onClick={() => retirer(i)}>
-                  {m.validee ? 'Retirer' : 'Écarter'}
+                  {m.validee ? 'Retirer' : 'Supprimer'}
                 </button>
               </div>
             ))}
@@ -1569,19 +1740,8 @@ export default function AdminReferentiels() {
                 programme. État lu (get), zéro copie. Se réactive dès qu'on coche une proposition. */}
             <button type="button" className="btn-primary" title="Retenir les matières cochées : elles entrent au programme de ce niveau"
               onClick={recuperer} disabled={busy || !aRetenir}>{busy ? 'Enregistrement…' : 'Récupérer'}</button>
-            {/* Passage Matières → Prompt (cas exceptionnel) : UN seul geste — affiche la cartouche
-                Prompt ET lance la génération IA dans la foulée (le bouton fait ce qu'il dit).
-                N'apparaît que lorsque « Récupérer » est grisé (plus rien à récupérer) ; se grise dès que
-                la cartouche est affichée (prompt déjà en base ou clic fait) → jamais actif en permanence,
-                donc jamais de génération par-dessus un prompt existant. */}
-            {estVisible('prompt') && !aRetenir && (
-              <button type="button" className="btn-primary"
-                onClick={() => { setAfficherPrompt(true); setPromptOuvert(true); genererPromptDecoupe() }}
-                disabled={afficherPrompt || !!promptDecoupe}
-                title="Ouvrir la cartouche « Prompt de découpe » et lancer la génération du prompt par l'IA">
-                Générer le prompt
-              </button>
-            )}
+            {/* Plus de bouton « Générer le prompt » ici (05/08/2026) : le prompt de découpe est
+                rangé sur le CYCLE et l'IA l'écrit toute seule à la première découpe du cycle. */}
             {bilanApercu && <span style={{ fontSize: 12, color: '#475569' }}>{bilanApercu}</span>}
           </div>
           </>
@@ -1589,96 +1749,13 @@ export default function AdminReferentiels() {
         </div>
       )}
 
-      {/* Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base), affiché, corrigé et validé par
-          l'admin. La découpe refuse de tourner tant que le prompt n'est pas validé.
-          Affichage SÉQUENTIEL (règle : tant que N-1 n'est pas fini, on n'affiche pas N) : cette carte
-          (N) n'apparaît que si le référentiel EXISTE en base (dejaTraite) ET que l'étape Matières (N-1)
-          est faite (matières reliées au niveau, lu via /etat). Sans référentiel enregistré — ex. dépôt
-          en cours, IA encore en analyse — elle reste CACHÉE, même si des matières traînent en base. */}
-      {/* Carte 4 — Prompt. Visible si tout ce qui précède est fait (estVisible) ET que l'admin a
-          cliqué « Générer le prompt » OU qu'un prompt existe déjà en base (travail déjà fait). */}
-      {estVisible('prompt') && (afficherPrompt || !!promptDecoupe) && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">
-                <Pastille etat={promptValide ? 'vert' : 'rouge'} titre="Vert = prompt de découpe validé (referentiels.prompt_decoupe_valide)." />
-                Prompt de découpe
-                <span style={{ marginLeft: 8 }}>
-                  <BadgeIA titre="Prompt généré par l'IA (lecture du document) — relu, corrigé et validé par l'admin" />
-                </span>
-              </h2>
-              <p className="text-sm text-gray-500">
-                L'IA lit le PDF et propose le prompt qui découpe CE document. Lisez-le, corrigez-le si besoin, validez-le,
-                puis déclenchez la découpe. Rien n'est écrit en dur : le prompt vit en base.
-              </p>
-            </div>
-            <button type="button" onClick={() => setPromptOuvert(v => !v)} className="btn-secondary"
-              title={promptOuvert ? 'Réduire' : 'Développer'} style={{ whiteSpace: 'nowrap' }}>
-              {promptOuvert ? 'Réduire' : 'Développer'}
-            </button>
-          </div>
-          {promptOuvert && (
-            <>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <button type="button" onClick={genererPromptDecoupe}
-                  disabled={!!promptBusy}
-                  style={{ ...btnTypes('#7c3aed', !!promptBusy), cursor: promptBusy ? 'wait' : 'pointer' }}
-                  title="L'IA génère le prompt de découpe adapté à ce document">
-                  {promptBusy === 'generer' ? <><Spinner /> Génération…</> : <><span aria-hidden="true">🤖</span> Générer le prompt (IA)</>}
-                </button>
-                <span style={{ fontSize: 13, fontWeight: 600, color: promptValide ? '#166534' : '#A63045' }}>
-                  {promptValide ? 'Statut : validé' : 'Statut : à valider'}
-                </span>
-              </div>
-              {/* Jauge IA — même patron que la Découpe : montée UNIQUEMENT pendant l'appel IA. */}
-              {promptBusy === 'generer' && (
-                <JaugeAttente libelle="L’IA lit le document épuré et rédige le prompt de découpe…" />
-              )}
-              <textarea
-                value={promptDecoupe}
-                onChange={e => { setPromptDecoupe(e.target.value); setPromptValide(false) }}
-                placeholder="Cliquez sur « Générer le prompt (IA) » — le prompt proposé apparaîtra ici, éditable."
-                rows={12}
-                style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, padding: 10,
-                         border: '1px solid #E5E7EB', borderRadius: 8, resize: 'vertical' }}
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6,
-                            borderTop: '1px dashed #E5E7EB', paddingTop: 10 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
-                  Remarques — dites en français clair ce qui ne va pas dans le prompt ci-dessus
-                </label>
-                <textarea
-                  value={remarques}
-                  onChange={e => setRemarques(e.target.value)}
-                  placeholder="Ex. : « le prompt garde encore les renvois » ou « il ne sort que le titre, il doit sortir aussi le contenu de l'activité »."
-                  rows={4}
-                  style={{ width: '100%', fontSize: 13, padding: 10,
-                           border: '1px solid #E5E7EB', borderRadius: 8, resize: 'vertical' }}
-                />
-                <div>
-                  <button type="button" onClick={regenererPromptDecoupe}
-                    disabled={!!promptBusy || !promptDecoupe.trim() || !remarques.trim()}
-                    style={btnTypes('#7c3aed', !!promptBusy || !promptDecoupe.trim() || !remarques.trim())}
-                    title="L'IA reprend le prompt actuel + vos remarques et produit un nouveau prompt qui en tient compte">
-                    {promptBusy === 'regenerer' ? <><Spinner /> Régénération…</> : <><span aria-hidden="true">🤖</span> Régénérer le prompt en tenant compte de ma remarque ci-dessus</>}
-                  </button>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {/* Grisé une fois le prompt validé en base (promptValide, lu via /prompt-decoupe).
-                    Éditer le prompt remet promptValide à false (onChange) → le bouton se réactive.
-                    Ce bouton NE fait QUE valider le prompt — la découpe est la cartouche d'après. */}
-                <button type="button" className="btn-primary" onClick={validerPromptDecoupe}
-                  disabled={!!promptBusy || !promptDecoupe.trim() || promptValide}
-                  title="Valide ce prompt en base (la découpe se fait ensuite, dans la cartouche « Découpe »).">
-                  {promptBusy === 'valider' ? <><Spinner /> Validation…</> : 'Valider le prompt'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {/* Le PROMPT DE DÉCOUPE ne se règle plus ici (05/08/2026). Il est rangé sur le CYCLE
+          (cycles.prompt_decoupe) et découpe TOUS ses référentiels : le corriger depuis un couple
+          laisserait croire à un réglage local, et deux éditeurs sur la même colonne finissent par
+          s'écraser. L'IA l'écrit à la première découpe du cycle ; il se relit et se corrige dans
+          Prompts → Découpe par cycle. Ce qu'il en reste ici : un bouton pour le VOIR, dans la
+          cartouche Découpe juste en dessous. */}
+
 
       {/* Découpe — ÉTAPE À PART (le prompt et la découpe ne sont pas le même travail). Apparaît une fois
           le prompt validé. On découpe (aperçu, lecture seule), on contrôle les unités, puis on valide le
@@ -1689,14 +1766,12 @@ export default function AdminReferentiels() {
             <div>
               <h2 className="text-base font-semibold text-gray-800">
                 <Pastille etat={decoupeValide ? 'vert' : 'rouge'} titre="Vert = découpage validé (referentiels.decoupe_valide)." />
-                Découpe
+                Découpe (chunk)
                 <span style={{ marginLeft: 8 }}>
                   <BadgeIA titre="Document découpé en unités par l'IA (avec le prompt validé)" />
                 </span>
+                <InfoGuide {...aideReferentiels('decoupe')} />
               </h2>
-              <p className="text-sm text-gray-500">
-                Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le découpage — l'étape Types d'activité s'ouvre ensuite.
-              </p>
             </div>
             <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
               title={decoupeOuvert ? 'Réduire' : 'Développer'} onClick={() => setDecoupeOuvert(o => !o)}>
@@ -1705,12 +1780,31 @@ export default function AdminReferentiels() {
           </div>
           {decoupeOuvert && (<>
           <div>
-            <button type="button" onClick={declencherDecoupe}
-              disabled={!!promptBusy}
-              style={btnTypes('#7c3aed', !!promptBusy)}
-              title="Découper le référentiel avec le prompt validé (aperçu, aucune écriture).">
-              {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : <><span aria-hidden="true">🤖</span> Découper</>}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={declencherDecoupe}
+                disabled={!!promptBusy}
+                style={btnTypes('#7c3aed', !!promptBusy)}
+                title="Découper le référentiel avec le prompt du cycle (aperçu, aucune écriture). Au premier référentiel du cycle, l'IA écrit ce prompt à ce moment-là.">
+                {promptBusy === 'decouper' ? <><Spinner /> Découpe…</> : <><span aria-hidden="true">🤖</span> Découper</>}
+              </button>
+              {/* Le prompt qui découpe : on le VOIT d'ici, on ne le modifie pas — il est rangé sur
+                  le cycle et sert à tous ses référentiels. Un seul endroit pour l'écrire :
+                  Prompts → Découpe par cycle. */}
+              <button type="button" className="btn-secondary"
+                style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                title="Voir le prompt qui découpe les référentiels de ce cycle (lecture seule — il se modifie dans Prompts → Découpe par cycle)"
+                onClick={() => setPromptOuvert(true)}>
+                👁 Voir le prompt de découpe
+              </button>
+              <InfoGuide {...aideReferentiels('prompt_decoupe')} />
+              {/* Le prompt SERT dès qu'il existe : ce voyant dit seulement s'il a été relu. */}
+              <span style={{ fontSize: 11, fontWeight: 700,
+                color: promptValide ? '#166534' : promptDecoupe.trim() ? '#b45309' : '#A63045' }}>
+                {promptValide ? '● relu et validé'
+                  : promptDecoupe.trim() ? '● écrit par l’IA, à relire'
+                  : '● pas encore écrit'}
+              </span>
+            </div>
             {promptBusy === 'decouper' && (
               <JaugeAttente libelle="L’IA lit le document et le découpe en unités…" />
             )}
@@ -1845,10 +1939,8 @@ export default function AdminReferentiels() {
                 <span style={{ marginLeft: 8 }}>
                   <BadgeIA titre="Types détectés et suggérés par l'IA (lecture du référentiel) — cochés par l'admin" />
                 </span>
+                <InfoGuide {...aideReferentiels('types_activite')} />
               </h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                L’IA se lance toute seule : elle lit le document épuré avec la table des types sous les yeux, retient les types de ce couple (prompts et précisions générés dans la foulée). Toi tu fais le ménage : ✕ pour retirer, le champ du bas pour ajouter.
-              </p>
             </div>
             <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
               title={typesOuvert ? 'Réduire' : 'Développer'} onClick={() => setTypesOuvert(o => !o)}>
@@ -2033,6 +2125,31 @@ export default function AdminReferentiels() {
         </div>
       )}
 
+      {/* « Voir » de la liste des documents déposés : le PDF EN ATTENTE s'ouvre tel quel
+          (même fenêtre que la relecture du référentiel enregistré). */}
+      {voirDepot && apercu && (
+        <div onClick={() => setVoirDepot(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                {apercu.filename} · {apercu.pages} page(s)
+              </span>
+              <button type="button" onClick={() => setVoirDepot(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <iframe
+              title="Document déposé"
+              src={`/api/admin/referentiels/depot-pdf?token=${encodeURIComponent(apercu.token)}`}
+              style={{ flex: 1, width: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
+
       {/* Fenêtre de relecture : le PDF d'origine, repliable (clic dehors ou ×). */}
       {showPdf && dejaTraite && (
         <div onClick={() => setShowPdf(false)}
@@ -2053,6 +2170,104 @@ export default function AdminReferentiels() {
               title="Référentiel PDF"
               src={`/api/admin/referentiels/pdf?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`}
               style={{ flex: 1, width: '100%', border: 'none' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Fenêtre du PROMPT DES MATIÈRES — LECTURE SEULE. Le prompt est rangé sur le CYCLE
+          (cycles.prompt_matieres) et sert à TOUS ses référentiels : le corriger depuis un couple
+          laisserait croire à un réglage local, et deux éditeurs ouverts sur la même colonne
+          finissent par s'écraser. Un seul endroit pour l'écrire : Prompts → Matières par cycle.
+          Même patron que les autres fenêtres de cet écran (clic dehors ou ×). */}
+      {promptMatieresOuvert && (
+        <div onClick={() => setPromptMatieresOuvert(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 10, padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                Prompt de lecture des matières
+                <span style={{ fontWeight: 400, color: '#94a3b8' }}>
+                  (cycle « {cycleCourant?.nom || ''} »)
+                </span>
+                {/* Le prompt SERT dès qu'il existe : ce voyant dit seulement s'il a été relu. */}
+                <span style={{ fontSize: 11, fontWeight: 700,
+                  color: promptMatieresValide ? '#166534' : promptMatieres.trim() ? '#b45309' : '#A63045' }}>
+                  {promptMatieresValide ? '● relu et validé'
+                    : promptMatieres.trim() ? '● écrit par l’IA, à relire'
+                    : '● pas encore écrit'}
+                </span>
+              </span>
+              <button type="button" onClick={() => setPromptMatieresOuvert(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <pre style={{ flex: 1, overflow: 'auto', margin: 0, padding: 14, fontSize: 12,
+              color: '#334155', whiteSpace: 'pre-wrap', background: '#f8fafc' }}>
+              {promptMatieres.trim()
+                || 'Ce cycle n’a pas encore de prompt : il sera écrit par l’IA au premier « Proposer les matières ».'}
+            </pre>
+            {/* PAS de lien vers l'autre écran : cliquer ferait quitter le référentiel en cours de
+                traitement, sans retour. On explique le chemin, l'admin ira quand il aura fini. */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
+              fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
+              <strong>Lecture seule.</strong> Ce prompt sert à TOUS les référentiels du cycle
+              « {cycleCourant?.nom || ''} » : le corriger d’ici laisserait croire qu’on ne règle que
+              ce niveau. Pour le modifier, terminez ce référentiel, puis, dans le menu de gauche,
+              ouvrez <strong>Prompts</strong> → <strong>Matières par cycle</strong>, choisissez le
+              cycle « {cycleCourant?.nom || ''} » dans la liste, corrigez le texte à droite et
+              cliquez <strong>« Enregistrer le prompt »</strong>.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fenêtre du PROMPT DE DÉCOUPE — LECTURE SEULE, jumelle de celle des matières. Le prompt est
+          rangé sur le CYCLE (cycles.prompt_decoupe) et découpe TOUS ses référentiels. */}
+      {promptOuvert && (
+        <div onClick={() => setPromptOuvert(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 10, padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                Prompt de découpe du document
+                <span style={{ fontWeight: 400, color: '#94a3b8' }}>
+                  (cycle « {cycleCourant?.nom || ''} »)
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700,
+                  color: promptValide ? '#166534' : promptDecoupe.trim() ? '#b45309' : '#A63045' }}>
+                  {promptValide ? '● relu et validé'
+                    : promptDecoupe.trim() ? '● écrit par l’IA, à relire'
+                    : '● pas encore écrit'}
+                </span>
+              </span>
+              <button type="button" onClick={() => setPromptOuvert(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <pre style={{ flex: 1, overflow: 'auto', margin: 0, padding: 14, fontSize: 12,
+              color: '#334155', whiteSpace: 'pre-wrap', background: '#f8fafc' }}>
+              {promptDecoupe.trim()
+                || 'Ce cycle n’a pas encore de prompt de découpe : il sera écrit par l’IA au premier « Découper ».'}
+            </pre>
+            {/* PAS de lien vers l'autre écran : cliquer ferait quitter le référentiel en cours de
+                traitement, sans retour. On explique le chemin, l'admin ira quand il aura fini. */}
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
+              fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
+              <strong>Lecture seule.</strong> Ce prompt découpe TOUS les référentiels du cycle
+              « {cycleCourant?.nom || ''} » : le corriger d’ici laisserait croire qu’on ne règle que
+              ce niveau. Pour le modifier, terminez ce référentiel, puis, dans le menu de gauche,
+              ouvrez <strong>Prompts</strong> → <strong>Découpe par cycle</strong>, choisissez le
+              cycle « {cycleCourant?.nom || ''} » dans la liste, corrigez le texte à droite et
+              cliquez <strong>« Enregistrer le prompt »</strong>.
+            </div>
           </div>
         </div>
       )}

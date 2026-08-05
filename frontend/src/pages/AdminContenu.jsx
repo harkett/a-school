@@ -4,6 +4,7 @@ import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '..
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
 import { lignesMatieres, nbAuProgramme, compterContenu, AU_PROGRAMME, DESACTIVEE, PROPOSEE } from '../utils/contenuMatieres.js'
+import SplitPane from '../components/SplitPane.jsx'
 
 // LA page « Programmes & contenu » : tout le contenu pédagogique dans UN SEUL tableau qui se
 // déroule — cycle → niveau (le couple) → référentiel, matières, types d'activité (et leurs
@@ -75,6 +76,11 @@ export default function AdminContenu() {
   const [busy, setBusy]       = useState(false)    // une écriture (et sa relecture) est en cours
   const [nivOuverts, setNivOuverts] = useState(() => new Set())      // niveaux dépliés
   const [typesOuverts, setTypesOuverts] = useState(() => new Set())  // `${niveauId}|${typeId}` → précisions dépliées
+  // Le prompt des matières du cycle ouvert à droite — LU en base à la demande, jamais recopié :
+  // { id, nom, prompt, valide }. null = colonne de droite au repos.
+  const [promptCycle, setPromptCycle] = useState(null)
+  const [promptLectureId, setPromptLectureId] = useState(0)   // cycle en cours de lecture
+  const [detailCache, setDetailCache] = useState(false)
   const navigate = useNavigate()
 
   // Lecture COMPLÈTE en base, en UN appel : l'arbre porte le référentiel de chaque niveau, ses
@@ -183,6 +189,25 @@ export default function AdminContenu() {
     })
   }
 
+  // « Voir le prompt » d'un cycle → colonne de droite. Reclic sur le MÊME cycle = « Fermer ».
+  // Lecture en base à chaque ouverture (get direct) : ce qui s'affiche est ce qui est en base au
+  // moment du clic, même si le prompt vient d'être changé dans l'écran Prompts.
+  async function voirPrompt(cycle) {
+    if (promptCycle && promptCycle.id === cycle.id) { setPromptCycle(null); return }
+    setPromptLectureId(cycle.id)
+    try {
+      const r = await fetchWithTimeout(`/api/admin/cycles/prompt-matieres?cycle_id=${cycle.id}`,
+        { credentials: 'include' }, TIMEOUT_STD)
+      const d = await lireReponse(r)
+      setPromptCycle({ id: cycle.id, nom: cycle.nom, prompt: d.prompt || '', valide: !!d.valide })
+      setDetailCache(false)   // demander à voir le prompt veut dire « montre-moi le détail »
+    } catch (err) {
+      showError(messagePourEcran(err))
+    } finally {
+      setPromptLectureId(0)
+    }
+  }
+
   function basculerNiveau(id) {
     setNivOuverts(prev => {
       const s = new Set(prev)
@@ -219,16 +244,124 @@ export default function AdminContenu() {
   // vraiment au programme, sans dédoublonner par nom : deux référentiels ont chacun les leurs.
   const total = compterContenu(cycles)
 
+  // ── Colonne gauche : l'arbre du contenu, tel qu'il a toujours été. ──
+  const colonneArbre = (
+    <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <tbody>
+          {cycles.length === 0 && (
+            <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <td colSpan={2} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: 13 }}>
+                Aucun cycle en base.
+              </td>
+            </tr>
+          )}
+          {cycles.map(cycle => (
+            <CycleBloc
+              key={cycle.id}
+              cycle={cycle}
+              busy={busy}
+              nivOuverts={nivOuverts}
+              typesOuverts={typesOuverts}
+              basculerNiveau={basculerNiveau}
+              basculerType={basculerType}
+              onCreerNiveau={creerNiveau}
+              onCreerMatiere={creerMatiere}
+              onToggleMatiere={toggleMatiere}
+              onToggleLangue={toggleLangue}
+              promptOuvert={!!promptCycle && promptCycle.id === cycle.id}
+              promptLecture={promptLectureId === cycle.id}
+              onVoirPrompt={voirPrompt}
+            />
+          ))}
+          <AjoutCycleRow busy={busy} onCreer={creerCycle} />
+        </tbody>
+      </table>
+    </div>
+  )
+
+  // ── Colonne droite : le détail du cycle choisi — son prompt des matières, EN LECTURE SEULE.
+  //    Il se modifie dans Prompts → Matières par cycle ; ici, c'est une fenêtre, pas un éditeur. ──
+  const colonneDetail = !promptCycle ? (
+    <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <p className="text-sm text-gray-500">
+        Cliquez « Voir le prompt » sur un cycle pour lire ici le texte qui lit les matières de ses
+        référentiels.
+      </p>
+      <p className="text-xs text-gray-400 mt-2">
+        Il est rangé sur le cycle et sert à tous ses référentiels. Il s'écrit et se corrige dans
+        <b> Prompts → Matières par cycle</b> ; cet écran ne fait que le montrer.
+      </p>
+    </div>
+  ) : (
+    <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-4"
+         style={{ height: '100%', minHeight: 320 }}>
+      <div style={{ flexShrink: 0 }}>
+        <h3 className="text-sm font-semibold text-gray-700">
+          Prompt de lecture des matières — cycle « {promptCycle.nom} »
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700,
+            color: promptCycle.valide ? '#166534' : promptCycle.prompt.trim() ? '#b45309' : '#6b7280' }}>
+            {promptCycle.valide ? '● relu et validé'
+              : promptCycle.prompt.trim() ? '● écrit par l’IA, à relire'
+              : '● pas encore écrit'}
+          </span>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>
+            lecture seule — il se modifie dans Prompts → Matières par cycle
+          </span>
+        </div>
+      </div>
+      {promptCycle.prompt.trim() ? (
+        <pre style={{
+          flex: 1, minHeight: 0, margin: 0, overflow: 'auto', whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          fontSize: 12, lineHeight: 1.5, color: '#334155',
+          background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10,
+        }}>
+          {promptCycle.prompt}
+        </pre>
+      ) : (
+        <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>
+          Ce cycle n’a pas encore de prompt : il sera écrit par l’IA au premier
+          « Proposer les matières » d’un de ses référentiels.
+        </p>
+      )}
+    </div>
+  )
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+    <div className="flex flex-col gap-3" style={{ height: '100%' }}>
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-sm font-semibold text-gray-700">Programmes &amp; contenu</h2>
-        <span className="text-xs text-gray-400">
-          {total.cycles} cycle{total.cycles > 1 ? 's' : ''} · {total.niveaux} niveau{total.niveaux > 1 ? 'x' : ''} · {total.matieres} matière{total.matieres > 1 ? 's' : ''} au programme
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-gray-400">
+            {total.cycles} cycle{total.cycles > 1 ? 's' : ''} · {total.niveaux} niveau{total.niveaux > 1 ? 'x' : ''} · {total.matieres} matière{total.matieres > 1 ? 's' : ''} au programme
+          </span>
+          {/* Permanent sur les pages listes (règle maison) : il ne se retire jamais. */}
+          <button
+            type="button"
+            onClick={() => setDetailCache(c => !c)}
+            title={detailCache
+              ? 'Réafficher la colonne de détail à droite'
+              : 'Cacher la colonne de détail — l’arbre prend toute la largeur'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+              background: 'white', color: '#6b7280', border: '1px solid #e5e7eb',
+              borderRadius: 7, padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {detailCache
+                ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                : <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>}
+            </svg>
+            {detailCache ? 'Afficher le détail' : 'Cacher le détail'}
+          </button>
+        </div>
       </div>
 
-      <p className="text-xs text-gray-500 mb-3" style={{ maxWidth: 760, lineHeight: 1.5 }}>
+      <p className="text-xs text-gray-500" style={{ maxWidth: 760, lineHeight: 1.5 }}>
         Tout le contenu pédagogique, lu en direct dans la base. Ajoutez cycles et niveaux
         directement dans l'arbre&nbsp;; dépliez un niveau pour voir et gérer <b>ses matières</b> —
         elles appartiennent à son référentiel, un niveau ne partage jamais les siennes avec un
@@ -238,34 +371,17 @@ export default function AdminContenu() {
         <b> Référentiel</b> : c'est aussi là que se retiennent les matières qu'il propose.
       </p>
 
-      <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <tbody>
-            {cycles.length === 0 && (
-              <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td colSpan={2} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: 13 }}>
-                  Aucun cycle en base.
-                </td>
-              </tr>
-            )}
-            {cycles.map(cycle => (
-              <CycleBloc
-                key={cycle.id}
-                cycle={cycle}
-                busy={busy}
-                nivOuverts={nivOuverts}
-                typesOuverts={typesOuverts}
-                basculerNiveau={basculerNiveau}
-                basculerType={basculerType}
-                onCreerNiveau={creerNiveau}
-                onCreerMatiere={creerMatiere}
-                onToggleMatiere={toggleMatiere}
-                onToggleLangue={toggleLangue}
-              />
-            ))}
-            <AjoutCycleRow busy={busy} onCreer={creerCycle} />
-          </tbody>
-        </table>
+      {/* Deux colonnes redimensionnables, comme les pages listes : l'arbre à gauche, le détail à
+          droite. Détail caché : l'arbre prend toute la largeur. */}
+      <div className="admin-contenu-corps">
+        {detailCache
+          ? <div className="split-pane"><div className="split-col split-col-flex">{colonneArbre}</div></div>
+          : <SplitPane
+              storageKey="admin-contenu-split-v1"
+              defautGauche={58}
+              gauche={colonneArbre}
+              droite={colonneDetail}
+            />}
       </div>
     </div>
   )
@@ -353,16 +469,40 @@ function AjoutMatiereRow({ referentielId, niveauNom, busy, onCreer }) {
 }
 
 function CycleBloc({ cycle, busy, nivOuverts, typesOuverts, basculerNiveau, basculerType,
-                     onCreerNiveau, onCreerMatiere, onToggleMatiere, onToggleLangue }) {
+                     onCreerNiveau, onCreerMatiere, onToggleMatiere, onToggleLangue,
+                     promptOuvert, promptLecture, onVoirPrompt }) {
   return (
     <>
       {/* ─ Ligne CYCLE ─ */}
       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
         <td colSpan={2} style={{ padding: '10px 16px' }}>
-          <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 13.5 }}>{cycle.nom}</span>
-          <span style={{ marginLeft: 10, fontSize: 11, color: '#94a3b8' }}>
-            {cycle.niveaux.length} niveau{cycle.niveaux.length > 1 ? 'x' : ''}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 700, color: '#1e293b', fontSize: 13.5 }}>{cycle.nom}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+              {cycle.niveaux.length} niveau{cycle.niveaux.length > 1 ? 'x' : ''}
+            </span>
+            {/* Le prompt des matières du cycle : il s'ouvre dans la COLONNE DE DROITE, comme le
+                détail de toutes les pages listes. Le bouton dit le geste qu'il fait — « Voir »
+                quand il est fermé, « Fermer » quand ce cycle est celui qui est affiché. */}
+            <button
+              type="button" onClick={() => onVoirPrompt(cycle)} disabled={promptLecture}
+              title={promptOuvert
+                ? 'Fermer le prompt des matières de ce cycle'
+                : 'Voir, à droite, le prompt qui lit les matières des référentiels de ce cycle (lecture seule — il se règle dans Prompts → Matières par cycle)'}
+              style={{
+                marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+                whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, padding: '4px 10px',
+                borderRadius: 6,
+                background: promptOuvert ? '#eff6ff' : '#fff',
+                color: promptOuvert ? '#1d4ed8' : '#334155',
+                border: `1px solid ${promptOuvert ? '#bfdbfe' : '#cbd5e1'}`,
+                cursor: promptLecture ? 'not-allowed' : 'pointer',
+                opacity: promptLecture ? 0.6 : 1,
+              }}
+            >
+              📝 {promptLecture ? 'Lecture…' : promptOuvert ? 'Fermer le prompt' : 'Voir le prompt'}
+            </button>
+          </div>
         </td>
       </tr>
 

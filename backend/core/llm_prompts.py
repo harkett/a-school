@@ -409,6 +409,36 @@ Le prompt que tu rediges DOIT :
 Reponds UNIQUEMENT par le texte du prompt de decoupe, sans aucun commentaire autour."""
 
 
+# Méta-prompt des MATIÈRES — même geste que PROMPT_META_DECOUPE, mais pour la liste des matières.
+# Il ne cherche AUCUNE matière : il fait écrire, par l'IA, le prompt qui les cherchera. Ce prompt
+# généré est rangé sur le CYCLE : il doit donc valoir pour TOUS les référentiels de ce cycle (tous
+# les BTS sont bâtis pareil, tous les programmes de collège aussi), pas seulement pour l'exemplaire
+# qui a servi de modèle. C'est ce qui remplace le prompt unique, écrit d'avance pour tout le monde,
+# qui rendait une liste incomplète sur les documents structurés.
+PROMPT_META_MATIERES = """Tu prépares la lecture des MATIÈRES d'un référentiel officiel pour un logiciel pédagogique.
+
+On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
+---
+{document}
+---
+
+Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille, en sortira la liste COMPLÈTE de ses matières. Tu ne listes aucune matière toi-même.
+
+Observe d'abord CE document : où ses matières sont-elles énumérées ? Un tableau d'horaires, une liste d'unités, une suite de domaines, des titres de parties — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
+
+Le prompt que tu rédiges DOIT :
+- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais une matière précise en exemple, ni un intitulé propre à ce document) ;
+- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
+- exiger la liste ENTIÈRE de l'endroit repéré, ligne à ligne, y compris les sous-lignes, les enseignements secondaires et les options facultatives — ne rien laisser de côté sous prétexte que c'est un détail ;
+- écarter ce qui ne concerne pas le référentiel visé : autre option du même diplôme, autre niveau, tableaux de correspondance avec un ancien programme ;
+- demander le nom de chaque matière TEL QU'IL APPARAÎT dans le document (orthographe, majuscules, accents), sans le normaliser ni le reformuler ;
+- demander une relecture avant de répondre : toute ligne de l'endroit repéré a-t-elle été reprise ?
+- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré ;
+- imposer une sortie JSON stricte : {"matieres":["...","..."]} et rien d'autre autour.
+
+Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
+
+
 PROMPT_VERIF_DECOUPE = """Tu es un relecteur exigeant. On te donne un PROMPT DE DÉCOUPE destiné à découper un référentiel en unités. Vérifie qu'il respecte STRICTEMENT ce contrat :
 
 1. TITRES VERBATIM (priorité absolue) : le prompt doit exiger que chaque unité renvoie sa LIGNE DE TITRE EXACTEMENT telle qu'elle apparaît dans le document, mot pour mot, jamais reformulée ni résumée. C'est vital : le code retrouve ensuite chaque titre dans le texte réel pour trancher ; un titre paraphrasé fait perdre la frontière.
@@ -454,6 +484,31 @@ Règle :
 - "raison" : pourquoi cela correspond ou non, en une phrase.
 
 Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, raison."""
+
+
+PROMPT_REFERENTIEL_FUSION = """Tu reçois les documents officiels fournis pour un même niveau scolaire. Tu en tires UN SEUL référentiel de travail, complet et sans redite.
+
+Couple visé :
+- Cycle : {cycle}
+- Niveau : {niveau}
+
+Documents fournis :
+{documents}
+
+Ta tâche :
+- Retiens ce qui vaut pour CE niveau : les matières enseignées, et pour chacune ce que l'élève doit savoir et savoir faire.
+- Un même contenu revient souvent d'un document à l'autre (un programme et son bulletin officiel disent la même chose) : ne l'écris QU'UNE FOIS, dans sa formulation la plus complète.
+- Quand deux documents se contredisent, garde ce qui vaut pour le niveau visé et ignore l'autre. N'explique pas ton choix dans le texte.
+- Écarte ce qui n'est pas du programme : préambules administratifs, sommaires, références d'arrêtés, mentions légales, pagination, remerciements.
+- N'ajoute RIEN qui ne soit pas dans les documents. Tu résumes et tu ordonnes, tu n'inventes pas.
+
+Forme attendue :
+- Une matière par section, introduite par une ligne « ## » suivie du nom de la matière tel que les documents le nomment.
+- Sous chaque matière, des lignes courtes commençant par « - », une idée par ligne.
+- Pas d'introduction, pas de conclusion, pas de commentaire sur ton travail : le texte du référentiel, et rien d'autre.
+- {consigne_taille}
+
+Réponds uniquement par ce texte."""
 
 
 PROMPT_DETECTER_MATIERES = """Tu lis un référentiel officiel et tu en dégages la liste des MATIÈRES (disciplines, domaines d'apprentissage) qu'il structure à ce niveau.
@@ -781,6 +836,15 @@ PROMPTS = {
         "mode": "replace",
         "default": PROMPT_META_DECOUPE,
     },
+    "meta_matieres": {
+        "label": "Matières — méta-prompt : l'IA RÉDIGE le prompt qui lira les matières du cycle",
+        "placeholders": ["document"],
+        "categorie": "admin",
+        # replace, comme meta_decoupe : le prompt RÉDIGÉ doit contenir {texte} intact — un
+        # `.format()` global le consommerait avec {document}.
+        "mode": "replace",
+        "default": PROMPT_META_MATIERES,
+    },
     "verif_decoupe": {
         "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
         "placeholders": ["prompt"],
@@ -803,6 +867,15 @@ PROMPTS = {
         "placeholders": ["cycle", "niveau", "texte"],
         "categorie": "admin",
         "default": PROMPT_VERIFIER_COUPLE,
+    },
+    "referentiel_fusion": {
+        "label": "Fusion des documents d'un couple en un seul référentiel (bouton « Fusionner »)",
+        # {documents} : les textes fournis, séparés et titrés par le serveur.
+        # {consigne_taille} : la longueur visée, calculée depuis le plafond de pages EN BASE —
+        # elle n'est pas écrite dans le prompt, sinon changer le plafond ne changerait rien.
+        "placeholders": ["cycle", "niveau", "documents", "consigne_taille"],
+        "categorie": "admin",
+        "default": PROMPT_REFERENTIEL_FUSION,
     },
     "detecter_matieres": {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",

@@ -2,16 +2,18 @@
 // sous la barre du haut. Les états (fait ✓ vert / en cours bordeaux / à venir gris) sont LUS de
 // la progression réelle (type choisi, texte saisi, généré), jamais copiés.
 // « Générer » est la dernière étape : la qualité est désormais vérifiée DANS la génération (plus de cartouche « Vérifier »).
-export default function FriseProgression({ typeOk, texteOk, loading, resultat }) {
+// `etapes` (optionnelle) : liste [{ label, fait }] d'un AUTRE écran — même dessin, autant d'étapes
+// qu'il en faut (écran Référentiels). Sans elle, la frise de l'écran Créer, inchangée.
+export default function FriseProgression({ typeOk, texteOk, loading, resultat, etapes: etapesProp }) {
   // « Généré » = résultat présent ET génération finie (sinon un résultat partiel basculerait trop tôt).
   const termine = !!resultat && !loading
-  const etapes = [
-    { n: 1, label: 'Paramètres',   fait: !!typeOk },
-    { n: 2, label: 'Texte source', fait: !!texteOk },
-    { n: 3, label: 'Générer',      fait: termine },
-  ]
+  const etapes = (etapesProp || [
+    { label: 'Paramètres',   fait: !!typeOk },
+    { label: 'Texte source', fait: !!texteOk },
+    { label: 'Générer',      fait: termine },
+  ]).map((e, i) => ({ ...e, n: i + 1 }))
   // Étape « en cours » = la 1re pas encore faite ; pendant la génération c'est « Générer » (index 2).
-  const courant = loading ? 2 : etapes.findIndex(e => !e.fait)
+  const courant = (!etapesProp && loading) ? 2 : etapes.findIndex(e => !e.fait)
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', rowGap: 8 }}>

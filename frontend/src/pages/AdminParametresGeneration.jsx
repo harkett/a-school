@@ -46,7 +46,8 @@ export default function AdminParametresGeneration() {
   // ICI ET DANS LE CONTRAT D'API en même temps — un champ ôté d'un seul côté fait tomber
   // l'enregistrement de TOUTES les surcharges, le corps étant validé en bloc.
   const [tokens, setTokens] = useState({ default: '', ambiguites: '', sequence: '' })
-  const [bounds, setBounds] = useState({ min: 256, max: 8000 })
+  // max: null = pas de plafond (valeur d'attente avant la réponse du serveur, qui n'en pose plus).
+  const [bounds, setBounds] = useState({ min: 256, max: null })
   const [savingTokens, setSavingTokens] = useState(false)
   const [messageTokens, setMessageTokens] = useState(null)
 
@@ -173,10 +174,13 @@ export default function AdminParametresGeneration() {
     }
   }
 
-  // Un champ est invalide s'il est vide, non entier, ou hors [min, max].
+  // Un champ est invalide s'il est vide, non entier, ou sous le plancher. PAS DE PLAFOND :
+  // le serveur n'en impose plus (bounds.max = null), l'écran n'en invente pas un. Si la valeur
+  // dépasse ce que le modèle accepte, c'est le fournisseur qui refuse, avec un message clair.
   const champInvalide = v => {
     const n = Number(v)
-    return v === '' || !Number.isInteger(n) || n < bounds.min || n > bounds.max
+    return v === '' || !Number.isInteger(n) || n < bounds.min ||
+           (bounds.max != null && n > bounds.max)
   }
   const tokensInvalides =
     champInvalide(tokens.default) || champInvalide(tokens.ambiguites) ||
@@ -187,9 +191,9 @@ export default function AdminParametresGeneration() {
     // bouton déjà désactivé en plus. Le 400 backend reste un filet.
     if (tokensInvalides) {
       showError(
-        `Chaque valeur doit être un nombre entier compris entre ${bounds.min} et ${bounds.max}. ` +
+        `Chaque valeur doit être un nombre entier d'au moins ${bounds.min}. ` +
         `Corrigez les champs en rouge avant d'enregistrer : une valeur trop basse tronquerait ` +
-        `les activités générées, une valeur trop haute gaspillerait le quota.`
+        `les réponses de l'IA sans prévenir.`
       )
       return
     }
@@ -330,7 +334,7 @@ export default function AdminParametresGeneration() {
       <input
         type="number"
         min={bounds.min}
-        max={bounds.max}
+        {...(bounds.max != null ? { max: bounds.max } : {})}
         value={tokens[cle]}
         onChange={e => setTokens(t => ({ ...t, [cle]: e.target.value }))}
         className="w-full border rounded px-3 py-2 text-sm"
@@ -474,7 +478,8 @@ export default function AdminParametresGeneration() {
       {onglet === 'tokens' && (
         <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
           <p className="text-xs text-gray-500">
-            Longueur maximale de la réponse de l'IA, en tokens. Valeur entre {bounds.min} et {bounds.max}.
+            Longueur maximale de la réponse de l'IA, en tokens. Au moins {bounds.min}, sans plafond :
+            c'est le modèle qui refuse s'il ne peut pas suivre, et il le dit clairement.
             Pris en compte immédiatement, sans redémarrage.
           </p>
 
