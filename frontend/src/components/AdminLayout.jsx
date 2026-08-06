@@ -186,19 +186,11 @@ const NAV_ITEMS = [
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
     ],
   },
-  // — Labo (écrans brouillons, temporaires) — derrière Système.
-  {
-    to:    '/admin/labo',
-    label: 'Labo',
-    aide:  'Écrans brouillons : on met une fonctionnalité au point isolément, avec les vrais get/put, avant de l\'intégrer dans la vraie page.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 3h6"/>
-        <path d="M10 3v6.5L4.5 18a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9.5V3"/>
-        <path d="M7 15h10"/>
-      </svg>
-    ),
-  },
+  // — Labo : ENTRÉE RETIRÉE le 06/08/2026, en même temps que sa route (cf. App.jsx, « Labo
+  //   DÉBRANCHÉ »). Un écran brouillon accessible depuis le menu finit par recevoir du travail
+  //   au lieu d'être intégré : c'est ce qui s'est produit, et deux écrans faisaient le même
+  //   geste. Ce qui est récupérable dans le labo sera porté dans Admin → Référentiels, et les
+  //   fichiers ne seront supprimés qu'après.
   SEP,
   // — Entrées simples (hors catégorie) —
   {

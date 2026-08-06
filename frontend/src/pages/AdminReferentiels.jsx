@@ -260,9 +260,7 @@ export default function AdminReferentiels() {
   const [typesNouveau, setTypesNouveau] = useState('')         // saisie « ajouter un type à ce référentiel »
   const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
   const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
-  const [typesInit, setTypesInit] = useState(false)            // 1re lecture des types du couple faite (base lue)
   const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
-  const autoDetectFait = useRef('')                            // clé couple : l'auto-détection ne se lance qu'UNE fois par couple affiché
   // Prompt par type : éditeur déplié sous la ligne. `promptEditId` = id du type dont l'éditeur est
   // ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base). Le
   // prompt lui-même vit sur la ligne du type (`t.prompt`), lu en base — aucune copie ici.
@@ -313,7 +311,7 @@ export default function AdminReferentiels() {
     if (!apercu) setResultat(null)
     setBilanApercu(''); setShowPdf(false)
     setShowEpure(false); setEpureTexte(null)   // changement de couple : le texte épuré de l'ancien ne vaut plus
-    setTypesNouveau(''); setTypesInit(false); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
+    setTypesNouveau(''); setPrecisProgress(null)   // repartir propre sur ce couple (le get réhydrate la liste + badges)
     setUniteOuverteId(null); setUniteTexte('')   // changement de couple : on referme la lecture d'unité
     // À chaque sélection d'un couple : toutes les cartouches repliées (bouton sur « Développer »).
     setCoupleOuvert(false); setPdfOuvert(false); setMatieresOuvert(false); setPromptOuvert(false); setDecoupeOuvert(false); setTypesOuvert(false)
@@ -324,7 +322,7 @@ export default function AdminReferentiels() {
   // un effet : on le fait là où l'admin agit, une bonne fois.
   function viderCeQuiDependDuCouple() {
     setEtat(null); setMatieres([])
-    setTypes([]); setTypesNouveau(''); setTypesInit(false)
+    setTypes([]); setTypesNouveau('')
   }
 
   // « + Nouveau » (colonne 2) : remet l'écran en création — aucun couple choisi, tout vide.
@@ -474,7 +472,6 @@ export default function AdminReferentiels() {
       .then(d => {
         if (annule || !d) return
         setTypes(d.types || [])
-        setTypesInit(true)   // 1re lecture des types faite → l'auto-détection peut juger
       })
       .catch(() => { if (!annule) setTypes([]) })
     return () => { annule = true }
@@ -1083,19 +1080,6 @@ export default function AdminReferentiels() {
   const nbTypesRetenus = types.filter(t => t.validee).length
   const nbTypesProposes = types.length - nbTypesRetenus
 
-  // AUTO-DÉTECTION : à l'arrivée sur un couple dont la découpe est validée et qui n'a ENCORE AUCUN
-  // type, l'IA se lance toute seule (une seule fois par couple affiché — clé dans autoDetectFait).
-  // Elle ne fait que PROPOSER : rien n'entre au programme sans que l'admin coche. C'est ce qui rend
-  // ce départ automatique inoffensif — il remplit l'écran, il ne décide de rien.
-  useEffect(() => {
-    if (!cycleId || !niveau || !typesInit || typesDetecting || typesBusy) return
-    if (!etat?.decoupe_valide) return            // la carte Types n'existe qu'après la découpe validée
-    if (types.length > 0) return                 // le référentiel a déjà ses types : rien d'automatique
-    const cle = `${cycleId}|${niveau}`
-    if (autoDetectFait.current === cle) return   // déjà lancée pour ce couple
-    autoDetectFait.current = cle
-    detecterTypes()
-  }, [cycleId, niveau, typesInit, types, etat, typesDetecting, typesBusy])  // eslint-disable-line react-hooks/exhaustive-deps
   // Cycle courant + libellé « Cycle · Niveau », lus dans l'arbre des programmes (get, zéro copie).
   const cycleCourant = arbre.find(c => String(c.id) === String(cycleId))
   const coupleLabel = cycleCourant && niveau ? `${cycleCourant.nom} · ${niveau}` : niveau
@@ -2028,7 +2012,9 @@ export default function AdminReferentiels() {
 
           {typesOuvert && (<>
           {/* Ligne du haut : les deux comptages (au programme / en attente de décision) + le seul
-              bouton (RELANCER la détection — la première se lance toute seule sur un couple vierge). */}
+              bouton de détection. Il ne part JAMAIS tout seul : lire le document coûte un appel IA
+              entier, donc il ne se déclenche que sur un clic voulu — comme la proposition des
+              matières. Son libellé dit lequel des deux gestes il fait. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h3 className="text-sm font-bold text-gray-800" style={{ margin: 0 }}>
               Types d’activité de ce référentiel
@@ -2037,8 +2023,11 @@ export default function AdminReferentiels() {
               </span>
             </h3>
             <button onClick={detecterTypes} disabled={typesBusy} style={{ ...btnTypes('#7c3aed', typesBusy), marginLeft: 'auto' }}
-              title="Relancer la lecture du document par l'IA (utile après un nouveau dépôt). Elle propose : rien n'entre au programme sans votre coche.">
-              {typesDetecting ? <><Spinner /> Détection en cours…</> : '🤖 Relancer la détection'}
+              title={types.length === 0
+                ? "Faire lire le document par l'IA : elle relève les types d'activité qu'il met en œuvre. Elle propose — rien n'entre au programme sans votre coche."
+                : "Relancer la lecture du document par l'IA (utile après un nouveau dépôt). Elle propose : rien n'entre au programme sans votre coche."}>
+              {typesDetecting ? <><Spinner /> Détection en cours…</>
+                : (types.length === 0 ? '🤖 Détecter les types' : '🤖 Relancer la détection')}
             </button>
           </div>
           {typesDetecting && (
@@ -2064,9 +2053,12 @@ export default function AdminReferentiels() {
               (et ses précisions) ; une future détection la remettra si l'IA relit le type. */}
           <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
               {types.length === 0 ? (
-                <p className="text-sm" style={{ padding: '1.5rem', textAlign: 'center', color: '#94a3b8' }}>
-                  {typesDetecting ? 'La liste se remplit dès que l’IA a fini sa lecture…'
-                    : 'Aucun type d’activité pour ce référentiel — la détection se lance toute seule, ou ajoutez-en un ci-dessous.'}
+                <p className="text-sm" style={{ padding: '1.25rem 1.5rem', textAlign: 'center', color: '#64748b', lineHeight: 1.7 }}>
+                  {typesDetecting ? 'La liste se remplit dès que l’IA a fini sa lecture…' : <>
+                    Aucun type d’activité pour ce référentiel.<br />
+                    <span style={{ color: '#7c3aed', fontWeight: 600 }}>Cliquez sur « 🤖 Détecter les types » ci-dessus</span>
+                    {' '}pour que l’IA lise le document — ou ajoutez-en un à la main ci-dessous.
+                  </>}
                 </p>
               ) : types.map((t, i) => {
                 const editOuvert = promptEditId === t.id

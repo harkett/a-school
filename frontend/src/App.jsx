@@ -54,7 +54,12 @@ import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminReferentiels from './pages/AdminReferentiels'
 import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
-import Labo from './pages/Labo'   // écran labo générique (bac à sable réutilisable)
+// L'écran Labo est DÉBRANCHÉ depuis le 06/08/2026 : son import et sa route sont retirés d'ici.
+// Les fichiers (pages/Labo.jsx, backend/pedagogie/referentiels_labo.py) existent toujours — ce
+// qu'ils savent faire et qui manque à Admin → Référentiels doit d'abord y être porté. On ne
+// travaille plus jamais dans le labo : deux écrans sur le même geste finissent par diverger,
+// et c'est ce qui est arrivé. Pour le rebrancher le temps d'une reprise : remettre l'import et
+// la route ci-dessous (cherche « Labo DÉBRANCHÉ »).
 import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
@@ -719,7 +724,10 @@ export default function App() {
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
             <Route path="referentiels" element={<AdminReferentiels />} />
-            <Route path="labo" element={<Labo />} />{/* écran labo générique (bac à sable) */}
+            {/* Labo DÉBRANCHÉ le 06/08/2026 — la route n'existe plus, /admin/labo ne mène à rien.
+                Le code de l'écran est conservé jusqu'à ce que son contenu récupérable soit porté
+                dans Admin → Référentiels (multi-documents, recherche du lien officiel, bilan de
+                suppression, blocages). Ne pas la rebrancher pour « juste essayer ». */}
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
             {/* Prompts — contenu pédagogique, pas plomberie : sorti de Système → Génération LLM.
