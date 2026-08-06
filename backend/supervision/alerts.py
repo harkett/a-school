@@ -1,4 +1,5 @@
-﻿import os
+﻿import logging
+import os
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -8,6 +9,9 @@ import psutil
 from backend.core.database import SessionLocal
 from backend.core.models_db import AdminAlert, FailedLoginAttempt
 from backend.core.horloge import maintenant_utc
+
+log = logging.getLogger(__name__)
+
 
 def seuils_alertes(db) -> dict:
     """Seuils de surveillance LUS EN BASE (réglages `alerte_*`), relus à chaque contrôle — donc
@@ -86,13 +90,42 @@ def _send_alert_email(level: str, title: str, message: str):
         pass  # L'alerte est en BDD même si l'email échoue
 
 
+def _journaliser(level: str, title: str, message: str):
+    """Trace l'alerte dans le JOURNAL (journalctl / docker logs), à côté de la base et du mail.
+
+    Avant, une alerte n'existait que dans `admin_alerts` et dans la boîte de l'admin : invisible
+    pour tout outil de supervision qui lit les logs, et donc dépendante d'une boîte mail relevée.
+    La sévérité de l'alerte devient la sévérité de la ligne — un « critical » ressort d'un
+    `journalctl -p crit` sans ouvrir la base. Un niveau inconnu retombe sur WARNING plutôt que
+    d'être perdu : mieux vaut une ligne mal classée qu'une alerte muette.
+
+    L'heure UTC est répétée DANS le message pour recouper avec le mail, qui affiche la même ;
+    le préfixe `%(asctime)s` du logger, lui, est à l'heure du conteneur. La SÉVÉRITÉ n'est pas
+    répétée dans le texte : `%(levelname)s` la porte déjà en tête de ligne.
+    Ne lève jamais : la base et le mail passent même si la journalisation échoue (symétrique du
+    « l'alerte est en BDD même si l'email échoue » ci-dessus).
+    """
+    niveaux = {"critical": logging.CRITICAL, "warning": logging.WARNING, "info": logging.INFO}
+    try:
+        log.log(
+            niveaux.get(level, logging.WARNING),
+            "ALERTE — %s | %s | %s UTC",
+            title, message, maintenant_utc().strftime("%d/%m/%Y %H:%M:%S"),
+        )
+    except Exception:
+        pass
+
+
 def create_alert(level: str, title: str, message: str):
     db = SessionLocal()
     try:
         if _already_alerted(db, title):
+            # Doublon dans la fenêtre anti-flood : ni base, ni mail, NI journal — reflooder le
+            # journal à chaque cycle de surveillance le rendrait illisible.
             return
         db.add(AdminAlert(level=level, title=title, message=message))
         db.commit()
+        _journaliser(level, title, message)
         _send_alert_email(level, title, message)
     except Exception:
         db.rollback()
