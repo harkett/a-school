@@ -111,6 +111,10 @@ def test_la_decoupe_demande_le_mode_long(monkeypatch):
     # La fenêtre du modèle descend elle aussi depuis la base (ai_modeles.contexte_max) : même
     # motif que les autres résolutions, donc même bouchon ici. None = fenêtre inconnue.
     monkeypatch.setattr(amont, "get_contexte_max", lambda db: None)
+    # La température descend elle aussi de la base depuis le 05/08/2026 (fiche du modèle :
+    # Sonnet 5 la refuse). Même motif de bouchon que les autres résolutions, sinon `db=None`
+    # traverse jusqu'à une vraie requête SQL.
+    monkeypatch.setattr(amont, "get_temperature", lambda db: None)
     amont.decouper_texte("TEXTE", db=None, prompt="Découpe : {texte}")
     assert recu["appel_long"] is True
     assert recu["schema"] is amont._SCHEMA_DECOUPE

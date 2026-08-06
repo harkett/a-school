@@ -346,7 +346,7 @@ def generate(
             # générateur est vidé ici, pas rendu à l'appelant) — pas de créneau relâché en cours de
             # génération, contrairement à `generate_stream` où l'appelant en a la charge.
             if fournisseur == "anthropic":
-                morceaux = _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout, outil=outil, prefixe_cache=prefixe_cache)
+                morceaux = _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, outil=outil, prefixe_cache=prefixe_cache)
             else:  # groq / infomaniak : même dialecte OpenAI, seule l'URL change
                 morceaux = _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max, fournisseur=fournisseur, outil=outil)
             return "".join(morceaux)
@@ -764,7 +764,7 @@ def generate_stream(
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")
     verifier_fenetre(prompt, max_tokens=max_tokens, contexte_max=contexte_max, modele=model or AI_MODEL)
     if fournisseur == "anthropic":
-        yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, json_mode=json_mode, schema=schema, read_timeout=read_timeout, outil=outil, prefixe_cache=prefixe_cache)
+        yield from _anthropic_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, outil=outil, prefixe_cache=prefixe_cache)
     else:  # groq / infomaniak : même dialecte OpenAI, seule l'URL change
         yield from _groq_stream(prompt, cle=cle, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, schema=schema, read_timeout=read_timeout, retry_max=retry_max, retry_wait_max=retry_wait_max, fournisseur=fournisseur, outil=outil)
 
@@ -786,7 +786,7 @@ def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=N
     # Même construction que la voie non-streaming (schéma compris) : `_anthropic_kwargs` est le seul
     # endroit qui décide du contrat de sortie. Structured Outputs vaut en flux comme hors flux.
     kwargs = _anthropic_kwargs(prompt, model=model, max_tokens=max_tokens, json_mode=json_mode,
-                               schema=schema, prefixe_cache=prefixe_cache)
+                               schema=schema, temperature=temperature, prefixe_cache=prefixe_cache)
     debut = time.time()
     try:
         with client.messages.stream(**kwargs) as stream:

@@ -3,7 +3,8 @@ r"""Preuve — pas 1 du chantier TRACKER 67 : la brique d'ANALYSE AMONT par l'IA
 On prouve la PLOMBERIE, jamais la sortie du modèle : `generate()` est MOQUÉ (aucun appel réel).
 - `formater_unites` / `parser_reponse` : fonctions pures (ni IA ni base) → testées seules.
 - `analyser_unites` : bâtit le bon prompt (contient les unités), passe les bons réglages
-  (JSON déterministe, température 0), parse le JSON, et laisse remonter les pannes.
+  (JSON, et la température LUE EN BASE — plus le `0` en dur d'avant le 05/08/2026), parse le
+  JSON, et laisse remonter les pannes.
 La brique n'est PAS branchée sur le découpage/ingestion (pas 1) : `_age_est_flou` vit encore.
 
 Lancer : docker compose exec backend python -m pytest tests/test_analyse_amont.py -q
@@ -87,6 +88,7 @@ def test_analyser_unites_batit_le_prompt_et_parse(monkeypatch):
     db = dbmod.SessionLocal()
     try:
         data = aamod.analyser_unites(UNITES, db=db)
+        temperature_attendue = aamod.get_temperature(db)   # lue AVANT la fermeture de la session
     finally:
         db.close()
     # parse OK : la règle + le verdict par unité remontent
@@ -96,9 +98,12 @@ def test_analyser_unites_batit_le_prompt_et_parse(monkeypatch):
     # le prompt envoyé contient bien les unités
     assert "dès ~2 ans" in capture["prompt"]
     assert "Comptine du matin" in capture["prompt"]
-    # réglages : JSON déterministe
+    # réglages : JSON, et la température LUE EN BASE (05/08/2026). Ce fichier écrivait
+    # `temperature=0` en dur — le seul du backend — ce qui court-circuitait la fiche du modèle :
+    # Sonnet 5 refuse le paramètre (400) et `get_temperature` renvoie donc None. On vérifie que
+    # la valeur transmise est bien celle que la base décide, quelle qu'elle soit.
     assert capture["kwargs"]["json_mode"] is True
-    assert capture["kwargs"]["temperature"] == 0
+    assert capture["kwargs"]["temperature"] == temperature_attendue
     assert capture["kwargs"]["provider"] and capture["kwargs"]["model"]
 
 
@@ -146,7 +151,7 @@ def test_verifier_prompt_decoupe_injecte_le_prompt_et_renvoie(monkeypatch):
         out = aamod.verifier_prompt_decoupe("PROMPT_A_VERIFIER", db=db)
         assert out == "PROMPT_CORRIGE"                    # renvoie le prompt corrigé par l'IA
         assert "PROMPT_A_VERIFIER" in capture["prompt"]   # le prompt généré est bien injecté ({prompt})
-        assert capture["kwargs"]["temperature"] == 0
+        assert capture["kwargs"]["temperature"] == aamod.get_temperature(db)   # lue en base, plus en dur
         assert capture["kwargs"]["provider"] and capture["kwargs"]["model"]
     finally:
         _effacer_setting(db, "prompt_verif_decoupe")

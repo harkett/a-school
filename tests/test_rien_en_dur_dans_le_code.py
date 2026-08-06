@@ -112,18 +112,7 @@ EXCEPTIONS_PERMANENTES = {
         "analyse_amont.py:43 — schéma JSON attendu du modèle. Technique.",
     "backend/dictee/ocr.py::jpeg|jpg|png":
         "ocr.py:65 — extensions d'image acceptées. Technique.",
-    # Les trois qui suivent servent la RECHERCHE DU LIEN OFFICIEL (labo Référentiels) : elles
-    # trient des résultats de moteur de recherche. Ce sont des mots de tri et des règles de
-    # français, pas des données que l'admin consulte ou modifie — décision du 04/08/2026.
-    "backend/pedagogie/referentiels_labo.py:RECHERCHE_REJETS":
-        "referentiels_labo.py — ce qui n'est pas un programme en vigueur (projets du CSP, "
-        "vademecums, ressources d'accompagnement). Filtre interne du tri des résultats.",
-    "backend/pedagogie/referentiels_labo.py:_MOTS_GENERIQUES":
-        "referentiels_labo.py — les mots qui, après « programme de / d' », annoncent le document "
-        "COMPLET et non une matière (« d'enseignement », « de l'école »). Règle de français.",
-    "backend/pedagogie/referentiels_labo.py:_MARQUES_PROGRAMME":
-        "referentiels_labo.py — les mots qui font reconnaître un programme dans un libellé. "
-        "Même nature : une règle de lecture, interne à l'algorithme de tri.",
+
     # Faux ami de plus : des noms de PARAMÈTRES PYTHON, pas des données. Les mettre en base
     # n'aurait aucun sens — ils ne décrivent que la signature de `generate()`. Et ils sont déjà
     # gardés ailleurs : test_cache_llm.py les compare à la signature réelle, dans les deux sens.
@@ -260,6 +249,11 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # faire cette différence — voir l'en-tête du fichier.
     # 8 -> 9 le 05/08/2026 : `cache.PARAMS_EMPREINTE`, la liste des paramètres de generate() qui
     # entrent dans l'empreinte du cache disque. Des noms de paramètres Python, pas des données.
-    assert len(EXCEPTIONS_PERMANENTES) == 9, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 9 attendues."
+    # 9 -> 6 le 06/08/2026 : les trois listes de tri ci-dessus RETIRÉES. Elles ne décrivent plus
+    # rien — le labo a été refait (`referentiels_labo.py` recréé en entier, commit 7651dd4) et la
+    # recherche du lien officiel n'y est plus. Une exception qui ne pointe sur aucun code est pire
+    # qu'inutile : elle donne à croire que le sujet est arbitré alors que le sujet a disparu.
+    # C'est le troisième test de ce fichier qui l'a signalé, en rouge — il a fait son travail.
+    assert len(EXCEPTIONS_PERMANENTES) == 6, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 6 attendues."
     )

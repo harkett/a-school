@@ -11,21 +11,37 @@ GÉNÉRIQUE : aucun axe (âge, matière, compétence…) n'est fourni ni codé i
 en lisant. C'est du SOCLE, pas une fiche : rien de propre à un document.
 
 Porte IA unique : `generate()` (backend.llm.generator) ; provider / modèle / prompt résolus EN BASE,
-comme les autres outils (cf. `backend/analyse/ambiguites.py`). JSON déterministe (température 0).
+comme les autres outils (cf. `backend/analyse/ambiguites.py`).
+
+TEMPÉRATURE : lue par `get_temperature(db)`, comme les 17 autres outils du produit (05/08/2026).
+Ce fichier écrivait `temperature=0` EN DUR — il était le seul du backend à le faire, et cela
+court-circuitait la fiche du modèle. Claude Sonnet 5 REFUSE ce paramètre (400,
+« `temperature` is deprecated for this model ») : la base le sait déjà
+(`ai_modeles.supporte_temperature = false`) et `get_temperature` renvoie alors None, donc le
+moteur n'envoie rien. Le 0 en dur produisait deux pannes opposées selon la voie prise :
+  - appels COURTS (précisions d'un type) : 400 à chaque fois — et l'appelant absorbait l'erreur
+    en warning, donc les précisions ne se généraient plus DU TOUT, en silence ;
+  - appels LONGS (découpe, matières, méta-prompts) : pas de 400, mais pas de déterminisme non
+    plus — la voie streaming Anthropic perdait la température en route (corrigé dans generator.py).
+Conséquence à connaître : sous un modèle qui refuse la température, la découpe n'est pas
+reproductible, et aucun réglage ne la rendra telle. Cela se joue dans le PROMPT, pas ici.
 
 État : brique ISOLÉE et testable — PAS encore branchée sur le découpage / l'ingestion
 (pas 1 du chantier TRACKER 67 ; le remplacement de `_age_est_flou` vient dans un pas suivant).
 """
 import json
+import logging
 import re
 
 from sqlalchemy.orm import Session
 
 from backend.systeme.admin import (
     get_ai_model, get_ai_provider, get_cle_texte, get_contexte_max, get_max_tokens, get_prompt,
-    get_settings_dict,
+    get_settings_dict, get_temperature,
 )
 from backend.llm.generator import generate, generate_cached
+
+logger = logging.getLogger(__name__)
 
 _CLE_PROMPT = "analyse_amont"
 _CLE_DECOUPE = "decoupe_amont"
@@ -123,7 +139,7 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
 
     Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter
     `LLMRateLimitError` (surcharge transitoire) et `RuntimeError` (panne fournisseur) — l'appelant
-    les traduit. Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe)."""
+    les traduit. Prompt / provider / modèle / température lus EN BASE."""
     prompt = get_prompt(db, _CLE_PROMPT).format(unites=formater_unites(unites))
     raw = generate(
         prompt,
@@ -131,7 +147,7 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_PROMPT),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         outil=_CLE_PROMPT,
     )
@@ -143,18 +159,44 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
 from backend.rag.extraction import _sans_numeros_de_page
 
 
-def _replier_blancs(s: str) -> str:
-    """Replie tous les blancs (espaces, tabulations, retours à la ligne) en un espace simple.
+# Les caractères qui ont PLUSIEURS FORMES pour UN SEUL SENS. Un PDF officiel est composé en
+# typographie soignée : apostrophe courbe, tiret cadratin, guillemets anglais. Un modèle qui
+# recopie tape le clavier : apostrophe droite, trait d'union. Le sens est le même, la chaîne
+# non — et le titre devient introuvable.
+#
+# MESURÉ le 06/08/2026 sur le BTS CIEL : sur 137 titres rendus, 16 étaient donnés pour
+# « introuvables ». LES SEIZE ne différaient que par l'apostrophe (« d’équipe » contre
+# « d'équipe »). Seize sur seize — dont l'activité R4, D1 et D3, perdues pour un caractère.
+#
+# Pourquoi cette normalisation-là est SÛRE, alors que celle des minuscules et des accents ne
+# l'est pas : personne ne distingue deux sections d'un référentiel par la forme de son
+# apostrophe ou de son tiret. Le sens ne vit pas là. Alors que « Unité U4 » et « UNITÉ U4 »
+# peuvent, eux, désigner deux choses. On ne rend donc PAS la comparaison floue : on retire
+# seulement une différence qui n'en est pas une.
+_FORMES_EQUIVALENTES = str.maketrans({
+    "\u2019": "'", "\u2018": "'", "\u201b": "'", "\u02bc": "'", "\u00b4": "'",  # apostrophes
+    "\u2013": "-", "\u2014": "-", "\u2012": "-", "\u2011": "-", "\u2212": "-",  # tirets
+    "\u201c": '"', "\u201d": '"', "\u201e": '"',                               # guillemets
+})
 
-    C'est TOUTE la normalisation, et c'est délibéré. L'IA recopie un titre en normalisant les
-    blancs alors que le document peut porter deux espaces ou une coupure de ligne : il faut donc
-    comparer sur les blancs repliés. Mais on ne va pas plus loin — ni minuscules, ni accents
-    retirés, ni ponctuation ignorée : un titre court comme « C08 CODER » s'accrocherait alors
-    n'importe où, et « Unité U4 » se confondrait avec « UNITÉ U4 », qui peuvent désigner deux
-    choses dans un référentiel. Une normalisation trop large fabrique des frontières fausses,
-    ce qui est pire que d'en manquer une.
+
+def _replier_blancs(s: str) -> str:
+    """Replie les blancs en un espace simple, et ramène les variantes typographiques à une forme.
+
+    Deux normalisations, pas une de plus. Les blancs, parce que l'IA recopie un titre en les
+    normalisant alors que le document peut porter deux espaces ou une coupure de ligne. Et les
+    formes équivalentes de l'apostrophe, du tiret et des guillemets (cf. `_FORMES_EQUIVALENTES`),
+    parce qu'une différence de FORME n'est pas une différence de titre.
+
+    On ne va pas plus loin — ni minuscules, ni accents retirés, ni ponctuation ignorée : un titre
+    court comme « C08 CODER » s'accrocherait alors n'importe où, et « Unité U4 » se confondrait
+    avec « UNITÉ U4 », qui peuvent désigner deux choses dans un référentiel. Une normalisation
+    trop large fabrique des frontières fausses, ce qui est pire que d'en manquer une.
+
+    Ne sert QU'À COMPARER : le titre rendu à l'appelant est toujours découpé dans le texte réel,
+    avec la typographie du document. Rien de ce qui s'affiche ne passe par ici.
     """
-    return " ".join(s.split())
+    return " ".join(s.translate(_FORMES_EQUIVALENTES).split())
 
 
 def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[int, int]]:
@@ -210,20 +252,28 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     le 02/08/2026 sur le BTS CIEL : 19 unités réduites à leur seule ligne de titre (la plus
     courte, 9 caractères) et 3 unités géantes emportant 75 % du document.
 
-    LA RÈGLE RETENUE, et pourquoi elle est générique : **un intitulé immédiatement suivi d'un
-    autre intitulé de la liste ne porte aucun contenu — c'est une entrée de sommaire, pas une
-    unité.** On préfère donc la première occurrence dont la suite n'est pas un autre titre.
-    Elle ne nomme aucune section, aucun document, aucun métier : elle ne parle que de la forme,
-    comme le reste du socle. Et elle se suffit d'une ligne d'avance, parce que le curseur fait
-    le reste : dès que le premier intitulé du récapitulatif est enjambé, les suivants ne peuvent
-    plus revenir en arrière — c'est ce qui règle aussi le cas du DERNIER intitulé d'un
-    récapitulatif, celui qui était suivi non pas d'un titre mais de l'en-tête de section
-    suivant, et le ramassait dans sa tranche.
+    LA RÈGLE : **un intitulé immédiatement suivi d'un autre intitulé de la liste ne porte aucun
+    contenu — c'est une entrée de sommaire, pas une unité.** Elle ne nomme aucune section, aucun
+    document, aucun métier : elle ne parle que de la forme, comme le reste du socle.
 
-    SA LIMITE, assumée et testée : si TOUTES les occurrences d'un intitulé sont suivies d'un
-    autre intitulé — un document qui n'est qu'une liste — il n'y a pas de « vraie section » à
-    préférer. On garde alors la première plutôt que de perdre l'unité : un défaut connu vaut
-    mieux qu'une disparition silencieuse.
+    ET SURTOUT, LE CHOIX EST GLOBAL — pas titre par titre (06/08/2026). Un curseur qui avançait
+    en choisissant chaque titre pour lui seul ignorait ce que ce choix coûtait aux suivants.
+    MESURÉ sur le BTS CIEL, sur les 137 titres rendus par le modèle : « Activité R3 » a cinq
+    occurrences, le curseur prenait la dernière (ligne 819), et les VINGT titres qui vivent entre
+    la ligne 378 et la ligne 819 devenaient « hors ordre » d'un coup — puis l'effet se propageait
+    jusqu'à la fin. Bilan : 47 titres placés, 90 perdus, 23 unités là où le document en contient
+    une cinquantaine ; les annexes IV et V (unités U1-U6, épreuves E1-E6, EF1, EF2) disparaissaient
+    entières.
+
+    On cherche donc l'affectation de positions, croissante en rang ET en ligne, qui place le PLUS
+    de titres — un titre ne peut plus en sacrifier vingt. Même réponse du modèle, même document :
+    **120 titres placés, 49 unités.** La préférence « pas le sommaire » devient une prime de
+    départage (0.01 par titre) : elle tranche entre deux solutions de même taille, elle ne peut
+    jamais faire perdre un titre.
+
+    CE QUE ÇA NE RÉPARE PAS : un titre que le modèle a mal recopié n'est nulle part dans le
+    document, donc il n'a aucune place à occuper. Sur les 17 titres encore perdus, 16 sont de
+    ceux-là — cela se corrige dans le PROMPT, jamais ici.
     """
     # Une entrée = un titre + ce qu'on en fait. Une simple chaîne vaut « unité à garder, sans
     # option » : les appels d'avant les bornes continuent de marcher tels quels.
@@ -249,28 +299,108 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
 
     # `debuts` garde le rang de l'entrée qui l'a produit : une borne coupe comme les autres, elle
     # est seulement retirée à la fin.
-    debuts: list[tuple[int, int]] = []
-    curseur = 0
+    # ALIGNEMENT GLOBAL — un NŒUD par occurrence possible, et on retient la suite de nœuds de
+    # score maximal à rangs ET positions strictement croissants. Le gain de base est 1 par titre
+    # placé ; la prime de 0.01 va à l'occurrence qui porte du contenu (celle qui n'est pas
+    # immédiatement suivie d'un autre titre), ce qui départage à nombre de titres égal sans
+    # jamais primer sur lui. Coût : O(nœuds²) — 137 titres du BTS CIEL font ~700 nœuds, instantané.
+    # Le nœud transporte AUSSI `fin` — la ligne qui suit le titre. Un titre écrit sur DEUX lignes
+    # dans le document (« C01 » puis « COMMUNIQUER EN SITUATION PROFESSIONNELLE ») serait sinon
+    # étiqueté « C01 » : on garderait la première ligne pour nom d'unité, et l'admin comme le prof
+    # liraient un code sans intitulé.
+    noeuds: list[tuple[int, int, int, float]] = []
     for rang, places in enumerate(occurrences):
-        candidates = [(d, f) for d, f in places if d >= curseur]
-        if not candidates:
-            continue                                  # titre introuvable : aucune frontière
-        choisi = next(
-            (d for d, f in candidates
-             if (j := _suivante_non_vide(f)) is None or j not in portent_un_titre),
-            candidates[0][0],                         # tout est en liste : on garde la première
-        )
-        debuts.append((choisi, rang))
-        curseur = choisi + 1
+        for debut, fin in places:
+            j = _suivante_non_vide(fin)
+            porte_du_contenu = (j is None or j not in portent_un_titre)
+            noeuds.append((rang, debut, fin, 1.0 + (0.01 if porte_du_contenu else 0.0)))
 
+    score = [0.0] * len(noeuds)
+    venant_de = [-1] * len(noeuds)
+    for k, (rang_k, pos_k, _fin_k, gain_k) in enumerate(noeuds):
+        score[k], venant_de[k] = gain_k, -1
+        for j in range(k):
+            rang_j, pos_j, _fin_j, _ = noeuds[j]
+            if rang_j < rang_k and pos_j < pos_k and score[j] + gain_k > score[k]:
+                score[k], venant_de[k] = score[j] + gain_k, j
+
+    chaine: list[int] = []
+    k = max(range(len(noeuds)), key=lambda i: score[i]) if noeuds else -1
+    while k >= 0:
+        chaine.append(k)
+        k = venant_de[k]
+    # (ligne de début, rang de l'entrée, ligne qui suit le titre)
+    debuts = sorted((noeuds[k][1], noeuds[k][0], noeuds[k][2]) for k in chaine)
+
+    # JOURNAL des titres PERDUS. Un titre qui ne produit aucune frontière disparaît du résultat
+    # sans laisser de trace : le compte final n'est donc pas « ce que l'IA a vu » mais « ce qui a
+    # survécu au tranchage ». Sans ce relevé, un essai qui rend 29 unités ne dit pas si le modèle
+    # en a lu 29 ou 60 — et on règle le prompt à l'aveugle. Les deux motifs appellent deux
+    # corrections OPPOSÉES, d'où la distinction :
+    #   « introuvable » — le titre n'est nulle part dans le document : l'IA l'a reformulé,
+    #                     abrégé ou recomposé (faute de RECOPIE) ; le tranchage n'y peut rien ;
+    #   « hors ordre »  — le titre EST dans le document, mais aucune de ses places ne s'insère
+    #                     dans une suite croissante : l'IA l'a émis à contre-courant de l'ordre.
+    places_retenues = {rang for _, rang, _f in debuts}
+    perdus = [(entrees[rang]["titre"], "introuvable" if not occurrences[rang] else "hors ordre")
+              for rang in range(len(entrees)) if rang not in places_retenues]
+
+    # UNE TRANCHE QUI NE CONTIENT QUE SON PROPRE TITRE N'EST PAS UNE UNITÉ (06/08/2026).
+    #
+    # Un référentiel énumère ses sections avant de les décrire : tableau de synthèse, liste des
+    # blocs de compétences, renvois d'une option à l'autre. Ces lignes portent le MÊME repère que
+    # les vraies sections — « C08 CODER », « C07 (uniquement pour l'option B) » — donc un prompt
+    # qui reconnaît les titres par leur forme les rend comme des unités, et il a raison de le
+    # faire : rien, dans la ligne elle-même, ne dit qu'elle est un renvoi.
+    #
+    # Ce qui le dit, c'est ce qu'il y a DERRIÈRE : rien. Deux titres consécutifs se ferment l'un
+    # l'autre, et la tranche se réduit à sa ligne de titre. MESURÉ sur le BTS CIEL : 22 tranches
+    # sur 76 étaient dans ce cas, de 9 à 63 caractères — dont « C08 CODER », qui fait exactement
+    # ses 9 caractères de titre. Les vraies compétences, elles, en portent 1 240 à 2 471.
+    #
+    # Le critère est une ÉGALITÉ, pas un seuil : aucun nombre en dur, donc rien à régler quand le
+    # document change. Et il ne peut pas manger une vraie petite unité — « Unité facultative UF2 »
+    # ne fait que 124 caractères, mais elle en a plus que son titre, donc elle reste.
     unites: list[dict] = []
-    for k, (i, rang) in enumerate(debuts):
+    nues: list[dict] = []
+    for k, (i, rang, fin_titre) in enumerate(debuts):
         if not entrees[rang]["garder"]:
             continue          # BORNE : elle a fait son travail en fermant l'unité d'avant
         fin = debuts[k + 1][0] if k + 1 < len(debuts) else len(lignes)
         bloc = "\n".join(lignes[i:fin]).strip()
-        unites.append({"titre": lignes[i].strip(), "texte": bloc,
-                       "option": entrees[rang]["option"]})
+        # L'étiquette = TOUTES les lignes du titre, telles qu'écrites dans le document (jamais
+        # `lignes_repliees`, qui a normalisé les apostrophes pour comparer : ce qui s'affiche garde
+        # la typographie d'origine).
+        titre_reel = " ".join(l.strip() for l in lignes[i:max(fin_titre, i + 1)] if l.strip())
+        tranche = {"titre": titre_reel, "texte": bloc, "option": entrees[rang]["option"]}
+        # « rien derrière le titre » se juge sur les blancs repliés : un titre à cheval sur deux
+        # lignes porte un « \n » que son bloc porte aussi, et l'égalité brute le raterait.
+        nue = _replier_blancs(bloc) == _replier_blancs(titre_reel)
+        (nues if nue else unites).append(tranche)
+
+    # LE GARDE-FOU, et il compte autant que le filtre : si écarter les tranches nues ne laissait
+    # RIEN, c'est que le document n'énumère pas ses sections — il EST une liste. Un référentiel de
+    # crèche peut n'être qu'une suite d'intitulés d'activités, sans description : là, les titres
+    # nus SONT le contenu, et les jeter reviendrait à rendre une découpe vide.
+    # La règle du projet tranche : un défaut connu vaut mieux qu'une disparition
+    # (`tests/test_trancher_par_titres.py::test_un_document_entierement_en_liste_garde_ses_titres`,
+    # qui est tombé quand le filtre a été posé sans ce garde-fou).
+    if not unites:
+        unites, nues = nues, []
+    sans_contenu = [u["titre"] for u in nues]
+
+    for titre, motif in perdus:
+        logger.warning("découpe : titre %s, PERDU — « %s »", motif, titre[:150])
+    for titre in sans_contenu:
+        logger.info("découpe : titre SANS CONTENU, écarté (énumération) — « %s »", titre[:150])
+    logger.info(
+        "découpe : %d titres rendus, %d retrouvés, %d perdus (%d introuvables, %d hors ordre) "
+        "→ %d unités gardées, %d bornes",
+        len(entrees), len(debuts), len(perdus),
+        sum(1 for _, m in perdus if m == "introuvable"),
+        sum(1 for _, m in perdus if m == "hors ordre"),
+        len(unites), len(debuts) - len(unites),
+    )
     return unites
 
 
@@ -296,7 +426,7 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
-        temperature=0,
+        temperature=get_temperature(db),
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
         outil="meta_decoupe",
@@ -327,7 +457,7 @@ def generer_prompt_matieres(texte: str, *, db: Session) -> str:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_matieres"),
-        temperature=0,
+        temperature=get_temperature(db),
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
         outil="meta_matieres",
@@ -358,7 +488,7 @@ def generer_prompt_types(texte: str, *, db: Session) -> str:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_types"),
-        temperature=0,
+        temperature=get_temperature(db),
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
         outil="meta_types",
@@ -385,7 +515,7 @@ def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
-        temperature=0,
+        temperature=get_temperature(db),
         outil="meta_decoupe",
     ).strip()
 
@@ -416,7 +546,7 @@ def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, 
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
-        temperature=0,
+        temperature=get_temperature(db),
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
         outil="meta_decoupe",
@@ -442,7 +572,7 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DECOUPE),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_SCHEMA_DECOUPE,
         # Le modèle lit ici un référentiel ENTIER : plusieurs minutes de génération. Sans le mode
@@ -497,7 +627,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
     on lui donne le couple déclaré + le texte, elle renvoie son verdict.
 
     Retour : `{"correspond": bool, "niveau_lu": str, "raison": str}`.
-    Prompt / provider / modèle lus EN BASE ; température 0. Laisse remonter les pannes IA
+    Prompt / provider / modèle / température lus EN BASE. Laisse remonter les pannes IA
     (l'appelant traduit). Lève `ValueError` si l'IA ne rend pas un JSON exploitable."""
     prompt = (get_prompt(db, _CLE_COUPLE)
               .replace("{cycle}", cycle)
@@ -509,7 +639,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_COUPLE),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_schema_couple(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
@@ -558,7 +688,7 @@ def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = Non
     nommées comme LUI les nomme — il n'y a donc rien à faire correspondre, et normaliser
     l'orthographe sur un autre diplôme serait une erreur, pas une aide.
 
-    Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie
+    Prompt / provider / modèle / température lus EN BASE. Renvoie
     les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
     lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit / absorbe)."""
@@ -569,7 +699,7 @@ def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = Non
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_MATIERES),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_schema_matieres(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
@@ -613,7 +743,7 @@ def detecter_couple(texte: str, *, db: Session) -> dict:
     Elle reçoit l'arbre des cycles → niveaux EXISTANTS (get, zéro copie) pour faire CORRESPONDRE
     le document avec les tables : orthographe exacte de la liste quand ça correspond, sinon le nom
     lu dans le document. La CORRESPONDANCE finale (ids) est faite par l'APPELANT contre la base —
-    l'IA lit, la base tranche. Prompt / provider / modèle lus EN BASE ; température 0. Lève
+    l'IA lit, la base tranche. Prompt / provider / modèle / température lus EN BASE. Lève
     `ValueError` si l'IA ne rend pas un JSON exploitable ; laisse remonter les pannes IA."""
     from backend.core.models_db import Cycle, Niveau
     lignes = []
@@ -630,7 +760,7 @@ def detecter_couple(texte: str, *, db: Session) -> dict:
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DETECTER_COUPLE),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_schema_detecter_couple(),
         outil=_CLE_DETECTER_COUPLE,
@@ -676,7 +806,7 @@ def detecter_types_activite(texte: str, *, db: Session, prompt_cycle: str | None
     le vocabulaire sur un autre diplôme serait une erreur, pas une aide. C'est le même
     raisonnement, et le même geste, que `detecter_matieres`.
 
-    Prompt / provider / modèle lus EN BASE ; température 0 (sortie déterministe). Renvoie les noms
+    Prompt / provider / modèle / température lus EN BASE. Renvoie les noms
     nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en lit
     aucun. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit)."""
@@ -687,7 +817,7 @@ def detecter_types_activite(texte: str, *, db: Session, prompt_cycle: str | None
         provider=get_ai_provider(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_TYPES_ACTIVITE),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_schema_types_activite(),
         appel_long=True,  # entrée = le référentiel entier (la sortie, elle, est courte)
@@ -727,7 +857,7 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
     """L'IA PROPOSE les PRÉCISIONS d'un type d'activité POUR CE NIVEAU, ancrées au référentiel. Une
     précision = une déclinaison concrète du type, RÉELLEMENT adaptée au niveau (ex. « Activités écrites » :
     « copie », « dictée » en primaire ; « dissertation », « mémoire » dans le supérieur). Même plomberie
-    que `detecter_types_activite` : provider / modèle lus EN BASE, température 0 (déterministe), JSON
+    que `detecter_types_activite` : provider / modèle / température lus EN BASE, JSON
     contraint. Renvoie des libellés nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu.
     Lève `ValueError` si l'IA ne rend pas un JSON exploitable (l'appelant absorbe)."""
     # Le texte de ce prompt était ÉCRIT ICI, en f-string. C'était le seul vrai prompt du projet
@@ -748,7 +878,7 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
         # tient, le nombre en dur non — il devient réglable. Sans surcharge en base, ceci résout
         # sur le défaut global (2048) : la marge reste au-dessus des 2000 d'avant.
         max_tokens=get_max_tokens(db, _CLE_PRECISIONS_TYPE),
-        temperature=0,
+        temperature=get_temperature(db),
         json_mode=True,
         schema=_schema_precisions_type(),
         outil=_CLE_PRECISIONS_TYPE,
