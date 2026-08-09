@@ -8,7 +8,19 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'prompt',
+      // AUTOUPDATE, sur TOUTES les pages — prof comme admin (07/08/2026).
+      //
+      // En 'prompt', la version neuve restait derrière : elle attendait qu'on clique. Un
+      // utilisateur qui ne voit pas le bandeau, ou qui l'ignore, continue d'utiliser l'ancienne
+      // page indéfiniment — et ce qu'il voit à l'écran contredit ce que le serveur lui répond.
+      // C'est le pire des états : l'application a l'air de mentir alors qu'elle est correcte.
+      //
+      // En 'autoUpdate', le nouveau service worker prend la main dès qu'il est installé
+      // (skipWaiting) et reprend les onglets déjà ouverts (clientsClaim, plus bas), puis la page
+      // se recharge. Ce n'est pas un contournement : `sw.js` est le seul fichier que le
+      // navigateur revalide toujours, par obligation de la spécification. Il ne peut donc pas
+      // rester bloqué sur une vieille version comme les autres fichiers.
+      registerType: 'autoUpdate',
       cleanupOutdatedCaches: true,
       includeAssets: ['icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
       manifest: {

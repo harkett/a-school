@@ -119,6 +119,19 @@ EXCEPTIONS_PERMANENTES = {
     "backend/llm/cache.py:PARAMS_EMPREINTE":
         "cache.py — les paramètres de generate() qui entrent dans l'empreinte du cache disque. "
         "Registre technique, vérifié contre le code par test_cache_llm.py.",
+
+    # Les étapes de fabrication d'une base de démonstration — un suivi de chantier interne à
+    # l'administration, pas une donnée que quelqu'un configure. Les cinq mots sont aussi les
+    # cinq libellés de l'écran (AdminBaseDemos.jsx) et la valeur stockée en base : les descendre
+    # en table demanderait une table de plus pour qu'aucun écran ne les lise autrement.
+    "backend/systeme/admin.py:STATUTS_DEMO":
+        "admin.py:2595 — a_faire / en_cours / fait / teste / valide, les étapes du chantier "
+        "d'une base de démonstration. Suivi interne, pas une donnée métier.",
+
+    # Les écritures acceptées pour un booléen d'ENVIRONNEMENT (MODE_DEMO). Ce n'est pas une
+    # donnée : c'est la tolérance de lecture d'une variable posée à la main dans un compose.
+    "backend/prof/demo.py::1|oui|true":
+        "demo.py — les écritures acceptées de MODE_DEMO dans l'environnement. Technique.",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -254,6 +267,6 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # recherche du lien officiel n'y est plus. Une exception qui ne pointe sur aucun code est pire
     # qu'inutile : elle donne à croire que le sujet est arbitré alors que le sujet a disparu.
     # C'est le troisième test de ce fichier qui l'a signalé, en rouge — il a fait son travail.
-    assert len(EXCEPTIONS_PERMANENTES) == 6, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 6 attendues."
+    assert len(EXCEPTIONS_PERMANENTES) == 8, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 8 attendues."
     )

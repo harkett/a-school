@@ -64,7 +64,7 @@ def _detecter(monkeypatch, cycle_id, niveau=NIVEAU, libelles=(LIBELLE,)):
     """Lance la détection en remplaçant l'IA par un espion qui rend NOS libellés."""
     import backend.rag.analyse_amont as amont
     monkeypatch.setattr(amont, "detecter_types_activite",
-                        lambda texte, db=None, prompt_cycle=None: list(libelles))
+                        lambda texte, db=None, prompt_referentiel=None: list(libelles))
     return _admin().post("/api/admin/referentiels/types-activite/detecter",
                          json={"cycle_id": cycle_id, "niveau": niveau})
 

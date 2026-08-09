@@ -62,7 +62,10 @@
       "Bash(echo \"=== 4. Chemins absolus HORS D:\\\\\\\\A-SCHOOL référencés dans le code ===\")",
       "Bash(grep -rniE \"[A-Z]:\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\|/c/Users|/mnt/|C:/Users|%USERPROFILE%|~/\\\\.claude\" --include=*.py --include=*.js --include=*.jsx --include=*.json --include=*.yml --include=*.yaml --include=*.ps1 --include=*.bat --include=*.env* .)",
       "Bash(grep -viE \"node_modules|/\\\\.git/|package-lock\")",
-      "Bash(grep -vE '^\\\\s*#|^\\\\s*$')"
+      "Bash(grep -vE '^\\\\s*#|^\\\\s*$')",
+      "Bash(mkdir -p fusion)",
+      "Bash(pdftotext -enc UTF-8 -layout \"d:/A-SCHOOL/REFERENTIELS/CRECHE/BMG_0_3/REFERENTIEL-EVEIL-0-3-aSchool-hab.pdf\" fusion/A_hab.txt)",
+      "Bash(pdftotext -enc UTF-8 -layout \"d:/A-SCHOOL/REFERENTIELS/CRECHE/BMG_0_3/REFERENTIEL-EVEIL-0-3-aSchool-CC.pdf\" fusion/B_cc.txt)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",

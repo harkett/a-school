@@ -180,14 +180,15 @@ def test_generer_prompt_decoupe_passe_par_la_verif(monkeypatch):
     monkeypatch.setattr(aamod, "generate", fake)
     db = dbmod.SessionLocal()
     try:
-        _poser_setting(db, "prompt_meta_decoupe", "Génère un prompt de découpe. {document}")
         _poser_setting(db, "prompt_verif_decoupe", "Relis ce prompt. {prompt}")
-        out = aamod.generer_prompt_decoupe("DOCUMENT BRUT", db=db)
+        # Le méta-prompt de découpe se passe par argument, DU RÉFÉRENTIEL : le repli sur un réglage
+        # général a été retiré le 08/08/2026 (migration d9e4b7a2c6f1).
+        out = aamod.generer_prompt_decoupe(
+            "DOCUMENT BRUT", db=db, meta_referentiel="Génère un prompt de découpe. {document}")
         assert out == "PROMPT_VERIFIE"          # retour = 2e passe (vérif), pas le 1er jet
         assert len(appels) == 2                 # génération + vérification
         assert "PROMPT_GENERE" in appels[1]     # le 1er jet est bien passé à la vérif ({prompt})
     finally:
-        _effacer_setting(db, "prompt_meta_decoupe")
         _effacer_setting(db, "prompt_verif_decoupe")
         db.close()
 

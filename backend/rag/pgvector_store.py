@@ -283,13 +283,11 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
             )
         rid = ref.id
         pdf_path = _pdf_path_for(db, ref)
-        # LE prompt de découpe est celui du CYCLE (05/08/2026) : un cycle est une famille de
-        # documents bâtis pareil, le prompt écrit sur le premier référentiel sert à tous. Il SERT
-        # dès qu'il existe — `prompt_decoupe_valide` dit seulement s'il a été relu par l'admin.
-        from backend.core.models_db import Cycle, Niveau
-        niv = db.get(Niveau, ref.niveau_id)
-        cyc = db.get(Cycle, niv.cycle_id) if niv else None
-        prompt_txt = (cyc.prompt_decoupe or "") if cyc else ""
+        # LE prompt de découpe est celui du RÉFÉRENTIEL (06/08/2026) : un par couple cycle+niveau.
+        # Il a vécu une journée sur le cycle ; c'était faux — le cycle « BTS » porte dix-huit
+        # diplômes qui n'ont pas la même ossature. Il SERT dès qu'il existe —
+        # `prompt_decoupe_valide` dit seulement s'il a été relu par l'admin.
+        prompt_txt = ref.prompt_decoupe or ""
         # LE texte de travail : colonne texte_epure, figée à la validation du dépôt (get).
         # Filet pour un dépôt antérieur à la colonne (NULL) : calcul UNIQUE depuis le PDF
         # d'origine (porte unique rag.extraction) puis ÉCRIT en base — plus jamais recalculé.
@@ -306,20 +304,25 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
 
     if not prompt_txt.strip():
         raise RuntimeError(
-            "Découpe refusée : ce cycle n'a pas de prompt de découpe. Il est écrit par l'IA au "
-            "premier référentiel du cycle, à la découpe (cap « aSchool n'invente rien »)."
+            "Découpe refusée : ce référentiel n'a pas de prompt de découpe. Il est écrit par "
+            "l'IA à la découpe (cap « aSchool n'invente rien »)."
         )
 
-    # 2. Découpe : on RÉUTILISE celle que l'admin a vue et acceptée (aperçu) si elle vient bien
-    #    du même prompt — on écrit alors exactement ce qui a été validé, sans refaire l'appel IA.
-    #    À défaut (pas d'aperçu, prompt modifié entre-temps), découpe PAR L'IA comme avant,
-    #    pilotée par le PROMPT VALIDÉ du couple (base).
-    if decoupe_prete and decoupe_prete.get("chunks") and decoupe_prete.get("prompt") == prompt_txt:
-        chunks = decoupe_prete["chunks"]
-    else:
-        if on_progress:
-            on_progress("decoupe", 0, 0)
-        chunks = _decouper_ia(texte_epure, prompt_txt)
+    # 2. Découpe : elle est FOURNIE par l'appelant (`decoupe_prete`), qui vient de l'obtenir de
+    #    l'IA. Cette fonction n'appelle PLUS l'IA elle-même : elle écrit ce qu'on lui donne.
+    #    Elle le faisait avant quand la découpe manquait — en silence, sur le document entier —
+    #    et c'est ce repli qui a fini par être refusé par le fournisseur (crèche, 08/08/2026).
+    if not (decoupe_prete and decoupe_prete.get("chunks")):
+        raise RuntimeError(
+            "Aucune découpe à enregistrer pour ce référentiel. Lancez d'abord « Découper » : "
+            "c'est ce bouton-là qui appelle l'IA. Celui-ci ne fait qu'écrire ce que vous avez vu."
+        )
+    if decoupe_prete.get("prompt") != prompt_txt:
+        raise RuntimeError(
+            "Le prompt de découpe a changé depuis l'aperçu affiché : celui-ci ne correspond plus "
+            "au document découpé. Relancez « Découper » pour en obtenir un à jour."
+        )
+    chunks = decoupe_prete["chunks"]
     by_opt = Counter(c["meta"]["option"] for c in chunks)
     report = {
         "collection": collection,

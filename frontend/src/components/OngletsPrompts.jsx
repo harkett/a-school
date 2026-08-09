@@ -1,6 +1,9 @@
 import { Link, useLocation } from 'react-router-dom'
 
-// Les cinq catégories de prompts, passées du MENU aux ONGLETS de la page (05/08/2026).
+// Les catégories de prompts, passées du MENU aux ONGLETS de la page (05/08/2026). Elles étaient
+// cinq ; « Matières par cycle » et « Découpe par cycle » ont été retirées le 06/08/2026 — ces deux
+// prompts appartiennent au RÉFÉRENTIEL (un par couple cycle+niveau) et se règlent sur l'écran
+// Référentiel, dans la cartouche qui les utilise.
 //
 // Règle de répartition du backoffice : le menu de gauche porte la navigation — une entrée par
 // écran — et la page porte ses options. Cinq entrées de menu pour un même écran encombraient la
@@ -8,14 +11,13 @@ import { Link, useLocation } from 'react-router-dom'
 // angles. Les URL, elles, ne changent pas : chaque catégorie garde la sienne, les liens et les
 // favoris existants continuent de fonctionner.
 //
-// Composant partagé par AdminPrompts et AdminPromptsCycle : les deux rendent des catégories de la
-// même liste, la barre doit être identique et le rester — une seule définition, pas deux copies
-// qui divergeront.
 const ONGLETS = [
   { to: '/admin/prompts/prof',     label: 'Prof' },
   { to: '/admin/prompts/admin',    label: 'Admin' },
-  { to: '/admin/prompts/matieres', label: 'Matières par cycle' },
-  { to: '/admin/prompts/decoupe',  label: 'Découpe (chunk) par cycle' },
+  // Prompts → Référentiels (06/08/2026) : les deux prompts de matières de chaque niveau,
+  // écrits à la main. Ils vivent en colonnes sur la table `referentiels`, pas dans le
+  // registre des prompts d'outils — d'où une liste, une ligne par niveau.
+  { to: '/admin/prompts/referentiels', label: 'Référentiels' },
   { to: '/admin/prompts/autres',   label: 'Autres' },
 ]
 

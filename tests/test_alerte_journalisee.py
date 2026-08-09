@@ -43,7 +43,7 @@ def _brancher(monkeypatch, *, deja_alerte=False):
     monkeypatch.setattr(alerts, "_already_alerted", lambda db, title: deja_alerte)
     monkeypatch.setattr(
         alerts, "_send_alert_email",
-        lambda level, title, message: effets["mails"].append((level, title, message)),
+        lambda level, title, message, sujet_detail="": effets["mails"].append((level, title, message)),
     )
     return effets
 

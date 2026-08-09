@@ -73,8 +73,8 @@ def test_detecter_types_ne_recoit_que_le_texte(monkeypatch):
 
     with dbmod.SessionLocal() as db:
         amont.detecter_types_activite("texte du référentiel", db=db,
-                                      prompt_cycle="RECETTE DU CYCLE : {texte}")
-    assert capture["prompt"] == "RECETTE DU CYCLE : texte du référentiel"
+                                      prompt_referentiel="RECETTE DU RÉFÉRENTIEL : {texte}")
+    assert capture["prompt"] == "RECETTE DU RÉFÉRENTIEL : texte du référentiel"
 
 
 def test_detecter_matieres_parse_nettoie_dedoublonne(monkeypatch):

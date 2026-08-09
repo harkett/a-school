@@ -11,7 +11,7 @@ import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
 import DialogueAutreCouple from './DialogueAutreCouple.jsx'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
-import { corpsHtml, imprimerApercu } from '../../utils/apercuHtml.js'
+import { documentHtml, imprimerApercu } from '../../utils/apercuHtml.js'
 import { aideSeances } from '../../utils/aideSeances.js'
 import SplitPane from '../SplitPane.jsx'
 import InfoGuide from '../InfoGuide.jsx'
@@ -295,7 +295,7 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setApercuHtml(corpsHtml(s.resultat))}
+            <button onClick={() => setApercuHtml(documentHtml(s.resultat))}
               title="Voir la séance mise en forme (aperçu, sans quitter aSchool)"
               className="btn-secondary">
               <IconGlobe /> HTML
@@ -508,14 +508,6 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
               </div>
             </div>
             <div className="apercu-corps" style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 15 }} dangerouslySetInnerHTML={{ __html: apercuHtml }} />
-            <style>{`
-              .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
-              .apercu-corps h1{font-size:1.5rem}.apercu-corps h2{font-size:1.25rem}.apercu-corps h3{font-size:1.08rem}
-              .apercu-corps p{margin:.6em 0}
-              .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
-              .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
-              .apercu-corps strong{color:#0f172a}
-            `}</style>
           </div>
         </div>
       )}

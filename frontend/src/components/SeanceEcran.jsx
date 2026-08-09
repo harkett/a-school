@@ -22,7 +22,7 @@ import ApportTexte from './contenus/ApportTexte.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import HistoriqueVersions from './HistoriqueVersions.jsx'
 import { aideSeances } from '../utils/aideSeances.js'
-import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { documentHtml, imprimerApercu } from '../utils/apercuHtml.js'
 import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { demanderConfirmation } from '../confirmDialog'
@@ -1236,21 +1236,13 @@ export default function SeanceEcran({ seance, matiere, niveau, onNavigate, onCre
                       </span>
                       <span className="section-title" style={{ fontWeight: 700 }}>Déroulé généré</span>
                     </div>
-                    <button type="button" onClick={() => imprimerApercu(corpsHtml(resultat))}
+                    <button type="button" onClick={() => imprimerApercu(documentHtml(resultat))}
                       title="Imprimer cette séance mise en forme" className="btn-secondary">
                       <IconPrint taille={14} /> Imprimer
                     </button>
                   </div>
                   <div className="apercu-corps" style={{ color: '#1e293b', lineHeight: 1.7, fontSize: 14 }}
-                    dangerouslySetInnerHTML={{ __html: corpsHtml(resultat) }} />
-                  <style>{`
-                    .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
-                    .apercu-corps h1{font-size:1.4rem}.apercu-corps h2{font-size:1.15rem}.apercu-corps h3{font-size:1.05rem}
-                    .apercu-corps p{margin:.6em 0}
-                    .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
-                    .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
-                    .apercu-corps strong{color:#0f172a}
-                  `}</style>
+                    dangerouslySetInnerHTML={{ __html: documentHtml(resultat) }} />
                 </section>
               ))}
             </div>

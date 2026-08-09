@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import { showConfirm } from '../confirmDialog'
-import { useMatieres } from '../utils/useMatieres.js'
 import { VARIABLES_EMAIL } from '../utils/variablesEmail.js'
 
 const IconMail  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -29,7 +28,8 @@ function SortTh({ label, sKey, current, dir, onSort, style }) {
 }
 
 export default function AdminProfils() {
-  const { matieres, chargement: matieresChargement } = useMatieres()
+  // Plus de catalogue global ici : le filtre ne propose que les matières réellement portées par
+  // les profs de la liste (calculé plus bas, une fois les comptes lus).
   const [filterText, setFilterText] = useState('')
   const [filterMatiere, setFilterMatiere] = useState('')
   const [filterStatut, setFilterStatut]   = useState('tous')
@@ -49,14 +49,27 @@ export default function AdminProfils() {
 
   // Les niveaux par cycle : lecture d'appoint pour le menu déroulant de la fiche. Un échec ne
   // se dit pas — le menu se contente d'être vide, l'écran reste utilisable.
-  const { data: niveauxParCycle = [] } = useQuery({
-    queryKey: ['programmes', 'niveaux-par-cycle'],
+  const { data: programme = { niveaux_par_cycle: [], matieres_par_niveau: [] } } = useQuery({
+    queryKey: ['programmes', 'admin-profils'],
     queryFn: async () => {
       const r = await fetch('/api/programmes', { credentials: 'include' })
       const d = r.ok ? await r.json() : null
-      return d?.niveaux_par_cycle || []
+      return {
+        niveaux_par_cycle: d?.niveaux_par_cycle || [],
+        matieres_par_niveau: d?.matieres_par_niveau || [],
+      }
     },
   })
+  const niveauxParCycle = programme.niveaux_par_cycle
+
+  // Les matières d'un NIVEAU, et d'aucun autre. Une matière appartient au référentiel de son
+  // diplôme : quatre référentiels ont une « Mathématiques », ce ne sont pas la même. La fiche
+  // proposait le catalogue entier (27 noms tous diplômes mêlés) — un prof de BTS s'y voyait
+  // offrir « Bouger et faire ». Le niveau choisi juste à côté commande donc la liste.
+  const matieresDuNiveau = (nomNiveau) => {
+    const bloc = programme.matieres_par_niveau.find(b => b.niveau === nomNiveau)
+    return (bloc?.matieres || []).map(m => m.nom)
+  }
 
   // Lecture de la liste des profs. C'est la SEULE source de vérité de l'écran : après chaque
   // écriture on la rejoue (read-after-write), jamais de mise à jour locale « optimiste » qui
@@ -81,6 +94,9 @@ export default function AdminProfils() {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
   }
+
+  const matieresPresentes = [...new Set((users || []).map(u => u.subject).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'fr'))
 
   const filtered = (users || []).filter(u => {
     const text = filterText.toLowerCase()
@@ -259,10 +275,11 @@ export default function AdminProfils() {
           className="border border-gray-300 rounded px-3 py-1.5 text-sm flex-1 min-w-32"
         />
         <select value={filterMatiere} onChange={e => setFilterMatiere(e.target.value)}
-          disabled={matieresChargement}
+          disabled={matieresPresentes.length === 0}
+          title="Les matières présentes chez les profs de cette liste"
           className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">
-          <option value="">{matieresChargement ? 'Chargement…' : 'Toutes les matières'}</option>
-          {matieres.map(m => <option key={m} value={m}>{m}</option>)}
+          <option value="">Toutes les matières</option>
+          {matieresPresentes.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)}
           className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white">
@@ -314,14 +331,24 @@ export default function AdminProfils() {
                   <td className="px-3 py-2 text-gray-400 text-xs truncate">{u.email}</td>
                   <td className="px-3 py-2">
                     <select value={editForm.subject} onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))}
-                      disabled={matieresChargement}
+                      disabled={!editForm.niveau}
+                      title={editForm.niveau
+                        ? 'Les matières du référentiel de ce niveau'
+                        : 'Choisissez d’abord le niveau : ce sont ses matières qui seront proposées'}
                       className="border border-gray-300 rounded px-2 py-1 text-sm w-full bg-white">
-                      <option value="">{matieresChargement ? 'Chargement…' : '—'}</option>
-                      {matieres.map(m => <option key={m} value={m}>{m}</option>)}
+                      <option value="">{editForm.niveau ? '—' : 'Choisir le niveau d’abord'}</option>
+                      {matieresDuNiveau(editForm.niveau).map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </td>
                   <td className="px-3 py-2">
-                    <select value={editForm.niveau} onChange={e => setEditForm(f => ({ ...f, niveau: e.target.value }))}
+                    <select value={editForm.niveau}
+                      onChange={e => setEditForm(f => ({
+                        ...f,
+                        niveau: e.target.value,
+                        // La matière retenue appartenait au référentiel de l'ANCIEN niveau : la
+                        // garder fabriquerait un couple que le serveur refuserait à l'envoi.
+                        subject: matieresDuNiveau(e.target.value).includes(f.subject) ? f.subject : '',
+                      }))}
                       className="border border-gray-300 rounded px-2 py-1 text-sm w-full bg-white">
                       <option value="">—</option>
                       {niveauxParCycle.map(grp => (

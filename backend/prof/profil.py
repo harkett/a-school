@@ -27,115 +27,35 @@ REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
 UPLOADS_CAHIERS_DIR = _ROOT / "data" / "uploads" / "cahiers"
 
 
-# ── Mise à jour d'un référentiel : les TROIS questions, et ce qui décide chacune ──────────────
+# ── Mise à jour d'un référentiel : ce qui a été RETIRÉ le 07/08/2026 ─────────────────────────
 #
-# Elles n'ont pas la même réponse, et les confondre casse quelque chose à chaque fois :
-#   · PEUT-IL GÉNÉRER ?    → le NIVEAU du couple qu'il s'apprête à utiliser (`blocage_generation`).
-#   · PROFIL À COMPLÉTER ? → le NIVEAU DE SON PROFIL (`profil_en_travaux`) : c'est nous qui avons
-#                            vidé sa matière, on ne va pas le lui reprocher.
-#   · A-T-IL À LIRE ?      → l'ÉTAT de sa ligne (`message_a_lire`), où qu'il travaille.
-
-MSG_MAJ_EN_COURS = (
-    "Le programme officiel de votre niveau est en cours de mise à jour. La génération est "
-    "momentanément indisponible pour vous.\n\n"
-    "Vous n'avez rien à faire : tout ce que vous avez créé est conservé, et vous pourrez "
-    "reprendre dès que ce sera terminé."
-)
-
-
-def niveau_id_du_couple(user: User) -> int | None:
-    """Le NIVEAU du couple que le prof s'apprête à utiliser — la clé de toutes les décisions de
-    blocage. Même règle de résolution que `couple_de_travail` (les DEUX clés de travail, sinon
-    le profil), mais elle ne dépend pas de la matière : celle-ci peut être détachée pendant une
-    mise à jour, `users.niveau_id` n'est jamais touché et répond toujours."""
-    if user.travail_matiere_id and user.travail_niveau_id:
-        return user.travail_niveau_id
-    return user.niveau_id
+# Il existait ici un mécanisme de « blocage » : quand l'admin supprimait le référentiel d'un
+# niveau, le serveur détachait lui-même la matière des profs concernés (`users.subject_id` remis
+# à NULL) pour que la suppression passe, mémorisait le nom perdu dans `profs_bloques_maj`, et
+# refusait toute génération tant que la ligne existait.
+#
+# POURQUOI IL EST PARTI. La base refusait DÉJÀ la suppression : `fk_users_subject_id` est en
+# NO ACTION, une matière portée par un prof ne peut pas disparaître. Le code contournait sa
+# propre garde d'intégrité pour recréer, en Python, une protection que PostgreSQL assurait
+# gratuitement — et cette protection-là, elle, ne se levait pas toute seule. Une ligne posée le
+# 03/08/2026 par une suppression qui n'a jamais abouti a laissé un compte incapable de générer
+# pendant quatre jours, avec un référentiel intact et une matière valide.
+#
+# CE QUI TIENT LA PLACE. Rien de neuf : le refus 409 « n professeur(s) travaillent sur une
+# matière de ce référentiel » reste la règle, à l'admin de changer leur matière d'abord. Un prof
+# sans matière est un profil incomplet — l'écran l'envoie la choisir, comme pour tout compte neuf.
 
 
-def blocage_generation(db: Session, user: User | None):
-    """La ligne qui INTERDIT de générer, ou None. Décidée sur le niveau du couple ci-dessus :
-    un prof dont le couple de travail est sur un niveau intact continue de travailler — le
-    message « le programme officiel de VOTRE niveau… » serait faux pour lui."""
-    from backend.core.models_db import ProfBloqueMaj
-    niveau_id = niveau_id_du_couple(user) if user else None
-    if not niveau_id:
-        return None
-    return (db.query(ProfBloqueMaj)
-              .filter(ProfBloqueMaj.user_id == user.id,
-                      ProfBloqueMaj.niveau_id == niveau_id,
-                      ProfBloqueMaj.etat == "bloque").first())
-
-
-def profil_en_travaux(db: Session, user: User | None) -> bool:
-    """Le profil du prof est-il en travaux ? Décidé sur le niveau DE SON PROFIL, et vrai quel que
-    soit l'état de la ligne (bloqué ou simplement pas encore informé). Tant que c'est vrai,
-    l'écran ne doit pas l'envoyer compléter son profil : sa matière est absente parce que NOUS
-    l'avons détachée pour pouvoir supprimer le référentiel."""
-    from backend.core.models_db import ProfBloqueMaj
-    if not user or not user.niveau_id:
-        return False
-    return db.query(ProfBloqueMaj).filter(ProfBloqueMaj.user_id == user.id,
-                                          ProfBloqueMaj.niveau_id == user.niveau_id).count() > 0
-
-
-def message_a_lire(db: Session, user: User | None):
-    """La ligne dont le prof n'a pas encore accusé réception, ou None. Décidée sur l'ÉTAT SEUL —
-    jamais sur son couple courant : sinon « la mise à jour est terminée » n'aurait plus aucun
-    véhicule (la ligne n'est plus `bloque`), et le prof dont la matière a disparu ne lirait
-    jamais le message qui la nomme."""
-    from backend.core.models_db import ProfBloqueMaj
-    if not user:
-        return None
-    return (db.query(ProfBloqueMaj)
-              .filter(ProfBloqueMaj.user_id == user.id,
-                      ProfBloqueMaj.etat == "a_informer")
-              .order_by(ProfBloqueMaj.debloque_le.desc()).first())
-
-
-def message_de_fin(ligne) -> str:
-    """Le second message, composé depuis la ligne. Quatre issues, et on n'invente rien dans
-    aucune :
-      · rien ne partait de son profil (il était rattaché par son seul couple de travail) : on ne
-        lui parle pas d'une matière qu'il n'a pas perdue ;
-      · le nouveau document porte le MÊME nom : sa matière a été rebranchée ;
-      · l'admin a désigné une REMPLAÇANTE : le message nomme l'ancienne ET la nouvelle — sans les
-        deux, le prof découvre une autre matière à son profil sans savoir pourquoi ;
-      · elle a réellement disparu : on la NOMME et on l'envoie rechoisir, plutôt qu'un profil vide
-        sans explication."""
-    debut = "La mise à jour est terminée. Vous pouvez de nouveau générer."
-    if not ligne.matiere_nom:
-        return debut
-    nom = ligne.matiere_nom
-    if ligne.resultat == "matiere_disparue":
-        return (f"{debut}\n\nEn revanche, la matière « {nom} » ne figure plus dans le nouveau "
-                "programme officiel de votre niveau.\n\n"
-                "Ouvrez « Mon profil » pour choisir votre matière parmi celles du nouveau "
-                "programme. Tout ce que vous avez créé est conservé.")
-    if ligne.resultat == "remplace" and ligne.remplacee_par:
-        return (f"{debut}\n\nDans le nouveau programme officiel, votre matière « {nom} » est "
-                f"devenue « {ligne.remplacee_par} » : votre profil a suivi, vous n'avez rien à "
-                "faire. Tout ce que vous avez créé est conservé.")
-    return f"{debut}\n\nVotre matière « {nom} » a été rebranchée sur le nouveau programme."
-
-
-def couple_de_travail(db: Session, user: User, garde: bool = True) -> tuple[str | None, str | None, bool]:
+def couple_de_travail(db: Session, user: User) -> tuple[str | None, str | None, bool]:
     """Le couple sur lequel le prof TRAVAILLE, résolu depuis la base — LA seule règle,
     à UN seul endroit : le couple de travail s'il est posé (les deux clés non NULL),
     sinon le couple du profil. Renvoie (matiere, niveau, ajuste) ; ajuste=True quand le
     prof travaille hors de son profil. Le nom se relit par get sur `matieres`/`niveaux`
     (zéro copie). Lu par /auth/me ET par les actions (génération, idée, exemple).
 
-    C'EST ICI, ET NULLE PART AILLEURS, que se refuse le travail d'un prof dont le niveau est en
-    mise à jour — porte unique de ses vingt appelants. Le refus porte le texte français destiné
-    au prof, jamais une erreur technique.
-
-    `garde=False` pour les TROIS appelants qui doivent lire sans être arrêtés : `/auth/me`, qui
-    doit RAPPORTER le blocage au lieu d'y échouer, et les deux routes du couple de travail, qui
-    appellent APRÈS leur commit pour construire leur réponse — refuser là ferait échouer un
-    geste qui a réussi."""
-    if garde and blocage_generation(db, user):
-        raise HTTPException(409, MSG_MAJ_EN_COURS)
+    Ne refuse RIEN : cette fonction résout un couple, elle ne juge pas le droit de travailler.
+    Elle a porté un refus 409 « mise à jour en cours » jusqu'au 07/08/2026 — voir le bloc retiré
+    plus haut."""
     if user.travail_matiere_id and user.travail_niveau_id:
         return matiere_nom_de_id(db, user.travail_matiere_id), niveau_nom_de_id(db, user.travail_niveau_id), True
     return matiere_nom_de_id(db, user.subject_id), niveau_nom_de_id(db, user.niveau_id), False
@@ -265,9 +185,8 @@ def put_couple_travail(body: CoupleTravailBody, aschool_access: str = Cookie(def
         user.travail_matiere_id = matiere_id_du_nom(db, matiere, travail_niveau_id)
         user.travail_niveau_id = travail_niveau_id
     db.commit()
-    # garde=False : on relit APRÈS le commit pour construire la réponse. Refuser ici ferait
-    # échouer un geste qui a réussi (les colonnes sont déjà écrites).
-    tm, tn, ajuste = couple_de_travail(db, user, garde=False)
+    # Relecture APRÈS le commit, pour construire la réponse.
+    tm, tn, ajuste = couple_de_travail(db, user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
 
 
@@ -297,28 +216,9 @@ def delete_couple_travail(aschool_access: str = Cookie(default=None), db: Sessio
     user.travail_matiere_id = None
     user.travail_niveau_id = None
     db.commit()
-    # garde=False : on relit APRÈS le commit pour construire la réponse. Refuser ici ferait
-    # échouer un geste qui a réussi (les colonnes sont déjà écrites).
-    tm, tn, ajuste = couple_de_travail(db, user, garde=False)
+    # Relecture APRÈS le commit, pour construire la réponse.
+    tm, tn, ajuste = couple_de_travail(db, user)
     return {"status": "ok", "travail_matiere": tm, "travail_niveau": tn, "couple_ajuste": ajuste}
-
-
-@router.post("/user/maj-lue")
-def post_maj_lue(aschool_access: str = Cookie(default=None), db: Session = Depends(get_db)):
-    """Le prof a LU le message de fin de mise à jour (bouton « J'ai compris ») — ses lignes
-    `a_informer` partent. C'est le SEUL moment où elles sont effacées : tant qu'il n'a pas
-    accusé réception, le message l'attend, même trois semaines plus tard. Une ligne encore
-    `bloque` n'est jamais touchée ici (la mise à jour de CE niveau-là n'est pas finie)."""
-    from backend.core.models_db import ProfBloqueMaj
-    email = _get_email(aschool_access)
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(404, "Utilisateur introuvable.")
-    n = (db.query(ProfBloqueMaj)
-           .filter(ProfBloqueMaj.user_id == user.id, ProfBloqueMaj.etat == "a_informer")
-           .delete())
-    db.commit()
-    return {"status": "ok", "lues": n}
 
 
 # ── Programme officiel du prof : voir, depuis son profil, le référentiel déposé par l'admin ──

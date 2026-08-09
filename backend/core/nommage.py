@@ -13,8 +13,8 @@ import unicodedata
 
 def dossier_cle(nom: str) -> str:
     """Nom de cycle/niveau → nom de dossier-clé : accents enlevés, MAJUSCULES, non-alphanumérique
-    remplacé par « _ ». Ex. « Moyens (1-2 ans) » → « MOYENS_1_2_ANS ». Un nom qui ne laisse aucun
-    caractère exploitable retombe sur « REFERENTIEL » (jamais de dossier au nom vide)."""
+    remplacé par « _ ». Ex. « Crèche » → « CRECHE », « BMG_0-3 » → « BMG_0_3 ». Un nom qui ne laisse
+    aucun caractère exploitable retombe sur « REFERENTIEL » (jamais de dossier au nom vide)."""
     s = unicodedata.normalize("NFKD", nom).encode("ascii", "ignore").decode()
     s = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
     return s or "REFERENTIEL"

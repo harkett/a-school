@@ -1,4 +1,4 @@
-// Page « Programmes & contenu » — ce que l'écran affiche à partir de l'arbre que la base rend.
+// Page « Formations » — ce que l'écran affiche à partir de l'arbre que la base rend.
 // Lance avec :  node --test src/utils/contenuMatieres.test.js   (depuis frontend/)
 //
 // Vérifie : (1) les trois états d'une matière ; (2) l'ordre et la complétude des lignes d'un

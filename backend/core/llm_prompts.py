@@ -581,6 +581,33 @@ Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propo
 Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."""
 
 
+PROMPT_META_PRECISIONS = """Tu prépares la lecture des PRÉCISIONS d'un type d'activité, dans un référentiel officiel, pour un logiciel pédagogique.
+
+Une précision est une déclinaison CONCRÈTE d'un type d'activité, telle que le document la met en œuvre (pour un type « activités écrites » : ce que le référentiel demande réellement d'écrire), et non une idée générale de ce qui se pratique à ce niveau.
+
+On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
+---
+{document}
+---
+
+Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille et à UN type d'activité donné, en sortira les précisions de ce type. Tu ne nommes aucune précision toi-même.
+
+Observe d'abord CE document : où les déclinaisons concrètes du travail apparaissent-elles ? Des tâches détaillées sous chaque activité, des productions attendues, des situations d'évaluation décrites, une liste de savoir-faire — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
+
+Le prompt que tu rédiges DOIT :
+- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais une précision précise en exemple, ni un intitulé propre à ce document) ;
+- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
+- s'en tenir à ce que le document nomme RÉELLEMENT, sans compléter par ce qui se pratique ailleurs dans l'enseignement ;
+- reprendre le vocabulaire du document, jamais un vocabulaire inventé ;
+- ne jamais répéter le nom du type dans la précision (le type est déjà connu) ;
+- demander de 3 à 6 précisions, en libellés COURTS (2 à 4 mots), en minuscules ;
+- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré, EN TÊTE du prompt ;
+- contenir le marqueur {label} à l'endroit où le nom du type d'activité sera inséré ;
+- imposer une sortie JSON stricte : {"precisions":["...","..."]} et rien d'autre autour.
+
+Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
+
+
 # {types_existants} RETIRÉ (05/08/2026) : il n'y a plus de catalogue commun auquel ramener le
 # document. Chaque référentiel possède SES types d'activité, nommés comme LUI les nomme — même
 # geste que `detecter_matieres`. L'IA ne reçoit donc que le texte.
@@ -891,6 +918,15 @@ PROMPTS = {
         "mode": "replace",
         "default": PROMPT_META_TYPES,
     },
+    "meta_precisions": {
+        "label": "Précisions — méta-prompt : l'IA RÉDIGE le prompt qui lira les précisions d'un type",
+        "placeholders": ["document"],
+        "categorie": "admin",
+        # replace, pour la même raison que meta_types : le prompt rédigé porte {texte}, {label}
+        # et un exemple JSON à accolades, que `.format()` consommerait.
+        "mode": "replace",
+        "default": PROMPT_META_PRECISIONS,
+    },
     "verif_decoupe": {
         "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
         "placeholders": ["prompt"],
@@ -935,7 +971,7 @@ PROMPTS = {
         "label": "Détection des types d'activité proposés à partir du référentiel (au dépôt du PDF)",
         # {types_existants} RETIRÉ : plus de catalogue commun auquel comparer le document. Chaque
         # référentiel nomme SES types — l'IA ne reçoit donc que le texte. Ce prompt est le REPLI
-        # GÉNÉRAL : dès que le cycle a le sien (`cycles.prompt_types`), c'est celui-là qui lit.
+        # GÉNÉRAL : dès que le référentiel a le sien (`referentiels.prompt_types`), c'est lui qui lit.
         "placeholders": ["texte"],
         "categorie": "admin",
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,

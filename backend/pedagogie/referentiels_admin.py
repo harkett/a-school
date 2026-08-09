@@ -26,7 +26,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SessionLocal
-# Règle de nommage des dossiers (« Bébés (0-1 an) » → « BEBES_0_1_AN ») : UNE seule source,
+# Règle de nommage des dossiers (« BMG_0-3 » → « BMG_0_3 ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.models_db import (
@@ -242,7 +242,7 @@ def lire_contenu(db: Session = Depends(get_db)):
     base. Un niveau sans référentiel apparaît quand même (referentiel et referentiel_id à null) :
     l'admin voit ce qui reste à remplir.
 
-    C'est la lecture UNIQUE de la page « Programmes & contenu ». Elle lisait avant deux endpoints
+    C'est la lecture UNIQUE de la page « Formations ». Elle lisait avant deux endpoints
     et les recollait — un arbre d'un côté, un catalogue global de matières et des paires
     matière × niveau de l'autre. Ni le catalogue global ni les paires n'existent : les matières
     d'un niveau sont celles de son référentiel, elles sont donc déjà dans l'arbre."""
@@ -370,74 +370,6 @@ def controle_couple(body: ControleCoupleBody, db: Session = Depends(get_db)):
         "cycle": cycle.nom, "cycle_trouve": trouve_cycle,
         "niveau": niv.nom, "niveau_trouve": trouve_niveau,
         "manquants": manquants,           # les mots du niveau absents du document (pour le message)
-    }
-
-
-class VerifierDepotBody(BaseModel):
-    token: str
-    cycle_id: int
-    niveau_id: int
-
-
-@router.post("/admin/referentiels/verifier-depot", dependencies=[Depends(_require_admin)])
-def verifier_depot(body: VerifierDepotBody, db: Session = Depends(get_db)):
-    """Vérification au dépôt (LECTURE SEULE), avant de proposer la validation : la vérif n°1
-    (couple) — l'IA lit le couple visé par le PDF et le compare au couple cycle → niveau déclaré.
-    L'écran n'affiche le document à valider que si elle passe (ou sur forçage motivé)."""
-    cycle = db.get(Cycle, body.cycle_id)
-    if not cycle:
-        raise HTTPException(404, "Cycle inconnu.")
-    niv = db.get(Niveau, body.niveau_id)
-    if not niv or niv.cycle_id != cycle.id:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
-
-    texte = _texte_staged(body.token)
-    if not texte:
-        raise HTTPException(400, "PDF sans texte lisible : vérification impossible.")
-
-    from backend.rag.analyse_amont import verifier_couple
-    try:
-        couple = verifier_couple(texte[:4000], cycle.nom, niv.nom, db=db)
-    except Exception:
-        logger.exception("verifier_depot : échec de la vérification du couple par l'IA")
-        raise HTTPException(400, "Vérification du couple impossible.")
-
-    return {"couple": couple}
-
-
-class DetecterCoupleBody(BaseModel):
-    token: str
-
-
-@router.post("/admin/referentiels/detecter-couple", dependencies=[Depends(_require_admin)])
-def detecter_couple_depot(body: DetecterCoupleBody, db: Session = Depends(get_db)):
-    """Dépôt « PDF d'abord » (LECTURE SEULE — aucune écriture) : l'IA lit le début du document en
-    zone d'attente et propose le cycle + le niveau (nom exact du diplôme). Le SERVEUR fait ensuite
-    la CORRESPONDANCE en dur avec les tables cycles/niveaux (insensible à la casse) — l'IA lit,
-    la base tranche. `cycle`/`niveau` valent null si rien ne correspond : l'écran propose alors
-    « Ajouter ce niveau » (porte unique POST /admin/niveaux, sur clic de l'admin) ou renvoie vers
-    Programmes pour un cycle inconnu. Ne crée JAMAIS rien ici."""
-    texte = _texte_staged(body.token)
-    if not texte:
-        raise HTTPException(400, "PDF sans texte lisible : détection impossible.")
-    from backend.rag.analyse_amont import detecter_couple
-    try:
-        lu = detecter_couple(texte[:4000], db=db)
-    except Exception:
-        logger.exception("detecter_couple : échec de la lecture du couple par l'IA")
-        raise HTTPException(400, "La détection du cycle par l'IA a échoué. Réessayez.")
-    cycle = None
-    if lu["cycle_lu"]:
-        cycle = db.query(Cycle).filter(func.lower(Cycle.nom) == lu["cycle_lu"].lower()).first()
-    niveau = None
-    if cycle is not None and lu["niveau_lu"]:
-        niveau = (db.query(Niveau)
-                    .filter(Niveau.cycle_id == cycle.id,
-                            func.lower(Niveau.nom) == lu["niveau_lu"].lower()).first())
-    return {
-        "cycle": {"id": cycle.id, "nom": cycle.nom} if cycle else None,
-        "niveau": {"id": niveau.id, "nom": niveau.nom} if niveau else None,
-        "cycle_lu": lu["cycle_lu"], "niveau_lu": lu["niveau_lu"],
     }
 
 
@@ -596,19 +528,21 @@ def _etapes_enregistrement(body: "ValiderBody", db: Session):
 
     if existing is not None:
         # MISE À JOUR : même ligne (id/collection/niveau stables → liens et MATIÈRES intacts).
-        # On remet à zéro ce qui découlait de l'ANCIEN PDF : chunks, et l'ancien prompt de découpe
-        # du couple (colonne d'historique depuis le 05/08/2026 — le prompt qui SERT est celui du
-        # cycle, et lui ne bouge pas : un nouveau PDF dans la même famille se découpe pareil).
+        # On remet à zéro ce qui découlait de l'ANCIEN PDF : les chunks. Les PROMPTS du référentiel,
+        # eux, ne bougent pas : ils décrivent l'ossature du DIPLÔME, pas celle d'un fichier — un
+        # nouveau PDF du même référentiel se découpe et se lit pareil.
         existing.fichier = fichier_origine
         existing.source = (body.source.strip() if body.source else None)
         existing.date_doc = (body.date_doc.strip() if body.date_doc else None)
-        existing.prompt_decoupe = None
-        existing.prompt_decoupe_valide = False
         existing.forcage_motif = forcage_motif
         existing.verif_couple = verif_couple_json
         existing.controle_niveau = controle_niveau_json   # le NOUVEAU document a son propre contrôle
         existing.texte_epure = texte_epure   # le NOUVEAU PDF impose SON texte de travail
         db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
+        # Les unités de l'ANCIEN document viennent de partir : l'étape « Découpe » n'a plus rien à
+        # montrer, son drapeau ne peut pas rester levé. Il restait vrai — la cartouche s'affichait
+        # verte sans une seule unité en base, et « Découper » restait grisé sans moyen d'en sortir.
+        existing.decoupe_valide = False
         # Matières PROPOSÉES par l'ANCIEN PDF et jamais retenues : effacées ici (le nouveau document
         # refera sa propre proposition juste après). Si la détection échoue, on reste sur une liste
         # sans proposition périmée. Les matières RETENUES par l'admin (`validee`) ne sont PAS
@@ -705,59 +639,75 @@ def valider_flux(body: ValiderBody):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-@router.post("/admin/referentiels/valider", dependencies=[Depends(_require_admin)])
-def valider(body: ValiderBody, db: Session = Depends(get_db)):
-    """Dépôt COMPLET en un seul geste : le rangement (ci-dessus) puis la proposition des matières
-    par l'IA. Conservé tel quel pour les appels qui font tout d'un coup."""
-    reponse, ref_id, texte_epure = _enregistrer_referentiel(body, db)
-    # Détection IA des matières PROPOSÉES à partir du NOUVEAU PDF. Elle ne retient jamais une
-    # matière d'office : elle les écrit sur le référentiel avec `validee=false` — l'admin coche
-    # ce qu'il garde. Best-effort : une panne IA ne casse pas la validation du référentiel (une
-    # proposition n'est qu'une aide au remplissage, jamais une donnée figée).
-    if ref_id is not None:
-        try:
-            from backend.rag.analyse_amont import detecter_matieres
-            if texte_epure.strip():                 # le texte de travail qui vient d'être figé (get)
-                _ecrire_matieres_proposees(db, ref_id, detecter_matieres(texte_epure, db=db))
-        except Exception:
-            logger.exception("valider : détection des matières échouée (%s)", reponse.get("niveau"))
-    return reponse
-
-
 class MatieresProposerBody(BaseModel):
     cycle_id: int
     niveau: str
 
 
-def _prompt_matieres_du_cycle(db: Session, cycle_id: int, texte: str) -> str | None:
-    """LE prompt qui lit les matières de ce cycle. S'il n'existe pas encore, il est ÉCRIT ICI,
-    tout de suite, par l'IA (méta-prompt en base + ce référentiel comme exemple de la famille),
-    puis rangé sur le cycle : le geste de l'admin reste UN clic sur « Proposer les matières », et
-    le référentiel suivant du même cycle le trouvera déjà fait.
+def _prompt_matieres_du_referentiel(db: Session, ref: Referentiel, texte: str) -> str | None:
+    """LE prompt qui lit les matières de CE référentiel — le couple cycle+niveau, pas le cycle.
+
+    Rangé sur le référentiel depuis le 06/08/2026. Il était sur le cycle, et c'était faux : le
+    cycle « BTS » porte dix-huit niveaux, et le prompt écrit sur le premier (BTS CIEL, avec ses
+    options réseau) était ensuite servi à tous les autres — il ne dit rien du BTS CRSA. Une famille
+    de diplômes n'est pas une famille de documents.
+
+    S'il n'existe pas encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce
+    référentiel comme exemple) : le geste de l'admin reste UN clic sur « Proposer les matières ».
 
     Le prompt SERT dès qu'il existe. `prompt_matieres_valide` ne commande pas son usage : il dit
     seulement si l'admin l'a relu — il peut l'ouvrir, le corriger et le valider quand il veut.
 
     None si la rédaction échoue : la détection retombe alors sur le prompt général, sans casser le
     geste (une panne de l'IA ne doit pas empêcher de proposer des matières)."""
-    cyc = db.get(Cycle, cycle_id)
-    if cyc is None:
-        return None
-    deja = (cyc.prompt_matieres or "").strip()
+    deja = (ref.prompt_matieres or "").strip()
     if deja:
         return deja
     from backend.rag.analyse_amont import generer_prompt_matieres
     try:
-        prompt = generer_prompt_matieres(texte, db=db).strip()
+        # Le méta-prompt DU NIVEAU passe devant le réglage général (même règle que la découpe).
+        prompt = generer_prompt_matieres(texte, db=db,
+                                         meta_referentiel=ref.prompt_meta_matieres).strip()
     except Exception:
-        logger.exception("matieres : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        logger.exception("matieres : rédaction du prompt du référentiel impossible (id=%s)", ref.id)
         return None
     if not prompt:
         return None
-    cyc.prompt_matieres = prompt
-    cyc.prompt_matieres_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    ref.prompt_matieres = prompt
+    ref.prompt_matieres_valide = False   # écrit par l'IA, pas encore relu par l'admin
     db.commit()
-    logger.info("matieres : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    logger.info("matieres : prompt du référentiel id=%s rédigé par l'IA (%d caractères)",
+                ref.id, len(prompt))
+    return prompt
+
+
+def _prompt_precisions_du_referentiel(db: Session, ref: Referentiel, texte: str) -> str | None:
+    """LE prompt qui lit les PRÉCISIONS d'un type dans CE référentiel — jumeau exact de
+    `_prompt_types_du_referentiel`.
+
+    S'il n'existe pas encore, il est ÉCRIT ICI par l'IA (méta-prompt en base + ce référentiel comme
+    exemple). Le prompt SERT dès qu'il existe ; `prompt_precisions_valide` dit seulement si l'admin
+    l'a relu.
+
+    None si la rédaction échoue : les précisions retombent alors sur le prompt général, sans casser
+    le geste — elles sont une aide au remplissage, leur échec ne doit rien faire tomber."""
+    deja = (ref.prompt_precisions or "").strip()
+    if deja:
+        return deja
+    from backend.rag.analyse_amont import generer_prompt_precisions
+    try:
+        prompt = generer_prompt_precisions(texte, db=db,
+                                           meta_referentiel=ref.prompt_meta_precisions).strip()
+    except Exception:
+        logger.exception("precisions : rédaction du prompt du référentiel impossible (id=%s)", ref.id)
+        return None
+    if not prompt:
+        return None
+    ref.prompt_precisions = prompt
+    ref.prompt_precisions_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    db.commit()
+    logger.info("precisions : prompt du référentiel id=%s rédigé par l'IA (%d caractères)",
+                ref.id, len(prompt))
     return prompt
 
 
@@ -765,9 +715,9 @@ def _prompt_matieres_du_cycle(db: Session, cycle_id: int, texte: str) -> str | N
 def matieres_proposer(body: MatieresProposerBody, db: Session = Depends(get_db)):
     """Bouton « Proposer les matières » — UN seul clic, deux temps chez le serveur :
 
-    1. le prompt du CYCLE : déjà en base, sinon écrit à l'instant par l'IA (le référentiel sert
-       d'exemple de sa famille) — un prompt taillé pour des BTS lit ce qu'un prompt passe-partout
-       laisse tomber, et il resservira à tous les BTS suivants ;
+    1. le prompt de CE référentiel : déjà en base, sinon écrit à l'instant par l'IA à partir du
+       document lui-même — un prompt taillé pour ce diplôme lit ce qu'un prompt passe-partout
+       laisse tomber, et il ne sert qu'à lui ;
     2. la lecture des matières avec ce prompt-là, sur le texte DÉJÀ figé en base (aucune
        ré-extraction du PDF). Elles sont écrites non cochées — l'admin coche ce qu'il retient."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
@@ -779,7 +729,7 @@ def matieres_proposer(body: MatieresProposerBody, db: Session = Depends(get_db))
     from backend.rag.analyse_amont import detecter_matieres
     try:
         noms = detecter_matieres(texte, db=db,
-                                 prompt_cycle=_prompt_matieres_du_cycle(db, body.cycle_id, texte))
+                                 prompt_referentiel=_prompt_matieres_du_referentiel(db, ref, texte))
     except Exception:
         logger.exception("matieres_proposer : détection des matières échouée (%s)", body.niveau)
         raise HTTPException(400, "La proposition des matières par l'IA a échoué.")
@@ -787,105 +737,225 @@ def matieres_proposer(body: MatieresProposerBody, db: Session = Depends(get_db))
     return {"ok": True, "proposees": len(noms)}
 
 
-# ── Le prompt de MATIÈRES du cycle : écrit par l'IA, relu et validé par l'admin ──────
+# ── Écran Prompts → Référentiels : les prompts du niveau, par COUPLES ────────────────
 #
-# Même geste que le prompt de découpe, mais rangé sur le CYCLE : un cycle = une famille de
-# documents bâtis pareil, donc le prompt écrit sur le premier BTS sert à tous les BTS.
+# Deux couples, quatre textes, et le même geste dans les deux :
+#   - matières : `prompt_meta_matieres` (repère {document}) écrit `prompt_matieres` (repère {texte}) ;
+#   - découpe  : `prompt_meta_decoupe`  (repère {document}) écrit `prompt_decoupe`  (repère {texte}).
+# Saisis À LA MAIN par l'admin, donc gratuits — c'est tout l'intérêt de cet écran : doter un
+# référentiel sans le moindre appel facturé. Une seule lecture pour toute la liste (pas de N+1).
+# La route garde son nom d'origine (`prompts-matieres`) : elle sert le même écran, renommer une
+# porte déjà appelée ne change rien à ce qu'elle rend.
 
-class PromptMatieresBody(BaseModel):
+@router.get("/admin/referentiels/prompts-matieres", dependencies=[Depends(_require_admin)])
+def lister_prompts_matieres(db: Session = Depends(get_db)):
+    """Un niveau par ligne, avec ses huit textes tels qu'ils sont EN BASE (get, zéro copie).
+
+    `nb_types` / `nb_types_prompt` (08/08/2026) : le NEUVIÈME prompt d'un référentiel n'est pas une
+    colonne d'ici mais une ligne par type (`types_activite.prompt`) — celui qui GÉNÈRE ce que le
+    professeur reçoit. Sans ces deux comptes, la liste de l'écran Prompts affichait quatre couples
+    complets et taisait le seul qui décide de la sortie. Comptés en base, en une requête groupée
+    (pas de N+1) : un nombre réel, jamais un nombre stocké à côté qui finirait par mentir."""
+    rows = (db.query(Referentiel, Cycle.nom, Cycle.id, Niveau.nom)
+              .join(Niveau, Niveau.id == Referentiel.niveau_id)
+              .join(Cycle, Cycle.id == Niveau.cycle_id)
+              .order_by(Cycle.ordre, Niveau.ordre).all())
+    # Types actifs par référentiel, et parmi eux ceux qui portent un prompt de génération.
+    comptes: dict[int, tuple[int, int]] = {}
+    for rid, total, dotes in db.query(
+            ActiviteType.referentiel_id,
+            func.count(),
+            func.count().filter(func.length(func.trim(ActiviteType.prompt)) > 0),
+    ).filter(ActiviteType.actif.is_(True)).group_by(ActiviteType.referentiel_id).all():
+        comptes[rid] = (int(total), int(dotes))
+    return {"referentiels": [
+        {"id": r.id, "cycle": cyc, "cycle_id": cid, "niveau": niv,
+         "meta": r.prompt_meta_matieres or "",
+         "lecture": r.prompt_matieres or "",
+         "lecture_valide": bool(r.prompt_matieres_valide),
+         "meta_decoupe": r.prompt_meta_decoupe or "",
+         "decoupe": r.prompt_decoupe or "",
+         # `decoupe_relue` et non `decoupe_valide` : ce booléen dit que l'admin a RELU le prompt
+         # de découpe, pas que le découpage lui-même est validé (`referentiels.decoupe_valide`).
+         "decoupe_relue": bool(r.prompt_decoupe_valide),
+         "meta_types": r.prompt_meta_types or "",
+         "types": r.prompt_types or "",
+         "types_relu": bool(r.prompt_types_valide),
+         "meta_precisions": r.prompt_meta_precisions or "",
+         "precisions": r.prompt_precisions or "",
+         "precisions_relu": bool(r.prompt_precisions_valide),
+         "nb_types": comptes.get(r.id, (0, 0))[0],
+         "nb_types_prompt": comptes.get(r.id, (0, 0))[1]}
+        for r, cyc, cid, niv in rows
+    ]}
+
+
+class PromptMetaMatieresBody(BaseModel):
     cycle_id: int
+    niveau: str
     prompt: str
 
 
-class GenererPromptMatieresBody(BaseModel):
+@router.get("/admin/referentiels/prompt-meta-matieres", dependencies=[Depends(_require_admin)])
+def lire_prompt_meta_matieres(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le méta-prompt des matières de ce couple. `source` vaut 'referentiel' ou 'aucun'.
+
+    Le repli sur un réglage général a été retiré le 08/08/2026, ici comme dans le moteur : cette
+    porte rendait un texte qui n'était PAS celui du niveau regardé, en laissant croire que la
+    génération partirait de là."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    propre = (ref.prompt_meta_matieres or "").strip() if ref is not None else ""
+    return {"prompt": propre, "source": "referentiel" if propre else "aucun"}
+
+
+@router.post("/admin/referentiels/prompt-meta-matieres", dependencies=[Depends(_require_admin)])
+def enregistrer_prompt_meta_matieres(body: PromptMetaMatieresBody, db: Session = Depends(get_db)):
+    """Écrit le MÉTA-prompt des matières de ce niveau. AUCUNE IA : c'est de la saisie.
+
+    Le repère exigé est {document}, et non {texte} : ce texte-ci reçoit le DOCUMENT et rend un
+    prompt ; c'est le prompt rendu qui recevra ensuite le texte. Se tromper de repère donne une
+    consigne qui ne s'exécutera jamais.
+
+    Vider le champ est permis, mais plus rien ne prend le relais : la génération d'un prompt de
+    matières lèvera tant que cette case est vide (repli général retiré le 08/08/2026)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce niveau : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if prompt and "{document}" not in prompt:
+        raise HTTPException(422, "Le méta-prompt doit contenir le marqueur {document} : c'est là "
+                                 "que le référentiel sera inséré.")
+    ref.prompt_meta_matieres = prompt or None
+    db.commit()
+    return {"ok": True, "longueur": len(prompt)}
+
+
+# ── Le MÉTA-prompt de la DÉCOUPE, propre au référentiel (06/08/2026) ─────────────────
+#
+# Jumeau exact du précédent. Deux portes seulement : on le LIT depuis l'écran du couple (bouton
+# « Méta-prompt » de la cartouche Découpe) et on l'ÉCRIT depuis Prompts → Référentiels. La lecture
+# dit d'où vient le texte affiché — la case du niveau, ou le réglage général quand elle est vide.
+
+class PromptMetaDecoupeBody(BaseModel):
     cycle_id: int
-    niveau: str        # le référentiel de ce couple sert d'EXEMPLE de la famille
+    niveau: str
+    prompt: str
 
 
-@router.get("/admin/cycles/prompt-matieres", dependencies=[Depends(_require_admin)])
-def lire_prompt_matieres(cycle_id: int, db: Session = Depends(get_db)):
-    """Lit le prompt de matières du cycle (EN BASE) + son statut de validation."""
-    cyc = db.get(Cycle, cycle_id)
-    if cyc is None:
-        raise HTTPException(404, "Cycle inconnu.")
-    return {"cycle": cyc.nom, "prompt": cyc.prompt_matieres or "",
-            "valide": bool(cyc.prompt_matieres_valide)}
+@router.get("/admin/referentiels/prompt-meta-decoupe", dependencies=[Depends(_require_admin)])
+def lire_prompt_meta_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le méta-prompt de découpe de ce couple. `source` vaut 'referentiel' ou 'aucun'.
+
+    'aucun' veut dire que l'IA ne peut rédiger aucun prompt de découpe pour ce référentiel : le
+    dire ici évite de l'apprendre au moment de payer. Repli général retiré le 08/08/2026."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    propre = (ref.prompt_meta_decoupe or "").strip() if ref is not None else ""
+    return {"prompt": propre, "source": "referentiel" if propre else "aucun"}
 
 
-@router.post("/admin/cycles/prompt-matieres/generer", dependencies=[Depends(_require_admin)])
-def generer_prompt_matieres_cycle(body: GenererPromptMatieresBody, db: Session = Depends(get_db)):
-    """L'IA REDIGE le prompt qui lira les matières des référentiels de ce cycle, à partir du
-    référentiel du couple pris comme EXEMPLE de la famille (méta-prompt lu EN BASE + son texte).
-    Stocké sur le cycle, `valide=false` : l'admin doit le relire puis le valider avant qu'il serve."""
+@router.post("/admin/referentiels/prompt-meta-decoupe", dependencies=[Depends(_require_admin)])
+def enregistrer_prompt_meta_decoupe(body: PromptMetaDecoupeBody, db: Session = Depends(get_db)):
+    """Écrit le MÉTA-prompt de découpe de ce niveau. AUCUNE IA : c'est de la saisie.
+
+    Le repère exigé est {document}, et non {texte} : ce texte-ci reçoit le DOCUMENT et rend un
+    prompt ; c'est le prompt rendu qui recevra ensuite le texte.
+
+    Vider le champ est permis, mais plus rien ne prend le relais : la génération d'un prompt de
+    découpe lèvera tant que cette case est vide (repli général retiré le 08/08/2026)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce niveau : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if prompt and "{document}" not in prompt:
+        raise HTTPException(422, "Le méta-prompt doit contenir le marqueur {document} : c'est là "
+                                 "que le référentiel sera inséré.")
+    ref.prompt_meta_decoupe = prompt or None
+    db.commit()
+    return {"ok": True, "longueur": len(prompt)}
+
+
+# ── Le prompt de MATIÈRES du RÉFÉRENTIEL : lu et écrit sur le couple cycle+niveau ────
+#
+# C'est la porte qui compte : le prompt appartient au référentiel, un par couple. L'écran du couple
+# le lit ici et l'enregistre ici — un seul endroit, pas deux éditeurs sur la même colonne.
+
+class PromptMatieresCoupleBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+@router.get("/admin/referentiels/prompt-matieres", dependencies=[Depends(_require_admin)])
+def lire_prompt_matieres_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit le prompt de matières de CE couple (EN BASE) + son statut de validation.
+    `existe:false` si aucun référentiel n'est encore enregistré pour ce couple."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"existe": False, "prompt": "", "valide": False}
+    return {"existe": True, "prompt": ref.prompt_matieres or "",
+            "valide": bool(ref.prompt_matieres_valide)}
+
+
+@router.post("/admin/referentiels/prompt-matieres/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_matieres_couple(body: PromptMatieresCoupleBody, db: Session = Depends(get_db)):
+    """L'admin écrit (ou corrige) le prompt de CE référentiel et le VALIDE. C'est aussi le moyen de
+    le remplir SANS appel IA : un prompt déposé à la main coûte zéro, et évite que le premier clic
+    sur « Proposer les matières » en fasse d'abord écrire un. Prompt vide refusé ; sans le marqueur
+    {texte}, refusé aussi : sans lui, le document ne serait jamais inséré dedans."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord un document.")
-    texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
-    from backend.rag.analyse_amont import generer_prompt_matieres
-    try:
-        prompt = generer_prompt_matieres(texte, db=db)
-    except Exception as e:
-        raise HTTPException(400, f"Génération du prompt par l'IA impossible : {e}{detail_admin(e)}")
-    cyc = db.get(Cycle, body.cycle_id)
-    cyc.prompt_matieres = prompt
-    cyc.prompt_matieres_valide = False
-    db.commit()
-    return {"ok": True, "prompt": prompt, "valide": False}
-
-
-class PromptDecoupeCycleBody(BaseModel):
-    cycle_id: int
-    prompt: str
-
-
-@router.get("/admin/cycles/prompt-decoupe", dependencies=[Depends(_require_admin)])
-def lire_prompt_decoupe_cycle(cycle_id: int, db: Session = Depends(get_db)):
-    """Lit le prompt de DÉCOUPE du cycle (EN BASE) + son statut de validation."""
-    cyc = db.get(Cycle, cycle_id)
-    if cyc is None:
-        raise HTTPException(404, "Cycle inconnu.")
-    return {"cycle": cyc.nom, "prompt": cyc.prompt_decoupe or "",
-            "valide": bool(cyc.prompt_decoupe_valide)}
-
-
-@router.post("/admin/cycles/prompt-decoupe/valider", dependencies=[Depends(_require_admin)])
-def valider_prompt_decoupe_cycle(body: PromptDecoupeCycleBody, db: Session = Depends(get_db)):
-    """L'admin enregistre le prompt de découpe (éventuellement corrigé à la main) et le VALIDE →
-    c'est lui qui découpera TOUS les référentiels de ce cycle. Prompt vide refusé ; sans le
-    marqueur {texte}, refusé aussi : sans lui, le document ne serait jamais inséré dedans."""
-    cyc = db.get(Cycle, body.cycle_id)
-    if cyc is None:
-        raise HTTPException(404, "Cycle inconnu.")
-    prompt = (body.prompt or "").strip()
-    if not prompt:
-        raise HTTPException(422, "Le prompt de découpe est vide.")
-    if "{texte}" not in prompt:
-        raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
-                                 "document sera inséré.")
-    cyc.prompt_decoupe = prompt
-    cyc.prompt_decoupe_valide = True
-    db.commit()
-    return {"ok": True, "valide": True}
-
-
-@router.post("/admin/cycles/prompt-matieres/valider", dependencies=[Depends(_require_admin)])
-def valider_prompt_matieres_cycle(body: PromptMatieresBody, db: Session = Depends(get_db)):
-    """L'admin enregistre le prompt (éventuellement corrigé à la main) et le VALIDE → c'est lui
-    qui lira les matières de TOUS les référentiels de ce cycle. Prompt vide refusé ; sans le
-    marqueur {texte}, refusé aussi : sans lui, le document ne serait jamais inséré dedans."""
-    cyc = db.get(Cycle, body.cycle_id)
-    if cyc is None:
-        raise HTTPException(404, "Cycle inconnu.")
     prompt = (body.prompt or "").strip()
     if not prompt:
         raise HTTPException(422, "Le prompt des matières est vide.")
     if "{texte}" not in prompt:
         raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
                                  "document sera inséré.")
-    cyc.prompt_matieres = prompt
-    cyc.prompt_matieres_valide = True
+    ref.prompt_matieres = prompt
+    ref.prompt_matieres_valide = True
     db.commit()
     return {"ok": True, "valide": True}
+
+
+class PromptDecoupeCoupleBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+@router.post("/admin/referentiels/prompt-decoupe/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_decoupe_couple(body: PromptDecoupeCoupleBody, db: Session = Depends(get_db)):
+    """L'admin écrit, corrige ou EFFACE le prompt de découpe de CE référentiel. C'est aussi le
+    moyen de le remplir SANS appel IA : un prompt déposé à la main coûte zéro, et évite que le
+    premier « Découper » en fasse d'abord écrire un. Sans le marqueur {texte}, refusé : sans lui,
+    le document ne serait jamais inséré dedans.
+
+    LE VIDE EST ACCEPTÉ (08/08/2026). Il était refusé, et il n'existait aucune autre porte
+    d'écriture : un prompt écrit pour un document qui a changé depuis restait donc en base,
+    marqué relu, et servait à la découpe suivante. Refuser l'effacement ne protégeait rien — ça
+    enfermait. Un prompt effacé perd sa validation (`prompt_decoupe_valide` à faux) : on ne
+    marque pas « relu » une case vide. L'écran avertit AVANT si des unités déjà découpées en
+    dépendent, et rappelle qu'un « Découper » sans prompt en fait d'abord rédiger un (payant).
+
+    Les deux portes du CYCLE (lire / valider) ont été retirées le 06/08/2026 avec la colonne
+    `cycles.prompt_decoupe` : un cycle porte des diplômes qui ne se découpent pas pareil."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if prompt and "{texte}" not in prompt:
+        raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
+                                 "document sera inséré.")
+    ref.prompt_decoupe = prompt
+    ref.prompt_decoupe_valide = bool(prompt)
+    db.commit()
+    return {"ok": True, "valide": bool(prompt)}
+
+
+# Les trois portes qui lisaient et écrivaient `cycles.prompt_matieres` (lire / generer / valider)
+# ont été retirées le 06/08/2026 avec la colonne elle-même : le prompt des matières appartient au
+# RÉFÉRENTIEL, un par couple cycle+niveau. Un cycle « BTS » porte dix-huit diplômes qui ne se lisent
+# pas avec les mêmes repères — le prompt écrit sur le BTS CIEL n'apprenait rien sur le BTS CRSA.
 
 
 # ── État d'un couple : le référentiel est-il DÉJÀ enregistré ? nom réel + matières ──
@@ -934,8 +1004,8 @@ def etat_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
             if ref else None
         ),
         "matieres": matieres,
-        # Le prompt de découpe qui SERT est celui du CYCLE : c'est SON drapeau qu'on renvoie.
-        "prompt_decoupe_valide": bool(db.get(Cycle, cycle_id).prompt_decoupe_valide),
+        # Le prompt de découpe qui SERT est celui du RÉFÉRENTIEL : c'est SON drapeau qu'on renvoie.
+        "prompt_decoupe_valide": bool(ref.prompt_decoupe_valide) if ref else False,
         "decoupe_valide": bool(ref.decoupe_valide) if ref else False,
     }
 
@@ -996,10 +1066,11 @@ class RegleStatutBody(BaseModel):
     niveau: str                 # couple = cycle + niveau ; entre dans le chemin de la découpe
 
 
-# ── Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base) et rangé sur le CYCLE depuis le ──
-#    05/08/2026 (cycles.prompt_decoupe) : l'ossature d'un référentiel est celle de toute sa famille.
-#    Aucun prompt écrit en dur : le méta-prompt vit en base (Setting), le prompt du cycle aussi.
-#    L'écran Référentiels ne fait plus que le MONTRER — il s'écrit dans Prompts → Découpe par cycle.
+# ── Prompt de découpe — GÉNÉRÉ PAR L'IA (méta-prompt en base) et rangé sur le RÉFÉRENTIEL ──────
+#    depuis le 06/08/2026 (referentiels.prompt_decoupe) : un par couple cycle+niveau. Il a vécu une
+#    journée sur le cycle ; c'était faux — le cycle « BTS » porte dix-huit diplômes qui n'ont pas la
+#    même ossature. Aucun prompt écrit en dur : le méta-prompt vit en base (Setting), celui du
+#    référentiel aussi. Il se lit ET s'écrit sur l'écran Référentiel, cartouche Découpe.
 
 def _pdf_du_couple(db: Session, cycle_id: int, niveau: str) -> Path:
     """Chemin du PDF déposé pour le couple (REFERENTIELS/<CYCLE>/<NIVEAU>/referentiel.pdf)."""
@@ -1028,80 +1099,78 @@ def _texte_du_couple(db: Session, ref: Referentiel) -> str:
     return ref.texte_epure
 
 
-def _prompt_decoupe_du_cycle(db: Session, cycle_id: int, texte: str) -> str:
-    """LE prompt qui découpe les référentiels de ce cycle. Même geste que `_prompt_matieres_du_cycle` :
-    s'il n'existe pas encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce
-    référentiel comme exemple de la famille), puis rangé sur le cycle — le référentiel suivant du
-    même cycle le trouvera déjà fait.
+def _prompt_decoupe_du_referentiel(db: Session, ref: Referentiel, texte: str) -> str:
+    """LE prompt qui découpe CE référentiel. Même geste que `_prompt_matieres_du_referentiel` :
+    s'il n'existe pas encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + le
+    document lui-même), puis rangé sur le référentiel — le geste de l'admin reste UN clic.
 
     Le prompt SERT dès qu'il existe. `prompt_decoupe_valide` ne commande pas son usage : il dit
     seulement si l'admin l'a relu — il peut l'ouvrir, le corriger et le valider quand il veut.
 
     Lève si la rédaction échoue : sans prompt, il n'y a pas de découpe possible (contrairement aux
     matières, aucun prompt général ne peut prendre le relais)."""
-    cyc = db.get(Cycle, cycle_id)
-    if cyc is None:
-        raise HTTPException(404, "Cycle inconnu.")
-    deja = (cyc.prompt_decoupe or "").strip()
+    deja = (ref.prompt_decoupe or "").strip()
     if deja:
         return deja
     from backend.rag.analyse_amont import generer_prompt_decoupe
     try:
-        prompt = generer_prompt_decoupe(texte, db=db).strip()
+        # Le méta-prompt du niveau passe devant le réglage général quand il est renseigné.
+        prompt = generer_prompt_decoupe(texte, db=db,
+                                        meta_referentiel=ref.prompt_meta_decoupe).strip()
     except Exception as e:
-        logger.exception("decoupe : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        logger.exception("decoupe : rédaction du prompt du référentiel impossible (id=%s)", ref.id)
         raise HTTPException(400, f"Génération du prompt de découpe par l'IA impossible : {e}{detail_admin(e)}")
     if not prompt:
         raise HTTPException(400, "L'IA n'a rendu aucun prompt de découpe.")
-    cyc.prompt_decoupe = prompt
-    cyc.prompt_decoupe_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    ref.prompt_decoupe = prompt
+    ref.prompt_decoupe_valide = False   # écrit par l'IA, pas encore relu par l'admin
     db.commit()
-    logger.info("decoupe : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    logger.info("decoupe : prompt du référentiel id=%s rédigé par l'IA (%d caractères)",
+                ref.id, len(prompt))
     return prompt
 
 
 @router.get("/admin/referentiels/prompt-decoupe", dependencies=[Depends(_require_admin)])
 def lire_prompt_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Lit le prompt de découpe qui SERT à ce couple — celui du CYCLE (05/08/2026) — et son statut
-    de validation. L'écran Référentiels ne fait que le MONTRER : il se corrige dans Prompts →
-    Découpe par cycle. `existe:false` si aucun référentiel pour ce couple.
-    `decoupe_valide` reste, lui, propre au couple : c'est SON découpage qui a été ingéré."""
+    """Lit le prompt de découpe de CE couple (EN BASE) + son statut de validation.
+    `existe:false` si aucun référentiel pour ce couple. `decoupe_valide` dit, lui, si SON découpage
+    a été ingéré."""
     ref = _ref_du_couple(db, cycle_id, niveau)
     if ref is None:
         return {"existe": False}
-    cyc = db.get(Cycle, cycle_id)
-    return {"existe": True, "prompt": (cyc.prompt_decoupe or "") if cyc else "",
-            "valide": bool(cyc.prompt_decoupe_valide) if cyc else False,
+    return {"existe": True, "prompt": ref.prompt_decoupe or "",
+            "valide": bool(ref.prompt_decoupe_valide),
             "decoupe_valide": bool(ref.decoupe_valide)}
-
-
-# Les trois portes qui ÉCRIVAIENT le prompt de découpe sur le couple (generer / regenerer /
-# valider) ont été retirées le 05/08/2026 : le prompt vit désormais sur le CYCLE, et un seul écran
-# l'écrit (Prompts → Découpe par cycle, POST /admin/cycles/prompt-decoupe/valider). Deux éditeurs
-# sur la même colonne finissaient par s'écraser sans prévenir. `referentiels.prompt_decoupe` reste
-# en base : c'est l'historique des couples déjà traités, plus une source.
 
 
 @router.post("/admin/referentiels/prompt-decoupe/decouper", dependencies=[Depends(_require_admin)])
 def decouper_couple(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """Déclenche la découpe (LECTURE SEULE, aucune ingestion) avec le prompt du CYCLE, et renvoie
-    les unités produites par l'IA (titre + taille). Le prompt du cycle est écrit par l'IA au premier
-    référentiel de ce cycle, puis réutilisé par tous les suivants : le geste de l'admin reste UN
-    clic. Il SERT dès qu'il existe — `valide` dit seulement s'il a été relu."""
+    """Déclenche la découpe (LECTURE SEULE, aucune ingestion) avec le prompt DE CE RÉFÉRENTIEL, et
+    renvoie les unités produites par l'IA (titre + taille). S'il n'en a pas encore, l'IA l'écrit à
+    ce moment-là : le geste de l'admin reste UN clic. Il SERT dès qu'il existe — `valide` dit
+    seulement s'il a été relu."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
     texte = _texte_du_couple(db, ref)   # le texte de travail figé au dépôt (get en base)
-    prompt = _prompt_decoupe_du_cycle(db, body.cycle_id, texte)
+    prompt = _prompt_decoupe_du_referentiel(db, ref, texte)
     from backend.rag.pgvector_store import _decouper_ia
     try:
         chunks = _decouper_ia(texte, prompt)
     except Exception as e:
         raise HTTPException(400, f"Découpe par l'IA impossible : {e}{detail_admin(e)}")
-    # On garde ce résultat (avec le prompt qui l'a produit) : la validation écrira EXACTEMENT
-    # cette découpe — celle que l'admin voit — au lieu de refaire l'appel IA.
-    with _DECOUPES_LOCK:
-        _DECOUPES_APERCU[ref.collection] = {"prompt": prompt, "chunks": chunks}
+    # LES UNITÉS SONT ÉCRITES ICI, dans le geste qui les a produites (08/08/2026). L'aperçu ne
+    # vit plus nulle part entre les deux boutons : ni en mémoire du serveur — un redémarrage le
+    # perdait, et la validation repartait alors en appel IA — ni dans une colonne d'attente.
+    # Ce qui est affiché est ce qui est en base, et le bouton du bas n'a plus qu'à le valider.
+    from backend.rag.pgvector_store import ingest_pgvector
+    try:
+        ingest_pgvector(ref.collection, decoupe_prete={"prompt": prompt, "chunks": chunks})
+    except Exception as e:
+        raise HTTPException(400, f"Écriture des unités impossible : {e}{detail_admin(e)}")
+    # Une découpe neuve n'est pas une découpe validée : l'admin doit la relire et cliquer.
+    ref.decoupe_valide = False
+    db.commit()
     unites = [{"titre": c["text"].split("\n")[0].strip(), "taille": len(c["text"])} for c in chunks]
     return {"ok": True, "total": len(unites), "unites": unites}
 
@@ -1191,130 +1260,51 @@ def modifier_unite(body: ModifierUniteBody, db: Session = Depends(get_db)):
     return {"ok": True, "id": chunk.id, "taille": len(texte)}
 
 
-# ── Découpe (ingestion) en TÂCHE DE FOND : l'écriture des chunks + embeddings prend ~2 min, bien
-#    plus long qu'une requête HTTP ne peut tenir. Le bouton LANCE l'ingestion et rend la main tout de
-#    suite ; l'écran SURVEILLE ensuite l'aboutissement via /decoupe/statut. `_INGESTIONS` = état
-#    d'orchestration RUNTIME (en cours / échec), PAS une donnée métier : l'unique vérité d'aboutissement
-#    reste `referentiels.decoupe_valide` + les chunks EN BASE. Perdu au redémarrage serveur (l'admin
-#    relance le bouton) — acceptable.
-_INGESTIONS: dict[str, dict] = {}
-_INGESTIONS_LOCK = threading.Lock()
-
-# Découpe de l'APERÇU en attente de validation : {collection: {"prompt", "chunks"}}. État
-# d'orchestration RUNTIME (comme _INGESTIONS, perdu au redémarrage — l'ingestion redécoupe alors
-# elle-même) : la vérité métier reste les chunks EN BASE, posés à la validation. Sert à écrire
-# EXACTEMENT ce que l'admin a vu et accepté, sans refaire l'appel IA — réutilisé seulement si le
-# prompt n'a pas bougé entre l'aperçu et la validation (garde dans ingest_pgvector).
-_DECOUPES_APERCU: dict[str, dict] = {}
-_DECOUPES_LOCK = threading.Lock()
 
 
-def _ingest_en_fond(collection: str) -> None:
-    """Tâche de fond : découpe IA + embeddings + écriture des chunks, puis pose `decoupe_valide=true`
-    EN BASE (le VRAI PUT). Met à jour l'état d'orchestration `_INGESTIONS` (running/done/error +
-    avancement réel pour la jauge de l'écran). Session dédiée (le thread ne partage pas celle de
-    la requête, déjà fermée)."""
-    def _progression(etape: str, fait: int, total: int) -> None:
-        # Avancement RÉEL remonté par l'ingestion (état runtime, pas une donnée métier).
-        with _INGESTIONS_LOCK:
-            job = _INGESTIONS.get(collection)
-            if job is not None:
-                job["progress"] = {"etape": etape, "fait": fait, "total": total}
-    try:
-        from backend.rag.pgvector_store import ingest_pgvector
-        with _DECOUPES_LOCK:
-            decoupe_prete = _DECOUPES_APERCU.get(collection)
-        rapport = ingest_pgvector(collection, on_progress=_progression, decoupe_prete=decoupe_prete)
-        with _DECOUPES_LOCK:
-            _DECOUPES_APERCU.pop(collection, None)   # consommée : la vérité est en base désormais
-        db = SessionLocal()
-        try:
-            ref = db.query(Referentiel).filter(Referentiel.collection == collection).first()
-            if ref is not None:
-                ref.decoupe_valide = True   # drapeau posé UNIQUEMENT après l'ingestion réussie
-                db.commit()
-        finally:
-            db.close()
-        with _INGESTIONS_LOCK:
-            _INGESTIONS[collection] = {"status": "done", "chunks": rapport.get("inseres_en_base"), "message": None}
-    except Exception as e:
-        logger.exception("Ingestion de la découpe échouée (collection=%s)", collection)
-        with _INGESTIONS_LOCK:
-            _INGESTIONS[collection] = {"status": "error", "chunks": None, "message": str(e)}
 
 
 @router.post("/admin/referentiels/decoupe/valider", dependencies=[Depends(_require_admin)])
 def valider_decoupe(body: RegleStatutBody, db: Session = Depends(get_db)):
-    """Bouton FINAL : l'admin accepte la découpe. LANCE l'ingestion (découpe + embeddings + chunks
-    EN BASE, puis `decoupe_valide=true`) en TÂCHE DE FOND et rend la main aussitôt — l'opération est
-    trop longue pour tenir dans une requête HTTP. L'écran surveille ensuite via /decoupe/statut.
-    Garde métier : il faut un prompt de découpe pour ce cycle (elle en dépend). Il est écrit par
-    l'IA au premier référentiel du cycle, donc le seul cas refusé ici est celui d'un couple dont on
-    n'a jamais lancé la découpe."""
+    """Bouton FINAL : l'admin a relu les unités affichées et les accepte. C'est un PUT sur un
+    drapeau, et RIEN D'AUTRE — il ne découpe pas, il n'appelle pas l'IA, il ne recalcule aucun
+    vecteur, il ne réécrit pas ce qui est déjà là. Les unités ont été écrites par « Découper »,
+    le geste qui les a produites ; celui-ci ne fait que dire « je les valide ».
+
+    POURQUOI C'EST ÉCRIT EN GRAS (08/08/2026). Ce bouton lançait toute la chaîne d'ingestion, et
+    redécoupait PAR L'IA quand l'aperçu manquait — en silence, sur le document entier. Le
+    fournisseur a fini par refuser la requête, et un référentiel dont les 61 unités étaient déjà
+    en base est devenu impossible à valider. Un bouton de validation valide ; il ne fabrique rien.
+
+    Le seul refus possible : il n'y a aucune unité à valider."""
     ref = _ref_du_couple(db, body.cycle_id, body.niveau)
     if ref is None:
         raise HTTPException(404, "Aucun référentiel pour ce couple.")
-    cyc = db.get(Cycle, body.cycle_id)
-    if not (cyc and (cyc.prompt_decoupe or "").strip()):
-        raise HTTPException(400, "Ce cycle n'a pas encore de prompt de découpe : lancez d'abord "
-                                 "la découpe (l'IA l'écrit à ce moment-là).")
-    collection = ref.collection
-    with _INGESTIONS_LOCK:
-        deja = _INGESTIONS.get(collection, {}).get("status") == "running"
-        if not deja:
-            _INGESTIONS[collection] = {"status": "running", "chunks": None, "message": None,
-                                       "progress": {"etape": "decoupe", "fait": 0, "total": 0}}
-    if not deja:   # jamais deux ingestions en parallèle pour le même couple (idempotent)
-        threading.Thread(target=_ingest_en_fond, args=(collection,), daemon=True).start()
-    return {"ok": True, "status": "running"}
+    combien = (db.query(func.count(ReferentielChunk.id))
+               .filter(ReferentielChunk.referentiel_id == ref.id).scalar() or 0)
+    if combien == 0:
+        raise HTTPException(400, "Aucune unité à valider pour ce référentiel : lancez d'abord "
+                                 "« Découper », c'est lui qui lit le document et écrit les unités.")
+    ref.decoupe_valide = True
+    db.commit()
+    return {"ok": True, "status": "done", "chunks": combien}
 
 
 @router.get("/admin/referentiels/decoupe/statut", dependencies=[Depends(_require_admin)])
 def statut_decoupe(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
     """État de l'ingestion d'un couple (surveillance après « Valider le découpage »).
 
-    LE TRAVAIL EN COURS L'EMPORTE SUR LE DRAPEAU, et l'ordre inverse a coûté onze minutes de
-    mensonge (mesurées le 02/08/2026, sur la réingestion du BTS CIEL). Le docstring d'avant
-    annonçait « la VÉRITÉ d'aboutissement = `decoupe_valide` + nombre de chunks », et c'est cette
-    phrase qui a produit l'ordre fautif : elle est vraie pour une PREMIÈRE ingestion, fausse pour
-    une REPRISE. `decoupe_valide` reste posé depuis la fois d'avant ; testé en premier, il gagnait
-    contre le travail réellement en cours. L'écran affichait donc `done` avec `chunks: 46` — les
-    anciens, pas encore purgés — pendant que la vectorisation était à 0/44. Un admin qui réingère
-    croyait que c'était fini avant que ça n'ait commencé.
-
-    LA RÈGLE : `_INGESTIONS` porte l'ÉTAT COURANT, `decoupe_valide` porte l'HISTOIRE. Quand il y
-    a un job, il est forcément plus récent que le drapeau — on le lit d'abord, quel que soit son
-    état. Sans job, le drapeau reprend la main : c'est lui qui distingue « déjà ingéré » de
-    « jamais ingéré ». Le garde de `valider_decoupe` (plus haut) lisait déjà `_INGESTIONS` de
-    cette façon ; il était juste, c'est cette route qui le contredisait.
-
-    CE QUE ÇA ÉLARGIT, au-delà des onze minutes : une réingestion qui ÉCHOUE rendait elle aussi
-    `done` (même cause, drapeau d'abord). Elle rend désormais `error`, avec son message. C'est
-    le même défaut, pas un second.
-
-    LA LIMITE, VUE ET LAISSÉE (décision du 02/08). `_INGESTIONS` est de l'état RUNTIME : il
-    disparaît au redémarrage du processus — et le conteneur de développement recharge à chaque
-    modification de fichier (`--reload`). Une ingestion en cours au moment d'un rechargement
-    redevient donc invisible aux DEUX sources : le job est perdu, le drapeau n'est pas encore
-    posé, et la route rend `idle` alors que rien ne tourne plus. Corriger l'ordre règle le cas
-    mesuré ; ça ne rend pas le statut fiable à travers un redémarrage. Le rendre fiable
-    demanderait un drapeau EN BASE (« ingestion en cours depuis … »), c'est-à-dire un autre
-    sujet : le cas est rare, et sans perte de données (la sauvegarde avant purge tient, et
-    `outils_bdd/restaurer_chunks.py` sait rejouer). On l'a vu, on ne le tait pas, on le laisse."""
+    Depuis le 08/08/2026, plus rien ne tourne en tâche de fond : « Valider » ne fait qu'un put.
+    Cette route lit donc la base et rien d'autre — `decoupe_valide` et le nombre d'unités."""
     ref = _ref_du_couple(db, cycle_id, niveau)
     if ref is None:
         return {"status": "absent", "decoupe_valide": False, "chunks": 0, "message": None}
     n = db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == ref.id).count()
-    with _INGESTIONS_LOCK:
-        job = _INGESTIONS.get(ref.collection)
-    if job is not None:
-        status = job["status"]          # running / done / error — plus récent que le drapeau
-    elif ref.decoupe_valide:
-        status = "done"                 # pas de job : l'histoire répond
-    else:
-        status = "idle"
-    return {"status": status, "decoupe_valide": bool(ref.decoupe_valide), "chunks": n,
-            "message": (job or {}).get("message"), "progress": (job or {}).get("progress")}
+    # Plus rien ne tourne en tâche de fond depuis que « Valider » ne fait qu'un put (08/08/2026) :
+    # l'état d'orchestration a disparu avec elle. La base répond seule, et elle ne ment pas.
+    return {"status": "done" if ref.decoupe_valide else "idle",
+            "decoupe_valide": bool(ref.decoupe_valide), "chunks": n,
+            "message": None, "progress": None}
 
 
 # ── Méta-prompt de découpe : PLUS DE PORTE ICI (retirée le 02/08/2026) ───────────────────
@@ -1702,7 +1692,10 @@ def _generer_precisions_ia(db: Session, t: ActiviteType, niveau: str) -> None:
         if not texte.strip():
             return
         from backend.rag.analyse_amont import suggerer_precisions_type
-        libelles = suggerer_precisions_type(t.label, niveau, texte, db=db)
+        # Le prompt DU RÉFÉRENTIEL passe devant le prompt général (même règle que les types).
+        libelles = suggerer_precisions_type(
+            t.label, niveau, texte, db=db,
+            prompt_referentiel=_prompt_precisions_du_referentiel(db, ref, texte))
     except Exception as e:
         logger.warning("Précisions IA non générées (geste non bloqué) type=%s : %s", t.id, e)
         return
@@ -1831,36 +1824,190 @@ def generer_precisions_type(body: TypeRef, db: Session = Depends(get_db)):
         {"id": p.id, "libelle": p.libelle, "ordre": p.ordre, "source": p.source} for p in precs]}
 
 
-def _prompt_types_du_cycle(db: Session, cycle_id: int, texte: str) -> str | None:
-    """LE prompt qui lit les types d'activité de ce cycle. Troisième exemplaire du geste de
-    `_prompt_matieres_du_cycle` et `_prompt_decoupe_du_cycle` : s'il n'existe pas encore, il est
-    ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce référentiel comme exemple de la
-    famille), puis rangé sur le cycle — le référentiel suivant du même cycle le trouvera déjà fait.
+def _prompt_types_du_referentiel(db: Session, ref: Referentiel, texte: str) -> str | None:
+    """LE prompt qui lit les types d'activité de CE référentiel. Troisième exemplaire du geste de
+    `_prompt_matieres_du_referentiel` et `_prompt_decoupe_du_referentiel` : s'il n'existe pas
+    encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + le document lui-même),
+    puis rangé sur le référentiel — le geste de l'admin reste UN clic.
 
     Le prompt SERT dès qu'il existe. `prompt_types_valide` ne commande pas son usage : il dit
     seulement si l'admin l'a relu.
 
     None si la rédaction échoue : la détection retombe alors sur le prompt général, sans casser le
     geste (une panne de l'IA ne doit pas empêcher de proposer des types)."""
-    cyc = db.get(Cycle, cycle_id)
-    if cyc is None:
-        return None
-    deja = (cyc.prompt_types or "").strip()
+    deja = (ref.prompt_types or "").strip()
     if deja:
         return deja
     from backend.rag.analyse_amont import generer_prompt_types
     try:
-        prompt = generer_prompt_types(texte, db=db).strip()
+        # Le méta-prompt DU NIVEAU passe devant le réglage général (même règle que la découpe).
+        prompt = generer_prompt_types(texte, db=db,
+                                      meta_referentiel=ref.prompt_meta_types).strip()
     except Exception:
-        logger.exception("types : rédaction du prompt du cycle impossible (%s)", cyc.nom)
+        logger.exception("types : rédaction du prompt du référentiel impossible (id=%s)", ref.id)
         return None
     if not prompt:
         return None
-    cyc.prompt_types = prompt
-    cyc.prompt_types_valide = False   # écrit par l'IA, pas encore relu par l'admin
+    ref.prompt_types = prompt
+    ref.prompt_types_valide = False   # écrit par l'IA, pas encore relu par l'admin
     db.commit()
-    logger.info("types : prompt du cycle « %s » rédigé par l'IA (%d caractères)", cyc.nom, len(prompt))
+    logger.info("types : prompt du référentiel id=%s rédigé par l'IA (%d caractères)",
+                ref.id, len(prompt))
     return prompt
+
+
+class PromptTypesCoupleBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+# ── Le MÉTA-prompt des TYPES D'ACTIVITÉ, propre au référentiel (06/08/2026) ─────────
+#
+# Troisième jumeau. Deux portes : on le LIT depuis l'écran du couple (bouton « Méta-prompt » de la
+# cartouche Types) et on l'ÉCRIT depuis Prompts → Référentiels. La lecture dit d'où vient le texte
+# affiché — la case du niveau, ou le réglage général quand elle est vide.
+
+class PromptMetaTypesBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+@router.get("/admin/referentiels/prompt-meta-types", dependencies=[Depends(_require_admin)])
+def lire_prompt_meta_types(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le méta-prompt des types qui sert VRAIMENT à ce couple, et la provenance du texte rendu.
+
+    `source` vaut 'referentiel' ou 'aucun'. Repli général retiré le 08/08/2026."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    propre = (ref.prompt_meta_types or "").strip() if ref is not None else ""
+    return {"prompt": propre, "source": "referentiel" if propre else "aucun"}
+
+
+@router.post("/admin/referentiels/prompt-meta-types", dependencies=[Depends(_require_admin)])
+def enregistrer_prompt_meta_types(body: PromptMetaTypesBody, db: Session = Depends(get_db)):
+    """Écrit le MÉTA-prompt des types de ce niveau. AUCUNE IA : c'est de la saisie.
+
+    Le repère exigé est {document}, et non {texte} : ce texte-ci reçoit le DOCUMENT et rend un
+    prompt ; c'est le prompt rendu qui recevra ensuite le texte.
+
+    Vider le champ est permis, mais plus rien ne prend le relais : la génération d'un prompt de
+    types lèvera tant que cette case est vide (repli général retiré le 08/08/2026)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce niveau : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if prompt and "{document}" not in prompt:
+        raise HTTPException(422, "Le méta-prompt doit contenir le marqueur {document} : c'est là "
+                                 "que le référentiel sera inséré.")
+    ref.prompt_meta_types = prompt or None
+    db.commit()
+    return {"ok": True, "longueur": len(prompt)}
+
+
+# ── Les prompts des PRÉCISIONS, propres au référentiel (07/08/2026) ─────────────────
+#
+# Quatrième couple, mêmes portes que les trois autres. Deux repères dans le prompt de travail, et
+# non un : {texte} (le document) et {label} (le type dont on veut les précisions) — les deux sont
+# exigés, sans eux le prompt ne recevrait ni l'un ni l'autre.
+
+class PromptMetaPrecisionsBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+class PromptPrecisionsCoupleBody(BaseModel):
+    cycle_id: int
+    niveau: str
+    prompt: str
+
+
+@router.get("/admin/referentiels/prompt-meta-precisions", dependencies=[Depends(_require_admin)])
+def lire_prompt_meta_precisions(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le méta-prompt des précisions de ce couple. `source` vaut 'referentiel' ou 'aucun'."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    propre = (ref.prompt_meta_precisions or "").strip() if ref is not None else ""
+    return {"prompt": propre, "source": "referentiel" if propre else "aucun"}
+
+
+@router.post("/admin/referentiels/prompt-meta-precisions", dependencies=[Depends(_require_admin)])
+def enregistrer_prompt_meta_precisions(body: PromptMetaPrecisionsBody, db: Session = Depends(get_db)):
+    """Écrit le MÉTA-prompt des précisions de ce niveau. AUCUNE IA : c'est de la saisie.
+
+    Vider le champ est permis, mais plus rien ne prend le relais : la génération d'un prompt de
+    précisions lèvera tant que cette case est vide (repli général retiré le 08/08/2026)."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce niveau : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if prompt and "{document}" not in prompt:
+        raise HTTPException(422, "Le méta-prompt doit contenir le marqueur {document} : c'est là "
+                                 "que le référentiel sera inséré.")
+    ref.prompt_meta_precisions = prompt or None
+    db.commit()
+    return {"ok": True, "longueur": len(prompt)}
+
+
+@router.get("/admin/referentiels/prompt-precisions", dependencies=[Depends(_require_admin)])
+def lire_prompt_precisions_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Le prompt des précisions de CE couple, tel qu'il est en base (get, zéro copie)."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"existe": False, "prompt": "", "valide": False}
+    return {"existe": True, "prompt": ref.prompt_precisions or "",
+            "valide": bool(ref.prompt_precisions_valide)}
+
+
+@router.post("/admin/referentiels/prompt-precisions/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_precisions_couple(body: PromptPrecisionsCoupleBody, db: Session = Depends(get_db)):
+    """L'admin écrit (ou corrige) le prompt des précisions de CE référentiel et le VALIDE. Écrit à
+    la main, il coûte zéro. Prompt vide refusé ; les DEUX marqueurs sont exigés — sans {texte} le
+    document ne serait jamais inséré, sans {label} l'IA ne saurait pas de quel type il s'agit."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "Le prompt des précisions est vide.")
+    manquants = [m for m in ("{texte}", "{label}") if m not in prompt]
+    if manquants:
+        raise HTTPException(422, f"Le prompt doit contenir {' et '.join(manquants)} : "
+                                 "{texte} reçoit le document, {label} le nom du type d'activité.")
+    ref.prompt_precisions = prompt
+    ref.prompt_precisions_valide = True
+    db.commit()
+    return {"ok": True, "valide": True}
+
+
+@router.get("/admin/referentiels/prompt-types", dependencies=[Depends(_require_admin)])
+def lire_prompt_types_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
+    """Lit le prompt des types d'activité de CE couple (EN BASE) + son statut de validation."""
+    ref = _ref_du_couple(db, cycle_id, niveau)
+    if ref is None:
+        return {"existe": False, "prompt": "", "valide": False}
+    return {"existe": True, "prompt": ref.prompt_types or "",
+            "valide": bool(ref.prompt_types_valide)}
+
+
+@router.post("/admin/referentiels/prompt-types/valider", dependencies=[Depends(_require_admin)])
+def valider_prompt_types_couple(body: PromptTypesCoupleBody, db: Session = Depends(get_db)):
+    """L'admin écrit (ou corrige) le prompt des types de CE référentiel et le VALIDE. Écrit à la
+    main, il coûte zéro et évite que le premier « Détecter les types » en fasse d'abord écrire un.
+    Prompt vide refusé ; sans le marqueur {texte}, refusé aussi."""
+    ref = _ref_du_couple(db, body.cycle_id, body.niveau)
+    if ref is None:
+        raise HTTPException(404, "Aucun référentiel pour ce couple : déposez d'abord un document.")
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(422, "Le prompt des types d'activité est vide.")
+    if "{texte}" not in prompt:
+        raise HTTPException(422, "Le prompt doit contenir le marqueur {texte} : c'est là que le "
+                                 "document sera inséré.")
+    ref.prompt_types = prompt
+    ref.prompt_types_valide = True
+    db.commit()
+    return {"ok": True, "valide": True}
 
 
 @router.post("/admin/referentiels/types-activite/detecter", dependencies=[Depends(_require_admin)])
@@ -1868,8 +2015,8 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
     """Bouton « Détecter les types » — UN seul clic, deux temps chez le serveur, exactement comme
     « Proposer les matières » :
 
-    1. le prompt du CYCLE : déjà en base, sinon écrit à l'instant par l'IA (le référentiel sert
-       d'exemple de sa famille) — la RECETTE est au cycle, elle resservira à tous les suivants ;
+    1. le prompt de CE référentiel : déjà en base, sinon écrit à l'instant par l'IA à partir du
+       document lui-même — la recette appartient au couple qui la porte ;
     2. la lecture des types avec ce prompt-là, sur le texte DÉJÀ figé en base (aucune
        ré-extraction du PDF).
 
@@ -1887,7 +2034,7 @@ def detecter_types_activite_couple(body: RegleStatutBody, db: Session = Depends(
     from backend.rag.analyse_amont import detecter_types_activite
     try:
         detectes = detecter_types_activite(
-            texte, db=db, prompt_cycle=_prompt_types_du_cycle(db, body.cycle_id, texte))
+            texte, db=db, prompt_referentiel=_prompt_types_du_referentiel(db, ref, texte))
     except Exception as e:
         raise HTTPException(400, f"Détection des types par l'IA impossible : {e}{detail_admin(e)}")
 

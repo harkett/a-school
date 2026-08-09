@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 import { registerErrorHandler } from '../errorDialog'
@@ -15,14 +16,14 @@ const estActive = (sub, chemin) => (sub.prefix ? chemin.startsWith(sub.prefix) :
 // RÈGLE : un menu se range du général au détaillé — familles, puis options. Toute nouvelle
 // page se loge SOUS une famille existante, jamais en entrée à plat de plus : une liste plate
 // qui grandit d'une ligne par écran finit illisible, et c'est irréversible en pratique.
-// « Programmes & contenu » = l'arbre du contenu
-// pédagogique ET les actions du programme officiel (fusion de l'ex-écran Programmes, 30/07).
+// « Formations » = l'arbre du contenu pédagogique ET les actions du programme officiel
+// (fusion de l'ex-écran Programmes le 30/07 ; renommé « Formations » le 07/08/2026).
 const NAV_ITEMS = [
-  // — Mise en route (assistant de première configuration) —
+  // — Tableau de bord (plomberie technique + état des fonctionnalités des deux côtés) —
   {
     to:    '/admin/mise-en-route',
-    label: 'Mise en route',
-    aide:  'Assistant de première mise en route : les 8 étapes pour rendre aSchool pleinement opérationnel. Chaque pastille est lue en direct dans la base (get, zéro copie) ; les boutons mènent à l’écran où agir.',
+    label: 'Tableau de bord',
+    aide:  'État de la plateforme : les 8 étapes de branchement technique, lues en direct dans la base, et l’avancement des fonctionnalités côté admin et côté prof — fait, en cours, à venir.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 11l3 3L22 4"/>
@@ -43,10 +44,10 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Programmes & contenu (l'arbre déroulant + les actions du programme officiel) —
+  // — Formations (l'arbre déroulant + les actions du programme officiel) —
   {
     to:    '/admin/contenu',
-    label: 'Programmes & contenu',
+    label: 'Formations',
     aide:  'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d\'activité. Le programme officiel se règle sur place : cocher les matières du niveau, ajouter cycles et niveaux, gérer le catalogue des matières. Désactivation, jamais de suppression.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -92,11 +93,13 @@ const NAV_ITEMS = [
         aide: 'Ce que l’IA a consommé — par modèle, par tâche, par période. Chantier à venir : rien n’est encore mesuré.' },
     ],
   },
-  // — Profs & communication —
+  // — Profs — les ENSEIGNANTS eux-mêmes. Séparé de « Communication » le 07/08/2026 : gérer un
+  // compte et écrire à un groupe ne sont pas le même geste, et les mélanger obligeait à ouvrir
+  // une rubrique « et » pour atteindre l'un ou l'autre.
   {
     group:  true,
-    label:  'Profs & communication',
-    aide:   'Les enseignants et les échanges avec eux : profils, mail groupé, retours.',
+    label:  'Profs',
+    aide:   'Les enseignants : profils, matière et niveau, activation, mot de passe.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -106,15 +109,29 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/profils',       label: 'Profs',       aide: 'Profils des enseignants — consulter et modifier matière, niveau, prénom et nom.' },
+      { to: '/admin/profils',       label: 'Profils profs', aide: 'Profils des enseignants — consulter et modifier matière, niveau, prénom et nom.' },
+    ],
+  },
+  // — Communication — ce qui CIRCULE entre eux et nous, dans les deux sens : le mail qui part,
+  // le retour qui arrive.
+  {
+    group:  true,
+    label:  'Communication',
+    aide:   'Les échanges avec les enseignants : mail groupé qui part, retours qui arrivent.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    ),
+    items: [
       { to: '/admin/communication', label: 'Mail groupé', aide: 'Envoyer un message à plusieurs profs en une fois — sélection par matière, filtre, cases à cocher.' },
       { to: '/admin/feedbacks',     label: 'Feedbacks',   aide: 'Retours et suggestions des utilisateurs — note moyenne, répartition, statuts.', badgeKey: 'feedbacks_nouveaux' },
     ],
   },
-  // — Supervision & sécurité —
+  // — Supervision —
   {
     group:  true,
-    label:  'Supervision & sécurité',
+    label:  'Supervision',
     aide:   'L\'état du système et la sécurité : sessions, serveur, alertes, journaux d\'accès, audit.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -186,11 +203,24 @@ const NAV_ITEMS = [
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
     ],
   },
-  // — Labo : ENTRÉE RETIRÉE le 06/08/2026, en même temps que sa route (cf. App.jsx, « Labo
-  //   DÉBRANCHÉ »). Un écran brouillon accessible depuis le menu finit par recevoir du travail
-  //   au lieu d'être intégré : c'est ce qui s'est produit, et deux écrans faisaient le même
-  //   geste. Ce qui est récupérable dans le labo sera porté dans Admin → Référentiels, et les
-  //   fichiers ne seront supprimés qu'après.
+  // — Labo : l'entrée REVIENT (07/08/2026), mais elle ouvre un écran d'ATTENTE et non l'écran
+  //   d'origine. Celui-ci avait été débranché le 06/08 parce qu'il faisait les mêmes gestes
+  //   qu'Admin → Référentiels ; ce qui reste à en tirer doit y être porté avant de rouvrir.
+  //   Retirer l'entrée avait fait disparaître le sujet de l'écran : plus rien ne rappelait que
+  //   le backend du labo, lui, tourne toujours.
+  SEP,
+  {
+    to:    '/admin/labo',
+    label: 'Labo',
+    aide:  'Laboratoire des référentiels — écran en attente, le temps que son contenu récupérable soit porté dans Référentiels.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3v6l-5.5 9.5A2 2 0 0 0 5.2 21h13.6a2 2 0 0 0 1.7-2.5L15 9V3"/>
+        <line x1="8" y1="3" x2="16" y2="3"/>
+        <line x1="6.8" y1="15" x2="17.2" y2="15"/>
+      </svg>
+    ),
+  },
   SEP,
   // — Entrées simples (hors catégorie) —
   {
@@ -539,6 +569,7 @@ export default function AdminLayout() {
             </>
           )}
           <span style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{crumbPage || 'Administration'}</span>
+          <IaEnCours />
         </header>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -602,5 +633,50 @@ export default function AdminLayout() {
       )}
 
     </div>
+  )
+}
+
+// Le moteur qui SERT en ce moment — fournisseur et modèle, en haut à droite de chaque page.
+//
+// POURQUOI DANS L'EN-TÊTE. Le réglage vit dans IA → Fournisseurs, une page qu'on ne regarde pas
+// quand on travaille ailleurs. Or tout ce que l'administration déclenche de coûteux part vers ce
+// couple-là : le lire à un seul endroit, c'est le découvrir après coup.
+//
+// Relu toutes les 60 secondes, et à chaque retour sur l'onglet : le fournisseur se change depuis
+// cet écran-ci comme depuis un autre poste, et un en-tête qui affiche l'ancien couple ment.
+function IaEnCours() {
+  const { data } = useQuery({
+    queryKey: ['admin', 'ia-en-cours'],
+    queryFn: async () => {
+      const r = await fetch('/api/admin/ia/en-cours', { credentials: 'include' })
+      return r.ok ? await r.json() : null
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+  if (!data) return null
+  return (
+    <span
+      style={{
+        marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+        fontSize: 12, color: '#475569', background: '#f1f5f9',
+        border: '1px solid #e2e8f0', borderRadius: 999, padding: '3px 10px',
+        whiteSpace: 'nowrap', maxWidth: '48%', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}
+      title={`Moteur en service : ${data.fournisseur_label} · ${data.modele}. Il se change dans IA → Fournisseurs.`}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="2"/>
+        <rect x="9" y="9" width="6" height="6"/>
+        <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
+        <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
+        <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
+        <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
+      </svg>
+      <strong style={{ fontWeight: 600, color: '#0f172a' }}>{data.fournisseur_label}</strong>
+      <span style={{ color: '#cbd5e1' }}>·</span>
+      <span style={{ fontFamily: 'ui-monospace, monospace' }}>{data.modele}</span>
+    </span>
   )
 }

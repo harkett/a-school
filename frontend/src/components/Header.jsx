@@ -1,6 +1,14 @@
 import CoupleBandeau from './CoupleBandeau'
 import useIsMobile from '../hooks/useIsMobile'
 
+// LA hauteur de la barre du haut, en un seul endroit — App.jsx s'en sert pour décaler la page
+// d'autant. Elle reste à 65 px : le logo et son sous-titre y tiennent l'un sous l'autre depuis
+// que l'image a été recadrée sur sa partie utile (07/08/2026). Elle valait 1536 × 1024 pixels
+// dont 600 × 190 de dessin — 88 % de vide transparent. C'est ce vide, et non la barre, qui
+// obligeait à afficher le logo en 140 px de haut pour qu'il paraisse lisible : il débordait
+// alors de la barre, qui le rognait en haut et en bas. Image nettoyée, le compte est bon.
+export const HAUTEUR_HEADER = 65
+
 // Header sur DEUX lignes utiles (décision du 25/07) : à droite, trois colonnes empilées —
 // « assistance » (« Comment ça marche » selon le contexte de la page + « Feedback » partout,
 // sa demande du 25/07), « couple » (Matière - Niveau, l'UNIQUE afficheur du couple de
@@ -15,11 +23,21 @@ export default function Header({ matiere, niveau, email, prenom, nom, profilNomI
   return (
     <header
       className="flex items-center justify-between px-6"
-      style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}
+      style={{ backgroundColor: 'var(--bleu)', height: HAUTEUR_HEADER, overflow: 'hidden', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}
     >
-      <div className="flex items-center gap-3">
-        <img src="/Logo_aSchool_blanc.png" alt="aSchool" title="Générateur d'activités pédagogiques" style={{ height: 140, width: 'auto' }} />
-        <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1.4rem', fontWeight: 500, display: isMobile ? 'none' : undefined }}>
+      {/* LOGO PUIS SOUS-TITRE, L'UN SOUS L'AUTRE (07/08/2026). Le titre était posé À CÔTÉ du
+          logo, en 1,4 rem : il repassait sur deux lignes et mangeait la largeur dont la barre a
+          besoin pour le couple, le compte et les boutons. Sous le logo et en petit, il tient sur
+          une ligne et rend cette place. `whiteSpace: nowrap` fige ce gain : le jour où la barre
+          se resserre encore, c'est le sous-titre qui s'efface (il l'est déjà sur mobile), pas la
+          mise en page qui se casse. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', minWidth: 0 }}>
+        <img src="/Logo_aSchool_blanc.png" alt="aSchool" title="Générateur d'activités pédagogiques" style={{ height: 34, width: 'auto', display: 'block' }} />
+        <span style={{
+          color: 'rgba(255,255,255,0.9)', fontSize: '0.75rem', fontWeight: 500,
+          lineHeight: 1.1, marginTop: 3, whiteSpace: 'nowrap',
+          display: isMobile ? 'none' : undefined,
+        }}>
           Générateur d'activités pédagogiques
         </span>
       </div>

@@ -44,8 +44,28 @@ def _ou_mesure() -> str:
     return "sur le serveur (VPS)" if os.getenv("ENV") == "production" else "sur cette machine de développement"
 
 
+def _etiquette_origine() -> str:
+    """Ce que le SUJET du mail dit de l'origine de la mesure. `_ou_mesure()` ne renseigne que le
+    CORPS ; or dans une boîte mail, seul le sujet se lit sans ouvrir. Le 07/08/2026, douze alertes
+    parties de la machine de développement portaient le sujet exact d'une alerte de production —
+    l'admin a cherché la panne sur le VPS. Un environnement NON RENSEIGNÉ le dit franchement plutôt
+    que de se faire passer pour la production : on préfère un sujet qui interroge à un sujet qui
+    ment."""
+    env = os.getenv("ENV", "").strip().lower()
+    if env == "production":
+        return "aSchool PROD"
+    return "aSchool DEV" if env else "aSchool ORIGINE INCONNUE"
+
+
 def _already_alerted(db, title: str) -> bool:
-    """Évite le flood : une seule alerte du même titre par fenêtre `alerte_anti_flood_h` (base)."""
+    """Évite le flood : une seule alerte du même titre par fenêtre `alerte_anti_flood_h` (base).
+
+    Le titre est la CLÉ de ce dédoublonnage : il doit rester STABLE d'un contrôle à l'autre. Tant
+    qu'il embarquait la valeur mesurée (« CPU critique : 94.4% », puis 100.0%, puis 101.1%), chaque
+    relevé portait un titre neuf et la fenêtre n'attrapait jamais rien : la cadence des alertes
+    retombait sur celle de l'ordonnanceur, soit une toutes les 5 minutes (douze mails le
+    07/08/2026). La valeur va dans le MESSAGE, jamais dans le titre.
+    """
     since = maintenant_utc() - timedelta(hours=seuils_alertes(db)["anti_flood_h"])
     return db.query(AdminAlert).filter(
         AdminAlert.title == title,
@@ -53,15 +73,30 @@ def _already_alerted(db, title: str) -> bool:
     ).first() is not None
 
 
-def _send_alert_email(level: str, title: str, message: str):
+def _send_alert_email(level: str, title: str, message: str, sujet_detail: str = ""):
     admin_email = os.getenv("ADMIN_EMAIL", "")
     if not admin_email:
+        return
+
+    # Hors production, l'alerte reste en BASE et au JOURNAL mais n'écrit PAS dans la boîte de
+    # l'admin : une pile de développement qui chauffe n'est pas un incident (cas réel du
+    # 07/08/2026 : douze mails « CPU critique » émis par la machine de travail, envoyant chercher
+    # une panne sur le VPS). Le corps du mail disait bien « machine de développement », mais le
+    # sujet — seul élément visible dans la liste — était celui d'une alerte de production.
+    # Une variable ABSENTE ou vide laisse passer le mail : un serveur dont le réglage a été oublié
+    # doit rester bavard. Se taire par défaut de configuration serait pire que le flood.
+    env = os.getenv("ENV", "").strip().lower()
+    if env and env != "production":
         return
     from_addr = os.getenv("FEEDBACK_FROM", "aSchool Feedback <feedback@aschool.fr>")
     icon = {"critical": "🔴", "warning": "🟠", "info": "🔵"}.get(level, "⚪")
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[aSchool Admin] {icon} {level.upper()} — {title}"
+    # Le titre est volontairement STABLE en base (clé anti-flood) : la valeur mesurée voyage à
+    # part et ne revient QUE dans le sujet, pour rester lisible dans la liste des mails sans
+    # rouvrir la porte au flood.
+    detail = f" : {sujet_detail}" if sujet_detail else ""
+    msg["Subject"] = f"[{_etiquette_origine()}] {icon} {level.upper()} — {title}{detail}"
     msg["From"]    = from_addr
     msg["To"]      = admin_email
 
@@ -116,7 +151,7 @@ def _journaliser(level: str, title: str, message: str):
         pass
 
 
-def create_alert(level: str, title: str, message: str):
+def create_alert(level: str, title: str, message: str, sujet_detail: str = ""):
     db = SessionLocal()
     try:
         if _already_alerted(db, title):
@@ -126,21 +161,57 @@ def create_alert(level: str, title: str, message: str):
         db.add(AdminAlert(level=level, title=title, message=message))
         db.commit()
         _journaliser(level, title, message)
-        _send_alert_email(level, title, message)
+        _send_alert_email(level, title, message, sujet_detail)
     except Exception:
         db.rollback()
     finally:
         db.close()
 
 
+_dernier_cpu = None   # (total, occupé) du contrôle précédent — la fenêtre de mesure
+
+
+def _charge_cpu_pct():
+    """Part du temps processeur RÉELLEMENT consommée depuis le contrôle précédent, en %.
+
+    Deux sondes ont échoué ici, pour la même raison — une intention juste, jamais confrontée à
+    une mesure :
+
+      1. `psutil.cpu_percent(interval=1)` ne lisait qu'UNE seconde : un pic isolé faisait
+         « 100 % » sur une machine au repos (cas du 23/06).
+      2. `getloadavg()[1] / cœurs` a remplacé la première, mais le load average n'est PAS un
+         pourcentage de processeur : il compte aussi les tâches en attente de DISQUE, et il peut
+         dépasser le nombre de cœurs — d'où les « CPU critique : 104.8% » du 07/08/2026. Mesuré
+         dans le conteneur ce jour-là : 17,4 % de CPU réellement consommé pendant que la formule
+         annonçait 58,1 %. Sous WSL2 l'écart est maximal, le load lu étant celui de la VM entière.
+
+    Ici on compare deux relevés cumulés de `/proc/stat` : c'est une VRAIE part de temps CPU, et la
+    fenêtre est l'intervalle entre deux contrôles (5 min via l'ordonnanceur) — donc une charge
+    soutenue, ce que les deux tentatives précédentes cherchaient. L'état est gardé dans ce module
+    plutôt qu'avec `cpu_percent(interval=None)`, dont le compteur interne est partagé : chaque
+    ouverture du panneau admin (`systeme/admin.py`, qui appelle `cpu_percent`) raccourcirait la
+    fenêtre à son insu.
+
+    Rend None quand il n'y a rien à comparer — premier passage après démarrage, ou compteur non
+    avancé. Pas de mesure, pas d'alerte : mieux vaut un contrôle sauté qu'un chiffre inventé.
+    """
+    global _dernier_cpu
+    temps = psutil.cpu_times()
+    total = sum(temps)
+    occupe = total - temps.idle - getattr(temps, "iowait", 0.0)
+    precedent, _dernier_cpu = _dernier_cpu, (total, occupe)
+    if precedent is None:
+        return None
+    d_total = total - precedent[0]
+    if d_total <= 0:
+        return None
+    return round(max(0.0, min(100.0, (occupe - precedent[1]) / d_total * 100)), 1)
+
+
 def check_cpu_alert():
-    # Charge SOUTENUE sur 5 min, pas un flash d'1 s : psutil.cpu_percent(interval=1)
-    # lisait une seule seconde, donc un pic ponctuel déclenchait une fausse alerte
-    # alors que la machine était au repos (cas réel du 23/06 : 100% affiché, ~0,3% réel).
-    # getloadavg()[1] = nb moyen de processus en attente CPU sur 5 min ; normalisé par
-    # le nombre de cœurs, 100 % = tous les cœurs pleinement occupés en continu sur 5 min.
-    cores = psutil.cpu_count() or 1
-    charge_pct = round(psutil.getloadavg()[1] / cores * 100, 1)
+    charge_pct = _charge_cpu_pct()
+    if charge_pct is None:
+        return
     db = SessionLocal()
     try:
         seuil = seuils_alertes(db)["cpu_pct"]
@@ -149,9 +220,10 @@ def check_cpu_alert():
     if charge_pct > seuil:
         create_alert(
             "critical",
-            f"CPU critique : {charge_pct}%",
-            f"Le processeur dépasse {seuil:g} % en moyenne sur 5 minutes {_ou_mesure()}. "
-            f"Vérifier les processus actifs.",
+            "CPU critique",
+            f"Charge à {charge_pct} %, au-delà du seuil de {seuil:g} % en moyenne sur 5 minutes "
+            f"{_ou_mesure()}. Vérifier les processus actifs.",
+            sujet_detail=f"{charge_pct} %",
         )
 
 
@@ -164,8 +236,10 @@ def check_disk_alert():
         db.close()
     if disk.percent > seuil:
         libre = round((disk.total - disk.used) / 1024**3, 1)
-        create_alert("warning", f"Disque faible : {disk.percent}% utilisé",
-                     f"Il reste {libre} Go libres {_ou_mesure()}.")
+        create_alert("warning", "Disque faible",
+                     f"{disk.percent} % du disque utilisés, il reste {libre} Go libres "
+                     f"{_ou_mesure()}.",
+                     sujet_detail=f"{disk.percent} % utilisés")
 
 
 def check_brute_force_alert():
@@ -179,8 +253,9 @@ def check_brute_force_alert():
         if count >= seuil:
             create_alert(
                 "critical",
-                f"Tentatives d'intrusion : {count} en 1h",
+                "Tentatives d'intrusion",
                 f"{count} tentatives de connexion admin échouées détectées dans la dernière heure. Vérifier les IPs dans le panel admin.",
+                sujet_detail=f"{count} en 1h",
             )
     except Exception:
         pass

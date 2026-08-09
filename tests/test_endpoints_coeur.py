@@ -413,7 +413,7 @@ def test_admin_matiere_demande_langue_se_regle_et_se_relit():
     """« Cette matiere porte une langue » : le drapeau qui fait apparaitre le choix de la langue
     au profil du prof et l'injecte dans la generation. Une matiere naissant TOUJOURS a false
     (creation admin comme detection), il faut pouvoir le poser -- sinon le sous-menu langue du
-    profil devient inatteignable. La case de la page « Programmes & contenu » ecrit ici, et
+    profil devient inatteignable. La case de la page « Formations » ecrit ici, et
     l'arbre /admin/contenu le relit."""
     from _profil import referentiel_id
     with dbmod.SessionLocal() as db:

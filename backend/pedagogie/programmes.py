@@ -209,7 +209,7 @@ def admin_programmes(db: Session = Depends(get_db)):
 
 
 # ── Création de cycle / niveau — la SEULE place où l'on crée ces entrées (boutons
-# « + Cycle / + Niveau » de la page Programmes & contenu). Le dépôt de référentiel ne
+# « + Cycle / + Niveau » de la page Formations). Le dépôt de référentiel ne
 # crée JAMAIS de niveau : il ne propose que l'existant, en cascade cycle → niveau.
 
 class CreerCycleBody(BaseModel):

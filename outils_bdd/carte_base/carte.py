@@ -115,11 +115,8 @@ DOMAINS = {
         # en plusieurs fichiers (au lycee, un par matiere). Ils s'empilent, puis la fusion les
         # assemble et cree la ligne `referentiels`. Remplace `referentiel_depots` (zone d'attente
         # a jeton), supprimee : le couple etant demande avant le document, plus rien n'attend.
-        # `profs_bloques_maj` : les profs mis en attente pendant la mise a jour d'un referentiel,
-        # et la memoire de la matiere a leur rebrancher. Elle parle de profs mais elle appartient
-        # au cycle de vie du referentiel — c'est lui qui la cree et lui qui la vide.
         ["referentiels", "referentiel_documents", "referentiel_chunks",
-         "types_activite", "referentiel_type_precisions", "profs_bloques_maj"]),
+         "types_activite", "referentiel_type_precisions"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
@@ -128,8 +125,15 @@ DOMAINS = {
     # meme cote que `ai_modeles` — la configuration de l'IA et ce qu'elle consomme se lisent
     # ensemble : le cout d'un appel est ses tokens multiplies par le tarif porte par sa fiche.
     "systeme":  ("Config, e-mail & systeme", "#e11d48", "#ffe4e6", "#881337",
+        # `demos` : la FICHE d'une base de demonstration (nom de la base, adresse de l'instance
+        # qui la sert, etat d'avancement). Elle ne contient aucune donnee pedagogique — celles-ci
+        # vivent dans l'autre base. C'est un objet d'exploitation, au meme titre qu'`incidents`.
+        # `fonctionnalites` : l'inventaire de ce que la plateforme sait faire et de son
+        # avancement — la moitie du tableau de bord qui ne se derive d'aucune table. Objet de
+        # pilotage, tenu par migration, jamais une donnee pedagogique.
         ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "usage_llm",
-         "email_templates", "email_envois", "incidents", "alembic_version"]),
+         "email_templates", "email_envois", "incidents", "demos", "fonctionnalites",
+         "alembic_version"]),
 }
 
 TYPE_MAP = {

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.models_db import (
     Cycle, Niveau, Matiere, Referentiel, ReferentielChunk,
-    ActiviteType, EmailEnvoi, Activite, AiFournisseur,
+    ActiviteType, EmailEnvoi, Activite, AiFournisseur, Fonctionnalite,
 )
 from backend.systeme.admin import _require_admin, get_ai_provider, get_ai_model
 
@@ -107,3 +107,50 @@ def etat_mise_en_route(db: Session = Depends(get_db)):
                     "la chaîne fonctionne."},
     ]
     return {"complet": all(e["fait"] for e in etapes), "etapes": etapes}
+
+
+
+
+@router.get("/admin/fonctionnalites", dependencies=[Depends(_require_admin)])
+def etat_fonctionnalites(db: Session = Depends(get_db)):
+    """L'inventaire des fonctionnalites, groupe par domaine puis par ecran — LECTURE SEULE.
+
+    Le pendant des huit etapes techniques. Celles-la se DERIVENT des vraies tables ; celles-ci se
+    LISENT dans `fonctionnalites`, parce qu'aucune table ne sait qu'un bouton est pose mais
+    inactif. La table est tenue par migration a chaque livraison ; l'admin consulte, il n'edite pas.
+
+    L'avancement est un COMPTE, jamais une moyenne de pourcentages : « fait / total », par ecran,
+    par domaine, et pour l'ensemble. Une fonctionnalite en cours ne compte pas pour une demie —
+    elle n'est pas utilisable, donc elle ne l'est pas a moitie.
+    """
+    lignes = (db.query(Fonctionnalite)
+                .order_by(Fonctionnalite.domaine, Fonctionnalite.ordre, Fonctionnalite.id).all())
+
+    domaines: dict[str, dict] = {}
+    for f in lignes:
+        dom = domaines.setdefault(f.domaine, {"domaine": f.domaine, "ecrans": {}, "total": 0, "fait": 0})
+        ecr = dom["ecrans"].setdefault(f.ecran, {"ecran": f.ecran, "lignes": [], "total": 0, "fait": 0})
+        ecr["lignes"].append({"nom": f.nom, "etat": f.etat, "note": f.note})
+        for cible in (dom, ecr):
+            cible["total"] += 1
+            if f.etat == "fait":
+                cible["fait"] += 1
+
+    def pourcent(fait: int, total: int) -> int:
+        # Arrondi ENTIER : un tableau de bord qui affiche 71,4 % se fait lire deux fois.
+        return round(100 * fait / total) if total else 0
+
+    sortie = []
+    for dom in domaines.values():
+        ecrans = []
+        for ecr in dom["ecrans"].values():
+            ecr["pourcent"] = pourcent(ecr["fait"], ecr["total"])
+            ecrans.append(ecr)
+        sortie.append({"domaine": dom["domaine"], "total": dom["total"], "fait": dom["fait"],
+                       "pourcent": pourcent(dom["fait"], dom["total"]), "ecrans": ecrans})
+
+    total = sum(d["total"] for d in sortie)
+    fait = sum(d["fait"] for d in sortie)
+    par_etat = {e: sum(1 for f in lignes if f.etat == e) for e in ("fait", "en_cours", "a_venir")}
+    return {"domaines": sortie, "total": total, "fait": fait,
+            "pourcent": pourcent(fait, total), "par_etat": par_etat}

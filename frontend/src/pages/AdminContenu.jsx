@@ -7,7 +7,7 @@ import { demanderConfirmation } from '../confirmDialog'
 import { lignesMatieres, nbAuProgramme, compterContenu, AU_PROGRAMME, DESACTIVEE, PROPOSEE } from '../utils/contenuMatieres.js'
 import SplitPane from '../components/SplitPane.jsx'
 
-// LA page « Programmes & contenu » : tout le contenu pédagogique dans UN SEUL tableau qui se
+// LA page « Formations » (ex-« Programmes & contenu », renommée le 07/08/2026) : tout le contenu pédagogique dans UN SEUL tableau qui se
 // déroule — cycle → niveau (le couple) → référentiel, matières, types d'activité (et leurs
 // précisions) — ET les gestes du programme au même endroit : « + Cycle » / « + Niveau » dans
 // l'arbre, les matières d'un niveau dans le niveau déplié. Source unique = la base : UNE seule
@@ -74,10 +74,6 @@ export default function AdminContenu() {
   const [busy, setBusy]       = useState(false)    // une écriture (et sa relecture) est en cours
   const [nivOuverts, setNivOuverts] = useState(() => new Set())      // niveaux dépliés
   const [typesOuverts, setTypesOuverts] = useState(() => new Set())  // `${niveauId}|${typeId}` → précisions dépliées
-  // Le prompt des matières du cycle ouvert à droite — LU en base à la demande, jamais recopié :
-  // { id, nom, prompt, valide }. null = colonne de droite au repos.
-  const [promptCycle, setPromptCycle] = useState(null)
-  const [promptLectureId, setPromptLectureId] = useState(0)   // cycle en cours de lecture
   const [detailCache, setDetailCache] = useState(false)
   const navigate = useNavigate()
 
@@ -191,25 +187,6 @@ export default function AdminContenu() {
     })
   }
 
-  // « Voir le prompt » d'un cycle → colonne de droite. Reclic sur le MÊME cycle = « Fermer ».
-  // Lecture en base à chaque ouverture (get direct) : ce qui s'affiche est ce qui est en base au
-  // moment du clic, même si le prompt vient d'être changé dans l'écran Prompts.
-  async function voirPrompt(cycle) {
-    if (promptCycle && promptCycle.id === cycle.id) { setPromptCycle(null); return }
-    setPromptLectureId(cycle.id)
-    try {
-      const r = await fetchWithTimeout(`/api/admin/cycles/prompt-matieres?cycle_id=${cycle.id}`,
-        { credentials: 'include' }, TIMEOUT_STD)
-      const d = await lireReponse(r)
-      setPromptCycle({ id: cycle.id, nom: cycle.nom, prompt: d.prompt || '', valide: !!d.valide })
-      setDetailCache(false)   // demander à voir le prompt veut dire « montre-moi le détail »
-    } catch (err) {
-      showError(messagePourEcran(err))
-    } finally {
-      setPromptLectureId(0)
-    }
-  }
-
   function basculerNiveau(id) {
     setNivOuverts(prev => {
       const s = new Set(prev)
@@ -271,9 +248,6 @@ export default function AdminContenu() {
               onCreerMatiere={creerMatiere}
               onToggleMatiere={toggleMatiere}
               onToggleLangue={toggleLangue}
-              promptOuvert={!!promptCycle && promptCycle.id === cycle.id}
-              promptLecture={promptLectureId === cycle.id}
-              onVoirPrompt={voirPrompt}
             />
           ))}
           <AjoutCycleRow busy={busy} onCreer={creerCycle} />
@@ -282,60 +256,28 @@ export default function AdminContenu() {
     </div>
   )
 
-  // ── Colonne droite : le détail du cycle choisi — son prompt des matières, EN LECTURE SEULE.
-  //    Il se modifie dans Prompts → Matières par cycle ; ici, c'est une fenêtre, pas un éditeur. ──
-  const colonneDetail = !promptCycle ? (
+  // ── Colonne droite : où trouver ce qui ne se règle pas ici. ──
+  //    Elle montrait le prompt des matières du cycle ; ce prompt n'existe plus au niveau du cycle
+  //    depuis le 06/08/2026 — il appartient au référentiel, un par couple cycle+niveau.
+  const colonneDetail = (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <p className="text-sm text-gray-500">
-        Cliquez « Voir le prompt » sur un cycle pour lire ici le texte qui lit les matières de ses
-        référentiels.
+      <h3 className="text-sm font-semibold text-gray-700">Prompt de lecture des matières</h3>
+      <p className="text-sm text-gray-500 mt-2">
+        Il n'est plus rangé sur le cycle : chaque <b>référentiel</b> a le sien
+        (<code>referentiels.prompt_matieres</code>), parce qu'un cycle porte des diplômes qui ne se
+        lisent pas avec les mêmes repères.
       </p>
       <p className="text-xs text-gray-400 mt-2">
-        Il est rangé sur le cycle et sert à tous ses référentiels. Il s'écrit et se corrige dans
-        <b> Prompts → Matières par cycle</b> ; cet écran ne fait que le montrer.
+        Pour le lire ou le corriger : écran <b>Référentiel</b>, choisissez le couple, cartouche
+        <b> Matières</b>, bouton <b>« Voir le prompt des matières »</b>.
       </p>
-    </div>
-  ) : (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-4"
-         style={{ height: '100%', minHeight: 320 }}>
-      <div style={{ flexShrink: 0 }}>
-        <h3 className="text-sm font-semibold text-gray-700">
-          Prompt de lecture des matières — cycle « {promptCycle.nom} »
-        </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 700,
-            color: promptCycle.valide ? '#166534' : promptCycle.prompt.trim() ? '#b45309' : '#6b7280' }}>
-            {promptCycle.valide ? '● relu et validé'
-              : promptCycle.prompt.trim() ? '● écrit par l’IA, à relire'
-              : '● pas encore écrit'}
-          </span>
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>
-            lecture seule — il se modifie dans Prompts → Matières par cycle
-          </span>
-        </div>
-      </div>
-      {promptCycle.prompt.trim() ? (
-        <pre style={{
-          flex: 1, minHeight: 0, margin: 0, overflow: 'auto', whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          fontSize: 12, lineHeight: 1.5, color: '#334155',
-          background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 10,
-        }}>
-          {promptCycle.prompt}
-        </pre>
-      ) : (
-        <p style={{ margin: 0, fontSize: 12.5, color: '#94a3b8' }}>
-          Ce cycle n’a pas encore de prompt : il sera écrit par l’IA au premier
-          « Proposer les matières » d’un de ses référentiels.
-        </p>
-      )}
     </div>
   )
 
   return (
     <div className="flex flex-col gap-3" style={{ height: '100%' }}>
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-sm font-semibold text-gray-700">Programmes &amp; contenu</h2>
+        <h2 className="text-sm font-semibold text-gray-700">Formations</h2>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs text-gray-400">
             {total.cycles} cycle{total.cycles > 1 ? 's' : ''} · {total.niveaux} niveau{total.niveaux > 1 ? 'x' : ''} · {total.matieres} matière{total.matieres > 1 ? 's' : ''} au programme
@@ -471,8 +413,7 @@ function AjoutMatiereRow({ referentielId, niveauNom, busy, onCreer }) {
 }
 
 function CycleBloc({ cycle, busy, nivOuverts, typesOuverts, basculerNiveau, basculerType,
-                     onCreerNiveau, onCreerMatiere, onToggleMatiere, onToggleLangue,
-                     promptOuvert, promptLecture, onVoirPrompt }) {
+                     onCreerNiveau, onCreerMatiere, onToggleMatiere, onToggleLangue }) {
   return (
     <>
       {/* ─ Ligne CYCLE ─ */}
@@ -483,27 +424,9 @@ function CycleBloc({ cycle, busy, nivOuverts, typesOuverts, basculerNiveau, basc
             <span style={{ fontSize: 11, color: '#94a3b8' }}>
               {cycle.niveaux.length} niveau{cycle.niveaux.length > 1 ? 'x' : ''}
             </span>
-            {/* Le prompt des matières du cycle : il s'ouvre dans la COLONNE DE DROITE, comme le
-                détail de toutes les pages listes. Le bouton dit le geste qu'il fait — « Voir »
-                quand il est fermé, « Fermer » quand ce cycle est celui qui est affiché. */}
-            <button
-              type="button" onClick={() => onVoirPrompt(cycle)} disabled={promptLecture}
-              title={promptOuvert
-                ? 'Fermer le prompt des matières de ce cycle'
-                : 'Voir, à droite, le prompt qui lit les matières des référentiels de ce cycle (lecture seule — il se règle dans Prompts → Matières par cycle)'}
-              style={{
-                marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
-                whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, padding: '4px 10px',
-                borderRadius: 6,
-                background: promptOuvert ? '#eff6ff' : '#fff',
-                color: promptOuvert ? '#1d4ed8' : '#334155',
-                border: `1px solid ${promptOuvert ? '#bfdbfe' : '#cbd5e1'}`,
-                cursor: promptLecture ? 'not-allowed' : 'pointer',
-                opacity: promptLecture ? 0.6 : 1,
-              }}
-            >
-              📝 {promptLecture ? 'Lecture…' : promptOuvert ? 'Fermer le prompt' : 'Voir le prompt'}
-            </button>
+            {/* Le bouton « Voir le prompt » a été retiré le 06/08/2026 : le prompt des matières
+                n'appartient plus au cycle mais au RÉFÉRENTIEL, un par couple cycle+niveau. Il se
+                lit et s'écrit sur l'écran Référentiel, cartouche Matières. */}
           </div>
         </td>
       </tr>

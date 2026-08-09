@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
 
 const IconHome = () => (
@@ -32,6 +32,13 @@ const IconRocket = () => (
     <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
     <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
     <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+  </svg>
+)
+const IconDemo = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M9 2v6L4.5 17a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L15 8V2"/>
+    <line x1="8" y1="2" x2="16" y2="2"/>
+    <line x1="6.5" y1="14" x2="17.5" y2="14"/>
   </svg>
 )
 const IconUser = () => (
@@ -324,6 +331,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
       </nav>
 
       <nav className={`shrink-0 flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
+        <LienDemonstration collapsed={collapsed} />
         {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
         {navItem('aide', 'Centre d\'aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
@@ -354,5 +362,56 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         </div>
       )}
     </aside>
+  )
+}
+
+// L'entrée « Démonstration » — la seule du menu qui sorte de l'application.
+//
+// Elle n'est pas une navigation interne : le bac à sable est une AUTRE instance, sur une autre
+// adresse, branchée sur une autre base. D'où le lien ordinaire vers /api/demo/aller, qui fabrique
+// le jeton au moment du clic et redirige. Ni window.open ni fetch : une fenêtre ouverte après un
+// appel réseau se fait bloquer par le navigateur, et un jeton fabriqué à l'affichage du menu
+// serait déjà périmé au clic.
+//
+// Grisée tant que le prof n'a pas de démonstration : sa bulle d'aide porte alors la raison
+// rendue par le serveur — pas de niveau au profil, démonstration en préparation, pas en ligne.
+function LienDemonstration({ collapsed }) {
+  const [etat, setEtat] = useState(null)
+
+  useEffect(() => {
+    let vivant = true
+    fetch('/api/demo/pour-moi', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (vivant) setEtat(d) })
+      .catch(() => { /* le menu ne doit pas tomber parce que cette entrée-là n'a pas répondu */ })
+    return () => { vivant = false }
+  }, [])
+
+  if (!etat || etat.ici) return null   // `ici` : on EST déjà dans la démonstration
+
+  const classes = `py-1.5 flex items-center gap-2 text-sm transition-colors ${
+    collapsed ? 'justify-center' : ''}`
+
+  if (!etat.disponible) {
+    return (
+      <span className={`${classes} text-gray-300`} title={etat.raison}
+            style={{ cursor: 'not-allowed' }}>
+        <IconDemo />
+        {!collapsed && <span>Démonstration</span>}
+      </span>
+    )
+  }
+
+  return (
+    <a
+      href="/api/demo/aller"
+      target="_blank"
+      rel="noreferrer"
+      title={`Ouvrir la démonstration de ${etat.niveau} dans un nouvel onglet — un bac à sable où rien de ce que vous faites n’atteint vos vrais contenus`}
+      className={`${classes} text-gray-500 hover:text-gray-800`}
+    >
+      <IconDemo />
+      {!collapsed && <span>Démonstration</span>}
+    </a>
   )
 }

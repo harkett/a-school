@@ -39,9 +39,10 @@ export default function AdminIAStatistiques() {
   // Fenêtre d'observation : le DÉFAUT du serveur, sans réglage à l'écran. Le paramètre `jours`
   // existe côté API et reste utilisable, mais il n'a pas d'affichage tant qu'on n'a pas décidé
   // de sa forme — trois boutons n'en étaient pas une.
+  // Aucun setState avant le fetch : `loading` vaut déjà true et `erreur` déjà '' au premier
+  // rendu (leurs valeurs de départ). Les réécrire ici ne changeait rien à l'écran et forçait un
+  // rendu complet de plus avant même que la lecture soit partie.
   useEffect(() => {
-    setLoading(true)
-    setErreur('')
     fetch('/api/admin/ia/usage', { credentials: 'include' })
       .then(r => {
         if (r.status === 401) { navigate('/admin/login'); return null }

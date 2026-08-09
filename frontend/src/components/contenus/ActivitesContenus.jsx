@@ -12,7 +12,7 @@ import { showError } from '../../errorDialog'
 import ConfirmerSuppression from './ConfirmerSuppression.jsx'
 import DialogueAutreCouple from './DialogueAutreCouple.jsx'
 import { coupleKey, grouperParCouple, parDateDesc, formatDateActivite, couleurCouple, correspondProfil } from '../../utils/activites.js'
-import { corpsHtml, imprimerApercu } from '../../utils/apercuHtml.js'
+import { documentHtml, imprimerApercu } from '../../utils/apercuHtml.js'
 import { aideHistorique } from '../../utils/aideHistorique.js'
 import SplitPane from '../SplitPane.jsx'
 import InfoGuide from '../InfoGuide.jsx'
@@ -211,12 +211,15 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
               </span>
             )}
           </div>
+          {/* Les réglages avec lesquels l'activité a été fabriquée. Ils étaient écrits dans le
+              même gris pâle que le reste et ne se voyaient pas : le type d'activité porte
+              maintenant le contraste, les autres suivent en gris moyen (07/08/2026). */}
           <div className="flex items-center gap-1 flex-wrap mt-0.5">
-            <span className="text-xs text-gray-400">{a.activite_label}</span>
-            <span className="text-xs text-gray-400">· {a.niveau}</span>
-            {a.sous_type && <span className="text-xs text-gray-400">· {a.sous_type}</span>}
-            {a.nb && <span className="text-xs text-gray-400">· {a.nb} questions</span>}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs font-semibold text-gray-700">{a.activite_label}</span>
+            <span className="text-xs text-gray-500">· {a.niveau}</span>
+            {a.sous_type && <span className="text-xs text-gray-500">· {a.sous_type}</span>}
+            {a.nb && <span className="text-xs text-gray-500">· {a.nb} questions</span>}
+            <span className="text-xs text-gray-500">
               · {a.avec_correction ? 'Avec correction' : 'Sans correction'}
             </span>
           </div>
@@ -314,15 +317,16 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
             <div style={{ fontWeight: 700, fontSize: 15, color: '#1e293b', marginBottom: 4 }}>
               {a.objet || a.activite_label}
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
-              {a.activite_label} · {a.niveau}
+            <div style={{ fontSize: 12, color: '#475569' }}>
+              <span style={{ fontWeight: 600, color: '#334155' }}>{a.activite_label}</span>
+              {` · ${a.niveau}`}
               {a.sous_type ? ` · ${a.sous_type}` : ''}
               {a.nb ? ` · ${a.nb} questions` : ''}
               {` · ${a.avec_correction ? 'Avec correction' : 'Sans correction'}`}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setApercuHtml(corpsHtml(a.resultat))}
+            <button onClick={() => setApercuHtml(documentHtml(a.resultat))}
               title="Voir l'activité mise en forme (aperçu, sans quitter aSchool)"
               className="btn-secondary">
               <IconGlobe /> HTML
@@ -508,14 +512,6 @@ export default function ActivitesContenus({ onOuvrirActivite, sessionMatiere, se
               </div>
             </div>
             <div className="apercu-corps" style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 15 }} dangerouslySetInnerHTML={{ __html: apercuHtml }} />
-            <style>{`
-              .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
-              .apercu-corps h1{font-size:1.5rem}.apercu-corps h2{font-size:1.25rem}.apercu-corps h3{font-size:1.08rem}
-              .apercu-corps p{margin:.6em 0}
-              .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
-              .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
-              .apercu-corps strong{color:#0f172a}
-            `}</style>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-// Ce que la page « Programmes & contenu » lit dans l'arbre de la base (GET /admin/contenu).
+// Ce que la page « Formations » lit dans l'arbre de la base (GET /admin/contenu).
 //
 // Sorti de l'écran pour être PROUVÉ, même découpage que utils/matieresReferentiel.js face à
 // l'écran Référentiel : l'écran rend, ces fonctions décident de ce qu'il rend.

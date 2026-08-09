@@ -35,7 +35,8 @@ from fastapi.testclient import TestClient
 # Les prompts en mode « replace ». `meta_types` rejoint la liste le 05/08/2026 (la recette qui
 # lit les types monte au cycle, comme celles de la découpe et des matières) — et `meta_matieres`,
 # qui y était en mode mais pas dans cette liste, y entre du même coup.
-EN_REPLACE = ("meta_decoupe", "meta_matieres", "meta_types", "verif_decoupe", "gabarit_type")
+EN_REPLACE = ("meta_decoupe", "meta_matieres", "meta_types", "meta_precisions",
+              "verif_decoupe", "gabarit_type")
 
 
 def _admin():

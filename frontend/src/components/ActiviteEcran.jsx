@@ -80,7 +80,8 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
   // Catalogue des types (même endpoint que l'écran modèle — un référentiel partagé, en lecture).
   // Lecture ratée : la cartouche ① ne disparaît PAS en silence (le prof croirait qu'aucun type
   // n'existe pour son couple) — message en boîte de dialogue + bouton « Réessayer » à sa place.
-  const { data: typesActivite = [], isError: typesRate, error: typesErreur, refetch: chargerTypes } = useQuery({
+  const { data: typesActivite = [], error: typesErreur, refetch: chargerTypes,
+          isFetching: typesEnCours } = useQuery({
     queryKey: ['activites', 'types', matiere, niveau || ''],
     enabled: !!matiere,
     queryFn: async () => {
@@ -369,10 +370,47 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
         {(() => {
           const pilotage = (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* LA CARTOUCHE ① NE DISPARAÎT PLUS EN SILENCE (07/08/2026).
+                  Elle n'était rendue que si la liste des types était DÉJÀ arrivée : tant qu'elle
+                  était vide, l'écran de création s'affichait entièrement vide, sans un mot, et le
+                  prof n'avait d'autre issue que de recharger la page — parfois plusieurs fois.
+                  Trois situations donnaient ce même écran muet, elles disent maintenant chacune
+                  la leur : la matière de travail pas encore connue (l'appel ne part même pas,
+                  il est conditionné à `enabled: !!matiere`), l'appel en cours, l'appel échoué. */}
+              {!matiere && (
+                <section className="bg-white rounded border border-gray-200 p-4">
+                  <p className="text-sm text-gray-700" style={{ margin: 0 }}>
+                    Votre matière de travail n’est pas encore connue : les types d’activité ne
+                    peuvent pas être lus.
+                  </p>
+                  <p className="text-xs text-gray-500" style={{ margin: '6px 0 10px' }}>
+                    Choisissez-la dans « Changer niveau et/ou matière », en haut de l’écran, ou
+                    complétez « Mon profil ».
+                  </p>
+                  <button type="button" onClick={() => window.location.reload()} className="btn-secondary"
+                    title="Recharger la page pour relire votre couple de travail">
+                    Recharger la page
+                  </button>
+                </section>
+              )}
+              {matiere && typesEnCours && typesActivite.length === 0 && (
+                <section className="bg-white rounded border border-gray-200 p-4">
+                  <p className="text-sm text-gray-500" style={{ margin: 0 }}>
+                    Chargement des types d’activité…
+                  </p>
+                </section>
+              )}
               {/* Catalogue illisible : la cartouche ① laisse place au bouton qui relance la
                   lecture (le message est déjà passé en boîte de dialogue — règle maison). */}
-              {typesRate && typesActivite.length === 0 && (
+              {/* Pas de `typesRate` dans la condition, à dessein : une liste vide SANS erreur
+                  ne devrait pas exister (le serveur a un repli en dur), mais si elle arrivait,
+                  l'écran redeviendrait muet. Le seul fait qui compte pour le prof est qu'il n'a
+                  rien à choisir — et un bouton pour relancer. */}
+              {matiere && !typesEnCours && typesActivite.length === 0 && (
                 <section className="bg-white rounded border border-gray-200 p-4">
+                  <p className="text-sm text-gray-700" style={{ margin: '0 0 10px' }}>
+                    Les types d’activité de votre couple n’ont pas pu être lus.
+                  </p>
                   <button type="button" onClick={chargerTypes} className="btn-primary"
                     title="Recharger les types d'activité de votre matière et de votre niveau">
                     Réessayer

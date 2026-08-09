@@ -31,6 +31,7 @@ reproductible, et aucun réglage ne la rendra telle. Cela se joue dans le PROMPT
 """
 import json
 import logging
+from difflib import SequenceMatcher
 import re
 
 from sqlalchemy.orm import Session
@@ -45,20 +46,19 @@ logger = logging.getLogger(__name__)
 
 _CLE_PROMPT = "analyse_amont"
 _CLE_DECOUPE = "decoupe_amont"
-# Clé EN BASE du méta-prompt (l'instruction générique qui demande à l'IA de GÉNÉRER le prompt de
-# découpe d'un document). Aucun texte de prompt en dur : le code le LIT en base (Setting).
-_CLE_META = "prompt_meta_decoupe"
-# Clé EN BASE du méta-prompt de CRITIQUE : l'IA relit le prompt de découpe qu'elle vient de
+# LES QUATRE MÉTA-PROMPTS N'ONT PLUS DE CLÉ GÉNÉRALE (08/08/2026). Ils vivent UNIQUEMENT sur le
+# référentiel qui les emploie — `referentiels.prompt_meta_matieres`, `_decoupe`, `_types`,
+# `_precisions` — et le code les reçoit par l'argument `meta_referentiel`. Le repli sur un
+# `Setting` partagé a été retiré : un gabarit écrit pour une famille de diplômes, appliqué à un
+# document qu'il ne connaît pas, ne rend pas un prompt approximatif mais un prompt FAUX (il fait
+# chercher une grille d'horaires dans un programme de crèche). Et il ne servait jamais : c'est
+# l'admin qui crée un référentiel, il en écrit les prompts avant de s'en servir.
+#
+# Reste ce seul Setting, qui n'a pas d'équivalent par référentiel parce qu'il ne lit AUCUN
+# document : le méta-prompt de CRITIQUE. L'IA y relit le prompt de découpe qu'elle vient de
 # générer et le corrige s'il viole le contrat (titres verbatim, JSON exact, pas de contenu,
-# exclusions) AVANT de l'afficher à l'admin. Aucun texte en dur : lu en base (Setting).
+# exclusions) avant de l'afficher à l'admin. Générique par nature, donc partagé.
 _CLE_VERIF = "prompt_verif_decoupe"
-# Clé EN BASE du méta-prompt des MATIÈRES : même geste que `_CLE_META`, mais il fait rédiger le
-# prompt qui LIT LES MATIÈRES. Le prompt rédigé est rangé sur le CYCLE (cycles.prompt_matieres).
-_CLE_META_MATIERES = "prompt_meta_matieres"
-# Clé EN BASE du méta-prompt des TYPES D'ACTIVITÉ (05/08/2026) — le troisième du même geste. Le
-# prompt rédigé est rangé sur le CYCLE (cycles.prompt_types) : la DONNÉE (le type) appartient au
-# référentiel qui la nomme, la RECETTE qui la lit appartient à la famille.
-_CLE_META_TYPES = "prompt_meta_types"
 
 # Schéma STRICT de la découpe (Structured Outputs) : le modèle ne renvoie QUE des titres.
 # `additionalProperties: false` interdit tout champ en trop (ex. « contenu ») → la génération est
@@ -233,6 +233,71 @@ def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[
     return trouvees
 
 
+# SEUIL DU DÉDOUBLONNAGE — mesuré, pas choisi (07/08/2026).
+#
+# Un référentiel à plusieurs options répète ses passages communs, une fois par option. Le prompt
+# de découpe liste TOUTES les occurrences (une entrée = une frontière, sinon l'unité d'avant
+# déborde) : c'est donc ici, après tranchage, que les répétitions se fondent.
+#
+# LE CRITÈRE NE PEUT PAS ÊTRE LE TITRE. Mesuré sur le BTS CIEL, six paires portent le même
+# intitulé et se répartissent en DEUX familles nettes :
+#   - le même passage répété     : R2 93,6 % — R3 98,9 % — R4 89,8 % de similarité ;
+#   - deux passages différents   : C02 21,6 % — C03 10,4 % — C10 12,7 %.
+# Aucune paire n'est identique au caractère près (10 à 17 caractères d'écart : mise en forme,
+# mention d'option). Un test d'égalité ne fusionnerait donc RIEN, et un test sur le titre seul
+# ferait perdre une compétence sur deux — C02, C03 et C10 ont le même intitulé dans les deux
+# options mais leurs propres connaissances associées.
+#
+# 0.75 tombe au milieu du fossé : 15 points sous la plus basse des vraies répétitions, 53 points
+# au-dessus de la plus haute des fausses. Aucune des douze unités mesurées n'est près du seuil.
+_SEUIL_DOUBLON = 0.75
+
+
+def _dedoublonner(unites: list[dict]) -> list[dict]:
+    """Fond les unités qui sont LE MÊME passage répété, garde celles qui n'en ont que le titre.
+
+    Deux unités sont le même passage si leurs TITRES se recouvrent — égaux, ou l'un début de
+    l'autre (le document ajoute parfois « (activité commune aux deux options) » à une seule des
+    deux occurrences ; R3, en base, porte ainsi deux intitulés pour la même activité) — ET si
+    leurs TEXTES se ressemblent au-delà du seuil.
+
+    LE RECOUVREMENT, ET NON UNE RESSEMBLANCE DE TITRE. Mesuré : « Unité U4 » et « Unité U5 »
+    diffèrent d'un caractère sur huit, soit 87 % de similarité — un seuil sur le titre les
+    déclarait jumelles, et leurs textes (363 et 364 caractères, même structure) passaient aussi
+    le seuil de contenu. Deux unités distinctes du diplôme disparaissaient donc dans une seule.
+    Un titre court ne pardonne aucune approximation : sur huit caractères, un seul porte le sens.
+
+    La première occurrence est gardée, la seconde jetée. Le journal dit ce qui a fondu et ce qui
+    a été laissé distinct : sans lui, un seuil mal placé se verrait seulement au bout de la
+    chaîne, dans une réponse d'IA appauvrie.
+
+    Coût : les textes ne sont comparés que si les titres le sont déjà — `quick_ratio` (linéaire)
+    élimine avant le `ratio` (quadratique). Sur 53 unités, instantané."""
+    garde: list[dict] = []
+    for u in unites:
+        jumelle = None
+        tu = _replier_blancs(u["titre"]).lower()
+        for v in garde:
+            tv = _replier_blancs(v["titre"]).lower()
+            if not (tu.startswith(tv) or tv.startswith(tu)):
+                continue
+            m = SequenceMatcher(None, u["texte"], v["texte"])
+            if m.quick_ratio() < _SEUIL_DOUBLON:
+                continue      # borne SUPÉRIEURE du ratio : sous le seuil, inutile de calculer
+            if m.ratio() >= _SEUIL_DOUBLON:
+                jumelle = v
+                break
+        if jumelle is None:
+            garde.append(u)
+            continue
+        # Le passage est commun aux deux options : il ne peut plus être dit propre à l'une d'elles.
+        if jumelle["option"] and jumelle["option"] != u["option"]:
+            jumelle["option"] = ""
+        logger.info("découpe : doublon fondu — « %s » (%d car.) repris de « %s » (%d car.)",
+                    u["titre"][:90], len(u["texte"]), jumelle["titre"][:90], len(jumelle["texte"]))
+    return garde
+
+
 def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     """Tranche le TEXTE RÉEL aux lignes de titre rendues par l'IA — jamais réécrit par l'IA
     (cap « aSchool n'invente rien »). Pur, sans IA, sans base : testable seul.
@@ -401,21 +466,32 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
         sum(1 for _, m in perdus if m == "hors ordre"),
         len(unites), len(debuts) - len(unites),
     )
+    # Les répétitions d'un document à plusieurs options se fondent ICI, sur le contenu réellement
+    # tranché — le modèle, lui, a listé toutes les occurrences pour que chacune fasse frontière.
+    avant = len(unites)
+    unites = _dedoublonner(unites)
+    if len(unites) != avant:
+        logger.info("découpe : %d unités après dédoublonnage (%d fondues)",
+                    len(unites), avant - len(unites))
     return unites
 
 
-def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
-    """L'IA GÉNÈRE le prompt de découpe adapté à CE document. On lui donne le méta-prompt (lu EN
-    BASE, `Setting[prompt_meta_decoupe]`) + le texte brut du PDF ; elle rend un prompt de découpe
-    sur mesure (texte libre). SOCLE, générique : aucun prompt écrit en dur, aucun axe métier codé.
-    Le résultat sera stocké en base par couple et validé par l'admin avant usage. Lève si le
-    méta-prompt n'est pas en base (jamais de découpe silencieuse sans amorce). Laisse remonter les
-    pannes IA."""
-    meta = (get_settings_dict(db).get(_CLE_META) or "").strip()
+def generer_prompt_decoupe(texte: str, *, db: Session, meta_referentiel: str | None = None) -> str:
+    """L'IA GÉNÈRE le prompt de découpe adapté à CE document. On lui donne le méta-prompt + le
+    texte brut du PDF ; elle rend un prompt de découpe sur mesure (texte libre). SOCLE, générique :
+    aucun prompt écrit en dur, aucun axe métier codé. Le résultat sera stocké en base par couple et
+    validé par l'admin avant usage. Laisse remonter les pannes IA.
+
+    `meta_referentiel` : le méta-prompt de CE référentiel (`referentiels.prompt_meta_decoupe`).
+    C'est la SEULE source depuis le 08/08/2026 — le repli sur un réglage général a été retiré :
+    un gabarit générique appliqué à un document qu'il ne connaît pas ne rend pas un prompt
+    approximatif, il en rend un FAUX. Lève s'il est vide : jamais de découpe sans amorce
+    écrite pour ce document."""
+    meta = (meta_referentiel or "").strip()
     if not meta:
         raise RuntimeError(
-            f"Méta-prompt absent en base (Setting '{_CLE_META}'). L'admin doit le renseigner "
-            f"avant de générer un prompt de découpe (cap « tout en base »)."
+            "Méta-prompt de découpe absent : écrivez-le sur CE référentiel "
+            "(Prompts → Référentiels, ligne « prompt_meta_decoupe » de ce niveau)."
         )
     # Le document s'injecte au marqueur {document} du méta-prompt (distinct de {texte}, que le
     # méta-prompt demande au prompt GÉNÉRÉ de contenir). Ajouté en fin si le marqueur est absent.
@@ -436,18 +512,22 @@ def generer_prompt_decoupe(texte: str, *, db: Session) -> str:
     return verifier_prompt_decoupe(prompt_genere, db=db)
 
 
-def generer_prompt_matieres(texte: str, *, db: Session) -> str:
-    """L'IA GÉNÈRE le prompt qui lira les MATIÈRES des référentiels de ce cycle. Même geste que
-    `generer_prompt_decoupe` : méta-prompt lu EN BASE (`Setting[prompt_meta_matieres]`) + le texte
-    d'un référentiel du cycle, pris comme exemple de sa famille ; elle rend un prompt sur mesure
-    (texte libre). SOCLE, générique : aucun prompt en dur, aucune famille de diplôme codée ici —
-    c'est le document qui dicte. Le résultat est stocké sur le CYCLE et validé par l'admin avant
-    usage. Lève si le méta-prompt n'est pas en base. Laisse remonter les pannes IA."""
-    meta = (get_settings_dict(db).get(_CLE_META_MATIERES) or "").strip()
+def generer_prompt_matieres(texte: str, *, db: Session, meta_referentiel: str | None = None) -> str:
+    """L'IA GÉNÈRE le prompt qui lira les MATIÈRES de CE référentiel. Même geste que
+    `generer_prompt_decoupe` : méta-prompt lu EN BASE + le texte du référentiel lui-même ; elle
+    rend un prompt sur mesure (texte libre). SOCLE, générique : aucun prompt en dur, aucune famille
+    de diplôme codée ici — c'est le document qui dicte. Le résultat est stocké sur le RÉFÉRENTIEL
+    (le couple cycle+niveau) et validé par l'admin avant usage. Lève si le méta-prompt n'est pas en
+    base. Laisse remonter les pannes IA.
+
+    `meta_referentiel` : le méta-prompt de CE référentiel (`referentiels.prompt_meta_matieres`),
+    seule source depuis le 08/08/2026. Le repli sur le réglage général a été retiré : il faisait
+    chercher une grille d'horaires dans un programme de crèche."""
+    meta = (meta_referentiel or "").strip()
     if not meta:
         raise RuntimeError(
-            f"Méta-prompt absent en base (Setting '{_CLE_META_MATIERES}'). L'admin doit le "
-            f"renseigner avant de générer un prompt de matières (cap « tout en base »)."
+            "Méta-prompt des matières absent : écrivez-le sur CE référentiel "
+            "(Prompts → Référentiels, ligne « prompt_meta_matieres » de ce niveau)."
         )
     # {document} = le référentiel exemple ; {texte} doit rester INTACT (le prompt généré le porte).
     prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
@@ -464,7 +544,7 @@ def generer_prompt_matieres(texte: str, *, db: Session) -> str:
     ).strip()
 
 
-def generer_prompt_types(texte: str, *, db: Session) -> str:
+def generer_prompt_types(texte: str, *, db: Session, meta_referentiel: str | None = None) -> str:
     """L'IA GÉNÈRE le prompt qui lira les TYPES D'ACTIVITÉ des référentiels de ce cycle. Troisième
     exemplaire du même geste que `generer_prompt_decoupe` et `generer_prompt_matieres` :
     méta-prompt lu EN BASE (`Setting[prompt_meta_types]`) + le texte d'un référentiel du cycle,
@@ -473,12 +553,15 @@ def generer_prompt_types(texte: str, *, db: Session) -> str:
     LA RÈGLE DES DEUX ÉTAGES (05/08/2026) : la DONNÉE appartient au référentiel qui la nomme (un
     type d'activité est lu dans le document, comme une matière), la RECETTE qui la lit appartient
     au CYCLE — une famille de documents bâtis pareil se lit avec la même recette. Le résultat est
-    stocké sur le cycle. Lève si le méta-prompt n'est pas en base. Laisse remonter les pannes IA."""
-    meta = (get_settings_dict(db).get(_CLE_META_TYPES) or "").strip()
+    stocké sur le cycle. Lève si le méta-prompt n'est pas en base. Laisse remonter les pannes IA.
+
+    `meta_referentiel` : le méta-prompt de CE référentiel (`referentiels.prompt_meta_types`),
+    seule source depuis le 08/08/2026 (repli général retiré, comme pour les trois autres)."""
+    meta = (meta_referentiel or "").strip()
     if not meta:
         raise RuntimeError(
-            f"Méta-prompt absent en base (Setting '{_CLE_META_TYPES}'). L'admin doit le "
-            f"renseigner avant de générer un prompt de types (cap « tout en base »)."
+            "Méta-prompt des types d'activité absent : écrivez-le sur CE référentiel "
+            "(Prompts → Référentiels, ligne « prompt_meta_types » de ce niveau)."
         )
     # {document} = le référentiel exemple ; {texte} doit rester INTACT (le prompt généré le porte).
     prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
@@ -492,6 +575,38 @@ def generer_prompt_types(texte: str, *, db: Session) -> str:
         appel_long=True,  # le méta-prompt embarque le référentiel complet
         contexte_max=get_contexte_max(db),
         outil="meta_types",
+    ).strip()
+
+
+def generer_prompt_precisions(texte: str, *, db: Session, meta_referentiel: str | None = None) -> str:
+    """L'IA GÉNÈRE le prompt qui lira les PRÉCISIONS d'un type d'activité dans CE référentiel.
+    Quatrième exemplaire du même geste que `generer_prompt_types` : méta-prompt lu EN BASE + le
+    texte du référentiel comme exemple ; elle rend un prompt sur mesure (texte libre).
+
+    `meta_referentiel` : le méta-prompt de CE référentiel (`referentiels.prompt_meta_precisions`),
+    seule source depuis le 08/08/2026 (repli général retiré, comme pour les trois autres).
+
+    Le prompt rendu porte DEUX repères, et non un : {texte} (le document) et {label} (le type dont
+    on veut les précisions). Lève si le méta-prompt n'est pas en base."""
+    meta = (meta_referentiel or "").strip()
+    if not meta:
+        raise RuntimeError(
+            "Méta-prompt des précisions absent : écrivez-le sur CE référentiel "
+            "(Prompts → Référentiels, ligne « prompt_meta_precisions » de ce niveau)."
+        )
+    # {document} = le référentiel exemple ; {texte} et {label} doivent rester INTACTS (le prompt
+    # généré les porte).
+    prompt = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
+    return generate(
+        prompt,
+        cle=get_cle_texte(db),
+        provider=get_ai_provider(db),
+        model=get_ai_model(db),
+        max_tokens=get_max_tokens(db, "meta_precisions"),
+        temperature=get_temperature(db),
+        appel_long=True,  # le méta-prompt embarque le référentiel complet
+        contexte_max=get_contexte_max(db),
+        outil="meta_precisions",
     ).strip()
 
 
@@ -520,37 +635,9 @@ def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
     ).strip()
 
 
-def regenerer_prompt_decoupe(texte: str, *, prompt_actuel: str, remarques: str, db: Session) -> str:
-    """L'IA CORRIGE le prompt de découpe à partir des REMARQUES de l'admin (français clair). Même
-    méta-prompt lu EN BASE (`Setting[prompt_meta_decoupe]`) + texte du PDF, auxquels on joint le
-    prompt actuel et les remarques ; l'IA rend un prompt de découpe RÉVISÉ (texte libre). SOCLE,
-    générique : aucun prompt écrit en dur, aucun axe métier codé. Répétable à volonté (l'admin relit,
-    remet une remarque, régénère). Lève si le méta-prompt n'est pas en base. Laisse remonter les
-    pannes IA."""
-    meta = (get_settings_dict(db).get(_CLE_META) or "").strip()
-    if not meta:
-        raise RuntimeError(
-            f"Méta-prompt absent en base (Setting '{_CLE_META}'). L'admin doit le renseigner "
-            f"avant de régénérer un prompt de découpe (cap « tout en base »)."
-        )
-    base = meta.replace("{document}", texte) if "{document}" in meta else f"{meta}\n\n{texte}"
-    prompt = (
-        f"{base}\n\n"
-        f"PROMPT DE DÉCOUPE ACTUEL (à corriger) :\n{prompt_actuel}\n\n"
-        f"REMARQUES DE L'ADMIN (à prendre en compte pour produire un NOUVEAU prompt) :\n{remarques}\n\n"
-        f"Produis le PROMPT DE DÉCOUPE RÉVISÉ, et RIEN d'autre."
-    )
-    return generate(
-        prompt,
-        cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
-        model=get_ai_model(db),
-        max_tokens=get_max_tokens(db, "meta_decoupe"),
-        temperature=get_temperature(db),
-        appel_long=True,  # le méta-prompt embarque le référentiel complet
-        contexte_max=get_contexte_max(db),
-        outil="meta_decoupe",
-    ).strip()
+# `regenerer_prompt_decoupe` a été SUPPRIMÉE le 08/08/2026. Elle corrigeait un prompt de découpe à
+# partir des remarques de l'admin, et lisait pour cela le méta-prompt GÉNÉRAL — celui-là même qui
+# vient de disparaître. Aucun appelant : ni route, ni écran, ni test. Elle n'a donc jamais servi.
 
 
 def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
@@ -673,15 +760,18 @@ def _schema_matieres() -> dict:
     }
 
 
-def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = None) -> list[str]:
+def detecter_matieres(texte: str, *, db: Session, prompt_referentiel: str | None = None) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des matières (disciplines / domaines)
     qu'il structure. Proposition seulement : l'admin coche ce qu'il retient (jamais une matière
     écrite d'office).
 
-    `prompt_cycle` : le prompt VALIDÉ du cycle (cycles.prompt_matieres), écrit par l'IA pour cette
-    famille de référentiels. Quand il est fourni, c'est LUI qui lit — un prompt taillé pour des BTS
-    trouve ce qu'un prompt passe-partout laisse tomber. Absent (cycle pas encore doté, prompt non
-    validé) : on retombe sur le prompt général `detecter_matieres`, comme avant.
+    `prompt_referentiel` : le prompt de CE référentiel (referentiels.prompt_matieres), écrit pour
+    ce couple cycle+niveau et pour lui seul. Quand il est fourni, c'est LUI qui lit — un prompt
+    taillé pour ce diplôme trouve ce qu'un prompt passe-partout laisse tomber. Rangé sur le
+    référentiel et non sur le cycle depuis le 06/08/2026 : deux diplômes du même cycle ne se lisent
+    pas avec les mêmes repères (le prompt écrit pour le BTS CIEL parlait d'options réseau, il
+    n'apprend rien sur le BTS CRSA). Absent (référentiel pas encore doté) : on retombe sur le
+    prompt général `detecter_matieres`, comme avant.
 
     Elle ne reçoit QUE le texte. La table des matières ne lui est plus donnée : il n'existe plus
     de catalogue commun auquel ramener le document. Chaque référentiel possède SES matières,
@@ -692,7 +782,7 @@ def detecter_matieres(texte: str, *, db: Session, prompt_cycle: str | None = Non
     les noms nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en
     lit aucune. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit / absorbe)."""
-    prompt = (prompt_cycle or get_prompt(db, _CLE_MATIERES)).replace("{texte}", texte)
+    prompt = (prompt_referentiel or get_prompt(db, _CLE_MATIERES)).replace("{texte}", texte)
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
@@ -791,12 +881,12 @@ def _schema_types_activite() -> dict:
     }
 
 
-def detecter_types_activite(texte: str, *, db: Session, prompt_cycle: str | None = None) -> list[str]:
+def detecter_types_activite(texte: str, *, db: Session, prompt_referentiel: str | None = None) -> list[str]:
     """L'IA LIT le texte d'un référentiel et PROPOSE la liste des TYPES D'ACTIVITÉ (formats /
     modalités pédagogiques) qu'il met en œuvre. Proposition seulement : l'admin retient ce qu'il
     garde (jamais un type retenu d'office).
 
-    `prompt_cycle` : le prompt du CYCLE (cycles.prompt_types), écrit par l'IA pour cette famille de
+    `prompt_referentiel` : le prompt de CE référentiel (referentiels.prompt_types), écrit pour ce
     référentiels. Quand il est fourni, c'est LUI qui lit. Absent (cycle pas encore doté) : on
     retombe sur le prompt général `detecter_types_activite`.
 
@@ -810,7 +900,7 @@ def detecter_types_activite(texte: str, *, db: Session, prompt_cycle: str | None
     nettoyés, sans doublon (insensible à la casse), dans l'ordre lu. Liste vide si l'IA n'en lit
     aucun. Lève `ValueError` si l'IA ne rend pas un JSON exploitable. Laisse remonter les pannes
     IA (l'appelant traduit)."""
-    prompt = (prompt_cycle or get_prompt(db, _CLE_TYPES_ACTIVITE)).replace("{texte}", texte)
+    prompt = (prompt_referentiel or get_prompt(db, _CLE_TYPES_ACTIVITE)).replace("{texte}", texte)
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
@@ -853,19 +943,25 @@ def _schema_precisions_type() -> dict:
     }
 
 
-def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session) -> list[str]:
+def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session,
+                            prompt_referentiel: str | None = None) -> list[str]:
     """L'IA PROPOSE les PRÉCISIONS d'un type d'activité POUR CE NIVEAU, ancrées au référentiel. Une
     précision = une déclinaison concrète du type, RÉELLEMENT adaptée au niveau (ex. « Activités écrites » :
     « copie », « dictée » en primaire ; « dissertation », « mémoire » dans le supérieur). Même plomberie
     que `detecter_types_activite` : provider / modèle / température lus EN BASE, JSON
     contraint. Renvoie des libellés nettoyés, sans doublon (insensible à la casse), dans l'ordre rendu.
-    Lève `ValueError` si l'IA ne rend pas un JSON exploitable (l'appelant absorbe)."""
+    Lève `ValueError` si l'IA ne rend pas un JSON exploitable (l'appelant absorbe).
+
+    `prompt_referentiel` : le prompt de CE référentiel (`referentiels.prompt_precisions`), écrit
+    pour ce document. Quand il est fourni, c'est LUI qui lit — même règle que
+    `detecter_types_activite` et `detecter_matieres`. Absent : le prompt général reprend la main,
+    qui ne connaît aucun document et rend des précisions plausibles plutôt que vérifiables."""
     # Le texte de ce prompt était ÉCRIT ICI, en f-string. C'était le seul vrai prompt du projet
     # hors du registre : invisible à l'écran d'administration, donc ni lisible ni corrigeable —
     # alors que les trois autres fonctions de CE fichier passaient déjà par get_prompt.
     # `.replace()` et non `.format()`, comme sa voisine detecter_types_activite : le texte vient
     # de la base et peut porter des accolades qui ne sont pas des repères.
-    prompt = (get_prompt(db, _CLE_PRECISIONS_TYPE)
+    prompt = ((prompt_referentiel or get_prompt(db, _CLE_PRECISIONS_TYPE))
               .replace("{label}", label)
               .replace("{niveau}", niveau)
               .replace("{texte}", texte))

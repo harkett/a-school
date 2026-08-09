@@ -925,75 +925,16 @@ def bilan_suppression(cycle_id: int, niveau: str, db: Session = Depends(get_db))
 class SupprimerRefBody(BaseModel):
     cycle_id: int
     niveau: str
-    # Le geste ASSUMÉ de l'admin : il a vu les profs nommément et confirmé deux fois. C'est le
-    # SEUL chemin qui contourne le refus 409 — une suppression appelée autrement reste refusée.
-    bloquer_profs: bool = False
-
-
-def _avis_maj(db: Session, user: User, slug: str, suite: str = "") -> None:
-    """Envoie au prof l'avis de début ou de fin de mise à jour. Le texte vient de la BASE
-    (`email_templates`, semés en migration) : l'admin le corrige dans Admin → Email sans nous,
-    et aucun texte de repli n'est inventé ici. Ne lève jamais — un serveur de mail muet ne doit
-    pas faire échouer une suppression déjà commitée ; l'échec est tracé, et le prof lira de
-    toute façon le même message à l'écran."""
-    from backend.securite import comptes
-    from backend.systeme.admin import record_email_envoi
-    from backend.core.models_db import EmailTemplate
-    modele = db.query(EmailTemplate).filter(EmailTemplate.slug == slug).first()
-    if modele is None:
-        logger.error("Avis de mise à jour : modèle '%s' absent de la base.", slug)
-        return
-    statut, erreur = "envoye", None
-    try:
-        comptes.send_custom_email(user.email, user.prenom, modele.objet,
-                                  modele.corps.replace("{suite}", suite))
-    except Exception as e:
-        statut, erreur = "echec", f"{type(e).__name__}: {e}"
-        logger.error("Avis de mise à jour non envoyé à %s : %s", user.email, erreur)
-    record_email_envoi(db, modele_slug=modele.slug, modele_nom=modele.nom,
-                       destinataire=user.email, objet=modele.objet, statut=statut, erreur=erreur)
-
-
-def _bloquer_et_detacher(db: Session, ref: Referentiel, niveau_id: int) -> list[User]:
-    """Met les profs de ce référentiel en attente et DÉTACHE leurs matières — c'est ce
-    détachement, et lui seul, qui rend la suppression possible : `fk_users_subject_id` est en
-    NO ACTION, une matière encore pointée fait ÉCHOUER l'écriture (pas un refus poli).
-
-    La ligne mémorise les NOMS avant de vider les clés : les identifiants meurent avec le
-    référentiel, les noms se re-résolvent dans le suivant.
-
-    LES DEUX COLONNES DU COUPLE DE TRAVAIL SONT VIDÉES ENSEMBLE. `couple_de_travail` exige les
-    deux : n'en vider qu'une la ferait retomber SILENCIEUSEMENT sur le couple du profil — un
-    autre niveau, non bloqué, sur lequel le prof n'a jamais demandé à travailler.
-
-    N'écrit rien d'autre : la suppression et le commit sont à l'appelant, dans la même
-    transaction. Renvoie les profs concernés, pour les prévenir APRÈS le commit."""
-    from backend.core.models_db import ProfBloqueMaj
-    profs = _profs_lies(db, ref.id)
-    noms = {m.id: m.nom for m in db.query(Matiere).filter(Matiere.referentiel_id == ref.id).all()}
-    for u in profs:
-        ligne = (db.query(ProfBloqueMaj)
-                   .filter(ProfBloqueMaj.user_id == u.id, ProfBloqueMaj.niveau_id == niveau_id)
-                   .first())
-        if ligne is None:
-            ligne = ProfBloqueMaj(user_id=u.id, niveau_id=niveau_id)
-            db.add(ligne)
-        ligne.etat, ligne.resultat, ligne.debloque_le = "bloque", None, None
-        if u.subject_id in noms:                 # sa matière de PROFIL part avec le référentiel
-            ligne.matiere_nom = noms[u.subject_id]
-            u.subject_id = None
-        if u.travail_matiere_id in noms:         # son couple de TRAVAIL visait ce référentiel
-            ligne.travail_matiere_nom = noms[u.travail_matiere_id]
-            ligne.travail_niveau_id = u.travail_niveau_id
-            u.travail_matiere_id = None
-            u.travail_niveau_id = None           # LES DEUX, jamais une seule
-    return profs
+    # Plus de `bloquer_profs` (07/08/2026) : il n'existe plus de chemin qui contourne le refus.
+    # Une matière portée par un prof ne se supprime pas — `fk_users_subject_id` le dit déjà.
 
 
 @router.post("/admin/labo/referentiels/supprimer", dependencies=[Depends(_require_admin)])
 def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db)):
     """Supprime le référentiel d'un couple — refusé (409) tant qu'un prof est rattaché à l'une de
-    ses matières, SAUF geste assumé de l'admin (`bloquer_profs`). Efface la ligne `referentiels`
+    ses matières. Sans exception : le geste « assumé » qui détachait les profs pour passer outre
+    a été retiré le 07/08/2026, il contournait la clé étrangère `fk_users_subject_id` que la base
+    pose déjà. Efface la ligne `referentiels`
     + le PDF sur disque. Ses matières, ses unités, ses types d'activité et leurs précisions
     partent avec lui (CASCADE) : rien de tout cela n'existe sans le document qui le nomme.
 
@@ -1009,254 +950,17 @@ def supprimer_referentiel(body: SupprimerRefBody, db: Session = Depends(get_db))
     # son couple de travail. On refuse AVANT d'écrire, avec un message qui dit quoi faire. MÊME
     # comptage que celui annoncé par le bilan — une seule source, sinon les deux chiffres dérivent.
     profs = _profs_du_referentiel(db, ref.id)
-    bloques: list[User] = []
-    if profs > 0 and not body.bloquer_profs:
+    if profs > 0:
         raise HTTPException(409, f"{profs} professeur(s) travaillent sur une matière de ce référentiel — "
                                  "suppression impossible. Changez d'abord leur matière.")
-    if profs > 0:
-        # Geste assumé : mise en attente + détachement, DANS la même transaction que la
-        # suppression. Ni l'un ni l'autre ne peut exister seul — sinon on aurait des profs
-        # bloqués devant un référentiel toujours là.
-        bloques = _bloquer_et_detacher(db, ref, ref.niveau_id)
     db.delete(ref)
     db.commit()
 
-    # APRÈS le commit, et seulement après : ce qui ne s'annule pas. Le PDF effacé ne revient pas,
-    # un e-mail parti ne se rappelle pas — les mettre dans la transaction, c'est risquer des
-    # profs prévenus d'une mise à jour qui n'a pas eu lieu.
+    # APRÈS le commit, et seulement après : ce qui ne s'annule pas — un PDF effacé ne revient pas.
     #
     # LE DOSSIER ENTIER, pas le seul `referentiel.pdf` : les morceaux qui l'ont composé sont là
     # aussi, et leurs lignes viennent de partir avec la fiche (CASCADE). Un fichier que plus
     # aucune ligne ne réclame n'a rien à faire sur le disque.
     fin = _pdf_du_couple(db, body.cycle_id, body.niveau)
     shutil.rmtree(fin.parent, ignore_errors=True)
-    for u in bloques:
-        _avis_maj(db, u, "referentiel_maj_debut")
-    return {"ok": True, "profs_bloques": len(bloques)}
-
-
-class DebloquerBody(BaseModel):
-    cycle_id: int
-    niveau: str
-    # Pour chaque matière ATTENDUE (son nom d'avant), la matière du NOUVEAU référentiel qui prend
-    # sa place. `null` = elle s'en va pour de bon — accepté seulement si plus aucun prof ne
-    # l'attend. Une matière attendue absente de ce dictionnaire fait refuser le déblocage.
-    correspondances: dict[str, int | None] = {}
-
-
-@router.get("/admin/labo/referentiels/blocages", dependencies=[Depends(_require_admin)])
-def blocages_du_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Qui est en attente sur ce niveau, nommément, et où il en est. Sert au bouton de déblocage
-    (visible tant qu'il reste des lignes) et à la liste que l'admin relit après coup — la boîte
-    affichée au moment du déblocage ne doit pas être la seule trace."""
-    from backend.core.models_db import ProfBloqueMaj
-    niv = (db.query(Niveau).filter(Niveau.nom == (niveau or "").strip(),
-                                   Niveau.cycle_id == cycle_id).first())
-    if not niv:
-        return {"niveau_id": None, "bloques": 0, "a_informer": 0, "profs": []}
-    lignes = (db.query(ProfBloqueMaj, User).join(User, User.id == ProfBloqueMaj.user_id)
-                .filter(ProfBloqueMaj.niveau_id == niv.id)
-                .order_by(User.nom, User.prenom, User.email).all())
-    return {
-        "niveau_id": niv.id,
-        "bloques": sum(1 for l, _ in lignes if l.etat == "bloque"),
-        "a_informer": sum(1 for l, _ in lignes if l.etat == "a_informer"),
-        "profs": [{"id": u.id, "prenom": u.prenom, "nom": u.nom, "email": u.email,
-                   "matiere": l.matiere_nom, "etat": l.etat, "resultat": l.resultat}
-                  for l, u in lignes],
-    }
-
-
-# ── Le déblocage : REMPLACER la matière, jamais la perdre ────────────────────
-#
-# Une matière qu'un prof utilise ne disparaît pas : un programme qui change la RENOMME ou la
-# FUSIONNE, il ne l'efface presque jamais. C'est la même règle que le Delete refusé sur une donnée
-# référencée. Le rebranchement par le nom seul ne savait pas dire ça : nom retrouvé à l'identique,
-# ou « matière disparue » — et cette seconde issue était sans retour (la ligne quitte l'état
-# `bloque`, aucun second déblocage ne la reprend). L'admin DÉSIGNE donc la remplaçante.
-
-def _lignes_bloquees(db: Session, niveau_id: int):
-    from backend.core.models_db import ProfBloqueMaj
-    return (db.query(ProfBloqueMaj).filter(ProfBloqueMaj.niveau_id == niveau_id,
-                                           ProfBloqueMaj.etat == "bloque").all())
-
-
-def _attendues(db: Session, niveau_id: int) -> list[dict]:
-    """Les matières ATTENDUES sur ce niveau : celles que les lignes en attente mémorisent, avec
-    le nombre de professeurs qui les attendent.
-
-    Deux sources dans la même ligne — la matière du PROFIL (`matiere_nom`) et celle du couple de
-    TRAVAIL (`travail_matiere_nom`), cette dernière seulement si le couple visait CE niveau : sinon
-    elle appartient au référentiel d'un autre niveau, que cette mise à jour n'a pas touché.
-
-    Un même professeur qui attend la même matière des deux côtés ne compte qu'une fois : c'est un
-    nombre de gens, pas un nombre de rattachements — le bilan de suppression, lui, comptait les
-    rattachements et annonçait « 4 professeur(s) » pour trois noms."""
-    par_nom: dict[str, set[int]] = {}
-    for l in _lignes_bloquees(db, niveau_id):
-        for nom in (l.matiere_nom,
-                    l.travail_matiere_nom if l.travail_niveau_id == niveau_id else None):
-            if nom:
-                par_nom.setdefault(nom, set()).add(l.user_id)
-    return [{"nom": nom, "profs": len(qui)} for nom, qui in sorted(par_nom.items())]
-
-
-def _matieres_retenues(db: Session, niveau_id: int) -> list[Matiere]:
-    """Les matières du référentiel EN PLACE sur ce niveau que l'admin a retenues — les seules
-    qu'un profil puisse porter, et donc les seules qui peuvent en remplacer une autre."""
-    ref = db.query(Referentiel).filter(Referentiel.niveau_id == niveau_id).first()
-    if ref is None:
-        return []
-    return (db.query(Matiere)
-              .filter(Matiere.referentiel_id == ref.id,
-                      Matiere.validee.is_(True), Matiere.actif.is_(True))
-              .order_by(Matiere.ordre, Matiere.nom).all())
-
-
-def _niveau_du_couple(db: Session, cycle_id: int, niveau: str) -> Niveau:
-    niv = (db.query(Niveau).filter(Niveau.nom == (niveau or "").strip(),
-                                   Niveau.cycle_id == cycle_id).first())
-    if not niv:
-        raise HTTPException(404, "Niveau inconnu pour ce cycle.")
-    return niv
-
-
-@router.get("/admin/labo/referentiels/correspondances", dependencies=[Depends(_require_admin)])
-def correspondances_du_couple(cycle_id: int, niveau: str, db: Session = Depends(get_db)):
-    """Ce que l'admin doit trancher avant de débloquer : à gauche les matières ATTENDUES, à droite
-    les matières RETENUES du nouveau référentiel.
-
-    `propose` = la remplaçante évidente, quand le nouveau document porte le MÊME nom : le cas de
-    loin le plus fréquent, l'admin n'a alors qu'à valider. `peut_disparaitre` n'est vrai que si
-    plus personne n'attend cette matière — on ne propose « elle disparaît vraiment » que là.
-
-    `prete` dit si le déblocage est possible : un référentiel en place, des matières retenues, et
-    une correspondance pour chaque attendue. `empechement` dit pourquoi, en français, quand non.
-    Lecture seule."""
-    niv = _niveau_du_couple(db, cycle_id, niveau)
-    retenues = _matieres_retenues(db, niv.id)
-    par_nom = {m.nom: m.id for m in retenues}
-    attendues = [{**a, "propose": par_nom.get(a["nom"]), "peut_disparaitre": a["profs"] == 0}
-                 for a in _attendues(db, niv.id)]
-    ref = db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).first()
-    if ref is None:
-        empechement = ("Aucun référentiel sur ce niveau : déposez le nouveau document et menez la "
-                       "procédure jusqu’au bout avant de débloquer.")
-    elif not retenues:
-        empechement = ("Le nouveau référentiel ne compte aucune matière retenue : cochez les "
-                       "matières du document avant de débloquer.")
-    else:
-        empechement = None
-    return {
-        "niveau_id": niv.id,
-        "attendues": attendues,
-        "matieres": [{"id": m.id, "nom": m.nom} for m in retenues],
-        "prete": empechement is None,
-        "empechement": empechement,
-    }
-
-
-@router.post("/admin/labo/referentiels/debloquer", dependencies=[Depends(_require_admin)])
-def debloquer_profs(body: DebloquerBody, db: Session = Depends(get_db)):
-    """Geste EXPLICITE de l'admin : la nouvelle procédure est en place, les profs reprennent.
-    Jamais déclenché tout seul par la fin de la découpe — l'admin seul sait si c'est prêt.
-
-    Chaque prof est rebranché sur la matière que l'admin a DÉSIGNÉE (`correspondances`), pas sur
-    un nom deviné. Trois issues, toutes assumées et nommées : même nom (`rebranche`), nom
-    différent (`remplace` — le message dit l'ancienne ET la nouvelle), ou disparition réelle
-    (`matiere_disparue`), qui n'est acceptée que si plus aucun prof ne l'attendait.
-
-    REFUSÉ (409) tant que le niveau n'a pas de référentiel avec des matières retenues, ou tant
-    qu'une matière attendue n'a pas de correspondance : libérer les profs dans le vide, c'était
-    les détacher pour de bon sans que personne l'ait décidé.
-
-    La ligne n'est PAS effacée : elle passe à `a_informer` et attend que le prof ait lu. Les
-    e-mails partent après le commit — ils ne s'annulent pas."""
-    from backend.core.resolution_couple import matiere_id_du_nom
-    from backend.prof.profil import message_de_fin
-    niv = _niveau_du_couple(db, body.cycle_id, body.niveau)
-
-    # Les trois refus, dans l'ordre où l'admin les rencontre.
-    etat = correspondances_du_couple(body.cycle_id, body.niveau, db)
-    if not etat["prete"]:
-        raise HTTPException(409, etat["empechement"])
-    retenues = {m["id"]: m["nom"] for m in etat["matieres"]}
-    choix: dict[str, int | None] = {}
-    manquantes, invalides, refusees = [], [], []
-    for a in etat["attendues"]:
-        if a["nom"] not in body.correspondances:
-            manquantes.append(a["nom"])
-            continue
-        cible = body.correspondances[a["nom"]]
-        if cible is None:
-            if not a["peut_disparaitre"]:
-                refusees.append(f"{a['nom']} ({a['profs']} professeur(s))")
-            else:
-                choix[a["nom"]] = None
-        elif cible not in retenues:
-            invalides.append(a["nom"])
-        else:
-            choix[a["nom"]] = cible
-    if manquantes:
-        raise HTTPException(409, "Désignez la matière qui remplace : "
-                                 + ", ".join(f"« {n} »" for n in manquantes) + ".")
-    if refusees:
-        raise HTTPException(409, "Ces matières sont utilisées par des professeurs, elles ne "
-                                 "peuvent pas disparaître : " + ", ".join(refusees) + ".")
-    if invalides:
-        raise HTTPException(422, "Matière de remplacement inconnue dans ce référentiel pour : "
-                                 + ", ".join(f"« {n} »" for n in invalides) + ".")
-
-    rebranches, remplaces, perdus, avis = [], [], [], []
-    for ligne in _lignes_bloquees(db, niv.id):
-        u = db.get(User, ligne.user_id)
-        if u is None:
-            ligne.etat, ligne.debloque_le = "a_informer", func.now()
-            continue
-        if ligne.matiere_nom:                     # une matière de PROFIL avait été détachée
-            cible = choix.get(ligne.matiere_nom)
-            if cible is None:
-                ligne.resultat, ligne.remplacee_par = "matiere_disparue", None
-                perdus.append(u)
-            else:
-                u.subject_id = cible
-                nouveau = retenues[cible]
-                ligne.remplacee_par = nouveau
-                if nouveau == ligne.matiere_nom:
-                    ligne.resultat = "rebranche"
-                    rebranches.append(u)
-                else:
-                    ligne.resultat = "remplace"
-                    remplaces.append((u, ligne.matiere_nom, nouveau))
-        else:
-            # Rien ne partait de son profil : il était rattaché par son seul couple de TRAVAIL.
-            # Lui dire « votre matière ne figure plus au programme » serait faux.
-            ligne.resultat, ligne.remplacee_par = "rebranche", None
-            rebranches.append(u)
-        # Le couple de TRAVAIL repart sur la matière désignée quand il visait CE niveau ; ailleurs,
-        # son référentiel n'a pas bougé et le nom suffit. Les deux colonnes ensemble ou pas du tout.
-        if ligne.travail_matiere_nom and ligne.travail_niveau_id:
-            tid = (choix.get(ligne.travail_matiere_nom) if ligne.travail_niveau_id == niv.id
-                   else matiere_id_du_nom(db, ligne.travail_matiere_nom, ligne.travail_niveau_id))
-            if tid:
-                u.travail_matiere_id, u.travail_niveau_id = tid, ligne.travail_niveau_id
-        ligne.etat, ligne.debloque_le = "a_informer", func.now()
-        avis.append((u, ligne))
-    db.commit()
-
-    for u, ligne in avis:                      # après le commit : un e-mail ne se rappelle pas
-        if u is not None:
-            # {suite} = CE QUI S'AJOUTE à la phrase que le modèle d'e-mail porte déjà (« La mise à
-            # jour est terminée… »), c'est-à-dire le second paragraphe du message — et RIEN quand
-            # il n'y en a pas. `partition` rend "" dans ce cas, là où `split(…)[-1]` recopiait la
-            # phrase entière : le prof rattaché par son seul couple de travail, dont le message
-            # tient en une phrase, la lisait deux fois dans son e-mail.
-            _, _, suite = message_de_fin(ligne).partition("\n\n")
-            _avis_maj(db, u, "referentiel_maj_fin", suite=suite)
-    fiche = lambda u: {"prenom": u.prenom, "nom": u.nom, "email": u.email}
-    return {"ok": True,
-            "rebranches": [fiche(u) for u in rebranches],
-            # Les remplacements, nommés des DEUX côtés : l'admin doit relire ce qu'il a décidé.
-            "remplaces": [{**fiche(u), "avant": avant, "apres": apres}
-                          for u, avant, apres in remplaces],
-            "non_rebranches": [fiche(u) for u in perdus]}
+    return {"ok": True}

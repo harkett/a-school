@@ -1,9 +1,9 @@
 """Chantier « suppression des familles » — le dépôt en couple cycle → niveau.
 
 Ce que ces tests verrouillent :
-  - `valider` exige un niveau EXISTANT (`niveau_id`) : 404 si inconnu ou hors du cycle,
-    et ne crée JAMAIS de niveau (une seule place pour créer : POST /admin/niveaux).
-  - `verifier-depot` = la seule vérif n°1 : verdict couple SEUL (plus de verdict famille).
+  - le dépôt (`verifier`, même code que `valider-flux`) exige un niveau EXISTANT (`niveau_id`) :
+    404 si inconnu ou hors du cycle, et ne crée JAMAIS de niveau (une seule place pour créer :
+    POST /admin/niveaux).
   - les endpoints famille ont disparu (404).
   - la création cycle/niveau est relogée dans programmes.py (unicité 409, cycle inconnu 404).
 
@@ -62,7 +62,7 @@ def test_valider_niveau_inconnu_404_et_ne_cree_jamais_de_niveau():
     cid = _cycle()
     token = _staged_token()
     try:
-        r = admin_client().post("/api/admin/referentiels/valider", json={
+        r = admin_client().post("/api/admin/referentiels/verifier", json={
             "token": token, "cycle_id": cid, "niveau_id": 999999})
         assert r.status_code == 404, r.text
         with dbmod.SessionLocal() as db:
@@ -77,25 +77,9 @@ def test_valider_niveau_d_un_autre_cycle_404():
     nid = _niveau(autre, "DC-NivB", 71)
     token = _staged_token()
     try:
-        r = admin_client().post("/api/admin/referentiels/valider", json={
+        r = admin_client().post("/api/admin/referentiels/verifier", json={
             "token": token, "cycle_id": cid, "niveau_id": nid})
         assert r.status_code == 404, r.text
-    finally:
-        _purge(token)
-
-
-def test_verifier_depot_verdict_couple_seul():
-    cid = _cycle()
-    nid = _niveau(cid)
-    token = _staged_token()
-    verdict = {"correspond": True, "niveau_lu": "DC-Niv", "raison": "ok"}
-    try:
-        with patch.object(refadm, "_texte_staged", return_value="texte du document"), \
-             patch("backend.rag.analyse_amont.verifier_couple", return_value=verdict):
-            r = admin_client().post("/api/admin/referentiels/verifier-depot", json={
-                "token": token, "cycle_id": cid, "niveau_id": nid})
-        assert r.status_code == 200, r.text
-        assert r.json() == {"couple": verdict}   # verdict couple SEUL — plus aucune clé famille
     finally:
         _purge(token)
 
@@ -175,7 +159,7 @@ def test_valider_ecrit_le_texte_epure():
              patch("backend.rag.extraction.extraire_texte", return_value="TEXTE PROPRE DU JOUR"), \
              patch("backend.rag.analyse_amont.detecter_matieres", return_value=[]):
             popen.return_value.__enter__.return_value.pages = [None, None]
-            r = admin_client().post("/api/admin/referentiels/valider", json={
+            r = admin_client().post("/api/admin/referentiels/verifier", json={
                 "token": token, "cycle_id": cid, "niveau_id": nid})
         assert r.status_code == 200, r.text
         assert r.json()["pages"] == 2
@@ -209,17 +193,15 @@ def test_lire_document_epure():
 def test_decoupe_lit_le_texte_en_base():
     """La découpe lit le texte de travail EN BASE (texte_epure) — plus aucune extraction du PDF :
     le texte passé à l'IA est EXACTEMENT la colonne figée au dépôt (règles de ce jour-là)."""
-    from backend.core.models_db import Cycle, Referentiel
+    from backend.core.models_db import Referentiel
     cid = _cycle("DC-Dec", 80)
     nid = _niveau(cid, "DC-NivDec", 80)
     with dbmod.SessionLocal() as db:
-        # Le prompt de découpe vit sur le CYCLE (05/08/2026) : posé là, aucune rédaction IA n'est
-        # déclenchée et la découpe part directement.
-        cyc = db.get(Cycle, cid)
-        cyc.prompt_decoupe = "PROMPT {texte}"
-        cyc.prompt_decoupe_valide = True
+        # Le prompt de découpe vit sur le RÉFÉRENTIEL (06/08/2026) : posé là, aucune rédaction IA
+        # n'est déclenchée et la découpe part directement.
         db.add(Referentiel(niveau_id=nid, nom_fixe="dc_dec", collection="dc_dec",
-                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE FIGE EN BASE"))
+                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE FIGE EN BASE",
+                           prompt_decoupe="PROMPT {texte}", prompt_decoupe_valide=True))
         db.commit()
     with patch("backend.rag.analyse_amont.decouper_texte",
                return_value=[{"titre": "T", "texte": "TEXTE FIGE EN BASE"}]) as mocked:
@@ -370,7 +352,7 @@ def test_valider_jeton_consomme_avec_referentiel_dit_deja_valide():
         db.add(Referentiel(niveau_id=nid, nom_fixe="dc_deja", collection="dc_deja",
                            filtres=None, fichier="mon-document.pdf"))
         db.commit()
-    r = admin_client().post("/api/admin/referentiels/valider", json={
+    r = admin_client().post("/api/admin/referentiels/verifier", json={
         "token": "jeton-consomme-inexistant", "cycle_id": cid, "niveau_id": nid})
     assert r.status_code == 200, r.text
     d = r.json()
@@ -383,44 +365,11 @@ def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
     le dépôt »), plus jamais le « aperçu expiré ? » fictif (rien n'expire dans la zone d'attente)."""
     cid = _cycle("DC-Sans", 87)
     nid = _niveau(cid, "DC-NivSans", 87)
-    r = admin_client().post("/api/admin/referentiels/valider", json={
+    r = admin_client().post("/api/admin/referentiels/verifier", json={
         "token": "jeton-inexistant", "cycle_id": cid, "niveau_id": nid})
     assert r.status_code == 400, r.text
     assert "Recommencez le dépôt" in r.json()["detail"]
     assert "expiré" not in r.json()["detail"]
-
-
-def test_detecter_couple_correspondance_et_niveau_inconnu():
-    """POST /detecter-couple (dépôt « PDF d'abord », LECTURE SEULE) : l'IA lit (mockée), le SERVEUR
-    fait la correspondance en dur avec les tables — couple existant → ids (insensible à la casse) ;
-    niveau inconnu → niveau null + niveau_lu (l'écran proposera « Ajouter ce niveau ») ; et RIEN
-    n'est écrit en base (le dépôt ne crée jamais de niveau : porte unique POST /admin/niveaux)."""
-    from backend.core.models_db import Niveau
-    cid = _cycle("DC-Det2", 91)
-    nid = _niveau(cid, "DC-NivDet2", 91)
-    token = _staged_token()
-    c = admin_client()
-    try:
-        with patch.object(refadm, "_texte_staged", return_value="texte du document"), \
-             patch("backend.rag.analyse_amont.detecter_couple",
-                   return_value={"cycle_lu": "dc-det2", "niveau_lu": "DC-NIVDET2"}):
-            r = c.post("/api/admin/referentiels/detecter-couple", json={"token": token})
-        assert r.status_code == 200, r.text
-        d = r.json()
-        assert d["cycle"] == {"id": cid, "nom": "DC-Det2"}       # correspondance insensible à la casse
-        assert d["niveau"] == {"id": nid, "nom": "DC-NivDet2"}
-        with patch.object(refadm, "_texte_staged", return_value="texte du document"), \
-             patch("backend.rag.analyse_amont.detecter_couple",
-                   return_value={"cycle_lu": "DC-Det2", "niveau_lu": "Licence Inconnue"}):
-            r2 = c.post("/api/admin/referentiels/detecter-couple", json={"token": token})
-        assert r2.status_code == 200, r2.text
-        d2 = r2.json()
-        assert d2["cycle"]["id"] == cid and d2["niveau"] is None
-        assert d2["niveau_lu"] == "Licence Inconnue"             # l'écran s'en sert pour « Ajouter ce niveau »
-        with dbmod.SessionLocal() as db:
-            assert db.query(Niveau).count() == 1                 # LECTURE SEULE : aucun niveau créé en douce
-    finally:
-        _purge(token)
 
 
 def test_detecter_couple_ia_meme_patron():
@@ -504,7 +453,7 @@ def test_page_contenu_arbre_complet():
     précisions du couple. Un niveau SANS référentiel apparaît quand même (referentiel et
     referentiel_id à null) — l'admin voit le « à remplir ».
 
-    C'est la lecture unique de la page « Programmes & contenu » : elle en faisait deux et les
+    C'est la lecture unique de la page « Formations » : elle en faisait deux et les
     recollait. L'arbre porte donc TOUTES les matières du référentiel, y compris celles que le prof
     ne voit pas — retirée du programme (actif=false) ou seulement proposée (validee=false) — et
     l'id du référentiel, qu'il faut pour y créer une matière."""
