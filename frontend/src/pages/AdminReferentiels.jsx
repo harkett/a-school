@@ -360,11 +360,10 @@ export default function AdminReferentiels() {
   const [typesBusy, setTypesBusy] = useState(false)            // détection / ajout en cours
   const [typesDetecting, setTypesDetecting] = useState(false)  // détection IA en cours → sablier
   const [precisProgress, setPrecisProgress] = useState(null)   // jauge RÉELLE précisions : {fait, total, label} | null
-  // Prompt par type : éditeur déplié sous la ligne. `promptEditId` = id du type dont l'éditeur est
-  // ouvert (null = aucun) ; `promptBrouillon` = texte en cours (local, pas encore en base). Le
-  // prompt lui-même vit sur la ligne du type (`t.prompt`), lu en base — aucune copie ici.
+  // Prompt par type : panneau déplié sous la ligne, EN LECTURE SEULE — il se modifie dans
+  // Admin → IA → Prompts. `promptEditId` = id du type dont le panneau est ouvert (null = aucun).
+  // Le prompt lui-même vit sur la ligne du type (`t.prompt`), lu en base — aucune copie ici.
   const [promptEditId, setPromptEditId] = useState(null)
-  const [promptBrouillon, setPromptBrouillon] = useState('')
 
   // Précisions PAR COUPLE × type (table `referentiel_type_precisions`, fille de la liaison — comme le prompt).
   const [precisEditId, setPrecisEditId] = useState(null)   // id du type dont le panneau Précisions est ouvert (null = aucun)
@@ -2349,7 +2348,7 @@ export default function AdminReferentiels() {
                         ? <span title={`« ${t.label} » a son prompt de génération pour ce référentiel`}
                             style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>✓ prompt</span>
                         : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#dc2626', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚠ vide</span>)}
-                      <button type="button" onClick={() => { setPromptEditId(editOuvert ? null : t.id); setPromptBrouillon(editOuvert ? '' : (t.prompt || '')) }}
+                      <button type="button" onClick={() => setPromptEditId(editOuvert ? null : t.id)}
                         title={`Voir / corriger le prompt de « ${t.label} » pour ce référentiel`}
                         style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
                           background: editOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
@@ -2417,7 +2416,7 @@ export default function AdminReferentiels() {
                           Se modifie dans <strong>Admin → IA → Prompts → Référentiels</strong>,
                           groupe « Génération ».
                         </span>
-                        <button type="button" onClick={() => { setPromptEditId(null); setPromptBrouillon('') }}
+                        <button type="button" onClick={() => setPromptEditId(null)}
                           style={{ marginLeft: 'auto', padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Fermer</button>
                       </div>
                     </div>

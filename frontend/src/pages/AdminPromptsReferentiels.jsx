@@ -186,7 +186,7 @@ export default function AdminPromptsReferentiels() {
   // la liste rend les colonnes de `referentiels`, pas les lignes d'une autre table.
   useEffect(() => {
     const r = refs.find(x => x.id === refId)
-    if (!r) { setTypesRef([]); return }
+    if (!r) return
     let annule = false
     fetchWithTimeout(
       `/api/admin/referentiels/types-activite?cycle_id=${r.cycle_id}&niveau=${encodeURIComponent(r.niveau)}`,
@@ -197,10 +197,15 @@ export default function AdminPromptsReferentiels() {
     return () => { annule = true }
   }, [refId, refs])
 
+  // `typesRef` garde ce que le dernier chargement a rendu ; ce qu'on MONTRE se derive du
+  // referentiel courant. Sans cette derivation, il faudrait vider l'etat dans l'effet — un
+  // setState synchrone qui relance un rendu pour rien.
+  const typesVus = refCourant ? typesRef : []
+
   // Le lien ouvert. Un type se reconnaît à sa clé `type:<id>` : son descripteur est construit à la
   // volée (titre et colonne portent l'id de LA ligne écrite), le reste vient de CHAMP_TYPE.
   const typeCourant = champ.startsWith('type:')
-    ? typesRef.find(t => String(t.id) === champ.slice(5)) || null
+    ? typesVus.find(t => String(t.id) === champ.slice(5)) || null
     : null
   const champCourant = typeCourant
     ? { ...CHAMP_TYPE, cle: champ, typeId: typeCourant.id,
@@ -212,7 +217,7 @@ export default function AdminPromptsReferentiels() {
   function ouvrirChamp(cle) {
     setChamp(cle)
     if (cle.startsWith('type:')) {
-      const t = typesRef.find(x => String(x.id) === cle.slice(5))
+      const t = typesVus.find(x => String(x.id) === cle.slice(5))
       setTexte(t ? (t.prompt || '') : '')
     } else {
       setTexte(refCourant ? (refCourant[cle] || '') : '')
@@ -382,12 +387,12 @@ export default function AdminPromptsReferentiels() {
     <div key="groupe-generation" style={{ display: 'contents' }}>
       <TitreGroupe titre={CHAMP_TYPE.groupe} reduit={!!groupesReduits[CHAMP_TYPE.groupe]}
         onBasculer={() => basculerGroupe(CHAMP_TYPE.groupe)} marge />
-      {groupesReduits[CHAMP_TYPE.groupe] ? null : typesRef.length === 0 ? (
+      {groupesReduits[CHAMP_TYPE.groupe] ? null : typesVus.length === 0 ? (
         <p className="text-xs text-gray-400" style={{ padding: '4px 2px', lineHeight: 1.6 }}>
           Ce niveau n’a aucun type d’activité. Ils se créent sur l’écran <b>Référentiel</b>,
           cartouche « Types d’activité » — ici on écrit leur prompt, on ne les crée pas.
         </p>
-      ) : typesRef.map(t => {
+      ) : typesVus.map(t => {
         const rempli = !!(t.prompt || '').trim()
         const cle = `type:${t.id}`
         const ouvert = champ === cle
