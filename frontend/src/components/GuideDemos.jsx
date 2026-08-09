@@ -16,14 +16,25 @@
 // Tout ce qui y est affirmé se vérifie dans le code : les statuts qui ouvrent la porte
 // (`_STATUTS_VISITABLES`, backend/prof/demo.py), la durée du jeton (`_VALIDITE`), et la copie du
 // contenu à l'entrée (`_copier_le_gabarit`). Si l'un des trois change, ce texte change avec.
+import { useState } from 'react'
 import FenetrePro from './FenetrePro.jsx'
+import { imprimerApercu } from '../utils/apercuHtml.js'
 
-// Un document qui s'ouvre ailleurs — la même famille que l'icône « Visiter » de l'écran Démos.
-const IconOuvrir = () => (
+// Le globe de l'aperçu mis en forme, et l'imprimante — les mêmes que dans Mes contenus.
+const IconGlobe = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+  </svg>
+)
+
+const IconPrint = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 6 2 18 2 18 9"/>
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
   </svg>
 )
 
@@ -70,44 +81,54 @@ function guideEnHtml() {
     + GUIDE.map(bloc).join('')
 }
 
-// Ouvrir la page en HTML dans un onglet : elle se lit, se garde ouverte, et s'imprime de là —
-// c'est pourquoi il n'y a pas de bouton « Imprimer » ici. Une page écrite dans l'onglet plutôt
-// qu'un fichier téléchargé : rien ne se dépose sur le disque de celui qui veut juste lire.
-function ouvrirEnHtml() {
-  const page = '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
-    + '<title>Démonstrations — comment ça marche</title>'
-    + '<style>body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.7;'
-    + 'font-size:14px;max-width:820px;margin:32px auto;padding:0 20px}'
-    + 'h1{font-size:1.45rem;color:#0f172a;margin:0 0 6px}'
-    + 'h2{font-size:1.05rem;color:#0f172a;margin:1.6em 0 .4em}'
-    + 'ul{margin:.4em 0 .4em 1.2em;padding:0}li{margin:.45em 0}strong{color:#0f172a}</style>'
-    + '</head><body>' + guideEnHtml() + '</body></html>'
-  const onglet = window.open('', '_blank')
-  // Un bloqueur de fenêtres peut refuser : on le dit plutôt que de laisser un clic sans effet.
-  if (!onglet) {
-    window.alert('Votre navigateur a bloqué l’ouverture d’un onglet. Autorisez-la pour cette page, puis réessayez.')
-    return
-  }
-  onglet.document.write(page)
-  onglet.document.close()
+// Norme maison, valable pour les deux fenêtres : un bouton porte son icône et sa bulle d'aide,
+// à hauteur fixe. Posé dans la barre de titre, donc sur le bleu : fond transparent, trait blanc.
+const boutonBarre = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+  height: 26, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+  border: '1px solid rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.12)',
+  color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
 }
 
-export default function GuideDemos({ onFermer }) {
-  // Norme maison : un bouton porte son icône et sa bulle d'aide. Celui-ci vit dans la barre de
-  // titre, à gauche du × — donc sur le bleu : fond transparent, bordure et texte blancs.
-  const bouton = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-    height: 26, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-    border: '1px solid rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.12)',
-    color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
-  }
+// L'aperçu mis en forme : une fenêtre flottante de plus, posée au-dessus de la première
+// (`zIndex` plus haut), avec son bouton « Imprimer » dans sa barre de titre. C'est la même page
+// que celle qu'on imprime — `guideEnHtml()` sert les deux, il n'y a pas deux versions du texte.
+//
+// `dangerouslySetInnerHTML` est sans risque ici : le HTML vient de `GUIDE`, écrit dans ce
+// fichier, jamais d'une saisie ni d'un fournisseur d'IA. La classe `.apercu-corps` (index.css)
+// lui donne la mise en forme de tous les aperçus de l'application.
+function ApercuHtmlGuide({ onFermer }) {
+  const html = guideEnHtml()
   const actions = (
-    <button type="button" style={bouton} onClick={ouvrirEnHtml}
-            title="Ouvrir cette explication dans un onglet — de là, elle s’imprime ou s’enregistre en PDF">
-      <IconOuvrir />Ouvrir en HTML
+    <button type="button" style={boutonBarre} onClick={() => imprimerApercu(html)}
+            title="Imprimer cette page — ou l’enregistrer en PDF depuis la boîte d’impression">
+      <IconPrint />Imprimer
     </button>
   )
   return (
+    <FenetrePro titre="Comment ça marche — aperçu mis en forme" onFermer={onFermer} actions={actions}
+                largeur={Math.min(760, window.innerWidth - 60)} hauteur="min(80vh, 720px)" zIndex={470}>
+      <div className="apercu-corps"
+           style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 14.5 }}
+           dangerouslySetInnerHTML={{ __html: html }} />
+    </FenetrePro>
+  )
+}
+
+export default function GuideDemos({ onFermer }) {
+  // L'aperçu HTML est une SECONDE fenêtre, par-dessus la première — jamais un onglet du
+  // navigateur : dans cette application, un HTML s'ouvre en fenêtre flottante, partout.
+  const [apercu, setApercu] = useState(false)
+
+  const actions = (
+    <button type="button" style={boutonBarre} onClick={() => setApercu(true)}
+            title="Voir cette explication mise en forme, dans une fenêtre à part">
+      <IconGlobe />Ouvrir en HTML
+    </button>
+  )
+  return (
+    <>
+    {apercu && <ApercuHtmlGuide onFermer={() => setApercu(false)} />}
     <FenetrePro titre="Comment fonctionnent les démonstrations" onFermer={onFermer} actions={actions}
                 largeur={Math.min(880, window.innerWidth - 40)} hauteur="min(78vh, 700px)">
       <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1, minHeight: 0,
@@ -126,5 +147,6 @@ export default function GuideDemos({ onFermer }) {
         </div>
       </div>
     </FenetrePro>
+    </>
   )
 }
