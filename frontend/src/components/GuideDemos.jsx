@@ -18,6 +18,15 @@
 // contenu à l'entrée (`_copier_le_gabarit`). Si l'un des trois change, ce texte change avec.
 import FenetrePro from './FenetrePro.jsx'
 
+// Un document qui s'ouvre ailleurs — la même famille que l'icône « Visiter » de l'écran Démos.
+const IconOuvrir = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+  </svg>
+)
+
 const SOUS_TITRE = 'Une démonstration est une base à part, avec sa propre instance. '
   + 'Cet écran tient sa fiche ; il ne l’ouvre jamais.'
 
@@ -84,12 +93,22 @@ function ouvrirEnHtml() {
 }
 
 export default function GuideDemos({ onFermer }) {
-  const lien = {
-    background: 'none', border: 'none', padding: 0, fontSize: 12, color: '#1F6EEB',
-    textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit',
+  // Norme maison : un bouton porte son icône et sa bulle d'aide. Celui-ci vit dans la barre de
+  // titre, à gauche du × — donc sur le bleu : fond transparent, bordure et texte blancs.
+  const bouton = {
+    display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+    height: 26, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    border: '1px solid rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.12)',
+    color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
   }
+  const actions = (
+    <button type="button" style={bouton} onClick={ouvrirEnHtml}
+            title="Ouvrir cette explication dans un onglet — de là, elle s’imprime ou s’enregistre en PDF">
+      <IconOuvrir />Ouvrir en HTML
+    </button>
+  )
   return (
-    <FenetrePro titre="Comment fonctionnent les démonstrations" onFermer={onFermer}
+    <FenetrePro titre="Comment fonctionnent les démonstrations" onFermer={onFermer} actions={actions}
                 largeur={Math.min(880, window.innerWidth - 40)} hauteur="min(78vh, 700px)">
       <div style={{ padding: '14px 16px', overflowY: 'auto', flex: 1, minHeight: 0,
                     display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -104,15 +123,6 @@ export default function GuideDemos({ onFermer }) {
               </ul>
             </div>
           ))}
-        </div>
-
-        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <button type="button" style={lien} onClick={ouvrirEnHtml}
-                  title="Ouvrir cette explication dans un onglet — de là, elle s’imprime ou s’enregistre en PDF">
-            Ouvrir en HTML
-          </button>
         </div>
       </div>
     </FenetrePro>

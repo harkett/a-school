@@ -4,8 +4,12 @@ import { useState, useRef } from 'react'
 // UNIQUE : déplaçable par sa barre de titre, étirable par le coin bas-droit, sans voile
 // (on continue de voir et toucher l'écran derrière). « Comment ça marche » et « Feedback »
 // l'utilisent ; toute future fenêtre aussi — la mécanique n'est écrite qu'ICI.
+// `actions` : les boutons propres à la fenêtre, posés dans la barre de titre À GAUCHE du ×.
+// Règle maison : ils restent visibles quoi qu'il arrive au contenu — on n'a pas à faire défiler
+// pour retrouver le geste principal d'une fenêtre.
 export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = 'min(72vh, 640px)',
-                                     minWidth = 340, minHeight = 240, zIndex = 450, children }) {
+                                     minWidth = 340, minHeight = 240, zIndex = 450,
+                                     actions = null, children }) {
   const [pos, setPos] = useState({ x: Math.max(12, window.innerWidth - largeur - 28), y: 90 })
   const dragRef = useRef(null)   // décalage souris→coin pendant le glisser
   // « On est en train de glisser » est une chose QUI SE VOIT (le curseur passe en main fermée) :
@@ -55,15 +59,18 @@ export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = '
         }}
       >
         <div style={{ fontWeight: 700, fontSize: 13 }}>{titre}</div>
-        <button
-          type="button"
-          onClick={onFermer}
-          title="Fermer la fenêtre"
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, lineHeight: 1,
-                   cursor: 'pointer', padding: '0 2px', fontFamily: 'inherit' }}
-        >
-          ×
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {actions}
+          <button
+            type="button"
+            onClick={onFermer}
+            title="Fermer la fenêtre"
+            style={{ background: 'none', border: 'none', color: '#fff', fontSize: 18, lineHeight: 1,
+                     cursor: 'pointer', padding: '0 2px', fontFamily: 'inherit' }}
+          >
+            ×
+          </button>
+        </div>
       </div>
       {/* Le contenu remplit la fenêtre et défile ; il grandit avec l'étirement. */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
