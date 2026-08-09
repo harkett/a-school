@@ -113,11 +113,15 @@ const PROCEDURE = [
         + '  backend alembic upgrade head' },
 
   { n: 2, titre: 'Le niveau d’abord, le référentiel ensuite',
-    texte: '**Le niveau peut ne pas exister du tout dans la base neuve, et son identifiant peut y désigner autre chose.** Les migrations sèment les niveaux ; celui qui a été ajouté à la main dans le réel n’y est pas, et son id est déjà pris. Le BTS CRSA en est la démonstration : `niveau_id = 89` dans le réel, mais 89 est « Licence Droit » dans une base neuve — copié tel quel, le référentiel arrive rattaché à une licence de droit, sans une erreur. On crée donc le niveau **avant** la copie, et on réécrit `niveau_id` **après**. Le reste passe tel quel, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` — elles se prennent par jointure sur leur type, d’où leur ligne à part.',
-    code: '# a) le niveau — comparer AVANT de copier, le recréer s’il manque\n'
-        + 'docker compose exec -T db psql -U aschool -d aschool_dev -tAc "select id,nom,cycle_id,ordre from niveaux where id=<NIV_REEL>;"\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo    -tAc "select id,nom from niveaux where nom=\'<NIVEAU>\';"\n'
-        + '#   s’il manque : insert into niveaux (nom, cycle_id, ordre) values (\'<NIVEAU>\',<CYCLE>,<ORDRE>) returning id;\n'
+    texte: '**Aucun numéro de niveau ne traverse d’une base à l’autre.** Le niveau peut ne pas exister du tout dans la base neuve, et son numéro peut y désigner autre chose : les migrations sèment les niveaux, mais celui qui a été ajouté à la main dans le réel n’y est pas, et sa place est déjà prise. Le BTS CRSA en est la démonstration — `niveau_id = 89` dans le réel, « Licence Droit » dans une base neuve : copié tel quel, le référentiel arrive rattaché à une licence de droit, sans une erreur. On lit donc le niveau **par son nom des deux côtés**, on le crée s’il manque — cycle résolu par son nom lui aussi — et on rattache par une sous-requête, jamais par un chiffre recopié. C’est la règle que l’application applique déjà : le jeton du prof transporte des noms, pas des identifiants (`backend/prof/demo.py`). Si le cycle n’existait pas non plus, l’insertion casse sur la contrainte `NOT NULL` : bruyamment, et c’est ce qu’on veut. Le reste passe tel quel, vecteurs compris — on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` : elles se prennent par jointure sur leur type, d’où leur ligne à part.',
+    code: '# a) le niveau — lu PAR NOM des deux côtés, créé s’il manque. Rejouable sans risque.\n'
+        + 'docker compose exec -T db psql -U aschool -d aschool_dev -tAc "\n'
+        + '  select n.nom, c.nom, n.ordre from niveaux n join cycles c on c.id=n.cycle_id\n'
+        + '   where n.nom=\'<NIVEAU>\';"   # relève <CYCLE_NOM> et <ORDRE>\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
+        + '  insert into niveaux (nom, cycle_id, ordre)\n'
+        + '  select \'<NIVEAU>\', (select id from cycles where nom=\'<CYCLE_NOM>\'), <ORDRE>\n'
+        + '   where not exists (select 1 from niveaux where nom=\'<NIVEAU>\');"\n'
         + '\n'
         + '# b) les quatre tables filtrées sur le référentiel\n'
         + 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\n'
@@ -132,11 +136,13 @@ const PROCEDURE = [
         + '  JOIN types_activite t ON t.id=p.type_activite_id WHERE t.referentiel_id=<REF>) TO STDOUT" > /tmp/prec.tsv\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy referentiel_type_precisions FROM STDIN" < /tmp/prec.tsv\n'
         + '\n'
-        + '# d) LE RATTACHEMENT — sans cette ligne, le référentiel pointe le mauvais niveau\n'
+        + '# d) LE RATTACHEMENT — par le nom. Sans cette ligne, le référentiel garde le numéro du réel.\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + '  update referentiels set niveau_id=<NIV_DEMO> where id=<REF>;\n'
+        + '  update referentiels\n'
+        + '     set niveau_id=(select id from niveaux where nom=\'<NIVEAU>\')\n'
+        + '   where id=<REF>;\n'
         + '  select r.id, n.nom, c.nom from referentiels r join niveaux n on n.id=r.niveau_id\n'
-        + '    join cycles c on c.id=n.cycle_id;"' },
+        + '    join cycles c on c.id=n.cycle_id;"   # doit rendre <NIVEAU>, pas autre chose' },
 
   { n: 3, titre: 'Recaler les compteurs d’identifiants',
     texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon.',
@@ -146,13 +152,14 @@ const PROCEDURE = [
         + 'done' },
 
   { n: 4, titre: 'Le compte modèle, et la clé qui le désigne',
-    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide.',
+    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide. Le niveau se résout par son **nom**, jamais par un numéro : celui du réel ne vaut rien ici. `travail_niveau_id` et `travail_matiere_id` restent vides — le jour où le gabarit les porte, ils se résoudront par nom eux aussi.',
     code: 'HASH=$(docker compose exec -T db psql -U aschool -d ciela_demo -tAc \\\n'
         + '  "select password_hash from users where email=\'demo.btsciela@aschool.fr\';" | tr -d \'\\r\')\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo \\\n'
         + '  -c "insert into users (email, password_hash, is_verified, is_active, failed_attempts,\n'
         + '      guide_creer_vu, prenom, nom, subject_id, niveau_id, created_at) values\n'
-        + '      (\'demo.<nom>@aschool.fr\', \'$HASH\', true, false, 0, false, \'Prof\', \'Démo\', <MATIERE>, <NIVEAU>, now());" \\\n'
+        + '      (\'demo.<nom>@aschool.fr\', \'$HASH\', true, false, 0, false, \'Prof\', \'Démo\', <MATIERE>,\n'
+        + '      (select id from niveaux where nom=\'<NIVEAU>\'), now());" \\\n'
         + '  -c "insert into settings (key, value) values (\'demo_gabarit_email\',\'demo.<nom>@aschool.fr\')\n'
         + '      on conflict (key) do update set value=excluded.value;"' },
 
@@ -161,9 +168,9 @@ const PROCEDURE = [
     code: 'docker compose exec -T db psql -U aschool -d <nom>_demo < demos/<nom>_demo/<nom>_01_sequences.sql' },
 
   { n: 6, titre: 'La pile Docker, puis la fiche',
-    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple — sinon c’est le `DATABASE_URL` qui vise la mauvaise base. La fiche se met à jour depuis cet écran : statut, adresse, compteurs, date.',
+    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple, et la vérification l’**exige** au lieu de se contenter de ne pas voir d’erreur : la route rend `couple: null` plutôt qu’un mauvais couple, et un vide passerait pour un silence. S’il ne colle pas, c’est le `DATABASE_URL` qui vise la mauvaise base, ou le rattachement du temps 2 qui a manqué. Le test porte sur le nom du niveau seul : le séparateur `·` n’est pas de l’ASCII, une console qui le transcode mal ferait échouer une copie pourtant juste. La fiche se met à jour depuis cet écran : statut, adresse, compteurs, date.',
     code: 'docker compose up -d backend_demo_<x> frontend_demo_<x>\n'
-        + 'curl -s http://localhost:<PORT_API>/api/demo/etat   # {"mode_demo":true,"couple":"…"}' },
+        + 'curl -s http://localhost:<PORT_API>/api/demo/etat | grep -q \'<NIVEAU>\' && echo "couple correct" || echo "COPIE FAUSSE"' },
 
   { n: 7, titre: 'Contrôler avant de dire que c’est fait',
     texte: 'Tout doit rendre **zéro**. Puis ouvrir la démonstration par **Visiter**, parcourir une séquence, une séance et deux activités, et vérifier le filigrane — écran, impression, Word et PDF.',
