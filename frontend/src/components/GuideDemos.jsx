@@ -9,15 +9,14 @@
 // à côté pendant qu'on remplit une fiche, s'imprime et s'emporte. Elle réutilise `FenetrePro`,
 // la coquille unique de l'application — déplaçable par sa barre de titre, étirable par le coin.
 //
-// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE`. Il sert à trois sorties — la fenêtre, la page
-// imprimée et le fichier HTML — et un balisage minimal (**gras**) évite d'injecter du HTML dans
-// le JSX pour obtenir un mot en gras.
+// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE`. Il sert à la fenêtre ET à la page HTML qu'on
+// ouvre dans un onglet, et un balisage minimal (**gras**) évite d'injecter du HTML dans le JSX
+// pour obtenir un mot en gras. L'impression n'a pas de bouton : elle se fait depuis l'onglet.
 //
 // Tout ce qui y est affirmé se vérifie dans le code : les statuts qui ouvrent la porte
 // (`_STATUTS_VISITABLES`, backend/prof/demo.py), la durée du jeton (`_VALIDITE`), et la copie du
 // contenu à l'entrée (`_copier_le_gabarit`). Si l'un des trois change, ce texte change avec.
 import FenetrePro from './FenetrePro.jsx'
-import { imprimerApercu } from '../utils/apercuHtml.js'
 
 const SOUS_TITRE = 'Une démonstration est une base à part, avec sa propre instance. '
   + 'Cet écran tient sa fiche ; il ne l’ouvre jamais.'
@@ -51,8 +50,8 @@ function gras(texte) {
   ))
 }
 
-// Le même texte pour le papier et pour le fichier : les trois blocs à la suite, jamais en
-// colonnes — sur une feuille, trois colonnes obligent à remonter deux fois en haut de page.
+// Le même texte pour la page ouverte en onglet : les trois blocs à la suite, jamais en colonnes
+// — à l'impression, trois colonnes obligeraient à remonter deux fois en haut de page.
 function guideEnHtml() {
   const enGras = t => t.split('**').map((x, i) => (i % 2 ? '<strong>' + x + '</strong>' : x)).join('')
   const bloc = b => '<h2>' + b.titre + '</h2><ul>'
@@ -62,9 +61,10 @@ function guideEnHtml() {
     + GUIDE.map(bloc).join('')
 }
 
-// Enregistrer la page en HTML : un fichier autonome, lisible hors de l'application, qu'on peut
-// envoyer à quelqu'un qui n'a pas accès à l'administration.
-function enregistrerEnHtml() {
+// Ouvrir la page en HTML dans un onglet : elle se lit, se garde ouverte, et s'imprime de là —
+// c'est pourquoi il n'y a pas de bouton « Imprimer » ici. Une page écrite dans l'onglet plutôt
+// qu'un fichier téléchargé : rien ne se dépose sur le disque de celui qui veut juste lire.
+function ouvrirEnHtml() {
   const page = '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
     + '<title>Démonstrations — comment ça marche</title>'
     + '<style>body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;line-height:1.7;'
@@ -73,16 +73,14 @@ function enregistrerEnHtml() {
     + 'h2{font-size:1.05rem;color:#0f172a;margin:1.6em 0 .4em}'
     + 'ul{margin:.4em 0 .4em 1.2em;padding:0}li{margin:.45em 0}strong{color:#0f172a}</style>'
     + '</head><body>' + guideEnHtml() + '</body></html>'
-  const url = URL.createObjectURL(new Blob([page], { type: 'text/html;charset=utf-8' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'demonstrations-comment-ca-marche.html'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // Le navigateur a besoin de l'URL le temps du clic ; on la rend juste après, sinon le Blob
-  // reste en mémoire jusqu'au rechargement de la page.
-  setTimeout(() => URL.revokeObjectURL(url), 0)
+  const onglet = window.open('', '_blank')
+  // Un bloqueur de fenêtres peut refuser : on le dit plutôt que de laisser un clic sans effet.
+  if (!onglet) {
+    window.alert('Votre navigateur a bloqué l’ouverture d’un onglet. Autorisez-la pour cette page, puis réessayez.')
+    return
+  }
+  onglet.document.write(page)
+  onglet.document.close()
 }
 
 export default function GuideDemos({ onFermer }) {
@@ -111,13 +109,9 @@ export default function GuideDemos({ onFermer }) {
         <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <button type="button" style={lien} onClick={() => imprimerApercu(guideEnHtml())}
-                  title="Imprimer cette explication — ou l’enregistrer en PDF depuis la boîte d’impression">
-            Imprimer
-          </button>
-          <button type="button" style={lien} onClick={enregistrerEnHtml}
-                  title="Enregistrer un fichier HTML autonome, lisible hors de l’application">
-            Enregistrer en HTML
+          <button type="button" style={lien} onClick={ouvrirEnHtml}
+                  title="Ouvrir cette explication dans un onglet — de là, elle s’imprime ou s’enregistre en PDF">
+            Ouvrir en HTML
           </button>
         </div>
       </div>
