@@ -9,6 +9,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import GuideDemos from '../components/GuideDemos.jsx'
 
 // Les cinq statuts, du vide au livrable. Le mot affiché est celui qu'on prononce ; la valeur
 // stockée reste celle de la base (`a_faire`…), jamais traduite en dur ailleurs.
@@ -44,6 +45,14 @@ const IconVisiter = () => (
   </svg>
 )
 
+const IconAide = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+)
+
 const champ = {
   height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid #cbd5e1',
   fontSize: 12.5, color: '#0f172a', background: '#fff', width: '100%', boxSizing: 'border-box',
@@ -75,6 +84,8 @@ export default function AdminBaseDemos() {
   const [edition, setEdition] = useState(null)   // { id: number | 'nouveau', ...champs }
   // Erreur d'ÉCRITURE seulement (enregistrer / retirer) : celle de la lecture vient de useQuery.
   const [erreurEcriture, setErreurEcriture] = useState('')
+  // « Comment ça marche » : replié par défaut, il n'encombre que celui qui l'ouvre.
+  const [guide, setGuide] = useState(false)
 
   // La lecture passe par react-query, comme les autres écrans de l'admin (AdminAlertes,
   // AdminContenu…). Elle y a gagné une correction et pas seulement une mise au motif : le
@@ -173,6 +184,7 @@ export default function AdminBaseDemos() {
 
   return (
     <div className="flex flex-col gap-6">
+      {guide && <GuideDemos onFermer={() => setGuide(false)} />}
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -183,18 +195,29 @@ export default function AdminBaseDemos() {
               leur propre base.
             </p>
           </div>
-          <button
-            type="button"
-            style={btnAjouter(busy || !!edition || libres.length === 0)}
-            disabled={busy || !!edition || libres.length === 0}
-            onClick={() => setEdition({ id: 'nouveau', ...VIDE })}
-            title={libres.length === 0
-              ? 'Tous les référentiels ont déjà leur démonstration'
-              : 'Déclarer une démonstration pour un référentiel qui n’en a pas encore'}
-          >
-            + Déclarer une démonstration
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              style={btnNeutre(false)}
+              onClick={() => setGuide(true)}
+              title="Ce qu’est une démonstration, ce que cet écran pilote, et ce que le prof en voit"
+            >
+              <IconAide />Comment ça marche
+            </button>
+            <button
+              type="button"
+              style={btnAjouter(busy || !!edition || libres.length === 0)}
+              disabled={busy || !!edition || libres.length === 0}
+              onClick={() => setEdition({ id: 'nouveau', ...VIDE })}
+              title={libres.length === 0
+                ? 'Tous les référentiels ont déjà leur démonstration'
+                : 'Déclarer une démonstration pour un référentiel qui n’en a pas encore'}
+            >
+              + Déclarer une démonstration
+            </button>
+          </div>
         </div>
+
 
         {erreur && (
           <div style={{ fontSize: 12.5, color: '#b91c1c', background: '#fef2f2',
