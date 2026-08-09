@@ -236,6 +236,49 @@ services:
     depends_on:
       - backend_demo_b
 
+  # ── Troisième démonstration : la CRÈCHE (creche_demo) ────────────────────────
+  # Même pile que les deux précédentes, une base de plus. Le référentiel d'éveil
+  # 0-3 ans y est copié tel quel depuis la base réelle — unités et vecteurs
+  # compris — et le contenu pédagogique a été écrit à la main.
+  backend_demo_c:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ENV: development
+      # LA ligne qui distingue cette pile des deux autres : la base de la crèche.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/creche_demo
+      MODE_DEMO: "1"
+      OMP_NUM_THREADS: "8"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8004:8001"
+    volumes:
+      - .:/app
+      - ./docker/hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend_demo_c:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend_demo_c   # le proxy vise le backend de la démonstration crèche
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5176"
+    ports:
+      - "5176:5176"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend_demo_c
+
 # Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
 # survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.
 volumes:
