@@ -91,13 +91,18 @@ const ADMIN_ETAPES = [
 ]
 
 // FABRIQUER, SECONDE MOITIÉ : ce que fait le DEV, en ligne de commande. La recette telle qu'elle a
-// été suivie pour les trois démonstrations existantes. Elle ne coûte rien : le référentiel se
+// été suivie pour les quatre démonstrations existantes. Elle ne coûte rien : le référentiel se
 // COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait rater au moins une fois —
 // c'est là que la procédure gagne son utilité.
+//
+// LE TEMPS 2 A CHANGÉ APRÈS LE BTS CRSA. Il disait « vérifier l'identifiant du niveau » ; c'était
+// trop faible, et la commande donnée ne copiait même pas les précisions. Le CRSA a montré le cas
+// réel : son niveau n'existe pas dans une base neuve, et son id y désigne une licence de droit.
+// Le référentiel copié tel quel s'est rattaché à la mauvaise chose, sans une seule erreur.
 const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
   + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
   + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
-  + '8003/5175 et 8004/5176 sont pris.'
+  + '8003/5175, 8004/5176 et 8005/5177 sont pris.'
 
 const PROCEDURE = [
   { n: 1, titre: 'La base et son schéma',
@@ -107,14 +112,31 @@ const PROCEDURE = [
         + 'docker compose exec -T -e DATABASE_URL=postgresql+psycopg://aschool:aschool@db:5432/<nom>_demo \\\n'
         + '  backend alembic upgrade head' },
 
-  { n: 2, titre: 'Copier le référentiel, vecteurs compris',
-    texte: 'Les migrations ont déjà semé les cycles et les niveaux : **vérifier l’identifiant du niveau avant de copier**, `referentiels.niveau_id` en dépend. Les vecteurs passent tels quels — on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` : elles se prennent par jointure sur leur type.',
-    code: 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\n'
+  { n: 2, titre: 'Le niveau d’abord, le référentiel ensuite',
+    texte: '**Le niveau peut ne pas exister du tout dans la base neuve, et son identifiant peut y désigner autre chose.** Les migrations sèment les niveaux ; celui qui a été ajouté à la main dans le réel n’y est pas, et son id est déjà pris. Le BTS CRSA en est la démonstration : `niveau_id = 89` dans le réel, mais 89 est « Licence Droit » dans une base neuve — copié tel quel, le référentiel arrive rattaché à une licence de droit, sans une erreur. On crée donc le niveau **avant** la copie, et on réécrit `niveau_id` **après**. Le reste passe tel quel, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` — elles se prennent par jointure sur leur type, d’où leur ligne à part.',
+    code: '# a) le niveau — comparer AVANT de copier, le recréer s’il manque\n'
+        + 'docker compose exec -T db psql -U aschool -d aschool_dev -tAc "select id,nom,cycle_id,ordre from niveaux where id=<NIV_REEL>;"\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo    -tAc "select id,nom from niveaux where nom=\'<NIVEAU>\';"\n'
+        + '#   s’il manque : insert into niveaux (nom, cycle_id, ordre) values (\'<NIVEAU>\',<CYCLE>,<ORDRE>) returning id;\n'
+        + '\n'
+        + '# b) les quatre tables filtrées sur le référentiel\n'
+        + 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\n'
         + '         "types_activite|referentiel_id=<REF>" "referentiel_chunks|referentiel_id=<REF>"; do\n'
         + '  TABLE="${T%%|*}"; WHERE="${T##*|}"\n'
         + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT * FROM $TABLE WHERE $WHERE) TO STDOUT" > /tmp/$TABLE.tsv\n'
         + '  docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy $TABLE FROM STDIN" < /tmp/$TABLE.tsv\n'
-        + 'done' },
+        + 'done\n'
+        + '\n'
+        + '# c) les précisions — aucun referentiel_id, jointure sur le type\n'
+        + 'docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT p.* FROM referentiel_type_precisions p\n'
+        + '  JOIN types_activite t ON t.id=p.type_activite_id WHERE t.referentiel_id=<REF>) TO STDOUT" > /tmp/prec.tsv\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy referentiel_type_precisions FROM STDIN" < /tmp/prec.tsv\n'
+        + '\n'
+        + '# d) LE RATTACHEMENT — sans cette ligne, le référentiel pointe le mauvais niveau\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
+        + '  update referentiels set niveau_id=<NIV_DEMO> where id=<REF>;\n'
+        + '  select r.id, n.nom, c.nom from referentiels r join niveaux n on n.id=r.niveau_id\n'
+        + '    join cycles c on c.id=n.cycle_id;"' },
 
   { n: 3, titre: 'Recaler les compteurs d’identifiants',
     texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon.',

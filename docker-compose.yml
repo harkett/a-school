@@ -279,6 +279,52 @@ services:
     depends_on:
       - backend_demo_c
 
+  # ── Quatrième démonstration : le BTS CRSA (crsa_demo) ────────────────────────
+  # Le plus gros référentiel des quatre : 140 unités de découpe contre 57 pour un
+  # CIEL. Copié tel quel depuis la base réelle, vecteurs compris. ATTENTION, un
+  # piège propre à celui-ci : le niveau « BTS CRSA » n'est pas semé par les
+  # migrations — il a été créé à la main dans la base réelle, où il porte l'id 89.
+  # Dans une base neuve, l'id 89 est « Licence Droit ». Le niveau a donc été
+  # recréé ici et `referentiels.niveau_id` réécrit après la copie.
+  backend_demo_d:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ENV: development
+      # LA ligne qui distingue cette pile des trois autres : la base du BTS CRSA.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/crsa_demo
+      MODE_DEMO: "1"
+      OMP_NUM_THREADS: "8"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8005:8001"
+    volumes:
+      - .:/app
+      - ./docker/hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend_demo_d:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend_demo_d   # le proxy vise le backend de la démonstration CRSA
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5177"
+    ports:
+      - "5177:5177"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend_demo_d
+
 # Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
 # survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.
 volumes:
