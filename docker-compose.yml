@@ -325,6 +325,55 @@ services:
     depends_on:
       - backend_demo_d
 
+  # ── Cinquième démonstration : la Licence Ergothérapie (ergo_demo) ────────────
+  # Référentiel 20, 69 unités de découpe, six matières qui sont les six domaines
+  # d'unités d'enseignement du diplôme (UE 1.x à UE 6.x). Copié tel quel depuis la
+  # base réelle, vecteurs compris.
+  # LE PIÈGE, ici, s'est présenté autrement que pour le BTS CRSA : le niveau
+  # « Licence Ergothérapie » EXISTE dans une base neuve — les migrations le sèment
+  # parmi les onze mentions de licence — mais il y porte l'id 99 quand la base
+  # réelle lui donne le 100. La copie telle quelle échoue sur la clé étrangère,
+  # bruyamment, et c'est ce qu'on veut : `referentiels.niveau_id` a été résolu PAR
+  # LE NOM avant l'insertion, jamais recopié.
+  backend_demo_e:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ENV: development
+      # LA ligne qui distingue cette pile des quatre autres : la base de l'ergothérapie.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/ergo_demo
+      MODE_DEMO: "1"
+      OMP_NUM_THREADS: "8"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8006:8001"
+    volumes:
+      - .:/app
+      - ./docker/hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend_demo_e:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend_demo_e   # le proxy vise le backend de la démonstration Ergothérapie
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5178"
+    ports:
+      - "5178:5178"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend_demo_e
+
 # Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
 # survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.
 volumes:

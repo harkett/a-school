@@ -253,7 +253,7 @@ class Sequence(Base):
     contexte: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     ampleur: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")      # ampleur souhaitée, libre : « une dizaine de séances », « sur deux ans »…
     competences: Mapped[str] = mapped_column(Text, nullable=False, default="[]", server_default="[]")  # liste JSON de chaînes
-    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    matiere: Mapped[str | None] = mapped_column(String(80), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, onupdate=maintenant_utc, nullable=False)
@@ -316,7 +316,7 @@ class Seance(Base):
     # thème »…) → Text, jamais borné (un thème réel dépasse facilement 300 caractères).
     titre: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    matiere: Mapped[str | None] = mapped_column(String(80), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     duree_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Le FORMULAIRE de l'écran Séance, en entier : chaque champ vit en base (reprise complète).
@@ -371,7 +371,7 @@ class Activite(Base):
     nb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     avec_correction: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default='0')
     objet: Mapped[str | None] = mapped_column(String(150), nullable=True)
-    matiere: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    matiere: Mapped[str | None] = mapped_column(String(80), nullable=True)
     niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ton: Mapped[str | None] = mapped_column(String(32), nullable=True)
     texte_source: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
