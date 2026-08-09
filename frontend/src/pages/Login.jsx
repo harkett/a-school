@@ -62,7 +62,7 @@ export default function Login() {
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
 
       <header style={{ backgroundColor: 'var(--bleu)', height: 65, overflow: 'hidden', display: 'flex', alignItems: 'center', padding: '0 24px' }}>
-        <img src="/Logo_aSchool_blanc.png" alt="aSchool" style={{ height: 140, width: 'auto' }} />
+        <img src="/Logo_aSchool_blanc.png" alt="aSchool" style={{ height: 34, width: 'auto' }} />
       </header>
 
       <div className="flex-1 flex items-center justify-center p-6">
