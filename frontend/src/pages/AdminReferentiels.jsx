@@ -328,6 +328,14 @@ export default function AdminReferentiels() {
   // MÉTA-PROMPT des TYPES : le troisième jumeau. Deux endroits possibles — la case de ce niveau
   // (referentiels.prompt_meta_types) — seule source depuis le 08/08/2026 ; le
   // serveur dit lequel sert (`metaTypesSource`). Lu à la demande, à l'ouverture de la fenêtre.
+  // LE GABARIT DES PROMPTS DE TYPE (`prompt_gabarit_type`, registre des prompts d'outils).
+  // C'est le prompt QUI FABRIQUE les prompts : à la création d'un type — détection ou ajout à la
+  // main — il est recopié avec {label} et {niveau} remplis, et le résultat devient le prompt de
+  // génération de ce type. Il n'appartient donc à aucun type en particulier : sa place est au
+  // BAS de la cartouche, pas sur une ligne. Lecture seule, aucun appel d'IA.
+  const [gabaritOuvert, setGabaritOuvert] = useState(false)
+  const [gabarit, setGabarit] = useState(null)        // null = pas encore lu
+  const [gabaritEnBase, setGabaritEnBase] = useState(false)
   const [metaTypesOuvert, setMetaTypesOuvert] = useState(false)
   const [metaTypes, setMetaTypes] = useState(null)       // null = pas encore lu pour ce couple
   const [metaTypesSource, setMetaTypesSource] = useState('')  // 'referentiel' | 'aucun'
@@ -631,6 +639,21 @@ export default function AdminReferentiels() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { setMetaDecoupe(d && typeof d.prompt === 'string' ? d.prompt : ''); setMetaDecoupeSource(d ? d.source : '') })
       .catch(() => { setMetaDecoupe(''); setMetaDecoupeSource('') })
+  }
+
+  // Ouvre la fenêtre du GABARIT et le lit au passage, dans le registre des prompts d'outils
+  // (`GET /api/admin/prompts`, la même source que l'écran Prompts). Aucune IA : lecture seule.
+  function ouvrirGabaritType() {
+    setGabaritOuvert(true)
+    if (gabarit !== null) return   // déjà lu
+    fetchWithTimeout('/api/admin/prompts', { credentials: 'include' }, TIMEOUT_STD)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const ligne = (d && d.prompts ? d.prompts : []).find(x => x.key === 'gabarit_type')
+        setGabarit(ligne ? (ligne.current || '') : '')
+        setGabaritEnBase(!!(ligne && ligne.en_base))
+      })
+      .catch(() => { setGabarit(''); setGabaritEnBase(false) })
   }
 
   // Ouvre la fenêtre du méta-prompt des TYPES et le lit au passage. Aucune IA : c'est de la lecture.
@@ -2429,14 +2452,26 @@ export default function AdminReferentiels() {
           {/* Zone d'ajout MANUEL (champ + bouton) : le libellé crée un type DANS CE référentiel,
               retenu d'emblée (badge ADMIN). Rien n'est écrit ailleurs — aucun autre document ne
               le verra jamais. */}
-          <div style={{ display: 'flex', gap: 8, maxWidth: 480 }}>
-            <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') ajouterType(typesNouveau) }}
-              placeholder="Ajouter un type d'activité à ce référentiel…"
-              style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
-            <button onClick={() => ajouterType(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
-              style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
-              title="Ajouter ce type d'activité à ce référentiel (il est au programme d'emblée)"><span aria-hidden="true">＋</span> Ajouter</button>
+          {/* LE GABARIT tient sur CETTE MÊME LIGNE, poussé à droite : il ne concerne aucun type
+              en particulier — c'est lui qui écrit le prompt de CHACUN, au moment où le type est
+              créé. Il ferme donc la ligne d'ajout au lieu d'occuper une ligne pour lui seul.
+              Lecture seule, gratuite. Même hauteur que ses deux voisins (règle maison). */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flex: '1 1 480px', maxWidth: 480 }}>
+              <input value={typesNouveau} onChange={e => setTypesNouveau(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') ajouterType(typesNouveau) }}
+                placeholder="Ajouter un type d'activité à ce référentiel…"
+                style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 }} />
+              <button onClick={() => ajouterType(typesNouveau)} disabled={typesBusy || !typesNouveau.trim()}
+                style={btnTypes('#16a34a', typesBusy || !typesNouveau.trim())}
+                title="Ajouter ce type d'activité à ce référentiel (il est au programme d'emblée)"><span aria-hidden="true">＋</span> Ajouter</button>
+            </div>
+            <button type="button" className="btn-secondary"
+              style={{ marginLeft: 'auto', fontSize: 12, height: 36, padding: '0 12px', whiteSpace: 'nowrap' }}
+              title="Voir le gabarit : le prompt qui FABRIQUE le prompt de génération de chaque type, au moment où le type est créé (lecture seule)"
+              onClick={ouvrirGabaritType}>
+              <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Gabarit des prompts
+            </button>
           </div>
           </>)}
         </div>
@@ -2718,6 +2753,45 @@ export default function AdminReferentiels() {
 
       {/* Fenêtre du MÉTA-PROMPT DES TYPES — LECTURE SEULE, troisième jumelle. Comme la découpe,
           ce texte peut venir de deux endroits, et la fenêtre dit lequel sert. */}
+      {gabaritOuvert && (
+        <div onClick={() => setGabaritOuvert(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, width: '90%', maxWidth: 900, height: '88vh',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 10, padding: '10px 14px', borderBottom: '1px solid #e2e8f0' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                Gabarit du prompt de génération d’un type
+                <span style={{ fontWeight: 400, color: '#94a3b8' }}>(commun à tous les référentiels)</span>
+                <span style={{ fontSize: 11, fontWeight: 700,
+                  color: gabarit === null ? '#94a3b8' : gabaritEnBase ? '#166534' : '#A63045' }}>
+                  {gabarit === null ? '● lecture…' : gabaritEnBase ? '● en base' : '● absent de la base (texte de référence)'}
+                </span>
+              </span>
+              <button type="button" onClick={() => setGabaritOuvert(false)} title="Fermer"
+                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            </div>
+            <pre style={{ flex: 1, overflow: 'auto', margin: 0, padding: 14, fontSize: 12,
+              color: '#334155', whiteSpace: 'pre-wrap', background: '#f8fafc' }}>
+              {gabarit === null ? 'Lecture du gabarit…' : (gabarit.trim() || 'Aucun gabarit lisible.')}
+            </pre>
+            <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
+              fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
+              <strong>Lecture seule.</strong> Ce texte n’est pas envoyé à une IA : il est RECOPIÉ à la
+              création d’un type, <code>{'{label}'}</code> et <code>{'{niveau}'}</code> remplis au
+              passage, pour devenir le prompt de génération de ce type. <code>{'{texte}'}</code> et
+              <code>{' {referentiel}'}</code> restent intacts — c’est la génération du professeur qui
+              les remplira. Le retoucher ne réécrit AUCUN prompt déjà posé : seuls les types créés
+              ensuite en héritent. Pour le modifier : <strong>Prompts</strong> → catégorie
+              <strong> Admin</strong>, ligne « gabarit_type ».
+            </div>
+          </div>
+        </div>
+      )}
+
       {metaTypesOuvert && (
         <div onClick={() => setMetaTypesOuvert(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
