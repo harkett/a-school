@@ -14,9 +14,8 @@ from backend.core.limiter import (
 )
 from backend.core.models_db import ConnexionLog, User
 from backend.core.resolution_couple import matiere_nom_de_id, niveau_nom_de_id
-from backend.prof.profil import (MSG_MAJ_EN_COURS, blocage_generation, couple_de_travail,
-                                 couple_est_au_programme, matiere_demande_langue, message_a_lire,
-                                 message_de_fin, profil_en_travaux)
+from backend.prof.profil import (couple_de_travail, couple_est_au_programme,
+                                 matiere_demande_langue)
 
 router = APIRouter()
 
@@ -119,14 +118,10 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     _set_cookies(response, access, refresh)
     db.add(ConnexionLog(email=user.email, user_id=user.id, action="login", ip=request.client.host if request.client else None))
     db.commit()
-    return {
-        "email":     user.email,
-        "subject":   matiere_nom_de_id(db, user.subject_id),
-        "prenom":    user.prenom,
-        "nom":       user.nom,
-        "niveau":    niveau_nom_de_id(db, user.niveau_id),
-        "langue_lv": user.langue_lv,
-    }
+    # LA MÊME fiche que /auth/me, et pas une version courte : l'écran pose cette réponse comme
+    # utilisateur connecté sans rappeler /auth/me derrière. Tout champ absent ici manquait à
+    # l'application jusqu'au prochain rechargement de page.
+    return fiche_utilisateur(db, user, user.email)
 
 
 @router.post("/auth/resend-verification")
@@ -239,11 +234,29 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     if not email:
         raise HTTPException(401, "Session expirée.")
     user = db.query(User).filter(User.email == email).first()
+    return fiche_utilisateur(db, user, email)
+
+
+def fiche_utilisateur(db: Session, user: User | None, email: str) -> dict:
+    """LA fiche du prof telle que l'écran la lit — une seule, pour /auth/me ET pour /auth/login.
+
+    POURQUOI ELLE EST DEVENUE UNE FONCTION (07/08/2026). `/auth/login` rendait sa propre fiche,
+    plus courte de six champs : ni `travail_matiere`, ni `travail_niveau`, ni `profil_coherent`.
+    L'écran pose pourtant cette réponse TELLE QUELLE comme utilisateur connecté (Login.jsx →
+    setUser) et n'appelle plus `/auth/me` derrière. Conséquence, à chaque connexion : le couple
+    de travail valait « vide », le header ne l'affichait pas, et l'écran de création n'allait
+    même pas chercher ses types d'activité — la cartouche « Paramètres » restait absente. Seul
+    un F5 réparait, parce qu'il relit `/auth/me`. Deux fiches pour un même prof, c'était une
+    divergence qui ne pouvait que se creuser : il n'y en a plus qu'une.
+
+    `email` est passé séparément : à la connexion il vient du compte authentifié, dans /auth/me
+    du jeton — et la fonction doit répondre même quand `user` est introuvable (compte effacé
+    pendant la session), sans inventer d'identité."""
     # Couple de TRAVAIL résolu EN BASE (travail si posé, sinon profil) — LA lecture unique :
     # le header et l'écran Créer affichent CE couple, le serveur génère avec CE couple.
-    # garde=False : /auth/me doit RAPPORTER une mise à jour en cours, pas échouer dessus — c'est
+    # /auth/me lit et rapporte, il ne refuse jamais :
     # lui qui fait s'afficher le message au prof.
-    tm, tn, ajuste = couple_de_travail(db, user, garde=False) if user else (None, None, False)
+    tm, tn, ajuste = couple_de_travail(db, user) if user else (None, None, False)
 
     # Le couple DU PROFIL (subject_id / niveau_id), pas celui de travail : c'est le profil
     # enregistré qui est en cause, et `couple_ajuste` couvre déjà l'autre cas.
@@ -271,30 +284,7 @@ def get_me(aschool_access: str = Cookie(default=None), db: Session = Depends(get
     profil_coherent = (couple_est_au_programme(db, matiere_profil, niveau_profil)
                        if (matiere_profil and niveau_profil) else None)
 
-    # MISE À JOUR D'UN RÉFÉRENTIEL — trois questions distinctes, trois réponses (prof/profil.py) :
-    #   `blocage`           : ce qu'il doit LIRE — soit « mise à jour en cours » (décidé sur le
-    #                         niveau du couple qu'il utilise), soit « c'est terminé » (décidé sur
-    #                         l'ÉTAT de sa ligne, où qu'il travaille : sinon le second message
-    #                         n'aurait aucun véhicule, la ligne n'étant plus `bloque`).
-    #   `profil_en_travaux` : NE PAS l'envoyer compléter son profil (décidé sur le niveau de son
-    #                         PROFIL). Sa matière manque parce que NOUS l'avons détachée.
-    blocage = None
-    if user:
-        ligne_bloque = blocage_generation(db, user)
-        ligne_lire = message_a_lire(db, user)
-        if ligne_bloque is not None:
-            blocage = {"type": "en_cours", "message": MSG_MAJ_EN_COURS,
-                       "matiere": ligne_bloque.matiere_nom,
-                       "niveau": niveau_nom_de_id(db, ligne_bloque.niveau_id)}
-        elif ligne_lire is not None:
-            blocage = {"type": ligne_lire.resultat or "rebranche",
-                       "message": message_de_fin(ligne_lire),
-                       "matiere": ligne_lire.matiere_nom,
-                       "niveau": niveau_nom_de_id(db, ligne_lire.niveau_id)}
-
     return {
-        "blocage": blocage,
-        "profil_en_travaux": profil_en_travaux(db, user) if user else False,
         "email":     email,
         "subject":   matiere_profil,
         "prenom":    user.prenom    if user else None,

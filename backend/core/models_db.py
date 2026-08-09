@@ -542,35 +542,12 @@ class Cycle(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Prompt de lecture des MATIÈRES, propre à ce cycle. Écrit par l'IA à partir d'un référentiel
-    # du cycle (méta-prompt `prompt_meta_matieres`), relu et validé par l'admin, puis réutilisé par
-    # TOUS les référentiels du cycle : un cycle = une famille de documents bâtis pareil (tous les
-    # BTS ont la même architecture, tous les programmes de collège aussi). NULL = pas encore écrit,
-    # la détection retombe alors sur le prompt général `detecter_matieres`. DONNÉE MÉTIER EN BASE.
-    prompt_matieres: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # false = prompt écrit mais pas encore relu par l'admin → il ne sert PAS (on reste sur le
-    # prompt général). Seul un prompt VALIDÉ remplace le prompt général.
-    prompt_matieres_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
-                                                         server_default="0", default=False)
-    # Prompt de DÉCOUPE du cycle — même raisonnement, même geste : l'ossature d'un référentiel
-    # (activités, compétences, unités certificatives, ce qu'on écarte) est celle de toute la
-    # famille ; seuls les identifiants changent d'un document à l'autre. Écrit par l'IA à partir
-    # du premier référentiel du cycle (méta-prompt `prompt_meta_decoupe`), puis réutilisé par tous.
-    # NULL = pas encore écrit. DONNÉE MÉTIER EN BASE.
-    prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # false = écrit par l'IA, pas encore relu par l'admin. Comme pour les matières, le prompt SERT
-    # dès qu'il existe : ce drapeau dit seulement s'il a été relu.
-    prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
-                                                        server_default="0", default=False)
-    # Prompt de lecture des TYPES D'ACTIVITÉ, propre à ce cycle (05/08/2026). MÊME RÈGLE que les
-    # deux précédents : la DONNÉE (le type) appartient au référentiel, la RECETTE (le prompt qui la
-    # lit) appartient au cycle — une famille de documents bâtis pareil se lit avec la même recette.
-    # Écrit par l'IA au premier référentiel du cycle (méta-prompt `prompt_meta_types`). NULL = pas
-    # encore écrit, la détection retombe sur le prompt général `detecter_types_activite`.
-    prompt_types: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # false = écrit par l'IA, pas encore relu par l'admin. Le prompt SERT dès qu'il existe.
-    prompt_types_valide: Mapped[bool] = mapped_column(Boolean, nullable=False,
-                                                      server_default="0", default=False)
+    # Le cycle ne porte PLUS AUCUN PROMPT depuis le 06/08/2026. Les trois (matières, découpe,
+    # types) vivent sur le RÉFÉRENTIEL : `Referentiel.prompt_matieres`, `.prompt_decoupe`,
+    # `.prompt_types` — un jeu par couple cycle+niveau. Ils étaient rangés ici parce qu'un cycle
+    # ressemble à une famille de documents bâtis pareil ; c'est faux, et prouvé : le cycle « BTS »
+    # porte dix-huit diplômes, et le prompt écrit sur le BTS CIEL n'apprenait rien sur le BTS CRSA.
+    # Une famille de diplômes n'est pas une famille de documents.
 
 
 class Niveau(Base):
@@ -880,6 +857,42 @@ class Referentiel(Base):
     # `prompt_decoupe_valide` : la découpe REFUSE de tourner tant que False (garde-fou).
     prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # Prompts MATIÈRES et TYPES du couple (06/08/2026). Ils étaient rangés sur le CYCLE : une seule
+    # case pour les 18 niveaux du BTS, remplie à partir du CIEL option A — elle aurait lu le CRSA
+    # avec les repères du CIEL. Ils descendent ici, où vivent déjà le texte de travail et le prompt
+    # de découpe, et où pointent les matières et les types qu'ils produisent.
+    # `_valide` ne commande rien : le prompt sert dès qu'il existe, le booléen dit seulement que
+    # l'admin l'a relu (même règle que sur le cycle).
+    prompt_matieres: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_matieres_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    prompt_types: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_types_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # Quatrième couple (07/08/2026) : le prompt qui lit les PRÉCISIONS d'un type. Il portait le
+    # même défaut que les trois autres avant eux — un seul texte pour toute l'application, donc
+    # des précisions plausibles mais inventées, jamais ancrées au document. Deux repères ici, et
+    # non un : {texte} (le document) et {label} (le type dont on veut les précisions).
+    prompt_precisions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_precisions_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
+    # MÉTA-prompt des matières, propre à ce niveau (06/08/2026). Ce n'est PAS le prompt qui lit le
+    # document : c'est la consigne qui sert à l'ÉCRIRE (elle reçoit le document dans {document} et
+    # rend un prompt de lecture, lequel porte {texte}). Il en existait un seul pour toute
+    # l'application. Ce repli a été RETIRÉ le 08/08/2026 : cette case est désormais la seule source.
+    # Aucun drapeau `_valide` : ce texte est écrit à la main par l'admin, jamais par l'IA, il n'y a
+    # donc rien à « relire ».
+    prompt_meta_matieres: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # MÉTA-prompt de la DÉCOUPE, propre à ce niveau (06/08/2026) — le jumeau du précédent, et pour
+    # la même raison : la recette qui fait écrire le prompt de découpe d'un BTS n'est pas celle
+    # d'un programme de crèche. Case vide = rien ne prend la main, la génération lève (repli
+    # général retiré le 08/08/2026). Aucun drapeau `_valide` : écrit à la main.
+    prompt_meta_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # MÉTA-prompt des TYPES D'ACTIVITÉ, propre à ce niveau (06/08/2026) — le troisième et dernier
+    # des trois couples. Il était le seul à n'avoir aucune case par niveau : la recette qui fait
+    # écrire le prompt des types d'un BTS partait aussi à la crèche. Repli identique aux deux
+    # autres : case vide = rien ne prend la main, la génération lève. Aucun drapeau `_valide`.
+    prompt_meta_types: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # MÉTA-prompt des PRÉCISIONS, propre à ce niveau (07/08/2026) — quatrième et dernier jumeau.
+    # Case vide = rien ne prend la main : la génération lève (repli général retiré le 08/08/2026).
+    prompt_meta_precisions: Mapped[str | None] = mapped_column(Text, nullable=True)
     # « Découpe validée » : l'admin a CONTRÔLÉ le résultat de la découpe et l'a accepté = le référentiel
     # est ARRIVÉ AU BOUT de la procédure. C'est ce booléen (et lui seul) qui fait passer la puce du menu
     # au VERT. Écrit par le bouton final « Valider le découpage ». Donnée NEUVE (n'existe nulle part
@@ -1014,52 +1027,98 @@ class ReferentielTypePrecision(Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="admin", default="admin")
 
 
+class Demo(Base):
+    """Le PILOTAGE des bases de démonstration — jamais leur contenu.
 
-class ProfBloqueMaj(Base):
-    """Un prof mis en attente pendant la mise à jour du référentiel d'un niveau — et la MÉMOIRE
-    de ce qu'il faudra lui rebrancher ensuite.
+    Une démonstration, c'est une base PostgreSQL À PART qui contient un référentiel déjà fabriqué,
+    un compte de démonstration et du contenu d'exemple : un enseignant qui découvre le produit y
+    entre, explore et bidouille sans toucher au réel. Cette table-ci ne contient rien de tout
+    cela ; elle vit dans la base réelle et se contente de dire, pour chaque niveau, OÙ est sa
+    démonstration et OÙ elle en est.
 
-    UNE LIGNE PAR PROF ET PAR NIVEAU : le profil d'un prof peut être sur un niveau et son couple
-    de travail sur un autre, les deux peuvent être mis à jour l'un après l'autre. Une ligne par
-    prof aurait fait échouer la seconde mise à jour.
+    POURQUOI `nom_base` EST DU TEXTE ET NON UNE CLÉ ÉTRANGÈRE : PostgreSQL ne sait pas référencer
+    une autre base. La démonstration est ailleurs, hors de portée du moteur — le lien ne peut donc
+    être qu'un nom, et c'est à nous de le tenir juste. Convention retenue : `<option>_demo`
+    (ciela_demo, cielb_demo, crsa_demo…), en minuscules et sans tiret, parce qu'un tiret obligerait
+    à écrire le nom entre guillemets dans TOUTE commande SQL — et un oubli se lirait comme une
+    soustraction.
 
-    ELLE SURVIT À LA SUPPRESSION DU RÉFÉRENTIEL — c'est sa raison d'être. Le niveau, lui, ne
-    bouge pas ; le référentiel disparaît et emporte ses matières (CASCADE), donc la mémoire ne
-    peut pas être un identifiant de matière : on garde le NOM. Au déblocage, `matiere_id_du_nom`
-    (resolution_couple.py) le résout dans le NOUVEAU référentiel — la règle maison, déjà écrite.
+    UNE SEULE DÉMONSTRATION PAR RÉFÉRENTIEL (`uq_demos_referentiel`) : deux démonstrations du même
+    niveau n'auraient aucun sens et l'admin ne saurait pas laquelle est livrée.
 
-    TROIS QUESTIONS DIFFÉRENTES SE LISENT ICI, et elles n'ont pas la même réponse :
-      · peut-il générer ?          → une ligne `etat='bloque'` pour (lui, le niveau du couple
-                                     qu'il s'apprête à utiliser) ;
-      · doit-on lui demander de    → une ligne existe pour (lui, le niveau de son PROFIL), quel
-        compléter son profil ?       que soit son état : c'est NOUS qui avons vidé sa matière ;
-      · a-t-il à lire ?            → `etat='a_informer'`, où qu'il travaille.
+    LES COMPTEURS SONT FIGÉS À DESSEIN. `nb_activites`, `nb_sequences` et `nb_seances` décrivent
+    une base que cette connexion-ci NE PEUT PAS interroger. Ils sont écrits au moment de la
+    fabrication et relus tels quels ; les rafraîchir demanderait d'ouvrir la base de démonstration.
+    Ils peuvent donc mentir si quelqu'un modifie la démonstration sans repasser par ici — c'est le
+    prix de la séparation, pas un oubli.
 
-    La ligne ne meurt pas au déblocage : elle passe à `a_informer` et porte dans `resultat` de
-    quoi composer le second message. Elle n'est effacée que lorsque le prof en a accusé
-    réception — sinon un prof absent ce jour-là ne saurait jamais que sa matière a disparu."""
-    __tablename__ = "profs_bloques_maj"
+    `defauts_connus` est une MÉMOIRE, pas un journal d'incidents : ce qu'on a déjà trouvé sur cette
+    démonstration et qu'il ne faut pas rechercher deux fois."""
+    __tablename__ = "demos"
     __table_args__ = (
-        UniqueConstraint("user_id", "niveau_id", name="uq_profs_bloques_maj_user_niveau"),
-        Index("ix_profs_bloques_maj_user", "user_id"),
+        UniqueConstraint("referentiel_id", name="uq_demos_referentiel"),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
-    # La mémoire : les NOMS, seuls rescapés de la suppression. `matiere_nom` = la matière du
-    # PROFIL détachée ; le couple de TRAVAIL n'est mémorisé que s'il visait ce référentiel.
-    matiere_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
-    travail_niveau_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    travail_matiere_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
-    etat: Mapped[str] = mapped_column(String(12), nullable=False, server_default="bloque", default="bloque")
-    # Écrit au déblocage : 'rebranche' (le nouveau document porte le MÊME nom) | 'remplace' (l'admin
-    # a désigné celle qui prend sa place — `remplacee_par` la nomme) | 'matiere_disparue' (elle s'en
-    # va pour de bon, et seulement si PLUS AUCUN prof ne l'attendait). NULL tant que bloqué.
-    resultat: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # La matière qui a PRIS LA PLACE de `matiere_nom`, par son NOM (même raison : ce que le prof
-    # lira doit survivre à la prochaine suppression). NULL = rien n'a été remplacé.
-    remplacee_par: Mapped[str | None] = mapped_column(Text, nullable=True)
-    bloque_le: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    debloque_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # CASCADE : le référentiel disparu, sa démonstration ne désigne plus rien. Même règle que
+    # `matieres` et `types_activite`, qui tombent déjà avec lui.
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
+    nom_base: Mapped[str] = mapped_column(Text, nullable=False)
+    # L'adresse de l'instance branchée sur cette base. NULL = pas encore montée, donc pas
+    # visitable : l'entrée « Démonstration » du menu prof reste grisée tant qu'elle manque.
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # a_faire | en_cours | fait | teste | valide — la progression, du vide au livrable.
+    statut: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="a_faire", default="a_faire")
+    nb_activites: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
+    nb_sequences: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
+    nb_seances: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
+    date_generation: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    date_dernier_test: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    defauts_connus: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Fonctionnalite(Base):
+    """Ce que la plateforme sait faire, et où ça en est — la matière du tableau de bord.
+
+    LA RAISON D'ÊTRE. L'écran d'état ne savait dire qu'une chose : la plomberie est branchée
+    (clé IA, SMTP, un référentiel découpé, une activité générée). Il annonçait « tout est prêt »
+    pendant que des pans entiers du produit n'existaient pas — « Mes évals » vide, l'équité
+    jamais écrite. Vrai sur la plomberie, faux pour qui le lit. Cette table porte la moitié
+    manquante : ce qui est livré, ce qui est commencé, ce qui reste à faire.
+
+    ELLE N'EST PAS DÉRIVABLE. Les huit étapes techniques se lisent dans les vraies tables — une
+    clé existe ou non. L'avancement d'une fonctionnalité, lui, ne se lit nulle part : aucune
+    table ne sait qu'un bouton est posé mais inactif. Il se DÉCLARE, et la déclaration vit ici
+    plutôt que dans le code, pour que l'écran la lise comme il lit le reste.
+
+    QUI LA TIENT. La session qui code, par migration, à chaque fonctionnalité livrée — jamais
+    l'administrateur, qui ne fait que consulter. C'est le motif déjà en place pour `outils_llm`.
+
+    LA PREUVE. `note` dit POURQUOI l'état est celui-là — « bouton posé, inactif », « page vide ».
+    Sans elle, une ligne « en cours » est une affirmation qu'on ne peut ni vérifier ni contester.
+    """
+    __tablename__ = "fonctionnalites"
+    __table_args__ = (
+        # Un même nom peut exister des deux côtés (« Feedbacks » chez l'admin ET chez le prof) :
+        # c'est le couple qui identifie, pas le nom seul.
+        UniqueConstraint("domaine", "ecran", "nom", name="uq_fonctionnalites_domaine_ecran_nom"),
+        # Le seul tri de l'écran : par domaine, puis dans l'ordre de la liste.
+        Index("ix_fonctionnalites_domaine_ordre", "domaine", "ordre"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    # « admin » | « prof » — de quel côté de l'application. La plomberie n'est PAS ici : elle
+    # reste dérivée des vraies tables, c'est sa force.
+    domaine: Mapped[str] = mapped_column(String(16), nullable=False)
+    # L'écran qui la porte (« Mes contenus », « Supervision ») : c'est le groupe d'affichage.
+    ecran: Mapped[str] = mapped_column(String(80), nullable=False)
+    nom: Mapped[str] = mapped_column(String(120), nullable=False)
+    # « fait » | « en_cours » | « a_venir ». Trois états, pas quatre : au-delà, plus personne
+    # ne sait où placer une ligne, et le tableau cesse d'être lisible.
+    etat: Mapped[str] = mapped_column(String(16), nullable=False, server_default="a_venir", default="a_venir")
+    # La preuve, en quelques mots. Vide pour une fonctionnalité simplement faite.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)

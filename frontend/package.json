@@ -13,7 +13,9 @@
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
     "docx": "^9.6.1",
+    "dompurify": "^3.4.13",
     "jspdf": "^4.2.1",
+    "marked": "^18.0.9",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.14.2"

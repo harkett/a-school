@@ -1,8 +1,9 @@
 ﻿import { useState, useEffect } from 'react'
-import { Document, Packer, Paragraph, TextRun } from 'docx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
-import { corpsHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { documentHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { telechargerWord } from '../utils/exportWord.js'
+import { telechargerPdf } from '../utils/exportPdf.js'
 import { IconPrint } from './icones.jsx'
 
 const IconTxt = () => (
@@ -39,74 +40,13 @@ function telechargerTxt(texte) {
   a.click()
 }
 
-async function telechargerWord(texte) {
-  const paragraphs = texte.split('\n').map(line =>
-    new Paragraph({ children: [new TextRun(line || ' ')] })
-  )
-  paragraphs.push(new Paragraph({ children: [] }))
-  paragraphs.push(new Paragraph({
-    children: [new TextRun({ text: 'Généré avec aSchool — aschool.fr', color: '999999', size: 16 })],
-  }))
-  const doc = new Document({
-    sections: [{ properties: {}, children: paragraphs }],
-  })
-  const blob = await Packer.toBlob(doc)
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `activite_${new Date().toISOString().slice(0, 10)}.docx`
-  a.click()
-}
-
-async function telechargerPdf(texte) {
-  // jsPDF chargé À LA DEMANDE (import dynamique) : son poids (~700 Ko) ne pèse que sur le
-  // clic PDF, pas au démarrage de l'appli. PDF texte fidèle au résultat (contenu brut, comme
-  // le Word) : découpe aux marges + saut de page auto + pied « aSchool » sur chaque page,
-  // comme le .txt / Word / impression. La police standard helvetica gère les accents français.
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-  const margeX = 56, margeHaut = 56, margeBas = 48, interligne = 16
-  const largeurPage = doc.internal.pageSize.getWidth()
-  const hauteurPage = doc.internal.pageSize.getHeight()
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  const lignes = doc.splitTextToSize(texte, largeurPage - margeX * 2)
-  let y = margeHaut
-  lignes.forEach(ligne => {
-    if (y + interligne > hauteurPage - margeBas) {
-      doc.addPage()
-      y = margeHaut
-    }
-    doc.text(ligne, margeX, y)
-    y += interligne
-  })
-  const nbPages = doc.internal.getNumberOfPages()
-  for (let p = 1; p <= nbPages; p++) {
-    doc.setPage(p)
-    doc.setFontSize(8)
-    doc.setTextColor(153)
-    doc.text('Généré avec aSchool — aschool.fr', largeurPage / 2, hauteurPage - 24, { align: 'center' })
-  }
-  doc.save(`activite_${new Date().toISOString().slice(0, 10)}.pdf`)
-}
-
-function imprimer(texte) {
-  const win = window.open('', '_blank')
-  const escaped = texte.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  win.document.write(`
-    <html><head><title>Activité aSchool</title>
-    <style>
-      body{font-family:Arial,sans-serif;padding:2rem 2rem 4rem;white-space:pre-wrap;line-height:1.8;font-size:13px}
-      @media print{.pied-aschool{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:10px;color:#aaa;padding:6px;border-top:1px solid #eee}}
-      .pied-aschool{display:none}
-    </style>
-    </head><body>${escaped}<div class="pied-aschool">Généré avec aSchool — aschool.fr</div></body></html>
-  `)
-  win.document.close()
-  win.print()
-}
-
-// Aperçu HTML : formateur (corpsHtml) + impression mise en forme (imprimerApercu) sont extraits
-// dans utils/apercuHtml.js et PARTAGÉS avec l'Historique (MesActivites) — un seul formateur, zéro copie.
+// LES SORTIES NE VIVENT PLUS ICI (07/08/2026). Chacune a son fichier dans utils/, parce qu'elles
+// ne parlent pas la même langue : HTML pour l'écran et l'impression (apercuHtml.js), objets
+// `Paragraph`/`Table` pour Word (exportWord.js), texte placé à la main pour le PDF (exportPdf.js).
+// Toutes lisent le markdown au même endroit (utils/markdown.js), une seule fois. Tant qu'elles
+// vivaient ici, Word et PDF recopiaient le texte tel quel : `#`, `**` et tableaux en barres.
+// Restent locaux : le .txt (c'est le brut, c'est son intérêt) et le mail (`mailto:` ne transporte
+// que du texte — aucun client de messagerie n'accepte de mise en forme par ce chemin).
 
 function envoyerMail(texte, email) {
   const sujet = encodeURIComponent(`Activité aSchool — ${new Date().toLocaleDateString('fr-FR')}`)
@@ -187,15 +127,15 @@ export default function ZoneResultat({ resultat, loading, email, cahierPresent =
           </button>
           <button
             className="btn-secondary"
-            onClick={() => setApercuHtml(corpsHtml(resultat))}
+            onClick={() => setApercuHtml(documentHtml(resultat))}
             title="Voir l'activité mise en forme (aperçu, sans quitter aSchool)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> HTML
           </button>
           <button
             className="btn-secondary"
-            onClick={() => imprimer(resultat)}
-            title="Imprimer le résultat"
+            onClick={() => imprimerApercu(documentHtml(resultat))}
+            title="Imprimer le résultat mis en forme"
           >
             <IconPrint /> Imprimer
           </button>
@@ -253,14 +193,6 @@ export default function ZoneResultat({ resultat, loading, email, cahierPresent =
               </div>
             </div>
             <div className="apercu-corps" style={{ overflowY: 'auto', padding: '22px 28px', color: '#1e293b', lineHeight: 1.7, fontSize: 15 }} dangerouslySetInnerHTML={{ __html: apercuHtml }} />
-            <style>{`
-              .apercu-corps h1,.apercu-corps h2,.apercu-corps h3{color:#0f172a;line-height:1.3;margin:1.4em 0 .4em}
-              .apercu-corps h1{font-size:1.5rem}.apercu-corps h2{font-size:1.25rem}.apercu-corps h3{font-size:1.08rem}
-              .apercu-corps p{margin:.6em 0}
-              .apercu-corps ul,.apercu-corps ol{margin:.6em 0 .6em 1.4em;padding:0}.apercu-corps li{margin:.3em 0}
-              .apercu-corps hr{border:none;border-top:1px solid #e2e8f0;margin:1.4em 0}
-              .apercu-corps strong{color:#0f172a}
-            `}</style>
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy import func, text
@@ -15,7 +16,11 @@ from backend.core.cles import secret_obligatoire
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, OutilLlm, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, Referentiel, RefreshToken, Seance, Sequence, Setting, User, UserSession
+# La fabrique du jeton de passage vit chez le prof (backend/prof/demo.py) : l'admin emprunte la
+# MÊME, il n'en a pas une seconde. Import du module et non des fonctions — les deux modules se
+# citent, et le module entier évite d'avoir à ordonner leurs imports.
+from backend.prof import demo
 from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
 from backend.core.horloge import maintenant_utc
 
@@ -983,7 +988,7 @@ def update_user_profile(email: str, body: UpdateUserBody, db: Session = Depends(
         raise HTTPException(
             400,
             f"« {body.subject} » n'est pas au programme de « {body.niveau} ». "
-            "Ajoutez-la au référentiel de ce niveau dans Programmes & contenu, "
+            "Ajoutez-la au référentiel de ce niveau dans Formations, "
             "ou choisissez-en une autre."
         )
 
@@ -1546,6 +1551,25 @@ def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_a
             {"name": f.code, "label": f.label, "available": f.actif}
             for f in fournisseurs
         ],
+    }
+
+
+@router.get("/admin/ia/en-cours")
+def get_ia_en_cours(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Le fournisseur et le modèle qui SERVENT en ce moment — pour l'en-tête de l'administration.
+
+    Un seul appel là où il en fallait deux (`/admin/ai-providers` + `/admin/ai-models`), et rien
+    d'autre que ce qui s'affiche : l'en-tête est présent sur toutes les pages, il n'a pas à tirer
+    un catalogue entier pour écrire deux mots.
+
+    Le `label` du fournisseur vient de sa fiche en base ; à défaut, son code. Le modèle est
+    rendu tel qu'il est écrit dans `settings` — c'est exactement la chaîne envoyée au moteur."""
+    code = get_ai_provider(db)
+    fiche = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
+    return {
+        "fournisseur": code,
+        "fournisseur_label": (fiche.label if fiche else None) or code,
+        "modele": get_ai_model(db),
     }
 
 
@@ -2582,3 +2606,216 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             "grand_total": grand_total,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Bases de démonstration — PILOTAGE (table `demos`), jamais leur contenu
+# ---------------------------------------------------------------------------
+# Une démonstration vit dans une base PostgreSQL À PART (ciela_demo, cielb_demo…). Ces routes ne
+# l'ouvrent JAMAIS : elles lisent et écrivent la fiche qui la décrit, dans la base réelle. C'est
+# pourquoi les compteurs sont saisis et non calculés — les recompter voudrait dire se connecter
+# ailleurs, ce que ce moteur-ci ne fait pas.
+
+STATUTS_DEMO = ("a_faire", "en_cours", "fait", "teste", "valide")
+
+
+class DemoIn(BaseModel):
+    referentiel_id: int
+    nom_base: str
+    url: str | None = None
+    statut: str = "a_faire"
+    nb_activites: int = 0
+    nb_sequences: int = 0
+    nb_seances: int = 0
+    date_generation: datetime | None = None
+    date_dernier_test: datetime | None = None
+    defauts_connus: str | None = None
+    notes: str | None = None
+
+
+def _demo_en_dict(d: Demo, cycle_nom: str | None, niveau_nom: str | None) -> dict:
+    return {
+        "id": d.id,
+        "referentiel_id": d.referentiel_id,
+        "cycle": cycle_nom,
+        "niveau": niveau_nom,
+        "nom_base": d.nom_base,
+        "url": d.url,
+        "statut": d.statut,
+        "nb_activites": d.nb_activites,
+        "nb_sequences": d.nb_sequences,
+        "nb_seances": d.nb_seances,
+        "date_generation": d.date_generation.isoformat() if d.date_generation else None,
+        "date_dernier_test": d.date_dernier_test.isoformat() if d.date_dernier_test else None,
+        "defauts_connus": d.defauts_connus,
+        "notes": d.notes,
+    }
+
+
+def _valider_demo(body: DemoIn, db: Session) -> tuple[str, str, str | None]:
+    """Refuse tôt ce que la base refuserait tard, avec un message lisible. Rend (nom_base, statut,
+    url) nettoyés. Le nom de base est contraint à la convention `<option>_demo` : minuscules, chiffres
+    et soulignés. Un tiret obligerait à écrire le nom entre guillemets dans toute commande SQL."""
+    if body.statut not in STATUTS_DEMO:
+        raise HTTPException(400, f"Statut inconnu. Attendu : {', '.join(STATUTS_DEMO)}.")
+    nom = (body.nom_base or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", nom):
+        raise HTTPException(400, "Nom de base invalide : minuscules, chiffres et soulignés, "
+                                 "commençant par une lettre (ex. ciela_demo).")
+    if not db.get(Referentiel, body.referentiel_id):
+        raise HTTPException(404, "Référentiel introuvable.")
+    if min(body.nb_activites, body.nb_sequences, body.nb_seances) < 0:
+        raise HTTPException(400, "Les compteurs ne peuvent pas être négatifs.")
+    # L'adresse est ce que le navigateur du prof va ouvrir : on refuse tout ce qui n'est pas une
+    # adresse http(s), et on retire la barre finale pour ne pas fabriquer « …//demo » plus loin.
+    url = (body.url or "").strip().rstrip("/") or None
+    if url and not re.fullmatch(r"https?://[^\s]+", url):
+        raise HTTPException(400, "Adresse invalide : attendue sous la forme https://demo.exemple.fr")
+    return nom, body.statut, url
+
+
+@router.get("/admin/demos")
+def admin_demos_liste(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Les démonstrations déclarées, et les référentiels qui n'en ont pas encore.
+
+    Les deux voyagent ensemble parce que l'écran a besoin des deux : la liste à afficher, et le
+    choix à proposer quand on ajoute. `uq_demos_referentiel` interdit un second enregistrement
+    pour le même référentiel — autant ne pas le proposer plutôt que de laisser l'admin buter."""
+    lignes = (
+        db.query(Demo, Cycle.nom, Niveau.nom)
+        .join(Referentiel, Referentiel.id == Demo.referentiel_id)
+        .join(Niveau, Niveau.id == Referentiel.niveau_id)
+        .outerjoin(Cycle, Cycle.id == Niveau.cycle_id)
+        .order_by(Cycle.nom, Niveau.nom)
+        .all()
+    )
+    pris = {d.referentiel_id for d, _c, _n in lignes}
+    libres = (
+        db.query(Referentiel.id, Cycle.nom, Niveau.nom)
+        .join(Niveau, Niveau.id == Referentiel.niveau_id)
+        .outerjoin(Cycle, Cycle.id == Niveau.cycle_id)
+        .order_by(Cycle.nom, Niveau.nom)
+        .all()
+    )
+    return {
+        "demos": [_demo_en_dict(d, c, n) for d, c, n in lignes],
+        "referentiels_libres": [
+            {"id": rid, "cycle": c, "niveau": n} for rid, c, n in libres if rid not in pris
+        ],
+        "statuts": list(STATUTS_DEMO),
+    }
+
+
+@router.post("/admin/demos")
+def admin_demos_creer(body: DemoIn, request: Request,
+                      db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    nom, statut, url = _valider_demo(body, db)
+    if db.query(Demo).filter(Demo.referentiel_id == body.referentiel_id).first():
+        raise HTTPException(409, "Ce référentiel a déjà une démonstration.")
+    d = Demo(referentiel_id=body.referentiel_id, nom_base=nom, url=url, statut=statut,
+             nb_activites=body.nb_activites, nb_sequences=body.nb_sequences,
+             nb_seances=body.nb_seances, date_generation=body.date_generation,
+             date_dernier_test=body.date_dernier_test,
+             defauts_connus=body.defauts_connus, notes=body.notes)
+    db.add(d)
+    db.commit()
+    db.refresh(d)
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DEMO_CREEE",
+                     ip=request.client.host if request.client else None,
+                     details=f"Démonstration déclarée : {nom} (référentiel #{d.referentiel_id})")
+    return {"id": d.id}
+
+
+@router.put("/admin/demos/{demo_id}")
+def admin_demos_modifier(demo_id: int, body: DemoIn, request: Request,
+                         db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    d = db.get(Demo, demo_id)
+    if not d:
+        raise HTTPException(404, "Démonstration introuvable.")
+    nom, statut, url = _valider_demo(body, db)
+    doublon = (db.query(Demo)
+                 .filter(Demo.referentiel_id == body.referentiel_id, Demo.id != demo_id)
+                 .first())
+    if doublon:
+        raise HTTPException(409, "Ce référentiel a déjà une démonstration.")
+    d.referentiel_id = body.referentiel_id
+    d.nom_base = nom
+    d.url = url
+    d.statut = statut
+    d.nb_activites = body.nb_activites
+    d.nb_sequences = body.nb_sequences
+    d.nb_seances = body.nb_seances
+    d.date_generation = body.date_generation
+    d.date_dernier_test = body.date_dernier_test
+    d.defauts_connus = body.defauts_connus
+    d.notes = body.notes
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DEMO_MODIFIEE",
+                     ip=request.client.host if request.client else None,
+                     details=f"Démonstration modifiée : {nom} (référentiel #{d.referentiel_id})")
+    return {"status": "ok"}
+
+
+@router.get("/admin/demos/{demo_id}/aller")
+def admin_demos_aller(demo_id: int, request: Request,
+                      db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Visiter N'IMPORTE QUELLE démonstration depuis l'écran d'administration.
+
+    POURQUOI CETTE PORTE EXISTE EN PLUS DE CELLE DU PROF. Le passage du prof (`/demo/aller`)
+    l'envoie vers la démonstration de SON niveau, et seulement si elle est testée ou validée :
+    c'est juste pour lui. L'admin, lui, doit pouvoir ouvrir celle de la crèche le matin et celle
+    du BTS l'après-midi — et surtout AVANT qu'elle soit déclarée testée, puisque c'est en la
+    visitant qu'il le décide. Sans cette porte, il n'existait aucun moyen de relire une
+    démonstration qui ne correspond pas à son propre couple : il fallait se fabriquer un compte.
+
+    L'IDENTITÉ EMPORTÉE est celle de l'administrateur (`ADMIN_EMAIL`), avec le niveau de la
+    démonstration visée et la première matière de son référentiel — sinon il arriverait sans
+    couple et l'écran lui demanderait de compléter son profil avant de rien voir.
+
+    LE JETON est le même que celui du prof, fabriqué au même endroit (`demo.passage`) : cinq
+    minutes, signé, porteur de noms et jamais d'identifiants.
+    """
+    d = db.get(Demo, demo_id)
+    if not d:
+        raise HTTPException(404, "Démonstration introuvable.")
+    if not d.url:
+        raise HTTPException(409, "Cette démonstration n'a pas d'adresse : renseignez-la d'abord.")
+    if not demo.secret_pose():
+        raise HTTPException(409, "DEMO_SECRET n'est pas posé sur ce serveur : le passage est impossible.")
+    email = (os.getenv("ADMIN_EMAIL") or "").strip()
+    if not email:
+        raise HTTPException(409, "ADMIN_EMAIL n'est pas posé sur ce serveur : "
+                                 "le visiteur n'aurait pas d'identité.")
+
+    ref = db.get(Referentiel, d.referentiel_id)
+    niveau = db.get(Niveau, ref.niveau_id) if ref else None
+    matiere = (db.query(Matiere)
+                 .filter(Matiere.referentiel_id == d.referentiel_id, Matiere.actif.is_(True))
+                 .order_by(Matiere.ordre, Matiere.nom)
+                 .first())
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DEMO_VISITEE",
+                     ip=request.client.host if request.client else None,
+                     details=f"Visite de la démonstration {d.nom_base} ({niveau.nom if niveau else '?'})")
+    return RedirectResponse(
+        demo.passage(d.url, email, "Admin", "aSchool",
+                     matiere.nom if matiere else None,
+                     niveau.nom if niveau else None),
+        status_code=307,
+    )
+
+
+@router.delete("/admin/demos/{demo_id}")
+def admin_demos_supprimer(demo_id: int, request: Request,
+                          db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Supprime la FICHE, pas la base PostgreSQL — celle-ci vit ailleurs et se détruit à la main.
+    Le bouton doit donc dire « Retirer de la liste » et non « Supprimer la démo »."""
+    d = db.get(Demo, demo_id)
+    if not d:
+        raise HTTPException(404, "Démonstration introuvable.")
+    nom = d.nom_base
+    db.delete(d)
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="DEMO_RETIREE",
+                     ip=request.client.host if request.client else None,
+                     details=f"Fiche retirée de la liste : {nom} (la base PostgreSQL, elle, reste)")
+    return {"status": "ok"}

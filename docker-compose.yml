@@ -71,6 +71,12 @@ services:
     env_file:
       - .env                 # clés LLM (CLAUDE_API_KEY_TEXTE…), SMTP, etc. — lues depuis le .env du dossier
     environment:
+      # Pile de DÉVELOPPEMENT — la variable est posée EXPLICITEMENT. Les alertes de supervision
+      # n'envoient de mail qu'en production (backend/supervision/alerts.py) ; laissée vide comme
+      # avant, cette machine écrivait dans la boîte de l'admin avec le même sujet qu'une alerte
+      # du VPS. Une variable ABSENTE laisse volontairement passer le mail : c'est ici qu'on la
+      # pose, pas dans la règle qu'on affaiblirait pour tout le monde.
+      ENV: development
       # Dans la boîte, le backend joint la base par le nom du service "db" (pas 127.0.0.1).
       # Défini APRÈS env_file → écrase le DATABASE_URL du .env pour viser "db:5432" dans la boîte.
       DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_dev
@@ -137,6 +143,98 @@ services:
       - /app/frontend/node_modules   # node_modules propre à la boîte (jamais mélangé à l'hôte)
     depends_on:
       - backend
+
+  # --- La DÉMONSTRATION : la même application, branchée sur une base d'essai ---
+  # POURQUOI UNE SECONDE PILE ET PAS UN AIGUILLAGE DANS LA PREMIÈRE. L'étanchéité ne repose alors
+  # sur aucune astuce de code : deux processus, deux DATABASE_URL, deux bases. Rien de ce qu'un
+  # prof fait dans le bac à sable ne peut atteindre le réel, même si une route oubliait un filtre.
+  # Le prof y arrive AVEC SON IDENTITÉ, par un jeton signé de cinq minutes (backend/prof/demo.py) ;
+  # DEMO_SECRET, lu dans le .env par les DEUX backends, est ce qui rend ce jeton vérifiable ici.
+  backend_demo:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ENV: development
+      # LA ligne qui fait toute la différence avec le service `backend` : une autre base.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/ciela_demo
+      # Ouvre /api/demo/entrer (une porte sans mot de passe) et allume le bandeau permanent.
+      # Décidé par l'environnement et jamais par la base : un dump restauré ailleurs ne doit pas
+      # emporter ce drapeau avec lui.
+      MODE_DEMO: "1"
+      OMP_NUM_THREADS: "8"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8002:8001"
+    volumes:
+      - .:/app
+      - ./docker/hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend_demo:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend_demo   # le proxy vise le backend de la DÉMONSTRATION
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5174"
+    ports:
+      - "5174:5174"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend_demo
+
+
+  # --- La DÉMONSTRATION, seconde base : BTS CIEL Option B ---
+  # Même image, même .env (donc le MÊME DEMO_SECRET : le jeton signé par le backend réel est
+  # vérifiable ici comme il l'est sur l'option A), même Postgres — seule la base diffère.
+  # C'est le prix de l'étanchéité : une pile par base de démonstration, aucun aiguillage de code.
+  backend_demo_b:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ENV: development
+      # LA ligne qui distingue cette pile de `backend_demo` : la base de l'option B.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/cielb_demo
+      MODE_DEMO: "1"
+      OMP_NUM_THREADS: "8"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8003:8001"
+    volumes:
+      - .:/app
+      - ./docker/hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend_demo_b:
+    image: node:24
+    restart: unless-stopped
+    working_dir: /app/frontend
+    environment:
+      VITE_API_HOST: backend_demo_b   # le proxy vise le backend de la démonstration option B
+      VITE_API_PORT: 8001
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5175"
+    ports:
+      - "5175:5175"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules
+    depends_on:
+      - backend_demo_b
 
 # Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
 # survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.

@@ -1,10 +1,9 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { showError, registerFeedbackOpener } from './errorDialog'
-import { showConfirm } from './confirmDialog'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { useAuth } from './context/contexteAuth.js'
-import Header from './components/Header'
+import Header, { HAUTEUR_HEADER } from './components/Header'
 import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
 import VisiteGuidee from './components/VisiteGuidee'
@@ -41,7 +40,7 @@ import AdminParametresGeneration from './pages/AdminParametresGeneration'
 import AdminIAFournisseurs from './pages/AdminIAFournisseurs'
 import AdminIAStatistiques from './pages/AdminIAStatistiques'
 import AdminPrompts from './pages/AdminPrompts'
-import AdminPromptsCycle from './pages/AdminPromptsCycle'
+import AdminPromptsReferentiels from './pages/AdminPromptsReferentiels'
 import AdminParametresEmail from './pages/AdminParametresEmail'
 import AdminParametres from './pages/AdminParametres'
 import AdminSessions from './pages/AdminSessions'
@@ -60,6 +59,7 @@ import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
 // travaille plus jamais dans le labo : deux écrans sur le même geste finissent par diverger,
 // et c'est ce qui est arrivé. Pour le rebrancher le temps d'une reprise : remettre l'import et
 // la route ci-dessous (cherche « Labo DÉBRANCHÉ »).
+import AdminLabo from './pages/AdminLabo'
 import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
@@ -68,6 +68,9 @@ import AdminBaseDemos from './pages/AdminBaseDemos'
 import AdminAnalytique from './pages/AdminAnalytique'
 import AdminAnalytiqueGeneral from './pages/AdminAnalytiqueGeneral'
 import MesFeedbacks from './pages/MesFeedbacks'
+import DemoEntree from './pages/DemoEntree'
+import BandeauDemo from './components/BandeauDemo'
+import FiligraneDemo from './components/FiligraneDemo'
 import MesStats from './components/MesStats'
 import AdminLayout from './components/AdminLayout'
 import OfflineBanner from './components/OfflineBanner'
@@ -114,12 +117,9 @@ function MainApp() {
   // (Ce champ n'a longtemps jamais été envoyé par le serveur : il valait `undefined`, donc
   // cette moitié de la condition ne s'exécutait pas une seule fois. Rétabli le 02/08/2026.)
   //
-  // `profil_en_travaux` l'emporte : le référentiel du niveau du prof est en cours de mise à jour,
-  // c'est NOUS qui avons détaché sa matière pour pouvoir le supprimer. L'envoyer « compléter son
-  // profil » lui ferait payer notre chantier — et lui demanderait de choisir dans une liste qui
-  // n'existe pas encore. Il lit le message de mise à jour, et rien d'autre.
-  const profilIncomplet = user && !user.profil_en_travaux
-    && (!user.subject || user.profil_coherent === false)
+  // (`profil_en_travaux` a disparu le 07/08/2026 avec le mécanisme de blocage : plus personne
+  // ne détache la matière d'un prof, la base refuse de supprimer une matière qu'il porte.)
+  const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
   // Écran forcé : tant que le profil n'a pas de matière (couple absent), l'écran affiché est
@@ -243,34 +243,6 @@ function MainApp() {
       .forEach(k => localStorage.removeItem(k))
     localStorage.removeItem('aschool_niveau')  // niveau vit en base désormais — on purge le vieux cache
   }, [])
-
-  // MISE À JOUR D'UN RÉFÉRENTIEL — ce que le prof lit. Le serveur (/auth/me) dit s'il y a
-  // quelque chose à lui dire et QUOI : le texte vient de lui, l'écran ne le compose pas.
-  // Un seul bouton : il n'a rien à refuser, une mise à jour ne se décline pas. « C'est terminé »
-  // s'accuse en base (POST /user/maj-lue) pour ne pas revenir à chaque connexion ; « en cours »
-  // ne s'accuse pas — tant que c'est vrai, il doit le relire.
-  const blocageVu = useRef(null)
-  useEffect(() => {
-    const b = user?.blocage
-    if (!b) { blocageVu.current = null; return }
-    const cle = `${b.type}:${b.niveau}`
-    if (blocageVu.current === cle) return      // une seule fois par état, pas à chaque rendu
-    blocageVu.current = cle
-    showConfirm({
-      titre: b.type === 'en_cours' ? 'Mise à jour de votre programme' : 'Votre programme est à jour',
-      message: b.message,
-      icone: b.type === 'en_cours' ? 'interdit' : undefined,
-      boutonUnique: true,
-      confirmLabel: "J'ai compris",
-      onConfirm: async () => {
-        if (b.type === 'en_cours') return      // rien à accuser : la mise à jour continue
-        try {
-          await fetchWithTimeout('/api/user/maj-lue', { method: 'POST', credentials: 'include' }, TIMEOUT_STD)
-          await refreshUser()                  // la ligne est effacée : l'écran relit la base
-        } catch { /* il relira le message à sa prochaine connexion */ }
-      },
-    })
-  }, [user?.blocage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Le niveau vit EN BASE (users.niveau) : `params` n'en est que le reflet du get /auth/me,
   // jamais dupliqué en localStorage. Les autres champs de l'ancien écran Créer sont partis
@@ -499,7 +471,7 @@ function MainApp() {
         onOuvrirGuide={guidesParPage[page] ? () => setFenetreGuide(true) : null}
       />
 
-      <div className="flex flex-1 min-h-0" style={{ paddingTop: 65 }}>
+      <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
         <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
@@ -699,8 +671,13 @@ export default function App() {
         <ConfirmDialog />
         <OfflineBanner />
         <IOSInstallBanner />
+        <BandeauDemo />
+        <FiligraneDemo />
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Arrivée dans la démonstration : hors ProtectedRoute, puisque c'est elle qui ouvre
+              la session. Sur une instance ordinaire, /api/demo/entrer répond 404. */}
+          <Route path="/demo" element={<DemoEntree />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -724,10 +701,12 @@ export default function App() {
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
             <Route path="referentiels" element={<AdminReferentiels />} />
-            {/* Labo DÉBRANCHÉ le 06/08/2026 — la route n'existe plus, /admin/labo ne mène à rien.
+            {/* Labo — la route est REVENUE le 07/08/2026, mais vers un écran d'ATTENTE
+                (pages/AdminLabo.jsx). L'écran d'origine (pages/Labo.jsx) reste fermé.
                 Le code de l'écran est conservé jusqu'à ce que son contenu récupérable soit porté
                 dans Admin → Référentiels (multi-documents, recherche du lien officiel, bilan de
                 suppression, blocages). Ne pas la rebrancher pour « juste essayer ». */}
+            <Route path="labo" element={<AdminLabo />} />
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
             {/* Prompts — contenu pédagogique, pas plomberie : sorti de Système → Génération LLM.
@@ -737,12 +716,10 @@ export default function App() {
               <Route index element={<Navigate to="/admin/prompts/prof" replace />} />
               <Route path="prof"   element={<AdminPrompts key="prof"   categorie="prof" />} />
               <Route path="admin"  element={<AdminPrompts key="admin"  categorie="admin" />} />
-              {/* Les prompts rangés sur le CYCLE ont leurs sous-options : ils ne sont pas dans le
-                  registre des prompts d'outils (cycles.prompt_matieres, cycles.prompt_decoupe) —
-                  une entrée par cycle, d'où un écran à part. MÊME composant pour les deux : c'est
-                  le même geste sur une autre colonne, ils ne peuvent pas diverger. */}
-              <Route path="matieres" element={<AdminPromptsCycle key="matieres" sujet="matieres" />} />
-              <Route path="decoupe"  element={<AdminPromptsCycle key="decoupe"  sujet="decoupe" />} />
+              {/* « Matières par cycle » et « Découpe par cycle » ont été retirés le 06/08/2026 :
+                  ces deux prompts appartiennent au RÉFÉRENTIEL (un par couple cycle+niveau) et se
+                  règlent sur l'écran Référentiel, dans la cartouche qui les utilise. */}
+              <Route path="referentiels" element={<AdminPromptsReferentiels key="referentiels" />} />
               <Route path="autres" element={<AdminPrompts key="autres" categorie="autres" />} />
             </Route>
             {/* IA — les deux écrans nés avec la rubrique (05/08/2026). Prompts et Génération gardent

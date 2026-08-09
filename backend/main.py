@@ -27,15 +27,18 @@ APP_VERSION = _pkg.get("version", "0.0.0")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from backend.core.limiter import limiter, plafond_depasse
+from backend.llm.generator import (LLMIndisponibleError, LLMModeleIncompatibleError,
+                                   LLMQuotaCompteError, LLMRateLimitError)
 from backend.core.middleware import UserSessionMiddleware
 from backend.securite import auth
 from backend.systeme import admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin, referentiels_labo
 from backend.contenu import activites, mes_contenus
-from backend.prof import profil
+from backend.prof import demo, profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
 from backend.analyse import ambiguites, consigne
@@ -80,6 +83,41 @@ app = FastAPI(title="aSchool API", version=APP_VERSION, lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, plafond_depasse)
 
+
+# ── Les refus du fournisseur d'IA arrivent à l'écran, en français ─────────────────────────────
+#
+# `generator.py` traduit chaque refus du fournisseur en une phrase écrite POUR LE PROF, qui dit
+# ce qui se passe et quoi faire. Ces phrases n'arrivaient nulle part : seules les routes qui
+# attrapaient l'exception à la main les rendaient, les autres laissaient remonter un 500 — et
+# l'écran, devant un 500, affiche sa phrase passe-partout « le serveur n'a pas pu répondre ».
+# Le prof recevait donc un message inutile à la place du seul qui l'aurait aidé (constaté le
+# 07/08/2026 sur « Proposer une idée » : Groq refusait la taille de la demande, personne ne l'a su).
+#
+# Posé ICI et pas route par route : il y a une vingtaine d'appels à `generate()`, et chaque
+# nouveau serait un oubli possible. Une seule règle, à l'entrée de l'application.
+#
+# Le code HTTP dit à QUI est le problème : 429 le service est bousculé (réessayer), 503 il est
+# en panne (attendre), 409 le modèle choisi ne sait pas faire (changer de modèle), 413 le palier
+# du compte refuse cette taille (changer de fournisseur ou d'abonnement).
+_CODES_LLM = [
+    (LLMRateLimitError, 429),
+    (LLMIndisponibleError, 503),
+    (LLMModeleIncompatibleError, 409),
+    (LLMQuotaCompteError, 413),
+]
+
+
+async def _refus_du_fournisseur_ia(request, exc):
+    """Rend le message de l'exception TEL QUEL dans `detail` : il est déjà écrit pour un humain,
+    le réécrire ici le ferait diverger de sa source. Le détail technique, lui, reste au journal."""
+    code = next((c for classe, c in _CODES_LLM if isinstance(exc, classe)), 503)
+    logging.getLogger(__name__).warning("Refus du fournisseur d'IA (%s) : %s", code, exc)
+    return JSONResponse(status_code=code, content={"detail": str(exc)})
+
+
+for _classe, _ in _CODES_LLM:
+    app.add_exception_handler(_classe, _refus_du_fournisseur_ia)
+
 app.add_middleware(UserSessionMiddleware)
 
 # Origines CORS autorisées — externalisées en config de déploiement (D). La variable
@@ -103,6 +141,7 @@ app.include_router(mes_contenus.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")
+app.include_router(demo.router, prefix="/api")
 app.include_router(ocr.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
