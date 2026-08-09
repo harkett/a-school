@@ -1,23 +1,28 @@
-"""L'état d'une ingestion de découpe — GET /admin/referentiels/decoupe/statut.
+"""L'état de la découpe d'un couple — GET /admin/referentiels/decoupe/statut.
 
-CE QUE CE FICHIER EMPÊCHE. La route n'avait aucun test, et elle mentait pendant une REPRISE :
-elle testait `decoupe_valide` AVANT le travail en cours. Ce drapeau reste posé depuis la
-première ingestion — sur une réingestion il gagnait donc contre la réalité. Mesuré le
-02/08/2026 sur le BTS CIEL : pendant onze minutes de vectorisation, l'écran affichait
-`status: done` avec `chunks: 46` (les anciens, pas encore purgés) alors que l'avancement réel
-était à 0/44. Un admin qui réingère croyait que c'était fini avant que ça n'ait commencé.
+CE FICHIER A CHANGÉ DE SUJET LE 09/08/2026, et c'est le fond de l'affaire.
 
-Ce n'était pas une donnée manquante : `_INGESTIONS` portait la vérité, et le garde de
-`valider_decoupe` la lisait déjà correctement. C'était un ordre de conditions.
+Il verrouillait jusque-là un ORDRE DE CONDITIONS. La route mentait pendant une reprise : elle
+testait `decoupe_valide` avant le travail en cours, et ce drapeau — posé à la première
+ingestion — gagnait contre la réalité. Mesuré le 02/08/2026 sur le BTS CIEL : pendant onze
+minutes de vectorisation, l'écran affichait `done` avec les 46 unités de la fois d'avant alors
+que l'avancement réel était à 0/44. La vérité était dans `_INGESTIONS`, un dictionnaire
+d'orchestration tenu en mémoire.
 
-LES QUATRE ÉTATS SONT TESTÉS, pas seulement celui qu'on répare : le risque d'une correction
-d'ordre, c'est de déplacer le mensonge ailleurs. `idle`, le premier `done`, `error` et
-`absent` doivent se comporter exactement comme avant.
+CE DICTIONNAIRE N'EXISTE PLUS. Le 08/08/2026, « Valider le découpage » a cessé de lancer quoi
+que ce soit : il ne fait plus qu'un put sur `decoupe_valide`. Plus rien ne tourne en tâche de
+fond, donc plus rien à départager — la route lit la base, et la base ne ment pas. Les six tests
+qui posaient un faux job échouaient depuis, sur un `_INGESTIONS_LOCK` disparu : ils gardaient un
+mécanisme mort.
+
+CE QUI EST VÉRIFIÉ MAINTENANT — le contrat réel, trois états et rien de plus :
+`absent` (aucun référentiel), `idle` (référentiel non validé), `done` (référentiel validé),
+`chunks` compté en base pour CE référentiel, et `progress`/`message` toujours nuls. Ce dernier
+point n'est pas décoratif : c'est lui qui dirait qu'une orchestration est revenue par la fenêtre.
 
 Lancer : docker compose exec backend python -m pytest tests/test_statut_decoupe.py -q
 """
 import backend.core.database as dbmod
-import backend.pedagogie.referentiels_admin as refadm
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
 from backend.main import app
 from fastapi.testclient import TestClient
@@ -32,12 +37,17 @@ def admin_client():
     return c
 
 
-def _couple(decoupe_valide: bool, chunks: int = 0) -> int:
-    """Un couple complet en base. Renvoie le cycle_id (la route interroge par cycle + nom)."""
+def _couple(decoupe_valide: bool, chunks: int = 0, suffixe: str = "") -> int:
+    """Un couple complet en base. Renvoie le cycle_id (la route interroge par cycle + nom).
+
+    `suffixe` sert quand un même test crée plusieurs couples : `cycles.nom` ET
+    `referentiels.nom_fixe` sont UNIQUES, deux homonymes dans le même test lèvent une violation
+    de contrainte. Entre deux tests la question ne se pose pas — le conftest TRUNCATE."""
     with dbmod.SessionLocal() as db:
-        cyc = Cycle(nom=CYCLE, ordre=97); db.add(cyc); db.flush()
+        cyc = Cycle(nom=CYCLE + suffixe, ordre=97); db.add(cyc); db.flush()
         niv = Niveau(cycle_id=cyc.id, nom=NIVEAU, ordre=97); db.add(niv); db.flush()
-        ref = Referentiel(niveau_id=niv.id, nom_fixe=COLLECTION, collection=COLLECTION,
+        ref = Referentiel(niveau_id=niv.id, nom_fixe=COLLECTION + suffixe,
+                          collection=COLLECTION + suffixe,
                           decoupe_valide=decoupe_valide)
         db.add(ref); db.flush()
         for i in range(chunks):
@@ -48,15 +58,6 @@ def _couple(decoupe_valide: bool, chunks: int = 0) -> int:
         return cyc.id
 
 
-def _job(etat: dict | None) -> None:
-    """Pose (ou retire) l'état d'orchestration RUNTIME du couple."""
-    with refadm._INGESTIONS_LOCK:
-        if etat is None:
-            refadm._INGESTIONS.pop(COLLECTION, None)
-        else:
-            refadm._INGESTIONS[COLLECTION] = etat
-
-
 def _statut(cycle_id: int) -> dict:
     r = admin_client().get("/api/admin/referentiels/decoupe/statut",
                            params={"cycle_id": cycle_id, "niveau": NIVEAU})
@@ -64,96 +65,9 @@ def _statut(cycle_id: int) -> dict:
     return r.json()
 
 
-# ── LE DÉFAUT MESURÉ ────────────────────────────────────────────────────────────────────
+# ── LES TROIS ÉTATS ─────────────────────────────────────────────────────────────────────
 
-def test_une_reingestion_en_cours_ne_dit_plus_done(monkeypatch):
-    """LE cas des onze minutes. Le couple est DÉJÀ validé (46 chunks de la fois d'avant) et une
-    nouvelle ingestion tourne : la route doit dire `running`, pas `done`.
-
-    Elle rend aussi les chiffres d'avant — 46 chunks, decoupe_valide vrai — et c'est normal :
-    ils sont vrais tant que la purge n'a pas eu lieu. Ce qui était faux, c'est le VERDICT."""
-    cid = _couple(decoupe_valide=True, chunks=46)
-    _job({"status": "running", "chunks": None, "message": None,
-          "progress": {"etape": "vectorisation", "fait": 0, "total": 44}})
-    try:
-        s = _statut(cid)
-    finally:
-        _job(None)
-    assert s["status"] == "running", "le drapeau de la fois d'avant l'emporte encore"
-    assert s["progress"] == {"etape": "vectorisation", "fait": 0, "total": 44}
-    assert s["decoupe_valide"] is True and s["chunks"] == 46
-
-
-def test_une_reingestion_qui_echoue_ne_dit_plus_done(monkeypatch):
-    """Même cause, second visage : sur un couple déjà validé, une reprise en ERREUR rendait
-    `done` — et son message n'arrivait jamais à l'écran. C'est le même défaut, pas un autre."""
-    cid = _couple(decoupe_valide=True, chunks=46)
-    _job({"status": "error", "chunks": None, "message": "Découpe par l'IA impossible : 429"})
-    try:
-        s = _statut(cid)
-    finally:
-        _job(None)
-    assert s["status"] == "error"
-    assert "429" in s["message"]
-
-
-# ── LES TROIS AUTRES ÉTATS : ILS NE DOIVENT PAS BOUGER ──────────────────────────────────
-
-def test_idle_inchange():
-    """Rien en cours, jamais ingéré : `idle`. Le risque d'une correction d'ordre est de
-    déplacer le mensonge — ces trois-là le vérifient."""
-    cid = _couple(decoupe_valide=False)
-    _job(None)
-    s = _statut(cid)
-    assert s["status"] == "idle" and s["chunks"] == 0 and s["decoupe_valide"] is False
-
-
-def test_le_premier_done_inchange():
-    """Ingestion aboutie, plus rien en cours : `done`. Sans job, c'est le drapeau qui répond —
-    c'est lui qui distingue « déjà ingéré » de « jamais ingéré »."""
-    cid = _couple(decoupe_valide=True, chunks=44)
-    _job(None)
-    s = _statut(cid)
-    assert s["status"] == "done" and s["chunks"] == 44
-
-
-def test_le_done_du_job_juste_apres_l_ingestion_inchange():
-    """Juste après l'aboutissement, les deux sources disent la même chose. Lire le job d'abord
-    ne change donc rien ici — vérifié plutôt que supposé."""
-    cid = _couple(decoupe_valide=True, chunks=44)
-    _job({"status": "done", "chunks": 44, "message": None})
-    try:
-        s = _statut(cid)
-    finally:
-        _job(None)
-    assert s["status"] == "done" and s["chunks"] == 44
-
-
-def test_la_premiere_ingestion_en_cours_inchangee():
-    """Couple jamais ingéré, ingestion en cours : `running` — c'était déjà le cas avant, par la
-    branche `elif`. La correction ne doit pas l'avoir déplacé."""
-    cid = _couple(decoupe_valide=False)
-    _job({"status": "running", "chunks": None, "message": None,
-          "progress": {"etape": "decoupe", "fait": 0, "total": 0}})
-    try:
-        s = _statut(cid)
-    finally:
-        _job(None)
-    assert s["status"] == "running" and s["chunks"] == 0
-
-
-def test_une_premiere_ingestion_en_erreur_inchangee():
-    """Couple jamais ingéré, ingestion échouée : `error` + message. Inchangé."""
-    cid = _couple(decoupe_valide=False)
-    _job({"status": "error", "chunks": None, "message": "Prompt de découpe non validé"})
-    try:
-        s = _statut(cid)
-    finally:
-        _job(None)
-    assert s["status"] == "error" and "Prompt" in s["message"]
-
-
-def test_couple_absent_inchange():
+def test_couple_absent():
     """Aucun référentiel pour ce couple : `absent`, et surtout aucune erreur 500."""
     with dbmod.SessionLocal() as db:
         cyc = Cycle(nom="SD-Vide", ordre=98); db.add(cyc); db.flush()
@@ -162,3 +76,39 @@ def test_couple_absent_inchange():
         cid = cyc.id
     s = _statut(cid)
     assert s["status"] == "absent" and s["chunks"] == 0
+
+
+def test_idle_referentiel_pas_encore_valide():
+    """Un référentiel existe, le découpage n'est pas validé : `idle`."""
+    cid = _couple(decoupe_valide=False)
+    s = _statut(cid)
+    assert s["status"] == "idle" and s["chunks"] == 0 and s["decoupe_valide"] is False
+
+
+def test_done_referentiel_valide():
+    """Découpage validé : `done`, et le nombre d'unités réellement en base."""
+    cid = _couple(decoupe_valide=True, chunks=44)
+    s = _statut(cid)
+    assert s["status"] == "done" and s["chunks"] == 44 and s["decoupe_valide"] is True
+
+
+def test_les_unites_sont_comptees_sans_le_drapeau():
+    """Des unités écrites mais pas encore validées : `idle` MALGRÉ les 46 unités.
+
+    C'est l'état exact de l'ancien bug, vu de l'autre côté : le compte et le verdict sont deux
+    choses. Ici le compte dit 46 et le verdict dit « pas validé » — les deux sont vrais."""
+    cid = _couple(decoupe_valide=False, chunks=46)
+    s = _statut(cid)
+    assert s["status"] == "idle" and s["chunks"] == 46
+
+
+# ── PLUS AUCUNE ORCHESTRATION ───────────────────────────────────────────────────────────
+
+def test_ni_progression_ni_message_quel_que_soit_l_etat():
+    """La route ne rend plus jamais d'avancement ni de message : il n'y a plus de tâche de fond.
+
+    Si ces deux champs se remettaient à vivre, c'est qu'une orchestration serait revenue — et
+    avec elle le risque d'un verdict qui contredit la base."""
+    for i, (valide, chunks) in enumerate(((False, 0), (True, 44), (False, 46))):
+        s = _statut(_couple(decoupe_valide=valide, chunks=chunks, suffixe=f"-{i}"))
+        assert s["progress"] is None and s["message"] is None
