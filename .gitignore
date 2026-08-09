@@ -47,3 +47,6 @@ Bagage/
 # essai. Ce sont des reponses de modele et les prompts qui les ont produites — artefacts de
 # travail d'un poste, jamais du depot. Purge = supprimer le dossier.
 .llm_cache/
+
+# Filets locaux .bak (avant edition/suppression) — jamais commites
+*.bak

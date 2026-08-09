@@ -1,0 +1,38 @@
+{
+  // Tâches VS Code du projet aSchool.
+  //
+  // « Démarrer aSchool » se lance TOUTE SEULE à l'ouverture du dossier (runOn: folderOpen).
+  // VS Code demande l'autorisation la première fois, puis ne redemande plus.
+  //
+  // CE QU'ELLE FAIT, DANS CET ORDRE :
+  //   1. si le moteur Docker ne répond pas, elle lance Docker Desktop ;
+  //   2. elle ATTEND qu'il réponde vraiment (jusqu'à 3 minutes) — le processus démarre bien avant
+  //      que le moteur accepte des commandes, et un « docker compose up » lancé trop tôt échoue ;
+  //   3. elle monte la pile en arrière-plan (docker compose up -d).
+  //
+  // ELLE NE REMPLACE PAS le réglage de Docker Desktop « Start Docker Desktop when you sign in to
+  // your computer » (Paramètres → General) : celui-là démarre le MOTEUR à l'ouverture de session,
+  // celle-ci démarre TES CONTENEURS à l'ouverture du projet. Les deux ensemble donnent une pile
+  // debout sans y penser ; la tâche seule fonctionne aussi, elle met juste plus longtemps.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Démarrer aSchool",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}/Scripts/demarrer-docker.ps1"
+      ],
+      "runOptions": { "runOn": "folderOpen" },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "close": false,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}
