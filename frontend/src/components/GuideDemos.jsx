@@ -3,7 +3,9 @@
 // Elle répond aux trois questions de celui qui arrive sur l'écran Démos : qu'est-ce qu'une
 // démonstration, qu'est-ce que CET écran commande, et que voit le prof à l'autre bout. Puis elle
 // donne la quatrième réponse, celle qu'on cherchait jusqu'ici dans l'historique des sessions :
-// comment on en fabrique une nouvelle.
+// comment on en fabrique une nouvelle. En DEUX MOITIÉS, parce que le travail se fait à deux —
+// ce que l'admin fait depuis cet écran (ouvrir la fiche, relire, donner le statut), puis ce que
+// le dev fait en ligne de commande (la base, la copie, le contenu, la pile).
 //
 // POURQUOI LA PROCÉDURE EST ICI ET PAS DANS UN FICHIER À PART. Elle a d'abord été écrite en
 // Markdown, dans le dépôt. Personne ne l'aurait ouverte : celui qui se demande comment fabriquer
@@ -69,9 +71,29 @@ const GUIDE = [
   ] },
 ]
 
-// La recette, telle qu'elle a été suivie pour les trois démonstrations existantes. Elle ne coûte
-// rien : le référentiel se COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait
-// rater au moins une fois — c'est là que la procédure gagne son utilité.
+// FABRIQUER, PREMIÈRE MOITIÉ : ce que l'ADMIN fait, depuis cet écran, sans terminal. C'est la
+// moitié qui manquait — la procédure ne parlait que de commandes, alors que la fiche s'ouvre, se
+// remplit et change de statut ici. L'admin encadre le travail du dev : il ouvre la fiche avant,
+// il relit et donne le statut après.
+const ADMIN_ETAPES = [
+  { n: 1, titre: 'Déclarer la fiche',
+    texte: 'Bouton **+ Déclarer une démonstration**. Il ne propose que les référentiels qui n’en ont pas encore — un référentiel, une démonstration, pas deux. On donne le nom de la base à venir (`<option>_demo`, minuscules et soulignés) et la fiche naît en **À faire**.' },
+  { n: 2, titre: 'Suivre pendant la fabrication',
+    texte: 'Passer la fiche en **En cours** quand le dev s’y met. Rien d’autre à faire : l’écran ne fabrique pas, il attend.' },
+  { n: 3, titre: 'Recevoir le travail',
+    texte: 'À la livraison, vérifier ce qui est renseigné : l’**adresse** de l’instance, les trois compteurs, la **date de génération**. Les compteurs se saisissent à la main — cet écran n’ouvre pas la base pour les recompter. Statut **Fabriquée**.' },
+  { n: 4, titre: 'Relire soi-même, par Visiter',
+    texte: 'Le bouton **Visiter** ouvre la démonstration avec l’identité admin, quel que soit son couple et son statut. Parcourir une séquence, une séance et deux activités ; vérifier le filigrane à l’écran et sur une impression. Ce qui cloche va dans **Défauts connus**, pas dans un carnet à part.' },
+  { n: 5, titre: 'Ouvrir la porte aux profs',
+    texte: 'Passer en **Testée** — et seulement à ce moment-là : c’est ce statut qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau. **Validée** vient ensuite, quand elle a servi sans incident. Renseigner la **date du dernier test**.' },
+  { n: 6, titre: 'Corriger, ou retirer',
+    texte: '**Modifier** rouvre la fiche à tout moment. **Retirer** l’efface de la liste — la base PostgreSQL, elle, survit : elle se détruit à la main, par le dev.' },
+]
+
+// FABRIQUER, SECONDE MOITIÉ : ce que fait le DEV, en ligne de commande. La recette telle qu'elle a
+// été suivie pour les trois démonstrations existantes. Elle ne coûte rien : le référentiel se
+// COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait rater au moins une fois —
+// c'est là que la procédure gagne son utilité.
 const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
   + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
   + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
@@ -171,11 +193,21 @@ function guideEnHtml() {
   return '<h1>Comment fonctionnent les démonstrations</h1><p>' + SOUS_TITRE + '</p>'
     + GUIDE.map(b => '<h2>' + b.titre + '</h2><ul>'
         + b.items.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>').join('')
-    + '<h2>Fabriquer une nouvelle démonstration</h2><p>' + enrichir(PREAMBULE) + '</p>'
+    + '<h2>Fabriquer une nouvelle démonstration — par l’admin, depuis cet écran</h2>'
+    + ADMIN_ETAPES.map(e => '<h3>' + e.n + '. ' + e.titre + '</h3><p>' + enrichir(e.texte) + '</p>').join('')
+    + '<h2>Fabriquer une nouvelle démonstration — par le dev, en ligne de commande</h2>'
+    + '<p>' + enrichir(PREAMBULE) + '</p>'
     + PROCEDURE.map(e => '<h3>' + e.n + '. ' + e.titre + '</h3><p>' + enrichir(e.texte) + '</p>'
         + '<pre>' + ech(e.code) + '</pre>').join('')
     + '<h2>Ce qu’il ne faut pas faire</h2><ul>'
     + PIEGES.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>'
+}
+
+// Le numéro d'une étape, dans les deux listes — celle de l'admin et celle du dev.
+const pastille = {
+  flexShrink: 0, width: 20, height: 20, borderRadius: '50%', background: 'var(--bleu)',
+  color: '#fff', fontSize: 11, fontWeight: 700, marginTop: 1,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 
 // Norme maison, valable pour les deux fenêtres : un bouton porte son icône et sa bulle d'aide, à
@@ -249,8 +281,28 @@ export default function GuideDemos({ onFermer }) {
         <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
 
         <div>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>
+            Fabriquer une nouvelle démonstration — <span style={{ color: 'var(--bleu)' }}>par l’admin</span>, depuis cet écran
+          </p>
+          <ol style={{ margin: 0, padding: 0, listStyle: 'none',
+                       display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {ADMIN_ETAPES.map(e => (
+              <li key={e.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={pastille}>{e.n}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{e.titre}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 12, lineHeight: 1.6, color: '#475569' }}>{riche(e.texte)}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
+
+        <div>
           <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
-            Fabriquer une nouvelle démonstration
+            Fabriquer une nouvelle démonstration — <span style={{ color: 'var(--bleu)' }}>par le dev</span>, en ligne de commande
           </p>
           <p style={{ fontSize: 12, lineHeight: 1.6, color: '#475569', margin: '0 0 10px' }}>{riche(PREAMBULE)}</p>
 
@@ -258,11 +310,7 @@ export default function GuideDemos({ onFermer }) {
                        display: 'flex', flexDirection: 'column', gap: 12 }}>
             {PROCEDURE.map(e => (
               <li key={e.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
-                               background: 'var(--bleu)', color: '#fff', fontSize: 11, fontWeight: 700,
-                               display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-                  {e.n}
-                </span>
+                <span style={pastille}>{e.n}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{e.titre}</p>
                   <p style={{ margin: '2px 0 6px', fontSize: 12, lineHeight: 1.6, color: '#475569' }}>{riche(e.texte)}</p>
