@@ -1,17 +1,23 @@
 // « Comment ça marche » des démonstrations — fenêtre destinée à L'ADMIN, et à personne d'autre.
 //
-// Elle répond aux trois questions de celui qui arrive sur l'écran Démos sans avoir fabriqué les
-// démonstrations : qu'est-ce que c'est, qu'est-ce que CET écran commande, et que voit le prof à
-// l'autre bout. Les trois blocs sont dans cet ordre parce que c'est l'ordre des questions.
+// Elle répond aux trois questions de celui qui arrive sur l'écran Démos : qu'est-ce qu'une
+// démonstration, qu'est-ce que CET écran commande, et que voit le prof à l'autre bout. Puis elle
+// donne la quatrième réponse, celle qu'on cherchait jusqu'ici dans l'historique des sessions :
+// comment on en fabrique une nouvelle.
+//
+// POURQUOI LA PROCÉDURE EST ICI ET PAS DANS UN FICHIER À PART. Elle a d'abord été écrite en
+// Markdown, dans le dépôt. Personne ne l'aurait ouverte : celui qui se demande comment fabriquer
+// une démonstration est devant CET écran, pas dans un dossier du dépôt. Elle est donc au même
+// endroit que le reste — et elle s'ouvre en aperçu, s'imprime, et se lit à côté du terminal.
 //
 // POURQUOI UNE FENÊTRE ET NON UN PANNEAU DÉPLIÉ DANS L'ÉCRAN. Une explication qui pousse le
 // tableau vers le bas se lit une fois puis se referme ; une fenêtre se déplace, se garde ouverte
-// à côté pendant qu'on remplit une fiche, s'imprime et s'emporte. Elle réutilise `FenetrePro`,
-// la coquille unique de l'application — déplaçable par sa barre de titre, étirable par le coin.
+// pendant qu'on remplit une fiche, et s'emporte. Elle réutilise `FenetrePro`, la coquille unique
+// de l'application — déplaçable par sa barre de titre, étirable par le coin.
 //
-// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE`. Il sert à la fenêtre ET à la page HTML qu'on
-// ouvre dans un onglet, et un balisage minimal (**gras**) évite d'injecter du HTML dans le JSX
-// pour obtenir un mot en gras. L'impression n'a pas de bouton : elle se fait depuis l'onglet.
+// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE`, `PROCEDURE` et `PIEGES`. Il sert à la fenêtre
+// ET à l'aperçu mis en forme, qui est aussi la page imprimée. Un balisage minimal (**gras**,
+// `code`) évite d'injecter du HTML dans le JSX pour obtenir un mot en gras.
 //
 // Tout ce qui y est affirmé se vérifie dans le code : les statuts qui ouvrent la porte
 // (`_STATUTS_VISITABLES`, backend/prof/demo.py), la durée du jeton (`_VALIDITE`), et la copie du
@@ -63,26 +69,117 @@ const GUIDE = [
   ] },
 ]
 
-// **gras** → <b> à l'écran. Découpage sur les paires d'astérisques : les rangs impairs sont gras.
-function gras(texte) {
-  return texte.split('**').map((bout, i) => (
-    i % 2 ? <b key={i} style={{ color: '#0f172a' }}>{bout}</b> : <span key={i}>{bout}</span>
-  ))
+// La recette, telle qu'elle a été suivie pour les trois démonstrations existantes. Elle ne coûte
+// rien : le référentiel se COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait
+// rater au moins une fois — c'est là que la procédure gagne son utilité.
+const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
+  + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
+  + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
+  + '8003/5175 et 8004/5176 sont pris.'
+
+const PROCEDURE = [
+  { n: 1, titre: 'La base et son schéma',
+    texte: 'L’extension **vector** se pose AVANT les migrations : une table de vecteurs ne se crée pas sans elle. Contrôle : même nombre de tables et même révision que la base réelle.',
+    code: 'docker compose exec -T db psql -U aschool -d postgres -c "CREATE DATABASE <nom>_demo OWNER aschool;"\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "CREATE EXTENSION IF NOT EXISTS vector;"\n'
+        + 'docker compose exec -T -e DATABASE_URL=postgresql+psycopg://aschool:aschool@db:5432/<nom>_demo \\\n'
+        + '  backend alembic upgrade head' },
+
+  { n: 2, titre: 'Copier le référentiel, vecteurs compris',
+    texte: 'Les migrations ont déjà semé les cycles et les niveaux : **vérifier l’identifiant du niveau avant de copier**, `referentiels.niveau_id` en dépend. Les vecteurs passent tels quels — on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` : elles se prennent par jointure sur leur type.',
+    code: 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\n'
+        + '         "types_activite|referentiel_id=<REF>" "referentiel_chunks|referentiel_id=<REF>"; do\n'
+        + '  TABLE="${T%%|*}"; WHERE="${T##*|}"\n'
+        + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT * FROM $TABLE WHERE $WHERE) TO STDOUT" > /tmp/$TABLE.tsv\n'
+        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy $TABLE FROM STDIN" < /tmp/$TABLE.tsv\n'
+        + 'done' },
+
+  { n: 3, titre: 'Recaler les compteurs d’identifiants',
+    texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon.',
+    code: 'for T in referentiels matieres types_activite referentiel_type_precisions referentiel_chunks; do\n'
+        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -tAc \\\n'
+        + '    "select setval(pg_get_serial_sequence(\'$T\',\'id\'), (select coalesce(max(id),1) from $T));"\n'
+        + 'done' },
+
+  { n: 4, titre: 'Le compte modèle, et la clé qui le désigne',
+    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide.',
+    code: 'HASH=$(docker compose exec -T db psql -U aschool -d ciela_demo -tAc \\\n'
+        + '  "select password_hash from users where email=\'demo.btsciela@aschool.fr\';" | tr -d \'\\r\')\n'
+        + 'docker compose exec -T db psql -U aschool -d <nom>_demo \\\n'
+        + '  -c "insert into users (email, password_hash, is_verified, is_active, failed_attempts,\n'
+        + '      guide_creer_vu, prenom, nom, subject_id, niveau_id, created_at) values\n'
+        + '      (\'demo.<nom>@aschool.fr\', \'$HASH\', true, false, 0, false, \'Prof\', \'Démo\', <MATIERE>, <NIVEAU>, now());" \\\n'
+        + '  -c "insert into settings (key, value) values (\'demo_gabarit_email\',\'demo.<nom>@aschool.fr\')\n'
+        + '      on conflict (key) do update set value=excluded.value;"' },
+
+  { n: 5, titre: 'Le contenu, écrit à la main',
+    texte: 'Trois fichiers SQL versionnés dans `demos/<nom>_demo/`, injectés dans l’ordre : séquences, séances, activités. **Une séquence par matière, deux activités par séance au moins, et tous les types du référentiel représentés** — un type jamais employé ne se voit pas. Ce qui ne vient pas du référentiel ne se rattache à rien : libellé du type, précision, matière et niveau se reprennent mot pour mot. Le ton suit le public : épreuves et barèmes pour un BTS, ni l’un ni l’autre pour la crèche.',
+    code: 'docker compose exec -T db psql -U aschool -d <nom>_demo < demos/<nom>_demo/<nom>_01_sequences.sql' },
+
+  { n: 6, titre: 'La pile Docker, puis la fiche',
+    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple — sinon c’est le `DATABASE_URL` qui vise la mauvaise base. La fiche se met à jour depuis cet écran : statut, adresse, compteurs, date.',
+    code: 'docker compose up -d backend_demo_<x> frontend_demo_<x>\n'
+        + 'curl -s http://localhost:<PORT_API>/api/demo/etat   # {"mode_demo":true,"couple":"…"}' },
+
+  { n: 7, titre: 'Contrôler avant de dire que c’est fait',
+    texte: 'Tout doit rendre **zéro**. Puis ouvrir la démonstration par **Visiter**, parcourir une séquence, une séance et deux activités, et vérifier le filigrane — écran, impression, Word et PDF.',
+    code: 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
+        + "select 'matiere inconnue' ctrl, count(*) from sequences s\n"
+        + '  where not exists (select 1 from matieres m where m.nom=s.matiere)\n'
+        + "union all select 'seance hors niveau', count(*) from seances where niveau<>'<NIVEAU>'\n"
+        + "union all select 'activite sans seance', count(*) from activites a\n"
+        + '  where not exists (select 1 from seances s where s.id=a.seance_id)\n'
+        + "union all select 'contenu hors compte modele', count(*) from (select user_id from sequences\n"
+        + '  union all select user_id from seances union all select user_id from activites) x\n'
+        + "  where user_id<>(select id from users where email='demo.<nom>@aschool.fr')\n"
+        + "union all select 'label qui ne colle pas au type', count(*) from activites a\n"
+        + '  join types_activite t on t.id=a.activite_type_id where t.label<>a.activite_label\n'
+        + "union all select 'sous_type inconnu', count(*) from activites a where a.sous_type is not null\n"
+        + '  and not exists (select 1 from referentiel_type_precisions p\n'
+        + '                  where p.libelle=a.sous_type and p.type_activite_id=a.activite_type_id);"' },
+]
+
+const PIEGES = [
+  '**Recalculer les vecteurs.** Ils se copient. Une ré-ingestion coûte des appels et ne donne rien de plus.',
+  '**Rejouer les prompts** du référentiel dans la base de démonstration : le découpage arrive avec la copie.',
+  '**Écrire le contenu ailleurs que dans `demos/`.** Un dossier temporaire de session est purgé par le système, et le travail disparaît avec.',
+  '**Passer une démonstration en « Testée » sans l’avoir ouverte** — ou la laisser en « Fabriquée » alors qu’elle a été relue. Le statut est une promesse faite aux profs.',
+]
+
+// **gras** → <b>, `code` → <code>. Découpage sur les paires de marqueurs : rangs impairs marqués.
+function riche(texte) {
+  return texte.split('**').flatMap((bout, i) => {
+    if (i % 2) return [<b key={'b' + i} style={{ color: '#0f172a' }}>{bout}</b>]
+    return bout.split('`').map((x, j) => (j % 2
+      ? <code key={i + '-' + j} style={{ fontFamily: 'Consolas, Monaco, monospace', fontSize: '0.92em',
+                                         background: '#f1f5f9', padding: '1px 4px', borderRadius: 3 }}>{x}</code>
+      : <span key={i + '-' + j}>{x}</span>))
+  })
 }
 
-// Le même texte pour la page ouverte en onglet : les trois blocs à la suite, jamais en colonnes
-// — à l'impression, trois colonnes obligeraient à remonter deux fois en haut de page.
+// Le même texte pour l'aperçu mis en forme, qui est aussi la page imprimée. Les trois blocs se
+// suivent au lieu de se côtoyer : à l'impression, des colonnes obligeraient à remonter en haut de
+// page à chaque fois.
+//
+// LES CHEVRONS SONT ÉCHAPPÉS. La procédure est pleine de repères `<nom>_demo` et `<REF>` : sans
+// échappement, le navigateur les prend pour des balises et les fait disparaître de la page.
 function guideEnHtml() {
-  const enGras = t => t.split('**').map((x, i) => (i % 2 ? '<strong>' + x + '</strong>' : x)).join('')
-  const bloc = b => '<h2>' + b.titre + '</h2><ul>'
-    + b.items.map(t => '<li>' + enGras(t) + '</li>').join('')
-    + '</ul>'
+  const ech = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const enrichir = t => ech(t)
+    .split('**').map((x, i) => (i % 2 ? '<strong>' + x + '</strong>' : x)).join('')
+    .split('`').map((x, i) => (i % 2 ? '<code>' + x + '</code>' : x)).join('')
   return '<h1>Comment fonctionnent les démonstrations</h1><p>' + SOUS_TITRE + '</p>'
-    + GUIDE.map(bloc).join('')
+    + GUIDE.map(b => '<h2>' + b.titre + '</h2><ul>'
+        + b.items.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>').join('')
+    + '<h2>Fabriquer une nouvelle démonstration</h2><p>' + enrichir(PREAMBULE) + '</p>'
+    + PROCEDURE.map(e => '<h3>' + e.n + '. ' + e.titre + '</h3><p>' + enrichir(e.texte) + '</p>'
+        + '<pre>' + ech(e.code) + '</pre>').join('')
+    + '<h2>Ce qu’il ne faut pas faire</h2><ul>'
+    + PIEGES.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>'
 }
 
-// Norme maison, valable pour les deux fenêtres : un bouton porte son icône et sa bulle d'aide,
-// à hauteur fixe. Posé dans la barre de titre, donc sur le bleu : fond transparent, trait blanc.
+// Norme maison, valable pour les deux fenêtres : un bouton porte son icône et sa bulle d'aide, à
+// hauteur fixe. Posé dans la barre de titre, donc sur le bleu : fond transparent, trait blanc.
 const boutonBarre = {
   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
   height: 26, padding: '0 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
@@ -90,13 +187,11 @@ const boutonBarre = {
   color: '#fff', cursor: 'pointer', fontFamily: 'inherit',
 }
 
-// L'aperçu mis en forme : une fenêtre flottante de plus, posée au-dessus de la première
-// (`zIndex` plus haut), avec son bouton « Imprimer » dans sa barre de titre. C'est la même page
-// que celle qu'on imprime — `guideEnHtml()` sert les deux, il n'y a pas deux versions du texte.
+// L'aperçu mis en forme : une fenêtre flottante de plus, posée au-dessus de la première, avec son
+// bouton « Imprimer » dans sa barre de titre. Un HTML s'ouvre en fenêtre, jamais dans un onglet.
 //
-// `dangerouslySetInnerHTML` est sans risque ici : le HTML vient de `GUIDE`, écrit dans ce
-// fichier, jamais d'une saisie ni d'un fournisseur d'IA. La classe `.apercu-corps` (index.css)
-// lui donne la mise en forme de tous les aperçus de l'application.
+// `dangerouslySetInnerHTML` est sans risque ici : le HTML vient des constantes de ce fichier,
+// jamais d'une saisie ni d'un fournisseur d'IA.
 function ApercuHtmlGuide({ onFermer }) {
   const html = guideEnHtml()
   const actions = (
@@ -126,6 +221,11 @@ export default function GuideDemos({ onFermer }) {
       <IconGlobe />Ouvrir en HTML
     </button>
   )
+  const code = {
+    margin: 0, padding: '8px 10px', background: '#0f172a', color: '#e2e8f0', borderRadius: 6,
+    fontFamily: 'Consolas, Monaco, monospace', fontSize: 11, lineHeight: 1.55,
+    overflowX: 'auto', whiteSpace: 'pre',
+  }
   return (
     <>
     {apercu && <ApercuHtmlGuide onFermer={() => setApercu(false)} />}
@@ -140,10 +240,48 @@ export default function GuideDemos({ onFermer }) {
             <div key={b.titre} style={{ flex: '1 1 240px', minWidth: 0 }}>
               <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>{b.titre}</p>
               <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.65, color: '#475569' }}>
-                {b.items.map((t, i) => <li key={i} style={{ marginBottom: 4 }}>{gras(t)}</li>)}
+                {b.items.map((t, i) => <li key={i} style={{ marginBottom: 4 }}>{riche(t)}</li>)}
               </ul>
             </div>
           ))}
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
+
+        <div>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
+            Fabriquer une nouvelle démonstration
+          </p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, color: '#475569', margin: '0 0 10px' }}>{riche(PREAMBULE)}</p>
+
+          <ol style={{ margin: 0, padding: 0, listStyle: 'none',
+                       display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {PROCEDURE.map(e => (
+              <li key={e.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
+                               background: 'var(--bleu)', color: '#fff', fontSize: 11, fontWeight: 700,
+                               display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                  {e.n}
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{e.titre}</p>
+                  <p style={{ margin: '2px 0 6px', fontSize: 12, lineHeight: 1.6, color: '#475569' }}>{riche(e.texte)}</p>
+                  <pre style={code}>{e.code}</pre>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
+
+        <div>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>
+            Ce qu’il ne faut pas faire
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.65, color: '#475569' }}>
+            {PIEGES.map((t, i) => <li key={i} style={{ marginBottom: 4 }}>{riche(t)}</li>)}
+          </ul>
         </div>
       </div>
     </FenetrePro>
