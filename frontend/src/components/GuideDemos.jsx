@@ -95,14 +95,18 @@ const ADMIN_ETAPES = [
 // COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait rater au moins une fois —
 // c'est là que la procédure gagne son utilité.
 //
-// LE TEMPS 2 A CHANGÉ APRÈS LE BTS CRSA. Il disait « vérifier l'identifiant du niveau » ; c'était
-// trop faible, et la commande donnée ne copiait même pas les précisions. Le CRSA a montré le cas
-// réel : son niveau n'existe pas dans une base neuve, et son id y désigne une licence de droit.
-// Le référentiel copié tel quel s'est rattaché à la mauvaise chose, sans une seule erreur.
+// LE TEMPS 2 A CHANGÉ DEUX FOIS. Il a d'abord dit « vérifier l'identifiant du niveau », puis
+// « résoudre le niveau par son nom des deux côtés » — deux façons de vivre avec des identifiants
+// qui divergent, jamais de les faire concorder. Le 10/08/2026 la cause a été traitée : le
+// CATALOGUE cycles/niveaux de la démonstration est COPIÉ du réel avant tout le reste. Les deux
+// bases portent alors les mêmes numéros, et il n'y a plus rien à résoudre ni à réécrire ensuite.
+// Ce qui l'a déclenché : le BTS CRSA portait 101 en démonstration contre 89 dans le réel, et la
+// Licence Ergothérapie 99 contre 100. Les deux bases ont été détruites et remontées par cette
+// recette-ci.
 const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
   + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
   + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
-  + '8003/5175, 8004/5176 et 8005/5177 sont pris.'
+  + '8003/5175, 8004/5176, 8005/5177 et 8006/5178 sont pris.'
 
 const PROCEDURE = [
   { n: 1, titre: 'La base et son schéma',
@@ -112,19 +116,18 @@ const PROCEDURE = [
         + 'docker compose exec -T -e DATABASE_URL=postgresql+psycopg://aschool:aschool@db:5432/<nom>_demo \\\n'
         + '  backend alembic upgrade head' },
 
-  { n: 2, titre: 'Le niveau d’abord, le référentiel ensuite',
-    texte: '**Aucun numéro de niveau ne traverse d’une base à l’autre.** Le niveau peut ne pas exister du tout dans la base neuve, et son numéro peut y désigner autre chose : les migrations sèment les niveaux, mais celui qui a été ajouté à la main dans le réel n’y est pas, et sa place est déjà prise. Le BTS CRSA en est la démonstration — `niveau_id = 89` dans le réel, « Licence Droit » dans une base neuve : copié tel quel, le référentiel arrive rattaché à une licence de droit, sans une erreur. On lit donc le niveau **par son nom des deux côtés**, on le crée s’il manque — cycle résolu par son nom lui aussi — et on rattache par une sous-requête, jamais par un chiffre recopié. C’est la règle que l’application applique déjà : le jeton du prof transporte des noms, pas des identifiants (`backend/prof/demo.py`). Si le cycle n’existait pas non plus, l’insertion casse sur la contrainte `NOT NULL` : bruyamment, et c’est ce qu’on veut. Le reste passe tel quel, vecteurs compris — on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id` : elles se prennent par jointure sur leur type, d’où leur ligne à part.',
-    code: '# a) le niveau — lu PAR NOM des deux côtés, créé s’il manque. Rejouable sans risque.\n'
-        + 'docker compose exec -T db psql -U aschool -d aschool_dev -tAc "\n'
-        + '  select n.nom, c.nom, n.ordre from niveaux n join cycles c on c.id=n.cycle_id\n'
-        + '   where n.nom=\'<NIVEAU>\';"   # relève <CYCLE_NOM> et <ORDRE>\n'
+  { n: 2, titre: 'Le catalogue du réel, puis le référentiel',
+    texte: '**Le catalogue `cycles` + `niveaux` de la démonstration est celui de la base réelle, copié tel quel.** C’est la première chose qu’on fait, avant toute autre donnée : les migrations viennent d’en semer un, on le remplace en entier. Les deux bases portent alors les mêmes numéros, et plus aucun identifiant n’a besoin d’être résolu, vérifié ou réécrit ensuite — le référentiel garde son `niveau_id` d’origine, et il désigne la même chose des deux côtés. Sans cette étape, les numéros divergent dès qu’un niveau a été créé à la main dans le réel : il y prend une place que le semis donnera à un autre. Le BTS CRSA l’a montré — 89 dans le réel, 101 en démonstration — et la Licence Ergothérapie aussi, 100 contre 99. Les tables du référentiel passent ensuite telles quelles, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id`, elles se prennent par jointure sur leur type, d’où leur ligne à part.',
+    code: '# a) LE CATALOGUE — copié du réel, en entier. C’est ce qui fait concorder les numéros.\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + '  insert into niveaux (nom, cycle_id, ordre)\n'
-        + '  select \'<NIVEAU>\', (select id from cycles where nom=\'<CYCLE_NOM>\'), <ORDRE>\n'
-        + '   where not exists (select 1 from niveaux where nom=\'<NIVEAU>\');"\n'
+        + '  truncate niveaux, cycles restart identity cascade;"\n'
+        + 'for T in cycles niveaux; do\n'
+        + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy $T TO STDOUT" > /tmp/$T.tsv\n'
+        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy $T FROM STDIN" < /tmp/$T.tsv\n'
+        + 'done\n'
         + '\n'
         + '# b) les quatre tables filtrées sur le référentiel\n'
-        + 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\n'
+        + 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\\n'
         + '         "types_activite|referentiel_id=<REF>" "referentiel_chunks|referentiel_id=<REF>"; do\n'
         + '  TABLE="${T%%|*}"; WHERE="${T##*|}"\n'
         + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT * FROM $TABLE WHERE $WHERE) TO STDOUT" > /tmp/$TABLE.tsv\n'
@@ -136,30 +139,28 @@ const PROCEDURE = [
         + '  JOIN types_activite t ON t.id=p.type_activite_id WHERE t.referentiel_id=<REF>) TO STDOUT" > /tmp/prec.tsv\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy referentiel_type_precisions FROM STDIN" < /tmp/prec.tsv\n'
         + '\n'
-        + '# d) LE RATTACHEMENT — par le nom. Sans cette ligne, le référentiel garde le numéro du réel.\n'
+        + '# d) LE CONTRÔLE — aucun rattachement à corriger, on vérifie qu’il n’y en a pas besoin.\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + '  update referentiels\n'
-        + '     set niveau_id=(select id from niveaux where nom=\'<NIVEAU>\')\n'
-        + '   where id=<REF>;\n'
-        + '  select r.id, n.nom, c.nom from referentiels r join niveaux n on n.id=r.niveau_id\n'
-        + '    join cycles c on c.id=n.cycle_id;"   # doit rendre <NIVEAU>, pas autre chose' },
+        + '  select r.id, n.id, n.nom, c.nom from referentiels r join niveaux n on n.id=r.niveau_id\n'
+        + '    join cycles c on c.id=n.cycle_id;"   # mêmes numéros que dans aschool_dev' },
 
   { n: 3, titre: 'Recaler les compteurs d’identifiants',
-    texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon.',
-    code: 'for T in referentiels matieres types_activite referentiel_type_precisions referentiel_chunks; do\n'
+    texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon. `cycles` et `niveaux` en font partie depuis qu’ils se copient du réel — un niveau créé ensuite depuis l’écran Formations réclamerait un numéro déjà pris.',
+    code: 'for T in cycles niveaux referentiels matieres types_activite \\\n'
+        + '         referentiel_type_precisions referentiel_chunks users; do\n'
         + '  docker compose exec -T db psql -U aschool -d <nom>_demo -tAc \\\n'
         + '    "select setval(pg_get_serial_sequence(\'$T\',\'id\'), (select coalesce(max(id),1) from $T));"\n'
         + 'done' },
 
   { n: 4, titre: 'Le compte modèle, et la clé qui le désigne',
-    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide. Le niveau se résout par son **nom**, jamais par un numéro : celui du réel ne vaut rien ici. `travail_niveau_id` et `travail_matiere_id` restent vides — le jour où le gabarit les porte, ils se résoudront par nom eux aussi.',
+    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide. Son `niveau_id` est celui du réel, repris tel quel : le catalogue copié au temps 2 lui donne le même sens ici. `travail_niveau_id` et `travail_matiere_id` restent vides.',
     code: 'HASH=$(docker compose exec -T db psql -U aschool -d ciela_demo -tAc \\\n'
         + '  "select password_hash from users where email=\'demo.btsciela@aschool.fr\';" | tr -d \'\\r\')\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo \\\n'
         + '  -c "insert into users (email, password_hash, is_verified, is_active, failed_attempts,\n'
         + '      guide_creer_vu, prenom, nom, subject_id, niveau_id, created_at) values\n'
         + '      (\'demo.<nom>@aschool.fr\', \'$HASH\', true, false, 0, false, \'Prof\', \'Démo\', <MATIERE>,\n'
-        + '      (select id from niveaux where nom=\'<NIVEAU>\'), now());" \\\n'
+        + '      <NIVEAU_ID>, now());" \\\n'
         + '  -c "insert into settings (key, value) values (\'demo_gabarit_email\',\'demo.<nom>@aschool.fr\')\n'
         + '      on conflict (key) do update set value=excluded.value;"' },
 

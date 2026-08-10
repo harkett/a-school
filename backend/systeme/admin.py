@@ -2408,7 +2408,15 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
             func.count(Activite.id).label("nb"),
         )
         .join(User, User.id == Activite.user_id, isouter=True)
+        # `User.id` DOIT figurer ici. Le SELECT prend cinq colonnes de `users` (email, prénom,
+        # nom, subject_id, niveau_id) : sans la clé primaire dans le GROUP BY, PostgreSQL refuse
+        # la requête en bloc — « column users.email must appear in the GROUP BY clause ». L'écran
+        # Analytique > Activités rendait donc une 500 à chaque ouverture, quel que soit le contenu
+        # de la base (constaté le 10/08/2026 en écrivant le test qui manquait à cette route).
+        # Avec `User.id`, la dépendance fonctionnelle rend les quatre autres licites, et la
+        # granularité ne bouge pas : `Activite.user_id` groupait déjà par prof.
         .group_by(
+            User.id,
             Activite.user_id,
             Activite.matiere,
             Activite.niveau,

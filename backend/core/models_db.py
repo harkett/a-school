@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -82,7 +82,10 @@ class ConnexionLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # NULLABLE : NULL si l'email n'est pas un user (journal)
-    action: Mapped[str] = mapped_column(String(16), nullable=False)  # signup | login
+    # signup | login | admin_login | inactivite_logout. Élargie de 16 à 32 le 10/08/2026 :
+    # « inactivite_logout » fait 17 caractères et PostgreSQL refusait la ligne — la sortie
+    # pour inactivité rendait une 500 au lieu de se journaliser (migration d5b1f8c3e604).
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
@@ -1042,4 +1045,10 @@ class Fonctionnalite(Base):
     etat: Mapped[str] = mapped_column(String(16), nullable=False, server_default="a_venir", default="a_venir")
     # La preuve, en quelques mots. Vide pour une fonctionnalité simplement faite.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # LE FICHIER QUI REND CET ÉCRAN, chemin depuis `frontend/`. C'est ce qui rend la ligne
+    # vérifiable : `test_tableau_de_bord_dit_vrai` exige qu'il existe pour toute ligne qui n'est
+    # pas « à venir ». Sans lui, une fonctionnalité supprimée continue de s'annoncer « faite »
+    # sans que rien ne tombe — c'est arrivé au Labo le 10/08/2026. NULL pour ce qui n'est pas
+    # écrit : il n'y a pas de fichier à citer.
+    composant: Mapped[str | None] = mapped_column(Text, nullable=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
