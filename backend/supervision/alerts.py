@@ -13,20 +13,44 @@ from backend.core.horloge import maintenant_utc
 log = logging.getLogger(__name__)
 
 
+# Valeurs d'origine des quatre seuils — celles que la migration f1c9a3e7b5d2 a semées. Elles ne
+# servent QU'AU repli sur une valeur illisible (voir `nombre` ci-dessous), jamais sur une ligne
+# absente : ce n'est pas une source, c'est un filet de saisie.
+SEUILS_ORIGINE = {
+    "alerte_cpu_pct": "90",
+    "alerte_disque_pct": "85",
+    "alerte_tentatives_1h": "10",
+    "alerte_anti_flood_h": "2",
+}
+
+
 def seuils_alertes(db) -> dict:
     """Seuils de surveillance LUS EN BASE (réglages `alerte_*`), relus à chaque contrôle — donc
     modifiables sans redéploiement. Ils étaient écrits en dur ici alors que ce sont des choix de
     configuration. Une valeur illisible (saisie fautive) retombe sur le défaut du registre plutôt
     que de faire sauter la surveillance : couper les alertes serait pire que garder l'ancien seuil.
     """
-    from backend.systeme.admin import SETTING_DEFAULTS, get_settings_dict   # import local : pas de cycle
+    from backend.systeme.admin import get_settings_dict   # import local : pas de cycle
     s = get_settings_dict(db)
 
     def nombre(cle):
+        """Le seuil, lu en base. Une ligne ABSENTE lève : depuis le 10/08/2026 les quatre seuils
+        sont semés par migration (f1c9a3e7b5d2), et un repli en dur redonnerait au code le dernier
+        mot — c'est exactement ce qu'on vient de retirer.
+
+        Une VALEUR illisible, en revanche, retombe sur la ligne d'origine de la migration : une
+        saisie fautive ne doit pas couper la surveillance, ce serait pire que garder l'ancien
+        seuil. La distinction compte : ligne manquante = base incomplète, on le dit ; valeur
+        fautive = erreur humaine réparable, on tient."""
         try:
-            return float(s.get(cle, SETTING_DEFAULTS[cle]))
+            return float(s[cle])
+        except KeyError:
+            raise RuntimeError(
+                f"Seuil d'alerte « {cle} » absent de `settings` — migration f1c9a3e7b5d2 non "
+                f"appliquée ? La surveillance ne choisit pas de valeur à votre place."
+            )
         except (TypeError, ValueError):
-            return float(SETTING_DEFAULTS[cle])
+            return float(SEUILS_ORIGINE[cle])
 
     return {
         "cpu_pct":       nombre("alerte_cpu_pct"),

@@ -56,6 +56,9 @@ def test_perso_compte_le_monde_neuf():
 def test_minutes_par_activite_lues_en_base():
     _semer()
     with dbmod.SessionLocal() as db:
+        # La clé est SEMÉE par migration depuis le 10/08/2026 : on la remplace, on ne l'ajoute
+        # pas — un `add` sur une ligne présente violerait la clé primaire.
+        db.query(Setting).filter(Setting.key == "stats_minutes_par_activite").delete()
         db.add(Setting(key="stats_minutes_par_activite", value="30"))
         db.commit()
     d = _client().get("/api/stats/perso").json()

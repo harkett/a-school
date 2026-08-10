@@ -44,6 +44,20 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  // — Consulter les référentiels (LECTURE SEULE) —
+  //   L'écran existait depuis longtemps et sa route était déclarée, mais aucune entrée n'y menait :
+  //   on ne l'atteignait qu'en tapant l'URL. Entrée posée le 10/08/2026.
+  {
+    to:    '/admin/referentiels-consulter',
+    label: 'Consulter',
+    aide:  'Les référentiels déjà déposés, en lecture seule : le PDF, la source, les matières et le prompt de découpe, sans aucun bouton qui écrit.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    ),
+  },
   // — Formations (l'arbre déroulant + les actions du programme officiel) —
   {
     to:    '/admin/contenu',
@@ -202,24 +216,6 @@ const NAV_ITEMS = [
       { to: '/admin/parametres/general',    label: 'Paramètres',     aide: 'Table des paramètres du projet (clé / valeur / description), en consultation.' },
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
     ],
-  },
-  // — Labo : l'entrée REVIENT (07/08/2026), mais elle ouvre un écran d'ATTENTE et non l'écran
-  //   d'origine. Celui-ci avait été débranché le 06/08 parce qu'il faisait les mêmes gestes
-  //   qu'Admin → Référentiels ; ce qui reste à en tirer doit y être porté avant de rouvrir.
-  //   Retirer l'entrée avait fait disparaître le sujet de l'écran : plus rien ne rappelait que
-  //   le backend du labo, lui, tourne toujours.
-  SEP,
-  {
-    to:    '/admin/labo',
-    label: 'Labo',
-    aide:  'Laboratoire des référentiels — écran en attente, le temps que son contenu récupérable soit porté dans Référentiels.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 3v6l-5.5 9.5A2 2 0 0 0 5.2 21h13.6a2 2 0 0 0 1.7-2.5L15 9V3"/>
-        <line x1="8" y1="3" x2="16" y2="3"/>
-        <line x1="6.8" y1="15" x2="17.2" y2="15"/>
-      </svg>
-    ),
   },
   SEP,
   // — Entrées simples (hors catégorie) —

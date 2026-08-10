@@ -245,7 +245,7 @@ def _outils_llm_de_la_migration():
     (outil, libelle, ordre, aide) est prise en compte, dans l'ordre des noms de fichier."""
     import importlib.util
     dossier = _RACINE / "alembic" / "versions"
-    outils = []
+    outils, retires = [], set()
     for chemin in sorted(dossier.glob("*.py")):
         if "OUTILS" not in chemin.read_text(encoding="utf-8"):
             continue
@@ -253,10 +253,60 @@ def _outils_llm_de_la_migration():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         outils.extend(getattr(module, "OUTILS", []))
-    return outils
+        # Un outil peut aussi PARTIR (`referentiel_fusion`, 10/08/2026, avec le labo). Sans ce
+        # retrait, la base de test garderait une ligne que la prod n'a plus, et le filet de
+        # test_outils_llm_en_base accuserait le code d'avoir perdu un appel qui n'existe plus.
+        retires.update(getattr(module, "OUTILS_RETIRES", ()))
+    return [o for o in outils if o[0] not in retires]
 
 
 _OUTILS_LLM = _outils_llm_de_la_migration()
+
+
+# Réglages de `settings` semés par MIGRATION (constante `REGLAGES`). Même raison que pour les
+# outils : la liste n'existe QUE dans les migrations depuis le 10/08/2026 — le dictionnaire en
+# dur `SETTING_DEFAULTS` a été vidé, `get_settings_dict()` ne fabrique plus rien. Les recopier
+# ici en ferait une deuxième source qui dériverait ; on lit donc CELLES des migrations.
+def _reglages_des_migrations():
+    import importlib.util
+    dossier = _RACINE / "alembic" / "versions"
+    reglages = {}
+    for chemin in sorted(dossier.glob("*.py")):
+        if "REGLAGES" not in chemin.read_text(encoding="utf-8"):
+            continue
+        spec = importlib.util.spec_from_file_location(f"_mig_reglages_{chemin.stem}", chemin)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        reglages.update(getattr(module, "REGLAGES", {}))
+    return reglages
+
+
+_REGLAGES_MIGRES = _reglages_des_migrations()
+
+
+def resemer_reglages(db=None, sauf=()) -> None:
+    """Repose les réglages semés par migration après un `DELETE FROM settings` de test.
+
+    POURQUOI ELLE EXISTE. Plusieurs suites font table rase de `settings` pour partir d'un état
+    connu. C'était sans conséquence tant que `SETTING_DEFAULTS` fournissait une valeur de secours
+    à tout ; depuis le 10/08/2026 il n'en fournit plus (les réglages sont en base, et une ligne
+    absente LÈVE). Une table `settings` vide n'est donc plus un état neutre : c'est une base
+    incomplète, que le serveur refuse — à juste titre.
+
+    Vider puis rappeler cette fonction rend l'état RÉEL d'une installation à jour. Un test qui
+    veut éprouver l'absence d'UNE clé — ou qui teste l'écriture de cette clé — la nomme dans
+    `sauf` : c'est plus honnête que de supprimer tout et d'espérer."""
+    with _test_engine.begin() as conn:
+        for cle, valeur in _REGLAGES_MIGRES.items():
+            if cle in sauf:
+                continue
+            conn.execute(
+                text("INSERT INTO settings (key, value) VALUES (:key, :value) "
+                     "ON CONFLICT (key) DO NOTHING"),
+                {"key": cle, "value": valeur},
+            )
+    if db is not None:
+        db.expire_all()
 
 
 def _seed_catalogues():
@@ -293,6 +343,12 @@ def _seed_catalogues():
                     "VALUES (:code, :label, :actif, :ordre, :cle_env) ON CONFLICT (code) DO NOTHING"
                 ),
                 row,
+            )
+        for cle, valeur in _REGLAGES_MIGRES.items():
+            conn.execute(
+                text("INSERT INTO settings (key, value) VALUES (:key, :value) "
+                     "ON CONFLICT (key) DO NOTHING"),
+                {"key": cle, "value": valeur},
             )
         for row in _CATALOGUES_SEED["settings"]:
             conn.execute(

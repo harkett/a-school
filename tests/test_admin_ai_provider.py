@@ -16,6 +16,11 @@ Lancer : docker compose exec backend python -m pytest tests/test_admin_ai_provid
 
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+# `settings` vidée n'est plus un état neutre : les réglages vivent en base depuis le
+# 10/08/2026 et une ligne absente fait lever pour un CHOIX (modèle, fournisseur). On
+# repose donc ce qu'une installation à jour possède — sauf la clé que ce fichier teste.
+from conftest import resemer_reglages
+
 import backend.core.database as dbmod
 
 from backend.main import app
@@ -52,6 +57,7 @@ def _reset():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db, sauf=('ai_provider',))
     db.close()
     _seed_fournisseurs()
 
@@ -70,7 +76,11 @@ def test_get_ai_providers_liste_et_courant():
     assert r.status_code == 200, r.text
     data = r.json()
     assert data["supported"] == SUPPORTED  # lus en base (table ai_fournisseurs), tri par `ordre`
-    assert data["current"] == VALID  # repli sur le defaut, aucune ligne ai_provider en base
+    # AUCUNE ligne `ai_provider` en base ici (ce fichier la garde absente : c'est son sujet).
+    # L'écran répond donc « aucun choix » — et c'est la vérité. Il attendait auparavant le repli
+    # de SETTING_DEFAULTS, parti le 10/08/2026 : un fournisseur qu'on n'a pas choisi ne doit pas
+    # s'afficher comme s'il l'avait été.
+    assert data["current"] is None
 
 
 def test_put_fournisseur_valide_ecrit_en_base():

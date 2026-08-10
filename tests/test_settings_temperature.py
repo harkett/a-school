@@ -18,6 +18,11 @@ Lancer : docker compose exec backend python -m pytest tests/test_settings_temper
 from unittest.mock import MagicMock, patch
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+# `settings` vidée n'est plus un état neutre : les réglages vivent en base depuis le
+# 10/08/2026 et une ligne absente fait lever pour un CHOIX (modèle, fournisseur). On
+# repose donc ce qu'une installation à jour possède — sauf la clé que ce fichier teste.
+from conftest import resemer_reglages
+
 import backend.core.database as dbmod
 
 from backend.main import app
@@ -36,6 +41,7 @@ def _fresh_db():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db, sauf=('ai_temperature',))
     return db
 
 
@@ -43,6 +49,7 @@ def _reset_settings():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db, sauf=('ai_temperature',))
     db.close()
 
 
@@ -194,9 +201,12 @@ def _poser_modele(db, *, supporte):
     db.add(AiFournisseur(code=_F_TEMP, label="Test", cle_env="TEST_KEY"))
     db.add(AiModele(fournisseur=_F_TEMP, modele=_M_TEMP, label="Test",
                     supporte_temperature=supporte))
-    db.add(Setting(key="ai_provider", value=_F_TEMP))
-    db.add(Setting(key="ai_model", value=_M_TEMP))
-    db.add(Setting(key="ai_temperature", value="0.7"))
+    # Ces trois lignes existent peut-être déjà : depuis le 10/08/2026 les réglages sont semés
+    # par migration, et `resemer_reglages` les repose après chaque table rase. On REMPLACE donc
+    # au lieu d'ajouter — un `add` sur une clé présente violait la clé primaire.
+    for cle, valeur in (("ai_provider", _F_TEMP), ("ai_model", _M_TEMP), ("ai_temperature", "0.7")):
+        db.query(Setting).filter(Setting.key == cle).delete()
+        db.add(Setting(key=cle, value=valeur))
     db.commit()
 
 

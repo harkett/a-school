@@ -53,6 +53,12 @@ CLES_RETIREES = (
     "prompt_meta_precisions",
 )
 
+# Les mêmes, sans le préfixe `prompt_` : c'est la forme que lisent tests/test_prompts_en_base.py
+# et conftest.py pour rejouer la chaîne sans l'appliquer. Ajouté le 10/08/2026, quand les quatre
+# clés ont AUSSI quitté le registre (`llm_prompts.PROMPTS`) — sans cette liste, elles seraient
+# comptées « semées par une migration mais absentes du registre » pour toujours.
+PROMPTS_RETIRES = [c[len("prompt_"):] for c in CLES_RETIREES]
+
 
 def upgrade() -> None:
     conn = op.get_bind()

@@ -14,6 +14,14 @@ CE QUE CES TESTS PROUVENT, et pourquoi ils existent. Trois prompts vivaient HORS
 Hors registre, ils échappaient à tout : l'écran Prompts ne les voyait pas, `valider_prompt` ne
 les gardait pas, et rien ne vérifiait qu'une base neuve les contenait.
 
+CE QUI A CHANGÉ DEPUIS (08 puis 10/08/2026). Les QUATRE méta-prompts — découpe, matières, types,
+précisions — ont quitté `settings` ET le registre : ils vivent maintenant SUR LE RÉFÉRENTIEL, un
+texte par diplôme (`referentiels.prompt_meta_*`, migration d9e4b7a2c6f1). Un méta-prompt lit un
+document pour écrire le prompt qui le lira ; un gabarit commun à tous les diplômes n'a pas de
+sens. Leur garde-fou n'a pas disparu, il a déménagé avec eux : les routes
+`POST /admin/referentiels/prompt-meta-*` refusent un texte sans {document} (dernier test).
+Restent ici les deux prompts réellement GÉNÉRIQUES : `verif_decoupe` et `gabarit_type`.
+
 Ils ne pouvaient pas y entrer tels quels : leur texte CASSE `.format()` — c'est mesuré, pas
 supposé (`test_leur_texte_reel_casse_bien_format` ci-dessous). C'est normal : ils DÉCRIVENT un
 autre prompt, donc leurs accolades sont du texte à préserver. D'où le champ `mode` : en
@@ -32,11 +40,10 @@ from backend.main import app
 from backend.systeme.admin import _make_admin_token, get_prompts_settings, valider_prompt
 from fastapi.testclient import TestClient
 
-# Les prompts en mode « replace ». `meta_types` rejoint la liste le 05/08/2026 (la recette qui
-# lit les types monte au cycle, comme celles de la découpe et des matières) — et `meta_matieres`,
-# qui y était en mode mais pas dans cette liste, y entre du même coup.
-EN_REPLACE = ("meta_decoupe", "meta_matieres", "meta_types", "meta_precisions",
-              "verif_decoupe", "gabarit_type")
+# Les prompts du REGISTRE en mode « replace ». Les quatre méta-prompts en sont sortis le
+# 10/08/2026 avec leur entrée au registre : ils sont portés par chaque référentiel, et leur
+# repère {document} est exigé par la route qui les écrit, pas par `valider_prompt`.
+EN_REPLACE = ("verif_decoupe", "gabarit_type")
 
 
 def _admin():
@@ -65,15 +72,14 @@ def test_seuls_ces_prompts_sont_en_replace():
 
 # ── Le fait mesuré qui justifie tout le reste ────────────────────────────────────────────
 
-def test_les_deux_meta_prompts_cassent_vraiment_format():
-    """Première raison d'être du mode, et la plus nette : leur texte réel LÈVE. Le méta-prompt
-    exige que le prompt produit contienne {texte} ; celui de critique impose la sortie
-    {"unites":[…]}. `.format()` prend ces accolades pour des repères — mesuré, pas supposé.
-    La règle « format » refuserait donc leur texte LÉGITIME."""
-    for cle in ("meta_decoupe", "verif_decoupe"):
-        meta = PROMPTS[cle]
-        with pytest.raises((KeyError, IndexError, ValueError)):
-            meta["default"].format(**{ph: "x" for ph in meta["placeholders"]})
+def test_le_prompt_de_critique_casse_vraiment_format():
+    """Première raison d'être du mode, et la plus nette : son texte réel LÈVE. `verif_decoupe`
+    fait relire à l'IA le prompt qu'elle vient d'écrire, et impose la sortie {"unites":[…]} :
+    `.format()` prend ces accolades pour des repères — mesuré, pas supposé. La règle « format »
+    refuserait donc son texte LÉGITIME."""
+    meta = PROMPTS["verif_decoupe"]
+    with pytest.raises((KeyError, IndexError, ValueError)):
+        meta["default"].format(**{ph: "x" for ph in meta["placeholders"]})
 
 
 def test_le_gabarit_a_besoin_du_mode_pour_une_AUTRE_raison():
@@ -112,9 +118,9 @@ def test_leur_texte_reel_passe_la_validation():
 
 def test_un_repere_manquant_reste_refuse_en_mode_replace():
     """« replace » n'est pas « on ne vérifie plus rien » : le repère est la seule garantie que
-    la valeur atteindra le modèle. Sans {document}, le PDF n'entre jamais dans le méta-prompt."""
-    err = valider_prompt("meta_decoupe", "Rédige un prompt de découpe, sans rien de plus.")
-    assert err is not None and "{document}" in err
+    la valeur atteindra le modèle. Sans {prompt}, l'IA relirait le vide."""
+    err = valider_prompt("verif_decoupe", "Relis ce prompt et dis ce qui cloche.")
+    assert err is not None and "{prompt}" in err
 
 
 def test_le_gabarit_exige_ses_quatre_reperes():
@@ -198,22 +204,33 @@ def test_l_ancienne_porte_non_gardee_du_meta_prompt_n_existe_plus():
                  json={"texte": "un texte sans le moindre repère"}).status_code == 404
 
 
-def test_la_porte_qui_reste_refuse_un_meta_prompt_sans_document():
-    """Le corollaire, et la raison pour laquelle supprimer ne perd rien : la porte restante
-    fait le travail, et le fait AU NIVEAU HTTP — pas seulement dans `valider_prompt` pris à
-    part. Rien n'est écrit en base, et le texte d'origine est intact après le refus."""
-    with dbmod.SessionLocal() as db:
-        # conftest sème les prompts du registre avant chaque test — la ligne est donc là, et
-        # c'est bien elle que les DEUX portes visaient.
-        avant = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first().value
+def test_la_porte_du_referentiel_refuse_un_meta_prompt_sans_document():
+    """Le corollaire, et la raison pour laquelle rien n'est perdu : le garde-fou a SUIVI les
+    méta-prompts sur le référentiel, et il travaille AU NIVEAU HTTP — pas seulement dans
+    `valider_prompt` pris à part. Rien n'est écrit, et la colonne reste telle qu'elle était.
 
-    r = _admin().put("/api/admin/prompts",
-                     json={"key": "meta_decoupe", "text": "Rédige un prompt de découpe, sans plus."})
-    assert r.status_code == 400, r.text
+    Cette porte a remplacé les deux précédentes : le réglage global (retiré le 08/08, migration
+    d9e4b7a2c6f1) et l'entrée du registre (retirée le 10/08). C'est la seule aujourd'hui."""
+    from backend.core.models_db import Cycle, Niveau, Referentiel
+
+    with dbmod.SessionLocal() as db:
+        cy = Cycle(nom="MP-Cycle", ordre=95)
+        db.add(cy); db.commit(); db.refresh(cy)
+        niv = Niveau(cycle_id=cy.id, nom="MP-Niveau", ordre=95)
+        db.add(niv); db.commit(); db.refresh(niv)
+        db.add(Referentiel(niveau_id=niv.id, nom_fixe="mp_ref", collection="mp_ref",
+                           filtres=None, prompt_meta_decoupe="Lis {document} et rends un prompt."))
+        db.commit()
+        cycle_id, niveau_nom = cy.id, niv.nom
+
+    r = _admin().post("/api/admin/referentiels/prompt-meta-decoupe",
+                      json={"cycle_id": cycle_id, "niveau": niveau_nom,
+                            "prompt": "Rédige un prompt de découpe, sans plus."})
+    assert r.status_code == 422, r.text
     assert "{document}" in r.json()["detail"]
 
     with dbmod.SessionLocal() as db:
-        reste = db.query(Setting).filter(Setting.key == "prompt_meta_decoupe").first()
-        assert reste.value == avant, (
-            "un texte refusé a quand même été écrit en base"
+        ref = db.query(Referentiel).filter(Referentiel.niveau_id == niv.id).one()
+        assert ref.prompt_meta_decoupe == "Lis {document} et rends un prompt.", (
+            "un texte refusé a quand même été écrit sur le référentiel"
         )

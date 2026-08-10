@@ -591,15 +591,6 @@ def _enregistrer_referentiel(body: "ValiderBody", db: Session) -> tuple[dict, in
     raise HTTPException(500, "Dépôt interrompu avant son terme.")   # inatteignable : le générateur finit toujours par ("fin", …)
 
 
-@router.post("/admin/referentiels/verifier", dependencies=[Depends(_require_admin)])
-def verifier(body: ValiderBody, db: Session = Depends(get_db)):
-    """Bouton « Vérifier le référentiel » : le dépôt SANS IA — le document est rangé (sous son nom
-    fixe ET sous son nom d'origine), son texte est figé, la ligne du référentiel est écrite.
-    Aucune matière n'est proposée ici : c'est le bouton « Valider » qui appelle l'IA."""
-    reponse, _ref_id, _texte = _enregistrer_referentiel(body, db)
-    return reponse
-
-
 @router.post("/admin/referentiels/valider-flux", dependencies=[Depends(_require_admin)])
 def valider_flux(body: ValiderBody):
     """Bouton « Valider le référentiel » : le MÊME dépôt que /verifier, mais raconté TÂCHE PAR

@@ -392,83 +392,6 @@ Règles :
 # registre le DIT (cle « mode »), pour que la validation d'ecriture le sache.
 # -----------------------------------------------------------------------------
 
-PROMPT_META_DECOUPE = """Tu prepares le decoupage d'un referentiel officiel pour un logiciel pedagogique.
-
-On te donne le TEXTE BRUT d'un referentiel (extrait d'un PDF) :
----
-{document}
----
-
-Ta mission : REDIGER un PROMPT de decoupe sur mesure pour CE document precis. Ce prompt sera ensuite donne a une IA pour qu'elle decoupe le document en ne gardant QUE ses vraies unites de contenu (les elements concrets et decrits que l'utilisateur exploitera : activites, fiches, competences... selon ce que contient ce document), et en ecartant tout le texte qui les entoure (page de titre, avertissements, introduction, mode d'emploi, en-tetes de partie ou de section, notes, renvois, listes de simples mentions, sources et attribution).
-
-Le prompt que tu rediges DOIT :
-- etre adapte a la structure reelle de CE document : nomme les reperes concrets que tu observes (comment une vraie unite de contenu se presente ici ; ce qui n'est que du texte d'entourage) ;
-- demander, pour chaque unite retenue, UNIQUEMENT sa ligne de titre recopiee exactement telle qu'elle apparait dans le texte ;
-- COMMENCER par le marqueur {texte}, en toute PREMIÈRE position : le texte du document doit être le tout début du prompt, avant la moindre consigne. Aucune phrase, aucun titre, aucun mot ne doit le précéder — les consignes viennent APRÈS lui, séparées par une ligne « --- ». Rédige-les en désignant le document comme étant « ci-dessus » ;
-- imposer une sortie JSON stricte : {"unites":[{"titre":"..."}]} et rien d'autre autour.
-
-Reponds UNIQUEMENT par le texte du prompt de decoupe, sans aucun commentaire autour."""
-
-
-# Méta-prompt des MATIÈRES — même geste que PROMPT_META_DECOUPE, mais pour la liste des matières.
-# Il ne cherche AUCUNE matière : il fait écrire, par l'IA, le prompt qui les cherchera. Ce prompt
-# généré est rangé sur le CYCLE : il doit donc valoir pour TOUS les référentiels de ce cycle (tous
-# les BTS sont bâtis pareil, tous les programmes de collège aussi), pas seulement pour l'exemplaire
-# qui a servi de modèle. C'est ce qui remplace le prompt unique, écrit d'avance pour tout le monde,
-# qui rendait une liste incomplète sur les documents structurés.
-PROMPT_META_MATIERES = """Tu prépares la lecture des MATIÈRES d'un référentiel officiel pour un logiciel pédagogique.
-
-On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
----
-{document}
----
-
-Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille, en sortira la liste COMPLÈTE de ses matières. Tu ne listes aucune matière toi-même.
-
-Observe d'abord CE document : où ses matières sont-elles énumérées ? Un tableau d'horaires, une liste d'unités, une suite de domaines, des titres de parties — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
-
-Le prompt que tu rédiges DOIT :
-- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais une matière précise en exemple, ni un intitulé propre à ce document) ;
-- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
-- exiger la liste ENTIÈRE de l'endroit repéré, ligne à ligne, y compris les sous-lignes, les enseignements secondaires et les options facultatives — ne rien laisser de côté sous prétexte que c'est un détail ;
-- écarter ce qui ne concerne pas le référentiel visé : autre option du même diplôme, autre niveau, tableaux de correspondance avec un ancien programme ;
-- demander le nom de chaque matière TEL QU'IL APPARAÎT dans le document (orthographe, majuscules, accents), sans le normaliser ni le reformuler ;
-- demander une relecture avant de répondre : toute ligne de l'endroit repéré a-t-elle été reprise ?
-- COMMENCER par le marqueur {texte}, en toute PREMIÈRE position : le texte du document doit être le tout début du prompt, avant la moindre consigne. Aucune phrase, aucun titre, aucun mot ne doit le précéder — les consignes viennent APRÈS lui, séparées par une ligne « --- ». Rédige-les en désignant le document comme étant « ci-dessus » ;
-- imposer une sortie JSON stricte : {"matieres":["...","..."]} et rien d'autre autour.
-
-Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
-
-
-# Méta-prompt des TYPES D'ACTIVITÉ — le troisième du même geste (découpe, matières, types). La
-# DONNÉE (le type) appartient au référentiel qui la nomme ; la RECETTE (le prompt qui la lit)
-# appartient au CYCLE, parce qu'une famille de documents bâtis pareil se lit avec la même recette.
-# Il ne nomme AUCUN type : il fait écrire, par l'IA, le prompt qui les cherchera.
-PROMPT_META_TYPES = """Tu prépares la lecture des TYPES D'ACTIVITÉ d'un référentiel officiel pour un logiciel pédagogique.
-
-Un type d'activité est un FORMAT de travail que le document met en œuvre (atelier, mise en situation, travaux pratiques, projet, évaluation…), pas une matière ni une compétence.
-
-On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
----
-{document}
----
-
-Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille, en sortira la liste COMPLÈTE des types d'activité qu'il met en œuvre. Tu ne nommes aucun type toi-même.
-
-Observe d'abord CE document : où ses formats de travail apparaissent-ils ? Des modalités décrites dans les unités, un tableau d'activités professionnelles, des verbes de mise en œuvre répétés, une partie « démarche pédagogique » — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
-
-Le prompt que tu rédiges DOIT :
-- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais un type précis en exemple, ni un intitulé propre à ce document) ;
-- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
-- s'en tenir aux formats RÉELLEMENT mis en œuvre par le document, sans compléter par ce qui se pratique ailleurs dans l'enseignement ;
-- demander des libellés COURTS et lisibles (le nom du format, pas une phrase), avec les mots du document ;
-- écarter ce qui n'est pas un format de travail : matières, compétences, savoirs, blocs de certification ;
-- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré ;
-- imposer une sortie JSON stricte : {"types":["...","..."]} et rien d'autre autour.
-
-Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
-
-
 PROMPT_VERIF_DECOUPE ="""Tu es un relecteur exigeant. On te donne un PROMPT DE DÉCOUPE destiné à découper un référentiel en unités. Vérifie qu'il respecte STRICTEMENT ce contrat :
 
 1. TITRES VERBATIM (priorité absolue) : le prompt doit exiger que chaque unité renvoie sa LIGNE DE TITRE EXACTEMENT telle qu'elle apparaît dans le document, mot pour mot, jamais reformulée ni résumée. C'est vital : le code retrouve ensuite chaque titre dans le texte réel pour trancher ; un titre paraphrasé fait perdre la frontière.
@@ -517,31 +440,6 @@ Règle :
 Réponds UNIQUEMENT en JSON, avec exactement ces clés : correspond, niveau_lu, raison."""
 
 
-PROMPT_REFERENTIEL_FUSION = """Tu reçois les documents officiels fournis pour un même niveau scolaire. Tu en tires UN SEUL référentiel de travail, complet et sans redite.
-
-Couple visé :
-- Cycle : {cycle}
-- Niveau : {niveau}
-
-Documents fournis :
-{documents}
-
-Ta tâche :
-- Retiens ce qui vaut pour CE niveau : les matières enseignées, et pour chacune ce que l'élève doit savoir et savoir faire.
-- Un même contenu revient souvent d'un document à l'autre (un programme et son bulletin officiel disent la même chose) : ne l'écris QU'UNE FOIS, dans sa formulation la plus complète.
-- Quand deux documents se contredisent, garde ce qui vaut pour le niveau visé et ignore l'autre. N'explique pas ton choix dans le texte.
-- Écarte ce qui n'est pas du programme : préambules administratifs, sommaires, références d'arrêtés, mentions légales, pagination, remerciements.
-- N'ajoute RIEN qui ne soit pas dans les documents. Tu résumes et tu ordonnes, tu n'inventes pas.
-
-Forme attendue :
-- Une matière par section, introduite par une ligne « ## » suivie du nom de la matière tel que les documents le nomment.
-- Sous chaque matière, des lignes courtes commençant par « - », une idée par ligne.
-- Pas d'introduction, pas de conclusion, pas de commentaire sur ton travail : le texte du référentiel, et rien d'autre.
-- {consigne_taille}
-
-Réponds uniquement par ce texte."""
-
-
 PROMPT_DETECTER_MATIERES = """{texte}
 
 ---
@@ -579,33 +477,6 @@ Tu es un concepteur pédagogique.
 Pour le type d'activité « {label} » enseigné au niveau « {niveau} », propose 3 à 6 PRÉCISIONS : des déclinaisons concrètes de ce type, réellement adaptées à ce niveau (ni trop enfantines, ni trop avancées).
 
 Rends UNIQUEMENT des libellés courts (2 à 4 mots), en minuscules."""
-
-
-PROMPT_META_PRECISIONS = """Tu prépares la lecture des PRÉCISIONS d'un type d'activité, dans un référentiel officiel, pour un logiciel pédagogique.
-
-Une précision est une déclinaison CONCRÈTE d'un type d'activité, telle que le document la met en œuvre (pour un type « activités écrites » : ce que le référentiel demande réellement d'écrire), et non une idée générale de ce qui se pratique à ce niveau.
-
-On te donne le TEXTE BRUT d'un référentiel (extrait d'un PDF), pris comme EXEMPLE de sa famille :
----
-{document}
----
-
-Ta tâche : RÉDIGER LE PROMPT qui, appliqué à un référentiel de cette famille et à UN type d'activité donné, en sortira les précisions de ce type. Tu ne nommes aucune précision toi-même.
-
-Observe d'abord CE document : où les déclinaisons concrètes du travail apparaissent-elles ? Des tâches détaillées sous chaque activité, des productions attendues, des situations d'évaluation décrites, une liste de savoir-faire — chaque famille de référentiel a sa façon de faire. Décris ces repères concrets dans le prompt que tu rédiges, en reprenant les mots du document.
-
-Le prompt que tu rédiges DOIT :
-- viser la FAMILLE, pas cet exemplaire : un autre référentiel du même type doit pouvoir passer dedans (ne cite jamais une précision précise en exemple, ni un intitulé propre à ce document) ;
-- dire OÙ regarder dans le document, avec les repères que tu viens d'observer ;
-- s'en tenir à ce que le document nomme RÉELLEMENT, sans compléter par ce qui se pratique ailleurs dans l'enseignement ;
-- reprendre le vocabulaire du document, jamais un vocabulaire inventé ;
-- ne jamais répéter le nom du type dans la précision (le type est déjà connu) ;
-- demander de 3 à 6 précisions, en libellés COURTS (2 à 4 mots), en minuscules ;
-- contenir le marqueur {texte} à l'endroit où le texte du document sera inséré, EN TÊTE du prompt ;
-- contenir le marqueur {label} à l'endroit où le nom du type d'activité sera inséré ;
-- imposer une sortie JSON stricte : {"precisions":["...","..."]} et rien d'autre autour.
-
-Réponds UNIQUEMENT par le texte du prompt, sans aucun commentaire autour."""
 
 
 # {types_existants} RETIRÉ (05/08/2026) : il n'y a plus de catalogue commun auquel ramener le
@@ -892,41 +763,18 @@ PROMPTS = {
         "categorie": "admin",
         "default": PROMPT_DECOUPE_AMONT,
     },
-    # ── Les trois prompts en mode « replace » (cf. l'en-tête du registre) ──────────────
-    "meta_decoupe": {
-        "label": "Découpe — méta-prompt : l'IA RÉDIGE le prompt de découpe du document",
-        "placeholders": ["document"],
-        "categorie": "admin",
-        "mode": "replace",
-        "default": PROMPT_META_DECOUPE,
-    },
-    "meta_matieres": {
-        "label": "Matières — méta-prompt : l'IA RÉDIGE le prompt qui lira les matières du cycle",
-        "placeholders": ["document"],
-        "categorie": "admin",
-        # replace, comme meta_decoupe : le prompt RÉDIGÉ doit contenir {texte} intact — un
-        # `.format()` global le consommerait avec {document}.
-        "mode": "replace",
-        "default": PROMPT_META_MATIERES,
-    },
-    "meta_types": {
-        "label": "Types d'activité — méta-prompt : l'IA RÉDIGE le prompt qui lira les types du cycle",
-        "placeholders": ["document"],
-        "categorie": "admin",
-        # replace, pour la même raison que meta_matieres : le prompt rédigé porte {texte} et un
-        # exemple JSON à accolades, que `.format()` consommerait.
-        "mode": "replace",
-        "default": PROMPT_META_TYPES,
-    },
-    "meta_precisions": {
-        "label": "Précisions — méta-prompt : l'IA RÉDIGE le prompt qui lira les précisions d'un type",
-        "placeholders": ["document"],
-        "categorie": "admin",
-        # replace, pour la même raison que meta_types : le prompt rédigé porte {texte}, {label}
-        # et un exemple JSON à accolades, que `.format()` consommerait.
-        "mode": "replace",
-        "default": PROMPT_META_PRECISIONS,
-    },
+    # ── Les prompts en mode « replace » (cf. l'en-tête du registre) ────────────────────
+    #
+    # LES QUATRE MÉTA-PROMPTS NE SONT PLUS ICI (10/08/2026). `meta_decoupe`, `meta_matieres`,
+    # `meta_types` et `meta_precisions` vivaient au registre ET dans `settings` ; depuis la
+    # migration d9e4b7a2c6f1 (08/08) ils vivent SUR LE RÉFÉRENTIEL, un texte par diplôme —
+    # un méta-prompt lit un document pour écrire le prompt qui le lira, un gabarit commun
+    # n'a donc pas de sens. `rag/analyse_amont` ne les demande plus à `get_prompt` : il lève
+    # si la colonne du référentiel est vide.
+    #
+    # Les laisser ici avait un coût visible : l'écran Prompts les comptait comme MANQUANTS —
+    # quatre pannes annoncées qui n'existaient pas, et quatre lignes que l'admin aurait pu
+    # écrire pour rien. Ils se règlent dans Prompts → Référentiels, niveau par niveau.
     "verif_decoupe": {
         "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
         "placeholders": ["prompt"],
@@ -949,15 +797,6 @@ PROMPTS = {
         "placeholders": ["cycle", "niveau", "texte"],
         "categorie": "admin",
         "default": PROMPT_VERIFIER_COUPLE,
-    },
-    "referentiel_fusion": {
-        "label": "Fusion des documents d'un couple en un seul référentiel (bouton « Fusionner »)",
-        # {documents} : les textes fournis, séparés et titrés par le serveur.
-        # {consigne_taille} : la longueur visée, calculée depuis le plafond de pages EN BASE —
-        # elle n'est pas écrite dans le prompt, sinon changer le plafond ne changerait rien.
-        "placeholders": ["cycle", "niveau", "documents", "consigne_taille"],
-        "categorie": "admin",
-        "default": PROMPT_REFERENTIEL_FUSION,
     },
     "detecter_matieres": {
         "label": "Détection des matières proposées à partir du référentiel (au dépôt du PDF)",

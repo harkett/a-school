@@ -111,16 +111,12 @@ DOMAINS = {
         ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
          "seance_styles", "langues_lv"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
-        # `referentiel_documents` : les PDF fournis pour un couple — un referentiel tient parfois
-        # en plusieurs fichiers (au lycee, un par matiere). Ils s'empilent, puis la fusion les
-        # assemble et cree la ligne `referentiels`. Remplace `referentiel_depots` (zone d'attente
-        # a jeton), supprimee : le couple etant demande avant le document, plus rien n'attend.
-        ["referentiels", "referentiel_documents", "referentiel_chunks",
+        ["referentiels", "referentiel_chunks",
          "types_activite", "referentiel_type_precisions"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
-         "feature_votes", "features_votables", "few_shot_milestones", "tool_usage_logs"]),
+         "feature_votes", "features_votables", "tool_usage_logs"]),
     # `usage_llm` : une ligne par appel LLM reussi (modele, outil, tokens, duree). Elle est du
     # meme cote que `ai_modeles` — la configuration de l'IA et ce qu'elle consomme se lisent
     # ensemble : le cout d'un appel est ses tokens multiplies par le tarif porte par sa fiche.

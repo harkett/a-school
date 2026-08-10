@@ -19,12 +19,20 @@ Lancer : docker compose exec backend python -m pytest tests/test_settings_provid
 from unittest.mock import MagicMock, patch
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+import pytest
+from fastapi import HTTPException
+
+# `settings` vidée n'est plus un état neutre : les réglages vivent en base depuis le
+# 10/08/2026 et une ligne absente fait lever. On repose donc ce qu'une installation à
+# jour possède, juste après chaque table rase.
+from conftest import resemer_reglages
+
 import backend.core.database as dbmod
 
 from backend.main import app
 from backend.securite.comptes import create_access_token
 from backend.core.models_db import Setting
-from backend.systeme.admin import get_ai_provider, SETTING_DEFAULTS
+from backend.systeme.admin import get_ai_provider
 from backend.config import AI_PROVIDER
 import backend.llm.generator as gen
 from fastapi.testclient import TestClient
@@ -37,6 +45,7 @@ def _fresh_db():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db, sauf=("ai_provider",))
     return db
 
 
@@ -54,9 +63,21 @@ def _fake_groq_post(capture):
 
 # ===================== get_ai_provider : lecture DB avec repli =====================
 
-def test_get_ai_provider_repli_sur_defaut_si_aucune_ligne():
+def test_get_ai_provider_leve_si_aucune_ligne():
+    """La base est la source, et une base incomplète se DIT.
+
+    Ce test attendait un repli sur `SETTING_DEFAULTS`. Ce repli est parti le 10/08/2026 avec les
+    16 réglages fantômes du dictionnaire : le fournisseur est désormais semé par migration
+    (a4d8f2c6e1b9), et sans sa ligne le serveur refuse au lieu d'en inventer un — sinon une
+    installation à qui il manque une migration travaillerait sur un fournisseur que personne n'a choisi,
+    sans que rien ne le signale."""
     db = _fresh_db()
-    assert get_ai_provider(db) == SETTING_DEFAULTS["ai_provider"]
+    # `_fresh_db` repose ce qu'une installation à jour possède, SAUF cette clé-ci : c'est
+    # justement le cas qu'on veut éprouver — celui d'une migration non appliquée.
+    with pytest.raises(HTTPException) as e:
+        get_ai_provider(db)
+    assert e.value.status_code == 500
+    assert "ai_provider" in e.value.detail
     db.close()
 
 
@@ -100,7 +121,6 @@ def test_generate_repli_sur_AI_PROVIDER_si_provider_none():
 
 def test_generate_provider_inconnu_leve():
     # Un provider non gere remonte une erreur claire (jamais un appel silencieux).
-    import pytest
     with pytest.raises(ValueError):
         gen.generate("bonjour", cle="x", provider="fournisseur-bidon")
 

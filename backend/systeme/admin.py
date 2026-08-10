@@ -8,7 +8,9 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, R
 from fastapi.responses import RedirectResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
-from sqlalchemy import func, text
+from sqlalchemy import create_engine, func, text
+from sqlalchemy.exc import ProgrammingError, SQLAlchemyError
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session
 
 from backend.securite.audit import log_admin_action
@@ -84,16 +86,23 @@ def _require_admin(aschool_admin: str = Cookie(default=None)):
         raise HTTPException(401, "Votre session administrateur a expiré. Reconnectez-vous pour continuer.")
 
 
+# LE DERNIER REPLI EN DUR — et il n'y en a plus qu'un.
+#
+# Ce dictionnaire portait 18 réglages, dont 16 SANS aucune ligne en base : `get_settings_dict()`
+# partait de lui puis écrasait avec la base, donc c'était le code qui gagnait, en silence, pendant
+# que chaque écran affirme que la base est la source unique. Un admin ne pouvait ni les voir ni
+# les changer — il ne pouvait pas savoir qu'ils existaient. Les 14 réellement lus ont été SEMÉS
+# en base (migration f1c9a3e7b5d2, valeurs identiques : rien n'a changé de comportement) ;
+# `max_tokens_default` est mort avec son écran, `prompt_gabarit_type` doublait une ligne existante
+# et annulait le filet de `get_prompt` (qui doit LEVER si la base est incomplète).
+#
+# CE QUI RESTE N'EST PAS UN RÉGLAGE, C'EST UN FILET. Si la ligne 'welcome' d'`email_templates`
+# manque, le mail de bienvenue part quand même (`_WelcomeFallback`) : un inscrit qui ne le reçoit
+# pas ne peut pas valider son compte. Ici, et ici seulement, un repli vaut mieux qu'un refus.
+#
+# N'AJOUTEZ RIEN ICI. Un réglage nouveau se sème par migration — c'est le seul endroit où il
+# devient visible, lisible et modifiable.
 SETTING_DEFAULTS = {
-    # Modèle LLM texte — administrable à chaud (Phase 4.1.a). Défaut = valeur historique
-    # du .env ; surchargée par une ligne `ai_model` en base si présente. Lu au runtime
-    # via get_ai_model(), jamais figé au boot.
-    "ai_model": "llama-3.3-70b-versatile",
-    # Fournisseur LLM texte — administrable à chaud (Phase 4.1.e). Défaut = valeur historique
-    # du .env ; surchargée par une ligne `ai_provider` en base si présente. Lu au runtime via
-    # get_ai_provider(), jamais figé au boot. Même moule que ai_model. (La clé API reste un
-    # secret hors base — sujet séparé, pas traité ici.)
-    "ai_provider": "groq",
     "welcome_email_subject": "Bienvenue sur aSchool !",
     "welcome_email_body": (
         "Bonjour {prenom},\n\n"
@@ -107,83 +116,76 @@ SETTING_DEFAULTS = {
     # max_tokens : UN défaut global, et rien d'autre ici. Aucun outil n'est traité à part — une
     # surcharge `max_tokens_<outil>` n'existe que si l'admin l'a posée depuis l'écran. Lu au
     # runtime via get_max_tokens(db, outil), rechargeable à chaud comme ai_model.
-    "max_tokens_default": "8000",
-    # Température LLM — administrable à chaud (Phase 4.1.d), GLOBALE (un seul réglage pour tous
-    # les outils de génération). Défaut = "" (non réglée) -> get_temperature() renvoie None ->
-    # generate() n'envoie rien -> le fournisseur applique SON défaut = comportement historique,
-    # zéro régression. « Plus haut » N'EST PAS « mieux » : haute température = sorties moins fiables.
-    "ai_temperature": "",
-    # Nb de chunks que le RAG ramène (top_k) pour ancrer une génération. Réglage admin en
-    # base, sûr à changer à chaud (aucun ré-index). Défaut 4. Lu via get_rag_top_k(db).
-    "rag_top_k": "4",
-    # Minutes « gagnées » comptées par activité créée (KPI de Mes stats). Sortie du code en
-    # dur (check-up 30/07) : réglage en base, même moule hybride que max_tokens. Lu via
-    # get_minutes_par_activite(db).
-    "stats_minutes_par_activite": "15",
-    # Modèle OCR (Groq vision) — administrable en base, même patron que ai_model. Défaut = valeur
-    # historique. Lu via get_ocr_model(db), passé à transcribe_image (src reste pur, aucun modèle
-    # en dur). Le fournisseur OCR reste Groq (seul moteur vision, pas d'alternative) : seul le
-    # modèle est administrable.
-    "ocr_model": "meta-llama/llama-4-scout-17b-16e-instruct",
-    # Plafond de pages accepté au DÉPÔT d'un référentiel. Un document trop long (ex. le Bulletin
-    # officiel entier, ~967 p.) n'est pas un référentiel de couple : refusé à la porte, AVANT tout
-    # traitement lourd (pas d'extraction longue, pas de timeout, pas d'incohérence écran/serveur).
-    # Défaut 150 : admet largement un vrai référentiel (BTS CIEL = 88 p.). Lu au dépôt, coercé int.
-    "depot_max_pages": "150",
-    # Coupure de SILENCE du flux de génération (streaming) : nombre de SECONDES sans nouveau
-    # morceau avant de couper le flux. Le timeout de lecture HTTP se RÉARME à chaque morceau reçu,
-    # donc ce délai ne borne QUE les silences anormaux, jamais une génération qui progresse.
-    # Réglage admin EN BASE (zéro délai en dur), lu à chaud via get_stream_silence_timeout(db).
-    "stream_silence_timeout": "30",
-    # Résilience 429 (limite de débit fournisseur) : sur un 429, le back RE-TENTE tout seul au lieu
-    # d'abandonner (le prof ne voit rien). Deux réglages EN BASE (zéro dur), lus à chaud via
-    # get_retry_max / get_retry_wait_max, passés ensuite au moteur LLM (qui reste pur) :
-    #   - ai_retry_max      = nb de re-tentatives sur 429 (0 = aucune). Défaut 2 -> jusqu'à 3 essais.
-    #   - ai_retry_wait_max = plafond d'attente PAR tentative (secondes). On respecte le délai
-    #     `Retry-After` renvoyé par le fournisseur, mais JAMAIS au-delà de ce plafond -> le prof
-    #     n'attend jamais trop longtemps une re-tentative.
-    "ai_retry_max": "2",
-    "ai_retry_wait_max": "10",
-    # Plafond de TAILLE accepté au dépôt d'un référentiel (Mo). Sorti du code en dur (check-up
-    # 31/07) : ses deux voisins du même geste (depot_max_pages, staging_ttl_heures) étaient déjà
-    # lus en base, pas lui. Lu au dépôt via get_settings_dict, coercé float.
-    "depot_max_mo": "30",
-    # Durée de vie d'un PDF en attente (staging) avant purge, en heures. La clé était LUE en base
-    # mais n'avait aucun défaut ici : son 24 vivait en repli dans le code. Défaut semé au bon endroit.
-    "staging_ttl_heures": "24",
-    # Seuils de SURVEILLANCE (écran Alertes) — sortis du code en dur (check-up 31/07) : ce sont des
-    # choix de configuration, ils se règlent en base comme les autres. Lus à chaud à chaque contrôle
-    # (toutes les 5 min) via seuils_alertes(), donc modifiables sans redéploiement.
-    #   - alerte_cpu_pct        : charge CPU moyenne sur 5 min au-delà de laquelle on alerte.
-    #   - alerte_disque_pct     : taux d'occupation du disque au-delà duquel on alerte.
-    #   - alerte_tentatives_1h  : nb de connexions admin échouées en 1 h valant alerte d'intrusion.
-    #   - alerte_anti_flood_h   : délai avant de ré-alerter sur un MÊME titre (anti-répétition).
-    "alerte_cpu_pct": "90",
-    "alerte_disque_pct": "85",
-    "alerte_tentatives_1h": "10",
-    "alerte_anti_flood_h": "2",
-    # GABARIT du prompt posé automatiquement quand l'admin coche un type d'activité sur un couple.
-    # Sorti du code en dur (check-up 31/07) : tous les autres prompts du produit sont administrables,
-    # celui-là demandait un redéploiement. {label} et {niveau} sont remplis au coche ; {texte} et
-    # {referentiel} sont laissés INTACTS — ce sont les emplacements de la génération.
-    "prompt_gabarit_type": (
-        "Tu es un enseignant expérimenté.\n"
-        "Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.\n\n"
-        "Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :\n"
-        "{texte}\n\n"
-        "Appuie-toi sur le programme officiel ci-dessous pour cadrer et enrichir l'activité, sans t'en écarter :\n"
-        "{referentiel}\n\n"
-        "Rends une activité claire et directement exploitable (objectif, consigne, déroulé)."
-    ),
 }
 
 
 def get_settings_dict(db: Session) -> dict:
+    """Les réglages, LUS EN BASE. `SETTING_DEFAULTS` n'y ajoute plus que le filet du mail de
+    bienvenue (voir son en-tête) : ce dictionnaire ne fabrique donc plus de valeur que personne
+    n'a choisie. Une clé absente est absente — et les lecteurs ci-dessous le disent."""
     rows = db.query(Setting).all()
     result = dict(SETTING_DEFAULTS)
     for row in rows:
         result[row.key] = row.value
     return result
+
+
+# Les valeurs SEMÉES par les migrations f1c9a3e7b5d2 et a4d8f2c6e1b9, recopiées ici pour un seul
+# usage : le repli sur une valeur ILLISIBLE. La distinction est celle de tout le projet —
+#   • ligne ABSENTE  = base incomplète (migration non appliquée). On le DIT, on ne devine pas.
+#   • valeur FAUTIVE = erreur de saisie réparable. On tient sur la valeur d'origine plutôt que
+#     de faire tomber une génération pour une virgule de trop.
+# Ce n'est donc pas un repli de configuration : rien ici n'est lu quand la base répond.
+VALEURS_ORIGINE = {
+    "rag_top_k": "4",
+    "stream_silence_timeout": "30",
+    "ai_retry_max": "2",
+    "ai_retry_wait_max": "10",
+    "stats_minutes_par_activite": "15",
+}
+
+
+def _reglage(db: Session, cle: str) -> str:
+    """Un réglage TEXTE lu en base. Ligne absente -> 500 explicite, jamais une valeur inventée."""
+    s = get_settings_dict(db)
+    if cle not in s:
+        raise HTTPException(
+            500,
+            f"Réglage « {cle} » absent de la base (migration non appliquée ?). "
+            f"Le serveur ne choisit pas de valeur à votre place.",
+        )
+    return s[cle]
+
+
+def _reglage_ou_none(db: Session, cle: str):
+    """Le même réglage, mais SANS refuser quand la ligne manque — réservé aux écrans de CHOIX.
+
+    `_reglage` refuse, et c'est juste partout où la valeur sert à travailler : générer sans
+    savoir avec quel modèle n'a pas de sens. Mais l'écran où l'on CHOISIT le modèle, lui, doit
+    pouvoir s'ouvrir avant que le choix existe — sinon on perd l'écran par lequel on répare,
+    exactement quand on en a besoin. C'est le raisonnement déjà tenu par `GET /admin/prompts`.
+
+    Rend None si la ligne manque : l'écran montre « aucun choix », ce qui est la vérité."""
+    return get_settings_dict(db).get(cle)
+
+
+def _reglage_borne(db: Session, cle: str, mini: int, maxi: int) -> int:
+    """Un GARDE-FOU technique, entier et borné — et il ne fait JAMAIS tomber une génération.
+
+    La différence avec `_reglage` est celle entre un choix et un garde-fou. Le modèle d'IA est un
+    choix : personne ne peut le faire à la place de l'administrateur, alors on refuse. Le nombre
+    de re-tentatives sur un 429, la coupure de silence du flux, le top_k du RAG sont des réglages
+    fins de plomberie : les faire lever priverait un professeur de sa génération pour une ligne
+    manquante — le remède serait pire que le mal. On retombe donc sur la valeur qu'a semée la
+    migration, aussi bien pour une ligne absente que pour une valeur illisible.
+
+    Hors bornes = ramené dans les bornes, jamais refusé : les bornes existent pour ça."""
+    s = get_settings_dict(db)
+    try:
+        v = int(s[cle])
+    except (KeyError, TypeError, ValueError):
+        v = int(VALEURS_ORIGINE[cle])
+    return max(mini, min(maxi, v))
 
 
 # Slug stable du mail de bienvenue (modele 'auto', non supprimable) dans email_templates.
@@ -232,7 +234,7 @@ def get_ai_model(db: Session) -> str:
     code). Source unique de résolution du modèle pour tous les routers — branche sur
     l'existant (get_settings_dict). Côté backend uniquement : la valeur (chaîne) descend
     ensuite dans generate(), qui reste pur (aucune connaissance de la base)."""
-    return get_settings_dict(db)["ai_model"]
+    return _reglage(db, "ai_model")
 
 
 def get_ai_provider(db: Session) -> str:
@@ -240,7 +242,7 @@ def get_ai_provider(db: Session) -> str:
     code). Source unique de résolution du fournisseur pour tous les routers — même moule que
     get_ai_model (branche sur get_settings_dict). La valeur (chaîne) descend ensuite dans
     generate() via le paramètre `provider`, qui reste pur (aucune connaissance de la base)."""
-    return get_settings_dict(db)["ai_provider"]
+    return _reglage(db, "ai_provider")
 
 
 def get_ocr_model(db: Session) -> str:
@@ -248,7 +250,7 @@ def get_ocr_model(db: Session) -> str:
     code). Même moule que get_ai_model. La valeur (chaîne) descend ensuite dans transcribe_image,
     qui reste pur (aucune connaissance de la base). Le fournisseur OCR reste Groq (seul moteur
     vision, pas d'alternative) : seul le modèle est administrable."""
-    return get_settings_dict(db)["ocr_model"]
+    return _reglage(db, "ocr_model")
 
 
 def get_cle_api(db: Session, cle_setting: str) -> str:
@@ -295,28 +297,7 @@ def get_rag_top_k(db: Session) -> int:
     """Nombre de chunks ramenés par le RAG (top_k), lu en base au moment de l'appel (repli
     sur le défaut code). Même motif que get_max_tokens : rechargeable à chaud. Renvoie un int
     borné [MIN, MAX] ; valeur corrompue / hors bornes -> défaut."""
-    raw = get_settings_dict(db)["rag_top_k"]
-    try:
-        v = int(raw)
-    except (TypeError, ValueError):
-        return int(SETTING_DEFAULTS["rag_top_k"])
-    return max(RAG_TOP_K_MIN, min(RAG_TOP_K_MAX, v))
-
-
-# Borne de max_tokens. Il n'en reste QU'UNE : le plancher.
-#
-# MIN = plancher dur : une valeur si basse qu'elle tronquerait toutes les réponses, sans que
-# personne ne s'en aperçoive (la sortie est coupée, pas refusée). Ça, ça mérite un garde-fou.
-#
-# Le PLAFOND a été SUPPRIMÉ le 05/08, et il ne doit pas revenir. Il valait 8 000, présenté
-# comme un « garde-fou coût/quota » — c'est faux : `max_tokens` ne coûte rien en soi, on paie
-# les tokens réellement produits, jamais la valeur demandée. Il n'y avait donc aucune raison
-# technique de choisir un chiffre ici, et ce chiffre a fini par bloquer un besoin réel (la
-# découpe d'un référentiel, tronquée à 8 000, alors que l'admin voulait 32 000 — il ne pouvait
-# pas les saisir). La seule vraie limite est celle du MODÈLE : c'est le fournisseur qui la
-# connaît et qui la fait respecter, et son refus arrive maintenant à l'écran en français clair
-# (cf. `_traduire_echec_fournisseur`). Un plafond écrit ici ne ferait que dater et gêner.
-MAX_TOKENS_MIN = 256
+    return _reglage_borne(db, "rag_top_k", RAG_TOP_K_MIN, RAG_TOP_K_MAX)
 
 
 # Bornes de la coupure de silence du flux (secondes). MIN = un plancher qui laisse le modèle
@@ -330,12 +311,7 @@ def get_stream_silence_timeout(db: Session) -> int:
     """Coupure de silence du flux de génération (secondes), lue en base au moment de l'appel
     (rechargeable à chaud, même motif que get_rag_top_k). Renvoie un int borné [MIN, MAX] ;
     valeur corrompue / hors bornes -> défaut code."""
-    raw = get_settings_dict(db)["stream_silence_timeout"]
-    try:
-        v = int(raw)
-    except (TypeError, ValueError):
-        return int(SETTING_DEFAULTS["stream_silence_timeout"])
-    return max(STREAM_SILENCE_MIN, min(STREAM_SILENCE_MAX, v))
+    return _reglage_borne(db, "stream_silence_timeout", STREAM_SILENCE_MIN, STREAM_SILENCE_MAX)
 
 
 # Bornes de la résilience 429 (retry). retry_max borné pour ne jamais boucler à l'infini ;
@@ -350,24 +326,14 @@ def get_retry_max(db: Session) -> int:
     """Nombre de re-tentatives sur un 429 fournisseur, lu en base au moment de l'appel (rechargeable
     à chaud, même motif que get_stream_silence_timeout). Renvoie un int borné [MIN, MAX] ; valeur
     corrompue / hors bornes -> défaut code (jamais d'exception)."""
-    raw = get_settings_dict(db)["ai_retry_max"]
-    try:
-        v = int(raw)
-    except (TypeError, ValueError):
-        return int(SETTING_DEFAULTS["ai_retry_max"])
-    return max(RETRY_MAX_MIN, min(RETRY_MAX_MAX, v))
+    return _reglage_borne(db, "ai_retry_max", RETRY_MAX_MIN, RETRY_MAX_MAX)
 
 
 def get_retry_wait_max(db: Session) -> int:
     """Plafond d'attente (secondes) PAR re-tentative sur un 429, lu en base au moment de l'appel.
     Le back attend min(Retry-After fournisseur, ce plafond). Renvoie un int borné [MIN, MAX] ;
     valeur corrompue / hors bornes -> défaut code (jamais d'exception)."""
-    raw = get_settings_dict(db)["ai_retry_wait_max"]
-    try:
-        v = int(raw)
-    except (TypeError, ValueError):
-        return int(SETTING_DEFAULTS["ai_retry_wait_max"])
-    return max(RETRY_WAIT_MIN, min(RETRY_WAIT_MAX, v))
+    return _reglage_borne(db, "ai_retry_wait_max", RETRY_WAIT_MIN, RETRY_WAIT_MAX)
 
 
 def get_contexte_max(db: Session) -> int | None:
@@ -399,10 +365,16 @@ def get_max_tokens_modele(db: Session) -> int | None:
 
     Nom en `_modele` pour ne pas se confondre avec `get_max_tokens(db, outil)`, qui lit encore les
     réglages d'écran : celle-ci dit ce que le MODÈLE accepte, l'autre ce qu'on lui DEMANDE."""
-    provider = get_ai_provider(db)
+    # Lecture TOLÉRANTE du couple courant : cette fonction est appelée par l'écran de choix du
+    # modèle, qui doit s'ouvrir avant même qu'un modèle soit choisi. Sans couple, aucune fiche —
+    # donc None, et l'appelant applique son filet.
+    provider = _reglage_ou_none(db, "ai_provider")
+    modele_courant = _reglage_ou_none(db, "ai_model")
+    if not provider or not modele_courant:
+        return None
     modele = (
         db.query(AiModele)
-        .filter(AiModele.fournisseur == provider, AiModele.modele == get_ai_model(db))
+        .filter(AiModele.fournisseur == provider, AiModele.modele == modele_courant)
         .first()
     )
     if modele is not None and modele.max_tokens:
@@ -437,15 +409,10 @@ def get_max_tokens(db: Session, outil: str) -> int:
     return get_max_tokens_modele(db) or MAX_TOKENS_SANS_FICHE
 
 
-def get_outils_llm(db: Session):
-    """Les outils du logiciel qui appellent l'IA, LUS EN BASE (table `outils_llm`), dans l'ordre
-    d'affichage. C'est la seule liste : l'écran des longueurs boucle dessus, il n'en connaît aucun
-    par son nom. Un outil de plus = une ligne de plus par migration, écran inchangé.
-
-    Pas de repli code, volontairement : une table vide n'est pas un cas à rattraper en douce mais
-    une migration non appliquée, et l'écran le dit. La lecture des VALEURS, elle, reste tolérante
-    (get_max_tokens ne lève jamais) — une génération ne doit pas tomber pour un problème d'écran."""
-    return db.query(OutilLlm).order_by(OutilLlm.ordre, OutilLlm.outil).all()
+# `get_outils_llm` A ÉTÉ SUPPRIMÉE le 10/08/2026. Elle rendait la table `outils_llm` triée pour
+# l'écran des longueurs — écran supprimé le même jour (migration e2b6d4a8f7c1), et elle n'avait
+# pas d'autre appelant. La table, elle, RESTE : l'écran des statistiques y lit le libellé lisible
+# de chaque outil (`analytique/stats.py`), et il la lit directement.
 
 
 # Bornes de température (Phase 4.1.d). Plage standard des API compatibles OpenAI/Groq.
@@ -462,9 +429,13 @@ def modele_supporte_temperature(db: Session) -> bool:
     Les Claude Opus 4.x et les modèles 5 la REJETTENT en 400. C'était écrit en dur dans le moteur,
     au nom du fournisseur entier — donc invisible ici, et faux pour tout modèle Anthropic futur qui
     l'accepterait. La question se pose au modèle, pas au code."""
+    provider = _reglage_ou_none(db, "ai_provider")
+    courant = _reglage_ou_none(db, "ai_model")
+    if not provider or not courant:
+        return True   # aucun couple choisi : on ne prive pas l'admin du réglage
     modele = (
         db.query(AiModele)
-        .filter(AiModele.fournisseur == get_ai_provider(db), AiModele.modele == get_ai_model(db))
+        .filter(AiModele.fournisseur == provider, AiModele.modele == courant)
         .first()
     )
     return True if modele is None else bool(modele.supporte_temperature)
@@ -495,11 +466,10 @@ def get_minutes_par_activite(db: Session) -> int:
     """Minutes « gagnées » comptées par activité créée (KPI Mes stats), lues en base au
     moment de l'appel (surcharge `stats_minutes_par_activite`, défaut code) — même moule
     hybride que get_max_tokens. Valeur corrompue -> défaut, jamais d'exception."""
-    raw = get_settings_dict(db)["stats_minutes_par_activite"]
     try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return int(SETTING_DEFAULTS["stats_minutes_par_activite"])
+        return int(get_settings_dict(db)["stats_minutes_par_activite"])
+    except (KeyError, TypeError, ValueError):
+        return int(VALEURS_ORIGINE["stats_minutes_par_activite"])
 
 
 def _reglage_entier(db: Session, cle: str, minimum: int) -> int:
@@ -1141,10 +1111,25 @@ def save_settings(body: SettingsBody, request: Request, db: Session = Depends(ge
 # passe par un autre moyen. RÈGLE SUR LES SECRETS : un secret ne se règle JAMAIS depuis l'UI et
 # ne vit JAMAIS en base — la base porte le NOM de la variable, le .env porte sa valeur. Un
 # secret modifiable à l'écran serait un secret lisible à l'écran.
-# Certaines clés ont un ÉCRAN DÉDIÉ (validé) où elles se règlent
-# vraiment ; on les marque pour indiquer où (repère, pas un blocage).
-_PARAM_ECRAN_DEDIE_EXACTS = {"ai_model", "ai_provider", "ai_temperature", "rag_top_k"}
-_PARAM_ECRAN_DEDIE_PREFIXES = ("max_tokens_", "prompt_", "welcome_email_")
+# Certaines clés ont un ÉCRAN DÉDIÉ (validé) où elles se règlent vraiment ; on les marque pour
+# indiquer où (repère, pas un blocage).
+#
+# CETTE LISTE A MENTI DANS LES DEUX SENS, et c'est le défaut que sa propre entrée de dette
+# annonçait : « ajouter un réglage à écran dédié sans toucher cette liste, et l'écran Paramètres
+# ment sans que rien ne tombe » (constat du 10/08/2026). Elle promettait un écran à `rag_top_k`,
+# qui n'en a aucun — ni route ni formulaire ; elle taisait `stream_silence_timeout` et les deux
+# `ai_retry_*`, qui ont pourtant le leur dans Système › Génération ; et son préfixe `max_tokens_`
+# désignait un écran supprimé le même jour.
+#
+# Elle est maintenant VÉRIFIÉE : `test_ecran_dedie_dit_vrai` la compare aux clés que les routes
+# `PUT` dédiées écrivent réellement, en lisant leur code. Ajouter un réglage à écran dédié sans
+# l'inscrire ici fait désormais tomber la suite.
+_PARAM_ECRAN_DEDIE_EXACTS = {"ai_model", "ai_provider", "ai_temperature",
+                             "stream_silence_timeout", "ai_retry_max", "ai_retry_wait_max"}
+# `prompt_` : écran IA › Prompts (PUT /admin/prompts). Aucun autre préfixe — `max_tokens_` est
+# mort avec son écran, et `welcome_email_` ne désigne plus aucune ligne (le mail de bienvenue
+# vit dans `email_templates` depuis f3a1b2c3d4e5).
+_PARAM_ECRAN_DEDIE_PREFIXES = ("prompt_",)
 
 
 def _param_a_ecran_dedie(key: str) -> bool:
@@ -1201,7 +1186,7 @@ def get_ai_models(fournisseur: str | None = Query(None), db: Session = Depends(g
     `fournisseur` (optionnel) = fournisseur SÉLECTIONNÉ dans la combo (pas encore enregistré) ;
     absent → fournisseur COURANT en base. `recommande` = nom du modèle marqué (affiché
     « (recommandé) »), ou None."""
-    fournisseur = (fournisseur or "").strip() or get_ai_provider(db)
+    fournisseur = (fournisseur or "").strip() or _reglage_ou_none(db, "ai_provider")
     modeles = (
         db.query(AiModele)
         .filter(AiModele.fournisseur == fournisseur, AiModele.actif.is_(True))
@@ -1211,7 +1196,7 @@ def get_ai_models(fournisseur: str | None = Query(None), db: Session = Depends(g
     recommande = next((m.modele for m in modeles if m.recommande), None)
     return {
         "supported": [{"modele": m.modele, "label": m.label} for m in modeles],
-        "current": get_ai_model(db),
+        "current": _reglage_ou_none(db, "ai_model"),
         "recommande": recommande,
         # Ce qui TRAVAILLE en ce moment, en un bloc : le fournisseur, son modèle et le `max_tokens`
         # qui s'applique vraiment (celui de la fiche du modèle, sinon de son fournisseur). Les
@@ -1220,8 +1205,8 @@ def get_ai_models(fournisseur: str | None = Query(None), db: Session = Depends(g
         # demandait trois requêtes. On passe par `get_max_tokens_modele` et non `get_max_tokens` :
         # il n'y a pas d'outil nommé « default », et en inventer un ferait croire à un réglage.
         "courant": {
-            "fournisseur": get_ai_provider(db),
-            "modele": get_ai_model(db),
+            "fournisseur": _reglage_ou_none(db, "ai_provider"),
+            "modele": _reglage_ou_none(db, "ai_model"),
             "max_tokens": get_max_tokens_modele(db) or MAX_TOKENS_SANS_FICHE,
         },
     }
@@ -1546,7 +1531,7 @@ def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_a
     fournisseurs = db.query(AiFournisseur).order_by(AiFournisseur.ordre.asc()).all()
     return {
         "supported": [f.code for f in fournisseurs if f.actif],
-        "current": get_ai_provider(db),
+        "current": _reglage_ou_none(db, "ai_provider"),
         "all": [
             {"name": f.code, "label": f.label, "available": f.actif}
             for f in fournisseurs
@@ -1575,8 +1560,7 @@ def get_ia_en_cours(db: Session = Depends(get_db), _: None = Depends(_require_ad
 
 @router.put("/admin/ai-provider")
 def save_ai_provider(body: AiProviderBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Écrit le fournisseur LLM texte. Endpoint DÉDIÉ (PUT email + PUT ai-model + PUT max-tokens
-    restent intacts). Validation stricte contre la BASE (table `ai_fournisseurs`, fournisseurs
+    """Écrit le fournisseur LLM texte. Endpoint DÉDIÉ (PUT email et PUT ai-model restent intacts). Validation stricte contre la BASE (table `ai_fournisseurs`, fournisseurs
     `actif`) : vide ou hors liste → 400 (message humain pour la modale admin), rien n'est écrit.
     Sinon upsert de la clé `ai_provider` + audit."""
     valeur = (body.provider or "").strip()
@@ -1604,122 +1588,13 @@ def save_ai_provider(body: AiProviderBody, request: Request, db: Session = Depen
     return {"status": "ok"}
 
 
-class MaxTokensBody(BaseModel):
-    """Le défaut global, et les surcharges par outil sous forme de DICTIONNAIRE — pas un champ
-    nommé par outil. C'est tout le sujet : un corps `{default, ambiguites, sequence}` obligeait à
-    toucher le code à chaque outil nouveau, et un champ ôté d'un seul côté faisait tomber
-    l'enregistrement de TOUT le reste (le corps est validé en bloc). Ici les clés sont vérifiées
-    contre la table `outils_llm`, à l'exécution.
-
-    `None` pour un outil = PAS de surcharge : la ligne `max_tokens_<outil>` est SUPPRIMÉE et
-    l'outil repart sur le défaut global. Un outil absent du dictionnaire n'est pas touché."""
-    default: int
-    outils: dict[str, int | None] = {}
-
-
-@router.get("/admin/max-tokens")
-def get_max_tokens_settings(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Le défaut global + TOUS les outils lus en base + les bornes — alimente le formulaire admin
-    et sa validation. L'écran n'en connaît aucun par son nom : il affiche ce que renvoie cette
-    liste, une ligne = un champ.
-
-    Pour chaque outil : `valeur` = sa surcharge (None s'il n'en a pas), `effectif` = ce que le
-    moteur utilisera vraiment. Les deux, parce que l'admin doit voir la valeur qui s'applique sans
-    croire pour autant qu'une surcharge existe."""
-    s = get_settings_dict(db)
-    try:
-        defaut = int(s["max_tokens_default"])
-    except (TypeError, ValueError):
-        defaut = int(SETTING_DEFAULTS["max_tokens_default"])
-
-    outils = []
-    for o in get_outils_llm(db):
-        brut = s.get(f"max_tokens_{o.outil}")
-        try:
-            valeur = int(brut) if brut is not None else None
-        except (TypeError, ValueError):
-            valeur = None  # surcharge illisible = comme si elle n'existait pas (cf. get_max_tokens)
-        outils.append({
-            "outil": o.outil,
-            "libelle": o.libelle,
-            "aide": o.aide,
-            "valeur": valeur,
-            "effectif": valeur if valeur is not None else defaut,
-        })
-
-    return {
-        "default": defaut,
-        "outils": outils,
-        # `max: None` = AUCUN plafond côté application (l'écran n'en impose donc pas non plus).
-        "bounds": {"min": MAX_TOKENS_MIN, "max": None},
-    }
-
-
-@router.put("/admin/max-tokens")
-def save_max_tokens(body: MaxTokensBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Écrit le défaut global et les surcharges par outil. Endpoint DÉDIÉ (PUT /admin/settings
-    email et PUT /admin/ai-model restent intacts).
-
-    Tout est vérifié AVANT d'écrire quoi que ce soit — un 400 laisse la base intacte :
-      - un outil que la table `outils_llm` ne connaît pas est refusé (sinon on sèmerait des clés
-        `max_tokens_<n'importe quoi>` que personne ne lit jamais — c'est l'histoire de
-        `max_tokens_optimiseur`, réglé pendant des jours dans le vide) ;
-      - une valeur sous le plancher est refusée : elle tronquerait les réponses sans prévenir.
-    Pas de plafond : si la valeur dépasse ce que le modèle accepte, c'est le fournisseur qui
-    refuse, et son refus arrive à l'admin en français clair."""
-    connus = {o.outil for o in get_outils_llm(db)}
-    inconnus = sorted(set(body.outils) - connus)
-    if inconnus:
-        raise HTTPException(
-            400,
-            f"Outil inconnu : {', '.join(inconnus)}. Un outil n'existe que si du code l'utilise ; "
-            f"il doit d'abord être ajouté à la table des outils par une migration.",
-        )
-
-    a_verifier = [("le défaut global", body.default)]
-    a_verifier += [(outil, v) for outil, v in body.outils.items() if v is not None]
-    for quoi, v in a_verifier:
-        if v < MAX_TOKENS_MIN:
-            raise HTTPException(
-                400,
-                f"Valeur trop basse pour {quoi} : {v}. Une longueur en dessous de {MAX_TOKENS_MIN} "
-                f"tronquerait les réponses de l'IA sans prévenir.",
-            )
-
-    def _ecrire(cle: str, valeur: int):
-        row = db.query(Setting).filter(Setting.key == cle).first()
-        if row:
-            row.value = str(valeur)
-        else:
-            db.add(Setting(key=cle, value=str(valeur)))
-
-    _ecrire("max_tokens_default", body.default)
-    retires = []
-    for outil, v in body.outils.items():
-        cle = f"max_tokens_{outil}"
-        if v is None:
-            # Vider un champ SUPPRIME la surcharge — un vrai DELETE, pas une valeur neutre gardée
-            # en base. L'outil repart sur le défaut global, et le changer le suivra de nouveau.
-            if db.query(Setting).filter(Setting.key == cle).delete():
-                retires.append(outil)
-        else:
-            _ecrire(cle, v)
-    db.commit()
-
-    surcharges = sorted(f"{o}={v}" for o, v in body.outils.items() if v is not None)
-    log_admin_action(
-        db=db,
-        admin_email=_get_admin_email(request),
-        action="UPDATE_MAX_TOKENS",
-        target_email=None,
-        ip=request.client.host if request.client else None,
-        details=(
-            f"max_tokens mis à jour — défaut {body.default} ; "
-            f"surcharges : {', '.join(surcharges) or 'aucune'} ; "
-            f"retirées : {', '.join(sorted(retires)) or 'aucune'}"
-        ),
-    )
-    return {"status": "ok"}
+# L'ÉCRAN DES LONGUEURS N'EXISTE PLUS (10/08/2026). Il y avait ici un `GET`/`PUT
+# /admin/max-tokens` : un défaut global plus une surcharge par outil, écrits dans `settings`.
+# Le moteur ne les lisait DÉJÀ plus — `get_max_tokens()` rend le `max_tokens` de la fiche du
+# modèle (sinon du fournisseur, sinon MAX_TOKENS_SANS_FICHE) — et l'onglet avait été retiré du
+# front. Restaient deux routes qui écrivaient des lignes que personne ne relisait : un admin
+# pouvait y régler un couperet sans effet, et croire l'avoir réglé. La longueur se voit et se
+# règle là où elle est vraie : IA › Fournisseurs & modèles.
 
 
 class TemperatureBody(BaseModel):
@@ -2704,6 +2579,82 @@ def admin_demos_liste(db: Session = Depends(get_db), _: None = Depends(_require_
         ],
         "statuts": list(STATUTS_DEMO),
     }
+
+
+@router.get("/admin/demos/proposition")
+def admin_demos_proposition(referentiel_id: int = Query(...),
+                            db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Ce que l'écran peut renseigner tout seul quand l'admin choisit un référentiel.
+
+    POURQUOI CETTE ROUTE EXISTE. La fiche se remplissait entièrement à la main, y compris les
+    trois compteurs — et le commentaire d'en-tête de ce bloc l'expliquait par le fait que ce
+    moteur n'ouvre pas les bases de démonstration. C'était un choix, pas une limite : le serveur
+    PostgreSQL est le même conteneur, le même utilisateur, et seul le nom de base change. On
+    ouvre donc une connexion le temps de trois `count(*)`, et on la referme.
+
+    ELLE NE DÉCIDE RIEN : elle PROPOSE. Tout ce qu'elle renvoie reste modifiable à l'écran, et
+    rien n'est enregistré ici. Si la base n'existe pas encore — cas normal, l'admin déclare la
+    fiche AVANT que le dev fabrique — les compteurs valent zéro et `base_trouvee` est faux.
+
+    LE NOM DE BASE NE SE DÉDUIT PAS DU RÉFÉRENTIEL. `ciela_demo` ne se calcule pas depuis
+    « BTS CIEL option A », ni `crsa_demo` depuis « licence_ergotherapie ». On regarde donc ce
+    qui EXISTE sur le serveur : les bases en `_demo` qu'aucune fiche ne revendique. S'il n'en
+    reste qu'une, c'est celle-là — et c'est le cas réel, puisqu'on déclare la fiche d'une
+    démonstration à la fois. Sinon on propose un nom bâti sur le nom du référentiel, que
+    l'admin corrigera."""
+    ref = db.query(Referentiel).filter(Referentiel.id == referentiel_id).first()
+    if not ref:
+        raise HTTPException(404, "Référentiel inconnu.")
+
+    # Les bases `_demo` du serveur, moins celles qu'une fiche revendique déjà.
+    presentes = [r[0] for r in db.execute(text(
+        r"SELECT datname FROM pg_database WHERE datname LIKE '%\_demo' ORDER BY datname"
+    )).all()]
+    declarees = {n for (n,) in db.query(Demo.nom_base).all()}
+    candidates = [n for n in presentes if n not in declarees]
+
+    if len(candidates) == 1:
+        nom_base = candidates[0]
+    else:
+        # Repli : le nom du référentiel, ramené à des minuscules et des soulignés.
+        base = re.sub(r"[^a-z0-9]+", "_", (ref.nom_fixe or "").lower()).strip("_")
+        nom_base = f"{base}_demo" if base else ""
+
+    # L'adresse suit le port libre suivant : les piles se numérotent à la file (5174, 5175…).
+    ports = [int(m.group(1)) for (u,) in db.query(Demo.url).all() if u
+             for m in [re.search(r":(\d{4,5})", u)] if m]
+    url = f"http://localhost:{max(ports) + 1}" if ports else ""
+
+    compteurs = {"nb_sequences": 0, "nb_seances": 0, "nb_activites": 0}
+    base_trouvee = nom_base in presentes
+    erreur = None
+    if base_trouvee:
+        # Une connexion jetable vers l'autre base : même serveur, même utilisateur, seul le nom
+        # change. On dérive l'URL de l'objet `engine.url` et JAMAIS de son `str()` : SQLAlchemy
+        # y remplace le mot de passe par des étoiles, et la connexion échouerait sur un refus
+        # d'authentification. `dispose()` en sortie — aucun pool ne reste ouvert vers une démo.
+        autre = create_engine(engine.url.set(database=nom_base),
+                              pool_pre_ping=True, poolclass=NullPool)
+        try:
+            with autre.connect() as conn:
+                for cle, table in (("nb_sequences", "sequences"), ("nb_seances", "seances"),
+                                   ("nb_activites", "activites")):
+                    compteurs[cle] = conn.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0
+        except ProgrammingError:
+            # Base présente mais pas encore migrée : les tables n'existent pas. Ce n'est pas une
+            # erreur — c'est l'état normal entre le temps 1 et le temps 5 de la fabrication.
+            base_trouvee = False
+        except SQLAlchemyError as e:
+            # Tout le reste — base injoignable, droits refusés — se DIT. Un `except` muet
+            # renverrait trois zéros qui passeraient pour un comptage, et c'est exactement
+            # ainsi qu'un mot de passe masqué est passé inaperçu la première fois.
+            base_trouvee = False
+            erreur = type(e).__name__
+        finally:
+            autre.dispose()
+
+    return {"nom_base": nom_base, "url": url, "base_trouvee": base_trouvee,
+            "candidates": candidates, "erreur": erreur, **compteurs}
 
 
 @router.post("/admin/demos")

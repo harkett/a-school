@@ -18,6 +18,11 @@ Lancer : docker compose exec backend python -m pytest tests/test_settings_prompt
 from unittest.mock import MagicMock, patch
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+# `settings` vidée n'est plus un état neutre : les réglages vivent en base depuis le
+# 10/08/2026 et une ligne absente fait lever pour un CHOIX (modèle, fournisseur). On
+# repose donc ce qu'une installation à jour possède — sauf la clé que ce fichier teste.
+from conftest import resemer_reglages
+
 import backend.core.database as dbmod
 
 from backend.main import app
@@ -37,6 +42,7 @@ def _fresh_db():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db)
     return db
 
 
@@ -44,6 +50,7 @@ def _reset_settings():
     db = dbmod.SessionLocal()
     db.query(Setting).delete()
     db.commit()
+    resemer_reglages(db)
     db.close()
 
 
@@ -84,6 +91,7 @@ def test_prompt_absent_en_base_erreur_claire_jamais_un_repli():
     with dbmod.SessionLocal() as db:
         db.query(Setting).delete()
         db.commit()
+        resemer_reglages(db)
         with pytest.raises(HTTPException) as e:
             get_prompt(db, "ambiguites")
         assert e.value.status_code == 500
@@ -97,6 +105,7 @@ def test_prompt_inconnu_du_registre_le_dit_autrement():
     with dbmod.SessionLocal() as db:
         db.query(Setting).delete()
         db.commit()
+        resemer_reglages(db)
         with pytest.raises(HTTPException) as e:
             get_prompt(db, "cle_qui_n_existe_pas")
         assert "inconnu" in e.value.detail

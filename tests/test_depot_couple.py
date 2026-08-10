@@ -1,9 +1,8 @@
 """Chantier « suppression des familles » — le dépôt en couple cycle → niveau.
 
 Ce que ces tests verrouillent :
-  - le dépôt (`verifier`, même code que `valider-flux`) exige un niveau EXISTANT (`niveau_id`) :
-    404 si inconnu ou hors du cycle, et ne crée JAMAIS de niveau (une seule place pour créer :
-    POST /admin/niveaux).
+  - le dépôt (`valider-flux`) exige un niveau EXISTANT (`niveau_id`) : refus si inconnu ou hors
+    du cycle, et il ne crée JAMAIS de niveau (une seule place pour créer : POST /admin/niveaux).
   - les endpoints famille ont disparu (404).
   - la création cycle/niveau est relogée dans programmes.py (unicité 409, cycle inconnu 404).
 
@@ -53,6 +52,32 @@ def _staged_token():
     return token
 
 
+def _deposer(client, corps):
+    """Le dépôt par `/valider-flux`, rendu comme une réponse ordinaire.
+
+    La route ne rend plus un objet mais un flux NDJSON : une ligne par tâche terminée, puis
+    `{"fin": …}` ou `{"erreur": …}`. Le refus n'a donc plus de code HTTP propre — il arrive
+    DANS le flux, en 200, parce qu'au moment où il survient les en-têtes sont déjà partis.
+    Ce lecteur rend `(fin, erreur)` : le test assure sur le message, plus sur le code.
+
+    Il a remplacé `/admin/referentiels/verifier` le 10/08/2026 — même dépôt, même code de fond
+    (`_enregistrer_referentiel`), mais cette porte-là n'était plus appelée par aucun écran."""
+    import json
+    r = client.post("/api/admin/referentiels/valider-flux", json=corps)
+    assert r.status_code == 200, r.text
+    fin = erreur = None
+    for ligne in r.text.splitlines():
+        if not ligne.strip():
+            continue
+        d = json.loads(ligne)
+        if "fin" in d:
+            fin = d["fin"]
+        elif "erreur" in d:
+            erreur = d["erreur"]
+    return fin, erreur
+
+
+
 def _purge(token):
     (refadm.STAGING_DIR / f"{token}.pdf").unlink(missing_ok=True)
 
@@ -62,9 +87,9 @@ def test_valider_niveau_inconnu_404_et_ne_cree_jamais_de_niveau():
     cid = _cycle()
     token = _staged_token()
     try:
-        r = admin_client().post("/api/admin/referentiels/verifier", json={
+        _fin, erreur = _deposer(admin_client(), {
             "token": token, "cycle_id": cid, "niveau_id": 999999})
-        assert r.status_code == 404, r.text
+        assert erreur and "niveau" in erreur.lower(), erreur
         with dbmod.SessionLocal() as db:
             assert db.query(Niveau).count() == 0   # aucun niveau créé en douce
     finally:
@@ -77,9 +102,9 @@ def test_valider_niveau_d_un_autre_cycle_404():
     nid = _niveau(autre, "DC-NivB", 71)
     token = _staged_token()
     try:
-        r = admin_client().post("/api/admin/referentiels/verifier", json={
+        _fin, erreur = _deposer(admin_client(), {
             "token": token, "cycle_id": cid, "niveau_id": nid})
-        assert r.status_code == 404, r.text
+        assert erreur and "niveau" in erreur.lower(), erreur
     finally:
         _purge(token)
 
@@ -159,10 +184,10 @@ def test_valider_ecrit_le_texte_epure():
              patch("backend.rag.extraction.extraire_texte", return_value="TEXTE PROPRE DU JOUR"), \
              patch("backend.rag.analyse_amont.detecter_matieres", return_value=[]):
             popen.return_value.__enter__.return_value.pages = [None, None]
-            r = admin_client().post("/api/admin/referentiels/verifier", json={
+            fin, erreur = _deposer(admin_client(), {
                 "token": token, "cycle_id": cid, "niveau_id": nid})
-        assert r.status_code == 200, r.text
-        assert r.json()["pages"] == 2
+        assert erreur is None, erreur
+        assert fin["pages"] == 2
         with dbmod.SessionLocal() as db:
             ref = db.query(Referentiel).filter(Referentiel.niveau_id == nid).first()
             assert ref is not None
@@ -352,10 +377,9 @@ def test_valider_jeton_consomme_avec_referentiel_dit_deja_valide():
         db.add(Referentiel(niveau_id=nid, nom_fixe="dc_deja", collection="dc_deja",
                            filtres=None, fichier="mon-document.pdf"))
         db.commit()
-    r = admin_client().post("/api/admin/referentiels/verifier", json={
+    d, erreur = _deposer(admin_client(), {
         "token": "jeton-consomme-inexistant", "cycle_id": cid, "niveau_id": nid})
-    assert r.status_code == 200, r.text
-    d = r.json()
+    assert erreur is None, erreur
     assert d["ok"] is True and d["deja_valide"] is True
     assert d["niveau"] == "DC-NivDeja" and d["fichier_origine"] == "mon-document.pdf"
 
@@ -365,11 +389,10 @@ def test_valider_jeton_consomme_sans_referentiel_400_message_honnete():
     le dépôt »), plus jamais le « aperçu expiré ? » fictif (rien n'expire dans la zone d'attente)."""
     cid = _cycle("DC-Sans", 87)
     nid = _niveau(cid, "DC-NivSans", 87)
-    r = admin_client().post("/api/admin/referentiels/verifier", json={
+    _fin, erreur = _deposer(admin_client(), {
         "token": "jeton-inexistant", "cycle_id": cid, "niveau_id": nid})
-    assert r.status_code == 400, r.text
-    assert "Recommencez le dépôt" in r.json()["detail"]
-    assert "expiré" not in r.json()["detail"]
+    assert erreur and "Recommencez le dépôt" in erreur, erreur
+    assert "expiré" not in erreur
 
 
 def test_detecter_couple_ia_meme_patron():

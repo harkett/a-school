@@ -9,10 +9,10 @@ Verifie, SANS PostgreSQL (db factice -> aucune connexion), que
 La sauvegarde est appelee AVANT le delete dans `ingest_pgvector` : si elle echoue,
 elle RAISE et le delete n'est jamais atteint (garde-fou structurel, visible dans
 `ingest_pgvector`). Ce module se lance hors suite normale via
-`pytest test_rag_backup.py --noconftest` (le conftest racine, lui, se connecte a
+`pytest test_rag_sauvegarde_avant_purge.py --noconftest` (le conftest racine, lui, se connecte a
 aschool_test ; ici on n'en a pas besoin).
 
-Lancer : docker compose exec backend python -m pytest tests/test_rag_backup.py -q
+Lancer : docker compose exec backend python -m pytest tests/test_rag_sauvegarde_avant_purge.py -q
 """
 import datetime as _dt
 import json

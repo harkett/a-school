@@ -359,6 +359,37 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
 function LigneEdition({ edition, setEdition, statuts, libres, demo, busy, onValider, onAnnuler }) {
   const set = (k, v) => setEdition(e => ({ ...e, [k]: v }))
   const nouveau = edition.id === 'nouveau'
+  // Ce que le serveur a proposé au dernier choix de référentiel : sert uniquement à dire, sous
+  // le champ, d'où viennent les compteurs. `null` tant qu'aucun choix n'a été fait.
+  const [propose, setPropose] = useState(null)
+
+  // AU CHOIX DU RÉFÉRENTIEL, l'écran va chercher ce qu'il peut renseigner seul : le nom de la
+  // base, l'adresse, et les trois compteurs lus dans la base de démonstration elle-même.
+  // Rien n'est imposé — tous les champs restent modifiables, et un échec de la requête laisse
+  // simplement le formulaire tel qu'il était.
+  async function choisirReferentiel(v) {
+    set('referentiel_id', v)
+    setPropose(null)
+    if (!nouveau || v === '') return
+    try {
+      const r = await fetchWithTimeout('/api/admin/demos/proposition?referentiel_id=' + v,
+                                       { credentials: 'include' }, TIMEOUT_STD)
+      if (!r.ok) return
+      const p = await r.json()
+      setPropose(p)
+      setEdition(e => ({
+        ...e,
+        nom_base: p.nom_base || e.nom_base,
+        url: p.url || e.url,
+        nb_sequences: p.nb_sequences,
+        nb_seances: p.nb_seances,
+        nb_activites: p.nb_activites,
+      }))
+    } catch {
+      // Silence volontaire : la proposition est un confort, pas une étape. L'admin saisit.
+    }
+  }
+
   // En modification, le référentiel de la ligne ne figure pas dans « libres » (il est pris — par
   // elle). On le rajoute en tête, sinon le menu s'ouvrirait sur un choix vide.
   const choix = nouveau
@@ -374,8 +405,8 @@ function LigneEdition({ edition, setEdition, statuts, libres, demo, busy, onVali
           <label style={{ fontSize: 11.5, color: '#64748b' }}>
             Niveau
             <select style={champ} value={edition.referentiel_id} disabled={busy}
-                    onChange={e => set('referentiel_id', e.target.value)}
-                    title="Le référentiel que cette démonstration fait découvrir">
+                    onChange={e => choisirReferentiel(e.target.value)}
+                    title="Le référentiel que cette démonstration fait découvrir — le choisir renseigne la base, l’adresse et les compteurs">
               <option value="">— choisir —</option>
               {choix.map(r => (
                 <option key={r.id} value={r.id}>
@@ -391,6 +422,15 @@ function LigneEdition({ edition, setEdition, statuts, libres, demo, busy, onVali
                    onChange={e => set('nom_base', e.target.value)}
                    placeholder="ciela_demo"
                    title="Nom de la base qui contient les données — minuscules et soulignés, jamais de tiret" />
+            {/* D'où viennent les compteurs affichés. Sans cette ligne, trois zéros passeraient
+                pour un comptage réel alors que la base n'a pas encore été fabriquée. */}
+            {propose && (
+              <span style={{ fontSize: 11, color: propose.base_trouvee ? '#15803d' : '#92400e' }}>
+                {propose.base_trouvee ? 'Base lue — compteurs à jour'
+                  : propose.erreur ? 'Base injoignable (' + propose.erreur + ') — compteurs à saisir'
+                  : 'Base pas encore fabriquée — compteurs à saisir'}
+              </span>
+            )}
           </label>
 
           <label style={{ fontSize: 11.5, color: '#64748b' }}>

@@ -367,7 +367,7 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     somme_cache_ecriture = func.coalesce(func.sum(UsageLlm.tokens_cache_ecriture), 0)
     somme_cache_lecture = func.coalesce(func.sum(UsageLlm.tokens_cache_lecture), 0)
 
-    # Libellés lisibles des outils : « referentiel_fusion » n'est pas un mot d'écran.
+    # Libellés lisibles des outils : « detecter_matieres » n'est pas un mot d'écran.
     libelles = {o.outil: o.libelle for o in db.query(OutilLlm).all()}
 
     def _lignes(colonne, nommer):

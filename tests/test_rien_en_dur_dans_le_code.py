@@ -77,9 +77,6 @@ DETTE = {
     # levait, et l'ancien `except: continue` les sautait EN SILENCE — dont admin.py, le plus gros
     # fichier du projet. Le compte passe donc de 6 à 12 : aucune dette nouvelle n'a été créée,
     # six étaient invisibles.
-    "backend/systeme/admin.py:SETTING_DEFAULTS":
-        "admin.py:54 — LE repli code du projet : chaque réglage y a sa valeur de secours, alors "
-        "que la doctrine du même fichier (admin.py:386 et :417) l'interdit. La plus grosse des six.",
     "backend/main.py:_cors_defaut":
         "main.py:87 — les origines CORS de secours quand la variable est absente. Repli code : "
         "se solde en exigeant CORS_ALLOWED_ORIGINS au déploiement (deploy.sh:18), pas avant.",
@@ -89,12 +86,6 @@ DETTE = {
     "backend/securite/comptes.py::idee|notation":
         "comptes.py:313 — les types de feedback, pour décider des lignes de l'e-mail admin. "
         "Aucune table `feedback_types` (44 tables, vérifié) — seuls les STATUTS ont la leur.",
-    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_EXACTS":
-        "admin.py:984 — des CLÉS DE RÉGLAGE recopiées, pas de la plomberie : ajouter demain un "
-        "réglage à écran dédié sans toucher cette liste, et l'écran Paramètres ment sans que "
-        "rien ne tombe. Aucun test ne la garde.",
-    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_PREFIXES":
-        "admin.py:985 — mêmes clés, par préfixe (max_tokens_, prompt_, welcome_email_).",
 }
 
 # --- EXCEPTION PERMANENTE — plomberie technique ou registre déjà gardé ailleurs -------------
@@ -127,6 +118,45 @@ EXCEPTIONS_PERMANENTES = {
     "backend/systeme/admin.py:STATUTS_DEMO":
         "admin.py:2595 — a_faire / en_cours / fait / teste / valide, les étapes du chantier "
         "d'une base de démonstration. Suivi interne, pas une donnée métier.",
+
+    # DETTE REMBOURSÉE LE 10/08/2026 — elle est ici, et plus dans DETTE, parce qu'il ne reste
+    # rien à descendre. Ce dictionnaire portait 18 réglages dont 16 sans ligne en base : le code
+    # gagnait en silence. Les 14 réellement lus ont été semés (migration f1c9a3e7b5d2, valeurs
+    # identiques), `max_tokens_default` est mort avec son écran, `prompt_gabarit_type` doublait
+    # une ligne existante. Ce qui reste n'est pas un réglage mais un FILET : si la ligne
+    # 'welcome' d'`email_templates` manque, le mail de bienvenue part quand même — un inscrit
+    # qui ne le reçoit pas ne peut pas valider son compte.
+    "backend/systeme/admin.py:SETTING_DEFAULTS":
+        "admin.py — le seul repli restant : l'objet et le corps du mail de bienvenue, pour que "
+        "l'inscription ne puisse jamais se bloquer sur une ligne manquante.",
+
+    # DETTE REMBOURSÉE LE 10/08/2026 elle aussi, et de la façon que son texte réclamait : elle
+    # disait « aucun test ne la garde », et c'était vrai — la liste mentait dans les deux sens
+    # (elle promettait un écran à `rag_top_k`, taisait `stream_silence_timeout` et les deux
+    # `ai_retry_*`, gardait le préfixe `max_tokens_` d'un écran supprimé). Ce ne sont donc plus
+    # des clés recopiées à l'aveugle : test_ecran_dedie_dit_vrai.py les compare aux clés que les
+    # routes PUT écrivent RÉELLEMENT, en lisant leur code, et tombe dans les deux sens.
+    "backend/systeme/admin.py:_PARAM_ECRAN_DEDIE_EXACTS":
+        "admin.py — les clés qui ont leur propre écran de réglage. Vérifiées contre les routes "
+        "réelles par test_ecran_dedie_dit_vrai.py.",
+
+    # Même nature que SEUILS_ORIGINE ci-dessous, pour les garde-fous techniques : nombre de
+    # re-tentatives, coupure de silence du flux, top_k du RAG, minutes par activité. Ces valeurs
+    # sont EN BASE depuis le 10/08/2026 (migration f1c9a3e7b5d2) ; celles-ci ne servent que si la
+    # ligne manque ou devient illisible — et uniquement pour un garde-fou, jamais pour un CHOIX.
+    # Un choix absent (modèle, fournisseur) refuse : voir `_reglage`, juste au-dessus d'elles.
+    "backend/systeme/admin.py:VALEURS_ORIGINE":
+        "admin.py — les valeurs semées par f1c9a3e7b5d2, relues UNIQUEMENT pour un garde-fou "
+        "technique dont la ligne manque ou est illisible. Filet, pas une source.",
+
+    # Les quatre seuils d'alerte, en repli de SAISIE uniquement. Posé le 10/08/2026 en même temps
+    # que leur descente en base (migration f1c9a3e7b5d2) : une ligne ABSENTE lève désormais, c'est
+    # ce qu'on voulait ; mais une VALEUR illisible (faute de frappe de l'admin) retombe ici plutôt
+    # que de couper la surveillance — se retrouver sans alerte serait pire que garder l'ancien
+    # seuil le temps de corriger. Ce dict n'est jamais lu quand la base répond.
+    "backend/supervision/alerts.py:SEUILS_ORIGINE":
+        "alerts.py — les valeurs semées par f1c9a3e7b5d2, relues UNIQUEMENT si la ligne en base "
+        "est illisible. Filet de saisie, pas une source.",
 
     # Les écritures acceptées pour un booléen d'ENVIRONNEMENT (MODE_DEMO). Ce n'est pas une
     # donnée : c'est la tolérance de lecture d'une variable posée à la main dans un compose.
@@ -253,9 +283,13 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     6 -> 10 le 01/08/2026, et pas parce qu'on a écrit du code en dur ce jour-là : le filet lisait
     les fichiers en « utf-8 » et sautait EN SILENCE les quatre qui portent un BOM, dont admin.py.
     Quatre dettes cachées sont remontées (plus deux repères classés en exception permanente).
-    Le chiffre d'avant était faux ; celui-ci est mesuré sur tout le backend."""
-    assert len(DETTE) == 12, (
-        f"Dette « en dur » : {len(DETTE)} entrées, 12 attendues (état mesuré du 01/08/2026)."
+    Le chiffre d'avant était faux ; celui-ci est mesuré sur tout le backend.
+
+    12 -> 9 le 10/08/2026, et là ce sont de VRAIS remboursements : `SETTING_DEFAULTS` vidé de ses
+    16 réglages fantômes (semés en base, migration f1c9a3e7b5d2), et les deux `_PARAM_ECRAN_DEDIE_*`
+    passés sous la garde de test_ecran_dedie_dit_vrai.py, qui les compare aux routes réelles."""
+    assert len(DETTE) == 9, (
+        f"Dette « en dur » : {len(DETTE)} entrées, 9 attendues (état du 10/08/2026)."
     )
     # 5 -> 8 le 04/08/2026 : les trois listes de tri de la recherche du lien officiel. Ce ne sont
     # pas des données métier (personne ne les modifie depuis un écran), mais le scanner ne sait pas
@@ -267,6 +301,6 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # recherche du lien officiel n'y est plus. Une exception qui ne pointe sur aucun code est pire
     # qu'inutile : elle donne à croire que le sujet est arbitré alors que le sujet a disparu.
     # C'est le troisième test de ce fichier qui l'a signalé, en rouge — il a fait son travail.
-    assert len(EXCEPTIONS_PERMANENTES) == 8, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 8 attendues."
+    assert len(EXCEPTIONS_PERMANENTES) == 12, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 12 attendues."
     )

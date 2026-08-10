@@ -6,7 +6,7 @@ Il verrouillait jusque-là un mécanisme de « blocage » : pour supprimer le r�
 sur lequel des profs travaillaient, le serveur détachait lui-même leur matière
 (`users.subject_id` remis à NULL), mémorisait le nom perdu dans une table `profs_bloques_maj`, et
 refusait toute génération tant que la ligne existait — jusqu'à ce qu'un admin vienne la lever à
-la main, depuis un écran du Labo.
+la main, depuis un écran du Labo (lui-même supprimé le 10/08/2026).
 
 Ce mécanisme contournait la garde que la base pose déjà : `fk_users_subject_id` est en NO ACTION,
 une matière portée par un prof NE PEUT PAS être supprimée. Le code désarmait cette contrainte
@@ -67,9 +67,13 @@ def _monde(niveau="MAJ-Niv", matiere="Mathématiques", email="maj.prof@test.fr")
 
 
 def _supprimer(m, **extra):
+    """La suppression de l'écran EN SERVICE (Admin > Référentiels).
+
+    Elle passait par le labo jusqu'au 10/08/2026, jour où le labo a été supprimé. Même contrat,
+    même refus 409 avec le même message : le mécanisme de blocage n'y était déjà plus."""
     corps = {"cycle_id": m["cycle_id"], "niveau": m["niveau"]}
     corps.update(extra)
-    return admin_client().post("/api/admin/labo/referentiels/supprimer", json=corps)
+    return admin_client().post("/api/admin/referentiels/supprimer", json=corps)
 
 
 # ── 1. La base tient d'elle-même ──────────────────────────────────────────────────────────────
@@ -165,10 +169,13 @@ def test_la_table_des_blocages_n_existe_plus():
 
 
 def test_le_modele_et_les_routes_de_deblocage_ont_disparu():
+    """Le module qui portait le déblocage (`referentiels_labo`) a disparu entier le 10/08/2026 :
+    on vérifie donc qu'il ne revient pas, et non plus qu'il ne contient pas telle fonction."""
+    import importlib
     import backend.core.models_db as modeles
-    import backend.pedagogie.referentiels_labo as reflabo
     assert not hasattr(modeles, "ProfBloqueMaj")
-    assert not hasattr(reflabo, "_bloquer_et_detacher")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("backend.pedagogie.referentiels_labo")
     chemins = {r.path for r in app.routes if hasattr(r, "path")}
     assert "/api/admin/labo/referentiels/debloquer" not in chemins
     assert "/api/admin/labo/referentiels/blocages" not in chemins

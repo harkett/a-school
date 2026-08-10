@@ -1,7 +1,7 @@
 """Le CHEMIN DU RETOUR des chunks RAG : sauvegarder, purger, restaurer — vecteurs compris.
 
 CE QUE CE FICHIER EMPÊCHE. La sauvegarde avant purge existait depuis le début et elle tenait
-(tests/test_rag_backup.py) : dump JSONL, relecture, comptage, RAISE avant le delete. Mais RIEN
+(tests/test_rag_sauvegarde_avant_purge.py) : dump JSONL, relecture, comptage, RAISE avant le delete. Mais RIEN
 dans le dépôt ne savait la rejouer. Elle protégeait donc la DONNÉE sans protéger l'OPÉRATION :
 on pouvait constater qu'on avait tout perdu, pas le défaire. Trois sauvegardes dormaient sur le
 disque depuis le 16/07 sans qu'aucun code sache les lire.
@@ -18,7 +18,7 @@ et ne serait plus un retour, mais une réingestion.
 Les trois refus sont éprouvés UN PAR UN, et chacun vérifie en plus que la base n'a pas bougé :
 un refus qui purgerait d'abord et refuserait ensuite serait pire que pas de refus du tout.
 
-Contrairement à test_rag_backup.py (db factice, aucune connexion), ce fichier tourne sur la
+Contrairement à test_rag_sauvegarde_avant_purge.py (db factice, aucune connexion), ce fichier tourne sur la
 VRAIE base de test `aschool_test` : c'est le seul moyen de prouver que les 1024 flottants
 reviennent tels quels à travers la colonne Vector(1024).
 

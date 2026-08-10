@@ -15,6 +15,11 @@ Lancer : docker compose exec backend python -m pytest tests/test_admin_ai_model.
 
 
 # engine / SessionLocal redirigés vers PostgreSQL (aschool_test) par conftest.py — JAMAIS SQLite
+# `settings` vidée n'est plus un état neutre : les réglages vivent en base depuis le
+# 10/08/2026 et une ligne absente fait lever pour un CHOIX (modèle, fournisseur). On
+# repose donc ce qu'une installation à jour possède — sauf la clé que ce fichier teste.
+from conftest import resemer_reglages
+
 import backend.core.database as dbmod
 
 from backend.main import app
