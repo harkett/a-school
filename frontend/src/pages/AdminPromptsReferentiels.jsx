@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import OngletsPrompts from '../components/OngletsPrompts'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { buildSearchIndex, searchSections, queryTerms, highlightSegments } from '../utils/aideSearch.js'
 import { showError } from '../errorDialog'
 import SplitPane from '../components/SplitPane.jsx'
 import FenetrePro from '../components/FenetrePro.jsx'
@@ -126,6 +127,20 @@ const CHAMP_TYPE = {
 
 // Titre d'un groupe de liens, cliquable pour le replier. Le chevron est la SEULE marque : pas de
 // bouton en plus, pas de libellé « Réduire » — le titre lui-même est la commande.
+// Surligne dans un libellé ce que la recherche a trouvé. Le découpage vient de `aideSearch`
+// (`highlightSegments`) : mêmes règles d'accents et de casse que le filtre, donc jamais un
+// surlignage qui contredirait la sélection.
+function Surligne({ texte, termes }) {
+  const segments = highlightSegments(texte, termes)
+  return (
+    <>
+      {segments.map((seg, i) => (seg.match
+        ? <mark key={i} style={{ background: '#fef08a', color: 'inherit', padding: 0 }}>{seg.text}</mark>
+        : <span key={i}>{seg.text}</span>))}
+    </>
+  )
+}
+
 function TitreGroupe({ titre, reduit, onBasculer, marge }) {
   return (
     <button
@@ -180,6 +195,22 @@ export default function AdminPromptsReferentiels() {
   }
   useEffect(() => { charger() }, [])
 
+  // ── RECHERCHE dans la liste ────────────────────────────────────────────────────────────
+  // La liste s'allonge d'un référentiel à chaque dépôt : on la filtre au fil de la frappe.
+  // MÊME MOTEUR que la page Aide et que Prompts (`aideSearch`) : accents et majuscules ignorés,
+  // filtre ET sur tous les mots tapés, les correspondances de NIVEAU passant devant celles de
+  // cycle (`titre` = le niveau, `nav` = le cycle). Les trois écrans se cherchent donc pareil.
+  const [recherche, setRecherche] = useState('')
+  const termes = queryTerms(recherche)
+  const refsAffiches = recherche.trim() === ''
+    ? refs
+    : searchSections(
+        buildSearchIndex(refs.map(r => ({ ...r, titre: r.niveau, nav: r.cycle, contenu: null }))),
+        recherche
+      )
+
+  // Le référentiel ouvert se cherche dans `refs`, JAMAIS dans la liste filtrée : continuer à
+  // taper ne doit pas refermer le prompt en cours d'écriture ni perdre une retouche.
   const refCourant = refs.find(r => r.id === refId) || null
 
   // Les types du niveau choisi, avec leur prompt de génération. Lecture à part : le GET global de
@@ -286,7 +317,38 @@ export default function AdminPromptsReferentiels() {
   })
 
   const colonneListe = (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200"
+         style={{ overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {!chargement && !panne && refs.length > 0 && (
+        <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9', flexShrink: 0, position: 'relative' }}>
+          <input
+            type="search"
+            value={recherche}
+            onChange={e => setRecherche(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setRecherche('') } }}
+            placeholder="Rechercher un niveau ou un cycle…"
+            aria-label="Rechercher un référentiel"
+            title="Filtre la liste au fil de la frappe — cherche dans le niveau et dans le cycle, sans tenir compte des accents ni des majuscules. Échap efface."
+            autoComplete="off"
+            className="w-full border border-gray-300 rounded text-sm"
+            style={{ padding: '7px 10px 7px 30px' }}
+          />
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ position: 'absolute', left: 20, top: 17, pointerEvents: 'none' }}
+          >
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          {recherche.trim() !== '' && (
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+              {refsAffiches.length} sur {refs.length}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
       {chargement ? (
         <p className="text-sm text-gray-500" style={{ padding: '1.25rem 1.5rem' }}>Lecture en cours…</p>
       ) : panne ? (
@@ -301,10 +363,21 @@ export default function AdminPromptsReferentiels() {
           Aucun référentiel en base. Déposez d’abord un document sur l’écran <b>Référentiel</b> :
           les prompts se rangent sur la ligne du niveau, elle doit exister d’abord.
         </p>
+      ) : refsAffiches.length === 0 ? (
+        <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+          <p className="text-sm text-gray-400">
+            Aucun référentiel ne correspond à « {recherche.trim()} ».
+          </p>
+          <button type="button" onClick={() => setRecherche('')} className="btn-secondary"
+            title="Vider la recherche et revoir toute la liste"
+            style={{ marginTop: 10, fontSize: 12 }}>
+            Effacer la recherche
+          </button>
+        </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <tbody>
-            {refs.map(r => {
+            {refsAffiches.map(r => {
               const actif = r.id === refId
               return (
                 <tr key={r.id}
@@ -315,9 +388,11 @@ export default function AdminPromptsReferentiels() {
                   }}>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ fontSize: 13, fontWeight: actif ? 700 : 600, color: '#1e293b' }}>
-                      {r.niveau}
+                      <Surligne texte={r.niveau} termes={termes} />
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{r.cycle}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      <Surligne texte={r.cycle} termes={termes} />
+                    </div>
                   </td>
                   {/* Une ligne par couple : on voit d'un coup d'œil ce qui manque à ce niveau,
                       et de quel côté — les matières ou la découpe. */}
@@ -377,6 +452,7 @@ export default function AdminPromptsReferentiels() {
           </tbody>
         </table>
       )}
+      </div>
     </div>
   )
 
