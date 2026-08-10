@@ -87,9 +87,22 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 echo ""
-echo "=== [7/7] Test API ==="
+echo "=== [7/8] Test API ==="
 sleep 1
 curl -sf http://127.0.0.1:8001/api/health && echo " → Backend OK" || echo " → ERREUR backend"
+
+echo ""
+echo "=== [8/8] Demonstrations ==="
+# L'INFRASTRUCTURE des cinq demonstrations : fichiers d'environnement, services systemd, blocs
+# nginx. Ce geste ne touche AUCUNE donnee — le contenu des bases est l'affaire de
+# `deploy/restaurer-bases.sh`, lance separement depuis le poste par `Scripts\deployer-donnees.ps1`.
+# Il est rejouable : on le passe a chaque deploiement pour qu'une demonstration ajoutee dans
+# `deploy/demos.conf` soit servie sans geste manuel.
+if [ -f deploy/installer-demos.sh ]; then
+    bash deploy/installer-demos.sh
+else
+    echo "  deploy/installer-demos.sh absent — demonstrations non installees."
+fi
 
 echo ""
 echo "================================================"

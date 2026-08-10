@@ -1,0 +1,31 @@
+[Unit]
+# UNITÉ PARAMÉTRÉE — le `@` fait qu'un seul fichier sert les cinq démonstrations.
+# On l'active avec le nom de la base : `systemctl enable --now aschool-demo@crsa_demo`.
+# Ce qui suit le `@` devient `%i` ci-dessous.
+#
+# POURQUOI PAS CINQ FICHIERS. Cinq copies, c'est cinq occasions d'en corriger quatre. Le jour
+# où le lancement change (une option uvicorn, une variable), il change ici, une fois.
+Description=A-SCHOOL — backend de la démonstration %i
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/a-school
+
+# LE FICHIER D'ENVIRONNEMENT porte la seule chose qui distingue une démonstration d'une autre :
+# sa base et son port. Il est écrit par `deploy/installer-demos.sh` à partir de `demos.conf`.
+# `EnvironmentFile` plutôt que des `Environment=` en dur : sinon le port serait ici, et la
+# liste des démonstrations vivrait à deux endroits.
+EnvironmentFile=/var/www/a-school/deploy/env-demos/%i.env
+
+# MODE_DEMO=1 ouvre `/api/demo/entrer` et allume le bandeau permanent. Il vient du fichier
+# d'environnement lui aussi — une démonstration sans ce drapeau serait une application réelle
+# servie sur une adresse de démonstration, c'est-à-dire le pire des deux mondes.
+ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port ${PORT_DEMO}
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

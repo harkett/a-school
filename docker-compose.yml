@@ -281,11 +281,11 @@ services:
 
   # ── Quatrième démonstration : le BTS CRSA (crsa_demo) ────────────────────────
   # Le plus gros référentiel des quatre : 140 unités de découpe contre 57 pour un
-  # CIEL. Copié tel quel depuis la base réelle, vecteurs compris. ATTENTION, un
-  # piège propre à celui-ci : le niveau « BTS CRSA » n'est pas semé par les
-  # migrations — il a été créé à la main dans la base réelle, où il porte l'id 89.
-  # Dans une base neuve, l'id 89 est « Licence Droit ». Le niveau a donc été
-  # recréé ici et `referentiels.niveau_id` réécrit après la copie.
+  # CIEL. Copié tel quel depuis la base réelle, vecteurs compris.
+  # SON CATALOGUE cycles/niveaux EST CELUI DE LA BASE RÉELLE, copié tel quel : les
+  # ids y sont donc les mêmes des deux côtés, « BTS CRSA » compris (89). Refondue
+  # le 10/08/2026 pour cette raison — elle portait auparavant 101, parce que les
+  # migrations avaient semé les licences avant qu'on y crée le niveau à la main.
   backend_demo_d:
     build: .
     restart: unless-stopped
@@ -329,12 +329,10 @@ services:
   # Référentiel 20, 69 unités de découpe, six matières qui sont les six domaines
   # d'unités d'enseignement du diplôme (UE 1.x à UE 6.x). Copié tel quel depuis la
   # base réelle, vecteurs compris.
-  # LE PIÈGE, ici, s'est présenté autrement que pour le BTS CRSA : le niveau
-  # « Licence Ergothérapie » EXISTE dans une base neuve — les migrations le sèment
-  # parmi les onze mentions de licence — mais il y porte l'id 99 quand la base
-  # réelle lui donne le 100. La copie telle quelle échoue sur la clé étrangère,
-  # bruyamment, et c'est ce qu'on veut : `referentiels.niveau_id` a été résolu PAR
-  # LE NOM avant l'insertion, jamais recopié.
+  # MÊME RÈGLE QUE LE CRSA : le catalogue cycles/niveaux vient de la base réelle,
+  # copié tel quel. « Licence Ergothérapie » y porte le 100 des deux côtés. Cette
+  # base a été refondue le 10/08/2026 : elle portait le 99 que lui donnait le semis
+  # des onze mentions de licence, quand la base réelle lui donne le 100.
   backend_demo_e:
     build: .
     restart: unless-stopped

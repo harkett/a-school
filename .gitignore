@@ -50,3 +50,11 @@ Bagage/
 
 # Filets locaux .bak (avant edition/suppression) — jamais commites
 *.bak
+
+# Dumps de deploiement — ecrits par Scripts\deployer-donnees.ps1, envoyes par SCP au VPS.
+# JAMAIS dans git : ce sont les DONNEES (des dizaines de Mo, et les comptes des profs).
+# `deploy.ps1` fait `git add .` : sans cette ligne, le premier deploiement de donnees pousserait
+# la base entiere sur GitHub.
+deploy/dumps/
+# Ecrits par deploy/installer-demos.sh sur le serveur, a partir de deploy/demos.conf.
+deploy/env-demos/
