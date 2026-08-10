@@ -273,8 +273,7 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
     avec TOUT ce qui peut pendre à un compte, le supprime, et vérifie qu'il ne reste rien —
     sauf l'incident technique, qui survit en perdant son lien."""
     from backend.core.models_db import (Activite, ActiviteType, FeatureVote, Feedback,
-                                        FewShotMilestone, Incident, Seance,
-                                        Sequence, ToolUsageLog, User)
+                                        Incident, Seance, Sequence, ToolUsageLog, User)
     from _profil import user_couple
 
     # `with` obligatoire : une session laissée ouverte bloque le TRUNCATE de fin de test
@@ -290,7 +289,6 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
         # Tout ce qui peut pendre à un compte, dont les 5 liens qui cassaient la suppression.
         db.add(FeatureVote(user_id=uid, feature_key="quiz-interactif"))       # cassait (FK)
         db.add(ToolUsageLog(user_id=uid, tool="consigne", score_label="3"))   # cassait (FK)
-        db.add(FewShotMilestone(user_id=uid, activite_type_id=typ.id))        # cassait (FK)
         db.add(Sequence(user_id=uid, titre="Séq"))
         db.add(Seance(user_id=uid, titre="Séance"))
         db.add(Activite(user_id=uid, activite_type_id=typ.id, activite_label="Act"))
@@ -308,7 +306,6 @@ def test_admin_delete_user_purge_tout_ce_qui_pend_au_compte():
             "user":          d.query(User).filter(User.id == uid).count(),
             "votes":         d.query(FeatureVote).filter(FeatureVote.user_id == uid).count(),
             "usages":        d.query(ToolUsageLog).filter(ToolUsageLog.user_id == uid).count(),
-            "jalons":        d.query(FewShotMilestone).filter(FewShotMilestone.user_id == uid).count(),
             "activites":     d.query(Activite).filter(Activite.user_id == uid).count(),
             "seances":       d.query(Seance).filter(Seance.user_id == uid).count(),
             "sequences":     d.query(Sequence).filter(Sequence.user_id == uid).count(),

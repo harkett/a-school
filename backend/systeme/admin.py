@@ -1008,8 +1008,8 @@ def delete_user(email: str, request: Request, db: Session = Depends(get_db), _: 
     # CE QUI EST PURGÉ ICI : les tables reliées au compte SANS cascade en base (email_tokens et
     # connexion_logs n'ont même pas de clé étrangère : ce sont des journaux à l'email).
     # CE QUI PART TOUT SEUL : les tables dont la clé étrangère porte ON DELETE (migration
-    # e4b8c2d6a1f7) — cahiers_prof, feature_votes, tool_usage_logs, few_shot_milestones en
-    # CASCADE, incidents.feedback_id en SET NULL (l'incident technique survit).
+    # e4b8c2d6a1f7) — cahiers_prof, feature_votes, tool_usage_logs en CASCADE,
+    # incidents.feedback_id en SET NULL (l'incident technique survit).
     # Ne PAS les rajouter à la main ici : la base est la garantie, pas cette liste.
     # (Cette liste citait aussi user_enseignements : cette table a été SUPPRIMÉE depuis, par
     # la migration f8b3d5c7a1e9. Elle illustrait exactement le risque qu'elle annonce — une
