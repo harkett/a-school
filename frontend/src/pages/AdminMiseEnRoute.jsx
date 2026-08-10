@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
@@ -14,6 +14,15 @@ import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 //
 // L'écran d'avant ne montrait que la première et annonçait « Tout est prêt » dès qu'elle était
 // verte — vrai sur la plomberie, faux sur le produit. Les deux sont ici, côte à côte.
+
+// Le bouton « spec » ouvre L'EXPLORATEUR WINDOWS sur le dossier des spécifications. Une page
+// web ne peut pas lancer un programme ni suivre un chemin `file://` — le navigateur l'interdit.
+// Elle peut, en revanche, appeler un PROTOCOLE déclaré dans Windows : `aschool-spec:` est
+// enregistré une fois par Scripts/aschool-spec.reg, et Windows répond en ouvrant l'explorateur
+// sur le dossier. Le chemin vit donc dans le .reg, sur la machine de l'administrateur, et pas ici.
+// `SPECS` dit quelles lignes portent le bouton — une ligne s'ajoute quand sa spec est écrite.
+const PROTOCOLE_SPECS = 'aschool-spec:'
+const SPECS = ['CCF']
 
 const COULEURS = {
   fait:     { pastille: '#16a34a', fond: '#f0fdf4', bord: '#bbf7d0', texte: '#15803d', libelle: 'fait' },
@@ -50,6 +59,21 @@ export default function AdminMiseEnRoute() {
   const navigate = useNavigate()
   // La section ouverte. Vue d'ensemble par défaut : on entre par la synthèse, on descend ensuite.
   const [section, setSection] = useState('ensemble')
+
+  // Le bandeau et le menu de gauche restent à l'écran quand la liste défile. Le menu doit se
+  // figer SOUS le bandeau : sa hauteur se MESURE (elle change avec la largeur — les trois axes
+  // passent à la ligne), elle ne se devine pas dans une constante qui mentirait au premier
+  // redimensionnement.
+  const bandeauRef = useRef(null)
+  const [hautBandeau, setHautBandeau] = useState(0)
+  useEffect(() => {
+    const el = bandeauRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setHautBandeau(el.offsetHeight))
+    ro.observe(el)
+    setHautBandeau(el.offsetHeight)
+    return () => ro.disconnect()
+  }, [])
 
   // Deux lectures indépendantes : la plomberie et les fonctionnalités. react-query les tient,
   // l'écran n'en garde aucune copie.
@@ -96,8 +120,15 @@ export default function AdminMiseEnRoute() {
   return (
     <div style={{ maxWidth: 1080 }}>
       {/* ── BANDEAU — l'avancement global, compté et non déclaré ───────────────────────── */}
+      {/* L'enveloppe colle en haut et PEINT le fond de la page (marges négatives : elle reprend
+          les 32 px de rembourrage du gabarit admin). Sans elle, la liste défilerait à nu dans
+          la bande laissée au-dessus du bandeau. */}
+      <div ref={bandeauRef} style={{
+        position: 'sticky', top: 0, zIndex: 20, background: '#f0f4f8',
+        margin: '-32px -32px 0', padding: '32px 32px 18px',
+      }}>
       <div style={{
-        borderRadius: 12, padding: '20px 24px', marginBottom: 18,
+        borderRadius: 12, padding: '20px 24px',
         background: 'linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%)', color: '#fff',
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
@@ -138,10 +169,12 @@ export default function AdminMiseEnRoute() {
           ))}
         </div>
       </div>
+      </div>
 
       <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        {/* ── MENU DE GAUCHE ──────────────────────────────────────────────────────────── */}
-        <nav style={{ flex: '0 0 218px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* ── MENU DE GAUCHE — collé sous le bandeau, à la hauteur mesurée ─────────────── */}
+        <nav style={{ flex: '0 0 218px', display: 'flex', flexDirection: 'column', gap: 4,
+                      position: 'sticky', top: hautBandeau, alignSelf: 'flex-start' }}>
           {SECTIONS.map(s => {
             const actif = section === s.cle
             return (
@@ -361,6 +394,18 @@ function Ligne({ ligne, premier, prefixe }) {
           <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontStyle: 'italic' }}>{ligne.note}</div>
         )}
       </div>
+      {SPECS.includes(ligne.nom) && (
+        <a href={PROTOCOLE_SPECS}
+          title="Ouvrir l'explorateur Windows sur le dossier des spécifications"
+          style={{
+            flexShrink: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.03em', cursor: 'pointer', marginTop: 1, whiteSpace: 'nowrap',
+            color: '#1F6EEB', background: '#eff6ff', border: '1px solid #bfdbfe',
+            borderRadius: 4, padding: '2px 7px', textDecoration: 'none',
+          }}>
+          spec
+        </a>
+      )}
       <span style={{
         flexShrink: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
         color: c.texte, background: c.fond, border: `1px solid ${c.bord}`,
