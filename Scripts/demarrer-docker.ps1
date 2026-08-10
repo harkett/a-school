@@ -49,8 +49,13 @@ Write-Host "Montage de la pile aSchool..."
 docker compose -f "$root\docker-compose.yml" up -d
 if ($?) {
     Write-Host ""
-    Write-Host "  Prof   : http://localhost:5173"
-    Write-Host "  Demo A : http://localhost:5174"
-    Write-Host "  Demo B : http://localhost:5175"
-    Write-Host "  Adminer: http://localhost:8082"
+    # Les cinq demonstrations, pas deux : la liste s'arretait a CIEL A et B, restee
+    # telle quelle quand creche, CRSA et ergotherapie sont arrivees (10/08/2026).
+    Write-Host "  Prof         : http://localhost:5173"
+    Write-Host "  Demo CIEL A  : http://localhost:5174"
+    Write-Host "  Demo CIEL B  : http://localhost:5175"
+    Write-Host "  Demo Creche  : http://localhost:5176"
+    Write-Host "  Demo CRSA    : http://localhost:5177"
+    Write-Host "  Demo Ergo    : http://localhost:5178"
+    Write-Host "  Adminer      : http://localhost:8082"
 }
