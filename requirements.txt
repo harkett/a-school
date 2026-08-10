@@ -18,9 +18,13 @@ python-jose[cryptography]==3.5.0
 python-multipart==0.0.27
 pdfplumber==0.11.9
 pypdfium2==5.12.1  # rendu PDF→image (déjà tiré par pdfplumber) — utilisé en direct pour l'OCR des PDF scannés (backend/dictee/ocr.py)
-fpdf2==2.8.5       # ÉCRITURE de PDF — pdfplumber et pypdfium2 ne savent que lire/assembler. Sert
-                   # à fabriquer le référentiel d'un couple à partir du texte que l'IA en tire
-                   # (backend/pedagogie/referentiels_labo.py). Pure Python, sans binaire système.
+fpdf2==2.8.5       # ÉCRITURE de PDF — pdfplumber et pypdfium2 ne savent que lire/assembler.
+                   # PLUS AUCUN IMPORT DANS `backend/` depuis le 10/08/2026 : il servait à la
+                   # fusion des documents du labo (`referentiels_labo.py`), supprimé avec lui.
+                   # Il reste parce qu'un OUTIL du dépôt l'utilise — `referentiel_creche/gen.py`,
+                   # qui fabrique le document de travail de la crèche et se lance dans ce même
+                   # conteneur (le projet entier y est monté sur /app). Le retirer casserait ce
+                   # script sans rien alléger : l'image le porte déjà. Pure Python, sans binaire.
 # Admin backoffice
 slowapi==0.1.9
 user-agents==2.2.0
