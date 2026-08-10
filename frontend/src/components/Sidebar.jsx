@@ -317,7 +317,13 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
             </button>
             {evalOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
-                {subNavItem('eval-a-venir', 'Sujets · grilles · quiz', 'Bientôt disponible — créer et gérer vos évaluations', { disabled: true })}
+                {/* Les QUATRE possibilités d'évaluation, une par ligne — le fourre-tout
+                    « Sujets · grilles · quiz » débordait sur trois lignes et donnait un seul
+                    état à trois chantiers distincts (migration a5c9e3b7d1f4). */}
+                {subNavItem('eval-sujets', 'Sujets', 'Bientôt disponible — créer et gérer vos sujets', { disabled: true })}
+                {subNavItem('eval-grilles', 'Grilles', "Bientôt disponible — créer et gérer vos grilles d'évaluation", { disabled: true })}
+                {subNavItem('eval-quiz', 'Quiz', 'Bientôt disponible — créer et gérer vos quiz', { disabled: true })}
+                {subNavItem('eval-ccf', 'CCF', 'Bientôt disponible — le contrôle en cours de formation, sa situation et sa grille', { disabled: true })}
               </div>
             )}
           </div>
