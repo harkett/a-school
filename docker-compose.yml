@@ -19,7 +19,7 @@ services:
       POSTGRES_PASSWORD: aschool
       POSTGRES_DB: aschool_dev
     ports:
-      - "5433:5432"          # même port que le natif, côté machine
+      - "5433:5432"          # 5433 côté machine : le PostgreSQL natif de Windows tient déjà 5432
     volumes:
       - pgdata_dev:/var/lib/postgresql/data             # DONNÉES dans le volume nommé (jamais sur le montage Windows — il faisait crasher Postgres)
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro  # extension vector à la 1re création
