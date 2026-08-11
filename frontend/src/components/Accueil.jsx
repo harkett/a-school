@@ -190,7 +190,10 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
             <div style={SUB_LABEL}>Analyse</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
-                { label: 'Ambiguïtés', page: 'ambiguites', title: 'Détecter les ambiguïtés cognitives d\'un exercice ou énoncé' },
+                // L'Accueil est la SECONDE porte vers cet écran : le griser dans le menu sans le
+                // griser ici laisserait le prof y entrer par la carte, et l'outil ne fonctionne
+                // pas encore. Les deux écrans doivent dire la même chose.
+                { label: 'Ambiguïtés', page: 'ambiguites', title: 'Bientôt disponible — détecter les ambiguïtés cognitives d\'un exercice ou énoncé', bientot: true },
                 { label: 'Consignes',  page: 'consigne',   title: 'Analyser la qualité didactique d\'une consigne' },
                 // Équité n'existe pas encore (la page rend « Outil en cours de développement ») :
                 // l'Accueil l'offrait comme un outil normal pendant que le menu la donnait pour
@@ -199,10 +202,14 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
               ].map(a => (
                 <button
                   key={a.page}
-                  onClick={() => onNavigate(a.page)}
+                  // « bientôt » était GRISÉ MAIS CLIQUABLE : le clic ouvrait quand même l'écran.
+                  // La carte disait une chose et en faisait une autre — c'est ce qui rendait le
+                  // grisage inutile. Pas de handler, et le curseur dit non avant le clic.
+                  onClick={a.bientot ? undefined : () => onNavigate(a.page)}
                   title={a.title}
                   aria-disabled={a.bientot || undefined}
-                  style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer',
+                  style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6,
+                           cursor: a.bientot ? 'not-allowed' : 'pointer',
                            color: a.bientot ? '#94a3b8' : '#475569' }}
                 >
                   {a.label}{a.bientot ? ' · bientôt' : ' →'}

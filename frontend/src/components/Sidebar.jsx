@@ -102,6 +102,10 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
   const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
   const [evalOpen, setEvalOpen] = useState(false)
+  // « Mes feedbacks » s'ouvre de lui-même quand on est sur l'écran des retours, et se plie
+  // sinon : le prof y va rarement, le groupe n'a pas à occuper deux lignes en permanence.
+  const [retoursOuvert, setRetoursOuvert] = useState(false)
+  const retoursOpen = retoursOuvert || page === 'mes-feedbacks' || page === 'nouveau-retour'
 
   // Le groupe « Mes analyses » est ouvert dès qu'on est SUR une de ses pages — c'est un calcul,
   // pas une ouverture à déclencher après la navigation. Le prof peut le plier ou le déplier à la
@@ -135,7 +139,10 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
   const subNavItem = (pageId, label, title, opts = {}) => {
     // couleur = identité de TYPE (utils/typesContenus.js) : le point devant le libellé la
     // porte en permanence, et l'entrée active s'allume dans cette couleur au lieu du bordeaux.
-    const { disabled = false, couleur = null } = opts
+    // `action` : une sous-entrée qui ne navigue pas mais DÉCLENCHE quelque chose — « Envoyer mon
+    // retour » ouvre la fenêtre du formulaire, elle n'a pas de page à elle. Sans cette option, il
+    // aurait fallu une seconde fabrique presque identique à celle-ci.
+    const { disabled = false, couleur = null, action = null } = opts
     if (disabled) {
       // Outil pas encore prêt : visible, grisé, NON cliquable (span sans handler — clic réellement bloqué).
       return (
@@ -161,7 +168,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         key={pageId + label}
         href="#"
         title={title}
-        onClick={e => { e.preventDefault(); onNavigate(pageId) }}
+        onClick={e => { e.preventDefault(); action ? action() : onNavigate(pageId) }}
         style={{
           padding: '3px 4px 3px 6px',
           display: 'flex', alignItems: 'center', gap: '8px',
@@ -248,7 +255,10 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         {/* Mes analyses — ex-section « Analyse » de Mes outils, sortie au premier niveau
             le 30/07 (« Mes outils » supprimé du menu, routes et code en place). */}
         {collapsed ? (
-          navItem('ambiguites', 'Mes analyses', IconMesAnalyses, 'Mes analyses — ambiguïtés, consignes, équité')
+          // Vise « Consignes » et non « Ambiguïté » : replié, ce bouton EST la section, et il
+          // ouvrirait un écran qu'on vient de fermer. Il pointe donc la première analyse encore
+          // disponible.
+          navItem('consigne', 'Mes analyses', IconMesAnalyses, 'Mes analyses — consignes')
         ) : (
           <div>
             <button
@@ -274,7 +284,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
 
             {analysesOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
-                {subNavItem('ambiguites', 'Ambiguïté', "Détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
+                {subNavItem('ambiguites', 'Ambiguïté', "Bientôt disponible — détecter les ambiguïtés cognitives d'un énoncé ou exercice", { disabled: true })}
                 {/* Consignes EXISTE (composant Consigne + backend analyse/consigne.py) : le menu
                     la donnait pour « bientôt » et la grisait, alors que l'Accueil l'ouvrait
                     normalement. Deux écrans, deux vérités — c'est le menu qui se trompait. */}
@@ -332,7 +342,39 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         {/* « Mon réseau » (partages de l'ancien monde) a été démoli le 30/07 — il renaîtra
             sur le partage du monde neuf, conçu sur les tables neuves. */}
         {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
-        {navItem('mes-feedbacks', 'Mes feedbacks', IconFeedback, 'Consulter vos retours envoyés et leur statut')}
+        {/* MES FEEDBACKS — un groupe, deux gestes. Écrire un retour et relire ceux qu'on a
+            envoyés sont deux choses différentes, et l'entrée unique n'en offrait qu'une : pour
+            écrire, il fallait passer par le menu du haut. Les deux sont maintenant côte à côte,
+            au même endroit. */}
+        <div>
+          <button
+            onClick={() => setRetoursOuvert(o => !o)}
+            title="Mes feedbacks — développer ou réduire le menu"
+            className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
+              color: '#6b7280', fontWeight: 400,
+            }}
+          >
+            <IconFeedback />
+            {!collapsed && <span>Mes feedbacks</span>}
+            {!collapsed && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ marginLeft: 'auto', flexShrink: 0, transform: retoursOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            )}
+          </button>
+          {retoursOpen && !collapsed && (
+            <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
+              {subNavItem('nouveau-retour', 'Nouveau', 'Envoyer un nouveau retour (feedback)')}
+              {subNavItem('mes-feedbacks', 'Historique', 'Consulter vos retours envoyés et leur statut')}
+            </div>
+          )}
+        </div>
         {navItem('mes-stats', 'Mes stats', IconStats, 'Mes statistiques personnelles et la vitalité de la plateforme')}
       </nav>
 
