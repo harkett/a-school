@@ -8,7 +8,7 @@ plus tard, relie le message du prof (feedbacks.feedback_id) à cet incident.
 import logging
 import uuid
 
-from backend.core.database import SessionLocal
+from backend.core.database import session_pour, SCHEMA_REEL
 from backend.core.models_db import Incident
 
 log = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def creer_incident(
     """
     ref = nouvelle_reference()
     try:
-        with SessionLocal() as db:
+        with session_pour(SCHEMA_REEL) as db:
             db.add(Incident(
                 ref=ref,
                 endpoint=endpoint,

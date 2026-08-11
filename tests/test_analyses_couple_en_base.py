@@ -41,7 +41,7 @@ def test_ambiguites_prompt_porte_le_couple_de_la_base():
     with patch("backend.analyse.ambiguites.generate", return_value=AMB_JSON) as gen, \
          patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"):
         r = _client().post("/api/detect-ambiguites", json={
-            "texte": "Consigne à analyser.",
+            "texte": "Consigne à analyser.", "criteres": ["consigne_vague"],
             "matiere": "MAT-FORGEE", "niveau": "NIV-FORGE",   # ignorés : hors modèle de requête
         })
     assert r.status_code == 200, r.text

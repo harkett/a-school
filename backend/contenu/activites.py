@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from backend.securite import comptes
-from backend.core.database import get_db
+from backend.core.database import get_db, schema_de_session
 from backend.core.models import GenerateRequest, ProposerIdeeRequest, ProposerIdeeResponse
 from backend.core.models_db import (
     Activite, Niveau, Referentiel, ActiviteType, ReferentielTypePrecision,
@@ -361,7 +361,8 @@ def api_proposer_idee(
         precision=f" ({req.sous_type})" if req.sous_type else "",
         niveau=niveau,
     )
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
@@ -422,7 +423,8 @@ def api_generate(
              .filter(Referentiel.id == ref_id).first())
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
-    chunks = retrieve_pg(collection, req.texte, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, req.texte, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         raise HTTPException(400, "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez pertinent. Reformulez votre idée avec des termes plus proches du programme.")

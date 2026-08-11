@@ -67,7 +67,7 @@ def test_ambiguites_429_amont():
     _prof_avec_couple()
     with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), \
          patch("requests.post", side_effect=_post_429):
-        r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce."})
+        r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce.", "criteres": ["consigne_vague"]})
     assert r.status_code == 429, r.text                 # avant : 500
     assert "instant" in r.json()["detail"].lower()
 
@@ -81,7 +81,7 @@ def test_ambiguites_429_saturation():
     gen._llm_semaphore.acquire()                        # on occupe le seul créneau
     try:
         with patch.object(gen, "AI_PROVIDER", "groq"), patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), patch("requests.post") as post:
-            r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce."})
+            r = _client_prof().post("/api/detect-ambiguites", json={"texte": "Un enonce.", "criteres": ["consigne_vague"]})
             assert r.status_code == 429, r.text
             post.assert_not_called()                    # aucun appel réseau : pas de créneau
     finally:

@@ -10,7 +10,7 @@ est sans conséquence ; perdre une génération à cause d'une ligne de mesure s
 """
 import logging
 
-from backend.core.database import SessionLocal
+from backend.core.database import session_pour, SCHEMA_REEL
 from backend.core.models_db import UsageLlm
 
 log = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def enregistrer_usage(
     génération — c'est exactement le choix déjà fait par `supervision/incidents.creer_incident`.
     """
     try:
-        with SessionLocal() as db:
+        with session_pour(SCHEMA_REEL) as db:
             db.add(UsageLlm(
                 fournisseur=fournisseur,
                 modele=modele,

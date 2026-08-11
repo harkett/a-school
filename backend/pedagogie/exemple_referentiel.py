@@ -17,7 +17,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.securite import comptes
-from backend.core.database import get_db
+from backend.core.database import get_db, schema_de_session
 from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel, User
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
@@ -146,7 +146,8 @@ def api_exemple_referentiel(
     # (pas de « meilleur quand même »). Le seuil vit EN BASE, par référentiel
     # (`referentiels.score_min`, résolu ci-dessus) — plus aucune constante en dur.
     requete = REQUETE_GABARIT.format(matiere=matiere, niveau=niveau)
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).

@@ -99,7 +99,7 @@ def test_generate_le_texte_reste_la_requete_rag():
         db.commit()
     capture = {}
 
-    def _faux_rag(collection, query, filters=None, top_k=None):
+    def _faux_rag(collection, query, filters=None, top_k=None, schema=None):
         capture["query"] = query
         return [{"text": "Extrait officiel.", "score": 0.9}]
 

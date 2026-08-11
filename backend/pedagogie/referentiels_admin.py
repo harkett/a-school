@@ -25,7 +25,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.core.database import get_db, SessionLocal
+from backend.core.database import get_db, session_pour, SCHEMA_REEL
 # Règle de nommage des dossiers (« BMG_0-3 » → « BMG_0_3 ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
@@ -608,7 +608,7 @@ def valider_flux(body: ValiderBody):
     à `yield` est refermée AVANT que le corps streamé ne soit produit — la session serait déjà
     close à la première tâche."""
     def flux():
-        db = SessionLocal()
+        db = session_pour(SCHEMA_REEL)
         try:
             yield json.dumps({"taches": TACHES_VALIDATION}, ensure_ascii=False) + "\n"
             for genre, charge in _etapes_enregistrement(body, db):

@@ -179,6 +179,17 @@ _CATALOGUES_SEED = {
         {"code": "structure", "label": "Structuré", "description": "Un découpage très net.", "ordre": 2, "actif": True},
         {"code": "concis", "label": "Très concis", "description": "Le format télégraphique.", "ordre": 3, "actif": True},
     ],
+    # Critères de l'écran « Détecter les ambiguïtés » : le serveur valide les codes reçus
+    # CONTRE cette table, donc sans elle toute analyse est refusée.
+    "ambiguite_criteres": [
+        {"code": "consigne_vague", "label": "Consigne vague", "description": "Verbe trop général sans critères précis.", "ordre": 0, "actif": True},
+        {"code": "vocabulaire_non_defini", "label": "Vocabulaire technique non défini", "description": "Terme spécialisé supposé connu.", "ordre": 1, "actif": True},
+        {"code": "double_sens", "label": "Double sens", "description": "Interprétable de deux façons.", "ordre": 2, "actif": True},
+        {"code": "criteres_reussite_absents", "label": "Critères de réussite absents", "description": "L'élève ne sait pas ce qu'on attend.", "ordre": 3, "actif": True},
+        {"code": "reference_implicite", "label": "Référence implicite", "description": "« le texte » sans préciser lequel.", "ordre": 4, "actif": True},
+        {"code": "consigne_trop_longue", "label": "Consigne trop longue", "description": "Plusieurs tâches non séparées.", "ordre": 5, "actif": True},
+        {"code": "autre", "label": "Autre", "description": "", "ordre": 6, "actif": True},
+    ],
     "langues_lv": [
         {"code": "anglais", "label": "Anglais", "ordre": 0, "actif": True},
         {"code": "espagnol", "label": "Espagnol", "ordre": 1, "actif": True},
@@ -319,7 +330,7 @@ def _seed_catalogues():
                 ),
                 row,
             )
-        for table in ("seance_modes", "seance_styles"):
+        for table in ("seance_modes", "seance_styles", "ambiguite_criteres"):
             for row in _CATALOGUES_SEED[table]:
                 conn.execute(
                     text(

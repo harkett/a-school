@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.securite.audit import log_admin_action
-from backend.core.database import get_db, get_db_size_mb
+from backend.core.database import get_db, get_db_size_mb, schema_de_session
 from backend.core.models_db import (
     Activite, AdminAlert, AdminAuditLog, ConnexionLog,
     EmailToken, FailedLoginAttempt, Feedback, RefreshToken,
@@ -81,7 +81,7 @@ def _count_orphans(db: Session, now: datetime) -> dict:
 def get_maintenance_stats(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
     now = maintenant_utc()
 
-    db_size_mb = get_db_size_mb()
+    db_size_mb = get_db_size_mb(schema_de_session(db))
 
     tables = {
         "Utilisateurs":         db.query(User).count(),

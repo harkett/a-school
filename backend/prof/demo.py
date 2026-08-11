@@ -1,13 +1,15 @@
 """Démonstration — le passage du prof vers le bac à sable de son niveau.
 
-CE QUE C'EST. Une base de démonstration (`ciela_demo`…) est servie par une SECONDE instance de
-l'application, branchée dessus, sur sa propre adresse. Le prof identifié voit dans son menu une
-entrée « Démonstration » qui l'y emmène. Il y arrive AVEC SON IDENTITÉ : pas de compte partagé,
-pas de mot de passe à faire circuler — on sait qui est venu, et chacun a son coin.
+CE QUE C'EST. Une démonstration est un SCHÉMA PostgreSQL, servi sur son propre sous-domaine :
+`demo-crsa.aschool.fr` sert le schéma `crsa`. Le prof identifié voit dans son menu une entrée
+« Démonstration » qui l'y emmène. Il y arrive AVEC SON IDENTITÉ : pas de compte partagé, pas de
+mot de passe à faire circuler — on sait qui est venu, et chacun a son coin.
 
-POURQUOI DEUX INSTANCES ET PAS UN AIGUILLAGE INTERNE. L'étanchéité ne repose alors sur aucune
-astuce de code : ce sont deux processus, deux `DATABASE_URL`, deux bases. Rien de ce que le prof
-touche en démonstration ne peut atteindre le réel, même si une route oubliait un filtre.
+OÙ SE TIENT L'ÉTANCHÉITÉ. Dans une seule ligne, et une seule : le `schema_translate_map` posé
+par `session_pour()` à la création de chaque session (`core/database.py`). Le schéma vient du
+`Host`, résolu une fois par requête (`core/schema_requete.py`) ; les 209 endpoints et les 40
+modèles ne connaissent pas le sujet. C'était auparavant un process et une base par démonstration
+— cinq process de 800 Mo. La garantie était gratuite en code et coûtait quatre gigaoctets.
 
 LE PASSAGE. L'instance réelle émet un JETON signé, valable cinq minutes, qui porte l'identité du
 prof en CLAIR mais en NOMS (email, prénom, nom, matière, niveau) — jamais en identifiants : les
@@ -34,7 +36,8 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.core.database import get_db
+from backend.core.database import get_db, SCHEMA_REEL
+from backend.core.schema_requete import schema_de
 from backend.core.deps import get_current_user
 from backend.core.models_db import (
     Activite, Cycle, Demo, Matiere, Niveau, Referentiel, Seance, Sequence, Setting, User,
@@ -63,10 +66,15 @@ def _secret() -> str | None:
     return valeur.strip() or None
 
 
-def mode_demo() -> bool:
-    """Cette instance sert-elle une base de démonstration ? Décidé par l'environnement, jamais
-    par la base : une base restaurée ailleurs ne doit pas emporter ce drapeau avec elle."""
-    return (os.getenv("MODE_DEMO") or "").strip().lower() in ("1", "oui", "true")
+def mode_demo(request: Request) -> bool:
+    """CETTE REQUÊTE sert-elle une démonstration ? Décidé par le sous-domaine, plus par
+    l'environnement du process : un process unique sert maintenant le réel ET les cinq
+    démonstrations, donc le drapeau ne peut plus être une propriété du process.
+
+    Il ne se lit pas non plus dans la base : le schéma est déjà la réponse. Tout schéma autre que
+    le réel EST une démonstration, et une base restaurée ailleurs n'emporte donc rien avec elle
+    — c'est la même garantie qu'avant, obtenue par l'adresse plutôt que par un fichier d'env."""
+    return schema_de(request) != SCHEMA_REEL
 
 
 # ---------------------------------------------------------------------------
@@ -74,14 +82,15 @@ def mode_demo() -> bool:
 # ---------------------------------------------------------------------------
 
 @router.get("/demo/pour-moi")
-def demo_pour_moi(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def demo_pour_moi(request: Request, user: User = Depends(get_current_user),
+                  db: Session = Depends(get_db)):
     """CE prof peut-il visiter une démonstration, et laquelle ? Sans jeton.
 
     Le jeton n'est PAS émis ici, à dessein : il ne vaut que cinq minutes, et le menu reste
     affiché bien plus longtemps que ça. Il naît au clic, dans `/demo/aller`. L'écran n'a besoin
     ici que de savoir s'il doit griser l'entrée, et de la raison à mettre dans sa bulle d'aide —
     une entrée grisée sans explication ne dit rien à personne."""
-    if mode_demo():
+    if mode_demo(request):
         return {"ici": True, "disponible": False}
 
     niveau_id = user.travail_niveau_id or user.niveau_id
@@ -176,7 +185,7 @@ def _nom(db: Session, modele, cle: int | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 @router.get("/demo/etat")
-def demo_etat(db: Session = Depends(get_db)):
+def demo_etat(request: Request, db: Session = Depends(get_db)):
     """Sans authentification, à dessein : l'écran doit savoir qu'il est en démonstration AVANT
     que quiconque soit connecté, sinon le bandeau n'apparaîtrait qu'après coup.
 
@@ -188,7 +197,7 @@ def demo_etat(db: Session = Depends(get_db)):
     cette base. Plusieurs référentiels y sont possibles ; on les nomme tous plutôt que d'en élire
     un au hasard. Aucun découpé : `couple` reste vide et le bandeau garde sa phrase seule.
     """
-    if not mode_demo():
+    if not mode_demo(request):
         return {"mode_demo": False, "couple": None}
 
     # Les colonnes de tri font PARTIE du SELECT : avec un DISTINCT, PostgreSQL refuse de trier
@@ -219,7 +228,7 @@ def demo_entrer(body: EntrerBody, response: Response, request: Request,
 
     Refusée hors mode démonstration : c'est une porte d'entrée sans mot de passe. Elle n'a de
     sens que là où toutes les données sont jetables, et nulle part ailleurs."""
-    if not mode_demo():
+    if not mode_demo(request):
         raise HTTPException(404, "Cette adresse n’existe pas sur ce serveur.")
     secret = _secret()
     if not secret:

@@ -76,7 +76,7 @@ def test_proposer_idee_nominal_ancre_sur_type_precision_niveau():
     niveau, tid = _couple("Ok", 95)
     capture = {}
 
-    def _faux_rag(collection, query, filters=None, top_k=None):
+    def _faux_rag(collection, query, filters=None, top_k=None, schema=None):
         capture["query"] = query
         return [{"text": "Extrait officiel.", "score": 0.9, "page": 3}]
 

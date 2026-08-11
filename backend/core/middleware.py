@@ -6,7 +6,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from backend.core.cles import SECRET_JETON_PROF
-from backend.core.database import SessionLocal
+from backend.core.database import session_pour
+from backend.core.schema_requete import schema_de
 from backend.core.models_db import User, UserSession
 from backend.core.horloge import maintenant_utc
 
@@ -32,7 +33,7 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
                     email = payload.get("sub")
                     session_key = payload.get("jti")
                     if session_key:
-                        db = SessionLocal()
+                        db = session_pour(schema_de(request))
                         try:
                             session = (
                                 db.query(UserSession)
@@ -63,7 +64,7 @@ class UserSessionMiddleware(BaseHTTPMiddleware):
 
                 ua_string = request.headers.get("user-agent", "")
                 ua = parse_ua(ua_string)
-                db = SessionLocal()
+                db = session_pour(schema_de(request))
                 try:
                     session = (
                         db.query(UserSession)

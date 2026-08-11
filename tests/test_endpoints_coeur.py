@@ -58,7 +58,7 @@ CON_JSON = '{"analyses": [{"axe": "Clarté linguistique", "severite": "Élevée"
 def test_ambiguites_happy():
     _prof_filet()
     with patch("backend.analyse.ambiguites.generate", return_value=AMB_JSON):
-        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document."})
+        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document.", "criteres": ["consigne_vague"]})
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["verdict"] and len(d["ambiguites"]) == 1
@@ -111,7 +111,7 @@ def test_endpoint_outil_llm_down_500():
     """Si le LLM est down (generate lève RuntimeError), l'analyse renvoie 500."""
     _prof_filet()
     with patch("backend.analyse.ambiguites.generate", side_effect=RuntimeError("LLM down")):
-        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document."})
+        r = authed().post("/api/detect-ambiguites", json={"texte": "Analysez le document.", "criteres": ["consigne_vague"]})
     assert r.status_code == 500, r.text
 
 

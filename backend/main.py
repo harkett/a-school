@@ -34,9 +34,11 @@ from backend.core.limiter import limiter, plafond_depasse
 from backend.llm.generator import (LLMIndisponibleError, LLMModeleIncompatibleError,
                                    LLMQuotaCompteError, LLMRateLimitError)
 from backend.core.middleware import UserSessionMiddleware
+from backend.core.schema_requete import SchemaRequeteMiddleware
 from backend.securite import auth
 from backend.systeme import admin
-from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
+from backend.pedagogie import (programmes, exemple_referentiel, referentiels_admin,
+                               ambiguite_exemples)
 from backend.contenu import activites, mes_contenus
 from backend.prof import demo, profil
 from backend.communication import feedback, votes
@@ -120,6 +122,13 @@ for _classe, _ in _CODES_LLM:
 
 app.add_middleware(UserSessionMiddleware)
 
+# AJOUTÉ APRÈS, DONC EXÉCUTÉ AVANT : Starlette empile les middlewares, le dernier ajouté est le
+# plus externe. `UserSessionMiddleware` ouvre une session dès sa phase 1 pour vérifier la session
+# du prof — il lui faut le schéma déjà résolu, sinon cette lecture-là partirait sur le réel même
+# en démonstration. CORS reste ajouté après les deux : il doit envelopper jusqu'aux 404 de schéma
+# inconnu, qui sans ses en-têtes arriveraient au navigateur comme une erreur réseau muette.
+app.add_middleware(SchemaRequeteMiddleware)
+
 # Origines CORS autorisées — externalisées en config de déploiement (D). La variable
 # CORS_ALLOWED_ORIGINS est une liste séparée par des virgules ; VIDE ou absente = exactement
 # les mêmes valeurs qu'avant (dev localhost + prod aschool.fr) → zéro changement de comportement.
@@ -151,6 +160,7 @@ app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
 app.include_router(referentiels_admin.router, prefix="/api")
+app.include_router(ambiguite_exemples.router, prefix="/api")
 app.include_router(mise_en_route.router, prefix="/api")
 
 @app.get("/api/health")

@@ -160,8 +160,6 @@ EXCEPTIONS_PERMANENTES = {
 
     # Les écritures acceptées pour un booléen d'ENVIRONNEMENT (MODE_DEMO). Ce n'est pas une
     # donnée : c'est la tolérance de lecture d'une variable posée à la main dans un compose.
-    "backend/prof/demo.py::1|oui|true":
-        "demo.py — les écritures acceptées de MODE_DEMO dans l'environnement. Technique.",
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)
@@ -301,6 +299,9 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # recherche du lien officiel n'y est plus. Une exception qui ne pointe sur aucun code est pire
     # qu'inutile : elle donne à croire que le sujet est arbitré alors que le sujet a disparu.
     # C'est le troisième test de ce fichier qui l'a signalé, en rouge — il a fait son travail.
-    assert len(EXCEPTIONS_PERMANENTES) == 12, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 12 attendues."
+    # 12 -> 11 le 10/08/2026 : les valeurs acceptées de MODE_DEMO dans l'environnement, retirées
+    # avec la migration des démonstrations. Le drapeau ne se lit plus dans un fichier d'env : il se
+    # déduit du schéma que sert la requête, et il n'y a donc plus de liste à tolérer.
+    assert len(EXCEPTIONS_PERMANENTES) == 11, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 11 attendues."
     )

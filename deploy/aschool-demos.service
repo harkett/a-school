@@ -1,0 +1,30 @@
+[Unit]
+# UN SEUL SERVICE POUR LES CINQ DÉMONSTRATIONS. Il remplace l'unité paramétrée
+# `aschool-demo@`, qui lançait un uvicorn par base — cinq process de 800 Mo mesurés, quatre
+# gigaoctets pour servir cinq bacs à sable presque toujours au repos.
+#
+# CE QUI A CHANGÉ POUR QUE CE SOIT POSSIBLE. Les cinq bases sont devenues cinq SCHÉMAS d'une
+# seule base (`aschool_demos`), et le sous-domaine de la requête dit lequel servir. Il n'y a
+# donc plus rien à paramétrer : ni base, ni port, ni drapeau `MODE_DEMO`.
+#
+# L'APPLICATION RÉELLE GARDE SON SERVICE, `aschool.service`, et SA BASE. Ce process-ci n'a pas
+# la base réelle dans sa chaîne de connexion : il ne peut pas l'atteindre, même par erreur.
+Description=A-SCHOOL — backend unique des démonstrations
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/a-school
+
+# Écrit par `deploy/installer-demos.sh` depuis le `.env` : les identifiants PostgreSQL ne sont
+# recopiés nulle part à la main, et ce fichier n'est pas versionné.
+EnvironmentFile=/var/www/a-school/deploy/demos.env
+
+ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port ${PORT_DEMOS}
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

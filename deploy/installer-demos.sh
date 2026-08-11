@@ -2,15 +2,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # installer-demos.sh — pose sur le VPS tout ce qu'il faut pour servir les démonstrations.
 #
-# CE QU'IL FAIT, et rien d'autre : il installe l'INFRASTRUCTURE (fichiers d'environnement,
-# services systemd, blocs nginx). Il ne touche à AUCUNE donnée — les bases sont l'affaire de
-# `restaurer-bases.sh`. Les deux sont séparés parce qu'on les relance pour des raisons
-# différentes : celui-ci à chaque déploiement, l'autre seulement quand on veut écraser le
-# contenu du serveur par celui du poste.
+# CE QU'IL FAIT, et rien d'autre : il installe l'INFRASTRUCTURE (fichier d'environnement,
+# service systemd, bloc nginx). Il ne touche à AUCUNE donnée — les schémas sont l'affaire de
+# `outils_bdd/convertir_demos_en_schemas.sh` puis `outils_bdd/migrer_les_demos.py`.
+#
+# UN SEUL SERVICE, UN SEUL BLOC NGINX (10/08/2026). Il y avait cinq services et cinq blocs, un
+# par démonstration, parce qu'une démonstration était une BASE et qu'un process ne se connecte
+# qu'à une base. Les cinq bases sont devenues cinq SCHÉMAS d'une seule : le sous-domaine suffit
+# désormais à dire lequel servir, et un seul process les sert tous. Quatre gigaoctets rendus.
+#
+# CE FICHIER LIT ENCORE `demos.conf`, pour UNE seule raison : la liste des sous-domaines que le
+# certificat doit couvrir. Les ports qu'il porte ne servent plus — un port unique les remplace.
 #
 # IL EST REJOUABLE. Chaque geste est idempotent : réécrire un fichier identique, réactiver un
-# service déjà actif, relire une configuration nginx déjà en place. Un script de déploiement
-# qu'on hésite à relancer est un script qu'on finit par ne plus lancer du tout.
+# service déjà actif, relire une configuration nginx déjà en place.
 #
 # Usage : bash deploy/installer-demos.sh    (depuis /var/www/a-school)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,8 +25,14 @@ APP_DIR="${APP_DIR:-/var/www/a-school}"
 cd "$APP_DIR"
 
 LISTE="deploy/demos.conf"
-DOSSIER_ENV="deploy/env-demos"
+FICHIER_ENV="deploy/demos.env"
 NGINX_DEMOS="/etc/nginx/sites-available/aschool-demos"
+
+# La base qui porte les cinq schémas, et le port du process unique. LE PORT EST NEUF : 8007 a
+# servi à ciela, 8003 à 8006 aux autres. Un port ne se réutilise pas — une configuration nginx
+# oubliée quelque part pointerait sur un service qui n'est plus celui qu'elle croit.
+BASE_DEMOS="${BASE_DEMOS:-aschool_demos}"
+PORT_DEMOS="${PORT_DEMOS:-8008}"
 
 [ -f "$LISTE" ] || { echo "ERREUR : $LISTE introuvable."; exit 1; }
 
@@ -35,36 +46,32 @@ DB_PREFIXE="${DB_MODELE%/*}"      # tout jusqu'au dernier / : le serveur et ses 
 lignes() { grep -vE "^\s*#|^\s*$" "$LISTE"; }
 
 echo ""
-echo "=== [demos 1/5] Fichiers d'environnement ==="
-mkdir -p "$DOSSIER_ENV"
-while IFS=: read -r base port sous_domaine; do
-    cat > "$DOSSIER_ENV/$base.env" <<EOF
+echo "=== [demos 1/5] Fichier d'environnement ==="
+# UN seul fichier, contre cinq auparavant. Plus de MODE_DEMO : le drapeau ne vient plus de
+# l'environnement du process — qui sert maintenant les cinq — mais du schéma que la requête vise.
+cat > "$FICHIER_ENV" <<EOF
 # Écrit par deploy/installer-demos.sh — ne pas modifier à la main, il sera réécrit.
-# La seule chose qui distingue cette démonstration des autres.
-DATABASE_URL=$DB_PREFIXE/$base
-PORT_DEMO=$port
-MODE_DEMO=1
+DATABASE_URL=$DB_PREFIXE/$BASE_DEMOS
+PORT_DEMOS=$PORT_DEMOS
 EOF
-    echo "  → $base.env (port $port)"
-done < <(lignes)
+echo "  → $FICHIER_ENV (base $BASE_DEMOS, port $PORT_DEMOS)"
 
 echo ""
-echo "=== [demos 2/5] Services systemd ==="
-sudo cp deploy/aschool-demo@.service /etc/systemd/system/aschool-demo@.service
+echo "=== [demos 2/5] Service systemd ==="
+sudo cp deploy/aschool-demos.service /etc/systemd/system/aschool-demos.service
 sudo systemctl daemon-reload
-while IFS=: read -r base port sous_domaine; do
-    sudo systemctl enable "aschool-demo@$base" >/dev/null
-    sudo systemctl restart "aschool-demo@$base"
-    echo "  → aschool-demo@$base démarré"
-done < <(lignes)
+sudo systemctl enable aschool-demos >/dev/null
+sudo systemctl restart aschool-demos
+echo "  → aschool-demos démarré"
 
 echo ""
 echo "=== [demos 3/5] Certificat HTTPS ==="
-# LE PIÈGE QUE NGINX NE SIGNALE PAS. Les blocs ci-dessous réutilisent le certificat
-# d'`aschool.fr`. Or un certificat ne vaut QUE pour les noms qu'il porte : servir
-# `demo-crsa.aschool.fr` avec le certificat d'`aschool.fr` donne une alerte de sécurité en
-# pleine figure du visiteur — et `nginx -t` la trouve parfaitement valide, puisque le fichier
-# existe. On vérifie donc les noms du certificat, et on l'étend s'il en manque.
+# LE PIÈGE QUE NGINX NE SIGNALE PAS. Le bloc ci-dessous réutilise le certificat d'`aschool.fr`.
+# Or un certificat ne vaut QUE pour les noms qu'il porte : servir `demo-crsa.aschool.fr` avec le
+# certificat d'`aschool.fr` donne une alerte de sécurité en pleine figure du visiteur — et
+# `nginx -t` la trouve parfaitement valide, puisque le fichier existe. Le `server_name` étant
+# devenu une EXPRESSION, il ne dit plus quels noms sont servis : c'est `demos.conf` qui les
+# tient, et c'est la raison pour laquelle ce fichier survit à la migration.
 CERT="/etc/letsencrypt/live/aschool.fr/fullchain.pem"
 NOMS_CERT=""
 if [ -f "$CERT" ]; then
@@ -90,8 +97,6 @@ else
     fi
     # `--expand` AJOUTE les noms au certificat existant au lieu d'en créer un second : deux
     # certificats pour le même domaine, c'est le renouvellement qui devient une loterie.
-    # `--nginx` valide par HTTP-01 en modifiant nginx le temps de l'échange : pas besoin d'un
-    # certificat joker, donc pas de validation DNS à configurer chez l'hébergeur.
     sudo certbot certonly --nginx --expand --cert-name aschool.fr \
         -d aschool.fr -d www.aschool.fr $absents \
         --non-interactive --agree-tos --keep-until-expiring
@@ -99,26 +104,30 @@ else
 fi
 
 echo ""
-echo "=== [demos 4/5] Blocs nginx ==="
-# UN SEUL BUILD FRONT sert les cinq : `root` pointe le même `dist` que l'application réelle.
-# Ce qui change d'une démonstration à l'autre, c'est UNIQUEMENT le port derrière `/api/`.
-# Le front n'a donc rien à savoir de la démonstration où il tourne — il interroge `/api/`,
-# nginx l'envoie au bon backend, et c'est le backend qui répond `mode_demo: true`.
+echo "=== [demos 4/5] Bloc nginx ==="
+# UN SEUL BLOC POUR LES CINQ, et il ne les nomme pas : `server_name` est une expression
+# régulière qui accepte tout `demo-<x>.aschool.fr`. Ajouter une démonstration ne demandera plus
+# de toucher à nginx — créer son schéma suffira. Un `<x>` sans schéma reçoit un 404 du backend,
+# jamais une erreur SQL : la liste blanche, ce sont les schémas présents dans la base.
+#
+# `proxy_set_header Host $host` EST LA LIGNE QUI FAIT TOUT. C'est par cet en-tête, et par lui
+# seul, que le backend sait quel schéma servir. Sans elle, nginx enverrait le nom du serveur
+# amont (127.0.0.1), le backend n'y lirait aucun sous-domaine et rendrait le réel à tout le
+# monde. Elle était déjà là avant la migration, où elle ne servait qu'aux journaux ; elle porte
+# désormais l'aiguillage.
 {
-    echo "# Écrit par deploy/installer-demos.sh à partir de deploy/demos.conf."
-    echo "# Toute modification faite ici sera perdue au prochain déploiement."
-    while IFS=: read -r base port sous_domaine; do
-        cat <<EOF
+    echo "# Écrit par deploy/installer-demos.sh. Toute modification faite ici sera perdue."
+    cat <<EOF
 
 server {
     listen 80;
-    server_name $sous_domaine;
+    server_name ~^demo-(?<demo>.+)\.aschool\.fr\$;
     return 301 https://\$host\$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name $sous_domaine;
+    server_name ~^demo-(?<demo>.+)\.aschool\.fr\$;
 
     ssl_certificate     /etc/letsencrypt/live/aschool.fr/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/aschool.fr/privkey.pem;
@@ -129,7 +138,7 @@ server {
     index index.html;
 
     location /api/ {
-        proxy_pass         http://127.0.0.1:$port;
+        proxy_pass         http://127.0.0.1:$PORT_DEMOS;
         proxy_set_header   Host              \$host;
         proxy_set_header   X-Real-IP         \$remote_addr;
         proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
@@ -147,7 +156,6 @@ server {
     }
 }
 EOF
-    done < <(lignes)
 } | sudo tee "$NGINX_DEMOS" > /dev/null
 
 sudo ln -sf "$NGINX_DEMOS" /etc/nginx/sites-enabled/aschool-demos
@@ -158,21 +166,23 @@ echo "  → nginx rechargé"
 echo ""
 echo "=== [demos 5/5] Contrôle ==="
 # On INTERROGE chaque démonstration au lieu de se contenter de « le service est actif » : un
-# uvicorn qui démarre puis se plante sur une base absente reste « actif » quelques secondes.
-# `/api/demo/etat` est la bonne question : elle dit le couple servi, donc que la base répond.
+# uvicorn qui démarre puis se plante sur un schéma absent reste « actif » quelques secondes.
+# La question se pose maintenant au SEUL port, en variant l'en-tête `Host` — c'est exactement
+# ce que fait nginx, et c'est le seul contrôle qui prouve que l'aiguillage fonctionne.
 sleep 2
 echec=0
 while IFS=: read -r base port sous_domaine; do
-    reponse=$(curl -sf --max-time 5 "http://127.0.0.1:$port/api/demo/etat" || echo "")
+    reponse=$(curl -sf --max-time 5 -H "Host: $sous_domaine" \
+        "http://127.0.0.1:$PORT_DEMOS/api/demo/etat" || echo "")
     if echo "$reponse" | grep -q '"mode_demo":true'; then
         couple=$(echo "$reponse" | sed -n 's/.*"couple":"\([^"]*\)".*/\1/p')
         echo "  OK   $sous_domaine  →  $couple"
     else
-        echo "  ÉCHEC $sous_domaine (port $port) : $reponse"
+        echo "  ÉCHEC $sous_domaine : $reponse"
         echec=1
     fi
 done < <(lignes)
 
 [ "$echec" -eq 0 ] || { echo ""; echo "Au moins une démonstration ne répond pas."; exit 1; }
 echo ""
-echo "Les démonstrations sont en ligne."
+echo "Les démonstrations sont en ligne, servies par un seul process."

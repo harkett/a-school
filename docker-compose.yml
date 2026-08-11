@@ -144,31 +144,40 @@ services:
     depends_on:
       - backend
 
-  # --- La DÉMONSTRATION : la même application, branchée sur une base d'essai ---
-  # POURQUOI UNE SECONDE PILE ET PAS UN AIGUILLAGE DANS LA PREMIÈRE. L'étanchéité ne repose alors
-  # sur aucune astuce de code : deux processus, deux DATABASE_URL, deux bases. Rien de ce qu'un
-  # prof fait dans le bac à sable ne peut atteindre le réel, même si une route oubliait un filtre.
-  # Le prof y arrive AVEC SON IDENTITÉ, par un jeton signé de cinq minutes (backend/prof/demo.py) ;
-  # DEMO_SECRET, lu dans le .env par les DEUX backends, est ce qui rend ce jeton vérifiable ici.
-  backend_demo:
+
+  # --- LES DÉMONSTRATIONS : une seule pile pour les cinq ---------------------------------------
+  # IL Y AVAIT CINQ PILES ICI, une par démonstration : cinq backends de 800 Mo et cinq serveurs
+  # Vite, mesurés à 5,7 Go pour cinq bacs à sable presque toujours au repos. La raison en était
+  # qu'une démonstration était une BASE, et qu'un process ne se connecte qu'à une base.
+  #
+  # CE QUI A CHANGÉ. Les cinq bases sont devenues cinq SCHÉMAS de `aschool_demos`, et le
+  # sous-domaine de la requête dit lequel servir. Un seul process suffit donc, et l'étanchéité
+  # ne repose plus sur le système mais sur une ligne : le `schema_translate_map` posé à la
+  # création de chaque session (backend/core/database.py). Le prof arrive toujours AVEC SON
+  # IDENTITÉ, par un jeton de cinq minutes signé avec le DEMO_SECRET du .env, commun aux deux.
+  #
+  # L'APPLICATION RÉELLE GARDE SA PILE ET SA BASE. Ce backend-ci ne connaît pas `aschool_dev` :
+  # il ne peut pas l'atteindre, même si une route oubliait un filtre.
+  backend_demos:
     build: .
     restart: unless-stopped
     env_file:
       - .env
     environment:
       ENV: development
-      # LA ligne qui fait toute la différence avec le service `backend` : une autre base.
-      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/ciela_demo
-      # Ouvre /api/demo/entrer (une porte sans mot de passe) et allume le bandeau permanent.
-      # Décidé par l'environnement et jamais par la base : un dump restauré ailleurs ne doit pas
-      # emporter ce drapeau avec lui.
-      MODE_DEMO: "1"
+      # LA ligne qui distingue cette pile de `backend` : la base des démonstrations, celle qui
+      # porte les cinq schémas. Plus de MODE_DEMO — le drapeau ne vient plus de l'environnement
+      # du process, qui sert maintenant les cinq, mais du schéma que la requête vise.
+      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_demos
       OMP_NUM_THREADS: "8"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
-    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
+    # PAS de `alembic upgrade head` ici, contrairement à la pile réelle : il ne verrait que
+    # `public`, qui ne porte que l'extension `vector`. Les cinq schémas se migrent chacun avec
+    # leur propre table de version, par `outils_bdd/migrer_les_demos.py`.
+    command: sh -c "python outils_bdd/attendre_la_base.py && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
-      - "8002:8001"
+      - "8008:8001"     # même port que sur le VPS (deploy/installer-demos.sh)
     volumes:
       - .:/app
       - ./docker/hf-cache:/root/.cache/huggingface
@@ -176,12 +185,12 @@ services:
       db:
         condition: service_healthy
 
-  frontend_demo:
+  frontend_demos:
     image: node:24
     restart: unless-stopped
     working_dir: /app/frontend
     environment:
-      VITE_API_HOST: backend_demo   # le proxy vise le backend de la DÉMONSTRATION
+      VITE_API_HOST: backend_demos
       VITE_API_PORT: 8001
     command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5174"
     ports:
@@ -190,189 +199,30 @@ services:
       - .:/app
       - /app/frontend/node_modules
     depends_on:
-      - backend_demo
+      - backend_demos
 
-
-  # --- La DÉMONSTRATION, seconde base : BTS CIEL Option B ---
-  # Même image, même .env (donc le MÊME DEMO_SECRET : le jeton signé par le backend réel est
-  # vérifiable ici comme il l'est sur l'option A), même Postgres — seule la base diffère.
-  # C'est le prix de l'étanchéité : une pile par base de démonstration, aucun aiguillage de code.
-  backend_demo_b:
-    build: .
+  # --- Le routeur par sous-domaine, en local -----------------------------------------------
+  # POURQUOI IL EXISTE MAINTENANT ET PAS AVANT. Les démonstrations s'atteignaient par leur PORT
+  # (8002 à 8006) : le port disait laquelle. Le port ne dit plus rien — c'est le sous-domaine
+  # qui choisit le schéma, et il n'y a personne, en local, pour le lire. Sans ce conteneur, la
+  # pile locale ne pourrait plus éprouver l'aiguillage que le VPS utilisera.
+  #
+  # IL PORTE LA MÊME EXPRESSION que le bloc écrit par `deploy/installer-demos.sh`, sans le TLS
+  # (pas de certificat en local). Ce qu'il valide ici est donc exactement ce qui vaudra là-bas :
+  # `server_name` en expression régulière, et `Host` retransmis tel quel au backend.
+  #
+  # POUR L'ATTEINDRE DEPUIS UN NAVIGATEUR, il faut que `demo-ciela.aschool.fr` pointe sur
+  # 127.0.0.1 dans le fichier `hosts` de la machine. En ligne de commande, l'en-tête suffit :
+  #     curl -H "Host: demo-ciela.aschool.fr" http://localhost:8080/api/demo/etat
+  nginx_demos:
+    image: nginx:alpine
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      ENV: development
-      # LA ligne qui distingue cette pile de `backend_demo` : la base de l'option B.
-      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/cielb_demo
-      MODE_DEMO: "1"
-      OMP_NUM_THREADS: "8"
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:
-      - "8003:8001"
+      - "8080:80"
     volumes:
-      - .:/app
-      - ./docker/hf-cache:/root/.cache/huggingface
+      - ./deploy/nginx-demos-local.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      db:
-        condition: service_healthy
-
-  frontend_demo_b:
-    image: node:24
-    restart: unless-stopped
-    working_dir: /app/frontend
-    environment:
-      VITE_API_HOST: backend_demo_b   # le proxy vise le backend de la démonstration option B
-      VITE_API_PORT: 8001
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5175"
-    ports:
-      - "5175:5175"
-    volumes:
-      - .:/app
-      - /app/frontend/node_modules
-    depends_on:
-      - backend_demo_b
-
-  # ── Troisième démonstration : la CRÈCHE (creche_demo) ────────────────────────
-  # Même pile que les deux précédentes, une base de plus. Le référentiel d'éveil
-  # 0-3 ans y est copié tel quel depuis la base réelle — unités et vecteurs
-  # compris — et le contenu pédagogique a été écrit à la main.
-  backend_demo_c:
-    build: .
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      ENV: development
-      # LA ligne qui distingue cette pile des deux autres : la base de la crèche.
-      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/creche_demo
-      MODE_DEMO: "1"
-      OMP_NUM_THREADS: "8"
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
-    ports:
-      - "8004:8001"
-    volumes:
-      - .:/app
-      - ./docker/hf-cache:/root/.cache/huggingface
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend_demo_c:
-    image: node:24
-    restart: unless-stopped
-    working_dir: /app/frontend
-    environment:
-      VITE_API_HOST: backend_demo_c   # le proxy vise le backend de la démonstration crèche
-      VITE_API_PORT: 8001
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5176"
-    ports:
-      - "5176:5176"
-    volumes:
-      - .:/app
-      - /app/frontend/node_modules
-    depends_on:
-      - backend_demo_c
-
-  # ── Quatrième démonstration : le BTS CRSA (crsa_demo) ────────────────────────
-  # Le plus gros référentiel des quatre : 140 unités de découpe contre 57 pour un
-  # CIEL. Copié tel quel depuis la base réelle, vecteurs compris.
-  # SON CATALOGUE cycles/niveaux EST CELUI DE LA BASE RÉELLE, copié tel quel : les
-  # ids y sont donc les mêmes des deux côtés, « BTS CRSA » compris (89). Refondue
-  # le 10/08/2026 pour cette raison — elle portait auparavant 101, parce que les
-  # migrations avaient semé les licences avant qu'on y crée le niveau à la main.
-  backend_demo_d:
-    build: .
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      ENV: development
-      # LA ligne qui distingue cette pile des trois autres : la base du BTS CRSA.
-      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/crsa_demo
-      MODE_DEMO: "1"
-      OMP_NUM_THREADS: "8"
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
-    ports:
-      - "8005:8001"
-    volumes:
-      - .:/app
-      - ./docker/hf-cache:/root/.cache/huggingface
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend_demo_d:
-    image: node:24
-    restart: unless-stopped
-    working_dir: /app/frontend
-    environment:
-      VITE_API_HOST: backend_demo_d   # le proxy vise le backend de la démonstration CRSA
-      VITE_API_PORT: 8001
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5177"
-    ports:
-      - "5177:5177"
-    volumes:
-      - .:/app
-      - /app/frontend/node_modules
-    depends_on:
-      - backend_demo_d
-
-  # ── Cinquième démonstration : la Licence Ergothérapie (ergo_demo) ────────────
-  # Référentiel 20, 69 unités de découpe, six matières qui sont les six domaines
-  # d'unités d'enseignement du diplôme (UE 1.x à UE 6.x). Copié tel quel depuis la
-  # base réelle, vecteurs compris.
-  # MÊME RÈGLE QUE LE CRSA : le catalogue cycles/niveaux vient de la base réelle,
-  # copié tel quel. « Licence Ergothérapie » y porte le 100 des deux côtés. Cette
-  # base a été refondue le 10/08/2026 : elle portait le 99 que lui donnait le semis
-  # des onze mentions de licence, quand la base réelle lui donne le 100.
-  backend_demo_e:
-    build: .
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      ENV: development
-      # LA ligne qui distingue cette pile des quatre autres : la base de l'ergothérapie.
-      DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/ergo_demo
-      MODE_DEMO: "1"
-      OMP_NUM_THREADS: "8"
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-    command: sh -c "python outils_bdd/attendre_la_base.py && alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
-    ports:
-      - "8006:8001"
-    volumes:
-      - .:/app
-      - ./docker/hf-cache:/root/.cache/huggingface
-    depends_on:
-      db:
-        condition: service_healthy
-
-  frontend_demo_e:
-    image: node:24
-    restart: unless-stopped
-    working_dir: /app/frontend
-    environment:
-      VITE_API_HOST: backend_demo_e   # le proxy vise le backend de la démonstration Ergothérapie
-      VITE_API_PORT: 8001
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5178"
-    ports:
-      - "5178:5178"
-    volumes:
-      - .:/app
-      - /app/frontend/node_modules
-    depends_on:
-      - backend_demo_e
-
-# Volume nommé de la base dev : les données restent dans Docker (disque Linux interne),
-# survivent aux recréations de conteneur, et ne touchent JAMAIS le système de fichiers Windows.
+      - backend_demos
+      - frontend_demos
 volumes:
   pgdata_dev:

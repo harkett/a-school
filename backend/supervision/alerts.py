@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 
 import psutil
 
-from backend.core.database import SessionLocal
+from backend.core.database import session_pour, SCHEMA_REEL
 from backend.core.models_db import AdminAlert, FailedLoginAttempt
 from backend.core.horloge import maintenant_utc
 
@@ -176,7 +176,7 @@ def _journaliser(level: str, title: str, message: str):
 
 
 def create_alert(level: str, title: str, message: str, sujet_detail: str = ""):
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         if _already_alerted(db, title):
             # Doublon dans la fenêtre anti-flood : ni base, ni mail, NI journal — reflooder le
@@ -236,7 +236,7 @@ def check_cpu_alert():
     charge_pct = _charge_cpu_pct()
     if charge_pct is None:
         return
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         seuil = seuils_alertes(db)["cpu_pct"]
     finally:
@@ -253,7 +253,7 @@ def check_cpu_alert():
 
 def check_disk_alert():
     disk = psutil.disk_usage('/')
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         seuil = seuils_alertes(db)["disque_pct"]
     finally:
@@ -267,7 +267,7 @@ def check_disk_alert():
 
 
 def check_brute_force_alert():
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         seuil = seuils_alertes(db)["tentatives_1h"]
         since = maintenant_utc() - timedelta(hours=1)

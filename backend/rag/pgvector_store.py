@@ -20,7 +20,7 @@ from typing import Any
 
 from sqlalchemy import select, delete, func
 
-from backend.core.database import SessionLocal
+from backend.core.database import session_pour, SCHEMA_REEL
 from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
 # Règle de nommage des dossiers, à UNE seule source : elle était recopiée à l'identique ici,
 # dans referentiels_admin et dans profil.py.
@@ -247,7 +247,7 @@ def _decouper_ia(texte: str, prompt: str) -> list[dict]:
     DU COUPLE (`prompt`, lu en base par l'appelant). Renvoie des chunks `{text, page, meta}`
     directement consommables par la suite du pipeline."""
     from backend.rag.analyse_amont import decouper_texte
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         unites = decouper_texte(texte, db=db, prompt=prompt)
     finally:
@@ -271,7 +271,7 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
     (aperçu). Réutilisée UNIQUEMENT si son prompt est identique au prompt validé en base —
     sinon (prompt corrigé entre-temps, cache absent) l'IA redécoupe comme avant."""
     # 1. Résoudre le référentiel (id) et le chemin du PDF (courte ouverture DB).
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         ref = db.execute(
             select(Referentiel).where(Referentiel.collection == collection)
@@ -351,7 +351,7 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
     if on_progress:
         on_progress("ecriture", 0, 0)
 
-    db = SessionLocal()
+    db = session_pour(SCHEMA_REEL)
     try:
         sauvegarde = _sauvegarder_chunks_avant_purge(db, rid, collection)  # RAISE si échec -> delete jamais atteint
         db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
@@ -394,13 +394,21 @@ def retrieve_pg(
     question: str,
     filters: dict[str, Any] | None = None,
     top_k: int = 4,
+    *,
+    schema: str,
 ) -> list[dict[str, Any]]:
     """Recherche pgvector (cosinus) sur referentiel_chunks — MEME forme de sortie que
     retrieve() ChromaDB (text, page, source, score=1-distance, meta). Voie DIRECTE pour
     l'embedding de la question. Ne touche PAS ChromaDB. Lecture seule (SELECT).
 
     filters : {"option": "A"} (forme simple) ou None. score = 1 - distance cosinus,
-    arrondi 3 décimales."""
+    arrondi 3 décimales.
+
+    `schema` est OBLIGATOIRE et sans valeur par défaut, en mot-clé pour qu'aucun appel ne le
+    passe par mégarde à la place de `top_k`. Cette fonction ouvre sa propre session : sans le
+    schéma de la requête, une démonstration chercherait dans le référentiel du RÉEL — aucune
+    erreur, juste le mauvais contenu. Les appelants le tirent de leur session de requête, par
+    `schema_de_session(db)`."""
     q = (question or "").strip()
     if not q:
         logger.warning("[RAG-pg] retrieve_pg appele avec question vide, renvoie []")
@@ -408,7 +416,7 @@ def retrieve_pg(
 
     option = filters.get("option") if filters else None
 
-    db = SessionLocal()
+    db = session_pour(schema)
     try:
         ref = db.execute(
             select(Referentiel.id, Referentiel.source, Niveau.nom)

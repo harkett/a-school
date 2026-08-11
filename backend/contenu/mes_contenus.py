@@ -21,7 +21,8 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.core.database import get_db
+from backend.core.catalogues import catalogue
+from backend.core.database import get_db, schema_de_session
 from backend.core.deps import get_current_user
 from backend.core.models_db import (
     Activite, ActiviteVersion, Referentiel, Seance, SeanceMode, SeanceStyle, SeanceVersion,
@@ -602,22 +603,12 @@ def rattacher_activite_seance(
 # (même mécanique que l'activité : le flux d'abord, l'écran enregistre à la réussite)
 # ---------------------------------------------------------------------------
 
-def _catalogue(db: Session, modele, quoi: str) -> list:
-    """Un catalogue de référence, lu EN BASE — jamais une liste en dur. Les valeurs initiales
-    sont SEMÉES par migration : une table vide n'est pas un cas à rattraper en douce, c'est
-    une erreur qu'on dit (même geste que `_reglage_entier`)."""
-    lignes = db.query(modele).filter(modele.actif.is_(True)).order_by(modele.ordre, modele.id).all()
-    if not lignes:
-        raise HTTPException(500, f"Catalogue « {quoi} » vide en base (migration non appliquée ?).")
-    return lignes
-
-
 def modes_seance(db: Session) -> list[SeanceMode]:
-    return _catalogue(db, SeanceMode, "modes de séance")
+    return catalogue(db, SeanceMode, "modes de séance")
 
 
 def styles_seance(db: Session) -> list[SeanceStyle]:
-    return _catalogue(db, SeanceStyle, "styles de production")
+    return catalogue(db, SeanceStyle, "styles de production")
 
 
 def bornes_duree_seance(db: Session) -> tuple[int, int]:
@@ -741,7 +732,8 @@ def proposer_theme_seance(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Thème de séance de {matiere or 'la matière du prof'}, niveau {niveau} : notions et objectifs du programme"
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-theme] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -808,7 +800,8 @@ def proposer_competences_seance(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Compétences et attendus du programme de {matiere or 'la matière du prof'}, niveau {niveau}, autour de : {theme}"
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-competences] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -1185,7 +1178,8 @@ def proposer_objectif_sequence(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Objectif de séquence de {matiere or 'la matière du prof'}, niveau {niveau} : notions et objectifs du programme"
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-objectif] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -1241,7 +1235,8 @@ def proposer_competences_sequence(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Compétences et attendus du programme de {matiere or 'la matière du prof'}, niveau {niveau}, autour de : {objectif}"
-    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db))
+    chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db))
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-competences-seq] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
