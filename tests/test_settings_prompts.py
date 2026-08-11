@@ -184,13 +184,18 @@ def _call_ambiguites(cap):
     with patch.object(gen, "AI_PROVIDER", "groq"), \
          patch("backend.analyse.ambiguites.get_cle_texte", return_value="cle-test"), \
          patch("requests.post", side_effect=_fake_groq_post(cap, contenu_llm)):
-        return c.post("/api/detect-ambiguites", json={"texte": "Un enonce."})
+        # `criteres` : les types coches par le prof. Le serveur les valide sur le catalogue
+        # `ambiguite_criteres` AVANT de lire le prompt — une requete sans critere n'atteint
+        # donc jamais la chaine que ces tests observent.
+        return c.post("/api/detect-ambiguites",
+                      json={"texte": "Un enonce.", "criteres": ["consigne_vague"]})
 
 
 def test_chaine_utilise_la_surcharge():
     _reset_settings()
     db = dbmod.SessionLocal()
-    db.add(Setting(key="prompt_ambiguites", value="MARQUEUR_OVERRIDE {matiere} {niveau} {texte}"))
+    db.add(Setting(key="prompt_ambiguites",
+                   value="MARQUEUR_OVERRIDE {matiere} {niveau} {texte} {criteres} {critere_libre}"))
     db.commit()
     db.close()
     cap = {}

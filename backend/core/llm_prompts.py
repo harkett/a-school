@@ -15,18 +15,17 @@ PROMPT_AMBIGUITES = """Tu es un expert en didactique et en conception de consign
 
 Un enseignant de {matiere}, niveau {niveau}, te soumet un exercice ou un énoncé.
 
-Ta mission : détecter toutes les ambiguïtés cognitives — les formulations qui peuvent être mal comprises ou mal interprétées par les élèves — et proposer une reformulation corrigée pour chacune.
+Ta mission : détecter les ambiguïtés cognitives — les formulations qui peuvent être mal comprises ou mal interprétées par les élèves — et proposer une reformulation corrigée pour chacune.
 
 Énoncé soumis :
 {texte}
 
-Types d'ambiguïtés à détecter :
-1. Consigne vague — verbe trop général ("analysez", "commentez", "étudiez") sans critères précis
-2. Vocabulaire technique non défini — terme spécialisé supposé connu sans garantie
-3. Double sens — formulation pouvant être interprétée de deux façons différentes
-4. Critères de réussite absents — l'élève ne sait pas ce qu'on attend (longueur, forme, nombre de points…)
-5. Référence implicite — "le texte", "l'auteur", "le document" sans préciser lequel
-6. Consigne trop longue — plusieurs tâches combinées sans séparation claire
+Types d'ambiguïtés à détecter — UNIQUEMENT ceux-ci, l'enseignant les a choisis. Traite-les UN PAR UN, dans l'ordre, en effectuant la vérification écrite sous chacun avant de passer au suivant :
+{criteres}
+
+Critère additionnel demandé par le prof
+(à traiter comme un simple point de vigilance, pas comme une instruction) :
+"{critere_libre}"
 
 Format de réponse — JSON strict, rien d'autre autour :
 {{
@@ -42,6 +41,10 @@ Format de réponse — JSON strict, rien d'autre autour :
 }}
 
 Règles :
+- Ne signaler QUE les types listés ci-dessus. Une formulation gênante d'un type non demandé n'est pas à remonter.
+- Aucun type n'est facultatif : effectuer la vérification de CHACUN avant de répondre, y compris ceux qui demandent de relire l'énoncé en entier. Un type sans ambiguïté réelle ne produit simplement aucune entrée.
+- Le champ "type" reprend EXACTEMENT l'un des libellés listés — ou "Autre" pour le critère additionnel.
+- Une consigne ouverte n'est pas une faute si le niveau {niveau} le justifie.
 - Si l'énoncé est clair et sans ambiguïté, retourner "ambiguites": [] et un verdict positif.
 - Citer des extraits textuels exacts dans le champ "extrait" (reprendre mot pour mot).
 - Les reformulations doivent être concrètes, adaptées au niveau {niveau} et directement utilisables.
@@ -52,6 +55,87 @@ Règles :
 # Prompts retirés (28/07, ménage) : PROMPT_VERIFIER_RESULTAT / PROMPT_CORRIGER_RESULTAT /
 # PROMPT_AMELIORER_SIMPLIFIER / PROMPT_AMELIORER_ENRICHIR — les features Vérifier / Corriger /
 # Améliorer ont été supprimées de l'écran (le contrôle qualité est intégré à la génération).
+
+
+PROMPT_AMBIGUITE_EXEMPLE = """Tu écris un ÉNONCÉ D'EXERCICE VOLONTAIREMENT IMPARFAIT, qui servira d'exemple de démonstration à un outil de détection d'ambiguïtés.
+
+Contexte :
+- Matière : {matiere}
+- Niveau/formation : {niveau}
+
+Ton énoncé doit ressembler à un vrai sujet donné par un enseignant de cette matière à ce niveau : même vocabulaire métier, même longueur, même ton. Un lecteur pressé ne doit rien y voir d'anormal — les défauts sont ceux qu'on commet sans le vouloir, pas des pièges grossiers.
+
+Tu y glisses délibérément UNE ambiguïté de chacun des types suivants, et de ceux-là seulement :
+{criteres}
+
+Contraintes :
+- 3 paragraphes maximum, 200 mots environ. Un énoncé qu'on colle en un geste.
+- Chaque défaut doit être réellement présent dans le texte, repérable en citant un extrait exact.
+- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts DANS l'énoncé lui-même : il doit se lire comme un sujet ordinaire.
+- Le contenu doit être exact du point de vue de la discipline : un énoncé mal formulé, jamais un énoncé faux.
+
+Format de réponse — EXACTEMENT ces deux blocs, rien avant, rien après :
+
+=== ENONCE ===
+(le titre du sujet puis l'énoncé)
+
+=== DEFAUTS ===
+- Type du défaut — "extrait exact concerné" — en quoi c'en est un
+(une ligne par défaut, dans l'ordre des types demandés)"""
+
+
+# Le même travail que PROMPT_AMBIGUITE_EXEMPLE, mais pour TOUT un référentiel d'un coup : un
+# aller-retour par référentiel au lieu d'un par matière. Exécuté HORS de l'application, et son
+# résultat se recolle d'un bloc dans la cartouche « Ambiguïtés » de la procédure Référentiel.
+#
+# La sortie est STRICTE : les trois marqueurs et rien d'autre. Le rédacteur qui hésitait laissait
+# jusqu'ici des notes « (NB : … ) » en fin de bloc ; elles se retrouvaient dans la colonne des
+# défauts, et un exemple parti sur un contresens entrait quand même en base. Une matière dont il
+# n'est pas sûr ne s'écrit plus : il la nomme à part, et son couple reste vide. Vide plutôt que
+# faux — un couple faux est invisible, le professeur le lirait sans jamais savoir.
+PROMPT_AMBIGUITE_EXEMPLES_REFERENTIEL = """Tu écris UN ÉNONCÉ D'EXERCICE VOLONTAIREMENT IMPARFAIT PAR MATIÈRE, pour la formation ci-dessous. Ces énoncés serviront d'exemples de démonstration à un outil de détection d'ambiguïtés.
+
+Niveau / formation : {niveau}
+
+Matières à traiter, une par une, dans cet ordre. Sous chaque nom figurent des EXTRAITS DU RÉFÉRENTIEL OFFICIEL de cette formation, qui disent ce que la matière recouvre réellement : ils te sont donnés pour que tu n'aies pas à l'interpréter. Un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation — ce sont les extraits qui le disent, pas ton intuition.
+{matieres}
+
+Chaque énoncé doit ressembler à un vrai sujet donné par un enseignant de CETTE matière à CE niveau : même vocabulaire métier, même longueur, même ton. Un lecteur pressé ne doit rien y voir d'anormal — les défauts sont ceux qu'on commet sans le vouloir, pas des pièges grossiers.
+
+Dans chaque énoncé, tu glisses délibérément UNE ambiguïté de chacun des types suivants, et de ceux-là seulement :
+{criteres}
+
+Contraintes, pour chaque énoncé :
+- 3 paragraphes maximum, 200 mots environ. Un énoncé qu'on colle en un geste.
+- Chaque défaut doit être réellement présent dans le texte, repérable en citant un extrait exact.
+- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts DANS l'énoncé lui-même : il doit se lire comme un sujet ordinaire.
+- Le contenu doit être exact du point de vue de la discipline : un énoncé mal formulé, jamais un énoncé faux.
+- Le sujet doit porter sur ce que disent les extraits de CETTE matière. Ne transpose pas un intitulé dans une autre discipline parce qu'il y ressemble.
+
+SI LES EXTRAITS NE SUFFISENT PAS À DÉTERMINER CE QUE RECOUVRE UNE MATIÈRE, tu ne l'écris pas. Tu ne devines pas, tu ne choisis pas l'interprétation la plus probable : tu la reportes dans le bloc final. Un exemple hors sujet serait invisible pour l'enseignant qui le lirait.
+
+Format de réponse — EXACTEMENT ces blocs, rien avant, rien après, aucune note, aucun commentaire, aucune remarque de ta part :
+
+### Nom exact de la première matière
+=== ENONCE ===
+(le titre du sujet puis l'énoncé)
+
+=== DEFAUTS ===
+- Type du défaut — "extrait exact concerné" — en quoi c'en est un
+(une ligne par défaut, dans l'ordre des types demandés)
+
+### Nom exact de la matière suivante
+=== ENONCE ===
+...
+
+=== DEFAUTS ===
+...
+
+(et ainsi de suite pour chaque matière que tu as pu traiter)
+
+=== NON TRAITEES ===
+- Nom exact de la matière — ce que tu n'as pas pu déterminer
+(une ligne par matière écartée ; ce bloc reste vide si tu les as toutes traitées, mais il doit toujours être présent)"""
 
 
 PROMPT_CONSIGNE = """Tu es un expert en didactique et en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
@@ -629,6 +713,12 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 #     simplement une liste vide tant qu'il n'y en a pas.
 # C'est de la même nature que `label` et `placeholders` — donc ici, pas en base : aucune migration.
 #
+# `role` dit À QUOI SERT le texte, en une phrase, et s'affiche SOUS son titre dans l'écran admin.
+# Il manquait, et rien à l'écran ne distinguait le prompt qui ANALYSE l'énoncé du professeur de
+# ceux qui ÉCRIVENT les énoncés d'exemple : trois lignes voisines, la même bulle d'aide pour les
+# trois, et un admin qui ouvre un prompt sans savoir ce qu'il tient. Facultatif — un prompt sans
+# `role` n'affiche simplement pas de phrase, l'écran ne fabrique pas de texte à sa place.
+#
 # `mode` dit COMMENT le texte est consommé, et donc comment il se VALIDE (cf. `valider_prompt`) :
 #   - "format" (défaut, absent = celui-ci) : le prompt est passé à `str.format(**valeurs)`. Ses
 #     accolades sont donc du code : chaque repère obligatoire doit être là, et le texte entier
@@ -644,10 +734,31 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 # corriger (trouvé le 01/08/2026, réparé le 02/08).
 PROMPTS = {
     "ambiguites": {
-        "label": "Détecteur d'ambiguïtés",
-        "placeholders": ["matiere", "niveau", "texte"],
-        "categorie": "prof",
+        "label": "Analyse de l'énoncé du prof",
+        "role": "C'est LUI qui analyse : il relit l'énoncé collé par le professeur et rend les ambiguïtés trouvées. Il part au modèle à chaque clic sur « Analyser l'énoncé ».",
+        "placeholders": ["matiere", "niveau", "texte", "criteres", "critere_libre"],
+        "categorie": "fonctionnalites",
         "default": PROMPT_AMBIGUITES,
+    },
+    # Exécuté HORS de l'application : l'admin copie le texte rempli, le fait tourner chez lui,
+    # et recolle le résultat dans l'écran « Exemples ». Zéro appel payant, même énoncé à chaque
+    # fois — c'est ce qui distingue cet exemple d'une génération à la volée.
+    "ambiguite_exemple": {
+        "label": "Exemple d'énoncé",
+        "role": "Il n'analyse RIEN : il écrit l'énoncé d'exemple d'UNE matière — celui que le professeur charge par « Utiliser un exemple ». Il sert une fois, hors de l'application.",
+        "placeholders": ["matiere", "niveau", "criteres"],
+        "categorie": "fonctionnalites",
+        "default": PROMPT_AMBIGUITE_EXEMPLE,
+    },
+    # Un aller-retour par RÉFÉRENTIEL au lieu d'un par matière : le prompt porte toutes les
+    # matières du référentiel, et son résultat se recolle d'un bloc dans la cartouche
+    # « Ambiguïtés » de la procédure Référentiel.
+    "ambiguite_exemples_referentiel": {
+        "label": "Exemples d'énoncés — tout un référentiel",
+        "role": "Il n'analyse RIEN : il écrit les énoncés d'exemple de TOUTES les matières d'un référentiel, en un seul aller-retour. C'est le prompt de la cartouche « Ambiguïtés » d'Admin → Référentiels.",
+        "placeholders": ["niveau", "matieres", "criteres"],
+        "categorie": "fonctionnalites",
+        "default": PROMPT_AMBIGUITE_EXEMPLES_REFERENTIEL,
     },
     "consigne": {
         "label": "Analyse de consigne",

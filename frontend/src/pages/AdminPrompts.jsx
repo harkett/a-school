@@ -18,6 +18,20 @@ import { buildSearchIndex, searchSections } from '../utils/aideSearch.js'
 // Deux colonnes, comme les pages listes de « Mes contenus » : la liste à gauche, le détail du
 // prompt choisi à droite, la liste reste visible pendant qu'on travaille. Habillage admin, pas
 // celui du prof. Le bouton « Cacher le détail » est permanent (règle maison).
+// Une ligne par fonctionnalité, nommée par son CHEMIN dans le menu du prof — c'est ainsi qu'on
+// la retrouve. `ancre` est l'id visé par les liens venus d'ailleurs (la carte d'un référentiel
+// pointe ici).
+const FONCTIONNALITES = [
+  {
+    ancre: 'mes-analyses-ambiguites',
+    label: 'Mes Analyses → Ambiguïtés',
+    aide: "Le texte qui ANALYSE l'énoncé du prof, et ceux qui ÉCRIVENT ses énoncés d'exemple.",
+    // L'ORDRE des onglets du détail. Ces clés viennent du registre serveur : une clé absente
+    // de la catégorie est simplement ignorée, l'écran ne fabrique pas d'onglet vide.
+    cles: ['ambiguites', 'ambiguite_exemples_referentiel', 'ambiguite_exemple'],
+  },
+]
+
 const CATEGORIES = {
   prof: {
     titre: 'Prompts — Prof',
@@ -26,6 +40,10 @@ const CATEGORIES = {
   admin: {
     titre: 'Prompts — Admin',
     intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.',
+  },
+  fonctionnalites: {
+    titre: 'Prompts — Autres fonctionnalités',
+    intro: 'Les textes rangés par FONCTIONNALITÉ, et non par public : un outil que le prof utilise et dont l\'admin règle les textes appartient à son outil, pas à l\'un des deux.',
   },
   autres: {
     titre: 'Prompts — Autres',
@@ -85,6 +103,13 @@ export default function AdminPrompts({ categorie }) {
   // Cherché dans la liste de la CATÉGORIE, pas dans la liste filtrée : continuer à taper dans
   // la recherche ne doit pas refermer le prompt ouvert (ni perdre une retouche en cours).
   const promptActif = listeCategorie.find(p => p.key === promptKey)
+
+  // La fonctionnalité ouverte, avec SES prompts réellement présents dans la catégorie — c'est
+  // elle qui donne les onglets du détail.
+  const fonctionnaliteActive = categorie !== 'fonctionnalites' ? null
+    : FONCTIONNALITES
+        .map(f => ({ ...f, prompts: f.cles.map(c => listeCategorie.find(p => p.key === c)).filter(Boolean) }))
+        .find(f => f.cles.includes(promptKey)) || null
   const reperesManquants = promptActif
     ? promptActif.placeholders.filter(ph => !promptText.includes('{' + ph + '}'))
     : []
@@ -190,17 +215,46 @@ export default function AdminPrompts({ categorie }) {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-      {listeCategorie.length === 0 && (
+      {/* Rangement par fonctionnalité : une ligne par outil, nommée par son CHEMIN dans le menu
+          du prof — c'est ainsi qu'on la retrouve. Cible du lien « ambiguïté » posé sur la carte
+          d'un référentiel (ancre ci-dessous). */}
+      {categorie === 'fonctionnalites' && FONCTIONNALITES.map(f => (
+        <button
+          key={f.ancre}
+          id={f.ancre}
+          type="button"
+          onClick={() => choisirPrompt(f.cles.find(c => listeCategorie.some(p => p.key === c)) || '')}
+          title={f.aide}
+          style={{
+            display: 'block', width: '100%', textAlign: 'left',
+            padding: '12px 16px', cursor: 'pointer',
+            border: 'none', borderBottom: '1px solid #f1f5f9',
+            borderLeft: f.cles.includes(promptKey) ? '3px solid #A63045' : '3px solid transparent',
+            background: f.cles.includes(promptKey) ? '#fdf2f4' : 'white',
+            fontSize: 13, fontWeight: 600,
+            color: f.cles.includes(promptKey) ? '#A63045' : '#1e293b',
+          }}
+        >
+          {f.label}
+          <span style={{ display: 'block', fontSize: 11.5, fontWeight: 400, color: '#94a3b8', marginTop: 3 }}>
+            {f.aide}
+          </span>
+          <span style={{ display: 'block', fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
+            {f.cles.filter(c => listeCategorie.some(p => p.key === c)).length} prompt(s)
+          </span>
+        </button>
+      ))}
+      {listeCategorie.length === 0 && categorie !== 'fonctionnalites' && (
         <p className="text-sm text-gray-400" style={{ padding: '24px 16px', textAlign: 'center' }}>
           Aucun prompt dans cette catégorie.
         </p>
       )}
-      {listeCategorie.length > 0 && liste.length === 0 && (
+      {categorie !== 'fonctionnalites' && listeCategorie.length > 0 && liste.length === 0 && (
         <p className="text-sm text-gray-400" style={{ padding: '24px 16px', textAlign: 'center' }}>
           Aucun prompt ne correspond à « {recherche.trim()} ».
         </p>
       )}
-      {liste.map(p => {
+      {categorie !== 'fonctionnalites' && liste.map(p => {
         const active = p.key === promptKey
         return (
           <button
@@ -263,11 +317,50 @@ export default function AdminPrompts({ categorie }) {
       className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5"
       style={{ height: '100%', minHeight: 420 }}
     >
+      {/* Une fonctionnalité peut porter PLUSIEURS prompts : ils s'ouvrent en onglets, ici, au
+          lieu d'occuper chacun une ligne de la liste — la liste dit l'outil, le détail dit ses
+          textes. Un seul prompt : pas de barre d'onglets, elle n'apprendrait rien. */}
+      {fonctionnaliteActive && fonctionnaliteActive.prompts.length > 1 && (
+        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+          {fonctionnaliteActive.prompts.map(p => {
+            const actif = p.key === promptKey
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => choisirPrompt(p.key)}
+                title={p.label}
+                style={{
+                  padding: '7px 14px', fontSize: 12, fontWeight: actif ? 600 : 500,
+                  color: actif ? '#A63045' : '#6b7280',
+                  background: 'none', border: 'none',
+                  borderBottom: actif ? '2px solid #A63045' : '2px solid transparent',
+                  marginBottom: -1, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <div style={{ flexShrink: 0 }}>
         <h3 className="text-sm font-semibold text-gray-700">{promptActif.label}</h3>
         <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
           {promptActif.key}
         </p>
+        {/* À QUOI SERT CE TEXTE, en clair, avant de le lire. Sans cette phrase, trois prompts
+            voisins se ressemblaient à s'y méprendre : celui qui analyse l'énoncé du prof et ceux
+            qui écrivent ses exemples. On ouvrait un prompt sans savoir ce qu'on tenait. */}
+        {promptActif.role && (
+          <p style={{
+            margin: '10px 0 0', fontSize: 12.5, lineHeight: 1.55, color: '#334155',
+            background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '9px 12px',
+          }}>
+            {promptActif.role}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap" style={{ flexShrink: 0 }}>

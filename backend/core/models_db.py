@@ -305,6 +305,60 @@ class LangueLv(Base):
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
 
 
+class AmbiguiteCritere(Base):
+    """Les types d'ambiguïté que le prof coche avant de lancer une analyse (donnée de référence,
+    EN BASE, même moule que `SeanceMode`). Source unique : le serveur valide les codes reçus sur
+    cette table, l'écran dessine ses cases avec ces lignes, le prompt reçoit les `label` cochés
+    et le `type` rendu par le modèle est recollé dessus — plus de liste recopiée qui diverge.
+
+    `description` = la phrase de l'onglet « Comment ça marche » : elle appartient au critère,
+    pas à l'écran. `code == "autre"` est la seule valeur dont le SERVEUR connaît le
+    comportement (elle ouvre le champ de texte libre) ; tout le reste est de la donnée."""
+    __tablename__ = "ambiguite_criteres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    # Le CONTRÔLE à effectuer pour ce type, envoyé au modèle sous le libellé. « Cherche les
+    # consignes vagues » le laissait choisir où chercher : il prenait le plus facile à voir
+    # (le vocabulaire) et sautait le reste. Ici on lui dit quoi vérifier, point par point.
+    # C'est une donnée du critère, pas une phrase du prompt : muscler un contrôle ou en
+    # ajouter un se fait en base.
+    verification: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+
+
+class AmbiguiteExemple(Base):
+    """L'énoncé d'exemple servi au prof par le bouton « Utiliser un exemple » de l'écran
+    « Détecter les ambiguïtés » — UN par couple, écrit d'avance, jamais généré à la volée.
+
+    Le couple tient dans `matiere_id` seul : une matière appartient au référentiel d'un niveau,
+    le niveau est donc déjà dedans (voir `Matiere`). Un exemple par matière = un exemple par
+    couple, sans clé composée ni risque de doublon.
+
+    `texte` = l'énoncé à coller tel quel. `defauts` = ce qu'on y a délibérément glissé, en
+    clair : c'est un exemple de démonstration, il ne vaut que s'il y a quelque chose à trouver
+    — et le prof doit pouvoir vérifier que l'analyse l'a bien trouvé.
+
+    Les deux champs sont écrits par l'admin depuis son écran, à partir du prompt
+    `ambiguite_exemple` exécuté hors de l'application : zéro appel payant, même énoncé à chaque
+    fois. CASCADE : l'exemple suit la matière qui le nomme."""
+    __tablename__ = "ambiguite_exemples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    matiere_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("matieres.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    texte: Mapped[str] = mapped_column(Text, nullable=False)
+    defauts: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    # Désactivé = le prof ne le voit plus, mais le texte reste ici. C'est le geste qui manquait
+    # quand on découvre qu'un exemple est faux : on le retire de la vue en une seconde, sans perdre
+    # ce qu'on doit corriger. Ce n'est PAS une suppression déguisée — le bouton dit « Désactiver »,
+    # et il rallume ce qu'il a éteint.
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default='1')
+
+
 class Seance(Base):
     """Séance — le niveau du milieu. `sequence_id` nullable = séance libre ; SET NULL à la
     suppression de la séquence : les séances redeviennent « non rangées », jamais détruites."""

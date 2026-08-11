@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from backend.securite.audit import log_admin_action
 from backend.core.cles import secret_obligatoire
 from backend.core.database import get_db, get_db_size_mb, engine
+from backend.core.schema_requete import schema_de
 from backend.core.limiter import limiter
 from backend.core.llm_prompts import PROMPTS
 from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, Referentiel, RefreshToken, Seance, Sequence, Setting, User, UserSession
@@ -1777,6 +1778,8 @@ def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_requi
         out.append({
             "key": key,
             "label": meta["label"],
+            # À quoi sert ce texte, en une phrase — vide si le registre n'en donne pas.
+            "role": meta.get("role", ""),
             "placeholders": meta["placeholders"],
             # À qui sert le texte : « prof », « admin » ou « autres ». Range la ligne sous la
             # bonne sous-option de l'écran admin « Prompts » (registre, pas de table).
@@ -2270,8 +2273,10 @@ def server_metrics(db: Session = Depends(get_db), _: None = Depends(_require_adm
 
 
 @router.get("/admin/db-size")
-def db_size(_: None = Depends(_require_admin)):
-    return {"size_mb": get_db_size_mb()}
+def db_size(request: Request, _: None = Depends(_require_admin)):
+    # Le schéma de la requête, pas la base : les cinq démonstrations partagent la leur, et sans
+    # cette précision chacune se verrait attribuer le total des cinq.
+    return {"size_mb": get_db_size_mb(schema_de(request))}
 
 
 @router.get("/admin/alerts")
