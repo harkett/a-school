@@ -47,10 +47,16 @@ def schema_du_host(host: str | None) -> str | None:
 
 def schema_existe(nom: str) -> bool:
     """Ce schéma est-il réellement dans la base ? La question se pose au catalogue, pas à une
-    liste que quelqu'un aurait à tenir à jour."""
+    liste que quelqu'un aurait à tenir à jour.
+
+    `pg_namespace` ET PAS `information_schema.schemata` : la seconde est filtrée par les droits
+    de l'utilisateur connecté. Un schéma versé par `pg_dump` appartient à l'utilisateur SYSTÈME
+    qui a lancé le versement ; l'application, connectée sous un autre rôle, ne le voyait pas et
+    rendait 404 sur une démonstration parfaitement présente. Constaté en production le
+    11/08/2026, sur les cinq à la fois."""
     with _db.engine.connect() as conn:
         return conn.execute(
-            text("SELECT 1 FROM information_schema.schemata WHERE schema_name = :nom"),
+            text("SELECT 1 FROM pg_namespace WHERE nspname = :nom"),
             {"nom": nom},
         ).first() is not None
 

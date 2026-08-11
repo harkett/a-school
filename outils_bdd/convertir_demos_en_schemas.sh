@@ -32,6 +32,11 @@ CIBLE=${CIBLE:-aschool_demos}
 UTILISATEUR=${PGUSER:-}
 [ -n "$UTILISATEUR" ] && OPT_U="-U $UTILISATEUR" || OPT_U=""
 PSQL="psql -v ON_ERROR_STOP=1 $OPT_U -X -q -t -A"
+
+# À QUI REVIENDRA LE SCHÉMA VERSÉ : l'utilisateur de la chaîne de connexion de l'application,
+# lu dans le `.env` et jamais recopié ici. Vide s'il n'y a pas de `.env` sous la main (le cas
+# du conteneur local, où tout appartient déjà au même rôle) — la réattribution est alors sautée.
+APP_USER=$(sed -nE 's|^DATABASE_URL=[a-z+]+://([^:]+):.*||p' .env 2>/dev/null | head -1)
 TABLES="sequences seances activites"
 
 compter() {   # $1 = base, $2 = schéma
@@ -80,6 +85,31 @@ SQL
     fi
     pg_dump $OPT_U -n "$schema" --no-owner --no-acl "$jetable" > "/tmp/$schema.sql"
     $PSQL -d "$CIBLE" -f "/tmp/$schema.sql" >/dev/null
+
+    # LE SCHÉMA APPARTIENT À CELUI QUI L'A VERSÉ, ET CE N'EST PAS L'APPLICATION. Sur le VPS,
+    # `psql` tourne sous l'identité système (`ubuntu`) alors que l'application se connecte sous
+    # son propre rôle. Sans cette réattribution, elle ne VOIT même pas le schéma — les vues
+    # `information_schema` sont filtrées par les droits — et rend 404 sur une démonstration
+    # parfaitement présente. Les cinq sont tombées ainsi le 11/08/2026, en production.
+    # L'utilisateur visé est celui de la chaîne de connexion de l'application, jamais un nom
+    # écrit ici : deux sources finiraient par diverger.
+    if [ -n "$APP_USER" ]; then
+        $PSQL -d "$CIBLE" <<SQL
+SELECT format('ALTER SCHEMA %I OWNER TO %I;', nspname, '$APP_USER')
+  FROM pg_namespace WHERE nspname = '$schema'
+UNION ALL
+SELECT format('ALTER TABLE %I.%I OWNER TO %I;', schemaname, tablename, '$APP_USER')
+  FROM pg_tables WHERE schemaname = '$schema'
+UNION ALL
+SELECT format('ALTER SEQUENCE %I.%I OWNER TO %I;', schemaname, sequencename, '$APP_USER')
+  FROM pg_sequences WHERE schemaname = '$schema'
+UNION ALL
+SELECT format('ALTER VIEW %I.%I OWNER TO %I;', schemaname, viewname, '$APP_USER')
+  FROM pg_views WHERE schemaname = '$schema'
+\gexec
+SQL
+        echo "  schéma rendu à $APP_USER"
+    fi
 
     apres=$(compter "$CIBLE" "$schema")
     echo "  après : $apres"

@@ -19,31 +19,38 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 
 URL = os.getenv("DATABASE_URL") or sys.exit("DATABASE_URL absente.")
+
+# ALEMBIC SE PREND À CÔTÉ DE L'INTERPRÉTEUR QUI NOUS EXÉCUTE, jamais dans le PATH. Sur le VPS il
+# vit dans `.venv/bin/` et le PATH ne le connaît pas : lancé par `.venv/bin/python`, ce script
+# tombait sur « No such file or directory: 'alembic' ». Dans le conteneur, les deux sont dans
+# `/usr/local/bin` — la règle vaut partout.
+ALEMBIC = str(Path(sys.executable).parent / "alembic")
 if "demo" not in URL.rsplit("/", 1)[-1]:
     sys.exit(f"ARRET : {URL.rsplit('/', 1)[-1]!r} ne ressemble pas à la base des démonstrations.")
 
 moteur = create_engine(URL)
 with moteur.connect() as conn:
     schemas = [r[0] for r in conn.execute(text(
-        r"SELECT schema_name FROM information_schema.schemata "
-        r"WHERE schema_name NOT LIKE 'pg\_%' "
-        "AND schema_name NOT IN ('public', 'information_schema') ORDER BY 1"
+        r"SELECT nspname FROM pg_namespace "
+        r"WHERE nspname NOT LIKE 'pg\_%' "
+        "AND nspname NOT IN ('public', 'information_schema') ORDER BY 1"
     ))]
 
 if not schemas:
     sys.exit("Aucun schéma de démonstration dans cette base.")
-tete = subprocess.run(["alembic", "heads"], capture_output=True, text=True).stdout.split()[0]
+tete = subprocess.run([ALEMBIC, "heads"], capture_output=True, text=True).stdout.split()[0]
 print(f"{len(schemas)} schémas à migrer vers {tete} : {', '.join(schemas)}\n")
 
 for schema in schemas:
     if not re.fullmatch(r"[a-z0-9_]{1,63}", schema):
         sys.exit(f"ARRET : nom de schéma inattendu {schema!r}.")
     print(f"── {schema}")
-    fait = subprocess.run(["alembic", "-x", f"schema={schema}", "upgrade", "head"],
+    fait = subprocess.run([ALEMBIC, "-x", f"schema={schema}", "upgrade", "head"],
                           capture_output=True, text=True)
     if fait.returncode != 0:
         print(fait.stdout, fait.stderr, sep="\n")
