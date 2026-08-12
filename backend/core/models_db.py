@@ -330,6 +330,37 @@ class AmbiguiteCritere(Base):
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
 
 
+class EquiteCritere(Base):
+    """Les biais d'équité que le prof coche avant de lancer une analyse (donnée de référence,
+    EN BASE, même moule que `AmbiguiteCritere` — écran jumeau, table jumelle).
+
+    CE QUE CETTE LISTE NE CONTIENT PAS, et pourquoi. La recherche française sur l'équité
+    (Cnesco, « Limites et biais de l'évaluation ») décrit surtout les biais du CORRECTEUR :
+    effet de halo, écart entre deux correcteurs, dérive de sévérité au fil du paquet, effet de
+    contraste d'une copie sur la suivante. Ils sont réels et bien établis, mais ils demandent
+    plusieurs copies, plusieurs correcteurs ou de la durée : un énoncé collé seul n'en montre
+    aucun. L'outil ne les promet donc pas — ils sont expliqués dans l'aide de l'écran, avec
+    cette raison, pour le prof qui vient y chercher « effet de halo ».
+
+    Restent les biais DU SUJET, écrits noir sur blanc dans le texte, et qui ont tous la même
+    forme : quelque chose est demandé EN PLUS de la compétence visée, et ce quelque chose n'est
+    pas également disponible à tous les élèves.
+
+    Pas de ligne `autre` ici, à la différence des ambiguïtés : l'équité se juge sur des motifs
+    connus, et un motif écrit à la main par le prof ne serait vérifiable par rien."""
+    __tablename__ = "equite_criteres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    # Le CONTRÔLE à effectuer, envoyé au modèle sous le libellé — même raison que pour les
+    # ambiguïtés : sans lui, le modèle choisit où chercher et prend le plus facile à voir.
+    verification: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+
+
 class PromptFonctionnalite(Base):
     """LES FONCTIONNALITÉS DE L'ÉCRAN ADMIN « PROMPTS » — une ligne par outil du produit.
 

@@ -25,7 +25,9 @@ import BientotDisponible from './components/BientotDisponible'
 import Accueil from './components/Accueil'
 import Ambiguites from './components/Ambiguites'
 import Consigne from './components/Consigne'
+import Equite from './components/Equite.jsx'
 import FenetreGuideConsigne from './components/FenetreGuideConsigne.jsx'
+import FenetreGuideEquite from './components/FenetreGuideEquite.jsx'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
 import Login from './pages/Login'
@@ -395,11 +397,16 @@ function MainApp() {
   }
 
   // « En savoir plus » d'une bulle ou lien de la fenêtre : le centre d'aide s'ouvre sur la
-  // fiche de l'écran Créer (le lien profond aideSection existe déjà).
-  function ouvrirAideDepuisGuide() {
+  // fiche de l'écran d'où l'on vient (le lien profond aideSection existe déjà).
+  //
+  // La fiche était CODÉE EN DUR sur celle de l'écran Créer : le lien « Ouvrir le centre d'aide »
+  // des guides Ambiguïtés et Consignes y menait aussi, alors que ces deux écrans ont leur propre
+  // fiche. Chaque guide dit maintenant la sienne ; sans argument, on retombe sur « Créer », qui
+  // reste la bonne réponse pour les guides qui n'ont pas de fiche à eux.
+  function ouvrirAideDepuisGuide(section = 'comment') {
     fermerGuide()
     setFenetreGuide(false)
-    setAideSection('comment')
+    setAideSection(section)
     setPage('aide')
   }
 
@@ -426,12 +433,17 @@ function MainApp() {
     // Sorti de la barre d'onglets de l'écran Ambiguïtés : le guide vit dans le header comme
     // partout ailleurs, l'écran n'a plus qu'une seule chose à montrer.
     'ambiguites': () => (
-      <FenetreGuideAmbiguites onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+      <FenetreGuideAmbiguites onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('ambiguites')} />
     ),
     // Sorti de la barre d'onglets de l'écran Consignes, comme celui des ambiguïtés : le guide
     // vit dans le header, l'écran n'a plus qu'une seule chose à montrer.
     'consigne': () => (
-      <FenetreGuideConsigne onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+      <FenetreGuideConsigne onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('consignes')} />
+    ),
+    // Le troisième frère : même dispositif, dès le premier jour de l'écran — il n'a jamais eu
+    // d'onglet « Comment ça marche » à démolir.
+    'equite': () => (
+      <FenetreGuideEquite onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('equite')} />
     ),
     'seance': () => (
       <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
@@ -480,7 +492,7 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
         <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -588,17 +600,12 @@ function MainApp() {
             <Consigne />
           )}
 
+          {/* L'écran existe (composant Equite + backend analyse/equite.py). Il remplace le bloc
+              « Outil en cours de développement » écrit ici en dur, qui tenait la place depuis le
+              premier jour. Comme ses deux frères, il ne reçoit pas le couple en props : le header
+              le porte, et le serveur le résout en base. */}
           {page === 'equite' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '32px 24px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', textAlign: 'center' }}>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>Détecteur d'équité pédagogique</div>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: 0, maxWidth: '400px', lineHeight: 1.6 }}>
-                Outil en cours de développement.
-              </p>
-              <button onClick={() => naviguer('accueil')} title="Revenir à l'accueil"
-                style={{ fontSize: '12px', color: '#6366f1', background: 'none', border: '1px solid #c7d2fe', borderRadius: '5px', padding: '5px 14px', cursor: 'pointer' }}>
-                ← Retour à l'accueil
-              </button>
-            </div>
+            <Equite />
           )}
 
           {page === 'bientot-disponible' && <BientotDisponible />}

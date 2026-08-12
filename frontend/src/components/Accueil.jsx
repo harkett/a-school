@@ -194,10 +194,7 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
                 // chose que le menu, sous peine d'ouvrir ce que l'autre annonce fermé.
                 { label: 'Ambiguïtés', page: 'ambiguites', title: 'Analyser un texte pour détecter les ambiguïtés cognitives d\'un exercice ou énoncé' },
                 { label: 'Consignes',  page: 'consigne',   title: 'Analyser la qualité didactique d\'une consigne' },
-                // Équité n'existe pas encore (la page rend « Outil en cours de développement ») :
-                // l'Accueil l'offrait comme un outil normal pendant que le menu la donnait pour
-                // « bientôt ». Deux écrans, deux vérités. Ici c'est l'Accueil qui se trompait.
-                { label: 'Équité',     page: 'equite',     title: 'Bientôt disponible — auditer l\'équité pédagogique d\'une évaluation', bientot: true },
+                { label: 'Équité',     page: 'equite',     title: 'Repérer ce qui pénalise certains élèves pour une raison étrangère à ce qui est évalué' },
               ].map(a => (
                 <button
                   key={a.page}

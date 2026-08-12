@@ -1,11 +1,8 @@
-import json
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from backend.securite import comptes
+from backend.analyse.commun import email_de_session, json_du_modele
 from backend.core.catalogues import catalogue
 from backend.core.database import get_db, schema_de_session
 from backend.core.models import ExempleReferentielResponse
@@ -92,41 +89,12 @@ def api_criteres_ambiguite(
 ):
     """Les critères proposés au prof — la MÊME source que celle sur laquelle le serveur
     refusera ou acceptera plus bas. L'écran ne connaît aucun de ces libellés."""
-    _get_email(aschool_access)
+    email_de_session(aschool_access)
     return [CritereItem(code=c.code, label=c.label, description=c.description)
             for c in criteres_ambiguite(db)]
 
 
 # Prompt déplacé dans backend/core/llm_prompts.py (administrable en base, lu via get_prompt).
-
-
-def _get_email(aschool_access: str | None) -> str:
-    if not aschool_access:
-        raise HTTPException(401, "Non connecté.")
-    email = comptes.verify_access_token(aschool_access)
-    if not email:
-        raise HTTPException(401, "Session expirée.")
-    return email
-
-
-def _parse_json(raw: str) -> dict:
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
-    m = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group(1))
-        except Exception:
-            pass
-    m = re.search(r'\{.*\}', raw, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            pass
-    raise ValueError("Réponse non parseable en JSON")
 
 
 @router.post("/ambiguites/exemple-genere", response_model=ExempleReferentielResponse)
@@ -145,7 +113,7 @@ def api_exemple_ambiguites_genere(
     Règle d'or, celle de `exemple_referentiel` dont il reprend la résolution : pas de référentiel
     pour ce couple, ou rien d'assez pertinent au seuil (`referentiels.score_min`) →
     available:false. On n'invente RIEN."""
-    email = _get_email(aschool_access)
+    email = email_de_session(aschool_access)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
@@ -186,7 +154,7 @@ def api_detect_ambiguites(
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    email = _get_email(aschool_access)
+    email = email_de_session(aschool_access)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
@@ -242,7 +210,7 @@ def api_detect_ambiguites(
                        max_tokens=get_max_tokens(db, "ambiguites"), temperature=get_temperature(db),
                        retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
                        outil="ambiguites")
-        data = _parse_json(raw)
+        data = json_du_modele(raw)
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     except ValueError:

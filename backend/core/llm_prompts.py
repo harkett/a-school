@@ -735,6 +735,101 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 # « Consigne du corrigé (case « Inclure une proposition de correction ») » ne tient pas sur un
 # onglet — elle débordait de la colonne et se coupait au milieu d'un mot. La phrase se lit
 # maintenant au survol et en titre du détail. Sans `onglet`, l'écran retombe sur le `label`.
+# L'ANALYSE D'ÉQUITÉ — le troisième frère de l'ambiguïté et de la consigne.
+#
+# Ce qu'il cherche est écrit EN BASE (`equite_criteres`, migration b8e2d4a7c9f1) et lui arrive
+# par {criteres} : les libellés cochés par le prof, chacun avec SA vérification. Le prompt ne
+# contient donc aucune liste de biais — la même leçon que les ambiguïtés.
+#
+# LE GARDE-FOU QUI COMPTE est la règle sur les biais du CORRECTEUR. Effet de halo, écart entre
+# correcteurs, sévérité qui dérive au fil du paquet : ce sont les biais les mieux documentés de
+# la littérature française, le modèle les connaît, et ils ne se voient PAS dans un énoncé collé.
+# Sans interdiction explicite, il en parle — et l'outil promet alors ce qu'il ne peut pas tenir.
+#
+# Le second garde-fou : difficile n'est pas injuste. Sans lui, l'analyse dérive vers « ce sujet
+# est exigeant » et rend un rapport que le prof jette.
+PROMPT_EQUITE = """Tu es un expert en évaluation scolaire et en équité des épreuves, pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
+
+Un enseignant de {matiere}, niveau {niveau}, te soumet une évaluation.
+
+Ta mission : repérer ce qui rend cette évaluation INÉQUITABLE — ce qu'elle demande EN PLUS de la compétence visée, et qui n'est pas également disponible à tous les élèves. Un élève ne doit pas être pénalisé pour une raison étrangère à ce que l'évaluation veut mesurer.
+
+Énoncé soumis :
+{texte}
+
+Barème fourni par l'enseignant :
+{bareme}
+
+Biais à rechercher — UNIQUEMENT ceux-ci, l'enseignant les a choisis. Traite-les UN PAR UN, dans l'ordre, en effectuant la vérification écrite sous chacun avant de passer au suivant :
+{criteres}
+
+Format de réponse — JSON strict, rien d'autre autour :
+{{
+  "biais": [
+    {{
+      "extrait": "fragment exact de l'énoncé ou du barème en cause, ou une chaîne vide si le défaut porte sur l'ensemble",
+      "critere": "Culture et milieu",
+      "consequence": "Quels élèves sont pénalisés, et pourquoi cela n'a rien à voir avec la compétence évaluée",
+      "correction": "Ce qu'il faut changer, concrètement, sans baisser l'exigence"
+    }}
+  ],
+  "verdict": "Phrase de synthèse courte sur l'équité globale de cette évaluation."
+}}
+
+Règles :
+- Ne signaler QUE les biais listés ci-dessus. Un défaut d'un type non demandé n'est pas à remonter.
+- Aucun biais n'est facultatif : effectuer la vérification de CHACUN avant de répondre, y compris ceux qui demandent de relire l'évaluation en entier. Un biais sans défaut réel ne produit simplement aucune entrée.
+- Le champ "critere" reprend EXACTEMENT l'un des libellés listés.
+- NE JAMAIS parler des biais du correcteur — effet de halo, écart entre deux correcteurs, sévérité qui dérive au fil du paquet, influence d'une copie sur la suivante. Ils sont réels, mais ils ne se voient pas dans un texte : cet outil ne les traite pas.
+- Ne pas confondre exigence et inéquité : une évaluation difficile n'est pas injuste. N'est un biais que ce qui pénalise certains élèves pour une raison étrangère à la compétence évaluée.
+- La correction doit conserver le niveau d'exigence : on retire l'obstacle, on ne simplifie pas la tâche.
+- Citer des extraits textuels exacts dans le champ "extrait" (reprendre mot pour mot), ou laisser ce champ vide quand le défaut porte sur l'ensemble de l'évaluation.
+- Si l'évaluation est équitable sur tous les biais demandés, retourner "biais": [] et un verdict positif.
+- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+
+
+# L'ÉVALUATION D'EXEMPLE de l'écran « Équité d'une évaluation », ÉCRITE À LA DEMANDE du prof,
+# pour son couple, ancrée sur les extraits de son référentiel — le geste de ses deux frères.
+#
+# IL A LE DROIT DE NE PAS ÉCRIRE, et il le sait : le marqueur ci-dessous lui donne une sortie
+# quand les extraits ne suffisent pas à savoir ce que la matière recouvre à ce niveau. Une
+# évaluation inventée hors du programme serait pire qu'une absence d'évaluation — le prof la
+# croirait tirée de SA formation.
+#
+# Les défauts glissés dedans sont ceux du CATALOGUE ({criteres}, monté par l'appelant depuis
+# `equite_criteres`) : l'exemple et l'analyse décrivent donc les mêmes biais, puisqu'ils les
+# lisent à la même source. Une liste recopiée ici aurait divergé au premier renommage.
+PROMPT_EQUITE_EXEMPLE_GENERE = """Tu écris UNE ÉVALUATION COURTE VOLONTAIREMENT INÉQUITABLE, qui servira de démonstration à un outil d'analyse d'équité.
+
+Contexte :
+- Matière : {matiere}
+- Niveau / formation : {niveau}
+
+Les EXTRAITS DU RÉFÉRENTIEL OFFICIEL ci-dessous disent ce que cette matière recouvre réellement à ce niveau : ils te sont donnés pour que tu n'aies pas à l'interpréter. Un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation — ce sont les extraits qui le disent, pas ton intuition.
+
+{referentiel}
+
+Ton évaluation doit ressembler à un vrai sujet donné par un enseignant de cette matière à ce niveau : même vocabulaire métier, même longueur, même ton, points indiqués entre parenthèses après chaque question. Un lecteur pressé ne doit rien y voir d'anormal — les défauts d'équité sont ceux qu'on commet sans le vouloir, jamais des provocations.
+
+Tu y glisses délibérément des défauts relevant des biais suivants, et de ceux-là seulement :
+{criteres}
+
+Contraintes :
+- UNE évaluation courte : un intitulé, une durée annoncée, 3 ou 4 questions, 150 mots environ. Pas un sujet d'examen complet.
+- L'évaluation doit porter sur ce que disent les extraits ci-dessus. Ne transpose pas un intitulé dans une autre discipline parce qu'il y ressemble.
+- Trois biais suffisent : un sujet de 150 mots qui les cumulerait tous ne ressemblerait plus à rien de crédible.
+- Chaque défaut doit être réellement présent dans le texte, repérable en citant un passage exact.
+- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts : le sujet doit se lire comme un sujet ordinaire.
+- Le contenu doit être exact du point de vue de la discipline : une évaluation inéquitable, jamais une évaluation fausse.
+- Ne vise JAMAIS un groupe d'élèves de façon insultante. Un biais d'équité est un implicite ordinaire — un contexte de vacances, un matériel supposé, un temps trop court — pas une moquerie.
+
+SI LES EXTRAITS NE TE PERMETTENT PAS d'écrire une évaluation juste du point de vue de la discipline — trop courts, hors sujet, ou muets sur ce qui s'enseigne réellement — n'invente RIEN. Réponds alors exactement ceci, et rien d'autre :
+=== PAS D'EXEMPLE ===
+Raison : (une phrase disant ce qui manque, adressée au professeur)
+
+Format de réponse : l'évaluation, ET RIEN D'AUTRE — aucun titre ajouté, aucun préambule, aucune liste des défauts, aucune remarque de ta part. Ce texte part tel quel dans la zone de saisie du professeur."""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Analyse de l'énoncé du prof",
@@ -777,6 +872,30 @@ PROMPTS = {
         "categorie": "fonctionnalites",
         "fonctionnalite": "analyse_consigne",
         "default": PROMPT_CONSIGNE_EXEMPLE_GENERE,
+    },
+    # Le TROISIEME frere : meme moule que "ambiguites" (des criteres coches, lus en base),
+    # pour une question qui n'est pas la meme — non plus « est-ce comprehensible ? » mais
+    # « est-ce que tous les eleves partent d'aussi loin ? ».
+    "equite": {
+        "label": "Analyse de l'équité d'une évaluation",
+        "onglet": "Analyse de l'équité",
+        "role": "C'est LUI qui analyse : il relit l'évaluation collée par le professeur (l'énoncé, et le barème s'il est fourni) et rend les biais trouvés parmi ceux qu'il a cochés. Il part au modèle à chaque clic sur « Analyser l'évaluation ».",
+        "placeholders": ["matiere", "niveau", "texte", "bareme", "criteres"],
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "analyse_equite",
+        "default": PROMPT_EQUITE,
+    },
+    # Le jumeau de « ambiguite_exemple_genere » et de « consigne_exemple_genere », cote equite :
+    # ecrit A LA DEMANDE DU PROF, pour SON couple, ancre sur les extraits de son referentiel. Un
+    # clic, un appel, un texte pose dans la zone — rien n'est range en base.
+    "equite_exemple_genere": {
+        "label": "Exemple d'évaluation — écrit à la demande du professeur",
+        "onglet": "Exemple de l'équité",
+        "role": "Il n'analyse RIEN : il écrit à la volée l'évaluation d'exemple que le professeur demande par « Propose-moi un exemple », ancrée sur les extraits du référentiel de son couple. Il part au modèle à chaque clic.",
+        "placeholders": ["matiere", "niveau", "criteres", "referentiel"],
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "analyse_equite",
+        "default": PROMPT_EQUITE_EXEMPLE_GENERE,
     },
     "seance_standard": {
         "label": "Séance (Mes contenus) — mode standard",

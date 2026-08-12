@@ -64,6 +64,20 @@ def build_ambiguite_exemple_prompt(db: Session, chunks: list[dict], matiere: str
     )
 
 
+def build_equite_exemple_prompt(db: Session, chunks: list[dict], matiere: str, niveau: str,
+                                criteres: str) -> str:
+    """Prompt — écrit à la demande du prof UNE évaluation d'exemple VOLONTAIREMENT INÉQUITABLE
+    pour son couple, ancrée sur les extraits de son référentiel.
+
+    Bâti sur `build_ambiguite_exemple_prompt`, `criteres` compris : les biais d'équité se cochent
+    comme les types d'ambiguïté, donc l'appelant monte le bloc depuis le catalogue lu en base, et
+    l'exemple décrit exactement les mêmes biais que l'analyse."""
+    return get_prompt(db, "equite_exemple_genere").format(
+        matiere=matiere, niveau=niveau, criteres=criteres,
+        referentiel=_bloc_referentiel(chunks, niveau),
+    )
+
+
 def build_consigne_exemple_prompt(db: Session, chunks: list[dict], matiere: str,
                                   niveau: str) -> str:
     """Prompt — écrit à la demande du prof UNE consigne d'exemple VOLONTAIREMENT IMPARFAITE pour

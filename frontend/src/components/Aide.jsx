@@ -6,6 +6,7 @@ import { AXES_CONSIGNE } from '../utils/axesConsigne.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import useIsMobile from '../hooks/useIsMobile'
+import Aschool from './Aschool.jsx'
 import { couleurStatut } from '../utils/statutsFeedback.js'
 import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
 import { listeFormats } from '../utils/piecesJointes.js'
@@ -655,6 +656,90 @@ const sections = [
     ),
   },
   {
+    id: 'equite',
+    nav: "Vérifier l'équité d'une évaluation",
+    titre: "Vérifier l'équité d'une évaluation",
+    Icon: IconAlert,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">Ce que cet outil cherche</p>
+          <p>Une évaluation est inéquitable quand elle demande quelque chose <strong>en plus</strong> de la
+          compétence évaluée, et que ce quelque chose n'est pas également disponible à tous vos élèves :
+          un savoir qui n'a pas été enseigné, une expérience de vie supposée, un ordinateur à la maison,
+          une longueur de lecture qui prend le pas sur la matière.</p>
+          <p className="text-xs text-gray-400 italic mt-2">Difficile n'est pas injuste. Une évaluation
+          exigeante reste équitable tant que l'exigence porte sur ce qu'elle prétend mesurer.</p>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Collez votre évaluation, et son barème</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Le sujet complet : intitulé, questions, documents — pas une consigne isolée</li>
+            <li>Le <strong>barème est facultatif</strong>, mais il change ce qui peut être vu : trois biais
+            ne se trouvent que là — un barème qui ne suit pas ce que l'énoncé demande, une même erreur qui
+            coûte des points deux fois, une question dont l'échec bloque toutes les suivantes</li>
+            <li>Sans barème, <Aschool /> n'en suppose aucun : il vous le dit une fois et travaille sur le reste</li>
+            <li><strong>Pas de sujet sous la main ?</strong> Cliquez sur <strong>Propose-moi un exemple</strong> :
+            <Aschool /> écrit sur-le-champ une évaluation de votre matière et de votre niveau, tirée du programme
+            officiel, avec de vrais défauts d'équité dedans</li>
+          </ul>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. Cochez les biais à chercher</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Neuf biais, aucun coché au départ : c'est vous qui dites ce que vous voulez faire relire</li>
+            <li>Survolez une case pour lire ce qu'elle repère</li>
+            <li><Aschool /> ne remonte QUE les biais demandés, et les traite un par un</li>
+          </ul>
+          <p className="text-xs text-gray-400 italic mt-2">La liste se lit sur l'écran, pas ici : elle vient
+          du catalogue de l'application, à la même source que celle sur laquelle l'analyse travaille. La
+          recopier dans cette fiche en ferait une seconde vérité, qui finirait par diverger.</p>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. Récupérez le rapport</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Un <strong>verdict global</strong> sur l'équité de l'évaluation</li>
+            <li>Pour chaque biais : le passage en cause, <strong>quels élèves sont pénalisés</strong>, et une
+            correction concrète</li>
+            <li>Certains biais ne citent aucun passage — un temps trop court ou un barème absent portent sur
+            l'ensemble du sujet, pas sur une phrase</li>
+            <li>Les corrections retirent l'obstacle <strong>sans baisser l'exigence</strong></li>
+            <li>Le bouton <strong>HTML</strong> ouvre le rapport mis en forme, prêt à imprimer</li>
+          </ul>
+          <p className="text-xs text-gray-400 italic mt-2">Aucun biais trouvé ne veut pas dire « évaluation
+          parfaite » : cela veut dire que sur les biais cochés, rien n'a été repéré.</p>
+        </div>
+        <div className="rounded-md p-3" style={{ background: '#fffbeb', borderLeft: '3px solid #fcd34d' }}>
+          <p className="text-xs" style={{ color: '#78350f' }}><strong style={{ color: '#92400e' }}>Et l'effet
+          de halo ? Les écarts entre correcteurs ?</strong><br />
+          Ce sont les biais les mieux établis de l'évaluation scolaire, et ils ne sont pas dans le sujet :
+          ils sont dans la correction. L'effet de halo (ce que vous savez déjà de l'élève colore sa note),
+          l'écart entre deux correcteurs sur une même copie, la dérive de sévérité au fil du paquet, l'effet
+          de contraste d'une copie sur la suivante. Aucun ne se voit dans un sujet collé : ils demandent
+          plusieurs copies, plusieurs correcteurs, ou du temps. <strong><Aschool /> ne les cherche pas</strong> et
+          ne prétendra jamais les avoir trouvés.<br /><br />
+          Ce qui les réduit vraiment ne demande pas d'outil : corriger sans voir le nom de l'élève, mélanger
+          les copies avant de commencer, corriger exercice par exercice plutôt que copie par copie, et
+          surtout écrire des critères précis AVANT de corriger — c'est la recommandation constante des
+          travaux sur le sujet.</p>
+        </div>
+        <div className="rounded-md p-3" style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1' }}>
+          <p className="text-xs text-gray-500"><strong className="text-gray-600">Différence avec les deux
+          autres analyses</strong><br />
+          « Détecter les ambiguïtés » demande <em>est-ce compréhensible ?</em>, « Analyser une consigne »
+          <em> est-ce bien formulé ?</em>. Celui-ci demande <em>tous mes élèves partent-ils d'aussi loin ?</em>
+          Une évaluation peut être parfaitement claire et rester inéquitable — c'est même le cas le plus
+          fréquent.</p>
+        </div>
+        <p className="text-xs text-gray-400 italic mt-1">Conseil : passez-y vos évaluations notées, celles
+        qui comptent. C'est là qu'un implicite coûte le plus cher à l'élève qui ne le partage pas.</p>
+      </div>
+    ),
+  },
+  {
     id: 'apprentissage',
     nav: 'aSchool apprend votre style',
     titre: 'aSchool apprend votre style',
@@ -846,7 +931,7 @@ const CATEGORIES = [
   { label: 'Premiers pas', ids: ['compte', 'profil-setup', 'premiere-activite'] },
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
   { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'conseils'] },
-  { label: 'Analyser', ids: ['ambiguites', 'consignes'] },
+  { label: 'Analyser', ids: ['ambiguites', 'consignes', 'equite'] },
   { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
   { label: 'Problèmes', ids: ['problemes'] },
 ]

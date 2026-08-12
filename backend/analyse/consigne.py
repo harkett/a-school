@@ -1,11 +1,8 @@
-import json
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Cookie
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.securite import comptes
+from backend.analyse.commun import email_de_session, json_du_modele
 from backend.core.database import get_db, schema_de_session
 from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import ToolUsageLog, User
@@ -41,35 +38,6 @@ class ConsigneResponse(BaseModel):
 
 
 # Prompt déplacé dans backend/core/llm_prompts.py (administrable en base, lu via get_prompt).
-
-
-def _get_email(aschool_access: str | None) -> str:
-    if not aschool_access:
-        raise HTTPException(401, "Non connecté.")
-    email = comptes.verify_access_token(aschool_access)
-    if not email:
-        raise HTTPException(401, "Session expirée.")
-    return email
-
-
-def _parse_json(raw: str) -> dict:
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        pass
-    m = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group(1))
-        except Exception:
-            pass
-    m = re.search(r'\{.*\}', raw, re.DOTALL)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            pass
-    raise ValueError("Réponse non parseable en JSON")
 
 
 # Le prompt d'exemple a le DROIT DE NE PAS ÉCRIRE : quand les extraits du référentiel ne
@@ -114,7 +82,7 @@ def api_exemple_consigne_genere(
     Règle d'or : pas de référentiel pour ce couple, ou rien d'assez pertinent au seuil
     (`referentiels.score_min`) → available:false, et `generate` n'est PAS appelé (rien payé).
     On n'invente RIEN — et le modèle lui-même a le droit de s'arrêter là (voir le marqueur)."""
-    email = _get_email(aschool_access)
+    email = email_de_session(aschool_access)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
@@ -154,7 +122,7 @@ def api_analyser_consigne(
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    email = _get_email(aschool_access)
+    email = email_de_session(aschool_access)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
@@ -180,7 +148,7 @@ def api_analyser_consigne(
                        max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db),
                        retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
                        outil="consigne")
-        data = _parse_json(raw)
+        data = json_du_modele(raw)
     except LLMRateLimitError as e:
         raise HTTPException(429, str(e))  # surchargé/trop de demandes : transitoire, pas une panne
     except ValueError:
