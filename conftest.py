@@ -170,8 +170,22 @@ def _fonctionnalites_de_la_migration():
             for c, l, a, o in module.FONCTIONNALITES]
 
 
+# `equite_criteres` : les neuf biais du sujet, LUS DANS LEUR MIGRATION comme
+# `prompt_fonctionnalites` ci-dessus. Les recopier ici en ferait une deuxième liste, qui
+# dériverait au premier biais renommé — et les tests continueraient de passer sur l'ancienne.
+def _criteres_equite_de_la_migration():
+    import importlib.util
+    chemin = _RACINE / "alembic" / "versions" / "b8e2d4a7c9f1_criteres_equite_en_base.py"
+    spec = importlib.util.spec_from_file_location("_mig_equite_criteres", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return [{"code": c, "label": l, "description": d, "verification": v, "ordre": o, "actif": True}
+            for c, l, d, v, o in module._CRITERES]
+
+
 _CATALOGUES_SEED = {
     "prompt_fonctionnalites": _fonctionnalites_de_la_migration(),
+    "equite_criteres": _criteres_equite_de_la_migration(),
     "feedback_statuts": [
         {"code": "nouveau", "label": "Nouveau", "modifiable": True, "ordre": 0, "description": "Reçu, pas encore traité."},
         {"code": "en_cours", "label": "En cours", "modifiable": True, "ordre": 1, "description": "Pris en charge par l'équipe."},
@@ -367,6 +381,15 @@ def _seed_catalogues():
             conn.execute(
                 text(
                     "INSERT INTO ambiguite_criteres (code, label, description, verification, ordre, actif) "
+                    "VALUES (:code, :label, :description, :verification, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+        # `equite_criteres` : même forme que `ambiguite_criteres`, l'écran jumeau.
+        for row in _CATALOGUES_SEED["equite_criteres"]:
+            conn.execute(
+                text(
+                    "INSERT INTO equite_criteres (code, label, description, verification, ordre, actif) "
                     "VALUES (:code, :label, :description, :verification, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
                 ),
                 row,
