@@ -54,7 +54,10 @@ for r in $NEUVES; do
     mv alembic/versions/${r}_*.py /tmp/versions_neuves/ 2>/dev/null || true
 done
 git checkout "$ANCIEN" -- alembic/versions/
-echo "  migrations supprimees restaurees, $(echo $NEUVES | wc -w) nouvelles mises de cote"
+# ON NOTE CE QU'ON VIENT D'AJOUTER. L'etape 5 doit retirer exactement ces fichiers-la, ni plus ni
+# moins : un `git clean` balaierait aussi une migration en cours d'ecriture qui trainerait.
+git diff --cached --name-only --diff-filter=A HEAD -- alembic/versions/ > /tmp/versions_restaurees.txt
+echo "  $(wc -l < /tmp/versions_restaurees.txt) migrations restaurees, $(echo $NEUVES | wc -w) nouvelles mises de cote"
 
 echo ""
 echo "=== [3/6] $BASE_REELLE : retour au tronc commun ==="
@@ -72,9 +75,29 @@ done
 
 echo ""
 echo "=== [5/6] Fichiers de migration : etat neuf ==="
-git checkout HEAD -- alembic/versions/
+# `git checkout HEAD -- <chemin>` NE SUPPRIME PAS les fichiers absents de HEAD. Les migrations
+# restaurees a l'etape 2 sont dans l'index, donc elles SURVIVENT au checkout : Alembic voit alors
+# deux tetes et refuse de remonter (« Multiple head revisions are present »). Mesure le
+# 12/08/2026, le script s'y est casse.
+#
+# On retire NOMMEMENT ce que l'etape 2 a ajoute, plutot qu'un `git clean` qui emporterait aussi
+# une migration en cours d'ecriture. Les fichiers mis de cote reviennent AVANT le checkout : ceux
+# qui existent dans le depot sont alors normalises par lui, au lieu d'etre reecrits apres coup —
+# sinon `git status` les voit modifies alors que rien n'a change d'autre que leurs fins de ligne.
+git reset -q HEAD -- alembic/versions/
+[ -s /tmp/versions_restaurees.txt ] && xargs -r rm -f < /tmp/versions_restaurees.txt
 mv /tmp/versions_neuves/*.py alembic/versions/ 2>/dev/null || true
+git checkout -f HEAD -- alembic/versions/
+[ -z "$(git status --porcelain alembic/versions/)" ] || {
+    echo "  ARRET : alembic/versions/ n'est pas revenu a l'etat du depot."
+    git status --short alembic/versions/
+    exit 1
+}
+# UNE SEULE TETE, ou on s'arrete. Remonter avec deux tetes echoue de toute facon, mais l'erreur
+# d'Alembic ne dit pas d'ou elles viennent — celle-ci si.
+tetes=$($ALEMBIC heads 2>/dev/null | grep -c "(head)")
 echo -n "  tete : "; $ALEMBIC heads 2>/dev/null | tail -1
+[ "$tetes" -eq 1 ] || { echo "  ARRET : $tetes tetes au lieu d'une."; exit 1; }
 
 echo ""
 echo "=== [6/6] Remontee vers la tete ==="
