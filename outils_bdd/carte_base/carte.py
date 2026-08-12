@@ -109,7 +109,7 @@ DOMAINS = {
          "failed_login_attempts", "user_sessions", "admin_audit_log", "admin_alerts"]),
     "peda":     ("Structure pedagogique", "#16a34a", "#dcfce7", "#14532d",
         ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
-         "seance_styles", "langues_lv", "ambiguite_criteres"]),
+         "seance_styles", "langues_lv", "ambiguite_criteres", "equite_criteres"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
         ["referentiels", "referentiel_chunks",
          "types_activite", "referentiel_type_precisions"]),

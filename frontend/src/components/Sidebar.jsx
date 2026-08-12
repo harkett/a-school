@@ -287,7 +287,11 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
                     la donnait pour « bientôt » et la grisait, alors que l'Accueil l'ouvrait
                     normalement. Deux écrans, deux vérités — c'est le menu qui se trompait. */}
                 {subNavItem('consigne', 'Consignes', "Analyser la qualité didactique d'une consigne")}
-                {subNavItem('equite', 'Équité', "Bientôt disponible — auditer l'équité d'une évaluation", { disabled: true })}
+                {/* Équité EXISTE (composant Equite + backend analyse/equite.py) : l'entrée était
+                    grisée et sa bulle annonçait « bientôt », comme celle des Consignes avant
+                    elle. La bulle dit maintenant ce que l'écran fait vraiment — chercher les
+                    biais du SUJET, ceux de la correction ne se voyant pas dans un énoncé. */}
+                {subNavItem('equite', 'Équité', "Repérer ce qui pénalise certains élèves pour une raison étrangère à ce qui est évalué")}
               </div>
             )}
           </div>
@@ -392,21 +396,10 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         {navItem('apropos', 'À propos', IconInfo, 'Informations sur aSchool — version, contact')}
       </nav>
 
-      {!collapsed && (
-        <div className="shrink-0" style={{
-          margin: '0 8px 10px',
-          padding: '8px 10px',
-          borderRadius: '8px',
-          background: '#f0f7ff',
-          border: '1px solid #bfdbfe',
-          fontSize: '11px',
-        }}>
-          <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 4 }}>En développement</div>
-          <div style={{ color: '#3b82f6', lineHeight: 1.6 }}>
-            · Détecter les biais d'équité
-          </div>
-        </div>
-      )}
+      {/* L'encart « En développement » a été retiré le 12/08/2026 : il n'annonçait plus qu'une
+          seule chose, « Détecter les biais d'équité », et cet écran existe désormais. Un cadre
+          qui promet ce qui est déjà livré se lit comme une page pas à jour. Les fonctionnalités
+          à venir ont déjà leur place : l'entrée « Bientôt disponible » du menu ci-dessus. */}
     </aside>
   )
 }

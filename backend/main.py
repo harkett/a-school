@@ -42,7 +42,7 @@ from backend.contenu import activites, mes_contenus
 from backend.prof import demo, profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
-from backend.analyse import ambiguites, consigne
+from backend.analyse import ambiguites, consigne, equite
 from backend.dictee import ocr, transcribe
 from backend.systeme import maintenance, mise_en_route
 
@@ -155,6 +155,7 @@ app.include_router(maintenance.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(votes.router, prefix="/api")
 app.include_router(ambiguites.router, prefix="/api")
+app.include_router(equite.router, prefix="/api")
 app.include_router(consigne.router, prefix="/api")
 app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")

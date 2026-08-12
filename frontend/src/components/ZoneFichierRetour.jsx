@@ -3,12 +3,7 @@
 // laisser là-bas aurait fait dépendre le formulaire de l'écran d'historique.
 import { useState, useEffect, useRef } from 'react'
 import { showError } from '../errorDialog'
-import { listeFormats } from '../utils/piecesJointes.js'
-
-export function formatBytes(b) {
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} Ko`
-  return `${(b / 1024 / 1024).toFixed(1)} Mo`
-}
+import { formatBytes, listeFormats } from '../utils/piecesJointes.js'
 
 // ── Pièces jointes — bouton + drag & drop ────────────────────────────────────
 // Les refus de pièce jointe passent par la boîte de dialogue comme tout le reste (règle

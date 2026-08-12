@@ -55,6 +55,22 @@ export const IconConsigne = ({ taille = 24 }) => (
   </svg>
 )
 
+// Une balance a deux plateaux, en equilibre — le titre de l'ecran « Equite d'une evaluation ».
+// Ses deux freres ont la leur (la loupe des ambiguites, la bulle des consignes) ; sans celle-ci,
+// le troisieme titre serait le seul nu. Meme gabarit que les deux autres (24 px, trait 2).
+export const IconEquite = ({ taille = 24 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={taille} height={taille} viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    style={{ flexShrink: 0 }}>
+    <line x1="12" y1="4" x2="12" y2="21"/>
+    <line x1="8" y1="21" x2="16" y2="21"/>
+    <line x1="4" y1="7" x2="20" y2="7"/>
+    <circle cx="12" cy="4" r="1.4"/>
+    <path d="M4 7 1.5 13a2.5 2.5 0 0 0 5 0z"/>
+    <path d="M20 7l-2.5 6a2.5 2.5 0 0 0 5 0z"/>
+  </svg>
+)
+
 export const IconAnalyser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <circle cx="11" cy="11" r="8"/>
