@@ -15,6 +15,7 @@ import ApercuHtmlModale from './ApercuHtmlModale.jsx'
 import InfoGuide from './InfoGuide.jsx'
 import { aideAmbiguites } from '../utils/aideAmbiguites.js'
 import { documentDepuisHtml } from '../utils/apercuHtml.js'
+import { isTexteGibberish } from '../utils/texteGibberish.js'
 import { IconAmbiguites, IconAnalyser, Spinner } from './icones.jsx'
 
 
@@ -73,21 +74,6 @@ function rapportEnHtml(resultat) {
       + `</div>`)
   })
   return blocs.join('')
-}
-
-function isTexteGibberish(t) {
-  const words = t.trim().split(/\s+/).filter(w => w.length > 2)
-  if (words.length < 2) return false
-  const vowels = /[aeiouyàâäéèêëîïôöùûüæœAEIOUYÀÂÄÉÈÊËÎÏÔÖÙÛÜÆŒ]/
-  let suspect = 0
-  for (const word of words) {
-    const alpha = word.replace(/[^a-zA-ZÀ-ÿ]/g, '')
-    if (alpha.length > 8) {
-      const vRatio = alpha.split('').filter(c => vowels.test(c)).length / alpha.length
-      if (vRatio < 0.15) suspect++
-    }
-  }
-  return suspect / words.length > 0.25
 }
 
 // Le seul code que l'écran connaisse : celui qui ouvre le champ de texte libre. Les libellés,

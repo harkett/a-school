@@ -134,6 +134,42 @@ Règles :
 - Ne signaler que les vrais problèmes. Ne pas inventer de défauts.
 - Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
 
+# Écrit À LA DEMANDE DU PROF, pour SON couple : il clique, la consigne d'exemple arrive dans la
+# zone, rien n'est rangé en base. Le jumeau de PROMPT_AMBIGUITE_EXEMPLE_GENERE, à une différence
+# près : ce que le prof découvre ici n'est PAS un énoncé entier mais UNE consigne isolée — c'est
+# tout ce que cet écran sait analyser.
+#
+# Les cinq axes sont recopiés ci-dessous depuis PROMPT_CONSIGNE. Ce n'est pas un oubli : ils
+# n'ont pas encore de source unique. Ce bloc deviendra un repère {axes} le jour où elle existera.
+PROMPT_CONSIGNE_EXEMPLE_GENERE = """Tu écris UNE CONSIGNE D'EXERCICE VOLONTAIREMENT IMPARFAITE, qui servira de démonstration à un outil d'analyse de consignes.
+
+Contexte :
+- Matière : {matiere}
+- Niveau / formation : {niveau}
+
+Les EXTRAITS DU RÉFÉRENTIEL OFFICIEL ci-dessous disent ce que cette matière recouvre réellement à ce niveau : ils te sont donnés pour que tu n'aies pas à l'interpréter. Un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation — ce sont les extraits qui le disent, pas ton intuition.
+
+{referentiel}
+
+Ta consigne doit ressembler à une vraie consigne donnée par un enseignant de cette matière à ce niveau : même vocabulaire métier, même longueur, même ton. Un lecteur pressé ne doit rien y voir d'anormal — les défauts sont ceux qu'on commet sans le vouloir, pas des pièges grossiers.
+
+Tu y glisses délibérément des défauts relevant des axes suivants, et de ceux-là seulement :
+- Clarté linguistique — formulation floue, vague, trop longue ou mal construite
+- Précision didactique — la consigne ne dit pas exactement ce qui est attendu ni évalué
+- Ambiguïté conceptuelle — mot à double sens, terme polysémique (« analyser », « expliquer », « produit », « simplifier »…)
+- Structure logique — étape implicite, tâches multiples non séparées, saut logique
+- Risque d'erreurs typiques — formulation qui provoque une erreur récurrente chez les élèves de ce niveau
+
+Contraintes :
+- UNE SEULE CONSIGNE, 2 phrases maximum, 40 mots environ. Pas un exercice, pas un sujet, pas une série de questions : l'instruction adressée à l'élève, et rien d'autre.
+- La consigne doit porter sur ce que disent les extraits ci-dessus. Ne transpose pas un intitulé dans une autre discipline parce qu'il y ressemble.
+- Chaque défaut doit être réellement présent dans le texte, repérable en citant un extrait exact.
+- Trois axes touchés suffisent : une consigne de 40 mots qui cumulerait les cinq ne ressemblerait plus à rien de crédible.
+- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts : la consigne doit se lire comme une consigne ordinaire.
+- Le contenu doit être exact du point de vue de la discipline : une consigne mal formulée, jamais une consigne fausse.
+
+Format de réponse : la consigne, ET RIEN D'AUTRE — aucun titre, aucun préambule, aucune liste des défauts, aucune remarque de ta part. Ce texte part tel quel dans la zone de saisie du professeur."""
+
 
 # ── Séance du monde « Mes contenus » — un prompt PAR MODE (les 4 pastilles de l'écran). ──
 # Le squelette markdown (phases minutées) est commun ; les précisions optionnelles du formulaire
@@ -702,7 +738,7 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 PROMPTS = {
     "ambiguites": {
         "label": "Analyse de l'énoncé du prof",
-        "onglet": "Analyse de l'énoncé",
+        "onglet": "Analyse de l'ambiguïté",
         "role": "C'est LUI qui analyse : il relit l'énoncé collé par le professeur et rend les ambiguïtés trouvées. Il part au modèle à chaque clic sur « Analyser l'énoncé ».",
         "placeholders": ["matiere", "niveau", "texte", "criteres", "critere_libre"],
         "categorie": "fonctionnalites",
@@ -714,7 +750,7 @@ PROMPTS = {
     # qu'il veut.
     "ambiguite_exemple_genere": {
         "label": "Exemple d'énoncé — écrit à la demande du professeur",
-        "onglet": "Exemple d'énoncé",
+        "onglet": "Exemple de l'ambiguïté",
         "role": "Il n'analyse RIEN : il écrit à la volée l'énoncé d'exemple que le professeur demande par « Propose-moi un exemple », ancré sur les extraits du référentiel de son couple. Il part au modèle à chaque clic.",
         "placeholders": ["matiere", "niveau", "criteres", "referentiel"],
         "categorie": "fonctionnalites",
@@ -723,11 +759,24 @@ PROMPTS = {
     },
     "consigne": {
         "label": "Analyse de consigne",
-        "onglet": "Analyse de consigne",
+        "onglet": "Analyse de la consigne",
+        "role": "C'est LUI qui analyse : il relit la consigne collée par le professeur, la juge sur les cinq axes didactiques et en rend une version réécrite. Il part au modèle à chaque clic sur « Analyser la consigne ».",
         "placeholders": ["matiere", "niveau", "consigne"],
         "categorie": "fonctionnalites",
         "fonctionnalite": "analyse_consigne",
         "default": PROMPT_CONSIGNE,
+    },
+    # Le jumeau de « ambiguite_exemple_genere », côté consignes : écrit À LA DEMANDE DU PROF,
+    # pour SON couple, ancré sur les extraits de son référentiel. Un clic, un appel, un texte
+    # posé dans la zone — rien n'est rangé en base.
+    "consigne_exemple_genere": {
+        "label": "Exemple de consigne — écrit à la demande du professeur",
+        "onglet": "Exemple de la consigne",
+        "role": "Il n'analyse RIEN : il écrit à la volée la consigne d'exemple que le professeur demande par « Propose-moi un exemple », ancrée sur les extraits du référentiel de son couple. Il part au modèle à chaque clic.",
+        "placeholders": ["matiere", "niveau", "referentiel"],
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "analyse_consigne",
+        "default": PROMPT_CONSIGNE_EXEMPLE_GENERE,
     },
     "seance_standard": {
         "label": "Séance (Mes contenus) — mode standard",

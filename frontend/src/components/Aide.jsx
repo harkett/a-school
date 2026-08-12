@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments, makeSnippet } from '../utils/aideSearch.js'
 import { GUIDE_CREER } from '../utils/aideCreer.js'
+import { AXES_CONSIGNE } from '../utils/axesConsigne.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
 import useIsMobile from '../hooks/useIsMobile'
@@ -611,6 +612,49 @@ const sections = [
     ),
   },
   {
+    id: 'consignes',
+    nav: 'Analyser une consigne',
+    titre: 'Analyser la qualité didactique d\'une consigne',
+    Icon: IconAlert,
+    contenu: (
+      <div className="flex flex-col gap-5 text-sm text-gray-600">
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">1. Collez UNE consigne</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Une consigne = l'instruction adressée à l'élève, pas un exercice entier ni une série de questions</li>
+            <li>Par exemple : « Analysez le personnage en faisant référence au texte. »</li>
+            <li><strong>Pas de consigne sous la main ?</strong> Cliquez sur <strong>Propose-moi un exemple</strong> (en haut à droite du champ) : aSchool écrit sur-le-champ une consigne de votre matière et de votre niveau, tirée du programme officiel, avec de vrais défauts dedans.</li>
+          </ul>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">2. Les cinq axes examinés</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            {AXES_CONSIGNE.map(a => (
+              <li key={a.label}><strong>{a.label}</strong> — {a.description}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-400 italic mt-2">Les cinq axes sont examinés à chaque analyse : ils ne se décochent pas. L'outil ne se contente pas de lister des remarques, il réécrit votre consigne — un axe mis de côté laisserait passer un défaut connu dans la version réécrite.</p>
+        </div>
+        <hr className="border-gray-100" />
+        <div>
+          <p className="font-semibold text-gray-700 mb-2">3. Récupérez le rapport</p>
+          <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
+            <li>Un <strong>verdict global</strong> sur la qualité de la consigne</li>
+            <li>Pour chaque point : l'axe concerné, sa gravité, l'extrait exact, le problème et une suggestion concrète</li>
+            <li>La <strong>consigne optimisée</strong> : votre consigne entièrement réécrite, prête à copier</li>
+            <li>Le bouton <strong>HTML</strong> ouvre le rapport mis en forme, prêt à imprimer</li>
+          </ul>
+        </div>
+        <div className="rounded-md p-3" style={{ background: '#f8fafc', borderLeft: '3px solid #cbd5e1' }}>
+          <p className="text-xs text-gray-500"><strong className="text-gray-600">Différence avec « Détecter les ambiguïtés »</strong><br />
+          Le détecteur d'ambiguïtés relit un énoncé ENTIER et vous laisse cocher ce qu'il doit chercher. L'analyseur de consignes se concentre sur UNE consigne : il va plus loin sur la précision didactique et la structure de l'instruction, et il vous en rend une version réécrite.</p>
+        </div>
+        <p className="text-xs text-gray-400 italic mt-1">Conseil : passez-y les consignes de vos évaluations — c'est là qu'une formulation floue coûte le plus cher à l'élève.</p>
+      </div>
+    ),
+  },
+  {
     id: 'apprentissage',
     nav: 'aSchool apprend votre style',
     titre: 'aSchool apprend votre style',
@@ -802,7 +846,7 @@ const CATEGORIES = [
   { label: 'Premiers pas', ids: ['compte', 'profil-setup', 'premiere-activite'] },
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
   { label: 'Créer', ids: ['comment', 'dictee', 'ocr', 'conseils'] },
-  { label: 'Analyser', ids: ['ambiguites'] },
+  { label: 'Analyser', ids: ['ambiguites', 'consignes'] },
   { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
   { label: 'Problèmes', ids: ['problemes'] },
 ]

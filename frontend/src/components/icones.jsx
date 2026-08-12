@@ -12,9 +12,13 @@
 //
 // CE QUI N'EST PAS ICI, et pourquoi : trois noms recouvrent DEUX DESSINS DIFFÉRENTS selon
 // l'écran — IconTxt est une flèche vers le haut dans TexteSource (importer) et vers le bas
-// dans ZoneResultat (télécharger) ; les fusionner retournerait une flèche. Idem IconPdf et
-// IconExemple. Les versions minoritaires restent définies dans leur fichier. IconUser reste
-// local aussi : même tracé, mais bouts de traits arrondis d'un seul côté.
+// dans ZoneResultat (télécharger) ; les fusionner retournerait une flèche. Idem IconPdf. Les
+// versions minoritaires restent définies dans leur fichier. IconUser reste local aussi : même
+// tracé, mais bouts de traits arrondis d'un seul côté.
+//
+// IconExemple a quitté ce fichier le 12/08/2026 : le bouton « Tester un exemple » qui la
+// portait est devenu la rangée d'apport, et elle n'avait plus d'appelant. TexteSource garde le
+// sien, défini chez elle.
 
 
 export const Spinner = () => (
@@ -40,22 +44,23 @@ export const IconAmbiguites = ({ taille = 24 }) => (
   </svg>
 )
 
+// Une bulle d'instruction avec sa coche — le titre de l'ecran « Analyser une consigne ».
+// L'ecran n'avait aucune icone de titre, contrairement a son jumeau Ambiguites.
+export const IconConsigne = ({ taille = 24 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={taille} height={taille} viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    style={{ flexShrink: 0 }}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    <polyline points="9 11.5 11.2 13.7 15.5 9.4"/>
+  </svg>
+)
+
 export const IconAnalyser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <circle cx="11" cy="11" r="8"/>
     <line x1="21" y1="21" x2="16.65" y2="16.65"/>
     <line x1="11" y1="8" x2="11" y2="14"/>
     <line x1="8" y1="11" x2="14" y2="11"/>
-  </svg>
-)
-
-// Quatre paves — « Tester un exemple » des ecrans d'analyse. (TexteSource porte un AUTRE
-// dessin sous ce nom : il reste chez elle.)
-
-export const IconExemple = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
   </svg>
 )
 

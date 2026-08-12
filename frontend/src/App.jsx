@@ -25,6 +25,7 @@ import BientotDisponible from './components/BientotDisponible'
 import Accueil from './components/Accueil'
 import Ambiguites from './components/Ambiguites'
 import Consigne from './components/Consigne'
+import FenetreGuideConsigne from './components/FenetreGuideConsigne.jsx'
 import MonProfil from './components/MonProfil'
 import Notation from './components/Notation'
 import Login from './pages/Login'
@@ -427,6 +428,11 @@ function MainApp() {
     'ambiguites': () => (
       <FenetreGuideAmbiguites onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
     ),
+    // Sorti de la barre d'onglets de l'écran Consignes, comme celui des ambiguïtés : le guide
+    // vit dans le header, l'écran n'a plus qu'une seule chose à montrer.
+    'consigne': () => (
+      <FenetreGuideConsigne onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
     'seance': () => (
       <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
     ),
@@ -575,12 +581,11 @@ function MainApp() {
             <Ambiguites />
           )}
 
+          {/* Le couple ne descend plus en props : le header le porte déjà, et le serveur le
+              résout en base (`couple_de_travail`). L'écran affichait un encart « matière ·
+              niveau » qui redisait le bandeau du haut — son jumeau Ambiguïtés ne l'affiche pas. */}
           {page === 'consigne' && (
-            <Consigne
-              matiere={sessionMatiere}
-              niveau={params.niveau}
-              onNavigate={naviguer}
-            />
+            <Consigne />
           )}
 
           {page === 'equite' && (

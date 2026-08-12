@@ -64,6 +64,19 @@ def build_ambiguite_exemple_prompt(db: Session, chunks: list[dict], matiere: str
     )
 
 
+def build_consigne_exemple_prompt(db: Session, chunks: list[dict], matiere: str,
+                                  niveau: str) -> str:
+    """Prompt — écrit à la demande du prof UNE consigne d'exemple VOLONTAIREMENT IMPARFAITE pour
+    son couple, ancrée sur les extraits de son référentiel.
+
+    Le jumeau de `build_ambiguite_exemple_prompt`, à une différence : il n'a pas de `criteres` à
+    composer. Les cinq axes didactiques ne se cochent pas — ils sont examinés à chaque fois —
+    donc ils vivent dans le texte du prompt, pas dans un bloc monté par l'appelant."""
+    return get_prompt(db, "consigne_exemple_genere").format(
+        matiere=matiere, niveau=niveau, referentiel=_bloc_referentiel(chunks, niveau),
+    )
+
+
 def build_proposer_idee_prompt(db: Session, chunks: list[dict], type_label: str,
                                precision: str | None, niveau: str) -> str:
     """Prompt — propose UNE idée d'activité, formulée comme la DEMANDE COURTE que le prof
