@@ -94,7 +94,7 @@ const NAV_ITEMS = [
       </svg>
     ),
     items: [
-      { to: '/admin/ia/fournisseurs', label: 'Fournisseurs & modèles',
+      { to: '/admin/ia/fournisseurs', label: 'Fournisseurs',
         aide: 'Le CATALOGUE : quels fournisseurs d’IA sont raccordés, quels modèles ils offrent, et les bornes de chacun (fenêtre, longueur de réponse). C’est ici qu’on ajoute — pas ici qu’on choisit.' },
       // `prefix` : les cinq catégories restent des URL distinctes (les onglets de la page les
       // pointent), mais le menu ne montre plus qu'une entrée — qui doit rester allumée sur
@@ -104,7 +104,9 @@ const NAV_ITEMS = [
       { to: '/admin/parametres/generation', label: 'Génération',
         aide: 'Le RÉGLAGE : quel fournisseur et quel modèle sont en service, et comment ils répondent — longueur, température, coupure du flux, re-tentatives. C’est ici qu’on choisit dans le catalogue.' },
       { to: '/admin/ia/statistiques', label: 'Statistiques',
-        aide: 'Ce que l’IA a consommé — par modèle, par tâche, par période. Chantier à venir : rien n’est encore mesuré.' },
+        aide: 'Les TOTAUX : ce que l’IA a consommé, regroupé par modèle, par tâche et par jour. Pour la facture et les tendances — pas pour un appel précis.' },
+      { to: '/admin/ia/journal', label: 'Journal',
+        aide: 'Le DÉTAIL, appel par appel : la liste de toutes les demandes envoyées à l’IA, la plus récente en haut. Pour chacune : l’heure, la fonction du logiciel qui l’a demandée, le modèle qui a répondu, s’il est allé au bout ou s’il a été coupé en route, le temps qu’il a pris et ce que ça a coûté. C’est ici qu’on regarde quand une génération s’arrête au milieu ou quand un montant surprend. Le texte envoyé et la réponse n’y sont pas : le journal compte les appels, il ne conserve pas leur contenu.' },
     ],
   },
   // — Profs — les ENSEIGNANTS eux-mêmes. Séparé de « Communication » le 07/08/2026 : gérer un

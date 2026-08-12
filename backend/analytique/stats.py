@@ -6,7 +6,7 @@ from sqlalchemy import Integer, func
 
 from backend.core.database import get_db
 from backend.core.models_db import (
-    Activite, AiModele, ConnexionLog, OutilLlm, Seance, Sequence, UsageLlm, User,
+    Activite, AiFournisseur, AiModele, ConnexionLog, OutilLlm, Seance, Sequence, UsageLlm, User,
 )
 from backend.securite import comptes
 from backend.systeme.admin import _require_admin, get_minutes_par_activite, get_few_shot_seuil
@@ -455,4 +455,108 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
         "par_modele": par_modele,
         "par_outil": par_outil,
         "par_jour": par_jour,
+    }
+
+
+@router.get("/admin/ia/journal")
+def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
+                     limite: int = Query(100, ge=1, le=500),
+                     page: int = Query(1, ge=1),
+                     fournisseur: str = Query(""),
+                     db: Session = Depends(get_db), _=Depends(_require_admin)):
+    """Le JOURNAL : un appel par ligne, le plus récent en haut.
+
+    Pendant de `/admin/ia/usage`, qui ne rend que des cumuls. Les cumuls répondent « qu'a coûté la
+    semaine ? » ; ils ne répondent pas « que s'est-il passé sur CET appel de 14 h 03 ? ». Jusqu'ici
+    la seule façon de le voir était `docker logs` — c'est-à-dire pas depuis l'application.
+
+    Les lignes sont les MÊMES que celles des statistiques (table `usage_llm`) : aucun recomptage,
+    aucune autre source. Le coût est estimé ligne à ligne avec la grille du jour, comme ailleurs.
+    Pagination obligatoire : un journal grandit sans fin, et une page qui charge tout finit par ne
+    plus s'ouvrir du tout.
+
+    `fournisseur` : filtre facultatif, vide = tous. La liste des choix N'EST PAS écrite dans le
+    code — elle sort des lignes elles-mêmes (avec le libellé du catalogue `ai_fournisseurs` quand
+    il existe). Un fournisseur raccordé demain apparaît donc dans le filtre dès son premier appel,
+    sans une ligne à modifier. Et les compteurs sont comptés À LA LECTURE : un compteur tenu en
+    base coûterait une écriture à chaque appel IA pour une lecture rare, et dériverait dès qu'une
+    de ces écritures échoue — or celles d'usage échouent en silence, par construction."""
+    depuis = maintenant_utc() - timedelta(days=jours)
+    tarifs = _tarifs(db)
+    libelles = {o.outil: o.libelle for o in db.query(OutilLlm).all()}
+
+    # Compté SANS le filtre : les nombres de la liste déroulante doivent rester ceux de tous les
+    # fournisseurs, sinon choisir l'un d'eux mettrait tous les autres à zéro.
+    labels = {f.code: f.label for f in db.query(AiFournisseur).all()}
+    repartition = (db.query(UsageLlm.fournisseur.label("code"), func.count(UsageLlm.id).label("appels"))
+                     .filter(UsageLlm.created_at >= depuis)
+                     .group_by(UsageLlm.fournisseur).all())
+    fournisseurs = sorted(
+        [{"code": r.code, "libelle": labels.get(r.code) or r.code, "appels": r.appels}
+         for r in repartition],
+        key=lambda f: f["appels"], reverse=True)
+
+    conditions = [UsageLlm.created_at >= depuis]
+    if fournisseur:
+        conditions.append(UsageLlm.fournisseur == fournisseur)
+
+    base = db.query(UsageLlm).filter(*conditions)
+    total = base.count()
+    lignes = (base.order_by(UsageLlm.created_at.desc(), UsageLlm.id.desc())
+                  .offset((page - 1) * limite).limit(limite).all())
+
+    # COÛT TOTAL DU FILTRE — toutes pages confondues, pas seulement celle qu'on regarde. Additionner
+    # les seules lignes affichées donnerait un montant qui change en tournant les pages, c'est-à-dire
+    # un chiffre qui ne répond à aucune question.
+    #
+    # Groupé par MODÈLE parce qu'un tarif appartient à un modèle : mélanger les tokens de plusieurs
+    # modèles avant de multiplier inventerait le montant. Les rejeux du cache disque sont écartés —
+    # rien n'est parti chez le fournisseur, rien n'a été facturé.
+    cout_total, cout_partiel = 0.0, False
+    for r in (db.query(UsageLlm.modele.label("modele"),
+                       func.coalesce(func.sum(UsageLlm.tokens_entree), 0).label("entree"),
+                       func.coalesce(func.sum(UsageLlm.tokens_sortie), 0).label("sortie"),
+                       func.coalesce(func.sum(UsageLlm.tokens_cache_ecriture), 0).label("cache_e"),
+                       func.coalesce(func.sum(UsageLlm.tokens_cache_lecture), 0).label("cache_l"))
+                .filter(*conditions, UsageLlm.depuis_cache.is_(False))
+                .group_by(UsageLlm.modele).all()):
+        montant = _cout(tarifs, r.modele, int(r.entree), int(r.sortie), int(r.cache_e), int(r.cache_l))
+        if montant is None:
+            # Modèle sans tarif : ses appels existent, leur prix est inconnu. L'écran le dit — un
+            # total muet là-dessus se lirait comme une facture complète.
+            cout_partiel = True
+        else:
+            cout_total += montant
+
+    return {
+        "jours": jours, "page": page, "limite": limite, "total": total,
+        "fournisseur": fournisseur,
+        "cout_usd": round(cout_total, 4),
+        "cout_partiel": cout_partiel,
+        # « Tous » se compte ici plutôt qu'à l'écran : c'est la même période et la même table, et
+        # `total` ne peut pas servir puisqu'il est déjà filtré.
+        "total_tous": sum(f["appels"] for f in fournisseurs),
+        "fournisseurs": fournisseurs,
+        "lignes": [{
+            "id": u.id,
+            "quand": u.created_at.isoformat() if u.created_at else None,
+            "fournisseur": u.fournisseur,
+            "modele": u.modele,
+            "outil": u.outil,
+            "origine": libelles.get(u.outil) or u.outil or "Non précisé",
+            # Pourquoi le modèle s'est arrêté. « max_tokens » = réponse COUPÉE : c'est la seule
+            # colonne qui explique une génération incomplète, et c'est pour elle que cet écran existe.
+            "motif_arret": u.motif_arret,
+            "tokens_entree": (u.tokens_entree or 0) + (u.tokens_cache_ecriture or 0) + (u.tokens_cache_lecture or 0),
+            "tokens_sortie": u.tokens_sortie or 0,
+            "tokens_cache_ecriture": u.tokens_cache_ecriture or 0,
+            "tokens_cache_lecture": u.tokens_cache_lecture or 0,
+            "duree_ms": u.duree_ms,
+            "depuis_cache": bool(u.depuis_cache),
+            # Un rejeu du cache disque n'a rien envoyé : lui compter un prix ferait payer deux fois
+            # le même appel à l'écran, alors que la deuxième fois n'a rien coûté.
+            "cout_usd": None if u.depuis_cache else _cout(
+                tarifs, u.modele, u.tokens_entree, u.tokens_sortie,
+                u.tokens_cache_ecriture, u.tokens_cache_lecture),
+        } for u in lignes],
     }

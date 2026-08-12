@@ -147,7 +147,7 @@ export default function AdminIAStatistiques() {
               <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 600 }}>Tokens produits</th>
               {courant.cout && (
                 <th style={{ textAlign: 'right', padding: '7px 8px', fontWeight: 600 }}
-                    title="Tokens × tarif du modèle (table Fournisseurs & modèles). Estimation, pas une facture.">
+                    title="Tokens × tarif du modèle (écran Fournisseurs). Estimation, pas une facture.">
                   Coût estimé
                 </th>
               )}

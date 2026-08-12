@@ -39,6 +39,7 @@ import AdminProfils from './pages/AdminProfils'
 import AdminParametresGeneration from './pages/AdminParametresGeneration'
 import AdminIAFournisseurs from './pages/AdminIAFournisseurs'
 import AdminIAStatistiques from './pages/AdminIAStatistiques'
+import AdminIAJournal from './pages/AdminIAJournal'
 import AdminPrompts from './pages/AdminPrompts'
 import AdminPromptsReferentiels from './pages/AdminPromptsReferentiels'
 import AdminParametresEmail from './pages/AdminParametresEmail'
@@ -716,6 +717,8 @@ export default function App() {
               <Route index element={<Navigate to="/admin/ia/fournisseurs" replace />} />
               <Route path="fournisseurs" element={<AdminIAFournisseurs />} />
               <Route path="statistiques" element={<AdminIAStatistiques />} />
+              {/* Le détail que les statistiques n'ont jamais montré : un appel par ligne. */}
+              <Route path="journal" element={<AdminIAJournal />} />
             </Route>
             <Route path="audit"       element={<AdminAudit />} />
             <Route path="tentatives" element={<AdminTentatives />} />

@@ -450,7 +450,7 @@ export default function AdminParametresGeneration() {
               redeviendra active dès qu’un modèle qui l’accepte sera choisi.
               <br />
               Cela se règle sur la fiche du modèle, case <strong>supporte_temperature</strong>
-              {' '}(IA → Fournisseurs &amp; modèles).
+              {' '}(IA → Fournisseurs).
             </div>
           )}
           <div>

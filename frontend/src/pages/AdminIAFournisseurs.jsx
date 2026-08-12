@@ -167,7 +167,7 @@ export default function AdminIAFournisseurs() {
     <div className="flex flex-col gap-4">
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-1">Fournisseurs &amp; modèles</h2>
+        <h2 className="text-sm font-semibold text-gray-700 mb-1">Fournisseurs</h2>
         <p className="text-xs text-gray-400">
           Le catalogue des moteurs d’IA raccordés à l’application, et les bornes de chacun.
           Pour choisir celui qui travaille, c’est <strong>IA → Génération</strong>.
