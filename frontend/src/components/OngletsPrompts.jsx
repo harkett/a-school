@@ -12,12 +12,17 @@ import { Link, useLocation } from 'react-router-dom'
 // favoris existants continuent de fonctionner.
 //
 const ONGLETS = [
-  { to: '/admin/prompts/prof',     label: 'Prof' },
-  { to: '/admin/prompts/admin',    label: 'Admin' },
-  // Prompts → Référentiels (06/08/2026) : les deux prompts de matières de chaque niveau,
-  // écrits à la main. Ils vivent en colonnes sur la table `referentiels`, pas dans le
-  // registre des prompts d'outils — d'où une liste, une ligne par niveau.
-  { to: '/admin/prompts/referentiels', label: 'Référentiels' },
+  // Rangement PAR FONCTIONNALITÉ : le chemin du menu où le prof trouve le bouton que ce texte
+  // déclenche. Les onglets « Prof » et « Admin » ont vécu jusqu'au 12/08/2026 — ils rangeaient
+  // par PUBLIC, un critère qui ne trie rien (l'admin est le seul à lire les 36, et tous servent
+  // le prof), et qui séparait les jumeaux : l'analyse de consigne d'un côté, celle des
+  // ambiguïtés de l'autre.
+  { to: '/admin/prompts/fonctionnalites', label: 'Fonctionnalités aSchool' },
+  // Les deux frères du référentiel : ce qui vaut pour TOUS, et ce qui appartient à UN couple.
+  // Ils ne se mélangent pas — la liste par couple grossit à chaque référentiel déposé, les neuf
+  // textes communs n'y bougeraient jamais et se chercheraient à chaque fois.
+  { to: '/admin/prompts/referentiels-communs', label: 'Communs à tous les référentiels' },
+  { to: '/admin/prompts/referentiels', label: 'Par référentiel et par couple (cycle-niveau)' },
   { to: '/admin/prompts/autres',   label: 'Autres' },
 ]
 

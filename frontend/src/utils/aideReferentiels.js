@@ -61,29 +61,6 @@ const GUIDE_REFERENTIELS = [
       + "Admin → IA → Prompts → Référentiels, groupe « Génération ».\n\n"
       + "7. PRÉCISIONS — même aller-retour, un prompt par type retenu. Pas encore d'endroit où coller "
       + "le résultat vous-même.\n\n"
-      + "8. AMBIGUÏTÉS — la dernière cartouche. Elle écrit UN ÉNONCÉ D'EXEMPLE PAR MATIÈRE : ce sont "
-      + "eux que le professeur charge d'un clic, par « Utiliser un exemple », sur l'écran « Détecter les "
-      + "ambiguïtés ». Même aller-retour que les étapes précédentes, mais UNE FOIS pour tout le "
-      + "référentiel.\n\n"
-      + "   a) Ouvrez le référentiel, descendez jusqu'à la cartouche « Ambiguïtés — énoncés d'exemple », "
-      + "cliquez « Développer ».\n"
-      + "   b) « 👁 Le prompt » : la fenêtre montre le texte rempli pour CE référentiel — toutes ses "
-      + "matières, et sous chacune des extraits du document qui disent ce qu'elle recouvre. Une matière "
-      + "que le découpage n'éclaire pas est nommée dans un bandeau orange en haut : elle n'est pas dans "
-      + "le prompt, et son couple restera vide.\n"
-      + "   c) « Sélectionner tout », puis Ctrl+C.\n"
-      + "   d) Exécutez-le de votre côté. Il rend un bloc « ### matière » par matière, avec ses blocs "
-      + "ENONCE et DEFAUTS, puis un bloc NON TRAITEES à la fin.\n"
-      + "   e) Copiez sa réponse ENTIÈRE et collez-la dans « Coller le résultat entier ».\n"
-      + "   f) « Enregistrer » : chaque bloc part sur la matière que son titre nomme.\n"
-      + "   g) Lisez le compte rendu — entrés, remplacés, laissés de côté.\n"
-      + "   h) Vérifiez dans Admin → Exemples → Ambiguïté.\n\n"
-      + "   AUCUNE matière n'est écrite si l'une d'elles n'est pas reconnue : vous corrigez le nom et "
-      + "vous recollez. Un exemple posé sur la mauvaise matière serait invisible.\n\n"
-      + "   PAR L'IA : le bouton « ✨ Générer les exemples € » remplace b) à f). AVANT de l'utiliser, "
-      + "montez « max_tokens » de l'outil « Exemples d'énoncés (ambiguïtés) » dans Admin → IA : c'est la "
-      + "sortie la plus longue du logiciel, et une valeur trop basse coupe la réponse au milieu d'une "
-      + "matière.\n\n"
       + "Dans les deux voies, c'est vous qui validez chaque étape à l'écran : rien ne se valide seul.",
   },
   {
@@ -317,69 +294,6 @@ const GUIDE_REFERENTIELS = [
     court: 'Découper le document en unités avec le prompt validé, puis valider le découpage.',
     long: "Lancez la découpe avec le prompt validé, contrôlez les unités produites, puis validez le "
       + "découpage — l’étape Types d’activité s’ouvre ensuite.",
-  },
-  {
-    // Le « i » de la cartouche elle-même : les quatre gestes, dans l'ordre.
-    cle: 'ambiguites',
-    titre: 'Énoncés d’exemple (ambiguïtés)',
-    source: 'ambiguite_exemples.texte, ambiguite_exemples.defauts (une ligne par matière)',
-    court: 'Un énoncé d’exemple par matière, pour l’écran prof « Détecter les ambiguïtés ».',
-    long: "L'écran prof « Détecter les ambiguïtés » propose un bouton « Utiliser un exemple » : il charge "
-      + "un vrai sujet de la matière du professeur, au niveau, avec des défauts glissés dedans. De quoi "
-      + "découvrir l'outil sans avoir à chercher un sujet.\n\n"
-      + "Ces énoncés ne sont JAMAIS écrits à la volée : ils sont rangés en base, écrits d'avance, et le "
-      + "professeur retrouve le même à chaque fois.\n\n"
-      + "── LA PROCÉDURE, PAS À PAS (voie gratuite) ──\n\n"
-      + "1. Ouvrez le référentiel dans la liste de gauche, puis descendez jusqu'à cette cartouche et "
-      + "cliquez « Développer ». Elle affiche combien de matières ont déjà leur énoncé.\n\n"
-      + "2. Cliquez « 👁 Le prompt ». La fenêtre montre le texte rempli pour CE référentiel : toutes ses "
-      + "matières, et sous chacune des extraits de votre document qui disent ce qu'elle recouvre. Si une "
-      + "matière n'est décrite nulle part dans le découpage, un bandeau orange la nomme en haut — elle "
-      + "n'est pas dans le prompt, et son couple restera vide.\n\n"
-      + "3. « Sélectionner tout », puis Ctrl+C.\n\n"
-      + "4. Collez-le à votre agent, sur votre abonnement. Il rend un bloc « ### matière » par matière, "
-      + "avec ses deux blocs ENONCE et DEFAUTS, puis un bloc « NON TRAITEES » à la fin.\n\n"
-      + "5. Copiez sa réponse ENTIÈRE — les blocs compris — et collez-la dans la zone « Coller le "
-      + "résultat entier », ci-dessous.\n\n"
-      + "6. « Enregistrer ». Chaque bloc part sur la matière que son titre nomme.\n\n"
-      + "7. Lisez le compte rendu : ce qui est entré, ce qui a été remplacé, et ce qui a été laissé de "
-      + "côté — nom inconnu, bloc sans énoncé, matière déclarée non traitée, matière absente du texte.\n\n"
-      + "8. Vérifiez le résultat dans Admin → Exemples → Ambiguïté : la ligne de chaque matière montre "
-      + "son énoncé et ses défauts.\n\n"
-      + "── LA VOIE PAYANTE ──\n\n"
-      + "Le bouton « ✨ Générer les exemples € » remplace les points 2 à 6 : l'application appelle le "
-      + "moteur elle-même et écrit le résultat. AVANT de l'utiliser, montez « max_tokens » de l'outil "
-      + "« Exemples d'énoncés (ambiguïtés) » dans Admin → IA : c'est la sortie la plus longue du "
-      + "logiciel, et une valeur trop basse coupe la réponse au milieu d'une matière.\n\n"
-      + "── CE QUI NE PASSE JAMAIS ──\n\n"
-      + "AUCUNE matière n'est écrite si l'une d'elles n'est pas reconnue : un nom mal orthographié est "
-      + "signalé, vous le corrigez et vous recollez. Un exemple posé sur la mauvaise matière serait "
-      + "invisible — le professeur le lirait sans jamais savoir qu'il n'est pas le sien. Par la voie "
-      + "payante, la réponse revient dans la zone de collage au lieu d'être perdue : vous corrigez sans "
-      + "repayer.\n\n"
-      + "Le bloc « NON TRAITEES » liste les matières dont le modèle n'a pas su de quoi elles parlent : "
-      + "leur couple reste vide. Vide plutôt que faux.\n\n"
-      + "La pastille passe au vert quand TOUTES les matières du référentiel ont leur énoncé. Les étiquettes "
-      + "vertes et rouges au-dessus de la zone de collage disent lesquelles il manque.",
-  },
-  {
-    cle: 'ambiguites_prompt',
-    titre: 'Le prompt des exemples',
-    source: 'settings.prompt_ambiguite_exemples_referentiel + ambiguite_criteres + referentiel_chunks',
-    court: 'Le texte qui génère les exemples — il porte toutes les matières du référentiel.',
-    long: "Ce prompt génère les énoncés d'EXEMPLE de CE référentiel : il porte la liste de ses matières, et les types "
-      + "d'ambiguïté à glisser dans chaque énoncé — les mêmes que ceux que le professeur peut cocher, "
-      + "lus dans la même table.\n\n"
-      + "Sous chaque matière figurent des EXTRAITS DE VOTRE RÉFÉRENTIEL, pris dans son découpage : ils "
-      + "disent ce que la matière recouvre vraiment. Sans eux, un intitulé court se devine — « Langage » "
-      + "avait ainsi donné un exercice de programmation en C pour des enfants de 0 à 3 ans, et personne "
-      + "ne l'aurait vu. Ces extraits sont cherchés sur votre machine, par proximité de sens : rien "
-      + "n'est facturé.\n\n"
-      + "Une matière dont le découpage ne dit rien n'entre PAS dans le prompt : la fenêtre la nomme, et "
-      + "son couple reste vide. Vide plutôt que faux.\n\n"
-      + "Il s'exécute HORS de l'application : aucun appel n'est fait d'ici, rien n'est facturé.\n\n"
-      + "Le texte du prompt lui-même se règle dans Admin → IA → Prompts → Autres fonctionnalités. "
-      + "Ce bouton ne fait que l'afficher rempli, en lecture seule.",
   },
   {
     cle: 'types_activite',

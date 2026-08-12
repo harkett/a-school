@@ -190,10 +190,9 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
             <div style={SUB_LABEL}>Analyse</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
-                // L'Accueil est la SECONDE porte vers cet écran : le griser dans le menu sans le
-                // griser ici laisserait le prof y entrer par la carte, et l'outil ne fonctionne
-                // pas encore. Les deux écrans doivent dire la même chose.
-                { label: 'Ambiguïtés', page: 'ambiguites', title: 'Bientôt disponible — détecter les ambiguïtés cognitives d\'un exercice ou énoncé', bientot: true },
+                // L'Accueil est la SECONDE porte vers cet écran : il doit toujours dire la même
+                // chose que le menu, sous peine d'ouvrir ce que l'autre annonce fermé.
+                { label: 'Ambiguïtés', page: 'ambiguites', title: 'Analyser un texte pour détecter les ambiguïtés cognitives d\'un exercice ou énoncé' },
                 { label: 'Consignes',  page: 'consigne',   title: 'Analyser la qualité didactique d\'une consigne' },
                 // Équité n'existe pas encore (la page rend « Outil en cours de développement ») :
                 // l'Accueil l'offrait comme un outil normal pendant que le menu la donnait pour

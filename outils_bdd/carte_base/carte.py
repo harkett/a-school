@@ -127,7 +127,10 @@ DOMAINS = {
         # `fonctionnalites` : l'inventaire de ce que la plateforme sait faire et de son
         # avancement — la moitie du tableau de bord qui ne se derive d'aucune table. Objet de
         # pilotage, tenu par migration, jamais une donnee pedagogique.
-        ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "usage_llm",
+        # `prompt_fonctionnalites` : le rangement de l'ecran admin « Prompts » — une ligne par
+        # outil du produit, dont le libelle est le CHEMIN dans le menu du prof. Elle est du meme
+        # cote qu'`outils_llm` : ce qui decrit l'IA et sa configuration, jamais du pedagogique.
+        ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "prompt_fonctionnalites", "usage_llm",
          "email_templates", "email_envois", "incidents", "demos", "fonctionnalites",
          "alembic_version"]),
 }

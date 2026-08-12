@@ -49,6 +49,21 @@ def build_exemple_referentiel_prompt(db: Session, chunks: list[dict], matiere: s
     )
 
 
+def build_ambiguite_exemple_prompt(db: Session, chunks: list[dict], matiere: str, niveau: str,
+                                  criteres: str) -> str:
+    """Prompt — écrit à la demande du prof UN énoncé d'exemple VOLONTAIREMENT IMPARFAIT pour son
+    couple, ancré sur les extraits de son référentiel.
+
+    Même geste que `build_exemple_referentiel_prompt` : les extraits entrent dans le prompt, et
+    c'est précisément ce qui empêche l'énoncé de partir dans une autre discipline que celle du
+    couple. `criteres` est composé par l'appelant (catalogue lu en base, critère libre écarté).
+    """
+    return get_prompt(db, "ambiguite_exemple_genere").format(
+        matiere=matiere, niveau=niveau, criteres=criteres,
+        referentiel=_bloc_referentiel(chunks, niveau),
+    )
+
+
 def build_proposer_idee_prompt(db: Session, chunks: list[dict], type_label: str,
                                precision: str | None, niveau: str) -> str:
     """Prompt — propose UNE idée d'activité, formulée comme la DEMANDE COURTE que le prof

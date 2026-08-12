@@ -23,6 +23,23 @@ export const Spinner = () => (
   </svg>
 )
 
+// L'identité de l'écran « Analyser un texte pour détecter les ambiguïtés » : un document PASSÉ
+// À LA LOUPE — c'est le geste de l'écran, et il se lit d'un coup d'œil. Même gabarit que la
+// feuille des Activités (24 px, trait 2, angles arrondis) pour que les deux titres pèsent pareil.
+// La couleur vient du texte qui la porte (currentColor), comme partout ailleurs.
+export const IconAmbiguites = ({ taille = 24 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={taille} height={taille} viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    style={{ flexShrink: 0 }}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="8" y1="12" x2="13" y2="12"/>
+    <line x1="8" y1="16" x2="10" y2="16"/>
+    <circle cx="16.5" cy="16.5" r="3.5"/>
+    <line x1="19.2" y1="19.2" x2="22" y2="22"/>
+  </svg>
+)
+
 export const IconAnalyser = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
     <circle cx="11" cy="11" r="8"/>

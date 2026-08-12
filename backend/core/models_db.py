@@ -330,33 +330,33 @@ class AmbiguiteCritere(Base):
     actif: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
 
 
-class AmbiguiteExemple(Base):
-    """L'énoncé d'exemple servi au prof par le bouton « Utiliser un exemple » de l'écran
-    « Détecter les ambiguïtés » — UN par couple, écrit d'avance, jamais généré à la volée.
+class PromptFonctionnalite(Base):
+    """LES FONCTIONNALITÉS DE L'ÉCRAN ADMIN « PROMPTS » — une ligne par outil du produit.
 
-    Le couple tient dans `matiere_id` seul : une matière appartient au référentiel d'un niveau,
-    le niveau est donc déjà dedans (voir `Matiere`). Un exemple par matière = un exemple par
-    couple, sans clé composée ni risque de doublon.
+    Un prompt se cherche par CE QU'IL FAIT à l'écran du professeur. Le `label` est donc le CHEMIN
+    dans son menu (« Mes contenus → Séance ») : c'est ainsi qu'on retrouve un texte quand on vient
+    de voir le bouton qui le déclenche. L'écran admin était coupé en « Prof » et « Admin » — deux
+    étiquettes qui ne triaient rien (l'admin est le seul à lire les 36 prompts, et tous servent le
+    prof au bout du compte) et qui séparaient les jumeaux : l'analyse de consigne d'un côté, celle
+    des ambiguïtés de l'autre.
 
-    `texte` = l'énoncé à coller tel quel. `defauts` = ce qu'on y a délibérément glissé, en
-    clair : c'est un exemple de démonstration, il ne vaut que s'il y a quelque chose à trouver
-    — et le prof doit pouvoir vérifier que l'analyse l'a bien trouvé.
+    LE LIEN AVEC UN PROMPT tient dans `cle`, que le registre porte sur chaque prompt
+    (`llm_prompts.PROMPTS[...]["fonctionnalite"]`). Une fonctionnalité sans prompt ne s'affiche
+    pas : l'écran ne fabrique pas de ligne vide.
 
-    Les deux champs sont écrits par l'admin depuis son écran, à partir du prompt
-    `ambiguite_exemple` exécuté hors de l'application : zéro appel payant, même énoncé à chaque
-    fois. CASCADE : l'exemple suit la matière qui le nomme."""
-    __tablename__ = "ambiguite_exemples"
+    Même moule que les autres catalogues (`code`/`label`/`ordre`/`actif`) : semé par migration,
+    jamais écrit dans le code."""
+    __tablename__ = "prompt_fonctionnalites"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_prompt_fonctionnalites_code"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    matiere_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("matieres.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    texte: Mapped[str] = mapped_column(Text, nullable=False)
-    defauts: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
-    # Désactivé = le prof ne le voit plus, mais le texte reste ici. C'est le geste qui manquait
-    # quand on découvre qu'un exemple est faux : on le retire de la vue en une seconde, sans perdre
-    # ce qu'on doit corriger. Ce n'est PAS une suppression déguisée — le bouton dit « Désactiver »,
-    # et il rallume ce qu'il a éteint.
-    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default='1')
+    code: Mapped[str] = mapped_column(String(50), nullable=False)      # la clé portée par les prompts
+    label: Mapped[str] = mapped_column(String(150), nullable=False)    # le chemin dans le menu du prof
+    aide: Mapped[str] = mapped_column(Text, nullable=False, server_default="", default="")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='true', default=True)
 
 
 class Seance(Base):

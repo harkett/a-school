@@ -18,50 +18,41 @@ import { buildSearchIndex, searchSections } from '../utils/aideSearch.js'
 // Deux colonnes, comme les pages listes de « Mes contenus » : la liste à gauche, le détail du
 // prompt choisi à droite, la liste reste visible pendant qu'on travaille. Habillage admin, pas
 // celui du prof. Le bouton « Cacher le détail » est permanent (règle maison).
-// Une ligne par fonctionnalité, nommée par son CHEMIN dans le menu du prof — c'est ainsi qu'on
-// la retrouve. `ancre` est l'id visé par les liens venus d'ailleurs (la carte d'un référentiel
-// pointe ici).
-const FONCTIONNALITES = [
-  {
-    ancre: 'mes-analyses-ambiguites',
-    label: 'Mes Analyses → Ambiguïtés',
-    aide: "Le texte qui ANALYSE l'énoncé du prof, et ceux qui ÉCRIVENT ses énoncés d'exemple.",
-    // L'ORDRE des onglets du détail. Ces clés viennent du registre serveur : une clé absente
-    // de la catégorie est simplement ignorée, l'écran ne fabrique pas d'onglet vide.
-    cles: ['ambiguites', 'ambiguite_exemples_referentiel', 'ambiguite_exemple'],
-  },
-]
-
 const CATEGORIES = {
-  prof: {
-    titre: 'Prompts — Prof',
-    intro: 'Les textes qui servent à l\'enseignant : séances et séquences, propositions, tons de rédaction, correction et contrôle qualité.',
-  },
-  admin: {
-    titre: 'Prompts — Admin',
-    intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité.',
-  },
   fonctionnalites: {
-    titre: 'Prompts — Autres fonctionnalités',
-    intro: 'Les textes rangés par FONCTIONNALITÉ, et non par public : un outil que le prof utilise et dont l\'admin règle les textes appartient à son outil, pas à l\'un des deux.',
+    titre: 'Prompts — Fonctionnalités aSchool',
+    intro: 'Les textes rangés par FONCTIONNALITÉ — le chemin du menu où le professeur trouve le bouton qui les déclenche. Un prompt ne se cherche pas par « qui s\'en sert » : l\'admin est le seul à les lire tous.',
+  },
+  referentiels_communs: {
+    titre: 'Prompts — Communs à tous les référentiels',
+    intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité. Les mêmes pour TOUS les référentiels — ceux qui appartiennent à un couple sont dans l\'onglet voisin.',
   },
   autres: {
     titre: 'Prompts — Autres',
-    intro: 'Le filet : ce qui ne sert ni au prof ni à l\'admin. Vide aujourd\'hui — les trois restes de l\'ancien monde démoli qui y étaient rangés ont été retirés, faute d\'usage. La catégorie reste ouverte pour un texte qui ne trouverait sa place nulle part ailleurs.',
+    intro: 'Le filet : ce qui ne sert aucun outil en propre. La ligne qui colle le cahier des charges de l\'établissement au bas des prompts de génération y vit — elle porte une décision, pas une fonctionnalité.',
   },
 }
 
 export default function AdminPrompts({ categorie }) {
   // Prompts des outils (administrables en base). Liste depuis le backend ; un éditeur par prompt.
-  // [{ key, label, placeholders, categorie, current, default, is_default }] — lus en base.
-  const { data: prompts = [], refetch: relirePrompts } = useQuery({
+  // [{ key, label, role, placeholders, categorie, fonctionnalite, current, default, is_default }].
+  //
+  // Les FONCTIONNALITÉS arrivent par le même appel : l'écran ne les connaît plus, il les reçoit.
+  // Elles étaient écrites en dur ici, avec la liste des clés de chacune — deux endroits à tenir
+  // d'accord, et un prompt ajouté au registre restait invisible tant qu'on n'y pensait pas.
+  const { data: donnees = {}, refetch: relirePrompts } = useQuery({
     queryKey: ['admin', 'prompts'],
     queryFn: async () => {
       const r = await fetch('/api/admin/prompts', { credentials: 'include' })
-      const data = await r.json()
-      return data.prompts || []
+      return await r.json()
     },
   })
+  const prompts = donnees.prompts || []
+  // Une fonctionnalité n'apparaît que si elle a au moins un prompt dans cette catégorie : on ne
+  // fabrique pas de ligne vide.
+  const fonctionnalites = (donnees.fonctionnalites || [])
+    .map(f => ({ ...f, prompts: prompts.filter(p => p.fonctionnalite === f.cle) }))
+    .filter(f => f.prompts.length > 0)
   const [cleChoisie, setPromptKey] = useState('')  // '' = rien de choisi (on ne présélectionne pas)
   // Un prompt disparu de la base n'est plus sélectionné : c'est un calcul, pas un rattrapage.
   const promptKey = prompts.some(p => p.key === cleChoisie) ? cleChoisie : ''
@@ -107,9 +98,7 @@ export default function AdminPrompts({ categorie }) {
   // La fonctionnalité ouverte, avec SES prompts réellement présents dans la catégorie — c'est
   // elle qui donne les onglets du détail.
   const fonctionnaliteActive = categorie !== 'fonctionnalites' ? null
-    : FONCTIONNALITES
-        .map(f => ({ ...f, prompts: f.cles.map(c => listeCategorie.find(p => p.key === c)).filter(Boolean) }))
-        .find(f => f.cles.includes(promptKey)) || null
+    : fonctionnalites.find(f => f.prompts.some(p => p.key === promptKey)) || null
   const reperesManquants = promptActif
     ? promptActif.placeholders.filter(ph => !promptText.includes('{' + ph + '}'))
     : []
@@ -218,21 +207,23 @@ export default function AdminPrompts({ categorie }) {
       {/* Rangement par fonctionnalité : une ligne par outil, nommée par son CHEMIN dans le menu
           du prof — c'est ainsi qu'on la retrouve. Cible du lien « ambiguïté » posé sur la carte
           d'un référentiel (ancre ci-dessous). */}
-      {categorie === 'fonctionnalites' && FONCTIONNALITES.map(f => (
+      {categorie === 'fonctionnalites' && fonctionnalites.map(f => {
+        const ouverte = f.prompts.some(p => p.key === promptKey)
+        return (
         <button
-          key={f.ancre}
-          id={f.ancre}
+          key={f.cle}
+          id={`fonctionnalite-${f.cle}`}
           type="button"
-          onClick={() => choisirPrompt(f.cles.find(c => listeCategorie.some(p => p.key === c)) || '')}
+          onClick={() => choisirPrompt(f.prompts[0].key)}
           title={f.aide}
           style={{
             display: 'block', width: '100%', textAlign: 'left',
             padding: '12px 16px', cursor: 'pointer',
             border: 'none', borderBottom: '1px solid #f1f5f9',
-            borderLeft: f.cles.includes(promptKey) ? '3px solid #A63045' : '3px solid transparent',
-            background: f.cles.includes(promptKey) ? '#fdf2f4' : 'white',
+            borderLeft: ouverte ? '3px solid #A63045' : '3px solid transparent',
+            background: ouverte ? '#fdf2f4' : 'white',
             fontSize: 13, fontWeight: 600,
-            color: f.cles.includes(promptKey) ? '#A63045' : '#1e293b',
+            color: ouverte ? '#A63045' : '#1e293b',
           }}
         >
           {f.label}
@@ -240,10 +231,11 @@ export default function AdminPrompts({ categorie }) {
             {f.aide}
           </span>
           <span style={{ display: 'block', fontSize: 11, color: '#cbd5e1', marginTop: 2 }}>
-            {f.cles.filter(c => listeCategorie.some(p => p.key === c)).length} prompt(s)
+            {f.prompts.length} prompt{f.prompts.length > 1 ? 's' : ''}
           </span>
         </button>
-      ))}
+        )
+      })}
       {listeCategorie.length === 0 && categorie !== 'fonctionnalites' && (
         <p className="text-sm text-gray-400" style={{ padding: '24px 16px', textAlign: 'center' }}>
           Aucun prompt dans cette catégorie.
@@ -321,7 +313,7 @@ export default function AdminPrompts({ categorie }) {
           lieu d'occuper chacun une ligne de la liste — la liste dit l'outil, le détail dit ses
           textes. Un seul prompt : pas de barre d'onglets, elle n'apprendrait rien. */}
       {fonctionnaliteActive && fonctionnaliteActive.prompts.length > 1 && (
-        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
           {fonctionnaliteActive.prompts.map(p => {
             const actif = p.key === promptKey
             return (
@@ -338,7 +330,7 @@ export default function AdminPrompts({ categorie }) {
                   marginBottom: -1, cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
-                {p.label}
+                {p.onglet || p.label}
               </button>
             )
           })}

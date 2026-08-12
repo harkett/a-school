@@ -158,7 +158,20 @@ models_db.Base.metadata.create_all(bind=_test_engine)
 # par create_all (sans migrations). Le TRUNCATE (verrou 3) les vide entre chaque test → on les
 # re-sème avant chaque test, sinon les FK (ex. feedbacks.statut) et le no-fallback plantent.
 # Une entrée par table-catalogue : les tâches suivantes (features, durées) l'étendront ici.
+# `prompt_fonctionnalites` : lu DANS SA MIGRATION, comme `outils_llm` — recopier les libellés
+# ici en ferait une deuxième source qui dériverait.
+def _fonctionnalites_de_la_migration():
+    import importlib.util
+    chemin = _RACINE / "alembic" / "versions" / "d7f3b1e9a5c2_prompt_fonctionnalites.py"
+    spec = importlib.util.spec_from_file_location("_mig_fonctionnalites", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return [{"code": c, "label": l, "aide": a, "ordre": o, "actif": True}
+            for c, l, a, o in module.FONCTIONNALITES]
+
+
 _CATALOGUES_SEED = {
+    "prompt_fonctionnalites": _fonctionnalites_de_la_migration(),
     "feedback_statuts": [
         {"code": "nouveau", "label": "Nouveau", "modifiable": True, "ordre": 0, "description": "Reçu, pas encore traité."},
         {"code": "en_cours", "label": "En cours", "modifiable": True, "ordre": 1, "description": "Pris en charge par l'équipe."},
@@ -182,13 +195,13 @@ _CATALOGUES_SEED = {
     # Critères de l'écran « Détecter les ambiguïtés » : le serveur valide les codes reçus
     # CONTRE cette table, donc sans elle toute analyse est refusée.
     "ambiguite_criteres": [
-        {"code": "consigne_vague", "label": "Consigne vague", "description": "Verbe trop général sans critères précis.", "ordre": 0, "actif": True},
-        {"code": "vocabulaire_non_defini", "label": "Vocabulaire technique non défini", "description": "Terme spécialisé supposé connu.", "ordre": 1, "actif": True},
-        {"code": "double_sens", "label": "Double sens", "description": "Interprétable de deux façons.", "ordre": 2, "actif": True},
-        {"code": "criteres_reussite_absents", "label": "Critères de réussite absents", "description": "L'élève ne sait pas ce qu'on attend.", "ordre": 3, "actif": True},
-        {"code": "reference_implicite", "label": "Référence implicite", "description": "« le texte » sans préciser lequel.", "ordre": 4, "actif": True},
-        {"code": "consigne_trop_longue", "label": "Consigne trop longue", "description": "Plusieurs tâches non séparées.", "ordre": 5, "actif": True},
-        {"code": "autre", "label": "Autre", "description": "", "ordre": 6, "actif": True},
+        {"code": "consigne_vague", "label": "Consigne vague", "description": "Verbe trop général sans critères précis.", "verification": "Relève les verbes de consigne.", "ordre": 0, "actif": True},
+        {"code": "vocabulaire_non_defini", "label": "Vocabulaire technique non défini", "description": "Terme spécialisé supposé connu.", "verification": "Relève les sigles et termes techniques.", "ordre": 1, "actif": True},
+        {"code": "double_sens", "label": "Double sens", "description": "Interprétable de deux façons.", "verification": "Cherche les tournures à deux lectures.", "ordre": 2, "actif": True},
+        {"code": "criteres_reussite_absents", "label": "Critères de réussite absents", "description": "L'élève ne sait pas ce qu'on attend.", "verification": "Longueur ? format ? barème ?", "ordre": 3, "actif": True},
+        {"code": "reference_implicite", "label": "Référence implicite", "description": "« le texte » sans préciser lequel.", "verification": "Chaque renvoi à un support est-il nommé ?", "ordre": 4, "actif": True},
+        {"code": "consigne_trop_longue", "label": "Consigne trop longue", "description": "Plusieurs tâches non séparées.", "verification": "Compte les tâches par phrase.", "ordre": 5, "actif": True},
+        {"code": "autre", "label": "Autre", "description": "", "verification": "", "ordre": 6, "actif": True},
     ],
     "langues_lv": [
         {"code": "anglais", "label": "Anglais", "ordre": 0, "actif": True},
@@ -330,7 +343,7 @@ def _seed_catalogues():
                 ),
                 row,
             )
-        for table in ("seance_modes", "seance_styles", "ambiguite_criteres"):
+        for table in ("seance_modes", "seance_styles"):
             for row in _CATALOGUES_SEED[table]:
                 conn.execute(
                     text(
@@ -339,6 +352,25 @@ def _seed_catalogues():
                     ),
                     row,
                 )
+        # `prompt_fonctionnalites` : le rangement de l'écran admin des prompts. Sans lui,
+        # get_prompts_settings lève (catalogue vide) et l'écran de réparation tombe.
+        for row in _CATALOGUES_SEED["prompt_fonctionnalites"]:
+            conn.execute(
+                text(
+                    "INSERT INTO prompt_fonctionnalites (code, label, aide, ordre, actif) "
+                    "VALUES (:code, :label, :aide, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
+        # `ambiguite_criteres` porte en plus la VÉRIFICATION à effectuer pour chaque type.
+        for row in _CATALOGUES_SEED["ambiguite_criteres"]:
+            conn.execute(
+                text(
+                    "INSERT INTO ambiguite_criteres (code, label, description, verification, ordre, actif) "
+                    "VALUES (:code, :label, :description, :verification, :ordre, :actif) ON CONFLICT (code) DO NOTHING"
+                ),
+                row,
+            )
         for row in _CATALOGUES_SEED["langues_lv"]:
             conn.execute(
                 text(

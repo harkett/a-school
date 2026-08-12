@@ -150,7 +150,7 @@ def test_l_ecran_prompts_les_affiche():
     for cle in EN_REPLACE:
         assert cle in par_cle, f"« {cle} » n'est toujours pas dans l'écran Prompts."
         assert par_cle[cle]["en_base"], f"« {cle} » est au registre mais absent de la base."
-        assert par_cle[cle]["categorie"] == "admin"
+        assert par_cle[cle]["categorie"] == "referentiels_communs"
 
 
 def test_ils_s_enregistrent_par_la_route_commune():

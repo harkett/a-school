@@ -6,7 +6,7 @@ const ECRANS = {
   'mes-contenus':         'Mes contenus',
   'seance':               'Séance (Mes contenus)',
   'activite':             'Activité (Mes contenus)',
-  'ambiguites':           'Détection des ambiguïtés',
+  'ambiguites':           'Analyse des ambiguïtés',
   'consigne':             'Consignes',
   'equite':               'Équité',
   'bientot-disponible':   'Bientôt disponible',

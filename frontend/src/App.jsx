@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
 import VisiteGuidee from './components/VisiteGuidee'
 import FenetreGuide from './components/FenetreGuide'
+import FenetreGuideAmbiguites from './components/FenetreGuideAmbiguites'
 import FenetreGuideSeance from './components/FenetreGuideSeance'
 import FenetreGuideSequence from './components/FenetreGuideSequence'
 import FenetreGuideContenusActivites from './components/FenetreGuideContenusActivites'
@@ -421,6 +422,11 @@ function MainApp() {
         onOuvrirAide={ouvrirAideDepuisGuide}
       />
     ),
+    // Sorti de la barre d'onglets de l'écran Ambiguïtés : le guide vit dans le header comme
+    // partout ailleurs, l'écran n'a plus qu'une seule chose à montrer.
+    'ambiguites': () => (
+      <FenetreGuideAmbiguites onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
+    ),
     'seance': () => (
       <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
     ),
@@ -566,11 +572,7 @@ function MainApp() {
           {/* La passerelle « créer une séance depuis une reformulation » visait l'ancien
               outil Séquence (démoli) — elle renaîtra sur la séance du monde neuf. */}
           {page === 'ambiguites' && (
-            <Ambiguites
-              matiere={sessionMatiere}
-              niveau={params.niveau}
-              onNavigate={naviguer}
-            />
+            <Ambiguites />
           )}
 
           {page === 'consigne' && (
@@ -601,7 +603,10 @@ function MainApp() {
 
           {page === 'aide' && <Aide initialSection={aideSection} />}
 
-          {page === 'mes-feedbacks' && <MesFeedbacks />}
+
+          {page === 'nouveau-retour' && <MesFeedbacks vue="envoyer" onNavigate={naviguer} />}
+
+          {page === 'mes-feedbacks' && <MesFeedbacks vue="retours" onNavigate={naviguer} />}
 
           {page === 'mes-stats' && <MesStats user={user} />}
 
@@ -701,13 +706,19 @@ export default function App() {
                 Trois sous-options : à qui sert le texte. Le `key` force le remontage en changeant
                 de sous-option, donc chaque vue repart sur SON état (rien ne traîne d'avant). */}
             <Route path="prompts">
-              <Route index element={<Navigate to="/admin/prompts/prof" replace />} />
-              <Route path="prof"   element={<AdminPrompts key="prof"   categorie="prof" />} />
-              <Route path="admin"  element={<AdminPrompts key="admin"  categorie="admin" />} />
+              <Route index element={<Navigate to="/admin/prompts/fonctionnalites" replace />} />
+              {/* « Prof » et « Admin » ont disparu le 12/08/2026 (rangement par fonctionnalité).
+                  Leurs adresses restent debout et mènent au bon onglet : un favori ne casse pas. */}
+              <Route path="prof"  element={<Navigate to="/admin/prompts/fonctionnalites" replace />} />
+              <Route path="admin" element={<Navigate to="/admin/prompts/referentiels-communs" replace />} />
+              <Route path="referentiels-communs" element={<AdminPrompts key="referentiels-communs" categorie="referentiels_communs" />} />
               {/* « Matières par cycle » et « Découpe par cycle » ont été retirés le 06/08/2026 :
                   ces deux prompts appartiennent au RÉFÉRENTIEL (un par couple cycle+niveau) et se
                   règlent sur l'écran Référentiel, dans la cartouche qui les utilise. */}
               <Route path="referentiels" element={<AdminPromptsReferentiels key="referentiels" />} />
+              {/* Rangement par fonctionnalité : la cible du lien « ambiguïté » de la carte
+                  d'un référentiel. */}
+              <Route path="fonctionnalites" element={<AdminPrompts key="fonctionnalites" categorie="fonctionnalites" />} />
               <Route path="autres" element={<AdminPrompts key="autres" categorie="autres" />} />
             </Route>
             {/* IA — les deux écrans nés avec la rubrique (05/08/2026). Prompts et Génération gardent

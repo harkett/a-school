@@ -7,12 +7,18 @@ from sqlalchemy.orm import Session
 
 from backend.securite import comptes
 from backend.core.catalogues import catalogue
-from backend.core.database import get_db
-from backend.core.models_db import AmbiguiteCritere, AmbiguiteExemple, ToolUsageLog, User
+from backend.core.database import get_db, schema_de_session
+from backend.core.models import ExempleReferentielResponse
+from backend.core.models_db import AmbiguiteCritere, ToolUsageLog, User
+from backend.pedagogie.exemple_referentiel import (AUCUN_EXTRAIT_PERTINENT, REQUETE_GABARIT,
+                                                   _resolve_collection)
 from backend.prof.profil import couple_de_travail
+from backend.rag.pgvector_store import retrieve_pg
 from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
-                                   get_retry_max, get_retry_wait_max, get_temperature, get_prompt)
+                                   get_rag_top_k, get_retry_max, get_retry_wait_max,
+                                   get_temperature, get_prompt)
 from backend.llm.generator import generate, LLMRateLimitError
+from backend.llm.prompts import build_ambiguite_exemple_prompt
 
 router = APIRouter()
 
@@ -54,6 +60,24 @@ class CritereItem(BaseModel):
 
 def criteres_ambiguite(db: Session) -> list[AmbiguiteCritere]:
     return catalogue(db, AmbiguiteCritere, "critères d'ambiguïté")
+
+
+def bloc_types_ambiguite(db: Session) -> str:
+    """Les types d'ambiguïté tels qu'un RÉDACTEUR d'exemple doit les lire : un tiret par type,
+    et ce qui doit être repérable dessous. Le critère libre est écarté — il appartient au prof,
+    il n'a rien à faire dans un exemple.
+
+    Un seul endroit : les trois prompts d'exemple (celui d'une matière, celui de tout un
+    référentiel, celui que le prof demande à la volée) décrivent les MÊMES types que l'analyse,
+    puisqu'ils les lisent au même catalogue."""
+    lignes = []
+    for c in criteres_ambiguite(db):
+        if c.code == CODE_CRITERE_LIBRE:
+            continue
+        lignes.append(f"- {c.label}")
+        if c.verification.strip():
+            lignes.append(f"  Ce qui doit être repérable : {c.verification.strip()}")
+    return "\n".join(lignes)
 
 
 def _aplatir(texte: str) -> str:
@@ -105,34 +129,55 @@ def _parse_json(raw: str) -> dict:
     raise ValueError("Réponse non parseable en JSON")
 
 
-@router.get("/ambiguites/exemple")
-def api_exemple_ambiguites(
+@router.post("/ambiguites/exemple-genere", response_model=ExempleReferentielResponse)
+def api_exemple_ambiguites_genere(
     aschool_access: str | None = Cookie(None),
     db: Session = Depends(get_db),
 ):
-    """L'énoncé d'exemple du couple du prof — écrit d'avance par l'admin, JAMAIS généré ici.
+    """« Propose-moi un exemple » : l'énoncé de démonstration ÉCRIT À LA DEMANDE du prof, pour
+    SON couple, ancré sur les extraits de son référentiel.
 
-    `disponible: false` quand ce couple n'a pas encore le sien : l'écran cache alors son bouton
-    plutôt que d'en proposer un qui répondrait « pas d'exemple ». On n'invente rien."""
+    Le MÊME geste que « Document d'exemple » et « Propose-moi une idée » : un clic, un appel, un
+    texte posé dans la zone — rien n'est rangé en base. Un énoncé de démonstration n'a aucune
+    raison d'être le même deux fois, et l'ancrage vient d'où il doit venir : le référentiel du
+    couple, jamais l'intuition du modèle sur un nom de matière.
+
+    Règle d'or, celle de `exemple_referentiel` dont il reprend la résolution : pas de référentiel
+    pour ce couple, ou rien d'assez pertinent au seuil (`referentiels.score_min`) →
+    available:false. On n'invente RIEN."""
     email = _get_email(aschool_access)
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(404, "Utilisateur introuvable.")
+    matiere, niveau, _ = couple_de_travail(db, user)
+    if not matiere or not niveau:
+        raise HTTPException(400, "Complétez d'abord votre profil (matière et niveau).")
 
-    # Le couple de travail s'il est posé, sinon le profil — même règle que l'analyse, mais on a
-    # besoin de la CLÉ ici, pas du libellé.
-    matiere_id = (user.travail_matiere_id
-                  if (user.travail_matiere_id and user.travail_niveau_id)
-                  else user.subject_id)
-    if not matiere_id:
-        return {"disponible": False, "texte": ""}
+    resolu = _resolve_collection(db, niveau)
+    if resolu is None:
+        return ExempleReferentielResponse(available=False)
+    collection, filtres, seuil = resolu
 
-    ligne = (db.query(AmbiguiteExemple)
-               .filter(AmbiguiteExemple.matiere_id == matiere_id,
-                       AmbiguiteExemple.actif.is_(True)).first())
-    if not ligne or not ligne.texte.strip():
-        return {"disponible": False, "texte": ""}
-    return {"disponible": True, "texte": ligne.texte}
+    chunks = retrieve_pg(collection, REQUETE_GABARIT.format(matiere=matiere, niveau=niveau),
+                         filters=filtres, top_k=get_rag_top_k(db), schema=schema_de_session(db))
+    chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
+    if not chunks:
+        # Rien d'assez pertinent : on le dit au prof, et `generate` n'est PAS appelé (rien payé).
+        return ExempleReferentielResponse(available=False, message=AUCUN_EXTRAIT_PERTINENT)
+
+    prompt = build_ambiguite_exemple_prompt(db, chunks, matiere=matiere, niveau=niveau,
+                                            criteres=bloc_types_ambiguite(db))
+    # Pas de cahier des charges de l'établissement ici, contrairement aux prompts de génération :
+    # ses règles servent à rendre un contenu PROPRE, et cet énoncé-ci doit être imparfait.
+    try:
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db),
+                         model=get_ai_model(db),
+                         max_tokens=get_max_tokens(db, "ambiguite_exemple_genere"),
+                         temperature=get_temperature(db), retry_max=get_retry_max(db),
+                         retry_wait_max=get_retry_wait_max(db), outil="ambiguite_exemple_genere")
+    except LLMRateLimitError as e:
+        raise HTTPException(429, str(e))   # surchargé/trop de demandes : transitoire, pas une panne
+    return ExempleReferentielResponse(available=True, texte=texte.strip())
 
 
 @router.post("/detect-ambiguites", response_model=AmbigsResponse)

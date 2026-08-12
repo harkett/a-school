@@ -57,11 +57,28 @@ Règles :
 # Améliorer ont été supprimées de l'écran (le contrôle qualité est intégré à la génération).
 
 
-PROMPT_AMBIGUITE_EXEMPLE = """Tu écris un ÉNONCÉ D'EXERCICE VOLONTAIREMENT IMPARFAIT, qui servira d'exemple de démonstration à un outil de détection d'ambiguïtés.
+# L'énoncé d'exemple de l'écran « Détecter les ambiguïtés », ÉCRIT À LA DEMANDE DU PROFESSEUR,
+# pour son couple à lui, ancré sur les extraits de son référentiel — exactement le geste de
+# « Document d'exemple » et de « Propose-moi une idée » : le prof clique, l'énoncé arrive, rien
+# n'est rangé en base. Un texte de démonstration n'a aucune raison d'être le même deux fois.
+#
+# Deux prompts d'exemple écrits d'avance (un par matière, un par référentiel entier) ont vécu ici
+# jusqu'au 12/08/2026, avec leur écran d'administration et leur table. Ils économisaient un appel
+# que « Propose-moi une idée » paie sans discuter depuis toujours, et payaient cette économie d'un
+# ancrage : faute de demande du prof, ils cherchaient les extraits par NOM de matière.
+#
+# Il ne rend QUE l'énoncé, sans son relevé de défauts : c'est l'analyse qui les trouvera, c'est
+# même tout ce qu'on lui demande de montrer. Une sortie en un seul bloc, donc aucun découpage,
+# donc aucun endroit où un format mal respecté fait perdre le texte.
+PROMPT_AMBIGUITE_EXEMPLE_GENERE = """Tu écris un ÉNONCÉ D'EXERCICE VOLONTAIREMENT IMPARFAIT, qui servira de démonstration à un outil de détection d'ambiguïtés.
 
 Contexte :
 - Matière : {matiere}
-- Niveau/formation : {niveau}
+- Niveau / formation : {niveau}
+
+Les EXTRAITS DU RÉFÉRENTIEL OFFICIEL ci-dessous disent ce que cette matière recouvre réellement à ce niveau : ils te sont donnés pour que tu n'aies pas à l'interpréter. Un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation — ce sont les extraits qui le disent, pas ton intuition.
+
+{referentiel}
 
 Ton énoncé doit ressembler à un vrai sujet donné par un enseignant de cette matière à ce niveau : même vocabulaire métier, même longueur, même ton. Un lecteur pressé ne doit rien y voir d'anormal — les défauts sont ceux qu'on commet sans le vouloir, pas des pièges grossiers.
 
@@ -70,72 +87,12 @@ Tu y glisses délibérément UNE ambiguïté de chacun des types suivants, et de
 
 Contraintes :
 - 3 paragraphes maximum, 200 mots environ. Un énoncé qu'on colle en un geste.
+- Le sujet doit porter sur ce que disent les extraits ci-dessus. Ne transpose pas un intitulé dans une autre discipline parce qu'il y ressemble.
 - Chaque défaut doit être réellement présent dans le texte, repérable en citant un extrait exact.
-- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts DANS l'énoncé lui-même : il doit se lire comme un sujet ordinaire.
+- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts : l'énoncé doit se lire comme un sujet ordinaire.
 - Le contenu doit être exact du point de vue de la discipline : un énoncé mal formulé, jamais un énoncé faux.
 
-Format de réponse — EXACTEMENT ces deux blocs, rien avant, rien après :
-
-=== ENONCE ===
-(le titre du sujet puis l'énoncé)
-
-=== DEFAUTS ===
-- Type du défaut — "extrait exact concerné" — en quoi c'en est un
-(une ligne par défaut, dans l'ordre des types demandés)"""
-
-
-# Le même travail que PROMPT_AMBIGUITE_EXEMPLE, mais pour TOUT un référentiel d'un coup : un
-# aller-retour par référentiel au lieu d'un par matière. Exécuté HORS de l'application, et son
-# résultat se recolle d'un bloc dans la cartouche « Ambiguïtés » de la procédure Référentiel.
-#
-# La sortie est STRICTE : les trois marqueurs et rien d'autre. Le rédacteur qui hésitait laissait
-# jusqu'ici des notes « (NB : … ) » en fin de bloc ; elles se retrouvaient dans la colonne des
-# défauts, et un exemple parti sur un contresens entrait quand même en base. Une matière dont il
-# n'est pas sûr ne s'écrit plus : il la nomme à part, et son couple reste vide. Vide plutôt que
-# faux — un couple faux est invisible, le professeur le lirait sans jamais savoir.
-PROMPT_AMBIGUITE_EXEMPLES_REFERENTIEL = """Tu écris UN ÉNONCÉ D'EXERCICE VOLONTAIREMENT IMPARFAIT PAR MATIÈRE, pour la formation ci-dessous. Ces énoncés serviront d'exemples de démonstration à un outil de détection d'ambiguïtés.
-
-Niveau / formation : {niveau}
-
-Matières à traiter, une par une, dans cet ordre. Sous chaque nom figurent des EXTRAITS DU RÉFÉRENTIEL OFFICIEL de cette formation, qui disent ce que la matière recouvre réellement : ils te sont donnés pour que tu n'aies pas à l'interpréter. Un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation — ce sont les extraits qui le disent, pas ton intuition.
-{matieres}
-
-Chaque énoncé doit ressembler à un vrai sujet donné par un enseignant de CETTE matière à CE niveau : même vocabulaire métier, même longueur, même ton. Un lecteur pressé ne doit rien y voir d'anormal — les défauts sont ceux qu'on commet sans le vouloir, pas des pièges grossiers.
-
-Dans chaque énoncé, tu glisses délibérément UNE ambiguïté de chacun des types suivants, et de ceux-là seulement :
-{criteres}
-
-Contraintes, pour chaque énoncé :
-- 3 paragraphes maximum, 200 mots environ. Un énoncé qu'on colle en un geste.
-- Chaque défaut doit être réellement présent dans le texte, repérable en citant un extrait exact.
-- Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts DANS l'énoncé lui-même : il doit se lire comme un sujet ordinaire.
-- Le contenu doit être exact du point de vue de la discipline : un énoncé mal formulé, jamais un énoncé faux.
-- Le sujet doit porter sur ce que disent les extraits de CETTE matière. Ne transpose pas un intitulé dans une autre discipline parce qu'il y ressemble.
-
-SI LES EXTRAITS NE SUFFISENT PAS À DÉTERMINER CE QUE RECOUVRE UNE MATIÈRE, tu ne l'écris pas. Tu ne devines pas, tu ne choisis pas l'interprétation la plus probable : tu la reportes dans le bloc final. Un exemple hors sujet serait invisible pour l'enseignant qui le lirait.
-
-Format de réponse — EXACTEMENT ces blocs, rien avant, rien après, aucune note, aucun commentaire, aucune remarque de ta part :
-
-### Nom exact de la première matière
-=== ENONCE ===
-(le titre du sujet puis l'énoncé)
-
-=== DEFAUTS ===
-- Type du défaut — "extrait exact concerné" — en quoi c'en est un
-(une ligne par défaut, dans l'ordre des types demandés)
-
-### Nom exact de la matière suivante
-=== ENONCE ===
-...
-
-=== DEFAUTS ===
-...
-
-(et ainsi de suite pour chaque matière que tu as pu traiter)
-
-=== NON TRAITEES ===
-- Nom exact de la matière — ce que tu n'as pas pu déterminer
-(une ligne par matière écartée ; ce bloc reste vide si tu les as toutes traitées, mais il doit toujours être présent)"""
+Format de réponse : le titre du sujet, puis l'énoncé, ET RIEN D'AUTRE — aucun préambule, aucune liste des défauts, aucune remarque de ta part. Ce texte part tel quel dans la zone de saisie du professeur."""
 
 
 PROMPT_CONSIGNE = """Tu es un expert en didactique et en ingénierie pédagogique pour l'enseignement secondaire français (collège et lycée, 6e à Terminale).
@@ -732,146 +689,184 @@ Réponds UNIQUEMENT en JSON, avec exactement ces clés : cycle_lu, niveau_lu."""
 # Sans ce champ, les trois prompts en mode replace ne pouvaient pas entrer au registre — et
 # `prompt_verif_decoupe` restait lu à chaque découpe sans qu'AUCUNE route ne permette de le
 # corriger (trouvé le 01/08/2026, réparé le 02/08).
+# LE RANGEMENT DE L'ÉCRAN ADMIN « PROMPTS » vit EN BASE (table `prompt_fonctionnalites`,
+# semée par la migration d7f3b1e9a5c2) : une ligne par fonctionnalité, son libellé étant le
+# CHEMIN dans le menu du professeur. Chaque prompt ci-dessous déclare, par sa clé
+# `fonctionnalite`, celle qu'il sert — c'est le seul lien entre les deux.
+
+# `onglet` — le nom COURT sous lequel le prompt s'affiche quand sa fonctionnalité en porte
+# plusieurs. Le `label`, lui, reste la phrase entière : elle dit ce que le texte fait, mais
+# « Consigne du corrigé (case « Inclure une proposition de correction ») » ne tient pas sur un
+# onglet — elle débordait de la colonne et se coupait au milieu d'un mot. La phrase se lit
+# maintenant au survol et en titre du détail. Sans `onglet`, l'écran retombe sur le `label`.
 PROMPTS = {
     "ambiguites": {
         "label": "Analyse de l'énoncé du prof",
+        "onglet": "Analyse de l'énoncé",
         "role": "C'est LUI qui analyse : il relit l'énoncé collé par le professeur et rend les ambiguïtés trouvées. Il part au modèle à chaque clic sur « Analyser l'énoncé ».",
         "placeholders": ["matiere", "niveau", "texte", "criteres", "critere_libre"],
         "categorie": "fonctionnalites",
+        "fonctionnalite": "analyse_ambiguites",
         "default": PROMPT_AMBIGUITES,
     },
-    # Exécuté HORS de l'application : l'admin copie le texte rempli, le fait tourner chez lui,
-    # et recolle le résultat dans l'écran « Exemples ». Zéro appel payant, même énoncé à chaque
-    # fois — c'est ce qui distingue cet exemple d'une génération à la volée.
-    "ambiguite_exemple": {
-        "label": "Exemple d'énoncé",
-        "role": "Il n'analyse RIEN : il écrit l'énoncé d'exemple d'UNE matière — celui que le professeur charge par « Utiliser un exemple ». Il sert une fois, hors de l'application.",
-        "placeholders": ["matiere", "niveau", "criteres"],
+    # Écrit À LA DEMANDE DU PROF, pour SON couple : il clique, l'énoncé arrive, rien n'est
+    # stocké. C'est le geste de « Document d'exemple » — un appel, un texte, le prof en fait ce
+    # qu'il veut.
+    "ambiguite_exemple_genere": {
+        "label": "Exemple d'énoncé — écrit à la demande du professeur",
+        "onglet": "Exemple d'énoncé",
+        "role": "Il n'analyse RIEN : il écrit à la volée l'énoncé d'exemple que le professeur demande par « Propose-moi un exemple », ancré sur les extraits du référentiel de son couple. Il part au modèle à chaque clic.",
+        "placeholders": ["matiere", "niveau", "criteres", "referentiel"],
         "categorie": "fonctionnalites",
-        "default": PROMPT_AMBIGUITE_EXEMPLE,
-    },
-    # Un aller-retour par RÉFÉRENTIEL au lieu d'un par matière : le prompt porte toutes les
-    # matières du référentiel, et son résultat se recolle d'un bloc dans la cartouche
-    # « Ambiguïtés » de la procédure Référentiel.
-    "ambiguite_exemples_referentiel": {
-        "label": "Exemples d'énoncés — tout un référentiel",
-        "role": "Il n'analyse RIEN : il écrit les énoncés d'exemple de TOUTES les matières d'un référentiel, en un seul aller-retour. C'est le prompt de la cartouche « Ambiguïtés » d'Admin → Référentiels.",
-        "placeholders": ["niveau", "matieres", "criteres"],
-        "categorie": "fonctionnalites",
-        "default": PROMPT_AMBIGUITE_EXEMPLES_REFERENTIEL,
+        "fonctionnalite": "analyse_ambiguites",
+        "default": PROMPT_AMBIGUITE_EXEMPLE_GENERE,
     },
     "consigne": {
         "label": "Analyse de consigne",
+        "onglet": "Analyse de consigne",
         "placeholders": ["matiere", "niveau", "consigne"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "analyse_consigne",
         "default": PROMPT_CONSIGNE,
     },
     "seance_standard": {
         "label": "Séance (Mes contenus) — mode standard",
+        "onglet": "Mode standard",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_STANDARD,
     },
     "seance_remediation": {
         "label": "Séance (Mes contenus) — mode remédiation",
+        "onglet": "Mode remédiation",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_REMEDIATION,
     },
     "seance_approfondissement": {
         "label": "Séance (Mes contenus) — mode approfondissement",
+        "onglet": "Mode approfondissement",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_APPROFONDISSEMENT,
     },
     "seance_autonomie": {
         "label": "Séance (Mes contenus) — mode autonomie guidée",
+        "onglet": "Mode autonomie",
         "placeholders": ["matiere", "niveau", "duree", "theme"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_AUTONOMIE,
     },
     "seance_proposer_theme": {
         "label": "Séance (Mes contenus) — « Propose-moi un thème » (zone Texte de départ)",
+        "onglet": "Propose un thème",
         "placeholders": ["matiere", "niveau", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_PROPOSER_THEME,
     },
     "seance_proposer_competences": {
         "label": "Séance (Mes contenus) — « Propose-moi des compétences » (cartouche Contenu pédagogique)",
+        "onglet": "Propose des compétences",
         "placeholders": ["matiere", "niveau", "theme", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_PROPOSER_COMPETENCES,
     },
     "seance_proposer_materiel": {
         "label": "Séance (Mes contenus) — « Propose-moi du matériel nécessaire » (cartouche Contenu pédagogique)",
+        "onglet": "Propose du matériel",
         "placeholders": ["matiere", "niveau", "seance"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_PROPOSER_MATERIEL,
     },
     "seance_proposer_contraintes": {
         "label": "Séance (Mes contenus) — « Propose-moi des contraintes spéciales » (cartouche Contenu pédagogique)",
+        "onglet": "Propose des contraintes",
         "placeholders": ["matiere", "niveau", "seance"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_PROPOSER_CONTRAINTES,
     },
     "seance_proposer_esquisse": {
         "label": "Séance (Mes contenus) — « Propose-moi cette phase » (esquisse A/B/C du Déroulé souhaité)",
+        "onglet": "Propose une phase",
         "placeholders": ["matiere", "niveau", "seance", "phase"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_PROPOSER_ESQUISSE,
     },
     "seance_style_classique": {
         "label": "Séance (Mes contenus) — style de production classique",
+        "onglet": "Style classique",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_STYLE_CLASSIQUE,
     },
     "seance_style_ludique": {
         "label": "Séance (Mes contenus) — style de production ludique",
+        "onglet": "Style ludique",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_STYLE_LUDIQUE,
     },
     "seance_style_structure": {
         "label": "Séance (Mes contenus) — style de production structuré",
+        "onglet": "Style structuré",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_STYLE_STRUCTURE,
     },
     "seance_style_concis": {
         "label": "Séance (Mes contenus) — style de production très concis",
+        "onglet": "Style concis",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "seance",
         "default": PROMPT_SEANCE_STYLE_CONCIS,
     },
     "sequence_generer_plan": {
         "label": "Séquence (Mes contenus) — génération du PLAN (une ligne = une séance)",
+        "onglet": "Plan de séquence",
         "placeholders": ["matiere", "niveau", "objectif"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "sequence",
         "default": PROMPT_SEQUENCE_GENERER_PLAN,
     },
     "sequence_proposer_objectif": {
         "label": "Séquence (Mes contenus) — « Propose-moi un objectif » (zone Objectif général)",
+        "onglet": "Propose un objectif",
         "placeholders": ["matiere", "niveau", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "sequence",
         "default": PROMPT_SEQUENCE_PROPOSER_OBJECTIF,
     },
     "sequence_proposer_competences": {
         "label": "Séquence (Mes contenus) — « Propose-moi des compétences » (cartouche Précisions)",
+        "onglet": "Propose des compétences",
         "placeholders": ["matiere", "niveau", "objectif", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "sequence",
         "default": PROMPT_SEQUENCE_PROPOSER_COMPETENCES,
     },
     "analyse_amont": {
         "label": "Analyse amont d'un référentiel (détection des cas ambigus)",
         "placeholders": ["unites"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_ANALYSE_AMONT,
     },
     "decoupe_amont": {
         "label": "Découpe d'un référentiel en unités (par l'IA, au dépôt du PDF)",
         "placeholders": ["texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_DECOUPE_AMONT,
     },
     # ── Les prompts en mode « replace » (cf. l'en-tête du registre) ────────────────────
@@ -889,7 +884,7 @@ PROMPTS = {
     "verif_decoupe": {
         "label": "Découpe — méta-prompt de critique : l'IA RELIT le prompt qu'elle vient d'écrire",
         "placeholders": ["prompt"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "mode": "replace",
         "default": PROMPT_VERIF_DECOUPE,
     },
@@ -899,14 +894,14 @@ PROMPTS = {
         # RESTER INTACTS — c'est la génération du prof qui les remplira. D'où le mode replace :
         # un `.format()` global consommerait aussi les deux derniers.
         "placeholders": ["label", "niveau", "texte", "referentiel"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "mode": "replace",
         "default": PROMPT_GABARIT_TYPE,
     },
     "verifier_couple": {
         "label": "Vérification du couple (cycle + niveau) déclaré vs le document",
         "placeholders": ["cycle", "niveau", "texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_VERIFIER_COUPLE,
     },
     "detecter_matieres": {
@@ -914,7 +909,7 @@ PROMPTS = {
         # {matieres_existantes} RETIRÉ : il n'y a plus de catalogue commun auquel comparer le
         # document. Chaque référentiel nomme SES matières — l'IA ne reçoit donc que le texte.
         "placeholders": ["texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_DETECTER_MATIERES,
     },
     "detecter_types_activite": {
@@ -923,67 +918,81 @@ PROMPTS = {
         # référentiel nomme SES types — l'IA ne reçoit donc que le texte. Ce prompt est le REPLI
         # GÉNÉRAL : dès que le référentiel a le sien (`referentiels.prompt_types`), c'est lui qui lit.
         "placeholders": ["texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_DETECTER_TYPES_ACTIVITE,
     },
     "suggerer_precisions_type": {
         "label": "Suggestion des précisions d'un type d'activité pour un niveau (écran admin des types)",
         "placeholders": ["label", "niveau", "texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_SUGGERER_PRECISIONS_TYPE,
     },
     "detecter_couple": {
         "label": "Détection du cycle et du niveau depuis le document (dépôt « PDF d'abord »)",
         "placeholders": ["cycles_existants", "texte"],
-        "categorie": "admin",
+        "categorie": "referentiels_communs",
         "default": PROMPT_DETECTER_COUPLE,
     },
     "correction": {
         "label": "Consigne du corrigé (case « Inclure une proposition de correction »)",
+        "onglet": "Consigne du corrigé",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_CORRECTION,
     },
     "controle_qualite": {
         "label": "Contrôle qualité intégré à la génération (auto-relecture du modèle)",
+        "onglet": "Contrôle qualité",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_CONTROLE_QUALITE,
     },
     "ton_academique": {
         "label": "Ton de rédaction — académique (bouton « Générer — ton académique »)",
+        "onglet": "Ton académique",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_TON_ACADEMIQUE,
     },
     "ton_operationnel": {
         "label": "Ton de rédaction — opérationnel (bouton « Générer — ton opérationnel »)",
+        "onglet": "Ton opérationnel",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_TON_OPERATIONNEL,
     },
     "few_shot": {
         "label": "Few-shot « aSchool vous reconnaît » (activités précédentes du prof en exemple)",
+        "onglet": "Few-shot",
         "placeholders": ["exemples"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_FEW_SHOT,
     },
     "exemple_referentiel": {
         "label": "Document d'exemple (texte source tiré du programme officiel)",
+        "onglet": "Document d'exemple",
         "placeholders": ["matiere", "niveau", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_EXEMPLE_REFERENTIEL,
     },
     "proposer_idee": {
         "label": "« Propose-moi une idée » (demande d'activité écrite à la place du prof)",
+        "onglet": "Propose une idée",
         "placeholders": ["quoi", "niveau", "referentiel"],
-        "categorie": "prof",
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "creer_activite",
         "default": PROMPT_PROPOSER_IDEE,
     },
     "entete_cahier": {
         "label": "Intitulé du cahier des charges de l'établissement (ajouté aux générations)",
         "placeholders": [],
-        "categorie": "prof",
+        "categorie": "autres",
         "default": PROMPT_ENTETE_CAHIER,
     },
 }

@@ -90,6 +90,16 @@ export function imprimerApercu(corps) {
   setTimeout(nettoyer, 60000)   // filet de sécurité si onafterprint ne se déclenche pas
 }
 
+// Un corps DÉJÀ ÉCRIT EN HTML — pas du markdown. Le rapport d'ambiguïtés en est un : ses
+// couleurs (une par type d'ambiguïté, le vert de la reformulation) portent du sens, et le
+// markdown ne sait pas les dire. Même porte de sortie, même nettoyage, même signature.
+export function documentDepuisHtml(html) {
+  if (!DOMPurify.isSupported) {
+    throw new Error("documentDepuisHtml exige un navigateur : DOMPurify ne peut pas nettoyer le HTML sans DOM.")
+  }
+  return DOMPurify.sanitize(html) + piedHtml()
+}
+
 // Le corps d'un document AVEC sa signature — c'est cette forme-là qui s'affiche dans l'aperçu et
 // qui part à l'imprimante. `corpsHtml` seul reste disponible pour les usages qui ne sortent pas.
 export function documentHtml(texte) {

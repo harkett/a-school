@@ -18,8 +18,9 @@ from backend.core.cles import secret_obligatoire
 from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.schema_requete import schema_de
 from backend.core.limiter import limiter
+from backend.core.catalogues import catalogue
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, Referentiel, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, PromptFonctionnalite, Referentiel, RefreshToken, Seance, Sequence, Setting, User, UserSession
 # La fabrique du jeton de passage vit chez le prof (backend/prof/demo.py) : l'admin emprunte la
 # MÊME, il n'en a pas une seconde. Import du module et non des fonctions — les deux modules se
 # citent, et le module entier évite d'avoir à ordonner leurs imports.
@@ -1778,12 +1779,18 @@ def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_requi
         out.append({
             "key": key,
             "label": meta["label"],
+            # Le nom COURT de l'onglet quand la fonctionnalité porte plusieurs textes. Vide =
+            # l'écran retombe sur le libellé complet.
+            "onglet": meta.get("onglet", ""),
             # À quoi sert ce texte, en une phrase — vide si le registre n'en donne pas.
             "role": meta.get("role", ""),
             "placeholders": meta["placeholders"],
-            # À qui sert le texte : « prof », « admin » ou « autres ». Range la ligne sous la
-            # bonne sous-option de l'écran admin « Prompts » (registre, pas de table).
+            # L'onglet de l'écran admin « Prompts » : « fonctionnalites »,
+            # « referentiels_communs » ou « autres » (registre, pas de table).
             "categorie": meta["categorie"],
+            # Sous quelle FONCTIONNALITÉ la ligne se range dans l'onglet — la clé d'une entrée de
+            # `FONCTIONNALITES`, servie juste dessous. Vide hors de cet onglet.
+            "fonctionnalite": meta.get("fonctionnalite", ""),
             # `current` = ce que le serveur utilisera VRAIMENT. Absent en base = plus rien à
             # utiliser : on montre le texte de référence, mais `en_base` dit la vérité.
             "current": en_base if present else meta["default"],
@@ -1791,7 +1798,14 @@ def get_prompts_settings(db: Session = Depends(get_db), _: None = Depends(_requi
             "is_default": not present or en_base == meta["default"],
             "en_base": present,
         })
-    return {"prompts": out, "manquants": [p["key"] for p in out if not p["en_base"]]}
+    # Les fonctionnalités elles-mêmes, dans leur ordre d'affichage : l'écran ne les connaît pas,
+    # il les reçoit. Une fonctionnalité ajoutée au registre apparaît sans toucher au front.
+    fonctionnalites = [
+        {"cle": f.code, "label": f.label, "aide": f.aide}
+        for f in catalogue(db, PromptFonctionnalite, "fonctionnalités des prompts")
+    ]
+    return {"prompts": out, "fonctionnalites": fonctionnalites,
+            "manquants": [p["key"] for p in out if not p["en_base"]]}
 
 
 @router.put("/admin/prompts")

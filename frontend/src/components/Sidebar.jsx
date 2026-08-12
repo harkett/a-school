@@ -255,10 +255,8 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
         {/* Mes analyses — ex-section « Analyse » de Mes outils, sortie au premier niveau
             le 30/07 (« Mes outils » supprimé du menu, routes et code en place). */}
         {collapsed ? (
-          // Vise « Consignes » et non « Ambiguïté » : replié, ce bouton EST la section, et il
-          // ouvrirait un écran qu'on vient de fermer. Il pointe donc la première analyse encore
-          // disponible.
-          navItem('consigne', 'Mes analyses', IconMesAnalyses, 'Mes analyses — consignes')
+          // Replié, ce bouton EST la section : il vise sa première analyse.
+          navItem('ambiguites', 'Mes analyses', IconMesAnalyses, 'Mes analyses — analyser un texte pour détecter les ambiguïtés')
         ) : (
           <div>
             <button
@@ -284,7 +282,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
 
             {analysesOpen && (
               <div style={{ marginLeft: 18, marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
-                {subNavItem('ambiguites', 'Ambiguïté', "Bientôt disponible — détecter les ambiguïtés cognitives d'un énoncé ou exercice", { disabled: true })}
+                {subNavItem('ambiguites', 'Ambiguïté', "Analyser un texte pour détecter les ambiguïtés cognitives d'un énoncé ou exercice")}
                 {/* Consignes EXISTE (composant Consigne + backend analyse/consigne.py) : le menu
                     la donnait pour « bientôt » et la grisait, alors que l'Accueil l'ouvrait
                     normalement. Deux écrans, deux vérités — c'est le menu qui se trompait. */}

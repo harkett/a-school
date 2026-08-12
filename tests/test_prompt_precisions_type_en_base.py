@@ -87,7 +87,7 @@ def test_la_cle_est_declaree_au_registre_avec_ses_trois_reperes():
     garde-fou d'ecriture ne protege pas ses reperes."""
     assert CLE in PROMPTS, "le prompt n'est pas au registre : l'admin ne peut pas le voir"
     assert set(PROMPTS[CLE]["placeholders"]) == {"label", "niveau", "texte"}
-    assert PROMPTS[CLE]["categorie"] == "admin"
+    assert PROMPTS[CLE]["categorie"] == "referentiels_communs"
 
 
 def test_le_texte_envoye_au_modele_vient_de_la_base(espion, db):

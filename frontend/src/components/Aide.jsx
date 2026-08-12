@@ -583,7 +583,7 @@ const sections = [
           <p className="font-semibold text-gray-700 mb-2">1. Soumettez votre énoncé</p>
           <ul className="flex flex-col gap-1.5 pl-4" style={{ listStyleType: 'disc' }}>
             <li>Collez un exercice, une série de questions ou une consigne isolée</li>
-            <li><strong>Pas d'exercice sous la main ?</strong> Cliquez sur <strong>Tester un exemple</strong> (en haut à droite du champ) pour pré-remplir avec un énoncé adapté à votre matière — idéal pour découvrir l'outil.</li>
+            <li><strong>Pas d'exercice sous la main ?</strong> Cliquez sur <strong>Propose-moi un exemple</strong> (en haut à droite du champ) : aSchool écrit sur-le-champ un énoncé de votre matière et de votre niveau, tiré du programme officiel, avec de vrais défauts dedans — idéal pour découvrir l'outil.</li>
           </ul>
         </div>
         <hr className="border-gray-100" />
