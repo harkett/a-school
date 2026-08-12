@@ -533,3 +533,85 @@ def test_page_contenu_arbre_complet():
     assert vide["referentiel"] is None      # le niveau sans dépôt reste VISIBLE : à remplir
     assert vide["referentiel_id"] is None   # rien à adresser : pas de champ « + Matière » à l'écran
     assert vide["matieres"] == [] and vide["types"] == []
+
+
+# ── Épuration : les en-têtes et pieds de page ───────────────────────────────────────────────
+#
+# Le bandeau répété en haut ou en bas des pages est collé au fil du texte par l'extraction, et
+# le saut de page tombe souvent AU MILIEU d'une phrase : « Référentiel maison aSchool — en
+# service, sans valeur institutionnelle » s'est ainsi retrouvé planté au beau milieu d'une fiche
+# d'activité du référentiel crèche, où le modèle l'a lu comme du contenu.
+#
+# Ce que ces tests PROUVENT — et surtout ce qu'ils PROTÈGENT : la répétition seule ne suffit pas
+# à condamner une ligne. Sur le BTS CIEL, « Face à un ensemble de faits, des actions appropriées »
+# revient sur douze pages, et « Pôle « VALORISATION DE LA DONNÉE ET CYBERSÉCURITÉ » » sur cinq —
+# ce sont du contenu, et le second porte le rattachement des unités qui le suivent.
+
+HAUTEUR = 842.0     # A4 en points, comme les référentiels en service
+
+
+def _ligne(texte: str, pourcent: float) -> dict:
+    return {"text": texte, "top": HAUTEUR * pourcent / 100.0}
+
+
+def test_le_bandeau_repete_dans_la_marge_est_retire():
+    from backend.rag.extraction import _sans_bandeaux
+
+    pages = [[_ligne("Référentiel d'éveil 0-3 ans — aSchool", 5.5),
+              _ligne(f"Contenu propre de la page {i}", 40.0),
+              _ligne("Référentiel maison aSchool — sans valeur institutionnelle", 95.6)]
+             for i in range(4)]
+
+    propres = _sans_bandeaux(pages, HAUTEUR)
+    assert all("aSchool" not in p for p in propres)
+    assert propres[0] == "Contenu propre de la page 0"
+
+
+def test_une_phrase_qui_se_repete_dans_le_texte_n_est_pas_un_bandeau():
+    """Elle coule avec le texte : sa hauteur change à chaque page. C'est ce qui la sauve."""
+    from backend.rag.extraction import _sans_bandeaux
+
+    pages = [[_ligne("− Face à un ensemble de faits, des actions appropriées", h)]
+             for h in (57.1, 80.9, 77.8, 82.9, 66.7)]
+
+    assert all("Face à un ensemble" in p for p in _sans_bandeaux(pages, HAUTEUR))
+
+
+def test_un_titre_de_section_repete_juste_sous_la_marge_est_garde():
+    """« Pôle « VALORISATION… » » vit à 7,9 % : hors marge, donc hors de portée de la règle.
+    Il porte le rattachement des unités qui le suivent — le perdre coûterait plus cher qu'un
+    bandeau oublié."""
+    from backend.rag.extraction import _sans_bandeaux
+
+    pages = [[_ligne("Pôle « VALORISATION DE LA DONNÉE ET CYBERSÉCURITÉ »", 7.9)] for _ in range(5)]
+    assert all("VALORISATION" in p for p in _sans_bandeaux(pages, HAUTEUR))
+
+
+def test_deux_pages_ne_font_pas_un_bandeau():
+    """Deux pourraient être une coïncidence de mise en page ; trois, non."""
+    from backend.rag.extraction import _sans_bandeaux
+
+    pages = [[_ligne("Peut-être un bandeau", 96.0)] for _ in range(2)]
+    assert all("Peut-être" in p for p in _sans_bandeaux(pages, HAUTEUR))
+
+
+def test_le_pied_qui_porte_son_numero_de_page_est_reconnu_quand_meme():
+    """« …, Page170. » change à chaque page : sans neutraliser les nombres, un pied sur deux ne
+    se reconnaîtrait jamais lui-même (cas réel, référentiel Ergothérapie)."""
+    from backend.rag.extraction import _sans_bandeaux
+
+    pages = [[_ligne("Contenu", 40.0),
+              _ligne(f"BO Santé – Solidarité no2010/7 du 15 août 2010, Page{170 + i}.", 94.5)]
+             for i in range(4)]
+
+    propres = _sans_bandeaux(pages, HAUTEUR)
+    assert all("BO Santé" not in p for p in propres)
+    assert all("Contenu" in p for p in propres)
+
+
+def test_la_regle_est_annoncee_a_l_admin():
+    """L'écran admin liste les règles d'épuration : une règle qui agit sans être écrite là
+    serait une transformation invisible du document déposé."""
+    from backend.rag.extraction import REGLES_EPURATION
+
+    assert any("En-têtes et pieds" in r["nom"] for r in REGLES_EPURATION)

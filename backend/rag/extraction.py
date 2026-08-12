@@ -36,6 +36,16 @@ REGLES_EPURATION = [
                        "Leur signature géométrique — des lettres seules, sans voisines, empilées à la "
                        "même position — est repérée et ces caractères sont écartés avant la lecture.",
     },
+    {
+        "nom": "En-têtes et pieds de page",
+        "description": "La bande répétée en haut ou en bas de chaque page (titre du document, "
+                       "mention d'usage, nom de l'éditeur) est collée au fil du texte par "
+                       "l'extraction, souvent AU MILIEU d'une phrase coupée par le saut de page. "
+                       "Elle est reconnue à sa POSITION : un même texte, toujours à la même "
+                       "hauteur exacte, dans la marge haute ou basse, sur au moins trois pages. "
+                       "Une phrase de contenu se répète parfois d'une page à l'autre, mais jamais "
+                       "au millimètre près dans la marge — c'est ce qui la met à l'abri.",
+    },
 ]
 
 
@@ -45,6 +55,64 @@ def _sans_numeros_de_page(texte: str) -> str:
     un référentiel vit toujours DANS une phrase ou une liste — jamais seul sur sa ligne. Pur,
     déterministe, testable seul."""
     return "\n".join(l for l in texte.split("\n") if not re.fullmatch(r"\s*\d{1,4}\s*", l))
+
+
+# Ce qui fait un bandeau, et non une phrase qui se répète.
+#
+# Mesuré sur les référentiels en service (11/08/2026) : les vrais en-têtes et pieds se tiennent
+# à 4,4 % / 5,5 % / 5,7 % du haut, ou à 94,5 % / 95,6 % / 97,8 % — toujours la MÊME valeur d'une
+# page à l'autre. Juste en dessous commence le contenu : un titre de section répété (« Pôle
+# « VALORISATION DE LA DONNÉE ET CYBERSÉCURITÉ » », BTS CIEL) vit à 7,9 %, et il porte le
+# rattachement des unités qui le suivent — le perdre coûterait plus cher que garder un bandeau.
+_MARGE_HAUTE = 6.0      # % de la hauteur de page
+_MARGE_BASSE = 94.0
+_PAGES_POUR_UN_BANDEAU = 3
+
+
+def _bandeaux(lignes_par_page: list[list[dict]], hauteur: float) -> set[tuple]:
+    """Les (position, texte) qui reviennent à l'identique dans les marges → ce sont des bandeaux.
+
+    La répétition SEULE ne suffit pas : « Ce que fait le professionnel : » ouvre chaque fiche
+    d'un référentiel crèche, et « Face à un ensemble de faits, des actions appropriées » revient
+    sur douze pages du BTS CIEL — mais à chaque fois à une hauteur différente, parce que c'est du
+    texte qui coule. Un bandeau, lui, est posé : même texte, même hauteur, page après page.
+    Pur, déterministe, testable seul."""
+    from collections import Counter
+
+    vus = Counter()
+    for lignes in lignes_par_page:
+        # `set` : deux lignes identiques SUR LA MÊME PAGE ne comptent que pour une page.
+        vus.update({_repere(l, hauteur) for l in lignes if _dans_la_marge(l, hauteur)})
+    return {cle for cle, n in vus.items() if n >= _PAGES_POUR_UN_BANDEAU}
+
+
+def _dans_la_marge(ligne: dict, hauteur: float) -> bool:
+    pc = 100.0 * ligne["top"] / hauteur if hauteur else 0.0
+    return pc <= _MARGE_HAUTE or pc >= _MARGE_BASSE
+
+
+def _repere(ligne: dict, hauteur: float) -> tuple:
+    """Le texte ET sa hauteur au dixième de pour-cent : c'est le couple qui identifie un bandeau.
+
+    Les nombres sont neutralisés avant de comparer : la moitié des pieds de page portent leur
+    numéro (« BO Santé — Protection sociale — Solidarite no2010/7 du 15 août 2010, Page170. »),
+    et un texte qui change à chaque page ne se reconnaîtrait jamais lui-même."""
+    sans_nombres = re.sub(r"\d+", "#", ligne["text"])
+    return (round(1000.0 * ligne["top"] / hauteur) if hauteur else 0, sans_nombres)
+
+
+def _sans_bandeaux(lignes_par_page: list[list[dict]], hauteur: float) -> list[str]:
+    """Le texte des pages, débarrassé de leurs en-têtes et pieds répétés.
+
+    L'extraction les colle au fil du texte, et le saut de page tombe souvent AU MILIEU d'une
+    phrase : le bandeau se retrouve alors planté entre deux morceaux d'une même consigne. Le
+    modèle, lui, le lit comme du contenu — un référentiel crèche a ainsi vu « Référentiel maison
+    aSchool — en service, sans valeur institutionnelle » atterrir au beau milieu d'une fiche
+    d'activité."""
+    a_retirer = _bandeaux(lignes_par_page, hauteur)
+    return ["\n".join(l["text"] for l in lignes
+                      if not (_dans_la_marge(l, hauteur) and _repere(l, hauteur) in a_retirer))
+            for lignes in lignes_par_page]
 
 
 def _cles_lettres_verticales(chars: list[dict]) -> set[tuple]:
@@ -82,18 +150,52 @@ def _cles_lettres_verticales(chars: list[dict]) -> set[tuple]:
     return debris
 
 
+def lignes_de_bandeau(pdf_path: Path | str) -> set[str]:
+    """Les TEXTES des en-têtes et pieds d'un PDF, nombres neutralisés — pour nettoyer après coup
+    ce qui a déjà été découpé et rangé en base.
+
+    Les documents déjà ingérés portent leurs bandeaux DANS leurs unités : les redécouper coûterait
+    un appel d'IA par référentiel pour un défaut d'extraction. Cette fonction permet de les en
+    retirer sans rien redemander à personne."""
+    import pdfplumber  # import paresseux, comme extraire_texte
+
+    lignes_par_page: list[list[dict]] = []
+    hauteur = 0.0
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for page in pdf.pages:
+            hauteur = hauteur or page.height
+            lignes_par_page.append(page.extract_text_lines() or [])
+    return {texte for _position, texte in _bandeaux(lignes_par_page, float(hauteur or 0))}
+
+
+def est_une_ligne_de_bandeau(ligne: str, bandeaux: set[str]) -> bool:
+    """La ligne, comparée aux bandeaux du document — nombres neutralisés des deux côtés."""
+    return re.sub(r"\d+", "#", ligne.strip()) in bandeaux
+
+
 def extraire_texte(pdf_path: Path | str, max_pages: int | None = None) -> str:
-    """Texte ÉPURÉ du PDF : extraction page par page SANS les caractères du texte vertical,
-    puis retrait des lignes numéros-de-page. C'est CE texte que toutes les étapes IA lisent."""
+    """Texte ÉPURÉ du PDF : extraction page par page SANS les caractères du texte vertical, puis
+    retrait des numéros de page et des bandeaux d'en-tête et de pied. C'est CE texte que toutes
+    les étapes IA lisent.
+
+    Les bandeaux sont repérés à leur position sur la page, pas à leur place dans le flux : le
+    numéro de page qui les suit parfois ne gêne donc plus rien, et il part au tour d'après."""
     import pdfplumber  # import paresseux : ne pas alourdir le démarrage du serveur
-    pages_txt: list[str] = []
+    lignes_par_page: list[list[dict]] = []
+    hauteur = 0.0
     with pdfplumber.open(str(pdf_path)) as pdf:
         pages = pdf.pages[:max_pages] if max_pages else pdf.pages
         for page in pages:
+            hauteur = hauteur or page.height
             debris = _cles_lettres_verticales(page.chars)
             if debris:
                 page = page.filter(
                     lambda o, _d=debris: not (o.get("object_type") == "char"
                                               and (o.get("x0"), o.get("top"), o.get("text")) in _d))
-            pages_txt.append(page.extract_text() or "")
-    return _sans_numeros_de_page("\n".join(pages_txt)).strip()
+            # `extract_text_lines` au lieu de `extract_text` : le rendu est identique (vérifié),
+            # mais chaque ligne arrive avec sa position — sans elle, impossible de distinguer un
+            # bandeau d'une phrase qui se répète.
+            lignes_par_page.append(page.extract_text_lines() or [])
+    hauteur = float(hauteur or 0)
+    return _sans_numeros_de_page(
+        "\n".join(_sans_bandeaux(lignes_par_page, hauteur))).strip()

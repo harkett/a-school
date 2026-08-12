@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import OngletsPrompts from '../components/OngletsPrompts'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments } from '../utils/aideSearch.js'
@@ -444,6 +445,20 @@ export default function AdminPromptsReferentiels() {
                       <span style={pastille(!!(r.precisions || '').trim())}>
                         {(r.precisions || '').trim() ? '● prompt' : '○ prompt'}
                       </span>
+                    </div>
+                    {/* Les textes de l'ambiguïté ne sont pas des colonnes de `referentiels` :
+                        ils vivent dans le registre des prompts d'outils. La ligne est donc un
+                        simple RENVOI, pas un état à remplir ici. */}
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      ambiguïté{' '}
+                      <Link
+                        to="/admin/prompts/fonctionnalites#fonctionnalite-analyse_ambiguites"
+                        onClick={e => e.stopPropagation()}
+                        title="Ouvrir « Mes Analyses → Ambiguïtés » dans les prompts par fonctionnalité"
+                        style={{ color: '#7c3aed', textDecoration: 'underline' }}
+                      >
+                        ses prompts
+                      </Link>
                     </div>
                   </td>
                 </tr>

@@ -12,6 +12,23 @@ import { registerConfirmHandler } from '../confirmDialog'
 // QUATRE sorties sans confirmer — la croix, « Annuler », Échap, le clic en dehors — et toutes
 // passent par `fermerSansConfirmer`. C'est vital : sans ce rappel, `demanderConfirmation`
 // (confirmDialog.js) ne se résoudrait jamais et la fonction qui l'attend resterait figée.
+
+// Les mots qui disent la dépense, en rouge dans le corps du message : « FACTURÉ » se lit alors
+// avant le reste, au lieu de se fondre dans le paragraphe. Le message reste une simple chaîne
+// côté appelant — aucun balisage à apprendre, aucune façon nouvelle d'écrire un message.
+const MOTS_DEPENSE = /(FACTURÉ\S*|PAYANT\S*|DEUX appels)/g
+
+function enRouge(message) {
+  if (typeof message !== 'string') return message
+  // Le groupe capturant fait tomber les mots trouvés aux index IMPAIRS du découpage : pas de
+  // second test à faire, donc pas de `lastIndex` à réarmer entre deux appels.
+  return message.split(MOTS_DEPENSE).map((bout, i) => (
+    i % 2 === 1
+      ? <strong key={i} style={{ color: '#dc2626' }}>{bout}</strong>
+      : <span key={i}>{bout}</span>
+  ))
+}
+
 export default function ConfirmDialog() {
   // { titre, message, confirmLabel, cancelLabel, onConfirm, onCancel, danger, icone } | null
   const [dialog, setDialog] = useState(null)
@@ -87,7 +104,20 @@ export default function ConfirmDialog() {
 
         {/* ── Corps : le message, aligné à gauche, lisible (les \n sont respectés) ── */}
         <div style={{ padding: '18px 20px', fontSize: 14, color: '#334155', lineHeight: 1.65, whiteSpace: 'pre-line', textAlign: 'left' }}>
-          {dialog.message}
+          {dialog.payant ? enRouge(dialog.message) : dialog.message}
+
+          {/* `payant` : le rappel de la voie à 0 €, écrit UNE fois ici. Chaque clic payant a sa
+              jumelle gratuite (l'admin exécute le prompt de son côté) — la lui redire au moment
+              où il s'apprête à payer, c'est le seul moment où ça lui sert. */}
+          {dialog.payant && (
+            <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 8,
+              background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', fontSize: 13 }}>
+              <strong>Pour rester à 0 €</strong> — annulez, prenez le prompt de cette étape et
+              exécutez-le vous-même auprès d'un agent externe, sur votre abonnement
+              (aujourd'hui Sonnet avec un abonnement Max ; cela peut changer), puis rapportez le
+              résultat ici. Vous obtenez la même chose sans que l'application appelle.
+            </div>
+          )}
         </div>
 
         {/* ── Pied : les boutons, à droite, sur fond doux — l'action principale la plus à droite ── */}

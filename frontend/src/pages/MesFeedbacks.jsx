@@ -25,6 +25,12 @@ function formatBytes(b) {
 // Taille, nombre et formats acceptés viennent du SERVEUR (`limites`) : cet écran ne les
 // connaît plus. Tant qu'ils ne sont pas arrivés, il n'accepte aucun fichier plutôt que
 // d'en accepter selon une limite devinée.
+// Le style des touches du clavier citées dans l'aide — écrit une fois, quatre emplois.
+const kbd = {
+  background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 3,
+  padding: '1px 5px', fontFamily: 'monospace', fontSize: '0.78rem',
+}
+
 function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
   const fileRef = useRef()
   const [drag, setDrag] = useState(false)
@@ -58,6 +64,34 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
     if (file && validate(file)) onAdd(file)
   }
 
+  // LE COLLAGE — une capture d'écran ne passe plus par un fichier enregistré. Windows met
+  // l'image dans le presse-papiers ; sans ceci, il fallait la rouvrir, l'enregistrer quelque
+  // part, puis la retrouver avec Parcourir, pour finir par la supprimer. Trois gestes de trop
+  // au moment précis où le prof veut montrer ce qu'il voit.
+  //
+  // L'ÉCOUTE EST POSÉE SUR LA FENÊTRE, pas sur la zone : personne ne pense à cliquer dans une
+  // zone de dépôt avant de coller. Le collage marche donc partout dans le formulaire — depuis
+  // le champ Message, où le clic droit propose « Coller », comme depuis la zone elle-même.
+  //
+  // `getAsFile()` rend un fichier nommé « image.png » pour tout le monde : deux captures
+  // collées porteraient le même nom dans la liste. On le renomme avec l'heure.
+  useEffect(() => {
+    function onPaste(e) {
+      const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'))
+      if (!item) return               // du texte collé dans le message : ce n'est pas notre affaire
+      const brut = item.getAsFile()
+      if (!brut) return
+      e.preventDefault()
+      const h = new Date()
+      const deuxChiffres = n => String(n).padStart(2, '0')
+      const nom = `capture-${deuxChiffres(h.getHours())}h${deuxChiffres(h.getMinutes())}-${deuxChiffres(h.getSeconds())}s.png`
+      const fichier = new File([brut], nom, { type: brut.type })
+      if (validate(fichier)) onAdd(fichier)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  })
+
   return (
     <div>
       <label style={{ display: 'block', fontSize: '0.85rem', color: '#6b7280', marginBottom: 4 }}>
@@ -68,7 +102,9 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
         )}
       </label>
       <p style={{ fontSize: '0.78rem', color: '#9ca3af', marginBottom: 8 }}>
-        Pour joindre une capture d'écran, utilisez <kbd style={{ background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 3, padding: '1px 5px', fontFamily: 'monospace', fontSize: '0.78rem' }}>Win+Maj+S</kbd>, enregistrez l'image, puis cliquez sur Parcourir.
+        Capturez une zone (<kbd style={kbd}>Impr. écran</kbd> ou <kbd style={kbd}>Win+Maj+S</kbd>),
+        puis collez-la ici avec <kbd style={kbd}>Ctrl+V</kbd> ou un clic droit → Coller.
+        Vous pouvez aussi glisser un fichier, ou cliquer sur Parcourir.
       </p>
 
       {files.length > 0 && (
@@ -125,8 +161,28 @@ function ZoneFichier({ files, onAdd, onRemove, uploading, limites }) {
 }
 
 // ── Page principale ────────────────────────────────────────────────────────────
-export default function MesFeedbacks() {
-  const [onglet, setOnglet] = useState('envoyer')
+// LES DEUX ONGLETS SONT DEVENUS DEUX ENTRÉES DE MENU. Écrire un retour et relire les siens
+// étaient deux onglets à l'intérieur d'un même écran : il fallait donc ouvrir « Mes feedbacks »
+// pour ensuite choisir. Ils sont maintenant côte à côte dans le menu — « Nouveau » et
+// « Mes retours » — et cet écran affiche celui qu'on lui demande.
+//
+// UN SEUL COMPOSANT POUR LES DEUX, et pas deux fichiers : l'envoi et la liste partagent l'état
+// des pièces jointes, la requête des retours et le rechargement après écriture. Les séparer
+// aurait dédoublé tout cela pour ne gagner qu'une prop.
+// LA FENÊTRE FLOTTANTE SERT LE MÊME FORMULAIRE. Le header et la modale d'erreur ouvraient une
+// version pauvre du formulaire (components/Feedback.jsx) : ni pièce jointe, ni compteur, ni
+// limites lues du serveur. Deux formulaires pour un seul geste, dont un qui ne recevait aucun
+// des correctifs de l'autre. La fenêtre affiche désormais celui-ci, avec `dansFenetre`.
+export default function MesFeedbacks({ vue = 'retours', onNavigate = null,
+                                       contexte = null, incidentRef = null,
+                                       dansFenetre = false, onClose = null }) {
+  const onglet = vue
+  // Passer d'une vue à l'autre, c'est maintenant NAVIGUER. Le repli sans navigation laisse
+  // l'écran utilisable là où la prop n'est pas fournie, plutôt que de casser sur un clic.
+  const allerAux = cible => {
+    if (!onNavigate) return
+    onNavigate(cible === 'envoyer' ? 'nouveau-retour' : 'mes-feedbacks')
+  }
   // Taille, nombre et formats des pièces jointes : LUS EN BASE via le serveur (crochet partagé
   // avec l'Aide, qui annonce les mêmes chiffres). Cet écran ne les connaît plus.
   const { limites } = useLimitesPiecesJointes()
@@ -268,7 +324,8 @@ export default function MesFeedbacks() {
       const res = await fetchWithTimeout('/api/feedback', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ type: 'feedback', message: newMessage.trim(), category: newCategory, attachment_path: paths || null,
-                               contexte: `Écran ${libelleEcran('mes-feedbacks')}` }),
+                               contexte: contexte || `Écran ${libelleEcran('mes-feedbacks')}`,
+                               incident_ref: incidentRef || null }),
       })
       await lireReponse(res)
       setSent(true)
@@ -278,36 +335,49 @@ export default function MesFeedbacks() {
     } finally { setSending(false) }
   }
 
-  function recommencer() { setSent(false); setNewCategory(''); setNewMessage(''); setNewFiles([]); setOnglet('retours') }
-
-  const ongletStyle = active => ({
-    padding: '12px 28px', fontSize: '0.95rem', fontWeight: active ? 600 : 400,
-    cursor: 'pointer', border: 'none', background: 'none',
-    borderBottom: active ? '3px solid var(--bleu)' : '3px solid transparent',
-    color: active ? 'var(--bleu)' : '#9ca3af',
-  })
+  function recommencer() { setSent(false); setNewCategory(''); setNewMessage(''); setNewFiles([]); allerAux('retours') }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-800">Mes feedbacks</h2>
-      </div>
-
-      <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: 24 }}>
-        <button style={ongletStyle(onglet === 'envoyer')} onClick={() => { setOnglet('envoyer'); setSent(false) }}>Envoyer un retour</button>
-        <button style={ongletStyle(onglet === 'retours')} onClick={() => setOnglet('retours')}>Mes retours {retours ? `(${retours.length})` : ''}</button>
-      </div>
+    <div style={dansFenetre ? { padding: '16px 20px', overflowY: 'auto', flex: 1, minHeight: 0 } : undefined}>
+      {/* Dans la fenêtre, le titre est celui de la fenêtre : un second en dessous ferait doublon. */}
+      {!dansFenetre && (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-800">
+            {onglet === 'envoyer'
+              ? 'Envoyer un retour'
+              : `Mes retours${retours ? ` (${retours.length})` : ''}`}
+          </h2>
+        </div>
+      )}
 
       {/* ── ONGLET ENVOYER ── */}
       {onglet === 'envoyer' && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className={dansFenetre ? '' : 'bg-white rounded-xl border border-gray-200 p-6'}>
+          {/* D'OÙ PART LE RETOUR — affiché seulement quand l'appelant l'a fourni : ouvert depuis
+              le menu, l'écran EST celui des retours et le dire n'apprendrait rien. */}
+          {contexte && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6,
+                          padding: '7px 12px', fontSize: 12, color: '#64748b', lineHeight: 1.5, marginBottom: 14 }}
+                 title="Cette information part avec votre message — vous n'avez pas à décrire où vous êtes.">
+              <strong style={{ color: '#475569' }}>Depuis :</strong> {contexte}
+            </div>
+          )}
+          {incidentRef && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6,
+                          padding: '7px 12px', fontSize: 12, color: '#b91c1c', lineHeight: 1.5, marginBottom: 14 }}
+                 title="Cette référence part avec votre message — elle nous permet de retrouver l'incident technique exact.">
+              <strong>Incident :</strong> {incidentRef}
+            </div>
+          )}
           {sent ? (
             <div className="text-center py-8">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="1.5" style={{ margin: '0 auto 12px' }}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               <p className="text-gray-700 font-semibold mb-1">Merci pour votre retour !</p>
               <p className="text-sm text-gray-400 mb-6">Votre message a bien été transmis à l'équipe aSchool.</p>
-              <button onClick={recommencer} style={{ background: 'var(--bleu)', color: 'white', border: 'none', borderRadius: 6, padding: '9px 22px', fontSize: '0.88rem', cursor: 'pointer' }}>
-                Voir mes retours
+              <button onClick={dansFenetre ? onClose : recommencer}
+                      title={dansFenetre ? 'Fermer la fenêtre' : 'Voir vos retours envoyés et leur statut'}
+                      style={{ background: 'var(--bleu)', color: 'white', border: 'none', borderRadius: 6, padding: '9px 22px', fontSize: '0.88rem', cursor: 'pointer' }}>
+                {dansFenetre ? 'Fermer' : 'Voir mes retours'}
               </button>
             </div>
           ) : (
@@ -373,7 +443,7 @@ export default function MesFeedbacks() {
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
               Vous n'avez pas encore envoyé de retour.
               <br />
-              <button onClick={() => setOnglet('envoyer')} style={{ marginTop: 12, background: 'var(--bleu)', color: 'white', border: 'none', borderRadius: 6, padding: '7px 18px', fontSize: '0.82rem', cursor: 'pointer' }}>
+              <button onClick={() => allerAux('envoyer')} title="Envoyer un nouveau retour (feedback)" style={{ marginTop: 12, background: 'var(--bleu)', color: 'white', border: 'none', borderRadius: 6, padding: '7px 18px', fontSize: '0.82rem', cursor: 'pointer' }}>
                 Envoyer mon premier retour
               </button>
             </div>

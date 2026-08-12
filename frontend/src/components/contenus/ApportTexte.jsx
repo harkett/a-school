@@ -79,19 +79,22 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
     })
   }
 
-  // Course d'attention sur les 5 boutons tant que la zone est vide (même dispositif que
-  // l'activité — classes btn-action / chase-on du CSS global).
+  // Course d'attention sur les boutons tant que la zone est vide (même dispositif que
+  // l'activité — classes btn-action / chase-on du CSS global). 5 boutons, ou 4 quand la zone
+  // n'a rien à proposer : sans ce compte, le rang 4 s'allumait sur un bouton absent et la
+  // course marquait un temps mort.
   const actionEnCours = !!ocrLoading || propLoading || isListening || isTranscribing
   const chaseActif = !zoneRemplie && !disabled && !actionEnCours
   // Le rang allumé n'est lu que quand la course tourne (`btnChase` juste dessous le vérifie) :
   // il n'y a donc rien à remettre à zéro quand elle s'arrête.
+  const nbBoutons = proposer ? 5 : 4
   const [chaseIndex, setChaseIndex] = useState(0)
   useEffect(() => {
     if (!chaseActif) return
     let i = 0
-    const id = setInterval(() => { i = (i + 1) % 5; setChaseIndex(i) }, 800)
+    const id = setInterval(() => { i = (i + 1) % nbBoutons; setChaseIndex(i) }, 800)
     return () => clearInterval(id)
-  }, [chaseActif])
+  }, [chaseActif, nbBoutons])
   const btnChase = i => `btn-action${chaseActif && chaseIndex === i ? ' chase-on' : ''}`
 
   // ── Dictée : même mécanique BATCH que TexteSource (bips, visualiseur, /api/transcribe). ──
@@ -411,17 +414,21 @@ export default function ApportTexte({ texte, onChange, onSourceNote, proposer, d
           {isTranscribing ? 'Transcription…' : isListening ? 'Arrêter' : 'Dicter'}
         </button>
 
-        <button
-          type="button"
-          className={btnChase(4)}
-          title={proposer.title}
-          onClick={handleProposer}
-          disabled={propLoading}
-          style={propLoading ? { ...PETIT, opacity: 0.6, cursor: 'wait' } : PETIT}
-        >
-          {propLoading ? <IconSablier /> : <IconIdee />}
-          {propLoading ? 'Génération…' : proposer.label}
-        </button>
+        {/* `proposer` est facultatif : une zone où aSchool n'a rien à proposer garde les quatre
+            façons d'apporter un texte, sans cinquième bouton. */}
+        {proposer && (
+          <button
+            type="button"
+            className={btnChase(4)}
+            title={proposer.title}
+            onClick={handleProposer}
+            disabled={propLoading}
+            style={propLoading ? { ...PETIT, opacity: 0.6, cursor: 'wait' } : PETIT}
+          >
+            {propLoading ? <IconSablier /> : <IconIdee />}
+            {propLoading ? 'Génération…' : proposer.label}
+          </button>
+        )}
       </div>
 
       {/* Bandeaux de dictée : préparation du micro, puis enregistrement (barres + chrono). */}

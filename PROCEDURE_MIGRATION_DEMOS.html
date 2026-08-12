@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PROCEDURE_MIGRATION_DEMOS.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="migration-des-démonstrations--un-process-un-schéma-par-démo">Migration des démonstrations — un process, un schéma par démo</h1>
+<h2 id="mission">Mission</h2>
+<p>Les démonstrations tournent aujourd'hui en <strong>un process uvicorn par démo</strong> (5 process, 800 Mo chacun,
+mesuré). Les passer à <strong>un seul process</strong>, avec <strong>un schéma PostgreSQL par démo</strong>, choisi d'après le
+sous-domaine.</p>
+<p><code>demo-crsa.aschool.fr</code> → schéma <code>crsa</code>. Le schéma existe : on sert. Il n'existe pas : 404.
+<strong>Les schémas présents dans la base SONT la liste blanche</strong> — il n'y a ni table de routage à créer,
+ni cache, ni connexion vers une autre base.</p>
+<p>L'application réelle <strong>garde son propre service, séparé</strong>. Le process unique ne sert que les démos.
+La table <code>demos</code> <strong>ne bouge pas</strong> : elle est jointe à <code>Referentiel</code>, <code>Niveau</code> et <code>Cycle</code>
+(<code>prof/demo.py:92</code>, <code>prof/demo.py:127</code>, <code>systeme/admin.py:2568</code>), l'admin continue de la lire comme
+aujourd'hui.</p>
+<h2 id="faits-déjà-mesurés--ne-pas-les-redécouvrir">Faits déjà mesurés — ne pas les redécouvrir</h2>
+<ul>
+<li><code>backend/core/database.py:16</code> crée le moteur à l'import depuis <code>DATABASE_URL</code>. <strong>C'est la ligne qui
+fige la base</strong> et qui oblige aujourd'hui à un process par démo.</li>
+<li><strong>209 endpoints</strong> passent par <code>Depends(get_db)</code>. Aucun n'est à modifier.</li>
+<li><strong>14 accès base hors <code>get_db</code></strong> : <code>core/middleware.py:35</code> et <code>:66</code>, <code>supervision/alerts.py:179,239,256,270</code>,
+<code>rag/pgvector_store.py:250,274,354,411</code>, <code>pedagogie/referentiels_admin.py:611</code>, <code>analytique/usage.py:39</code>,
+<code>supervision/incidents.py:45</code>.</li>
+<li><strong>40 modèles ORM, aucun ne déclare <code>schema=</code></strong> → <code>schema_translate_map={None: &quot;&lt;schema&gt;&quot;}</code> suffit,
+<strong>aucun modèle à toucher</strong>.</li>
+<li><strong>3 SQL brut <code>text()</code></strong>, non traduits par <code>schema_translate_map</code>, à reprendre à la main :
+<code>core/database.py:35</code>, <code>systeme/admin.py:640</code>, <code>systeme/admin.py:2650</code>.</li>
+<li>La recherche vectorielle est en <strong>ORM pur</strong> (<code>rag/pgvector_store.py:424</code>) → traduite automatiquement.</li>
+<li><code>alembic/env.py:48</code> appelle <code>context.configure()</code> <strong>sans</strong> <code>version_table_schema</code> ni <code>include_schemas</code>.</li>
+<li><code>MODE_DEMO</code> est lu dans l'environnement du process (<code>prof/demo.py:69</code>), <strong>4 appels</strong>, un seul fichier.</li>
+<li>L'extension <code>vector</code> doit rester dans <code>public</code> et y être trouvée.</li>
+<li><strong>Les démos ne sont pas en lecture seule</strong> : aucun endpoint d'écriture ne consulte <code>mode_demo()</code>, et
+l'entrée crée un compte (<code>prof/demo.py:238</code>). Un visiteur écrit vraiment dans le schéma de la démo.</li>
+</ul>
+<h2 id="règles-de-travail">Règles de travail</h2>
+<ol>
+<li><strong>Une phase à la fois.</strong> Tu t'arrêtes à la fin de chaque phase et tu attends.</li>
+<li><strong>Avant de coder</strong> : trois lignes sur ce que tu as compris. Puis tu attends « GO Codes ».</li>
+<li><strong>Chaque étape a son « vérifié quand »</strong>. Pas de « c'est fait » sans cette preuve.</li>
+<li><strong>Rien hors procédure.</strong> Un défaut trouvé ailleurs : le dire, ne pas le corriger.</li>
+<li><strong>Ne rien ajouter à la solution.</strong> Elle est arrêtée telle qu'elle est écrite ici.</li>
+<li>Aucun appel d'API payante.</li>
+</ol>
+<hr>
+<h2 id="phase-a--préparer-rien-ne-bascule-lexistant-tourne">Phase A — préparer. Rien ne bascule, l'existant tourne.</h2>
+<p><strong>1.</strong> Résolution <code>Host → schéma</code> : <code>demo-&lt;x&gt;.aschool.fr</code> donne le schéma <code>&lt;x&gt;</code>, servi seulement si ce
+schéma existe dans la base.
+<em>Vérifié quand</em> : <code>curl -H &quot;Host: demo-inconnu.aschool.fr&quot;</code> renvoie 404, jamais une erreur SQL.</p>
+<p><strong>2.</strong> Poser <code>schema_translate_map={None: &quot;&lt;schema&gt;&quot;}</code> sur la session, via <code>engine.execution_options(...)</code>.
+Pas de <code>SET search_path</code>, pas de SQL brut.
+<em>Vérifié quand</em> : un test qui commite puis relit trouve encore le bon schéma.</p>
+<p><strong>3.</strong> <code>get_db</code> porte le schéma résolu. Les 209 endpoints ne bougent pas.
+<em>Vérifié quand</em> : la suite de tests passe à l'identique.</p>
+<p><strong>4.</strong> Les 14 <code>SessionLocal()</code> directs reçoivent un schéma explicite : le middleware prend celui de la
+requête, les alertes visent le schéma réel en dur.
+<em>Vérifié quand</em> : plus aucun <code>SessionLocal()</code> sans schéma.</p>
+<p><strong>5.</strong> <code>MODE_DEMO</code> déduit de la requête, plus de l'environnement.
+<em>Vérifié quand</em> : le même process répond <code>mode_demo: false</code> sur le réel, <code>true</code> sur une démo.</p>
+<p><strong>6.</strong> <code>get_db_size_mb()</code> mesure le schéma, pas la base entière.</p>
+<h2 id="phase-b--convertir-les-données-sur-copie-jamais-sur-la-production">Phase B — convertir les données. Sur copie, jamais sur la production.</h2>
+<p><strong>7.</strong> Pour une démo : restaurer sa base dans une base jetable, <code>ALTER SCHEMA public RENAME TO &lt;schema&gt;</code>,
+dumper ce schéma, le verser dans la base cible.
+<em>Vérifié quand</em> : comptages séquences / séances / activités identiques avant et après.</p>
+<p><strong>8.</strong> Répéter pour les cinq. L'extension <code>vector</code> reste dans <code>public</code>, installée une seule fois.</p>
+<p><strong>9.</strong> Alembic : <code>include_schemas=True</code> <strong>et <code>version_table_schema=&lt;schema&gt;</code></strong> — une table
+<code>alembic_version</code> <strong>par schéma</strong>. Sans ça, un schéma migré fait croire que les cinq le sont.
+Script qui boucle, s'arrête au premier échec, nomme le schéma fautif.
+<em>Vérifié quand</em> : <code>upgrade head</code> passe sur les 5 schémas et le rapporte schéma par schéma.</p>
+<h2 id="phase-c--basculer">Phase C — basculer.</h2>
+<p><strong>10.</strong> Un service systemd unique pour les démos. Un seul bloc nginx :
+<code>server_name ~^demo-(?&lt;demo&gt;.+)\.aschool\.fr$</code>.
+<em>Vérifié quand</em> : <code>nginx -t</code> passe.</p>
+<p><strong>11.</strong> Démarrer. Les 5 sous-domaines répondent, chacun son contenu, un seul process.
+<em>Vérifié quand</em> : <code>/api/demo/etat</code> donne le bon couple sur les 5, et la RAM tient dans ~1 Go au lieu de 4.</p>
+<p><strong>12.</strong> Contrôle croisé anti-fuite : appeler les 5 en rafale, en boucle alternée.
+<em>Vérifié quand</em> : 200 requêtes alternées, zéro croisement de contenu.</p>
+<h2 id="phase-d--retirer-lancien">Phase D — retirer l'ancien.</h2>
+<p><strong>13.</strong> Arrêter et désactiver les 5 services <code>aschool-demo@</code>, supprimer les blocs nginx par sous-domaine
+et <code>deploy/env-demos/</code>.</p>
+<p><strong>14.</strong> Garder les 5 anciennes bases intactes une semaine. Les supprimer ensuite, pas avant.</p>
+<hr>
+<h2 id="hors-périmètre">Hors périmètre</h2>
+<p>La remise à zéro périodique d'une démonstration n'est pas tranchée. Elle ne fait pas partie de cette
+migration.</p>
+
+</body>
+</html>

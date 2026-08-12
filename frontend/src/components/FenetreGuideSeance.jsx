@@ -6,14 +6,6 @@ import FenetrePro from './FenetrePro.jsx'
 // remplit le vrai formulaire. Contenu = liste numérotée décrivant l'écran RÉEL (règle des
 // deux publics : on ne décrit que ce que l'écran fait vraiment) — à tenir À JOUR à chaque
 // évolution de l'écran Séance (demande utilisateur du 30/07 : rempli au fur et à mesure).
-//
-// RÈGLE D'ÉCRITURE (31/07) : ne JAMAIS réciter ici ce qui vit EN BASE — la liste des modes,
-// celle des styles, les bornes de durée. Ce texte-là ne peut pas suivre : le jour où l'admin
-// ajoute un mode ou change la durée maximale, l'écran dit vrai et son aide dit faux. On décrit
-// le geste (« choisir un mode parmi ceux proposés »), l'écran montre les valeurs — il les a
-// justement sous les yeux, cette fenêtre étant posée À CÔTÉ du formulaire.
-// En revanche on continue de décrire ce qui est FIXÉ DANS L'ÉCRAN (les cinq façons de remplir
-// une zone, les boutons, l'ordre des cartouches) : ça, ça ne dérive pas tout seul.
 const ETAPES = [
   { n: 1, titre: 'Infos de base — tout l\'obligatoire', sous: [
     { num: '1.1', titre: 'Thème / objectif',        desc: "le point de départ de la séance, c'est lui qui guide toute la génération. Cinq façons de remplir : Fichier TXT · Image/Scan · PDF · Dicter · Propose-moi un thème (aSchool l'écrit depuis le programme officiel de votre niveau). Une pastille bleue sur la ligne du titre rappelle d'où vient le texte." },

@@ -19,6 +19,53 @@ let couple = null         // « BTS · BTS CIEL Option A » — le couple que ce
 let enCours = null        // la promesse partagée, tant que l'appel n'est pas revenu
 const abonnes = new Set()
 
+// ── L'ONGLET DU NAVIGATEUR ───────────────────────────────────────────────────────────────────
+// POURQUOI MARQUER L'ONGLET, ALORS QUE LA PAGE L'EST DÉJÀ. Le bandeau du bas et le filigrane
+// sont DANS la page : ils ne disent rien quand l'onglet est au second plan. Or c'est là que la
+// confusion arrive — une session prof et une démonstration ouvertes côte à côte, deux onglets
+// nommés « aSchool », et rien pour les distinguer avant d'avoir cliqué dedans.
+//
+// LE FOND D'UN ONGLET N'EST PAS MODIFIABLE : aucun navigateur ne l'expose à la page. Les deux
+// seules prises sont le TITRE et l'ICÔNE. On se sert des deux, et pas d'une seule : le titre dit
+// QUELLE démonstration, l'icône fait que ça se voit sans lire — un onglet rétréci ne montre plus
+// que son icône.
+
+// Le violet est celui du bandeau et du filigrane (#6d28d9), pas une troisième couleur : la marque
+// de l'onglet et celle de la page doivent se reconnaître l'une l'autre.
+const ICONE_DEMO = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+  '<rect width="32" height="32" rx="7" fill="#6d28d9"/>' +
+  '<text x="16" y="24" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" ' +
+  'font-size="21" font-weight="700" fill="#ffffff">D</text>' +
+  '</svg>'
+)
+
+// « BTS · BTS CIEL Option A » → « BTS CIEL Option A ». Le cycle précède le niveau et se répète
+// presque toujours dans son nom ; un onglet ne montre que ses premiers caractères, et « BTS · BTS…
+// » les gaspillerait à dire deux fois la même chose. Plusieurs couples restent séparés par « / ».
+function niveauxDe(valeur) {
+  return valeur.split(' / ').map(p => p.split(' · ').pop().trim()).filter(Boolean).join(' / ')
+}
+
+// LA DÉMONSTRATION D'ABORD, LE NOM DU PRODUIT ENSUITE. Un onglet étroit coupe la fin : ce qui doit
+// survivre au rognage, c'est « DÉMO », puis le couple. « aSchool » ferme la marche — on sait déjà
+// où on est, la question est de savoir dans LAQUELLE des deux instances.
+function marquerOnglet() {
+  const niveaux = couple ? niveauxDe(couple) : ''
+  document.title = niveaux ? `DÉMO · ${niveaux} — aSchool` : 'DÉMO — aSchool'
+
+  // On RÉUTILISE la balise d'index.html plutôt que d'en ajouter une : deux `rel="icon"` laissent
+  // le navigateur choisir, et Chrome garde volontiers la première — l'icône rose serait restée.
+  let lien = document.querySelector('link[rel="icon"]')
+  if (!lien) {
+    lien = document.createElement('link')
+    lien.rel = 'icon'
+    document.head.appendChild(lien)
+  }
+  lien.type = 'image/svg+xml'
+  lien.href = ICONE_DEMO
+}
+
 function demander() {
   if (connu !== null) return Promise.resolve(connu)
   if (!enCours) {
@@ -27,6 +74,10 @@ function demander() {
       .then(d => {
         connu = !!(d && d.mode_demo)
         couple = (d && d.couple) || null
+        // La marque de l'onglet se pose ICI et nulle part ailleurs : c'est le seul endroit qui
+        // connaisse la réponse, et il n'exige aucun composant monté — l'onglet est donc juste
+        // même sur un écran qui n'affiche ni bandeau ni filigrane.
+        if (connu) marquerOnglet()
         abonnes.forEach(poser => poser(connu))
         return connu
       })
