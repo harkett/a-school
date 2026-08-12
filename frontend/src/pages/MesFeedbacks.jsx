@@ -5,7 +5,7 @@ import { showError } from '../errorDialog'
 import { libelleEcran } from '../utils/ecrans.js'
 import { couleurStatut } from '../utils/statutsFeedback.js'
 import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
-import { listeFormats } from '../utils/piecesJointes.js'
+import { formatBytes, listeFormats } from '../utils/piecesJointes.js'
 import FilEchange from '../components/FilEchange'
 
 const CATEGORIES = [
@@ -13,11 +13,6 @@ const CATEGORIES = [
   { key: 'suggestion', label: 'Suggestion' },
   { key: 'question',   label: 'Question' },
 ]
-
-function formatBytes(b) {
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} Ko`
-  return `${(b / 1024 / 1024).toFixed(1)} Mo`
-}
 
 // ── Pièces jointes — bouton + drag & drop ────────────────────────────────────
 // Les refus de pièce jointe passent par la boîte de dialogue comme tout le reste (règle

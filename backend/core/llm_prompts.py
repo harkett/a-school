@@ -168,6 +168,10 @@ Contraintes :
 - Aucun commentaire, aucune balise, aucune marque qui signalerait les défauts : la consigne doit se lire comme une consigne ordinaire.
 - Le contenu doit être exact du point de vue de la discipline : une consigne mal formulée, jamais une consigne fausse.
 
+SI LES EXTRAITS NE TE PERMETTENT PAS d'écrire une consigne juste du point de vue de la discipline — trop courts, hors sujet, ou muets sur ce qui s'enseigne réellement — n'invente RIEN. Réponds alors exactement ceci, et rien d'autre :
+=== PAS DE CONSIGNE ===
+Raison : (une phrase disant ce qui manque, adressée au professeur)
+
 Format de réponse : la consigne, ET RIEN D'AUTRE — aucun titre, aucun préambule, aucune liste des défauts, aucune remarque de ta part. Ce texte part tel quel dans la zone de saisie du professeur."""
 
 

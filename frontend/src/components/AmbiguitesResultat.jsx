@@ -1,15 +1,4 @@
-// La couleur d'un type d'ambiguïté — exportée : l'écran l'affiche, et la sortie mise en forme
-// la reprend telle quelle. Deux rendus, une seule palette.
-export const TYPE_COLOR = {
-  'Consigne vague':                  { bg: '#fef3c7', text: '#92400e', border: '#fde68a' },
-  'Vocabulaire technique non défini': { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
-  'Double sens':                     { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4' },
-  'Critères de réussite absents':    { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
-  'Référence implicite':             { bg: '#e0f2fe', text: '#075985', border: '#7dd3fc' },
-  'Consigne trop longue':            { bg: '#f0fdf4', text: '#166534', border: '#86efac' },
-}
-
-export const DEFAULT_COLOR = { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' }
+import { TYPE_COLOR, DEFAULT_COLOR } from '../utils/typesAmbiguite.js'
 
 // Affichage du rapport d'ambiguïtés (verdict + cartes) — SEULE source de l'affichage, utilisée
 // par le module Analyse → Ambiguïté. La cartouche jumelle vivait dans l'écran Créer une activité,
