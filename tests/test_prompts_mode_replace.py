@@ -83,25 +83,30 @@ def test_le_prompt_de_critique_casse_vraiment_format():
 
 
 def test_le_gabarit_a_besoin_du_mode_pour_une_AUTRE_raison():
-    """Le gabarit, lui, ne casse pas `.format()` : ses quatre accolades sont ses quatre repères.
+    """Le gabarit, lui, ne casse pas `.format()` : ses cinq accolades sont ses cinq repères.
     Son mode ne vient pas de la validation mais de la CONSOMMATION — au coche d'un type, on ne
-    remplit QUE {label} et {niveau} ; {texte} et {referentiel} doivent rester intacts pour la
-    génération du prof. Un `.format()` global les mangerait ; un `.format()` partiel lève.
-    C'est exactement pourquoi `_generer_prompt_type` procède par `replace` ciblés."""
+    remplit QUE {label} et {niveau} ; {texte}, {sous_type} et {referentiel} doivent rester
+    intacts pour la génération du prof. Un `.format()` global les mangerait ; un `.format()`
+    partiel lève. C'est exactement pourquoi `_generer_prompt_type` procède par `replace` ciblés.
+
+    {sous_type} — la PRÉCISION choisie par le prof — a rejoint les cinq le 15/08/2026 : elle
+    était proposée à l'écran et jetée faute d'être nommée ici."""
     gabarit = PROMPTS["gabarit_type"]["default"]
 
-    # Formater les quatre « marche » — et c'est bien le problème : les deux derniers repères,
-    # que le prof doit encore remplir, ont disparu du texte produit.
-    tout_rempli = gabarit.format(label="x", niveau="y", texte="z", referentiel="w")
-    assert "{texte}" not in tout_rempli and "{referentiel}" not in tout_rempli
+    # Formater les cinq « marche » — et c'est bien le problème : les trois derniers repères,
+    # que la génération du prof doit encore remplir, ont disparu du texte produit.
+    tout_rempli = gabarit.format(label="x", niveau="y", texte="z", sous_type="s", referentiel="w")
+    for repere in ("{texte}", "{sous_type}", "{referentiel}"):
+        assert repere not in tout_rempli
 
     # Et n'en formater que deux est impossible : `.format()` exige tous les repères.
     with pytest.raises(KeyError):
         gabarit.format(label="x", niveau="y")
 
-    # La voie réellement utilisée garde les deux autres pour la génération.
+    # La voie réellement utilisée garde les trois autres pour la génération.
     produit = gabarit.replace("{label}", "Compréhension").replace("{niveau}", "6e")
-    assert "{texte}" in produit and "{referentiel}" in produit
+    for repere in ("{texte}", "{sous_type}", "{referentiel}"):
+        assert repere in produit
     assert "{label}" not in produit and "{niveau}" not in produit
 
 
@@ -123,12 +128,16 @@ def test_un_repere_manquant_reste_refuse_en_mode_replace():
     assert err is not None and "{prompt}" in err
 
 
-def test_le_gabarit_exige_ses_quatre_reperes():
-    """{label} et {niveau} sont remplis au coche ; {texte} et {referentiel} doivent SURVIVRE
-    jusqu'à la génération du prof. Il manque l'un des quatre = le prompt produit est cassé."""
-    complet = "Type « {label} » en {niveau}. Idée : {texte}. Programme : {referentiel}"
+def test_le_gabarit_exige_ses_cinq_reperes():
+    """{label} et {niveau} sont remplis au coche ; {texte}, {sous_type} et {referentiel} doivent
+    SURVIVRE jusqu'à la génération du prof. Il manque l'un des cinq = le prompt produit est cassé.
+
+    {sous_type} y est exigé au même titre que les autres depuis le 15/08/2026 : sans lui, la
+    précision que le prof choisit à l'écran ne rejoint jamais le prompt, et rien ne le dit."""
+    complet = ("Type « {label} » en {niveau}, précision {sous_type}. "
+               "Idée : {texte}. Programme : {referentiel}")
     assert valider_prompt("gabarit_type", complet) is None
-    for absent in ("{label}", "{niveau}", "{texte}", "{referentiel}"):
+    for absent in ("{label}", "{niveau}", "{texte}", "{sous_type}", "{referentiel}"):
         err = valider_prompt("gabarit_type", complet.replace(absent, "…"))
         assert err is not None and absent in err, f"{absent} manquant n'est pas refusé."
 

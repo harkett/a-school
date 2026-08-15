@@ -491,6 +491,10 @@ PROMPT À VÉRIFIER :
 PROMPT_GABARIT_TYPE = """Tu es un enseignant expérimenté.
 Conçois une activité du type « {label} » adaptée à des élèves de {niveau}.
 
+Précision demandée par le professeur — quand elle est là, elle resserre le type et prime sur lui ;
+quand la ligne est vide, aucune précision n'a été choisie et le type suffit :
+{sous_type}
+
 Pars de l'idée du professeur ci-dessous — garde son intention et son style, c'est elle qui mène :
 {texte}
 
@@ -1062,10 +1066,12 @@ PROMPTS = {
     },
     "gabarit_type": {
         "label": "Gabarit du prompt d'un type d'activité (posé au coche d'un type)",
-        # {label} et {niveau} sont remplis ICI (au coche) ; {texte} et {referentiel} doivent
-        # RESTER INTACTS — c'est la génération du prof qui les remplira. D'où le mode replace :
-        # un `.format()` global consommerait aussi les deux derniers.
-        "placeholders": ["label", "niveau", "texte", "referentiel"],
+        # {label} et {niveau} sont remplis ICI (au coche) ; {texte}, {sous_type} et {referentiel}
+        # doivent RESTER INTACTS — c'est la génération du prof qui les remplira. D'où le mode
+        # replace : un `.format()` global consommerait aussi les trois derniers.
+        # {sous_type} = la PRÉCISION choisie par le prof, ajoutée le 15/08/2026 : elle était
+        # proposée à l'écran, envoyée au serveur, et jetée faute d'être nommée quelque part.
+        "placeholders": ["label", "niveau", "texte", "sous_type", "referentiel"],
         "categorie": "referentiels_communs",
         "mode": "replace",
         "default": PROMPT_GABARIT_TYPE,
