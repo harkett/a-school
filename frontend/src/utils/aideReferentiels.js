@@ -134,6 +134,20 @@ const GUIDE_REFERENTIELS = [
       + "même si l’une d’elles porte le même nom.",
   },
   {
+    cle: 'matieres_sans_payer',
+    titre: 'Obtenir les matières sans rien payer',
+    source: 'aucun appel IA — le méta-prompt et le prompt se lisent dans Prompts → Référentiels',
+    court: 'Fable écrit le prompt, Sonnet l’exécute ; l’application ne paie rien.',
+    long: "Le moteur d’IA de l’application n’est pas la seule façon de lire un document : le même travail se fait chez un agent extérieur, qui ne coûte rien à aSchool. Un abonnement Max donne accès à plusieurs modèles — et les deux tours ne demandent pas le même.\n\n"
+      + "En deux tours, et le document épuré sert aux DEUX :\n\n"
+      + "1. AVEC FABLE — donnez-lui le MÉTA-PROMPT des matières et le document épuré (repère {document}) : il vous rend le PROMPT. Écrire un prompt est un travail de conception, fait UNE fois, dont le résultat resservira à chaque lecture : on y met le modèle le plus capable.\n"
+      + "2. Déposez ce prompt dans Prompts → Référentiels, et validez-le.\n"
+      + "3. AVEC SONNET, DANS UNE CONVERSATION NEUVE — redonnez-lui ce prompt-là avec le document épuré (repère {texte}) : il vous rend les MATIÈRES, en JSON. C’est du repérage dans un texte, Sonnet suffit ; et c’est ce tour-là qui pèse sur le quota, puisqu’il repasse le document entier.\n"
+      + "4. Contrôlez-les contre le document, puis saisissez-les ici.\n\n"
+      + "La conversation NEUVE du point 3 n’est pas un détail : dans le fil où il vient d’écrire le prompt, le modèle a déjà lu le document et répondrait de mémoire. On croirait le prompt bon alors qu’on n’aurait éprouvé que sa mémoire.\n\n"
+      + "Un méta-prompt hérité d’un autre diplôme porte les repères de CET autre diplôme : relisez-le avant de le lancer.",
+  },
+  {
     cle: 'proposer_matieres',
     titre: 'Proposer les matières — appel IA PAYANT',
     source: 'lit referentiels.texte_epure + referentiels.prompt_matieres → écrit dans matieres',
@@ -306,10 +320,24 @@ const GUIDE_REFERENTIELS = [
       + "Ce qui revient est proposé, pas retenu : cochez ce que vous gardez. ✕ supprime la ligne, "
       + "le champ du bas en ajoute une à la main (gratuit).",
   },
+  {
+    cle: 'precisions',
+    titre: 'Précisions des types d’activité',
+    source: 'referentiel_type_precisions.libelle, rattachée à types_activite.id',
+    court: 'Décliner chaque type au programme en formes concrètes, adaptées à ce niveau.',
+    long: "Une précision est une déclinaison du type pour CE niveau : « activités écrites » donne "
+      + "« copie » et « dictée » en primaire, « dissertation » dans le supérieur. C’est elle que le "
+      + "professeur choisira au moment de préparer sa séance.\n\n"
+      + "Seuls les types AU PROGRAMME figurent ici : une proposition non cochée n’a rien à "
+      + "décliner, et le serveur refuserait d’y travailler.\n\n"
+      + "Rien ne part tout seul (15/08/2026). « Préparer les précisions » traite d’un coup tous "
+      + "les types qui n’en ont pas, et annonce le nombre d’appels facturés avant de commencer ; "
+      + "« Proposer les précisions » n’en fait qu’un. Les écrire à la main reste gratuit.",
+  },
 ]
 
 // Renvoie les props { titre, court, long } à étaler dans <InfoGuide />. Clé inconnue → objet vide.
-// `vars` remplit les repères {…} des textes (ex. { niveau: 'BTS CIEL Option B' }) : le catalogue
+// `vars` remplit les repères {…} des textes (ex. { niveau: 'Collège · 4e' }) : le catalogue
 // reste la seule source, l'écran n'y réécrit rien — il ne fait que donner la valeur du moment.
 //
 // La `source` est collée en pied du texte long, jamais du court : c'est le nom exact de la donnée

@@ -268,9 +268,15 @@ export default function AdminReferentiels() {
 
   // Document épuré : le TEXTE DE TRAVAIL du couple, FIGÉ en base à la validation du dépôt
   // (colonne texte_epure) — get pur au clic, aucun recalcul. C'est exactement ce que l'IA lit.
+  //
+  // RELU À CHAQUE OUVERTURE, jamais gardé en mémoire. Le texte gardé d'une ouverture à l'autre a
+  // fait travailler sur un document PÉRIMÉ le 14/08/2026 : le texte épuré venait d'être refait en
+  // base, la fenêtre montrait toujours l'ancien, et rien à l'écran ne le disait. Ce texte part
+  // ensuite chez un agent extérieur et sert de référence à la découpe entière — l'économie d'un
+  // GET local ne vaut pas ce risque-là.
   function ouvrirEpure() {
     setShowEpure(true)
-    if (epureTexte !== null) return
+    setEpureTexte(null)
     fetchWithTimeout(`/api/admin/referentiels/epure?cycle_id=${cycleId}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
       .then(r => (r.ok ? r.json() : null))
@@ -358,6 +364,7 @@ export default function AdminReferentiels() {
   const [pdfOuvert, setPdfOuvert] = useState(true)
   const [decoupeOuvert, setDecoupeOuvert] = useState(true)
   const [typesOuvert, setTypesOuvert] = useState(true)
+  const [precisionsOuvert, setPrecisionsOuvert] = useState(true)
   // ── Types d'activité DU RÉFÉRENTIEL (dernière cartouche) : fenêtre sur `types_activite`, où
   //    chaque ligne appartient au document qui la nomme — exactement comme les matières
   //    (05/08/2026 : plus de catalogue global, plus de liaison N–N). Une seule liste : les
@@ -612,7 +619,7 @@ export default function AdminReferentiels() {
   // ── Prompt des MATIÈRES, propre au RÉFÉRENTIEL ──────────────────────────────────────
   // Rangé sur le couple cycle+niveau (06/08/2026). Il vivait sur le cycle, et c'était faux : le
   // cycle « BTS » porte dix-huit niveaux, et le prompt écrit sur le premier était ensuite servi à
-  // tous les autres — celui du BTS CIEL, avec ses options réseau, n'apprend rien sur le BTS CRSA.
+  // tous les autres — un prompt écrit sur les options d'un diplôme n'apprend rien sur ses voisins.
   // Relit le prompt de matières du référentiel (get, zéro copie). Appelée au changement de couple
   // ET après « Proposer les matières », qui peut l'avoir fait écrire par l'IA côté serveur.
   // Ouvre la fenêtre du méta-prompt des matières et le lit au passage. Une seule porte, qui rend le
@@ -765,7 +772,10 @@ export default function AdminReferentiels() {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, cycle_id: Number(cycleId), niveau_id: Number(niveauId) }),
-      }, TIMEOUT_LONG)
+        // Palier XLONG : ce contrôle lit le document ENTIER — une minute sur un programme de
+        // 139 pages. À 45 s l'écran abandonnait AVANT le serveur et accusait le réseau, qui
+        // n'y était pour rien : le document était en train d'être lu, normalement.
+      }, TIMEOUT_XLONG)
       const d = await r.json().catch(() => ({}))
       if (!r.ok) { showError(d.detail || `Contrôle du document impossible (${r.status}).`, { danger: true }); return false }
       if (!d.trouve) {
@@ -782,7 +792,13 @@ export default function AdminReferentiels() {
       }
       setControle(d)   // gardé pour l'afficher sur la ligne du document
       return true
-    } catch { showError('Contrôle du document impossible (réseau).'); return false }
+    } catch (e) {
+      showError(e?.message === MSG_TIMEOUT
+        ? "Le contrôle du document a dépassé le délai de 5 minutes et a été interrompu (délai dépassé) — ce n'est pas une panne réseau."
+          + "\n\nLe cycle et le niveau sont cherchés dans TOUTES les pages du document : sur un texte très long, la lecture peut ne pas aboutir."
+        : "Contrôle du document impossible : le serveur n'a pas répondu (réseau).", { danger: true })
+      return false
+    }
     finally { setDepotPhase('') }
   }
 
@@ -1102,16 +1118,13 @@ export default function AdminReferentiels() {
     } catch { showError('Lecture des précisions impossible.'); setPrecisList([]); return null }
   }
 
-  // Ouvre/ferme le panneau. À l'ouverture : GET (lecture). S'il y a des précisions → on les affiche.
-  // S'il n'y en a AUCUNE et que le type est RETENU → on lance l'IA pour aller les chercher. Sur une
-  // simple proposition, on ne dépense rien : le serveur refuserait (422), et il a raison — les
-  // précisions se travaillent sur ce qui est au programme.
+  // Ouvre/ferme le panneau. À l'ouverture : GET, et RIEN D'AUTRE. Ouvrir pour regarder lançait
+  // l'IA quand la liste était vide (15/08/2026) — un panneau qu'on déplie ne doit rien facturer.
+  // Le panneau propose son propre bouton quand il n'a rien à montrer.
   function ouvrirPrecisions(t) {
     if (precisEditId === t.id) { setPrecisEditId(null); setPrecisList([]); setNewPrecis(''); return }
     setPrecisEditId(t.id); setNewPrecis(''); setPrecisList([])
-    chargerPrecisType(t.id).then(list => {
-      if (Array.isArray(list) && list.length === 0 && t.validee) genererPrecisType(t.id)
-    })
+    chargerPrecisType(t.id)
   }
 
   // Lance l'IA (sablier ✨) : génère les précisions et les ÉCRIT en base, puis les affiche. Appelé
@@ -1183,10 +1196,51 @@ export default function AdminReferentiels() {
       }, TIMEOUT_STD)
       if (!r.ok) { const e = await r.json().catch(() => ({})); showError(e.detail || `Enregistrement impossible (${r.status}).`) }
       await chargerTypes()
-      // Un type qu'on vient de retenir n'a en général aucune précision : on va les chercher tout
-      // de suite, comme après la détection. Aucun appel si on décoche.
-      if (veutRetenir) await genererPrecisionsManquantes()
+      // ET RIEN DE PLUS (15/08/2026). Cocher enchaînait ici sur la génération IA des précisions :
+      // un geste gratuit qui déclenchait un geste payant, sans que rien à l'écran ne le dise.
+      // Les deux voies du produit — payante et gratuite — se rejoignaient dans la même case.
+      // Les précisions ont maintenant leur bouton, avec sa pastille € ; la case ne fait qu'écrire.
     } catch { showError('Enregistrement impossible.'); await chargerTypes() }
+  }
+
+  // Le geste de la case, appliqué D'UN COUP à toutes les lignes qui ne sont pas déjà dans l'état
+  // voulu. La route ne retient qu'UN type à la fois : on boucle les PUT, et on ne relit qu'à la
+  // fin — une seule lecture pour vingt-cinq écritures.
+  //
+  // ET ON NE GÉNÈRE AUCUNE PRÉCISION ICI, à la différence de la case unitaire. Cocher vingt-cinq
+  // propositions d'un clic lancerait vingt-cinq appels IA que personne n'a demandés : le prix
+  // d'un clic doit rester lisible. Les précisions gardent leur propre bouton, et leur propre
+  // décision.
+  async function retenirTousLesTypes(veutRetenir) {
+    if (!cycleId || !niveau) return
+    const aFaire = types.filter(t => !!t.validee !== veutRetenir)
+    if (aFaire.length === 0) return
+    const n = aFaire.length
+    if (!await demanderConfirmation({
+      titre: veutRetenir
+        ? `Mettre ${n} type${n > 1 ? 's' : ''} d’activité au programme ?`
+        : `Retirer ${n} type${n > 1 ? 's' : ''} d’activité du programme ?`,
+      message: veutRetenir
+        ? `Ils apparaîtront dans la liste où un professeur de ${coupleLabel} choisit son type d’activité, au moment de préparer une séance. Aucune précision n’est générée : aucun appel IA, aucun coût.`
+        : `Ils disparaissent de la liste où le professeur choisit son type d’activité, et redeviennent des propositions ici. Rien n’est perdu : leurs précisions et leurs prompts restent en base, recocher les ramène intacts.`,
+      confirmLabel: veutRetenir ? 'Mettre au programme' : 'Retirer',
+    })) return
+    setTypesBusy(true)
+    setTypes(ts => ts.map(t => ({ ...t, validee: veutRetenir })))       // optimiste
+    try {
+      for (const t of aFaire) {
+        const r = await fetchWithTimeout('/api/admin/referentiels/types-activite', {
+          method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cycle_id: Number(cycleId), niveau, type_id: t.id, validee: veutRetenir }),
+        }, TIMEOUT_STD)
+        if (!r.ok) {
+          const e = await r.json().catch(() => ({}))
+          showError(e.detail || `« ${t.label} » n’a pas pu être enregistré (${r.status}).`)
+          break
+        }
+      }
+    } catch { showError('Enregistrement impossible.') }
+    finally { setTypesBusy(false); await chargerTypes() }
   }
 
   // LE ✕ A ÉTÉ RETIRÉ (09/08/2026), avec sa fonction `supprimerType`. Il faisait doublon avec la
@@ -1238,13 +1292,22 @@ export default function AdminReferentiels() {
   // Seuls les types au programme comptent : on ne dépense pas l'IA sur une proposition que l'admin
   // n'a pas gardée (le serveur refuse d'ailleurs, 422). Idempotent : un type qui a déjà ses
   // précisions n'est jamais réécrasé. Relit la base à la fin (badges à jour).
+  //
+  // ELLE NE PART PLUS TOUTE SEULE (15/08/2026) : c'est un bouton qui l'appelle, et elle annonce
+  // AVANT de dépenser combien d'appels elle va faire. Un geste payant se demande, il ne s'attrape
+  // pas en cochant une case.
   async function genererPrecisionsManquantes() {
     const rg = await fetchWithTimeout(`/api/admin/referentiels/types-activite?cycle_id=${Number(cycleId)}&niveau=${encodeURIComponent(niveau)}`,
       { credentials: 'include' }, TIMEOUT_STD)
     const dg = await rg.json().catch(() => ({}))
     if (!rg.ok) return
     const aFaire = (dg.types || []).filter(x => x.validee && !(x.nb_precisions > 0))
-    if (aFaire.length === 0) return
+    if (aFaire.length === 0) { showError('Tous les types au programme ont déjà leurs précisions.'); return }
+    if (!await demanderConfirmation({
+      titre: `Préparer les précisions de ${aFaire.length} type${aFaire.length > 1 ? 's' : ''} ?`,
+      message: `Un appel IA facturé PAR TYPE, soit ${aFaire.length} appel${aFaire.length > 1 ? 's' : ''} à la suite. Seuls les types au programme sans précision sont traités ; ceux qui en ont déjà ne sont pas retouchés.`,
+      confirmLabel: 'Lancer',
+    })) return
     try {
       for (let i = 0; i < aFaire.length; i++) {
         const x = aFaire[i]
@@ -1274,7 +1337,8 @@ export default function AdminReferentiels() {
       setTypesNouveau('')
       if (d.deja_present) showError(`« ${d.label} » est déjà dans les types de ce référentiel.`)
       await chargerTypes()
-      await genererPrecisionsManquantes()   // le type ajouté reçoit ses précisions dans la foulée
+      // Pas de génération des précisions ici (15/08/2026) : écrire un type à la main est gratuit,
+      // et le rester. Le bouton « Préparer les précisions » les demande quand on le décide.
     } catch { showError('Ajout impossible.') }
     finally { setTypesBusy(false) }
   }
@@ -1284,6 +1348,12 @@ export default function AdminReferentiels() {
   // types sont au programme, et combien attendent encore la décision de l'admin.
   const nbTypesRetenus = types.filter(t => t.validee).length
   const nbTypesProposes = types.length - nbTypesRetenus
+  // La cartouche des précisions ne travaille QUE sur les types au programme : une proposition non
+  // cochée n'a pas de précisions, et le serveur refuse d'en fabriquer (422). Ces deux comptages
+  // sont ceux de sa pastille et de son titre.
+  const typesRetenus = types.filter(t => t.validee)
+  const nbTypesAvecPrecisions = typesRetenus.filter(t => (t.nb_precisions || 0) > 0).length
+  const nbTypesSansPrecisions = typesRetenus.length - nbTypesAvecPrecisions
 
   // Cycle courant + libellé « Cycle · Niveau », lus dans l'arbre des programmes (get, zéro copie).
   const cycleCourant = arbre.find(c => String(c.id) === String(cycleId))
@@ -1321,6 +1391,11 @@ export default function AdminReferentiels() {
     // Comme pour les matières : l'étape n'est faite que si un type est RETENU. Une proposition
     // non cochée ne met aucun type au programme, donc elle ne fait pas avancer la procédure.
     { id: 'types',         label: 'Types d’activité',  done: nbTypesRetenus > 0 },
+    // Les précisions ONT LEUR ÉTAPE depuis le 15/08/2026. Elles vivaient au fond de la cartouche
+    // des types, mêlées à ses boutons et à ses prompts : deux travaux dans une seule carte, et
+    // celui du dessous était le plus long. La procédure en compte quatre — matières, découpe,
+    // types, précisions — l'écran en montrait trois.
+    { id: 'precisions',    label: 'Précisions',        done: nbTypesAvecPrecisions > 0 },
   ]
   function estVisible(id) {
     const i = steps.findIndex(s => s.id === id)
@@ -1527,7 +1602,8 @@ export default function AdminReferentiels() {
             toute lecture / appel long (même composant que les écrans prof). */}
         {busy && (
           <JaugeAttente libelle={depotPhase === 'controle'
-            ? <>Contrôle du couple : recherche du <strong>cycle</strong> et du <strong>niveau</strong> dans le document…</>
+            ? <>Contrôle du couple : recherche du <strong>cycle</strong> et du <strong>niveau</strong> dans le document…
+                <br /><small>Toutes les pages sont lues : comptez jusqu’à une minute sur un long document.</small></>
             : (mode === 'lien'
               ? 'Téléchargement du PDF depuis le lien…'
               : 'Lecture du document PDF (nombre de pages et aperçu)…')} />
@@ -1962,9 +2038,21 @@ export default function AdminReferentiels() {
               </div>
             ))}
             {matieres.length === 0 && (
-              <div style={{ padding: '10px', fontSize: 12, color: '#94a3b8' }}>
-                Ce référentiel ne porte encore aucune matière. La lecture du document n’en a
-                proposé aucune : ajoutez-les à la main ci-dessous.
+              <div style={{ padding: '10px', fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
+                {/* Les TROIS voies sont dites ici, à égalité — c'est le seul endroit où l'admin
+                    décide s'il dépense. La voie payante est écrite en rouge : le prix se lit
+                    AVANT le clic, jamais sur la facture. */}
+                Ce référentiel ne porte encore aucune matière.
+                <div style={{ marginTop: 8 }}>Trois façons de les obtenir :</div>
+                <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                  <li><strong>« Proposer les matières »</strong> : <span style={{ color: '#dc2626' }}>
+                    l’IA lit le document et propose la liste — cet appel est payant</span>.</li>
+                  <li><strong>Sans rien payer</strong> <InfoGuide {...aideReferentiels('matieres_sans_payer')} />
+                    {' '}: récupérez le document épuré, faites écrire le prompt par Fable puis
+                    exécuter par Sonnet (abonnement Max, aucun coût pour aSchool), et saisissez
+                    le résultat ci-dessous.</li>
+                  <li><strong>À la main</strong> : saisissez-les une par une dans le champ ci-dessous.</li>
+                </ul>
               </div>
             )}
           </div>
@@ -2197,7 +2285,8 @@ export default function AdminReferentiels() {
         </div>
       )}
 
-      {/* Carte 6 (DERNIÈRE étape de la chaîne) — Types d'activité DU RÉFÉRENTIEL. Visible seulement
+      {/* Carte 6 — Types d'activité DU RÉFÉRENTIEL. Elle a cessé d'être la dernière le 15/08/2026 :
+          les précisions, qu'elle hébergeait au fond d'elle-même, ont pris la carte suivante. Visible seulement
           une fois le découpage (N-1) validé (estVisible, comme les autres cartouches). MÊME GESTE QUE
           LES MATIÈRES : la détection propose (case décochée), l'admin coche ce qui entre au programme
           — écriture directe en base au clic (put). Le badge dit l'ORIGINE du type (IA / ADMIN),
@@ -2261,31 +2350,10 @@ export default function AdminReferentiels() {
             </button>
             <InfoGuide {...aideReferentiels('prompt_types')} />
 
-            {/* ── Bloc de DROITE : le geste payant, seul, au bout de la ligne. ── */}
+            {/* ── Bloc de DROITE : ce qui AGIT, le geste payant tout au bout. Les deux prompts des
+                PRÉCISIONS ont quitté cette ligne le 15/08/2026 : ils appartiennent à la cartouche
+                qui porte leur travail, pas à celle d'à côté. ── */}
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {/* Les PRÉCISIONS se travaillent dans cette cartouche (✎ Précisions sur une ligne) :
-                  la recette qui écrit leur prompt se lit donc ici aussi. Gratuit, lecture seule. */}
-              <button type="button" className="btn-secondary"
-                style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                title="Voir le méta-prompt : la consigne qui sert à l'IA pour RÉDIGER le prompt des précisions (lecture seule)"
-                onClick={ouvrirMetaPrecisions}>
-                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Méta-prompt des précisions
-              </button>
-              <span style={{ marginRight: 14, display: 'inline-flex', alignItems: 'center' }}>
-                <InfoGuide {...aideReferentiels('meta_prompt_precisions')} />
-              </span>
-              {/* Le PROMPT des précisions : unique pour tout le référentiel, appelé une fois par
-                  type (le logiciel remplace le repère du nom de type). CONSULTATION SEULE — le
-                  dépôt se fait dans Prompts → Référentiels, comme pour tous les autres prompts. */}
-              <button type="button" className="btn-secondary"
-                style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
-                title="Voir le prompt qui lit les précisions d'un type dans CE référentiel — consultation seule (gratuit, aucune IA)"
-                onClick={ouvrirPromptPrecisions}>
-                <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Prompt des précisions
-              </button>
-              <span style={{ marginRight: 14, display: 'inline-flex', alignItems: 'center' }}>
-                <InfoGuide {...aideReferentiels('prompt_precisions')} />
-              </span>
               <button type="button" onClick={detecterTypes} disabled={typesBusy}
                 style={btnTypes('#7c3aed', typesBusy)}
                 title={nbTypesRetenus > 0
@@ -2302,18 +2370,30 @@ export default function AdminReferentiels() {
           {typesDetecting && (
             <JaugeAttente libelle="L’IA lit le document épuré et relève les formats de travail qu’il met en œuvre…" />
           )}
-          {/* Jauge RÉELLE des précisions : générées type par type, sur les types RETENUS seulement. */}
-          {precisProgress && (
-            <div>
-              <div style={{ fontSize: 12, color: '#1d4ed8', marginBottom: 4 }}>
-                <BadgeIA titre="L'IA prépare les précisions de chaque type d'activité retenu, pour ce niveau" />{' '}
-                Précisions en cours de préparation ({precisProgress.fait + 1}/{precisProgress.total})
-                {precisProgress.label ? ` — ${precisProgress.label}` : ''}…
-              </div>
-              <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.round(100 * precisProgress.fait / Math.max(1, precisProgress.total))}%`,
-                  background: '#7c3aed', transition: 'width 0.4s' }} />
-              </div>
+
+          {/* Cocher / décocher en bloc, JUSTE AU-DESSUS DE LA LISTE (15/08/2026) : ces deux boutons
+              n'agissent que sur les cases du dessous — ils vivent donc contre elles, et non sur la
+              ligne des prompts où ils étaient nés. Chacun disparaît quand il n'a plus rien à faire. */}
+          {types.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {types.some(t => !t.validee) && (
+                <button type="button" className="btn-secondary" disabled={typesBusy}
+                  style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap',
+                    cursor: typesBusy ? 'not-allowed' : 'pointer', opacity: typesBusy ? 0.6 : 1 }}
+                  title="Mettre d'un coup toutes les propositions au programme de ce niveau — gratuit, aucune IA"
+                  onClick={() => retenirTousLesTypes(true)}>
+                  <span aria-hidden="true" style={{ marginRight: 2 }}>☑</span> Sélectionner tout
+                </button>
+              )}
+              {types.some(t => t.validee) && (
+                <button type="button" className="btn-secondary" disabled={typesBusy}
+                  style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap',
+                    cursor: typesBusy ? 'not-allowed' : 'pointer', opacity: typesBusy ? 0.6 : 1 }}
+                  title="Retirer d'un coup tous les types du programme — ils redeviennent des propositions, rien n'est perdu"
+                  onClick={() => retenirTousLesTypes(false)}>
+                  <span aria-hidden="true" style={{ marginRight: 2 }}>☐</span> Tout décocher
+                </button>
+              )}
             </div>
           )}
 
@@ -2331,15 +2411,14 @@ export default function AdminReferentiels() {
                 </p>
               ) : types.map((t, i) => {
                 const editOuvert = promptEditId === t.id
-                const precisOuvert = precisEditId === t.id
                 return (
                   <Fragment key={t.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
                     background: t.validee ? 'white' : '#fcfcfd',
-                    borderBottom: (i < types.length - 1 && !editOuvert && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                    borderBottom: (i < types.length - 1 && !editOuvert) ? '1px solid #f1f5f9' : 'none' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
                       title={t.validee
-                        ? `« ${t.label} » est au programme : les professeurs de ce niveau le voient. Décocher le remet en proposition.`
+                        ? `« ${t.label} » est au programme : un professeur de ce niveau le trouve dans la liste des types d'activité, quand il prépare une séance. Décocher l'en retire.`
                         : `Proposition lue dans le document. Cocher pour la mettre au programme de ce niveau.`}>
                       <input type="checkbox" checked={!!t.validee} onChange={e => retenirType(t, e.target.checked)}
                         style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }} />
@@ -2353,22 +2432,11 @@ export default function AdminReferentiels() {
                         <span style={{ fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>proposé, pas encore au programme</span>
                       )}
                     </label>
-                    {/* Précisions PUIS prompt, dans cet ordre (09/08/2026) : le prompt de génération
-                        reçoit la précision choisie par le professeur dans son repère {sous_type}. On ne
-                        peut donc pas l'écrire avant de savoir quelles précisions le type propose — les
-                        boutons suivent l'ordre du travail réel. */}
+                    {/* Les PRÉCISIONS ont quitté cette ligne (15/08/2026) : elles ont leur propre
+                        cartouche, juste dessous. Ici on décide ce qui entre au programme, et rien
+                        d'autre — une ligne, une décision. Reste le prompt de génération du type,
+                        qui n'appartient qu'à lui. */}
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      {(t.nb_precisions || 0) > 0
-                        ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚑ {t.nb_precisions} précision{t.nb_precisions > 1 ? 's' : ''}</span>
-                        : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>0 précision</span>}
-                      <button type="button" onClick={() => ouvrirPrecisions(t)}
-                        title={t.validee
-                          ? `Précisions de « ${t.label} » pour ce référentiel`
-                          : `Précisions de « ${t.label} » — mettez-le d'abord au programme pour que l'IA les prépare`}
-                        style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
-                          background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
-                        ✎ Précisions
-                      </button>
                       {t.validee && ((t.prompt || '').trim()
                         ? <span title={`« ${t.label} » a son prompt de génération pour ce référentiel`}
                             style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>✓ prompt</span>
@@ -2381,51 +2449,6 @@ export default function AdminReferentiels() {
                       </button>
                     </span>
                   </div>
-                  {precisOuvert && (
-                    <div style={{ padding: '12px 14px', background: '#f8fafc',
-                      borderBottom: i < types.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
-                        Précisions de « {t.label} » — pour {coupleLabel}
-                      </div>
-                      {precisLoading ? (
-                        <div>
-                          <BadgeIA titre="L'IA génère les précisions de ce type d'activité pour ce niveau" />
-                          <JaugeAttente libelle="L’IA prépare les précisions adaptées à ce niveau…" />
-                        </div>
-                      ) : precisList.length > 0 ? (
-                        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {precisList.map(p => (
-                            <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                              padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', fontSize: 13, color: '#1e293b' }}>
-                              <span style={{ fontWeight: 500 }}>{p.libelle}</span>
-                              <button type="button" disabled={precisBusy}
-                                onClick={() => supprimerPrecisType(t, p)}
-                                title={`Supprimer « ${p.libelle} »`}
-                                style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626',
-                                  cursor: precisBusy ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🗑</button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-                          {t.validee
-                            ? 'Aucune précision pour ce type.'
-                            : 'Ce type n’est pas encore au programme : cochez-le pour que l’IA prépare ses précisions.'}
-                        </p>
-                      )}
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <input value={newPrecis} onChange={e => setNewPrecis(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); ajouterPrecisType(t) } }}
-                          placeholder="Ajouter une précision…"
-                          style={{ flex: 1, minWidth: 0, height: 36, padding: '0 12px', fontSize: 13, borderRadius: 8, border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
-                        <button type="button" onClick={() => ajouterPrecisType(t)} disabled={precisBusy || !newPrecis.trim()}
-                          style={btnTypes('#0f172a', precisBusy || !newPrecis.trim())}
-                          title="Ajouter cette précision pour ce type">＋ Ajouter</button>
-                        <button type="button" onClick={() => { setPrecisEditId(null); setPrecisList([]); setNewPrecis('') }}
-                          style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Fermer</button>
-                      </div>
-                    </div>
-                  )}
                   {editOuvert && (
                     <div style={{ padding: '12px 14px', background: '#f8fafc',
                       borderBottom: i < types.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
@@ -2474,6 +2497,170 @@ export default function AdminReferentiels() {
               onClick={ouvrirGabaritType}>
               <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Gabarit des prompts
             </button>
+          </div>
+          </>)}
+        </div>
+      )}
+
+      {/* Carte 7 (DERNIÈRE étape) — PRÉCISIONS des types d'activité. Détachée de la cartouche des
+          types le 15/08/2026 : elles y vivaient en sous-locataires, leurs deux prompts posés sur la
+          ligne du voisin et un panneau dépliable sous chaque ligne. Deux travaux différents, deux
+          cartouches — et la procédure en quatre temps (matières, découpe, types, précisions)
+          retrouve son quatrième.
+          Elle ne montre QUE les types au programme : une proposition non cochée n'a rien à
+          décliner, et le serveur refuse d'y travailler (422). */}
+      {estVisible('precisions') && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <h2 className="text-base font-semibold text-gray-800" style={{ margin: 0 }}>
+              <Pastille etat={nbTypesAvecPrecisions > 0 ? 'vert' : 'rouge'} titre="Vert = au moins un type au programme a ses précisions." />
+              Précisions des types d’activité
+              <span style={{ fontWeight: 400, color: '#94a3b8', marginLeft: 6, fontSize: 13 }}>
+                ({nbTypesAvecPrecisions} type{nbTypesAvecPrecisions > 1 ? 's' : ''} décliné{nbTypesAvecPrecisions > 1 ? 's' : ''}{nbTypesSansPrecisions > 0 ? `, ${nbTypesSansPrecisions} sans précision` : ''})
+              </span>
+              <span style={{ marginLeft: 8 }}>
+                <BadgeIA titre="L'IA propose les précisions d'un type pour ce niveau — vous gardez, vous supprimez, vous ajoutez à la main" />
+              </span>
+              <InfoGuide {...aideReferentiels('precisions')} />
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <button type="button" className="btn-secondary" style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                title={precisionsOuvert ? 'Réduire' : 'Développer'} onClick={() => setPrecisionsOuvert(o => !o)}>
+                {precisionsOuvert ? 'Réduire' : 'Développer'}
+              </button>
+            </div>
+          </div>
+
+          {precisionsOuvert && (<>
+          {/* Même partage que les autres cartouches : à GAUCHE ce qui se LIT (les prompts,
+              gratuits), à DROITE ce qui AGIT et qui coûte, tout au bout de la ligne. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn-secondary"
+              style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title="Voir le méta-prompt : la consigne qui sert à l'IA pour RÉDIGER le prompt des précisions (lecture seule)"
+              onClick={ouvrirMetaPrecisions}>
+              <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Méta-prompt
+            </button>
+            <span style={{ marginRight: 14, display: 'inline-flex', alignItems: 'center' }}>
+              <InfoGuide {...aideReferentiels('meta_prompt_precisions')} />
+            </span>
+            {/* Le PROMPT des précisions : unique pour tout le référentiel, appelé une fois par type
+                (le logiciel remplace le repère du nom de type). CONSULTATION SEULE — le dépôt se
+                fait dans Prompts → Référentiels, comme pour tous les autres prompts. */}
+            <button type="button" className="btn-secondary"
+              style={{ fontSize: 12, padding: '4px 10px', whiteSpace: 'nowrap' }}
+              title="Voir le prompt qui lit les précisions d'un type dans CE référentiel — consultation seule (gratuit, aucune IA)"
+              onClick={ouvrirPromptPrecisions}>
+              <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1, marginRight: 2 }}>👁</span> Prompt des précisions
+            </button>
+            <InfoGuide {...aideReferentiels('prompt_precisions')} />
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {nbTypesSansPrecisions > 0 && (
+                <button type="button" onClick={genererPrecisionsManquantes}
+                  disabled={typesBusy || !!precisProgress}
+                  style={btnTypes('#7c3aed', typesBusy || !!precisProgress)}
+                  title="Appel IA facturé, un par type — prépare les précisions des types AU PROGRAMME qui n'en ont pas encore. Ceux qui en ont déjà ne sont pas retouchés. Le nombre d'appels est annoncé avant de partir.">
+                  {precisProgress ? <><Spinner /> Précisions en cours…</>
+                    : <><span aria-hidden="true">✨</span> Préparer les précisions <PastilleEuro /></>}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Jauge RÉELLE : générées type par type, sur les types RETENUS seulement. */}
+          {precisProgress && (
+            <div>
+              <div style={{ fontSize: 12, color: '#1d4ed8', marginBottom: 4 }}>
+                <BadgeIA titre="L'IA prépare les précisions de chaque type d'activité retenu, pour ce niveau" />{' '}
+                Précisions en cours de préparation ({precisProgress.fait + 1}/{precisProgress.total})
+                {precisProgress.label ? ` — ${precisProgress.label}` : ''}…
+              </div>
+              <div style={{ height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${Math.round(100 * precisProgress.fait / Math.max(1, precisProgress.total))}%`,
+                  background: '#7c3aed', transition: 'width 0.4s' }} />
+              </div>
+            </div>
+          )}
+
+          {/* Une ligne par type AU PROGRAMME. Le badge dit combien de précisions il porte ; le
+              bouton ouvre le panneau, qui ne fait que lire tant qu'on ne lui demande rien. */}
+          <div style={{ background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            {typesRetenus.length === 0 ? (
+              <p className="text-sm" style={{ padding: '1.25rem 1.5rem', textAlign: 'center', color: '#64748b', lineHeight: 1.7 }}>
+                Aucun type d’activité au programme de ce niveau.<br />
+                Cochez-en dans la cartouche du dessus : leurs précisions se travaillent ici.
+              </p>
+            ) : typesRetenus.map((t, i) => {
+              const precisOuvert = precisEditId === t.id
+              return (
+                <Fragment key={t.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'white',
+                  borderBottom: (i < typesRetenus.length - 1 && !precisOuvert) ? '1px solid #f1f5f9' : 'none' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 600, color: '#1e293b', fontSize: 13 }}>{t.label}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {(t.nb_precisions || 0) > 0
+                      ? <span style={{ color: '#166534', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>⚑ {t.nb_precisions} précision{t.nb_precisions > 1 ? 's' : ''}</span>
+                      : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#94a3b8', fontWeight: 700, fontSize: 11, whiteSpace: 'nowrap' }}>0 précision</span>}
+                    <button type="button" onClick={() => ouvrirPrecisions(t)}
+                      title={`Voir et corriger les précisions de « ${t.label} » pour ce niveau (gratuit — rien n'est appelé à l'ouverture)`}
+                      style={{ padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+                        background: precisOuvert ? '#eff6ff' : 'white', color: '#334155', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      ✎ Précisions
+                    </button>
+                  </span>
+                </div>
+                {precisOuvert && (
+                  <div style={{ padding: '12px 14px', background: '#f8fafc',
+                    borderBottom: i < typesRetenus.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    {precisLoading ? (
+                      <div>
+                        <BadgeIA titre="L'IA génère les précisions de ce type d'activité pour ce niveau" />
+                        <JaugeAttente libelle="L’IA prépare les précisions adaptées à ce niveau…" />
+                      </div>
+                    ) : precisList.length > 0 ? (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {precisList.map(p => (
+                          <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', fontSize: 13, color: '#1e293b' }}>
+                            <span style={{ fontWeight: 500 }}>{p.libelle}</span>
+                            <button type="button" disabled={precisBusy}
+                              onClick={() => supprimerPrecisType(t, p)}
+                              title={`Supprimer « ${p.libelle} »`}
+                              style={{ height: 26, width: 26, borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626',
+                                cursor: precisBusy ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>🗑</button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      /* Liste vide. Ouvrir ce panneau lançait l'IA tout seul (15/08/2026) :
+                         maintenant il propose, et c'est le clic qui dépense. */
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Aucune précision pour ce type.</p>
+                        <button type="button" onClick={() => genererPrecisType(t.id)}
+                          disabled={precisBusy || precisLoading}
+                          style={btnTypes('#7c3aed', precisBusy || precisLoading)}
+                          title={`Appel IA facturé — l'IA lit le référentiel et propose les précisions de « ${t.label} » pour ce niveau. Vous pouvez aussi les écrire à la main ci-dessous, gratuitement.`}>
+                          <span aria-hidden="true">✨</span> Proposer les précisions <PastilleEuro />
+                        </button>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <input value={newPrecis} onChange={e => setNewPrecis(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); ajouterPrecisType(t) } }}
+                        placeholder="Ajouter une précision…"
+                        style={{ flex: 1, minWidth: 0, height: 36, padding: '0 12px', fontSize: 13, borderRadius: 8, border: '1px solid #cbd5e1', boxSizing: 'border-box' }} />
+                      <button type="button" onClick={() => ajouterPrecisType(t)} disabled={precisBusy || !newPrecis.trim()}
+                        style={btnTypes('#0f172a', precisBusy || !newPrecis.trim())}
+                        title="Ajouter cette précision pour ce type">＋ Ajouter</button>
+                      <button type="button" onClick={() => { setPrecisEditId(null); setPrecisList([]); setNewPrecis('') }}
+                        style={{ padding: '0 16px', height: 36, borderRadius: 8, border: '1px solid #cbd5e1', background: 'white', color: '#334155', fontSize: 13, cursor: 'pointer' }}>Fermer</button>
+                    </div>
+                  </div>
+                )}
+                </Fragment>
+              )
+            })}
           </div>
           </>)}
         </div>
@@ -2598,7 +2785,7 @@ export default function AdminReferentiels() {
               {metaPrompt === null
                 ? 'Lecture du méta-prompt…'
                 : (metaPrompt.trim()
-                  || 'Aucun méta-prompt en base : tant qu’il manque, l’IA ne peut pas rédiger de prompt de lecture des matières.')}
+                  || 'Ce référentiel n’a pas encore son méta-prompt des matières. C’est l’état normal d’un référentiel qu’on vient de déposer : un méta-prompt regarde CE document, il ne se recopie pas d’un autre diplôme.\n\nÉcrivez-le dans Prompts → Référentiels, cartouche « Des matières ».')}
             </pre>
             <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
               fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
@@ -2644,7 +2831,7 @@ export default function AdminReferentiels() {
               {metaDecoupe === null
                 ? 'Lecture du méta-prompt…'
                 : (metaDecoupe.trim()
-                  || 'Aucun méta-prompt en base : tant qu’il manque, l’IA ne peut pas rédiger de prompt de découpe.')}
+                  || 'Ce référentiel n’a pas encore son méta-prompt de découpe. C’est l’état normal d’un référentiel qu’on vient de déposer : un méta-prompt regarde CE document, il ne se recopie pas d’un autre diplôme.\n\nÉcrivez-le dans Prompts → Référentiels, cartouche « De découpe ».')}
             </pre>
             <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
               fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
@@ -2738,7 +2925,7 @@ export default function AdminReferentiels() {
               {metaPrecisions === null
                 ? 'Lecture du méta-prompt…'
                 : (metaPrecisions.trim()
-                  || 'Aucun méta-prompt en base : tant qu’il manque, l’IA ne peut pas rédiger de prompt de précisions.')}
+                  || 'Ce référentiel n’a pas encore son méta-prompt des précisions. C’est l’état normal d’un référentiel qu’on vient de déposer : un méta-prompt regarde CE document, il ne se recopie pas d’un autre diplôme.\n\nÉcrivez-le dans Prompts → Référentiels, cartouche « Des précisions ».')}
             </pre>
             <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
               fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>
@@ -2824,7 +3011,7 @@ export default function AdminReferentiels() {
               {metaTypes === null
                 ? 'Lecture du méta-prompt…'
                 : (metaTypes.trim()
-                  || 'Aucun méta-prompt en base : tant qu’il manque, l’IA ne peut pas rédiger de prompt de lecture des types.')}
+                  || 'Ce référentiel n’a pas encore son méta-prompt des types d’activité. C’est l’état normal d’un référentiel qu’on vient de déposer : un méta-prompt regarde CE document, il ne se recopie pas d’un autre diplôme.\n\nÉcrivez-le dans Prompts → Référentiels, cartouche « Des types d’activité ».')}
             </pre>
             <div style={{ padding: '10px 14px', borderTop: '1px solid #e2e8f0',
               fontSize: 12.5, lineHeight: 1.6, color: '#b91c1c', background: '#fef2f2' }}>

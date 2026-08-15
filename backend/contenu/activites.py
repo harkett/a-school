@@ -29,7 +29,7 @@ from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_pr
 from backend.rag.pgvector_store import retrieve_pg
 from backend.supervision.incidents import creer_incident
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
+    get_ai_model, get_ai_provider, liste_fournisseurs, get_cle_texte, get_max_tokens, get_temperature, get_rag_top_k,
     get_stream_silence_timeout, get_retry_max, get_retry_wait_max, get_prompt,
     get_few_shot_seuil, get_few_shot_extrait_max,
 )
@@ -373,7 +373,7 @@ def api_proposer_idee(
     # même geste que générer. Pas de cahier → prompt inchangé.
     prompt = ajouter_cahier_au_prompt(db, prompt, texte_cahier_du_profil(db, user))
     try:
-        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "idee"), temperature=get_temperature(db),
                          retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
                          outil="idee")
@@ -433,8 +433,17 @@ def api_generate(
     # 5. Remplissage. Le texte source → {texte}, les extraits officiels → {referentiel}. Les autres
     # paramètres (niveau, sous_type, nb, langue) restent disponibles si l'admin les a mis dans le prompt.
     kwargs = {"niveau": niveau, "referentiel": referentiel_txt}
-    if req.sous_type:
-        kwargs["sous_type"] = req.sous_type
+    # `sous_type` (la PRÉCISION, telle que l'écran du prof la nomme) est TOUJOURS fourni, même
+    # vide — à la différence de `nb` et `langue`, qui restent absents quand ils manquent et
+    # provoquent alors le 400 « Indiquez… ».
+    #
+    # POURQUOI CETTE EXCEPTION (15/08/2026). Le prof choisit une précision, elle arrive bien
+    # jusqu'ici, et elle était jetée en silence : aucun des 100 prompts en base ne nommait
+    # {sous_type}, donc `.format()` l'ignorait. Le gabarit le nomme désormais — mais la précision
+    # ne peut pas devenir obligatoire pour autant : un type qui n'en a aucune n'affiche même pas
+    # le sélecteur côté prof (Parametres.jsx), et le 400 serait alors sans issue. Valeur vide =
+    # le prompt porte une ligne de précision restée blanche, et la génération continue.
+    kwargs["sous_type"] = req.sous_type or ""
     if req.nb:
         kwargs["nb"] = req.nb
     # LV : la langue vient de la BASE (matière de travail qui PORTE une langue + langue du
