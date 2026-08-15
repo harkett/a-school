@@ -134,8 +134,9 @@ def test_generation_utilise_le_couple_de_travail_en_base():
                  json={"matiere": "CT-HG", "niveau": "CT-5e"}).status_code == 200
     capture = {}
 
-    def _faux_rag(collection, query, filters=None, top_k=None, schema=None):
+    def _faux_rag(collection, query, filters=None, top_k=None, schema=None, annee=None):
         capture["collection"] = collection
+        capture["annee"] = annee
         return [{"text": "Extrait officiel CT-5e.", "score": 0.9}]
 
     with patch("backend.contenu.activites.retrieve_pg", side_effect=_faux_rag), \
@@ -145,6 +146,8 @@ def test_generation_utilise_le_couple_de_travail_en_base():
     assert r.status_code == 200, r.text
     assert "event: done" in r.text
     assert capture["collection"] == "ct_5e"            # la collection du niveau de TRAVAIL
+    assert capture["annee"] == "CT-5e"                 # et l'ANNEE filtrée = ce même niveau :
+    # un programme de cycle ne servira que la 5e, pas les autres années du même document.
     assert "Niveau CT-5e." in gen.call_args.args[0]    # le prompt porte le niveau de TRAVAIL
 
 

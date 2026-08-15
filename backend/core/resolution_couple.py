@@ -9,10 +9,40 @@ possède ses matières, plusieurs « Mathématiques » coexistent en base — un
 nomme une. Chercher par le nom seul ne pouvait donc plus rendre qu'un doublon ambigu, c'est-à-dire
 rien. `matiere_id_du_nom` demande le NIVEAU : il donne le référentiel, le référentiel donne SA
 matière. Le niveau, lui, reste unique par son nom (cf. `niveau_id_du_nom`).
+
+ET LE NIVEAU DONNE SON RÉFÉRENTIEL PAR `referentiel_du_niveau` (15/08/2026), jamais en filtrant
+`referentiels.niveau_id` : depuis qu'un programme de cycle sert plusieurs années, cette colonne ne
+dit plus que le niveau porteur du document.
 """
 from sqlalchemy.orm import Session
 
-from backend.core.models_db import Matiere, Niveau, Referentiel
+from backend.core.models_db import Matiere, Niveau, ReferentielNiveau
+
+
+def referentiel_du_niveau(db: Session, niveau_id: int | None) -> int | None:
+    """LA réponse à « quel référentiel sert ce niveau ? » — id, ou None.
+
+    UNE SEULE PORTE (15/08/2026). Huit endroits posaient cette question à la main, chacun en
+    filtrant `referentiels.niveau_id`. Cette colonne ne répond plus : elle dit le niveau PORTEUR
+    (le dossier du PDF, le nom, la collection), pas les niveaux servis. Un programme de CYCLE en
+    sert plusieurs — le cycle 4 tient la 5e, la 4e et la 3e — et huit lectures directes, c'est
+    huit occasions d'en oublier une : celle-là continuerait de répondre « aucun référentiel » à un
+    prof de 5e, sans erreur, juste une page vide.
+
+    `UNIQUE(referentiel_niveaux.niveau_id)` garantit qu'il n'y a jamais deux réponses possibles :
+    pas de garde « len == 1 » à écrire ici, la base la porte."""
+    if not niveau_id:
+        return None
+    return (db.query(ReferentielNiveau.referentiel_id)
+              .filter(ReferentielNiveau.niveau_id == niveau_id)
+              .scalar())
+
+
+def referentiel_du_niveau_nomme(db: Session, nom: str | None) -> int | None:
+    """Même question, posée avec le NOM du niveau — pour les appelants qui tiennent le couple du
+    prof en clair (`couple_de_travail` rend des noms). Passe par `niveau_id_du_nom`, donc None
+    aussi quand le nom désigne deux niveaux de deux cycles : on ne devine pas lequel."""
+    return referentiel_du_niveau(db, niveau_id_du_nom(db, nom))
 
 
 def matiere_id_du_nom(db: Session, nom: str | None, niveau_id: int | None) -> int | None:
@@ -23,6 +53,9 @@ def matiere_id_du_nom(db: Session, nom: str | None, niveau_id: int | None) -> in
     et actives sont résolues : une proposition de la détection n'entre jamais dans un profil.
     L'unicité (referentiel_id, nom) garantit qu'il n'y a jamais deux réponses possibles."""
     if not nom or not niveau_id:
+        return None
+    rid = referentiel_du_niveau(db, niveau_id)
+    if rid is None:
         return None
     return (db.query(Matiere.id)
               .join(Referentiel, Referentiel.id == Matiere.referentiel_id)

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from backend.securite import comptes
 from backend.core.database import get_db, schema_de_session
+from backend.core.resolution_couple import referentiel_du_niveau_nomme
 from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel, User
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
@@ -94,13 +95,11 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, flo
         pas une corruption : on refuse plutôt que de choisir une ligne au hasard."""
     if not niveau:
         return None
-    rows = (
-        db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
-        .join(Niveau, Niveau.id == Referentiel.niveau_id)
-        .filter(Niveau.nom == niveau)
-        .all()
-    )
-    if not rows:
+    # LA porte unique (15/08/2026) : le référentiel qui SERT ce niveau, pas celui qui le porte.
+    # Un programme de cycle en sert plusieurs — cherché ici sur `referentiels.niveau_id`, il
+    # laissait les profs des autres années du cycle sans aucun extrait.
+    rid = referentiel_du_niveau_nomme(db, niveau)
+    if rid is None:
         return None
     if len(rows) > 1:
         log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r}")
@@ -147,7 +146,7 @@ def api_exemple_referentiel(
     # (`referentiels.score_min`, résolu ci-dessus) — plus aucune constante en dur.
     requete = REQUETE_GABARIT.format(matiere=matiere, niveau=niveau)
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db))
+                         schema=schema_de_session(db), annee=niveau)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).

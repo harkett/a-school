@@ -561,6 +561,8 @@ def _etapes_enregistrement(body: "ValiderBody", db: Session):
             forcage_motif=forcage_motif,
             verif_couple=verif_couple_json,
             controle_niveau=controle_niveau_json,
+        # Le rattachement à son niveau porteur part avec la création, tenu par le modèle
+        # (`_referentiel_dessert_au_moins_son_niveau_porteur`) : rien à écrire ici.
             texte_epure=texte_epure,
         )
         db.add(ref)

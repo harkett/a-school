@@ -56,6 +56,7 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
         select(
             ReferentielChunk.chunk_index,
             ReferentielChunk.option_ab,
+            ReferentielChunk.annee,
             ReferentielChunk.page,
             ReferentielChunk.texte,
             ReferentielChunk.embedding,
@@ -75,11 +76,12 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     # Mode exclusif "x" : si le nom existe déjà, on RAISE plutôt que d'écraser un backup
     # existant (un filet ne détruit jamais un autre filet).
     with chemin.open("x", encoding="utf-8") as f:
-        for (chunk_index, option_ab, page, texte, embedding, embedding_model) in rows:
+        for (chunk_index, option_ab, annee, page, texte, embedding, embedding_model) in rows:
             f.write(json.dumps({
                 "referentiel_id": rid,
                 "chunk_index": chunk_index,
                 "option_ab": option_ab,
+                "annee": annee,
                 "page": page,
                 "texte": texte,
                 "embedding": [float(x) for x in embedding],
@@ -217,6 +219,10 @@ def restaurer_chunks_depuis_sauvegarde(db, chemin: Path, rid: int, collection: s
             texte=l["texte"],
             embedding=l["embedding"],
             embedding_model=l["embedding_model"],
+            # `.get` et non `[...]` : les sauvegardes antérieures au 15/08/2026 n'ont pas ce
+            # champ. Les déclarer illisibles retirerait le filet à l'instant où il sert ; une
+            # année absente vaut NULL, c'est-à-dire « commune à tout le cycle ».
+            annee=l.get("annee") or None,
         ))
     db.commit()
 
@@ -255,7 +261,11 @@ def _decouper_ia(texte: str, prompt: str) -> list[dict]:
     # `option` vient de la découpe (05/08/2026) : "A"/"B" quand la section n'appartient qu'à une
     # option, "commune" quand le document la dit commune, "" quand il n'a pas d'options. C'est ce
     # qui remplit `referentiel_chunks.option_ab` — jamais déduit ici, seulement transporté.
-    return [{"text": u["texte"], "page": 1, "meta": {"option": u.get("option", "")}}
+    # `annee` suit exactement le même chemin (15/08/2026) : l'année du cycle à laquelle l'unité
+    # est restreinte, "" quand elle vaut pour tout le cycle. Transportée, jamais déduite — la
+    # déduire du texte marquerait « quatrième proportionnelle » en unité de 4e.
+    return [{"text": u["texte"], "page": 1,
+             "meta": {"option": u.get("option", ""), "annee": u.get("annee", "")}}
             for u in unites]
 
 
@@ -359,7 +369,12 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
             db.add(ReferentielChunk(
                 referentiel_id=rid,
                 chunk_index=idx,
-                option_ab=ch["meta"]["option"],   # "A"/"B" (CIEL) ou "" (crèche), posé par la fiche
+                option_ab=ch["meta"]["option"],   # option du document, ou "" s'il n'en a pas
+                # "" -> NULL, JAMAIS la chaîne vide : NULL est ce que le filtre RAG lit comme
+                # « commune à tout le cycle » (`annee IS NULL OR annee = <année du prof>`). Une
+                # chaîne vide stockée telle quelle ne serait égale à aucune année, et l'unité
+                # disparaîtrait pour TOUS les profs — une découpe muette effacerait le référentiel.
+                annee=(ch["meta"].get("annee") or "").strip() or None,
                 page=ch["page"],
                 texte=ch["text"],
                 embedding=vec,
@@ -396,6 +411,7 @@ def retrieve_pg(
     top_k: int = 4,
     *,
     schema: str,
+    annee: str | None,
 ) -> list[dict[str, Any]]:
     """Recherche pgvector (cosinus) sur referentiel_chunks — MEME forme de sortie que
     retrieve() ChromaDB (text, page, source, score=1-distance, meta). Voie DIRECTE pour
@@ -408,7 +424,15 @@ def retrieve_pg(
     passe par mégarde à la place de `top_k`. Cette fonction ouvre sa propre session : sans le
     schéma de la requête, une démonstration chercherait dans le référentiel du RÉEL — aucune
     erreur, juste le mauvais contenu. Les appelants le tirent de leur session de requête, par
-    `schema_de_session(db)`."""
+    `schema_de_session(db)`.
+
+    `annee` = LE NIVEAU DU PROF, obligatoire lui aussi et pour la même raison. Un programme de
+    CYCLE est un seul document pour plusieurs années : le cycle 4 tient la 5e, la 4e et la 3e.
+    Sans ce filtre, un prof de 4e reçoit les entrées de français et les thèmes d'histoire-géo
+    des deux autres années. Le rendre optionnel serait pire que de ne rien faire : un appel
+    l'oublierait un jour, et la fuite reprendrait SANS AUCUN MESSAGE — c'est exactement le
+    défaut que ce paramètre corrige. `None` est une réponse valable (prof sans niveau résolu) :
+    elle ne rend alors que les unités communes, jamais celles d'une année."""
     q = (question or "").strip()
     if not q:
         logger.warning("[RAG-pg] retrieve_pg appele avec question vide, renvoie []")
@@ -441,6 +465,13 @@ def retrieve_pg(
             # (documents sans options, ou découpes d'avant le champ). Un `== option` strict
             # amputerait un prof d'option B de la moitié de son référentiel. (05/08/2026)
             stmt = stmt.where(ReferentielChunk.option_ab.in_([option, "commune", ""]))
+        # L'année, exactement comme l'option juste au-dessus : ce qui porte l'année du prof, PLUS
+        # ce qui ne porte aucune année. `annee IS NULL` ne veut pas dire « on ne sait pas », mais
+        # « commune à tout le cycle » — Volet 1, compétences travaillées, repères de progressivité.
+        # Un `== annee` strict amputerait le prof des 125 unités communes du cycle 4 sur 158.
+        # Aucun effet sur les référentiels d'un seul niveau : chez eux tout est NULL, tout passe.
+        stmt = stmt.where(
+            (ReferentielChunk.annee.is_(None)) | (ReferentielChunk.annee == annee))
         stmt = stmt.order_by(dist).limit(top_k)
         rows = db.execute(stmt).all()
     finally:
@@ -458,6 +489,7 @@ def retrieve_pg(
     ]
     logger.info(
         f"[RAG-pg] retrieve_pg collection={collection_name} top_k={top_k} option={option} "
+        f"annee={annee} "
         f"-> {len(chunks)} chunks, scores={[c['score'] for c in chunks]}"
     )
     return chunks

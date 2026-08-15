@@ -37,6 +37,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db, SCHEMA_REEL
+from backend.core.resolution_couple import referentiel_du_niveau
 from backend.core.schema_requete import schema_de
 from backend.core.deps import get_current_user
 from backend.core.models_db import (
@@ -97,6 +98,10 @@ def demo_pour_moi(request: Request, user: User = Depends(get_current_user),
     if not niveau_id:
         return {"disponible": False, "raison": "Choisissez d’abord votre niveau dans Mon profil."}
 
+    # Le référentiel qui SERT ce niveau (15/08/2026) : sans cela, un prof de 5e n'aurait aucune
+    # démonstration alors que celle du cycle 4 le concerne. `Niveau.nom` est celui du PROF, pas
+    # celui du porteur — c'est son niveau qu'on lui affiche.
+    rid = referentiel_du_niveau(db, niveau_id)
     ligne = (
         db.query(Demo, Niveau.nom)
         .join(Referentiel, Referentiel.id == Demo.referentiel_id)
@@ -134,8 +139,7 @@ def demo_aller(user: User = Depends(get_current_user), db: Session = Depends(get
 
     niveau_id = user.travail_niveau_id or user.niveau_id
     d = (db.query(Demo)
-           .join(Referentiel, Referentiel.id == Demo.referentiel_id)
-           .filter(Referentiel.niveau_id == niveau_id)
+           .filter(Demo.referentiel_id == referentiel_du_niveau(db, niveau_id))
            .first())
     matiere_id = user.travail_matiere_id or user.subject_id
     return RedirectResponse(

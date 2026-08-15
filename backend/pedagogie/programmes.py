@@ -12,7 +12,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.models_db import Cycle, LangueLv, Niveau, Matiere, Referentiel, ReferentielChunk
+from backend.core.models_db import (Cycle, LangueLv, Niveau, Matiere, Referentiel,
+                                    ReferentielChunk, ReferentielNiveau)
+from backend.core.resolution_couple import referentiel_du_niveau
 from backend.systeme.admin import _require_admin
 
 router = APIRouter()
@@ -29,9 +31,13 @@ def _matieres_du_programme(db: Session):
     """(niveau_id, cycle_id, Matiere) pour TOUTE matière réellement au programme : validée par
     l'admin, active, portée par le référentiel d'un niveau. LA lecture de base des menus du prof
     — une seule jointure, faite une fois, réutilisée par les trois vues de /programmes."""
-    return (db.query(Referentiel.niveau_id, Niveau.cycle_id, Matiere)
-              .join(Matiere, Matiere.referentiel_id == Referentiel.id)
-              .join(Niveau, Niveau.id == Referentiel.niveau_id)
+    # PAR LES NIVEAUX DESSERVIS (15/08/2026), plus par `referentiels.niveau_id`. Un programme de
+    # cycle sert plusieurs années : ses matières doivent apparaître au menu de CHACUNE. La
+    # jointure part donc de `referentiel_niveaux`, ce qui rend une ligne par (niveau, matière) —
+    # exactement ce que les trois vues attendent.
+    return (db.query(ReferentielNiveau.niveau_id, Niveau.cycle_id, Matiere)
+              .join(Matiere, Matiere.referentiel_id == ReferentielNiveau.referentiel_id)
+              .join(Niveau, Niveau.id == ReferentielNiveau.niveau_id)
               .filter(Matiere.validee.is_(True), Matiere.actif.is_(True))
               .order_by(Matiere.ordre, Matiere.id)
               .all())
@@ -66,8 +72,9 @@ def get_programmes(db: Session = Depends(get_db)):
     # (au moins 1 chunk). Source unique de vérité = les référentiels eux-mêmes.
     niveaux_ref_disponible = {
         row[0]
-        for row in db.query(Referentiel.niveau_id)
-                     .join(ReferentielChunk, ReferentielChunk.referentiel_id == Referentiel.id)
+        for row in db.query(ReferentielNiveau.niveau_id)
+                     .join(ReferentielChunk,
+                           ReferentielChunk.referentiel_id == ReferentielNiveau.referentiel_id)
                      .distinct().all()
     }
 
@@ -125,7 +132,11 @@ def get_matieres(niveau_id: int | None = None, db: Session = Depends(get_db)):
            .join(Referentiel, Referentiel.id == Matiere.referentiel_id)
            .filter(Matiere.validee.is_(True), Matiere.actif.is_(True)))
     if niveau_id is not None:
-        rows = q.filter(Referentiel.niveau_id == niveau_id).order_by(Matiere.ordre, Matiere.id).all()
+        # Le référentiel qui SERT ce niveau — le sien, ou celui de son cycle.
+        rid = referentiel_du_niveau(db, niveau_id)
+        if rid is None:
+            return []
+        rows = q.filter(Matiere.referentiel_id == rid).order_by(Matiere.ordre, Matiere.id).all()
         return [_matiere(m) for m in rows]
     noms = [nom for (nom,) in
             q.with_entities(Matiere.nom).distinct().order_by(Matiere.nom).all()]
@@ -149,8 +160,9 @@ def get_couverture(db: Session = Depends(get_db)):
     un prof (filtrés sur la matière) : ici on ne filtre pas, c'est une vitrine, pas un menu."""
     dispo = {
         row[0]
-        for row in db.query(Referentiel.niveau_id)
-                     .join(ReferentielChunk, ReferentielChunk.referentiel_id == Referentiel.id)
+        for row in db.query(ReferentielNiveau.niveau_id)
+                     .join(ReferentielChunk,
+                           ReferentielChunk.referentiel_id == ReferentielNiveau.referentiel_id)
                      .distinct().all()
     }
     cycles = []
@@ -179,7 +191,10 @@ def admin_programmes(db: Session = Depends(get_db)):
     Le catalogue global de matières et la liste des paires ont disparu de cette réponse : ils
     n'existent plus. Un niveau sans référentiel n'a aucune matière et le dit (`referentiel_id`
     à null) — l'écran affiche « aucun référentiel déposé » au lieu d'une grille de cases vides."""
-    refs = {r.niveau_id: r.id for r in db.query(Referentiel).all()}
+    # Les niveaux DESSERVIS, pas les niveaux porteurs : sans cela l'écran admin annoncerait
+    # « aucun référentiel déposé » sur la 5e et la 3e, pendant que le prof de 5e y aurait
+    # bien ses matières. Le dépôt du PDF, lui, reste attaché au niveau porteur.
+    refs = {rn.niveau_id: rn.referentiel_id for rn in db.query(ReferentielNiveau).all()}
     mat_par_ref: dict[int, list] = {}
     for m in db.query(Matiere).order_by(Matiere.ordre, Matiere.id).all():
         mat_par_ref.setdefault(m.referentiel_id, []).append(m)

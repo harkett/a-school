@@ -23,6 +23,7 @@ from backend.core.models_db import (
     Activite, Niveau, Referentiel, ActiviteType, ReferentielTypePrecision,
     User,
 )
+from backend.core.resolution_couple import referentiel_du_niveau_nomme
 from backend.prof.profil import couple_de_travail, matiere_demande_langue, texte_cahier_du_profil
 from backend.llm.generator import generate, generate_stream, acquire_llm_slot, release_llm_slot, LLMRateLimitError
 from backend.llm.prompts import build_proposer_idee_prompt, ajouter_cahier_au_prompt
@@ -201,18 +202,12 @@ def _referentiel_du_niveau(db: Session, niveau: str) -> int | None:
 
     None si niveau vide, aucun référentiel, ou ambiguïté (même nom de niveau dans deux cycles :
     on ne peut pas trancher sans le cycle). Dans tous ces cas on retombe sur le défaut — un GET
-    d'affichage ne doit JAMAIS casser la page prof."""
-    if not niveau:
-        return None
-    rows = (db.query(Referentiel.id)
-              .join(Niveau, Niveau.id == Referentiel.niveau_id)
-              .filter(Niveau.nom == niveau)
-              .all())
-    if len(rows) != 1:
-        if len(rows) > 1:
-            log.warning("[activites] ambiguïté niveau %r : %d référentiels → repli défaut", niveau, len(rows))
-        return None
-    return rows[0][0]
+    d'affichage ne doit JAMAIS casser la page prof.
+
+    Délègue à `referentiel_du_niveau_nomme` depuis le 15/08/2026 : la question « quel référentiel
+    pour ce niveau ? » a UNE porte. Cherchée ici à la main, elle ne voyait que le niveau porteur
+    du document, et un prof de 5e n'obtenait rien du programme de son cycle."""
+    return referentiel_du_niveau_nomme(db, niveau)
 
 
 def types_du_couple(db: Session, niveau: str) -> list[dict]:
@@ -362,7 +357,7 @@ def api_proposer_idee(
         niveau=niveau,
     )
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db))
+                         schema=schema_de_session(db), annee=niveau)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
@@ -424,7 +419,7 @@ def api_generate(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     chunks = retrieve_pg(collection, req.texte, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db))
+                         schema=schema_de_session(db), annee=niveau)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         raise HTTPException(400, "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez pertinent. Reformulez votre idée avec des termes plus proches du programme.")

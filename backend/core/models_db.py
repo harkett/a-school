@@ -1,5 +1,6 @@
 ﻿from datetime import datetime, timezone
 from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
+from sqlalchemy import event
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
@@ -841,7 +842,17 @@ class Referentiel(Base):
     Schéma PostgreSQL : id en IDENTITY, created_at DateTime/func.now().
     Clé d'identification = le NIVEAU, un seul référentiel par niveau (unique sur `niveau_id`).
     Il POSSÈDE ses matières (`matieres.referentiel_id`) : la colonne `matiere_id` qui pointait
-    en sens inverse a disparu — elle était NULL partout et la boucle n'avait pas de sens."""
+    en sens inverse a disparu — elle était NULL partout et la boucle n'avait pas de sens.
+
+    `niveau_id` EST LE NIVEAU PORTEUR, ET RIEN D'AUTRE (15/08/2026) : il donne le chemin du PDF
+    (`REFERENTIELS/<CYCLE>/<NIVEAU>/`), le nom et la collection. Il ne répond PLUS à la question
+    « quel référentiel pour ce prof ? » — c'est `referentiel_niveaux` qui répond, par la porte
+    unique `referentiel_du_niveau()`. Deux sources pour une même question seraient pires que le
+    défaut d'origine : elles se contrediraient un jour sans que rien ne le signale.
+
+    `uq_referentiels_niveau` RESTE. Elle ne bloquait pas le service de plusieurs niveaux — c'est
+    l'absence de table de liaison qui le bloquait. Elle garde son sens : deux référentiels ne
+    peuvent pas se ranger dans le même dossier de PDF."""
     __tablename__ = "referentiels"
     __table_args__ = (UniqueConstraint("niveau_id", name="uq_referentiels_niveau"),)
 
@@ -857,6 +868,35 @@ class Referentiel(Base):
     source: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Empreinte SHA-256 du PDF retenu pour ce couple — écrite à la validation, même calcul que
+
+
+class ReferentielNiveau(Base):
+    """LES NIVEAUX QU'UN RÉFÉRENTIEL DESSERT — la réponse à « quel référentiel pour ce prof ? ».
+
+    POURQUOI ELLE EXISTE (15/08/2026). Un programme de CYCLE est un seul document pour plusieurs
+    années : le cycle 4 tient la 5e, la 4e et la 3e. Tant que le référentiel n'était rattaché qu'à
+    un niveau, deux défauts en découlaient — le prof de 4e recevait le contenu des deux autres
+    années (réparé par `referentiel_chunks.annee`), et les profs de 5e et de 3e n'avaient AUCUN
+    référentiel, donc aucune génération ancrée. Le second se répare ici.
+
+    PAS UN RATTACHEMENT AU CYCLE. Le cycle « Collège » porte 6e, 5e, 4e ET 3e, alors que le cycle 4
+    du BOEN ne couvre pas la 6e : rattacher au cycle donnerait le programme du cycle 4 aux profs de
+    6e. La liste des niveaux desservis est donc EXPLICITE, jamais déduite.
+
+    `UNIQUE(niveau_id)` : un niveau n'est desservi que par UN référentiel — c'est cette contrainte
+    qui porte désormais l'invariant, et elle est plus forte que l'ancienne, qui ne regardait que le
+    niveau porteur. CASCADE : la disparition du référentiel emporte ses rattachements.
+
+    IL N'Y A AUCUN ÉCRAN pour remplir cette table (dette assumée le 15/08/2026, pour ne pas mêler
+    une réparation de bug et une fonctionnalité neuve). Le prochain référentiel de cycle demandera
+    soit une migration écrite à la main, soit ce geste dans Admin → Référentiels."""
+    __tablename__ = "referentiel_niveaux"
+    __table_args__ = (UniqueConstraint("niveau_id", name="uq_referentiel_niveaux_niveau"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
     # `referentiel_depots.empreinte`. Elle permet de reconnaître, AU DÉPÔT, un document déjà
     # validé quelque part (« ce PDF est déjà le référentiel de BTS · CIEL Option A »). NULL =
     # référentiel dont le fichier n'était plus lisible au moment du rétro-remplissage.
@@ -988,6 +1028,10 @@ class ActiviteType(Base):
     `is_default` a disparu avec le catalogue : le repli « Activité d'apprentissage » servi au prof
     quand un couple n'a aucun type est désormais UN LIBELLÉ DE SECOURS EN DUR (backend.contenu.
     activites). Il ne perd rien : le type par défaut n'avait de prompt pour aucun couple, donc il
+    # L'annee du CYCLE a laquelle cette unite appartient ('5e'/'4e'/'3e'), NULL quand elle vaut
+    # pour tout le cycle. NULL n'est pas « on ne sait pas », c'est « commune » : le filtre RAG
+    # lit `annee IS NULL OR annee = <annee du prof>`, comme il lit deja l'option.
+    annee: Mapped[str | None] = mapped_column(Text, nullable=True)
     n'était déjà pas générable — il ne servait que d'affichage.
 
     Le `prompt` (génération de CE type pour CE référentiel) est descendu de la liaison sur la ligne,
@@ -995,6 +1039,29 @@ class ActiviteType(Base):
     à l'instant."""
     __tablename__ = "types_activite"
     __table_args__ = (UniqueConstraint("referentiel_id", "label", name="uq_types_activite_referentiel_label"),)
+@event.listens_for(Referentiel, "after_insert")
+def _referentiel_dessert_au_moins_son_niveau_porteur(mapper, connection, target) -> None:
+    """TOUT référentiel créé dessert d'emblée son niveau porteur.
+
+    C'EST UN INVARIANT, PAS UNE COMMODITÉ. Un référentiel absent de `referentiel_niveaux` ne sert
+    PERSONNE : `referentiel_du_niveau` rend None et l'application répond « available: false » sans
+    qu'aucune erreur ne soit levée — le pire des défauts, celui qui se présente comme un état
+    normal. Le tenir ici, dans le modèle, plutôt que dans les douze endroits qui créent un
+    référentiel (l'écran admin, et onze semis de tests), c'est zéro occasion de l'oublier.
+
+    Un document de CYCLE en dessert plusieurs : les rattachements SUPPLÉMENTAIRES s'ajoutent
+    ensuite, par migration (il n'y a pas encore d'écran pour les dire — dette du 15/08/2026).
+    Ils ne passent pas par ici, et c'est bien : cette fonction ne connaît que le niveau porteur.
+
+    `connection.execute` et non une session : on est dans le flush en cours, sur la MÊME
+    transaction et le MÊME schéma que l'insertion qui l'a déclenchée. Un échec ici annule donc
+    aussi la création du référentiel — un référentiel sans rattachement ne peut pas exister."""
+    connection.execute(
+        ReferentielNiveau.__table__.insert().values(
+            referentiel_id=target.id, niveau_id=target.niveau_id)
+    )
+
+
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     referentiel_id: Mapped[int] = mapped_column(

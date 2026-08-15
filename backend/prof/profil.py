@@ -12,7 +12,8 @@ from backend.core.database import get_db
 from backend.core.models_db import CahierProf, Cycle, Matiere, Niveau, Referentiel, User
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.systeme.admin import _reglage_entier
-from backend.core.resolution_couple import matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom, niveau_nom_de_id
+from backend.core.resolution_couple import (matiere_id_du_nom, matiere_nom_de_id, niveau_id_du_nom,
+                                            niveau_nom_de_id, referentiel_du_niveau)
 
 router = APIRouter()
 
@@ -226,12 +227,16 @@ def delete_couple_travail(aschool_access: str = Cookie(default=None), db: Sessio
 #    donnée : le nom EXACT déposé vit déjà en base (referentiels.fichier) et le PDF sur disque.
 
 def _referentiel_du_profil(db: Session, user: User) -> Referentiel | None:
-    """Le référentiel officiel du NIVEAU de profil du prof, lu PAR SA CLÉ (users.niveau_id →
-    referentiels.niveau_id). La clé lève toute ambiguïté — un niveau = une ligne, l'unicité de
-    la base le garantit — donc plus de correspondance par nom ni de garde « len == 1 ».
-    None si le prof n'a pas de niveau (niveau_id NULL) ou si ce niveau n'a pas de référentiel :
-    la carte du profil affiche alors « indisponible »."""
-    if not user.niveau_id:
+    """Le référentiel officiel qui SERT le niveau de profil du prof, lu PAR SA CLÉ
+    (users.niveau_id → `referentiel_niveaux`). La clé lève toute ambiguïté — un niveau est servi
+    par un seul référentiel, `UNIQUE(niveau_id)` le garantit — donc plus de correspondance par nom
+    ni de garde « len == 1 ». None si le prof n'a pas de niveau (niveau_id NULL) ou si ce niveau
+    n'est servi par aucun référentiel : la carte du profil affiche alors « indisponible ».
+
+    PAR LA PORTE, plus par `referentiels.niveau_id` (15/08/2026) : cette colonne dit le niveau
+    PORTEUR du document, et un programme de cycle en sert plusieurs."""
+    rid = referentiel_du_niveau(db, user.niveau_id)
+    if rid is None:
         return None
     return db.query(Referentiel).filter(Referentiel.niveau_id == user.niveau_id).first()
 

@@ -111,7 +111,7 @@ DOMAINS = {
         ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
          "seance_styles", "langues_lv", "ambiguite_criteres", "equite_criteres"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
-        ["referentiels", "referentiel_chunks",
+        ["referentiels", "referentiel_niveaux", "referentiel_chunks",
          "types_activite", "referentiel_type_precisions"]),
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",

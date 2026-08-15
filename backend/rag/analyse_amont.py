@@ -84,9 +84,16 @@ _SCHEMA_DECOUPE = {
                 "properties": {
                     "titre": {"type": "string"},
                     "option": {"type": "string"},
+                    # L'ANNEE DU CYCLE ('5e', '4e', '3e'…), chaine vide quand l'unite vaut pour
+                    # tout le cycle. Un programme de cycle est UN document pour PLUSIEURS annees :
+                    # sans ce champ, le prof d'une annee recoit le contenu des deux autres.
+                    # Dans `required` comme les autres : le schema est strict, donc le champ
+                    # existe meme si le prompt du couple oublie de le demander — il vaut alors
+                    # "", c'est-a-dire « commune », le repli qui n'ampute personne.
+                    "annee": {"type": "string"},
                     "garder": {"type": "boolean"},
                 },
-                "required": ["titre", "option", "garder"],
+                "required": ["titre", "option", "annee", "garder"],
                 "additionalProperties": False,
             },
         },
@@ -303,10 +310,10 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     (cap « aSchool n'invente rien »). Pur, sans IA, sans base : testable seul.
     Chaque unité = du titre retenu jusqu'au titre suivant, dans l'ordre du document. Un titre
     introuvable est ignoré (on ne fabrique pas de frontière). Les numéros de page
-    (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte","option"}]` dans l'ordre.
+    (lignes-nombres) sont écartés avant tranchage. Renvoie `[{"titre","texte","option","annee"}]` dans l'ordre.
 
     ENTRÉES ACCEPTÉES : une chaîne (le titre seul, tout est gardé) ou un dict
-    `{"titre", "option", "garder"}`. Les entrées `garder:false` sont des BORNES : elles servent à
+    `{"titre", "option", "annee", "garder"}`. Les entrées `garder:false` sont des BORNES : elles servent à
     couper — c'est tout leur rôle — puis elles sont retirées du résultat. Sans elles, une section
     sans titre reconnu se colle à sa voisine et la queue du document part avec la dernière unité.
 
@@ -314,8 +321,8 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     première dans un sommaire ou un récapitulatif, une seconde en tête de la vraie section.
     L'ancienne version retenait toujours la première : le récapitulatif raflait les titres, et
     les vraies sections, privées de frontière, se retrouvaient avalées par leur voisine. Mesuré
-    le 02/08/2026 sur le BTS CIEL : 19 unités réduites à leur seule ligne de titre (la plus
-    courte, 9 caractères) et 3 unités géantes emportant 75 % du document.
+    le 02/08/2026 : 19 unités réduites à leur seule ligne de titre (la plus courte, 9 caractères)
+    et 3 unités géantes emportant 75 % du document.
 
     LA RÈGLE : **un intitulé immédiatement suivi d'un autre intitulé de la liste ne porte aucun
     contenu — c'est une entrée de sommaire, pas une unité.** Elle ne nomme aucune section, aucun
@@ -323,12 +330,11 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
 
     ET SURTOUT, LE CHOIX EST GLOBAL — pas titre par titre (06/08/2026). Un curseur qui avançait
     en choisissant chaque titre pour lui seul ignorait ce que ce choix coûtait aux suivants.
-    MESURÉ sur le BTS CIEL, sur les 137 titres rendus par le modèle : « Activité R3 » a cinq
-    occurrences, le curseur prenait la dernière (ligne 819), et les VINGT titres qui vivent entre
-    la ligne 378 et la ligne 819 devenaient « hors ordre » d'un coup — puis l'effet se propageait
-    jusqu'à la fin. Bilan : 47 titres placés, 90 perdus, 23 unités là où le document en contient
-    une cinquantaine ; les annexes IV et V (unités U1-U6, épreuves E1-E6, EF1, EF2) disparaissaient
-    entières.
+    MESURÉ sur 137 titres rendus par le modèle : un intitulé à cinq occurrences voyait le curseur
+    prendre la dernière (ligne 819), et les VINGT titres qui vivent entre la ligne 378 et la ligne
+    819 devenaient « hors ordre » d'un coup — puis l'effet se propageait jusqu'à la fin. Bilan :
+    47 titres placés, 90 perdus, 23 unités là où le document en contient une cinquantaine ; deux
+    annexes entières disparaissaient.
 
     On cherche donc l'affectation de positions, croissante en rang ET en ligne, qui place le PLUS
     de titres — un titre ne peut plus en sacrifier vingt. Même réponse du modèle, même document :
@@ -342,9 +348,10 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     """
     # Une entrée = un titre + ce qu'on en fait. Une simple chaîne vaut « unité à garder, sans
     # option » : les appels d'avant les bornes continuent de marcher tels quels.
-    entrees = [{"titre": t, "option": "", "garder": True} if isinstance(t, str)
+    entrees = [{"titre": t, "option": "", "annee": "", "garder": True} if isinstance(t, str)
                else {"titre": (t.get("titre") or "").strip(),
                      "option": (t.get("option") or "").strip(),
+                     "annee": (t.get("annee") or "").strip(),
                      "garder": t.get("garder", True) is not False}
                for t in titres]
 
@@ -437,7 +444,8 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
         # `lignes_repliees`, qui a normalisé les apostrophes pour comparer : ce qui s'affiche garde
         # la typographie d'origine).
         titre_reel = " ".join(l.strip() for l in lignes[i:max(fin_titre, i + 1)] if l.strip())
-        tranche = {"titre": titre_reel, "texte": bloc, "option": entrees[rang]["option"]}
+        tranche = {"titre": titre_reel, "texte": bloc, "option": entrees[rang]["option"],
+                   "annee": entrees[rang]["annee"]}
         # « rien derrière le titre » se juge sur les blancs repliés : un titre à cheval sur deux
         # lignes porte un « \n » que son bloc porte aussi, et l'égalité brute le raterait.
         nue = _replier_blancs(bloc) == _replier_blancs(titre_reel)
@@ -681,11 +689,12 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
             t = (u.get("titre") or "").strip()
             if t:
                 entrees.append({"titre": t, "option": (u.get("option") or "").strip(),
+                                "annee": (u.get("annee") or "").strip(),
                                 "garder": u.get("garder", True) is not False})
         else:
             t = str(u).strip()
             if t:
-                entrees.append({"titre": t, "option": "", "garder": True})
+                entrees.append({"titre": t, "option": "", "annee": "", "garder": True})
     return _trancher_par_titres(texte, entrees)
 
 

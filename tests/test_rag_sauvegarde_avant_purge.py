@@ -43,10 +43,10 @@ class _FakeDB:
 def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     monkeypatch.setattr(pgvector_store, "BACKUP_DIR", tmp_path)
     rows = [
-        # (chunk_index, option_ab, page, texte, embedding, embedding_model)
-        (0, "A", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "bge-m3"),
-        (1, "A", 13, "Texte du chunk un", [0.4, 0.5, 0.6], "bge-m3"),
-        (2, "B", 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "bge-m3"),
+        # (chunk_index, option_ab, annee, page, texte, embedding, embedding_model)
+        (0, "A", "4e", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "bge-m3"),
+        (1, "A", None, 13, "Texte du chunk un", [0.4, 0.5, 0.6], "bge-m3"),
+        (2, "B", None, 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "bge-m3"),
     ]
     res = pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=42)
 
@@ -60,6 +60,11 @@ def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     assert premier["referentiel_id"] == 42
     assert premier["chunk_index"] == 0
     assert premier["option_ab"] == "A"
+    # L'ANNÉE EST DANS LE DUMP. Sans elle, une restauration rendrait toutes les unités communes
+    # à tout le cycle : le marquage disparaîtrait en silence, et le prof recevrait de nouveau
+    # le contenu des autres années.
+    assert premier["annee"] == "4e"
+    assert json.loads(lignes[1])["annee"] is None
     assert premier["page"] == 12
     assert premier["texte"] == "Texte du chunk zero"
     assert premier["embedding"] == [0.1, 0.2, 0.3]
@@ -87,7 +92,7 @@ def test_sauvegarde_refuse_d_ecraser_un_bak_existant(tmp_path, monkeypatch):
             return fixe
 
     monkeypatch.setattr(pgvector_store, "datetime", _FixedDatetime)
-    rows = [(0, "A", 1, "texte", [0.1, 0.2], "bge-m3")]
+    rows = [(0, "A", None, 1, "texte", [0.1, 0.2], "bge-m3")]
 
     # 1er backup : ecrit normalement.
     pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=1)
