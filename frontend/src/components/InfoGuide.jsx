@@ -54,6 +54,10 @@ function useSuivi(ref, actif, recaler) {
   }, [actif, recaler])
 }
 
+// La carte s'ouvre large, se prend par son titre pour la déplacer et s'étire par son coin —
+// PARTOUT. Une procédure en quatre points dans une colonne de 300 px se lisait en accordéon,
+// texte coupé et ascenseur invisible. Essayé sur une seule fiche (14/08/2026), l'usage a
+// confirmé : la prop `redimensionnable` a disparu le 15/08/2026, il n'y a plus qu'une carte.
 export default function InfoGuide({ titre, court, long }) {
   const [survol, setSurvol] = useState(false)
   const [ouvert, setOuvert] = useState(false)   // carte épinglée (au clic)
@@ -63,24 +67,34 @@ export default function InfoGuide({ titre, court, long }) {
   const [posCarte, setPosCarte] = useState(null)
 
   const LARGEUR_BULLE = 240
-  const LARGEUR_CARTE = Math.min(300, typeof window !== 'undefined' ? window.innerWidth - MARGE * 2 : 300)
+  const LARGEUR_VOULUE = 560
+  const LARGEUR_CARTE = Math.min(LARGEUR_VOULUE, typeof window !== 'undefined' ? window.innerWidth - MARGE * 2 : LARGEUR_VOULUE)
   // Hauteurs ESTIMÉES : elles ne servent qu'à décider « au-dessus ou en dessous ». Une estimation
   // large fait basculer un peu tôt, ce qui est sans conséquence ; mesurer après coup ferait
   // sauter la bulle sous les yeux du prof.
   const recalerBulle = useCallback(() => {
     if (wrapRef.current) setPosBulle(placement(wrapRef.current, LARGEUR_BULLE, 80))
   }, [LARGEUR_BULLE])
+  // Une carte que l'utilisateur a DÉPLACÉE reste où il l'a mise : la recaler sur son « i » au
+  // moindre défilement lui reprendrait des mains ce qu'il vient de poser.
+  const [deplacee, setDeplacee] = useState(false)
   const recalerCarte = useCallback(() => {
-    if (wrapRef.current) setPosCarte(placement(wrapRef.current, LARGEUR_CARTE, 200))
-  }, [LARGEUR_CARTE])
+    if (wrapRef.current && !deplacee) setPosCarte(placement(wrapRef.current, LARGEUR_CARTE, 200))
+  }, [LARGEUR_CARTE, deplacee])
   useSuivi(wrapRef, survol && !ouvert, recalerBulle)
   useSuivi(wrapRef, ouvert, recalerCarte)
+
+  // TAILLE POSÉE À LA MAIN. Tant que le prof n'a rien étiré, elle vaut `null` : la carte prend sa
+  // largeur d'ouverture et la hauteur de son texte. Dès qu'il tire un bord, c'est lui qui décide.
+  const [taille, setTaille] = useState({ w: null, h: null })
+  const MIN_L = 280
+  const MIN_H = 160
 
   // Fermer la carte au clic AILLEURS et à Échap. Le listener n'existe que quand la carte est
   // ouverte (posé après le render qui l'ouvre → le clic d'ouverture ne la referme pas aussitôt).
   useEffect(() => {
     if (!ouvert) return
-    const fermer = () => { setOuvert(false); setPosCarte(null) }
+    const fermer = () => { setOuvert(false); setPosCarte(null); setDeplacee(false); setTaille({ w: null, h: null }) }
     const surClicDehors = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) fermer() }
     const surEchap = e => { if (e.key === 'Escape') fermer() }
     document.addEventListener('mousedown', surClicDehors)
@@ -90,6 +104,63 @@ export default function InfoGuide({ titre, court, long }) {
       document.removeEventListener('keydown', surEchap)
     }
   }, [ouvert])
+
+  // CE QUI RESTE SOUS LA CARTE, en pixels. C'était LE défaut (15/08/2026) : la hauteur était
+  // plafonnée à `85vh` dans l'absolu, sans regarder où la carte était posée. Ouverte sous un « i »
+  // du haut d'écran, une fiche longue descendait sous le bord de la fenêtre : le texte était coupé
+  // par l'ÉCRAN et non par la carte — donc pas d'ascenseur (rien ne débordait, de son point de
+  // vue) et pas de poignée (le coin bas était hors de vue). Bornée à la place réelle, la carte
+  // reste entière à l'écran, son texte défile, ses bords se prennent.
+  const hauteurDispo = posCarte && typeof window !== 'undefined'
+    ? Math.max(MIN_H, window.innerHeight - posCarte.top - MARGE)
+    : undefined
+  // Même borne à droite : élargie sans regarder où elle est posée, la carte sortirait par le côté
+  // et son bord droit — donc sa prise en largeur — passerait hors de l'écran.
+  const largeurDispo = posCarte && typeof window !== 'undefined'
+    ? Math.max(MIN_L, window.innerWidth - posCarte.left - MARGE)
+    : undefined
+
+  // Étirer par un bord. `sens` porte 'e' (largeur), 's' (hauteur) ou les deux (le coin).
+  const etirer = (sens) => (e) => {
+    if (e.button !== 0) return
+    const boite = e.currentTarget.parentNode.getBoundingClientRect()
+    const depart = { x: e.clientX, y: e.clientY, w: boite.width, h: boite.height }
+    const plafondL = largeurDispo
+    const bouger = ev => setTaille({
+      w: sens.includes('e')
+        ? Math.min(plafondL, Math.max(MIN_L, depart.w + ev.clientX - depart.x))
+        : depart.w,
+      h: sens.includes('s')
+        ? Math.min(hauteurDispo, Math.max(MIN_H, depart.h + ev.clientY - depart.y))
+        : depart.h,
+    })
+    const lacher = () => {
+      document.removeEventListener('mousemove', bouger)
+      document.removeEventListener('mouseup', lacher)
+    }
+    document.addEventListener('mousemove', bouger)
+    document.addEventListener('mouseup', lacher)
+    e.preventDefault()   // sinon le navigateur sélectionne le texte de la carte pendant le geste
+  }
+
+  // Glisser la carte par sa barre de titre. Les écouteurs vivent sur `document` : la souris sort
+  // vite de la carte pendant le geste, et un écouteur posé sur elle lâcherait prise en route.
+  const prendreLaCarte = e => {
+    if (!posCarte || e.button !== 0) return
+    const depart = { x: e.clientX, y: e.clientY, top: posCarte.top, left: posCarte.left }
+    const bouger = ev => setPosCarte({
+      top: Math.max(MARGE, depart.top + ev.clientY - depart.y),
+      left: depart.left + ev.clientX - depart.x,
+    })
+    const lacher = () => {
+      document.removeEventListener('mousemove', bouger)
+      document.removeEventListener('mouseup', lacher)
+    }
+    setDeplacee(true)
+    document.addEventListener('mousemove', bouger)
+    document.addEventListener('mouseup', lacher)
+    e.preventDefault()   // sinon le navigateur sélectionne le texte du titre pendant le geste
+  }
 
   return (
     <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex', verticalAlign: 'middle', marginLeft: 6 }}>
@@ -102,8 +173,8 @@ export default function InfoGuide({ titre, court, long }) {
         onClick={() => {
           // Pas d'effet de bord dans un `setState(o => …)` : React peut rejouer cette fonction,
           // et le recalage partirait deux fois. On lit l'état courant, on décide, on pose.
-          if (ouvert) { setOuvert(false); setPosCarte(null) }
-          else { recalerCarte(); setOuvert(true) }
+          if (ouvert) { setOuvert(false); setPosCarte(null); setDeplacee(false) }
+          else { setDeplacee(false); setTaille({ w: null, h: null }); recalerCarte(); setOuvert(true) }
           setSurvol(false)
           setPosBulle(null)
         }}
@@ -139,25 +210,55 @@ export default function InfoGuide({ titre, court, long }) {
         </span>
       )}
 
-      {/* CLIC → carte complète, épinglée. */}
+      {/* CLIC → carte complète, épinglée. La carte est un CADRE qui ne défile pas (titre et
+          poignées restent en place) ; seul le texte défile, dans sa propre zone. */}
       {ouvert && posCarte && (
         <span style={{
           position: 'fixed', top: posCarte.top, left: posCarte.left, zIndex: 10050,
+          width: taille.w ?? LARGEUR_CARTE, height: taille.h ?? undefined,
+          minWidth: MIN_L, maxWidth: largeurDispo, maxHeight: hauteurDispo,
           background: '#fff', color: '#374151', border: '1px solid #e2e8f0',
-          borderRadius: 8, padding: '10px 12px', width: LARGEUR_CARTE,
-          maxHeight: '70vh', overflowY: 'auto',
+          borderRadius: 8, padding: 0,
           textTransform: 'none', letterSpacing: 0,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.16)', display: 'block',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
-          <span style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+          <span onMouseDown={prendreLaCarte}
+            title="Glissez pour déplacer — tirez un bord ou le coin pour agrandir"
+            style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8,
+                     padding: '10px 12px 4px', flexShrink: 0, cursor: 'move' }}>
             <strong style={{ fontSize: 12.5, color: '#1e293b' }}>{titre}</strong>
-            <button type="button" aria-label="Fermer l'aide" onClick={() => { setOuvert(false); setPosCarte(null) }}
+            <button type="button" aria-label="Fermer l'aide" onClick={() => { setOuvert(false); setPosCarte(null); setTaille({ w: null, h: null }) }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8',
                        fontSize: 15, lineHeight: 1, padding: 0, flexShrink: 0 }}>
               ✕
             </button>
           </span>
-          <span style={{ display: 'block', fontSize: 12.5, fontWeight: 400, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{long}</span>
+
+          {/* Le texte, et lui seul, défile. `minHeight: 0` : sans lui un enfant de colonne flex
+              refuse de rétrécir sous sa hauteur naturelle et l'ascenseur ne sort jamais.
+              `scrollbarColor` : l'ascenseur du navigateur est si pâle qu'il passe pour une
+              bordure — teinté, le prof VOIT qu'il reste du texte au lieu de le deviner. */}
+          <span style={{
+            display: 'block', flex: '1 1 auto', minHeight: 0,
+            overflowY: 'auto', overflowX: 'hidden',
+            scrollbarWidth: 'auto', scrollbarColor: '#94a3b8 #eef2f7',
+            padding: '0 12px 12px', fontSize: 12.5, fontWeight: 400, lineHeight: 1.5,
+            whiteSpace: 'pre-line',
+          }}>{long}</span>
+
+          {/* TROIS PRISES, pas une. `resize: both` du navigateur ne donne qu'un coin, invisible sur
+              fond blanc et inutilisable dès que la carte touche un bord : ici le bord droit règle
+              la largeur, le bord bas la hauteur, le coin les deux. */}
+          <span onMouseDown={etirer('e')} aria-hidden="true"
+            style={{ position: 'absolute', top: 30, right: 0, width: 8, height: 'calc(100% - 46px)', cursor: 'ew-resize' }} />
+          <span onMouseDown={etirer('s')} aria-hidden="true"
+            style={{ position: 'absolute', left: 0, bottom: 0, height: 8, width: 'calc(100% - 18px)', cursor: 'ns-resize' }} />
+          <span onMouseDown={etirer('es')} aria-hidden="true"
+            title="Tirez pour agrandir"
+            style={{ position: 'absolute', right: 2, bottom: 2, width: 14, height: 14, cursor: 'nwse-resize',
+                     borderRight: '2px solid #94a3b8', borderBottom: '2px solid #94a3b8',
+                     borderBottomRightRadius: 6 }} />
         </span>
       )}
     </span>
