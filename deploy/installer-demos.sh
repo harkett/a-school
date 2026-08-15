@@ -2,9 +2,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # installer-demos.sh — pose sur le VPS tout ce qu'il faut pour servir les démonstrations.
 #
-# CE QU'IL FAIT, et rien d'autre : il installe l'INFRASTRUCTURE (fichier d'environnement,
-# service systemd, bloc nginx). Il ne touche à AUCUNE donnée — les schémas sont l'affaire de
-# `outils_bdd/convertir_demos_en_schemas.sh` puis `outils_bdd/migrer_les_demos.py`.
+# CE QU'IL FAIT : il installe l'INFRASTRUCTURE (fichier d'environnement, service systemd, bloc
+# nginx), puis il met les SCHÉMAS À JOUR avant de contrôler que tout répond.
+#
+# LA MISE À JOUR DES SCHÉMAS A ÉTÉ AJOUTÉE LE 15/08/2026, et ce n'est pas un ajout de confort :
+# le `alembic upgrade head` du déploiement ne migre que le réel. Les démonstrations, qui ont
+# chacune leur table de version dans leur schéma, restaient à la traîne — le service démarrait,
+# puis rendait une 500 sur la première requête touchant une colonne absente. Le contenu des
+# bases, lui, reste l'affaire de `deploy/restaurer-bases.sh` : ici on met à niveau, on ne
+# remplit pas.
 #
 # UN SEUL SERVICE, UN SEUL BLOC NGINX (10/08/2026). Il y avait cinq services et cinq blocs, un
 # par démonstration, parce qu'une démonstration était une BASE et qu'un process ne se connecte
@@ -46,7 +52,7 @@ DB_PREFIXE="${DB_MODELE%/*}"      # tout jusqu'au dernier / : le serveur et ses 
 lignes() { grep -vE "^\s*#|^\s*$" "$LISTE"; }
 
 echo ""
-echo "=== [demos 1/5] Fichier d'environnement ==="
+echo "=== [demos 1/6] Fichier d'environnement ==="
 # UN seul fichier, contre cinq auparavant. Plus de MODE_DEMO : le drapeau ne vient plus de
 # l'environnement du process — qui sert maintenant les cinq — mais du schéma que la requête vise.
 cat > "$FICHIER_ENV" <<EOF
@@ -57,7 +63,7 @@ EOF
 echo "  → $FICHIER_ENV (base $BASE_DEMOS, port $PORT_DEMOS)"
 
 echo ""
-echo "=== [demos 2/5] Service systemd ==="
+echo "=== [demos 2/6] Service systemd ==="
 sudo cp deploy/aschool-demos.service /etc/systemd/system/aschool-demos.service
 sudo systemctl daemon-reload
 sudo systemctl enable aschool-demos >/dev/null
@@ -65,7 +71,7 @@ sudo systemctl restart aschool-demos
 echo "  → aschool-demos démarré"
 
 echo ""
-echo "=== [demos 3/5] Certificat HTTPS ==="
+echo "=== [demos 3/6] Certificat HTTPS ==="
 # LE PIÈGE QUE NGINX NE SIGNALE PAS. Le bloc ci-dessous réutilise le certificat d'`aschool.fr`.
 # Or un certificat ne vaut QUE pour les noms qu'il porte : servir `demo-crsa.aschool.fr` avec le
 # certificat d'`aschool.fr` donne une alerte de sécurité en pleine figure du visiteur — et
@@ -104,7 +110,7 @@ else
 fi
 
 echo ""
-echo "=== [demos 4/5] Bloc nginx ==="
+echo "=== [demos 4/6] Bloc nginx ==="
 # UN SEUL BLOC POUR LES CINQ, et il ne les nomme pas : `server_name` est une expression
 # régulière qui accepte tout `demo-<x>.aschool.fr`. Ajouter une démonstration ne demandera plus
 # de toucher à nginx — créer son schéma suffira. Un `<x>` sans schéma reçoit un 404 du backend,
@@ -164,7 +170,34 @@ sudo systemctl reload nginx
 echo "  → nginx rechargé"
 
 echo ""
-echo "=== [demos 5/5] Contrôle ==="
+echo "=== [demos 5/6] Schémas à jour ==="
+# LE GESTE QUI MANQUAIT. Chaque démonstration est un SCHÉMA, avec sa propre table
+# `alembic_version` : le `alembic upgrade head` du déploiement ne migre que le réel, dans
+# `public`, et les schémas de démonstration restent au niveau où le dernier déploiement les a
+# laissés. Une migration qui ajoute une colonne passe donc sur le réel et pas sur eux — le
+# process démarre, sert la démonstration, et rend une 500 sur la première requête qui touche la
+# colonne absente. C'est exactement ce qui s'est produit.
+#
+# ON APPELLE L'OUTIL EXISTANT plutôt que de refaire sa boucle ici : lui lit la liste des schémas
+# DANS LA BASE — donc un schéma ajouté sans passer par `demos.conf` est rattrapé quand même — et
+# il s'arrête au premier échec en nommant le fautif. Deux endroits qui savent migrer des
+# démonstrations, c'est un endroit de trop.
+#
+# REJOUABLE : un schéma déjà à jour ne fait rien. On le passe à chaque déploiement.
+#
+# AVANT LE CONTRÔLE, jamais après : le contrôle interroge chaque démonstration, et une
+# démonstration en retard d'une migration est précisément ce qu'il doit trouver en panne.
+PYTHON_APP="${PYTHON_APP:-$APP_DIR/.venv/bin/python}"
+if [ -x "$PYTHON_APP" ] && [ -f outils_bdd/migrer_les_demos.py ]; then
+    DATABASE_URL="$DB_PREFIXE/$BASE_DEMOS" "$PYTHON_APP" outils_bdd/migrer_les_demos.py
+else
+    echo "  ATTENTION : $PYTHON_APP ou outils_bdd/migrer_les_demos.py introuvable."
+    echo "  Les schémas de démonstration N'ONT PAS été mis à jour."
+    exit 1
+fi
+
+echo ""
+echo "=== [demos 6/6] Contrôle ==="
 # On INTERROGE chaque démonstration au lieu de se contenter de « le service est actif » : un
 # uvicorn qui démarre puis se plante sur un schéma absent reste « actif » quelques secondes.
 # La question se pose maintenant au SEUL port, en variant l'en-tête `Host` — c'est exactement

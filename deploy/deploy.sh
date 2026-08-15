@@ -39,6 +39,26 @@ echo "=== [2/7] Python venv + dépendances ==="
 .venv/bin/pip install --quiet -r requirements.txt
 
 echo ""
+echo "=== [2.1/7] Dossiers de referentiels renommes ==="
+# POURQUOI CE GESTE EST ICI, ET NULLE PART AILLEURS. `REFERENTIELS/` est HORS DEPOT : aucun
+# `git pull` ne le touchera jamais. Quand une migration renomme un niveau, le nom du dossier qui
+# porte ses documents change avec lui (`backend/core/nommage.py::dossier_cle`) — et sur le
+# serveur, personne ne le renomme. Le referentiel devient introuvable, en silence : aucune
+# erreur, juste un referentiel qui ne repond plus.
+#
+# CONDITIONNEL DANS LES DEUX SENS. On ne renomme que si l'ancien existe ET que le nouveau
+# n'existe pas : un deploiement rejoue ne fait rien, et un dossier deja en place n'est jamais
+# ecrase. La ligne suit la migration `d2b6f9c3a7e1` (creche partagee en deux sections, 15/08/2026).
+renommer_dossier() {
+    if [ -d "$1" ] && [ ! -d "$2" ]; then
+        mv "$1" "$2"
+        echo "  → $(basename "$1") renomme en $(basename "$2")"
+    fi
+}
+renommer_dossier "REFERENTIELS/CRECHE/BMG_0_3" "REFERENTIELS/CRECHE/BEBES_0_1_AN"
+echo "  → dossiers de referentiels verifies"
+
+echo ""
 echo "=== [2.2/7] Migrations base (Alembic) ==="
 .venv/bin/alembic upgrade head
 
