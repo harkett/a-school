@@ -85,6 +85,18 @@ export default function AdminIAStatistiques() {
           <Carte titre="Tokens produits" valeur={nb(data.tokens_sortie)} />
           <Carte titre="Coût estimé"     valeur={usd(data.cout_usd)}
                  note={data.cout_partiel ? 'hors modèles sans tarif' : null} />
+          {/* CE QUE LA LISTE DE FOURNISSEURS A SAUVÉ.
+              Une réponse obtenue chez le deuxième ou le troisième est une génération que la
+              version précédente aurait perdue : le premier avait refusé, et il n'y avait personne
+              derrière lui — le professeur voyait un échec et devait recliquer.
+
+              La carte n'apparaît QUE s'il y en a. À zéro, elle ne dirait rien d'utile et prendrait
+              la place d'un chiffre qui en dit : tout s'est bien passé du premier coup. */}
+          {data.appels_rattrapes > 0 && (
+            <Carte titre="Générations sauvées"
+                   valeur={nb(data.appels_rattrapes)}
+                   note="obtenues chez un autre fournisseur après un refus" />
+          )}
         </div>
       )}
 

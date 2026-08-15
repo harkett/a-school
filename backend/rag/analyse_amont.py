@@ -37,7 +37,7 @@ import re
 from sqlalchemy.orm import Session
 
 from backend.systeme.admin import (
-    get_ai_model, get_ai_provider, get_cle_texte, get_contexte_max, get_max_tokens, get_prompt,
+    get_ai_model, get_ai_provider, liste_fournisseurs, get_cle_texte, get_contexte_max, get_max_tokens, get_prompt,
     get_settings_dict, get_temperature,
 )
 from backend.llm.generator import generate, generate_cached
@@ -67,9 +67,9 @@ _CLE_VERIF = "prompt_verif_decoupe"
 # le modèle produisait était du poids mort. GÉNÉRIQUE : aucun axe métier ici, juste la forme.
 #
 # `garder` et `option` (05/08/2026). Le tranchage va d'un titre au titre SUIVANT : une zone sans
-# titre reconnu se colle à sa voisine, et tout ce qui suit le dernier titre part avec lui (mesuré
-# sur le BTS CIEL : deux blocs de 15 800 et 21 600 caractères, gonflés du programme des
-# enseignements généraux et de la queue du document). Le prompt émet donc AUSSI les en-têtes des
+# titre reconnu se colle à sa voisine, et tout ce qui suit le dernier titre part avec lui (mesuré :
+# deux blocs de 15 800 et 21 600 caractères, gonflés de sections hors périmètre et de la queue du
+# document). Le prompt émet donc AUSSI les en-têtes des
 # sections qu'on écarte, `garder:false` : ce sont des BORNES, elles servent à couper puis sont
 # jetées. `option` porte l'option à laquelle l'unité appartient ("A", "B", "commune", ou "" si le
 # document n'en a pas) : c'est ce qui remplit `referentiel_chunks.option_ab` et permet de ne
@@ -151,7 +151,7 @@ def analyser_unites(unites: list[dict], *, db: Session) -> dict:
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_PROMPT),
         temperature=get_temperature(db),
@@ -171,9 +171,9 @@ from backend.rag.extraction import _sans_numeros_de_page
 # recopie tape le clavier : apostrophe droite, trait d'union. Le sens est le même, la chaîne
 # non — et le titre devient introuvable.
 #
-# MESURÉ le 06/08/2026 sur le BTS CIEL : sur 137 titres rendus, 16 étaient donnés pour
-# « introuvables ». LES SEIZE ne différaient que par l'apostrophe (« d’équipe » contre
-# « d'équipe »). Seize sur seize — dont l'activité R4, D1 et D3, perdues pour un caractère.
+# MESURÉ le 06/08/2026 : sur 137 titres rendus, 16 étaient donnés pour « introuvables ». LES
+# SEIZE ne différaient que par l'apostrophe (« d’équipe » contre « d'équipe »). Seize sur seize,
+# perdues pour un caractère.
 #
 # Pourquoi cette normalisation-là est SÛRE, alors que celle des minuscules et des accents ne
 # l'est pas : personne ne distingue deux sections d'un référentiel par la forme de son
@@ -214,9 +214,8 @@ def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[
       2. il est à CHEVAL sur plusieurs lignes — on recolle les lignes suivantes jusqu'à couvrir
          sa longueur, et on regarde si le tout commence par lui.
 
-    Le second cas manquait, et il n'était pas rare : sur le BTS CIEL, 10 des 54 titres rendus
-    par l'IA tenaient sur deux ou trois lignes (les six épreuves, les deux épreuves
-    facultatives, une activité) parce que c'est ainsi qu'ils sont écrits dans le document. Ils
+    Le second cas manquait, et il n'était pas rare : mesuré, 10 des 54 titres rendus par l'IA
+    tenaient sur deux ou trois lignes parce que c'est ainsi qu'ils sont écrits dans le document. Ils
     étaient perdus à tous les coups. Cette fonction rend donc un SUR-ENSEMBLE de ce que
     l'ancienne comparaison trouvait : elle ne peut rien faire perdre.
     """
@@ -246,13 +245,13 @@ def _occurrences_du_titre(lignes_repliees: list[str], titre: str) -> list[tuple[
 # de découpe liste TOUTES les occurrences (une entrée = une frontière, sinon l'unité d'avant
 # déborde) : c'est donc ici, après tranchage, que les répétitions se fondent.
 #
-# LE CRITÈRE NE PEUT PAS ÊTRE LE TITRE. Mesuré sur le BTS CIEL, six paires portent le même
-# intitulé et se répartissent en DEUX familles nettes :
-#   - le même passage répété     : R2 93,6 % — R3 98,9 % — R4 89,8 % de similarité ;
-#   - deux passages différents   : C02 21,6 % — C03 10,4 % — C10 12,7 %.
+# LE CRITÈRE NE PEUT PAS ÊTRE LE TITRE. Mesuré sur un document à options, six paires portent le
+# même intitulé et se répartissent en DEUX familles nettes :
+#   - le même passage répété     : 93,6 % — 98,9 % — 89,8 % de similarité ;
+#   - deux passages différents   : 21,6 % — 10,4 % — 12,7 %.
 # Aucune paire n'est identique au caractère près (10 à 17 caractères d'écart : mise en forme,
 # mention d'option). Un test d'égalité ne fusionnerait donc RIEN, et un test sur le titre seul
-# ferait perdre une compétence sur deux — C02, C03 et C10 ont le même intitulé dans les deux
+# ferait perdre une compétence sur deux — trois d'entre elles ont le même intitulé dans les deux
 # options mais leurs propres connaissances associées.
 #
 # 0.75 tombe au milieu du fossé : 15 points sous la plus basse des vraies répétitions, 53 points
@@ -375,10 +374,10 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     # score maximal à rangs ET positions strictement croissants. Le gain de base est 1 par titre
     # placé ; la prime de 0.01 va à l'occurrence qui porte du contenu (celle qui n'est pas
     # immédiatement suivie d'un autre titre), ce qui départage à nombre de titres égal sans
-    # jamais primer sur lui. Coût : O(nœuds²) — 137 titres du BTS CIEL font ~700 nœuds, instantané.
+    # jamais primer sur lui. Coût : O(nœuds²) — 137 titres font ~700 nœuds, instantané.
     # Le nœud transporte AUSSI `fin` — la ligne qui suit le titre. Un titre écrit sur DEUX lignes
-    # dans le document (« C01 » puis « COMMUNIQUER EN SITUATION PROFESSIONNELLE ») serait sinon
-    # étiqueté « C01 » : on garderait la première ligne pour nom d'unité, et l'admin comme le prof
+    # dans le document (un code seul, puis son intitulé) serait sinon étiqueté par ce seul code :
+    # on garderait la première ligne pour nom d'unité, et l'admin comme le prof
     # liraient un code sans intitulé.
     noeuds: list[tuple[int, int, int, float]] = []
     for rang, places in enumerate(occurrences):
@@ -426,9 +425,9 @@ def _trancher_par_titres(texte: str, titres: list) -> list[dict]:
     # faire : rien, dans la ligne elle-même, ne dit qu'elle est un renvoi.
     #
     # Ce qui le dit, c'est ce qu'il y a DERRIÈRE : rien. Deux titres consécutifs se ferment l'un
-    # l'autre, et la tranche se réduit à sa ligne de titre. MESURÉ sur le BTS CIEL : 22 tranches
-    # sur 76 étaient dans ce cas, de 9 à 63 caractères — dont « C08 CODER », qui fait exactement
-    # ses 9 caractères de titre. Les vraies compétences, elles, en portent 1 240 à 2 471.
+    # l'autre, et la tranche se réduit à sa ligne de titre. MESURÉ : 22 tranches sur 76 étaient
+    # dans ce cas, de 9 à 63 caractères — la plus courte faisant exactement ses 9 caractères de
+    # titre. Les vraies unités, elles, en portent 1 240 à 2 471.
     #
     # Le critère est une ÉGALITÉ, pas un seuil : aucun nombre en dur, donc rien à régler quand le
     # document change. Et il ne peut pas manger une vraie petite unité — « Unité facultative UF2 »
@@ -507,7 +506,7 @@ def generer_prompt_decoupe(texte: str, *, db: Session, meta_referentiel: str | N
     prompt_genere = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=get_temperature(db),
@@ -542,7 +541,7 @@ def generer_prompt_matieres(texte: str, *, db: Session, meta_referentiel: str | 
     return generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_matieres"),
         temperature=get_temperature(db),
@@ -576,7 +575,7 @@ def generer_prompt_types(texte: str, *, db: Session, meta_referentiel: str | Non
     return generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_types"),
         temperature=get_temperature(db),
@@ -608,7 +607,7 @@ def generer_prompt_precisions(texte: str, *, db: Session, meta_referentiel: str 
     return generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_precisions"),
         temperature=get_temperature(db),
@@ -635,7 +634,7 @@ def verifier_prompt_decoupe(prompt_genere: str, *, db: Session) -> str:
     return generate(
         p,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, "meta_decoupe"),
         temperature=get_temperature(db),
@@ -664,7 +663,7 @@ def decouper_texte(texte: str, *, db: Session, prompt: str) -> list[dict]:
     raw = generate_cached(
         p,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DECOUPE),
         temperature=get_temperature(db),
@@ -732,7 +731,7 @@ def verifier_couple(texte: str, cycle: str, niveau: str, *, db: Session) -> dict
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_COUPLE),
         temperature=get_temperature(db),
@@ -778,8 +777,8 @@ def detecter_matieres(texte: str, *, db: Session, prompt_referentiel: str | None
     ce couple cycle+niveau et pour lui seul. Quand il est fourni, c'est LUI qui lit — un prompt
     taillé pour ce diplôme trouve ce qu'un prompt passe-partout laisse tomber. Rangé sur le
     référentiel et non sur le cycle depuis le 06/08/2026 : deux diplômes du même cycle ne se lisent
-    pas avec les mêmes repères (le prompt écrit pour le BTS CIEL parlait d'options réseau, il
-    n'apprend rien sur le BTS CRSA). Absent (référentiel pas encore doté) : on retombe sur le
+    pas avec les mêmes repères (un prompt écrit sur les options d'un diplôme n'apprend rien sur le
+    diplôme voisin). Absent (référentiel pas encore doté) : on retombe sur le
     prompt général `detecter_matieres`, comme avant.
 
     Elle ne reçoit QUE le texte. La table des matières ne lui est plus donnée : il n'existe plus
@@ -795,7 +794,7 @@ def detecter_matieres(texte: str, *, db: Session, prompt_referentiel: str | None
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_MATIERES),
         temperature=get_temperature(db),
@@ -856,7 +855,7 @@ def detecter_couple(texte: str, *, db: Session) -> dict:
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_DETECTER_COUPLE),
         temperature=get_temperature(db),
@@ -913,7 +912,7 @@ def detecter_types_activite(texte: str, *, db: Session, prompt_referentiel: str 
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         max_tokens=get_max_tokens(db, _CLE_TYPES_ACTIVITE),
         temperature=get_temperature(db),
@@ -977,7 +976,7 @@ def suggerer_precisions_type(label: str, niveau: str, texte: str, *, db: Session
     raw = generate(
         prompt,
         cle=get_cle_texte(db),
-        provider=get_ai_provider(db),
+        provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
         model=get_ai_model(db),
         # 2000 était écrit en dur ici, avec sa raison : « 300 coupait la réponse ». La raison
         # tient, le nombre en dur non — il devient réglable. Sans surcharge en base, ceci résout

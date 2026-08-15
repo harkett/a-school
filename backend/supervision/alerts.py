@@ -7,7 +7,9 @@ from email.mime.text import MIMEText
 import psutil
 
 from backend.core.database import session_pour, SCHEMA_REEL
-from backend.core.models_db import AdminAlert, FailedLoginAttempt
+from sqlalchemy import func
+
+from backend.core.models_db import AdminAlert, FailedLoginAttempt, User, UserSession
 from backend.core.horloge import maintenant_utc
 
 log = logging.getLogger(__name__)
@@ -21,6 +23,9 @@ SEUILS_ORIGINE = {
     "alerte_disque_pct": "85",
     "alerte_tentatives_1h": "10",
     "alerte_anti_flood_h": "2",
+    "alerte_postes_max": "4",
+    "alerte_distance_km": "500",
+    "alerte_fenetre_min": "30",
 }
 
 
@@ -57,6 +62,15 @@ def seuils_alertes(db) -> dict:
         "disque_pct":    nombre("alerte_disque_pct"),
         "tentatives_1h": nombre("alerte_tentatives_1h"),
         "anti_flood_h":  nombre("alerte_anti_flood_h"),
+        # Combien d'appareils simultanés restent normaux. Quatre : la salle, le domicile, le
+        # téléphone, la tablette. L'alerte part au-delà.
+        "postes_max":    nombre("alerte_postes_max"),
+        # À partir de quelle distance deux connexions simultanées ne peuvent plus être la même
+        # personne. 500 km : au-delà, aucun trajet ne tient dans la fenêtre ci-dessous.
+        "distance_km":   nombre("alerte_distance_km"),
+        # Ce que « en même temps » veut dire. Trop court, on rate le compte partagé ; trop long,
+        # on signale un professeur qui a simplement changé de lieu dans la journée.
+        "fenetre_min":   nombre("alerte_fenetre_min"),
     }
 
 
@@ -81,7 +95,7 @@ def _etiquette_origine() -> str:
     return "aSchool DEV" if env else "aSchool ORIGINE INCONNUE"
 
 
-def _already_alerted(db, title: str) -> bool:
+def _already_alerted(db, title: str, user_id: int | None = None) -> bool:
     """Évite le flood : une seule alerte du même titre par fenêtre `alerte_anti_flood_h` (base).
 
     Le titre est la CLÉ de ce dédoublonnage : il doit rester STABLE d'un contrôle à l'autre. Tant
@@ -89,16 +103,26 @@ def _already_alerted(db, title: str) -> bool:
     relevé portait un titre neuf et la fenêtre n'attrapait jamais rien : la cadence des alertes
     retombait sur celle de l'ordonnanceur, soit une toutes les 5 minutes (douze mails le
     07/08/2026). La valeur va dans le MESSAGE, jamais dans le titre.
-    """
+
+    LE PROFESSEUR FAIT PARTIE DE LA CLÉ, sans quoi les alertes qui parlent de quelqu'un
+    s'annuleraient entre elles : « Compte utilisé sur plusieurs postes » signalé pour un premier
+    professeur ferait taire le signalement du deuxième pendant deux heures. La règle reste la
+    même — une alerte par sujet et par fenêtre — le sujet est simplement le bon."""
     since = maintenant_utc() - timedelta(hours=seuils_alertes(db)["anti_flood_h"])
-    return db.query(AdminAlert).filter(
+    q = db.query(AdminAlert).filter(
         AdminAlert.title == title,
         AdminAlert.created_at >= since,
-    ).first() is not None
+    )
+    q = q.filter(AdminAlert.user_id == user_id) if user_id is not None else q
+    return q.first() is not None
 
 
-def _send_alert_email(level: str, title: str, message: str, sujet_detail: str = ""):
-    admin_email = os.getenv("ADMIN_EMAIL", "")
+def _send_alert_email(level: str, title: str, message: str, sujet_detail: str = "",
+                      destinataire: str | None = None):
+    # Le destinataire peut être choisi par tâche depuis le Planificateur ; à défaut,
+    # l'adresse d'administration du serveur. Une tâche ne devient pas muette parce
+    # qu'un champ est resté vide.
+    admin_email = (destinataire or "").strip() or os.getenv("ADMIN_EMAIL", "")
     if not admin_email:
         return
 
@@ -125,6 +149,9 @@ def _send_alert_email(level: str, title: str, message: str, sujet_detail: str = 
     msg["To"]      = admin_email
 
     plain = f"{title}\n\n{message}\n\nDate : {maintenant_utc().strftime('%d/%m/%Y %H:%M')} UTC"
+    # Les sauts de ligne doivent survivre à la version HTML : un message écrit en paragraphes
+    # arrivait en un seul bloc illisible dans la boîte de l'administrateur.
+    message_html = message.replace("\n", "<br>")
     html  = f"""
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:2rem;">
       <div style="background:#1e293b;border-radius:10px;padding:1rem 1.5rem;margin-bottom:1.5rem;">
@@ -133,7 +160,7 @@ def _send_alert_email(level: str, title: str, message: str, sujet_detail: str = 
         </span>
       </div>
       <p style="font-size:1rem;font-weight:600;color:#1e293b;">{icon} {title}</p>
-      <p style="color:#475569;line-height:1.6;">{message}</p>
+      <p style="color:#475569;line-height:1.6;">{message_html}</p>
       <p style="color:#94a3b8;font-size:0.75rem;margin-top:1.5rem;">
         {maintenant_utc().strftime('%d/%m/%Y %H:%M')} UTC · aschool.fr
       </p>
@@ -175,17 +202,28 @@ def _journaliser(level: str, title: str, message: str):
         pass
 
 
-def create_alert(level: str, title: str, message: str, sujet_detail: str = ""):
+def create_alert(level: str, title: str, message: str, sujet_detail: str = "",
+                 destinataire: str | None = None, code: str | None = None,
+                 user_id: int | None = None, user_email: str | None = None,
+                 donnees: dict | None = None, lien: str | None = None):
+    """Écrit une alerte, la journalise et prévient l'administrateur.
+
+    LES CINQ DERNIERS PARAMÈTRES sont ce qui sépare une alerte lisible d'une alerte exploitable :
+    `code` la range dans un genre (statistiques, regroupement), `user_id`/`user_email` disent de
+    qui elle parle, `donnees` porte les faits mesurés sans qu'on ait à les relire dans une phrase,
+    et `lien` mène à l'écran où vérifier. Tous facultatifs : une alerte de machine ne parle de
+    personne, et les appels d'origine n'ont pas eu à changer."""
     db = session_pour(SCHEMA_REEL)
     try:
-        if _already_alerted(db, title):
+        if _already_alerted(db, title, user_id):
             # Doublon dans la fenêtre anti-flood : ni base, ni mail, NI journal — reflooder le
             # journal à chaque cycle de surveillance le rendrait illisible.
             return
-        db.add(AdminAlert(level=level, title=title, message=message))
+        db.add(AdminAlert(level=level, title=title, message=message, code=code,
+                          user_id=user_id, user_email=user_email, donnees=donnees, lien=lien))
         db.commit()
         _journaliser(level, title, message)
-        _send_alert_email(level, title, message, sujet_detail)
+        _send_alert_email(level, title, message, sujet_detail, destinataire)
     except Exception:
         db.rollback()
     finally:
@@ -248,6 +286,8 @@ def check_cpu_alert():
             f"Charge à {charge_pct} %, au-delà du seuil de {seuil:g} % en moyenne sur 5 minutes "
             f"{_ou_mesure()}. Vérifier les processus actifs.",
             sujet_detail=f"{charge_pct} %",
+            code="cpu", donnees={"charge_pct": charge_pct, "seuil_pct": seuil},
+            lien="/admin/serveur",
         )
 
 
@@ -263,7 +303,10 @@ def check_disk_alert():
         create_alert("warning", "Disque faible",
                      f"{disk.percent} % du disque utilisés, il reste {libre} Go libres "
                      f"{_ou_mesure()}.",
-                     sujet_detail=f"{disk.percent} % utilisés")
+                     sujet_detail=f"{disk.percent} % utilisés",
+                     code="disque",
+                     donnees={"utilise_pct": disk.percent, "libre_go": libre, "seuil_pct": seuil},
+                     lien="/admin/serveur")
 
 
 def check_brute_force_alert():
@@ -275,14 +318,150 @@ def check_brute_force_alert():
             FailedLoginAttempt.attempt_at >= since,
         ).count()
         if count >= seuil:
+            # LES ADRESSES SONT DANS L'ALERTE, plus « à vérifier dans le panel admin ». Une alerte
+            # qui renvoie chercher ailleurs oblige à refaire le travail qu'elle vient de faire.
+            tetes = (db.query(FailedLoginAttempt.ip_address, func.count().label("n"))
+                     .filter(FailedLoginAttempt.attempt_at >= since)
+                     .group_by(FailedLoginAttempt.ip_address)
+                     .order_by(func.count().desc()).limit(5).all())
+            details = [{"ip": ip or "inconnue", "tentatives": n} for ip, n in tetes]
+            resume = ", ".join(f"{d['ip']} ({d['tentatives']})" for d in details) or "aucune adresse relevée"
             create_alert(
                 "critical",
                 "Tentatives d'intrusion",
-                f"{count} tentatives de connexion admin échouées détectées dans la dernière heure. Vérifier les IPs dans le panel admin.",
+                f"{count} tentatives de connexion admin échouées dans la dernière heure "
+                f"(seuil : {seuil:g}). Adresses les plus actives : {resume}.",
                 sujet_detail=f"{count} en 1h",
+                code="intrusion",
+                donnees={"tentatives": count, "seuil": seuil, "adresses": details},
+                lien="/admin/tentatives",
             )
     except Exception:
         pass
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# LA SURVEILLANCE DES CONNEXIONS — surveiller, ne pas interdire
+#
+# LE PRINCIPE, POSÉ LE 15/08/2026. Un professeur travaille sur l'ordinateur de sa salle, sur celui
+# de chez lui et sur son téléphone : c'est normal, et rien ne doit l'en empêcher. Ce qu'on cherche,
+# c'est le compte PARTAGÉ entre plusieurs enseignants — un abonnement pour cinq. La différence ne
+# se décrète pas, elle se constate : trop d'appareils à la fois, ou deux villes trop éloignées à
+# la même heure.
+#
+# AUCUNE DE CES DEUX FONCTIONS NE FERME QUOI QUE CE SOIT. Elles écrivent une alerte, et
+# l'administrateur décide. Fermer une session à la place de quelqu'un sur un soupçon coûterait
+# plus cher que le compte partagé qu'on cherchait.
+# ---------------------------------------------------------------------------
+
+def _sessions_recentes(db, minutes: float):
+    """Les sessions actives vues depuis moins de `minutes`, avec le professeur qui les porte."""
+    depuis = maintenant_utc() - timedelta(minutes=minutes)
+    return (db.query(UserSession)
+            .filter(UserSession.is_active == True,          # noqa: E712
+                    UserSession.last_seen >= depuis,
+                    UserSession.user_id.isnot(None))
+            .all())
+
+
+def _par_professeur(sessions):
+    groupes = {}
+    for s in sessions:
+        groupes.setdefault(s.user_id, []).append(s)
+    return groupes
+
+
+def _courriel(db, user_id):
+    return db.query(User.email).filter(User.id == user_id).scalar()
+
+
+def check_comptes_multi_postes():
+    """Un même compte ouvert sur plus d'appareils que le seuil, en même temps.
+
+    ON COMPTE DES APPAREILS, PAS DES SESSIONS. Un professeur qui rouvre son navigateur trois fois
+    dans la journée crée trois sessions sur un seul poste : les compter séparément déclencherait
+    une alerte sur un usage parfaitement normal. Deux sessions du même navigateur, du même système
+    et de la même adresse sont donc le même appareil."""
+    db = session_pour(SCHEMA_REEL)
+    try:
+        seuils = seuils_alertes(db)
+        seuil, fenetre = seuils["postes_max"], seuils["fenetre_min"]
+        for user_id, sessions in _par_professeur(_sessions_recentes(db, fenetre)).items():
+            appareils = {(s.browser, s.os, s.device_type, s.ip_address) for s in sessions}
+            if len(appareils) <= seuil:
+                continue
+            email = _courriel(db, user_id)
+            details = [{"navigateur": b, "systeme": o, "type": t, "ip": ip}
+                       for b, o, t, ip in sorted(appareils, key=lambda a: str(a))]
+            create_alert(
+                "warning",
+                "Compte utilisé sur plusieurs postes",
+                f"{email or 'Un professeur'} est connecté depuis {len(appareils)} appareils "
+                f"différents en même temps (seuil : {seuil:g}). Usage normal possible — salle de "
+                f"classe, domicile, téléphone — ou compte partagé entre plusieurs enseignants. "
+                f"Rien n'a été fermé : à vous de voir.",
+                sujet_detail=f"{len(appareils)} appareils",
+                code="compte_multi_postes", user_id=user_id, user_email=email,
+                donnees={"appareils": len(appareils), "seuil": seuil,
+                         "fenetre_minutes": fenetre, "detail": details},
+                lien="/admin/sessions",
+            )
+    except Exception:
+        log.exception("Surveillance des connexions — comptage des postes")
+    finally:
+        db.close()
+
+
+def check_connexions_eloignees():
+    """Deux sessions du même compte, trop loin l'une de l'autre pour être la même personne.
+
+    LE LIEU EST RÉSOLU ICI, pas seulement quand l'administrateur ouvre l'écran des sessions : sans
+    ça, la comparaison porterait sur des coordonnées vides et ne trouverait jamais rien.
+
+    UNE SESSION SANS COORDONNÉES NE SE COMPARE À RIEN — surtout pas à zéro kilomètre. Un réseau
+    local, une adresse que le service ne sait pas situer : on l'ignore plutôt que de la placer
+    d'office quelque part."""
+    db = session_pour(SCHEMA_REEL)
+    try:
+        from backend.systeme.localisation_ip import assurer_localisations, distance_km
+        seuils = seuils_alertes(db)
+        seuil_km, fenetre = seuils["distance_km"], seuils["fenetre_min"]
+        sessions = _sessions_recentes(db, fenetre)
+        assurer_localisations(db, sessions)
+
+        for user_id, lot in _par_professeur(sessions).items():
+            situees = [s for s in lot if s.latitude is not None and s.longitude is not None]
+            if len(situees) < 2:
+                continue
+            pire, paire = 0.0, None
+            for i, a in enumerate(situees):
+                for b in situees[i + 1:]:
+                    d = distance_km(a.latitude, a.longitude, b.latitude, b.longitude)
+                    if d is not None and d > pire:
+                        pire, paire = d, (a, b)
+            if pire <= seuil_km or paire is None:
+                continue
+            email = _courriel(db, user_id)
+            a, b = paire
+            create_alert(
+                "warning",
+                "Connexions géographiquement éloignées",
+                f"{email or 'Un professeur'} est connecté depuis {a.localisation} et "
+                f"{b.localisation} dans le même intervalle de {fenetre:g} minutes, soit "
+                f"{round(pire)} km d'écart (seuil : {seuil_km:g} km). Deux personnes, ou un "
+                f"réseau qui masque la position. Rien n'a été fermé.",
+                sujet_detail=f"{round(pire)} km",
+                code="connexion_eloignee", user_id=user_id, user_email=email,
+                donnees={"distance_km": round(pire), "seuil_km": seuil_km,
+                         "fenetre_minutes": fenetre,
+                         "lieux": [a.localisation, b.localisation],
+                         "adresses": [a.ip_address, b.ip_address]},
+                lien="/admin/sessions",
+            )
+    except Exception:
+        log.exception("Surveillance des connexions — distance entre sessions")
     finally:
         db.close()
 
@@ -291,3 +470,5 @@ def run_all_checks():
     check_cpu_alert()
     check_disk_alert()
     check_brute_force_alert()
+    check_comptes_multi_postes()
+    check_connexions_eloignees()

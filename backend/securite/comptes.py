@@ -189,6 +189,45 @@ def create_refresh_token(db: Session, email: str) -> str:
     return token
 
 
+# ---------------------------------------------------------------------------
+# LE NAVIGATEUR QUI S'EST INSCRIT — reconnu au retour, pour ne pas redemander un mot de passe
+#
+# POURQUOI. Le professeur qui clique le lien de son courriel vient de prouver qu'il possède
+# l'adresse : c'est exactement ce que ce lien démontre. Lui redemander son mot de passe juste
+# après est une porte de plus pour rien.
+#
+# POURQUOI PAS TOUT SEUL. Un lien d'activation traîne dans une boîte mail. S'il ouvrait la
+# session où qu'on le clique, celui qui lit la boîte deviendrait le professeur. On exige donc
+# DEUX choses : le lien ET le navigateur qui s'est inscrit. Ouvert sur le téléphone, sur un
+# autre poste ou par quelqu'un d'autre, le lien active le compte et s'arrête là — c'est la règle
+# que le métier applique partout.
+#
+# CE JETON NE DONNE RIEN À LUI SEUL. Il ne dit qu'une chose — « ce navigateur a demandé
+# l'inscription de cette adresse » — et il ne vaut que présenté avec le jeton du courriel, à
+# usage unique. Sa durée est celle du lien : une heure.
+# ---------------------------------------------------------------------------
+
+def create_signup_device_token(email: str) -> str:
+    return jwt.encode(
+        {"sub": email.strip().lower(), "type": "signup_device",
+         "exp": _now() + timedelta(minutes=60)},
+        SECRET_JETON_PROF, algorithm=ALGORITHM,
+    )
+
+
+def read_signup_device_token(token: Optional[str]) -> Optional[str]:
+    """Rend l'adresse portée par le jeton, ou None — expiré, illisible, ou d'un autre genre."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_JETON_PROF, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("type") != "signup_device":
+        return None
+    return payload.get("sub")
+
+
 def verify_access_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, SECRET_JETON_PROF, algorithms=[ALGORITHM])
@@ -461,11 +500,27 @@ def send_feedback_update_notification(prof: dict, message: str, category: str | 
     _smtp_send(msg)
 
 
-def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
-    """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels."""
+def send_custom_email(email: str, prenom: str | None, subject: str, body: str,
+                      bouton: bool = True):
+    """Envoie un email personnalisé — utilisé pour le welcome email et les envois admin manuels.
+
+    `bouton` : le gros bouton « Accéder à aSchool » en bas du message. Il a sa place dans un
+    envoi groupé, qui doit ramener le professeur vers l'application. Il n'en a plus dans le mail
+    de bienvenue : celui-là arrive au moment précis où le compte vient de s'ouvrir, le
+    destinataire est déjà dans l'application, et un bouton d'entrée l'invite à y entrer une
+    seconde fois."""
     app_url = os.getenv("APP_URL", "https://aschool.fr")
     from_addr = os.getenv("SMTP_FROM", "aSchool <contact@aschool.fr>")
     nom_prenom = prenom or "cher(e) enseignant(e)"
+    bloc_bouton = f"""
+      <div style="text-align:center;margin:2.5rem 0;">
+        <a href="{app_url}"
+           style="background:#1F6EEB;color:white;padding:14px 32px;
+                  border-radius:8px;text-decoration:none;
+                  font-weight:600;font-size:1rem;display:inline-block;">
+          Accéder à aSchool
+        </a>
+      </div>""" if bouton else ""
     body_rendered = body.replace("{prenom}", nom_prenom).replace("{email}", email)
     body_html = body_rendered.replace("\n", "<br>")
 
@@ -487,14 +542,7 @@ def send_custom_email(email: str, prenom: str | None, subject: str, body: str):
       <div style="font-size:0.95rem;color:#1e293b;line-height:1.75;">
         {body_html}
       </div>
-      <div style="text-align:center;margin:2.5rem 0;">
-        <a href="{app_url}"
-           style="background:#1F6EEB;color:white;padding:14px 32px;
-                  border-radius:8px;text-decoration:none;
-                  font-weight:600;font-size:1rem;display:inline-block;">
-          Accéder à aSchool
-        </a>
-      </div>
+      {bloc_bouton}
       <p style="color:#94a3b8;font-size:0.75rem;border-top:1px solid #e2e8f0;padding-top:1rem;margin-top:1rem;">
         aSchool · aschool.fr
       </p>

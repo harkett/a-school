@@ -75,10 +75,13 @@ def test_une_panne_serveur_est_traitee_comme_une_indisponibilite():
 
 
 def test_un_statut_non_repertorie_n_est_pas_maquille():
-    """On ne traduit QUE ce qu'on sait nommer. Un 404 ou un 401 ne doit pas devenir « service
-    saturé » : un message rassurant mais faux est pire qu'un message technique."""
+    """On ne traduit QUE ce qu'on sait nommer. Un 404 ne doit pas devenir « service saturé » : un
+    message rassurant mais faux est pire qu'un message technique.
+
+    Le 401 figurait ici jusqu'au 14/08 — il n'y est plus, non par relâchement mais parce qu'on sait
+    maintenant le nommer : « la clé est refusée », avec le geste qui va avec. La règle n'a pas
+    changé, c'est la liste de ce qu'on sait dire qui s'est allongée (cf. test_trace_des_refus.py)."""
     assert _traduire_echec_fournisseur(404, "not found", "m") is None
-    assert _traduire_echec_fournisseur(401, "unauthorized", "m") is None
 
 
 def test_les_deux_situations_ne_donnent_pas_le_meme_conseil():

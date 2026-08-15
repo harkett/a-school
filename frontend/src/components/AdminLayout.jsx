@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 import { registerErrorHandler } from '../errorDialog'
+import { ActionsEcran } from './actionsEcran.jsx'
+import FenetrePro from './FenetrePro.jsx'
 
 const SEP = { separator: true }
 
@@ -95,6 +96,10 @@ const NAV_ITEMS = [
     ),
     items: [
       { to: '/admin/ia/fournisseurs', label: 'Fournisseurs',
+        // `resume` : la phrase AFFICHÉE en haut de l'écran, à côté du titre. Courte par
+        // obligation — elle partage une ligne avec le titre et les boutons. Le reste (`aide`) va
+        // dans le « i » : ce qui est utile une fois n'a pas à occuper la place en permanence.
+        resume: 'Les moteurs d’IA raccordés, et l’ordre dans lequel ils répondent.',
         aide: 'Le CATALOGUE : quels fournisseurs d’IA sont raccordés, quels modèles ils offrent, et les bornes de chacun (fenêtre, longueur de réponse). C’est ici qu’on ajoute — pas ici qu’on choisit.' },
       // `prefix` : les cinq catégories restent des URL distinctes (les onglets de la page les
       // pointent), mais le menu ne montre plus qu'une entrée — qui doit rester allumée sur
@@ -217,10 +222,27 @@ const NAV_ITEMS = [
       { to: '/admin/parametres/email',      label: 'Email',          aide: 'Email de bienvenue envoyé automatiquement à chaque nouvel inscrit.' },
       { to: '/admin/parametres/general',    label: 'Paramètres',     aide: 'Table des paramètres du projet (clé / valeur / description), en consultation.' },
       { to: '/admin/maintenance',           label: 'Maintenance',    aide: 'Nettoyage de la base de données — tokens expirés, sessions fermées, comptes fantômes, logs anciens.' },
+      { to: '/admin/planificateur',         label: 'Planificateur',
+        resume: 'Les travaux que l’application fait toute seule.',
+        aide: 'Les tâches automatiques : ce que le serveur exécute sans personne devant l’écran — surveillance du matériel, veille des tarifs d’IA. Pour chacune : à quelle heure elle passe, quand elle est passée la dernière fois et ce qu’elle a trouvé, à qui part le courriel. L’heure, la cadence, le destinataire et la mise en pause se règlent ici, sans développeur ; « Exécuter maintenant » lance un passage tout de suite, par le même chemin que le déclenchement automatique.' },
     ],
   },
   SEP,
   // — Entrées simples (hors catégorie) —
+  // Hors catégorie, comme « Mon compte » : ce carnet n'appartient à aucune rubrique de la
+  // plateforme — c'est celui de l'administrateur, sur tous les sujets à la fois.
+  {
+    to:     '/admin/taches-a-faire',
+    label:  'Tâches à faire',
+    resume: 'Les idées et les chantiers, notés avant d’être oubliés.',
+    aide:   'Le carnet de l’administrateur : ce qu’on décide de faire un jour, avec le contexte qui va avec. Rien ne s’exécute ici — à ne pas confondre avec le « Planificateur », qui fait tourner les travaux automatiques du serveur. Une note se coche quand elle est faite : elle descend dans « Faites » et y reste, parce qu’une décision prise sert encore le jour où la question revient. Pour la faire disparaître pour de bon, « Supprimer ».',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l2 2 4-4"/>
+        <path d="M20 6v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/>
+      </svg>
+    ),
+  },
   {
     to:    '/admin/compte',
     label: 'Mon compte',
@@ -258,6 +280,8 @@ export default function AdminLayout() {
     it => it.group && (it.prefix ? location.pathname.startsWith(it.prefix) : it.items.some(s => estActive(s, location.pathname)))
   )
   const [openGroup, setOpenGroup] = useState(_activeGroup ? _activeGroup.label : null)
+  // Les boutons que la page affiche en haut à droite. `null` tant qu'aucune n'en pose.
+  const [actionsEcran, setActionsEcran] = useState(null)
 
   // showError() est un singleton (errorDialog.js) : son handler est enregistré dans le
   // shell prof, NON monté en admin. Sans ce réenregistrement, showError serait inactif
@@ -305,13 +329,16 @@ export default function AdminLayout() {
   )
 
   // Fil d'Ariane de la page courante (en-tête fixe) — déduit du menu.
-  let crumbCat = null, crumbPage = ''
+  // L'ICÔNE VIENT DU MENU, elle n'est pas redessinée ici : c'est la même image que dans la barre
+  // de gauche, donc l'œil retrouve d'un coup où il se trouve. Une icône propre à l'en-tête aurait
+  // fini par diverger de celle du menu, et deux dessins pour un seul endroit désorientent.
+  let crumbCat = null, crumbPage = '', crumbIcon = null, crumbAide = '', crumbResume = ''
   for (const it of NAV_ITEMS) {
     if (it.group) {
       const sub = it.items.find(s => estActive(s, location.pathname))
-      if (sub) { crumbCat = it.label; crumbPage = sub.label; break }
+      if (sub) { crumbCat = it.label; crumbPage = sub.label; crumbIcon = it.icon; crumbAide = sub.aide; crumbResume = sub.resume; break }
     } else if (it.to && location.pathname === it.to) {
-      crumbPage = it.label; break
+      crumbPage = it.label; crumbIcon = it.icon; crumbAide = it.aide; crumbResume = it.resume; break
     }
   }
 
@@ -556,25 +583,59 @@ export default function AdminLayout() {
       <main style={{ flex: 1, height: '100vh', background: '#f0f4f8', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* En-tête fixe — fil d'Ariane « catégorie › page » : où on est */}
+        {/* Hauteur LIBRE, pas figée à 56 pixels : le texte d'explication doit tenir en entier.
+            Une barre de hauteur fixe le coupait au milieu d'une phrase — une information à moitié
+            lisible ne renseigne personne et oblige à survoler pour connaître la fin. */}
         <header style={{
-          flexShrink: 0, height: 56, borderBottom: '1px solid #e2e8f0', background: '#fff',
-          display: 'flex', alignItems: 'center', gap: 8, padding: '0 32px',
+          flexShrink: 0, minHeight: 56, borderBottom: '1px solid #e2e8f0', background: '#fff',
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 32px',
         }}>
+          {/* L'icône de la rubrique, à la taille du titre : c'est elle qu'on voit en premier, le
+              chemin écrit ne fait que confirmer. */}
+          {crumbIcon && (
+            <span style={{ display: 'inline-flex', color: '#A63045', transform: 'scale(1.25)', transformOrigin: 'center', marginRight: 4 }}>
+              {crumbIcon}
+            </span>
+          )}
           {crumbCat && (
             <>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>{crumbCat}</span>
               <span style={{ fontSize: 13, color: '#cbd5e1' }}>›</span>
             </>
           )}
-          <span style={{ fontSize: 15, fontWeight: 600, color: '#1e293b' }}>{crumbPage || 'Administration'}</span>
-          <IaEnCours />
+          {/* LA PAGE EST UN TITRE, pas la fin d'une phrase : elle est écrite comme tel. La rubrique
+              qui la précède reste petite et grise — elle situe, elle ne nomme pas. */}
+          <span style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px', flexShrink: 0 }}>{crumbPage || 'Administration'}</span>
+          {/* CE QUE FAIT LA PAGE, ÉCRIT EN CLAIR — entre son titre et ses boutons. C'est une
+              information, pas une décoration : elle reste affichée en permanence, sur une barre
+              qui ne défile pas. En infobulle, il fallait savoir qu'il y avait quelque chose à
+              survoler pour la lire ; dans le contenu, elle disparaissait au premier défilement. */}
+          {crumbResume && (
+            <span style={{ fontSize: 12, color: '#64748b', lineHeight: 1.35 }}>{crumbResume}</span>
+          )}
+          {/* LE RESTE EST DANS LE « i ». L'explication complète est utile la première fois et
+              encombrante les suivantes : elle se survole au lieu de tenir la ligne. */}
+          {crumbAide && <AideEcran titre={crumbPage} texte={crumbAide} />}
+          {/* LES ACTIONS DE LA PAGE, à droite de l'en-tête FIXE. Chaque écran y dépose ses
+              boutons (voir `useActionsEcran`) : ils restent sous les yeux quand la page défile,
+              alors qu'un bouton posé dans le contenu disparaît dès qu'on descend.
+
+              Cette place était occupée par le moteur « en service ». Elle ne l'est plus : depuis
+              que les appels descendent la LISTE des fournisseurs, il n'y a plus un moteur élu, et
+              afficher `settings.ai_provider` désignait un fournisseur qui n'est pas celui qui
+              répond. Un en-tête qui se trompe est pire qu'un en-tête muet. */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {actionsEcran}
+          </div>
         </header>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {/* Toutes les pages admin exploitent toute la largeur (comme Référentiel et Type d'activité) :
               plus de plafond, une seule règle pour tout le back-office. */}
           <div style={{ padding: 32, width: '100%', margin: '0 auto' }}>
-            <Outlet />
+            <ActionsEcran.Provider value={setActionsEcran}>
+              <Outlet />
+            </ActionsEcran.Provider>
           </div>
         </div>
 
@@ -634,47 +695,39 @@ export default function AdminLayout() {
   )
 }
 
-// Le moteur qui SERT en ce moment — fournisseur et modèle, en haut à droite de chaque page.
+
+// L'AIDE DE L'ÉCRAN — le « i » derrière le titre.
 //
-// POURQUOI DANS L'EN-TÊTE. Le réglage vit dans IA → Fournisseurs, une page qu'on ne regarde pas
-// quand on travaille ailleurs. Or tout ce que l'administration déclenche de coûteux part vers ce
-// couple-là : le lire à un seul endroit, c'est le découvrir après coup.
-//
-// Relu toutes les 60 secondes, et à chaque retour sur l'onglet : le fournisseur se change depuis
-// cet écran-ci comme depuis un autre poste, et un en-tête qui affiche l'ancien couple ment.
-function IaEnCours() {
-  const { data } = useQuery({
-    queryKey: ['admin', 'ia-en-cours'],
-    queryFn: async () => {
-      const r = await fetch('/api/admin/ia/en-cours', { credentials: 'include' })
-      return r.ok ? await r.json() : null
-    },
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-  })
-  if (!data) return null
+// LA RÈGLE DE LA MAISON, ET PAS UNE AUTRE : un « i » se survole pour une phrase courte, et se
+// CLIQUE pour ouvrir une vraie fenêtre — `FenetrePro`, la coquille unique : déplaçable par sa
+// barre de titre, étirable par le coin, avec son ascenseur, sans voile qui bloque l'écran
+// derrière. C'est ce que font déjà « Comment ça marche » et les guides des cartouches côté
+// professeur. Un panneau écrit sur mesure ici serait une deuxième mécanique à maintenir, et une
+// fenêtre qui ne se déplace pas cache justement ce qu'on est en train de lire.
+function AideEcran({ titre, texte }) {
+  const [ouvert, setOuvert] = useState(false)
   return (
-    <span
-      style={{
-        marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6,
-        fontSize: 12, color: '#475569', background: '#f1f5f9',
-        border: '1px solid #e2e8f0', borderRadius: 999, padding: '3px 10px',
-        whiteSpace: 'nowrap', maxWidth: '48%', overflow: 'hidden', textOverflow: 'ellipsis',
-      }}
-      title={`Moteur en service : ${data.fournisseur_label} · ${data.modele}. Il se change dans IA → Fournisseurs.`}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="4" width="16" height="16" rx="2"/>
-        <rect x="9" y="9" width="6" height="6"/>
-        <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
-        <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
-        <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
-        <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
-      </svg>
-      <strong style={{ fontWeight: 600, color: '#0f172a' }}>{data.fournisseur_label}</strong>
-      <span style={{ color: '#cbd5e1' }}>·</span>
-      <span style={{ fontFamily: 'ui-monospace, monospace' }}>{data.modele}</span>
-    </span>
+    <>
+      <button
+        onClick={() => setOuvert(true)}
+        title="À quoi sert cet écran ? Cliquez pour ouvrir l’aide."
+        style={{
+          width: 17, height: 17, borderRadius: '50%', cursor: 'pointer', padding: 0, flexShrink: 0,
+          border: '1px solid ' + (ouvert ? '#A63045' : '#cbd5e1'),
+          color: ouvert ? '#fff' : '#64748b', background: ouvert ? '#A63045' : '#f8fafc',
+          fontSize: 11, fontWeight: 700, fontStyle: 'italic', lineHeight: '15px',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >i</button>
+
+      {ouvert && (
+        <FenetrePro titre={`Aide — ${titre}`} onFermer={() => setOuvert(false)}
+                    largeur={520} hauteur="min(60vh, 420px)">
+          <div style={{ overflowY: 'auto', padding: '14px 16px', fontSize: 13, lineHeight: 1.55, color: '#334155' }}>
+            {texte}
+          </div>
+        </FenetrePro>
+      )}
+    </>
   )
 }

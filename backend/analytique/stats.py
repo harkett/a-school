@@ -355,6 +355,15 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     depuis = maintenant_utc() - timedelta(days=jours)
     tarifs = _tarifs(db)
 
+    # LES REFUS SONT ÉCARTÉS DE CET ÉCRAN. Depuis que `usage_llm` porte les tentatives et non plus
+    # les seuls appels aboutis, une ligne peut être un refus : aucun token, aucun coût, mais elle
+    # se compterait dans « appels » et écraserait les moyennes. La consommation, c'est ce qui a été
+    # consommé. Les refus se regardent au Journal, un par un, qui est fait pour ça.
+    #
+    # `coupe` RESTE compté : une réponse tronquée a bien été produite et se facture. La masquer
+    # ferait disparaître une dépense réelle — et c'est justement la dépense qu'on veut voir.
+    _abouti = UsageLlm.resultat != "refus"
+
     somme_entree = func.coalesce(func.sum(UsageLlm.tokens_entree), 0)
     somme_sortie = func.coalesce(func.sum(UsageLlm.tokens_sortie), 0)
     # Appels REJOUÉS par le cache disque : comptés à part, pas retirés. Un rejeu n'a rien envoyé et
@@ -377,7 +386,7 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
                            somme_cache_ecriture.label("cache_ecriture"),
                            somme_cache_lecture.label("cache_lecture"),
                            func.count(UsageLlm.id).label("appels"))
-                    .filter(UsageLlm.created_at >= depuis)
+                    .filter(UsageLlm.created_at >= depuis, _abouti)
                     .group_by(colonne).all()):
             # Cache compris, comme dans « par modèle » : les trois onglets doivent donner le même
             # volume pour les mêmes appels, sinon l'un des trois passe pour cassé.
@@ -408,7 +417,7 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
                        somme_cache.label("cache"), somme_cache_ecriture.label("cache_ecriture"),
                        somme_cache_lecture.label("cache_lecture"),
                        func.count(UsageLlm.id).label("appels"))
-                .filter(UsageLlm.created_at >= depuis)
+                .filter(UsageLlm.created_at >= depuis, _abouti)
                 .group_by(UsageLlm.modele, UsageLlm.outil).all()):
         entree, sortie = int(r.entree), int(r.sortie)
         cache_e, cache_l = int(r.cache_ecriture), int(r.cache_lecture)
@@ -440,9 +449,29 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     # Total : la somme des seuls modèles TARIFÉS. `cout_partiel` prévient l'écran qu'une part de la
     # consommation n'est pas chiffrée — un total muet sur ce point se lirait comme une facture.
     total_cout = sum(l["cout_usd"] for l in par_modele if l["cout_usd"] is not None)
+
+    # ── CE QUE LA LISTE DE FOURNISSEURS A RATTRAPÉ ────────────────────────────────────────────
+    #
+    # Une réponse obtenue au rang 2 ou plus est une génération que l'ancienne version aurait
+    # PERDUE : le premier fournisseur avait refusé, et il n'y avait personne derrière lui — le
+    # professeur voyait un échec et devait recliquer.
+    #
+    # C'est la seule mesure honnête de ce qu'apporte la liste. Compter les refus ne dirait rien
+    # (un refus rattrapé n'a coûté que quelques secondes) ; compter les succès non plus (ils
+    # existaient avant). Ce qui compte, c'est le croisement des deux.
+    #
+    # `rang > 1` et pas `rang is not null` : le rang 1 est un succès du premier appelé, exactement
+    # ce qui se passait avant. Il n'y a rien à en dire.
+    rattrapees = (db.query(func.count(UsageLlm.id))
+                    .filter(UsageLlm.created_at >= depuis, UsageLlm.resultat == "ok",
+                            UsageLlm.rang.isnot(None), UsageLlm.rang > 1)
+                    .scalar()) or 0
+
     return {
         "jours": jours,
         "appels": sum(l["appels"] for l in par_modele),
+        # Générations obtenues chez un fournisseur de rang 2 ou plus : perdues, sans la liste.
+        "appels_rattrapes": int(rattrapees),
         # Sur ces appels, ceux que le cache disque a rejoués sans rien envoyer ni payer.
         "appels_cache": sum(l["appels_cache"] for l in par_modele),
         # Et, chez le fournisseur, ce qui a été confié au cache de prompt puis relu à 10 %.
@@ -518,7 +547,8 @@ def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
                        func.coalesce(func.sum(UsageLlm.tokens_sortie), 0).label("sortie"),
                        func.coalesce(func.sum(UsageLlm.tokens_cache_ecriture), 0).label("cache_e"),
                        func.coalesce(func.sum(UsageLlm.tokens_cache_lecture), 0).label("cache_l"))
-                .filter(*conditions, UsageLlm.depuis_cache.is_(False))
+                .filter(*conditions, UsageLlm.depuis_cache.is_(False),
+                        UsageLlm.resultat != "refus")
                 .group_by(UsageLlm.modele).all()):
         montant = _cout(tarifs, r.modele, int(r.entree), int(r.sortie), int(r.cache_e), int(r.cache_l))
         if montant is None:
@@ -547,6 +577,16 @@ def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
             # Pourquoi le modèle s'est arrêté. « max_tokens » = réponse COUPÉE : c'est la seule
             # colonne qui explique une génération incomplète, et c'est pour elle que cet écran existe.
             "motif_arret": u.motif_arret,
+            # Ce qu'est devenue la tentative. `refus` = le fournisseur n'a rien produit ; `coupe` =
+            # il a produit mais s'est arrêté sur sa limite de sortie ; `ok` = complet. Sans ce mot,
+            # un refus se lisait comme un appel à zéro token, c'est-à-dire comme un appel gratuit.
+            "resultat": u.resultat,
+            # Ce que le fournisseur a répondu (429, 402, 500…), vide quand il a répondu normalement.
+            # C'est lui qui distingue « plus de quota » de « en panne » : deux refus, deux gestes.
+            "code_http": u.code_http,
+            # La place du fournisseur dans la liste au moment de l'essai. Vide tant qu'il n'y a pas
+            # de liste — écrire « 1 » inventerait une cascade qui n'existe pas encore.
+            "rang": u.rang,
             "tokens_entree": (u.tokens_entree or 0) + (u.tokens_cache_ecriture or 0) + (u.tokens_cache_lecture or 0),
             "tokens_sortie": u.tokens_sortie or 0,
             "tokens_cache_ecriture": u.tokens_cache_ecriture or 0,
@@ -555,7 +595,9 @@ def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
             "depuis_cache": bool(u.depuis_cache),
             # Un rejeu du cache disque n'a rien envoyé : lui compter un prix ferait payer deux fois
             # le même appel à l'écran, alors que la deuxième fois n'a rien coûté.
-            "cout_usd": None if u.depuis_cache else _cout(
+            # Ni les rejeux du cache, ni les refus n'ont coûté quoi que ce soit : leur donner
+            # un prix ferait payer à l'écran ce qui n'a jamais été facturé.
+            "cout_usd": None if (u.depuis_cache or u.resultat == "refus") else _cout(
                 tarifs, u.modele, u.tokens_entree, u.tokens_sortie,
                 u.tokens_cache_ecriture, u.tokens_cache_lecture),
         } for u in lignes],

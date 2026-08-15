@@ -65,12 +65,12 @@ export default function AdminReferentielsConsulter() {
               const actif = selected && selected.id === r.id
               return (
                 <button key={r.id} type="button" onClick={() => ouvrir(r)}
-                  title={`Cycle : ${r.cycle} · Niveau : ${r.niveau}. Cliquez pour consulter le détail (lecture seule).`}
+                  title={`Cycle : ${r.cycle} · Niveau : ${r.nom_affichage || r.niveau}. Cliquez pour consulter le détail (lecture seule).`}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                     border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
                     background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
                     fontWeight: actif ? 600 : 400 }}>
-                  {r.cycle} · {r.niveau}
+                  {r.cycle} · {r.nom_affichage || r.niveau}
                   {r.forcage_motif && <span title="Validé en forçage" style={{ marginLeft: 6, color: '#b45309' }}>⚠</span>}
                 </button>
               )
@@ -92,7 +92,7 @@ export default function AdminReferentielsConsulter() {
                   <div style={titreCarte}>Couple (cycle + niveau)</div>
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
                     <span><span style={infoLabel}>Cycle : </span><strong style={infoVal}>{selected.cycle}</strong></span>
-                    <span><span style={infoLabel}>Niveau : </span><strong style={infoVal}>{selected.niveau}</strong></span>
+                    <span><span style={infoLabel}>Niveau : </span><strong style={infoVal}>{selected.nom_affichage || selected.niveau}</strong></span>
                   </div>
                 </div>
 

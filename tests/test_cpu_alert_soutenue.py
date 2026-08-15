@@ -43,7 +43,7 @@ def _capture(monkeypatch):
     calls = []
     monkeypatch.setattr(
         alerts, "create_alert",
-        lambda level, title, message, sujet_detail="": calls.append((level, title, message)),
+        lambda level, title, message, sujet_detail="", **k: calls.append((level, title, message)),
     )
     return calls
 

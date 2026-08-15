@@ -1,4 +1,5 @@
-﻿import os
+﻿import logging
+import os
 import re
 import secrets
 import unicodedata
@@ -19,8 +20,10 @@ from backend.core.database import get_db, get_db_size_mb, engine
 from backend.core.schema_requete import schema_de
 from backend.core.limiter import limiter
 from backend.core.catalogues import catalogue
+from backend.core.devises import DEVISES, en_euros
+from backend.systeme.releve_tarifs import lire_page, relever
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, PromptFonctionnalite, Referentiel, RefreshToken, Seance, Sequence, Setting, User, UserSession
+from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, PromptFonctionnalite, Referentiel, RefreshToken, Seance, Sequence, Setting, UsageLlm, User, UserSession, TacheAFaire, TachePlanifiee
 # La fabrique du jeton de passage vit chez le prof (backend/prof/demo.py) : l'admin emprunte la
 # MÊME, il n'en a pas une seconde. Import du module et non des fonctions — les deux modules se
 # citent, et le module entier évite d'avoir à ordonner leurs imports.
@@ -293,6 +296,78 @@ def get_cle_texte(db: Session) -> str:
 # MAX = garde-fou coût/pertinence.
 RAG_TOP_K_MIN = 1
 RAG_TOP_K_MAX = 20
+
+
+_log = logging.getLogger(__name__)
+
+
+def liste_fournisseurs(db: Session) -> list[dict]:
+    """L'ORDRE D'APPEL — le catalogue, et rien d'autre.
+
+    Une entrée par fournisseur actif, dans l'ordre de `ai_fournisseurs.ordre`, chacune portant de
+    quoi l'appeler sans rien redemander à la base : son code, SA clé, SON modèle recommandé, et les
+    bornes de ce modèle.
+
+    IL N'Y A PLUS DE FOURNISSEUR « EN SERVICE ». C'était le principe de l'ancien système : un élu,
+    désigné dans un écran, seul appelé, et un échec pour le professeur quand il refusait. Ici, la
+    liste est l'ordre : le premier est appelé d'abord parce qu'il est premier au catalogue — pas
+    parce qu'un réglage l'a sacré. L'administrateur range, il ne choisit plus.
+
+    C'EST CE QUI FAIT QUE LE GRATUIT PASSE D'ABORD. Groq est premier au catalogue parce qu'il ne
+    coûte rien ; les payants suivent, classés par leur prix. Un ordre qui dépendrait d'un réglage
+    séparé pourrait, lui, placer un payant devant le gratuit — c'est exactement ce qui se passait.
+
+    CHAQUE ENTRÉE PORTE LES SIENS. `mistral3` n'existe pas chez Anthropic, la clé d'Anthropic
+    n'ouvre pas Infomaniak, et la fenêtre de l'un n'est pas celle de l'autre. Reprendre les valeurs
+    du premier pour appeler le second, c'est le faire échouer à coup sûr.
+
+    CE QUI EST ÉCARTÉ, EN SILENCE ET VOLONTAIREMENT :
+      * les fournisseurs `actif = false` — « pas encore disponible » veut dire ce qu'il dit ;
+      * ceux dont la clé manque du `.env` ;
+      * ceux dont le catalogue n'a aucun modèle actif.
+    Une clé absente ne doit pas faire échouer la génération d'un professeur : elle doit retirer ce
+    fournisseur de la liste, c'est tout. Le journal du serveur le note, l'écran des fournisseurs le
+    montre déjà.
+
+    LISTE VIDE = aucun appel possible. Le cas ne se produit que sur une installation neuve, avant
+    la première configuration.
+    """
+    # PAS DE BASE, PAS DE LISTE. Le mode long de la découpe appelle avec `db=None`, le fournisseur
+    # lui étant passé tout résolu. Rendre vide plutôt que lever : cet appel marchait avant la
+    # liste, il doit marcher après.
+    if db is None:
+        return []
+    voies: list[dict] = []
+    for f in (db.query(AiFournisseur)
+                .filter(AiFournisseur.actif.is_(True))
+                .order_by(AiFournisseur.ordre.asc(), AiFournisseur.code.asc()).all()):
+        cle = os.getenv(f.cle_env, "") if f.cle_env else ""
+        if not cle:
+            _log.warning("Fournisseur écarté de la liste : « %s » n'a pas de clé dans le .env (%s).",
+                         f.code, f.cle_env or "—")
+            continue
+        # Le modèle recommandé du fournisseur — la colonne existe et l'écran s'en sert déjà pour
+        # proposer un défaut. Faute de recommandé, le premier actif : mieux vaut un modèle du bon
+        # fournisseur que pas de fournisseur du tout.
+        modele = (db.query(AiModele)
+                    .filter(AiModele.fournisseur == f.code, AiModele.actif.is_(True))
+                    .order_by(AiModele.recommande.desc(), AiModele.ordre.asc()).first())
+        if modele is None:
+            _log.warning("Fournisseur écarté de la liste : « %s » n'a aucun modèle actif.", f.code)
+            continue
+        voies.append({
+            "provider": f.code,
+            "cle": cle,
+            "model": modele.modele,
+            # Le plafond de sortie du modèle, sinon celui du fournisseur. Infomaniak REFUSE au-delà
+            # de 5 000 (422) : lui envoyer le plafond réglé pour un autre le ferait échouer pour la
+            # seule raison qu'on ne l'a pas borné.
+            "max_tokens": modele.max_tokens or f.max_tokens,
+            # SA fenêtre à lui. Le contrôle amont se rejoue donc à chaque rang : un document trop
+            # gros pour Infomaniak (32 000) tient chez Anthropic (1 000 000).
+            "contexte_max": modele.contexte_max,
+        })
+    return voies
 
 
 def get_rag_top_k(db: Session) -> int:
@@ -1271,6 +1346,16 @@ def get_ia_catalogue(db: Session = Depends(get_db), _: None = Depends(_require_a
     fréquente, et la seule chose que l'écran doit en dire, c'est « présente ou pas »."""
     fournisseurs = db.query(AiFournisseur).order_by(AiFournisseur.ordre.asc()).all()
     modeles = db.query(AiModele).order_by(AiModele.fournisseur.asc(), AiModele.ordre.asc()).all()
+    # DEUX requêtes groupées plutôt qu'un comptage par ligne : avec dix fournisseurs et trente
+    # modèles, la seconde façon ferait quarante requêtes pour afficher un écran.
+    appels_par_fournisseur = {
+        code: n for code, n in db.query(UsageLlm.fournisseur, func.count(UsageLlm.id))
+                                 .group_by(UsageLlm.fournisseur).all()
+    }
+    appels_par_modele = {
+        (f, m): n for f, m, n in db.query(UsageLlm.fournisseur, UsageLlm.modele, func.count(UsageLlm.id))
+                                   .group_by(UsageLlm.fournisseur, UsageLlm.modele).all()
+    }
     return {
         "fournisseurs": [
             {
@@ -1278,6 +1363,18 @@ def get_ia_catalogue(db: Session = Depends(get_db), _: None = Depends(_require_a
                 "type_api": f.type_api, "base_url": f.base_url, "max_tokens": f.max_tokens,
                 "cle_env": f.cle_env,
                 "cle_configuree": bool(f.cle_env and os.getenv(f.cle_env, "").strip()),
+                # Nombre d'appels déjà passés chez lui. Zéro ⇒ il peut encore être supprimé ;
+                # au-delà, il ne peut plus qu'être désactivé — son historique deviendrait
+                # illisible. L'écran a besoin du CHIFFRE, pas d'un booléen : « a déjà répondu à
+                # 412 appels » explique l'interdit, « impossible » le subit.
+                "appels": appels_par_fournisseur.get(f.code, 0),
+                # « gratuit » ou « payant », tel que l'administrateur l'a dit. L'écran range la
+                # liste en deux zones avec ça — et rien d'autre : le tarif des modèles ne dit pas
+                # si le fournisseur facture, il dit combien quand il facture.
+                "tarification": f.tarification,
+                # L'adresse de sa grille : l'écran en fait un lien, et n'offre le bouton
+                # « Relever les tarifs » que si elle est renseignée.
+                "lien_tarifs": f.lien_tarifs,
             }
             for f in fournisseurs
         ],
@@ -1288,6 +1385,19 @@ def get_ia_catalogue(db: Session = Depends(get_db), _: None = Depends(_require_a
                 "contexte_max": m.contexte_max, "max_tokens": m.max_tokens,
                 "supporte_schema": m.supporte_schema, "supporte_stream": m.supporte_stream,
                 "supporte_temperature": m.supporte_temperature,
+                "appels": appels_par_modele.get((m.fournisseur, m.modele), 0),
+                # Le prix TEL QUE LE FOURNISSEUR L'AFFICHE, et sa devise. Vérifiable sur sa page
+                # sans calcul — c'est la seule façon de contrôler une saisie.
+                "cout_entree_million": float(m.cout_entree_million) if m.cout_entree_million is not None else None,
+                "cout_sortie_million": float(m.cout_sortie_million) if m.cout_sortie_million is not None else None,
+                "devise": m.devise,
+                # Le nom sous lequel le fournisseur le PUBLIE, quand il diffère du nom
+                # d'appel : c'est celui qu'on retrouve sur sa grille tarifaire.
+                "nom_fournisseur": m.nom_fournisseur,
+                # Et le même prix en euros, au taux du jour. Calculé ici plutôt qu'à l'écran :
+                # deux écrans qui convertiraient chacun de leur côté finiraient par diverger.
+                "cout_entree_eur": en_euros(m.cout_entree_million, m.devise),
+                "cout_sortie_eur": en_euros(m.cout_sortie_million, m.devise),
             }
             for m in modeles
         ],
@@ -1316,6 +1426,21 @@ def get_ia_catalogue(db: Session = Depends(get_db), _: None = Depends(_require_a
 # Supprimer supprime VRAIMENT (DELETE) : « désactiver » est un autre geste, il a sa case.
 
 
+# Les deux seules réponses possibles à « est-ce que ce fournisseur coûte quelque chose ? ». Écrites
+# ici plutôt que devinées à l'écran : la combo de l'administrateur et la validation de l'API doivent
+# proposer et accepter exactement la même chose.
+_TARIFICATIONS = ("gratuit", "payant")
+
+
+def _verifie_tarification(valeur: str) -> None:
+    """Refuse toute autre réponse. Une troisième valeur ferait disparaître le fournisseur de
+    l'écran — il ne serait ni dans la zone des gratuits, ni dans celle des payants — sans qu'aucun
+    message n'explique pourquoi."""
+    if valeur not in _TARIFICATIONS:
+        raise HTTPException(400, f"Tarification inconnue. Un fournisseur est "
+                                 f"{' ou '.join(_TARIFICATIONS)}.")
+
+
 class FournisseurBody(BaseModel):
     """Un fournisseur. `code` est l'identifiant technique : il ne change jamais après création
     (le réglage en service et les modèles le référencent)."""
@@ -1327,6 +1452,11 @@ class FournisseurBody(BaseModel):
     max_tokens: int | None = None
     actif: bool = True
     ordre: int = 0
+    # « gratuit » ou « payant ». Défaut « payant » : c'est celui qui ne peut pas tromper —
+    # annoncer gratuit à tort ferait ranger un service qui facture parmi ceux qui ne coûtent rien.
+    tarification: str = "payant"
+    # L'adresse de sa grille tarifaire publique, celle que le relevé ira lire.
+    lien_tarifs: str | None = None
 
 
 class ModeleBody(BaseModel):
@@ -1342,6 +1472,19 @@ class ModeleBody(BaseModel):
     recommande: bool = False
     actif: bool = True
     ordre: int = 0
+    # LE PRIX, DANS LA MONNAIE DU FOURNISSEUR. Ces deux colonnes existaient déjà et servaient à
+    # l'écran des statistiques, mais AUCUNE ROUTE NE LES ÉCRIVAIT : seule une migration pouvait les
+    # renseigner. Or un tarif change — DeepSeek le 16/08, Anthropic le 1er septembre — et attendre
+    # un développeur pour saisir deux nombres n'a pas de sens.
+    #
+    # `None` reste permis, et veut dire « pas encore relevé ». L'écran l'affiche comme tel plutôt
+    # que d'inventer un zéro, qui se lirait comme « gratuit ».
+    cout_entree_million: float | None = None
+    cout_sortie_million: float | None = None
+    devise: str = "USD"
+    # Le nom PUBLIC du modèle chez le fournisseur, quand il n'est pas son nom d'appel. Vide = les
+    # deux sont le même.
+    nom_fournisseur: str | None = None
 
 
 # Les deux familles d'API que le moteur sait construire. Écrites ici parce que ce sont des
@@ -1350,16 +1493,62 @@ class ModeleBody(BaseModel):
 _TYPES_API = ("openai_compat", "anthropic")
 
 
+def _devise_valide(devise: str) -> str:
+    """La monnaie doit être une de celles que le convertisseur sait ramener en euros.
+
+    Sans ce contrôle, une saisie libre (« chf », « francs », « €ur ») entrerait en base et le
+    montant deviendrait inconvertible — donc invisible dans les comparaisons, en silence."""
+    d = (devise or "").strip().upper()
+    if d not in DEVISES:
+        raise HTTPException(400, f"Monnaie « {devise} » inconnue. Attendu : {', '.join(DEVISES)}.")
+    return d
+
+
+def _a_deja_servi(db: Session, code: str, modele: str | None = None) -> int:
+    """Nombre d'appels déjà passés chez ce fournisseur (ou avec ce modèle précis).
+
+    POURQUOI ON REGARDE ÇA AVANT DE SUPPRIMER. `usage_llm` garde le CODE du fournisseur et le NOM
+    du modèle pour chaque appel, mais pas leur libellé ni leur tarif — ceux-là vivent dans
+    `ai_fournisseurs` et `ai_modeles`. Supprimer la ligne du catalogue ne détruit donc pas
+    l'historique : elle le rend ILLISIBLE. L'écran des statistiques perd le nom, et surtout il ne
+    sait plus calculer le coût, puisque le tarif appartenait au modèle effacé.
+
+    C'est une perte silencieuse, et irréversible : personne ne s'en aperçoit avant de chercher
+    combien a coûté le mois dernier."""
+    q = db.query(UsageLlm).filter(UsageLlm.fournisseur == code)
+    if modele is not None:
+        q = q.filter(UsageLlm.modele == modele)
+    return q.count()
+
+
 def _verifie_pas_en_service(db: Session, code: str, modele: str | None = None) -> None:
-    """Refuse de toucher à ce qui travaille. Message qui dit le geste à faire d'abord."""
-    if get_ai_provider(db) != code:
+    """Refuse de toucher à ce qui travaille.
+
+    CE QUI TRAVAILLE A CHANGÉ DE SENS. Il n'y a plus UN fournisseur élu et des figurants : il y a
+    une liste, et TOUS ceux qui y sont répondent aux professeurs. Ce garde-fou ne regardait que
+    l'élu — on pouvait donc supprimer le deuxième ou le troisième de la liste pendant qu'il
+    travaillait, sans un mot d'avertissement.
+
+    LE DERNIER NE SE SUPPRIME JAMAIS. Retirer le seul fournisseur qui reste, c'est éteindre l'IA
+    de toute l'application par un clic dans un écran de catalogue.
+
+    UN PARMI PLUSIEURS, EN REVANCHE, PEUT PARTIR : la liste continue sans lui, c'est exactement ce
+    pour quoi elle existe. Le message le dit, plutôt que d'interdire."""
+    liste = liste_fournisseurs(db)
+    codes = [v["provider"] for v in liste]
+    if code not in codes:
         return
     if modele is None:
-        raise HTTPException(400, f"« {code} » est le fournisseur en service : choisissez-en un "
-                                 f"autre dans IA → Génération avant de le supprimer.")
-    if get_ai_model(db) == modele:
-        raise HTTPException(400, f"« {modele} » est le modèle en service : choisissez-en un autre "
-                                 f"dans IA → Génération avant de le supprimer.")
+        if len(codes) <= 1:
+            raise HTTPException(400, f"« {code} » est le seul fournisseur d'IA opérationnel : le "
+                                     f"supprimer arrêterait toutes les générations. Raccordez-en "
+                                     f"un autre avant.")
+        return
+    # Le modèle appelé chez ce fournisseur — celui de la liste, pas un réglage global.
+    en_usage = next((v["model"] for v in liste if v["provider"] == code), None)
+    if en_usage == modele and len(codes) <= 1:
+        raise HTTPException(400, f"« {modele} » est le seul modèle du seul fournisseur d'IA : le "
+                                 f"supprimer arrêterait toutes les générations.")
 
 
 @router.post("/admin/ia/fournisseurs")
@@ -1370,18 +1559,125 @@ def creer_fournisseur(body: FournisseurBody, request: Request, db: Session = Dep
         raise HTTPException(400, "Le code et le libellé sont obligatoires.")
     if body.type_api not in _TYPES_API:
         raise HTTPException(400, f"Type d'API inconnu. Le moteur sait parler : {', '.join(_TYPES_API)}.")
+    _verifie_tarification(body.tarification)
     if db.query(AiFournisseur).filter(AiFournisseur.code == code).first():
         raise HTTPException(400, f"Le fournisseur « {code} » existe déjà.")
     db.add(AiFournisseur(
         code=code, label=body.label.strip(), type_api=body.type_api,
         base_url=(body.base_url or "").strip() or None, cle_env=(body.cle_env or "").strip(),
         max_tokens=body.max_tokens, actif=body.actif, ordre=body.ordre,
+        tarification=body.tarification,
+        lien_tarifs=(body.lien_tarifs or "").strip() or None,
     ))
     db.commit()
     log_admin_action(db=db, admin_email=_get_admin_email(request), action="CREATE_AI_FOURNISSEUR",
                      target_email=None, ip=request.client.host if request.client else None,
                      details=f"Fournisseur IA ajouté : {code}")
     return {"status": "ok"}
+
+
+class TacheBody(BaseModel):
+    """Ce que l'administrateur règle sur une tâche. Ni le code ni la fonction : seulement le QUAND,
+    le SI et le À QUI."""
+    actif: bool = True
+    type_planif: str = "quotidien"
+    heure: int | None = None
+    minute: int | None = None
+    intervalle_minutes: int | None = None
+    destinataire: str | None = None
+
+
+def _tache_vue(t: TachePlanifiee) -> dict:
+    """Une tâche telle que l'écran la montre : son réglage, son texte, et son dernier passage.
+
+    Le libellé et la description viennent du REGISTRE (le code), pas de la base : ils décrivent ce
+    que la fonction fait. Les stocker permettrait de renommer « Veille des tarifs » en « Sauvegarde »
+    sans que rien ne change au travail exécuté."""
+    from backend.systeme.planificateur import TACHES, prochain_passage
+    fiche = TACHES.get(t.code, {})
+    suivant = prochain_passage(t.code)
+    return {
+        "code": t.code,
+        "libelle": fiche.get("libelle", t.code),
+        "description": fiche.get("description", ""),
+        # Une ligne en base dont le code n'existe plus dans le registre : la fonction a été retirée
+        # sans nettoyer la table. L'écran le dit plutôt que d'afficher une tâche qui ne fera rien.
+        "orpheline": t.code not in TACHES,
+        "actif": t.actif,
+        "type_planif": t.type_planif,
+        "heure": t.heure, "minute": t.minute,
+        "intervalle_minutes": t.intervalle_minutes,
+        "destinataire": t.destinataire,
+        "dernier_passage": t.dernier_passage.isoformat() if t.dernier_passage else None,
+        "dernier_resultat": t.dernier_resultat,
+        "dernier_ok": t.dernier_ok,
+        "derniere_duree_ms": t.derniere_duree_ms,
+        # Le prochain passage est demandé à l'ORDONNANCEUR, pas recalculé ici : lui seul sait ce
+        # qui est réellement programmé. Un calcul refait à l'écran pourrait annoncer une heure que
+        # rien ne déclenchera.
+        "prochain_passage": suivant.isoformat() if suivant else None,
+    }
+
+
+@router.get("/admin/taches")
+def lister_taches(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Les travaux que l'application fait toute seule — écran « Planificateur »."""
+    taches = db.query(TachePlanifiee).order_by(TachePlanifiee.code.asc()).all()
+    return {"taches": [_tache_vue(t) for t in taches],
+            # L'adresse qui reçoit quand une tâche n'en précise aucune. Montrée pour que le champ
+            # vide ne se lise pas « personne ne sera prévenu ».
+            "destinataire_par_defaut": os.getenv("ADMIN_EMAIL", "") or None}
+
+
+@router.put("/admin/taches/{code}")
+def regler_tache(code: str, body: TacheBody, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Change le réglage d'une tâche, et le rend effectif TOUT DE SUITE.
+
+    La reprogrammation immédiate n'est pas un raffinement : sans elle, l'administrateur règle 22 h,
+    voit 22 h à l'écran, et la tâche continue de partir à 6 h jusqu'au prochain redémarrage."""
+    from backend.systeme.planificateur import programmer_tout
+    t = db.query(TachePlanifiee).filter(TachePlanifiee.code == code).first()
+    if t is None:
+        raise HTTPException(404, f"Tâche « {code} » introuvable.")
+    if body.type_planif not in ("quotidien", "intervalle"):
+        raise HTTPException(400, "Planification inconnue : « quotidien » ou « intervalle ».")
+    if body.type_planif == "quotidien":
+        if not (0 <= (body.heure or 0) <= 23) or not (0 <= (body.minute or 0) <= 59):
+            raise HTTPException(400, "L'heure doit être entre 0 h 00 et 23 h 59.")
+    elif not (1 <= (body.intervalle_minutes or 0) <= 1440):
+        raise HTTPException(400, "L'intervalle doit être compris entre 1 et 1440 minutes (24 h).")
+
+    t.actif = body.actif
+    t.type_planif = body.type_planif
+    t.heure = body.heure
+    t.minute = body.minute
+    t.intervalle_minutes = body.intervalle_minutes
+    t.destinataire = (body.destinataire or "").strip() or None
+    db.commit()
+    programmer_tout()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="REGLER_TACHE",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Tâche planifiée modifiée : {code}")
+    db.refresh(t)
+    return {"status": "ok", "tache": _tache_vue(t)}
+
+
+@router.post("/admin/taches/{code}/executer")
+def executer_tache(code: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Lance la tâche MAINTENANT, par le même chemin que l'ordonnanceur.
+
+    Le même chemin, c'est ce qui rend l'essai probant : ce qu'on voit ici est exactement ce qui se
+    produira à 6 h 05, résultat écrit sur la ligne compris."""
+    from backend.systeme.planificateur import executer
+    t = db.query(TachePlanifiee).filter(TachePlanifiee.code == code).first()
+    if t is None:
+        raise HTTPException(404, f"Tâche « {code} » introuvable.")
+    issue = executer(code)
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="EXECUTER_TACHE",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Tâche lancée à la main : {code}")
+    db.refresh(t)
+    return {"status": "ok", "ok": issue["ok"], "resultat": issue["resultat"], "tache": _tache_vue(t)}
 
 
 @router.put("/admin/ia/fournisseurs/{code}")
@@ -1393,13 +1689,17 @@ def modifier_fournisseur(code: str, body: FournisseurBody, request: Request, db:
         raise HTTPException(404, f"Fournisseur « {code} » introuvable.")
     if body.type_api not in _TYPES_API:
         raise HTTPException(400, f"Type d'API inconnu. Le moteur sait parler : {', '.join(_TYPES_API)}.")
+    _verifie_tarification(body.tarification)
     if not (body.label or "").strip():
         raise HTTPException(400, "Le libellé est obligatoire.")
-    # Désactiver celui qui travaille le retirerait de la combo tout en le laissant répondre :
-    # l'écran Génération montrerait un choix impossible à reprendre.
-    if not body.actif and get_ai_provider(db) == code:
-        raise HTTPException(400, f"« {code} » est le fournisseur en service : il ne peut pas être "
-                                 f"désactivé. Choisissez-en un autre dans IA → Génération d'abord.")
+    # Désactiver le DERNIER fournisseur opérationnel éteint l'IA de toute l'application. En
+    # désactiver un parmi plusieurs est légitime : la liste continue sans lui.
+    if not body.actif:
+        codes = [v["provider"] for v in liste_fournisseurs(db)]
+        if code in codes and len(codes) <= 1:
+            raise HTTPException(400, f"« {code} » est le seul fournisseur d'IA opérationnel : le "
+                                     f"désactiver arrêterait toutes les générations. Raccordez-en "
+                                     f"un autre avant.")
     f.label = body.label.strip()
     f.type_api = body.type_api
     f.base_url = (body.base_url or "").strip() or None
@@ -1407,6 +1707,8 @@ def modifier_fournisseur(code: str, body: FournisseurBody, request: Request, db:
     f.max_tokens = body.max_tokens
     f.actif = body.actif
     f.ordre = body.ordre
+    f.tarification = body.tarification
+    f.lien_tarifs = (body.lien_tarifs or "").strip() or None
     db.commit()
     log_admin_action(db=db, admin_email=_get_admin_email(request), action="UPDATE_AI_FOURNISSEUR",
                      target_email=None, ip=request.client.host if request.client else None,
@@ -1416,10 +1718,26 @@ def modifier_fournisseur(code: str, body: FournisseurBody, request: Request, db:
 
 @router.delete("/admin/ia/fournisseurs/{code}")
 def supprimer_fournisseur(code: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Supprime un fournisseur — un vrai DELETE. Refusé s'il travaille ou s'il a des modèles."""
+    """Supprime un fournisseur — un vrai DELETE, et seulement s'il n'a JAMAIS servi.
+
+    DÉCIDÉ LE 15/08/2026. Un fournisseur qui a répondu au moins une fois ne se supprime plus : il
+    se DÉSACTIVE. La suppression reste ouverte pour ce qui n'a jamais servi — un fournisseur ajouté
+    par erreur, ou raccordé puis jamais appelé.
+
+    LA RAISON N'EST PAS LA PRUDENCE, C'EST L'HISTORIQUE. Les appels passés gardent le code du
+    fournisseur, pas son libellé ni ses tarifs : effacer sa ligne rend le journal et les
+    statistiques illisibles, et les coûts incalculables. Désactiver donne le même résultat visible
+    — il n'est plus jamais appelé — sans rien perdre, et se défait d'une coche le jour où le
+    problème qui l'a fait écarter est réglé."""
     f = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
     if f is None:
         raise HTTPException(404, f"Fournisseur « {code} » introuvable.")
+    appels = _a_deja_servi(db, code)
+    if appels:
+        raise HTTPException(400, f"« {f.label} » a déjà répondu à {appels} appel(s) : le supprimer "
+                                 f"rendrait ces appels illisibles dans le journal et leur coût "
+                                 f"incalculable. Désactivez-le — il ne sera plus jamais appelé, et "
+                                 f"vous pourrez le réactiver quand vous voudrez.")
     _verifie_pas_en_service(db, code)
     restants = db.query(AiModele).filter(AiModele.fournisseur == code).count()
     if restants:
@@ -1452,6 +1770,10 @@ def creer_modele(body: ModeleBody, request: Request, db: Session = Depends(get_d
         supporte_schema=body.supporte_schema, supporte_stream=body.supporte_stream,
         supporte_temperature=body.supporte_temperature,
         recommande=body.recommande, actif=body.actif, ordre=body.ordre,
+        cout_entree_million=body.cout_entree_million,
+        cout_sortie_million=body.cout_sortie_million,
+        devise=_devise_valide(body.devise),
+        nom_fournisseur=(body.nom_fournisseur or "").strip() or None,
     ))
     db.commit()
     log_admin_action(db=db, admin_email=_get_admin_email(request), action="CREATE_AI_MODELE",
@@ -1482,9 +1804,15 @@ def modifier_modele(code: str, modele: str, body: ModeleBody, request: Request, 
         raise HTTPException(404, f"Modèle « {modele} » introuvable chez « {code} ».")
     if not (body.label or "").strip():
         raise HTTPException(400, "Le libellé est obligatoire.")
-    if not body.actif and get_ai_provider(db) == code and get_ai_model(db) == modele:
-        raise HTTPException(400, f"« {modele} » est le modèle en service : il ne peut pas être "
-                                 f"désactivé. Choisissez-en un autre dans IA → Génération d'abord.")
+    # Désactiver le modèle appelé chez ce fournisseur le retire de la liste avec lui, s'il est son
+    # seul modèle actif. Interdit uniquement si c'est le dernier fournisseur debout.
+    if not body.actif:
+        liste = liste_fournisseurs(db)
+        appele = next((v["model"] for v in liste if v["provider"] == code), None)
+        if appele == modele and len(liste) <= 1:
+            raise HTTPException(400, f"« {modele} » est le modèle du seul fournisseur d'IA "
+                                     f"opérationnel : le désactiver arrêterait toutes les "
+                                     f"générations.")
     if body.recommande and not m.recommande:
         _retirer_recommande(db, code)
     m.label = body.label.strip()
@@ -1496,6 +1824,10 @@ def modifier_modele(code: str, modele: str, body: ModeleBody, request: Request, 
     m.recommande = body.recommande
     m.actif = body.actif
     m.ordre = body.ordre
+    m.cout_entree_million = body.cout_entree_million
+    m.cout_sortie_million = body.cout_sortie_million
+    m.devise = _devise_valide(body.devise)
+    m.nom_fournisseur = (body.nom_fournisseur or "").strip() or None
     db.commit()
     log_admin_action(db=db, admin_email=_get_admin_email(request), action="UPDATE_AI_MODELE",
                      target_email=None, ip=request.client.host if request.client else None,
@@ -1503,13 +1835,84 @@ def modifier_modele(code: str, modele: str, body: ModeleBody, request: Request, 
     return {"status": "ok"}
 
 
+@router.post("/admin/ia/fournisseurs/{code}/relever-tarifs")
+def relever_tarifs(code: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Va lire la grille tarifaire du fournisseur et remplit le prix de ses modèles.
+
+    CE QUE ÇA REMPLACE : la saisie à la main, modèle par modèle, en gardant la page du fournisseur
+    ouverte dans un autre onglet. Long, et surtout périssable — un prix changé chez lui restait
+    faux chez nous jusqu'à ce que quelqu'un s'en aperçoive.
+
+    AUCUNE IA N'EST APPELÉE. Une grille tarifaire est un tableau : un nom, deux montants. Une
+    expression régulière le lit sans se tromper et sans rien coûter ; un modèle de langage
+    coûterait de l'argent et pourrait inventer un chiffre.
+
+    ON N'ÉCRIT QUE CE QU'ON A LU. Un modèle dont le nom n'est pas sur la page, ou qui n'est suivi
+    que d'un seul montant, est laissé tel quel et rendu dans `ignores` avec sa raison. Un tarif
+    absent se voit à l'écran (« non relevé ») ; un tarif faux ne se voit pas.
+
+    LA DEVISE VIENT DE LA PAGE quand elle y est écrite (Infomaniak annonce en CHF). Sinon celle du
+    modèle est conservée : mieux vaut garder ce qu'on savait que d'affirmer des dollars."""
+    f = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
+    if f is None:
+        raise HTTPException(404, f"Fournisseur « {code} » introuvable.")
+    if not (f.lien_tarifs or "").strip():
+        raise HTTPException(400, f"« {f.label} » n'a pas d'adresse de page tarifaire. Renseignez "
+                                 f"« lien_tarifs » sur sa fiche, puis relancez le relevé.")
+
+    try:
+        page = lire_page(f.lien_tarifs)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    modeles = db.query(AiModele).filter(AiModele.fournisseur == code).all()
+    # On cherche par le nom PUBLIC quand il existe — chez Infomaniak la grille dit
+    # « mistralai/Ministral-3-14B-Instruct-2512 » là où l'appel dit « mistral3 ». À défaut, le nom
+    # d'appel suffit : chez Anthropic et Groq, les deux sont le même.
+    cherches = {m.modele: (m.nom_fournisseur or m.modele) for m in modeles}
+    releves = relever(page, list(set(cherches.values())))
+
+    faits, ignores = [], []
+    for m in modeles:
+        trouve = releves.get(cherches[m.modele])
+        if not trouve:
+            ignores.append({"modele": m.modele, "cherche": cherches[m.modele],
+                            "raison": "introuvable sur la page"})
+            continue
+        avant = (m.cout_entree_million, m.cout_sortie_million, m.devise)
+        m.cout_entree_million = trouve["entree"]
+        m.cout_sortie_million = trouve["sortie"]
+        if trouve["devise"]:
+            m.devise = trouve["devise"]
+        # « inchangé » n'est pas « échoué » : le dire évite de croire que le relevé n'a pas marché
+        # parce que rien ne bouge à l'écran.
+        change = (float(avant[0]) if avant[0] is not None else None,
+                  float(avant[1]) if avant[1] is not None else None,
+                  avant[2]) != (trouve["entree"], trouve["sortie"], m.devise)
+        faits.append({"modele": m.modele, "entree": trouve["entree"], "sortie": trouve["sortie"],
+                      "devise": m.devise, "change": change})
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="RELEVE_TARIFS_IA",
+                     target_email=None, ip=request.client.host if request.client else None,
+                     details=f"Tarifs relevés chez {code} : {len(faits)} modèle(s), {len(ignores)} ignoré(s)")
+    return {"status": "ok", "releves": faits, "ignores": ignores, "source": f.lien_tarifs}
+
+
 @router.delete("/admin/ia/modeles/{code}/{modele:path}")
 def supprimer_modele(code: str, modele: str, request: Request, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Supprime un modèle — un vrai DELETE. Refusé s'il est en service."""
+    """Supprime un modèle — un vrai DELETE, et seulement s'il n'a JAMAIS servi.
+
+    Même règle que pour le fournisseur, et pour la même raison : le tarif appartient au modèle.
+    L'effacer après qu'il a produit des tokens rend leur coût incalculable pour toujours."""
     m = (db.query(AiModele)
            .filter(AiModele.fournisseur == code, AiModele.modele == modele).first())
     if m is None:
         raise HTTPException(404, f"Modèle « {modele} » introuvable chez « {code} ».")
+    appels = _a_deja_servi(db, code, modele)
+    if appels:
+        raise HTTPException(400, f"« {modele} » a déjà produit {appels} réponse(s) : le supprimer "
+                                 f"rendrait leur coût incalculable. Désactivez-le plutôt — il ne "
+                                 f"sera plus proposé, et rien n'est perdu.")
     _verifie_pas_en_service(db, code, modele)
     db.delete(m)
     db.commit()
@@ -1538,25 +1941,6 @@ def get_ai_providers(db: Session = Depends(get_db), _: None = Depends(_require_a
             {"name": f.code, "label": f.label, "available": f.actif}
             for f in fournisseurs
         ],
-    }
-
-
-@router.get("/admin/ia/en-cours")
-def get_ia_en_cours(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Le fournisseur et le modèle qui SERVENT en ce moment — pour l'en-tête de l'administration.
-
-    Un seul appel là où il en fallait deux (`/admin/ai-providers` + `/admin/ai-models`), et rien
-    d'autre que ce qui s'affiche : l'en-tête est présent sur toutes les pages, il n'a pas à tirer
-    un catalogue entier pour écrire deux mots.
-
-    Le `label` du fournisseur vient de sa fiche en base ; à défaut, son code. Le modèle est
-    rendu tel qu'il est écrit dans `settings` — c'est exactement la chaîne envoyée au moteur."""
-    code = get_ai_provider(db)
-    fiche = db.query(AiFournisseur).filter(AiFournisseur.code == code).first()
-    return {
-        "fournisseur": code,
-        "fournisseur_label": (fiche.label if fiche else None) or code,
-        "modele": get_ai_model(db),
     }
 
 
@@ -2150,6 +2534,12 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
         db.query(User.id, User.email).filter(User.id.in_(user_ids)).all()
     ) if user_ids else {}
 
+    # LE LIEU SE RÉSOUT ICI, ET UNE SEULE FOIS PAR SESSION. Pas à la connexion : aucune page de
+    # professeur n'attend après un service extérieur. C'est l'administrateur qui ouvre cet écran
+    # qui paie l'attente, et seulement pour les sessions dont le lieu manque encore.
+    from backend.systeme.localisation_ip import assurer_localisations
+    assurer_localisations(db, sessions)
+
     def _fmt_duration(s):
         delta = now - s.login_at
         total_min = max(0, int(delta.total_seconds() // 60))
@@ -2166,6 +2556,7 @@ def get_sessions(db: Session = Depends(get_db), _: None = Depends(_require_admin
             "os":        s.os or "—",
             "device":    s.device_type or "—",
             "ip":        s.ip_address or "—",
+            "lieu":      s.localisation or "—",
             "login_at":  s.login_at.strftime("%d/%m/%Y %H:%M"),
             "last_seen": s.last_seen.strftime("%d/%m/%Y %H:%M"),
             "is_online": s.is_online,
@@ -2295,6 +2686,8 @@ def db_size(request: Request, _: None = Depends(_require_admin)):
 
 @router.get("/admin/alerts")
 def get_alerts(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Les alertes, non lues d'abord. Chacune dit désormais DE QUI elle parle, ce qu'elle a
+    mesuré et où aller vérifier — au lieu de renvoyer le lecteur chercher lui-même."""
     rows = (
         db.query(AdminAlert)
         .order_by(AdminAlert.is_read.asc(), AdminAlert.created_at.desc())
@@ -2305,14 +2698,116 @@ def get_alerts(db: Session = Depends(get_db), _: None = Depends(_require_admin))
         {
             "id":         r.id,
             "level":      r.level,
+            "code":       r.code or "",
             "title":      r.title,
             "message":    r.message,
+            # De qui parle l'alerte. Vide pour les alertes de machine — processeur, disque : elles
+            # ne parlent de personne, et inventer un professeur serait pire que la case vide.
+            "prof":       r.user_email or "",
+            "user_id":    r.user_id,
+            # Les faits mesurés, tels quels : l'écran les affiche sans avoir à relire la phrase.
+            "donnees":    r.donnees or None,
+            "lien":       r.lien or "",
             "is_read":    r.is_read,
             "read_by":    r.read_by or "",
             "date":       r.created_at.strftime("%d/%m/%Y %H:%M"),
         }
         for r in rows
     ]
+
+
+@router.get("/admin/alerts/statistiques")
+def get_alerts_statistiques(jours: int = 30, db: Session = Depends(get_db),
+                            _: None = Depends(_require_admin)):
+    """Combien d'alertes, de quel genre, sur la période — et les comptes les plus signalés.
+
+    C'EST CE QUE `code` A RENDU POSSIBLE. Tant que le genre d'une alerte n'existait que dans son
+    titre, tout comptage passait par une comparaison de phrases : un titre reformulé cassait la
+    série, et rien ne se suivait dans le temps."""
+    depuis = maintenant_utc() - timedelta(days=max(1, min(365, jours)))
+    par_code = (db.query(AdminAlert.code, AdminAlert.level, func.count().label("n"))
+                .filter(AdminAlert.created_at >= depuis)
+                .group_by(AdminAlert.code, AdminAlert.level)
+                .order_by(func.count().desc()).all())
+    par_prof = (db.query(AdminAlert.user_email, func.count().label("n"))
+                .filter(AdminAlert.created_at >= depuis, AdminAlert.user_email.isnot(None))
+                .group_by(AdminAlert.user_email)
+                .order_by(func.count().desc()).limit(10).all())
+    return {
+        "jours": jours,
+        "total": sum(n for _, _, n in par_code),
+        "non_lues": db.query(AdminAlert).filter(AdminAlert.created_at >= depuis,
+                                                AdminAlert.is_read == False).count(),  # noqa: E712
+        "par_genre": [{"code": c or "(sans genre)", "niveau": niv, "nombre": n}
+                      for c, niv, n in par_code],
+        "profs_les_plus_signales": [{"prof": e, "nombre": n} for e, n in par_prof],
+    }
+
+
+# LES SEUILS DE SURVEILLANCE, RÉGLABLES DEPUIS L'ÉCRAN — ce que le menu promettait déjà.
+#
+# LE DÉFAUT CORRIGÉ. Les sept seuils vivaient en base, donc « sans développeur » — sauf qu'aucun
+# écran ne les modifiait : l'écran « Paramètres » est en lecture seule, et l'aide du menu affirmait
+# pourtant que les seuils se règlent dans Supervision → Alertes. Une valeur en base que personne ne
+# peut atteindre n'est pas mieux qu'une valeur écrite dans le code — elle est pire, parce qu'on la
+# croit modifiable.
+#
+# LES BORNES NE SONT PAS DU CONFORT. Un seuil de 0 appareil alerterait sur chaque connexion et
+# noierait l'écran ; une fenêtre de 0 minute ne verrait jamais deux sessions ensemble. Un réglage
+# impossible est refusé plutôt qu'écrit puis silencieusement ignoré par la surveillance.
+_SEUILS_ALERTES = {
+    "alerte_cpu_pct":      ("Processeur — seuil d'alerte", "%", 1, 100),
+    "alerte_disque_pct":   ("Disque — seuil d'alerte", "%", 1, 100),
+    "alerte_tentatives_1h": ("Tentatives de connexion échouées en 1 h", "tentatives", 1, 10000),
+    "alerte_anti_flood_h": ("Ne pas répéter la même alerte pendant", "heures", 1, 168),
+    "alerte_postes_max":   ("Appareils simultanés tolérés par compte", "appareils", 1, 100),
+    "alerte_distance_km":  ("Distance entre deux connexions simultanées", "km", 1, 20000),
+    "alerte_fenetre_min":  ("Ce que « en même temps » veut dire", "minutes", 1, 1440),
+}
+
+
+@router.get("/admin/alerts/seuils")
+def get_seuils_alertes(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Les seuils tels qu'ils sont EN BASE — pas les valeurs de départ du code."""
+    valeurs = {r.key: r.value for r in db.query(Setting)
+               .filter(Setting.key.in_(_SEUILS_ALERTES.keys())).all()}
+    return {"seuils": [
+        {"cle": cle, "libelle": libelle, "unite": unite, "min": mini, "max": maxi,
+         "valeur": valeurs.get(cle)}
+        for cle, (libelle, unite, mini, maxi) in _SEUILS_ALERTES.items()
+    ]}
+
+
+class SeuilsAlertesBody(BaseModel):
+    seuils: dict[str, float]
+
+
+@router.put("/admin/alerts/seuils")
+def put_seuils_alertes(body: SeuilsAlertesBody, request: Request,
+                       db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Écrit les seuils. Un seul hors bornes fait tout refuser — on n'enregistre pas à moitié."""
+    if not body.seuils:
+        raise HTTPException(400, "Aucun seuil fourni.")
+    for cle, valeur in body.seuils.items():
+        if cle not in _SEUILS_ALERTES:
+            raise HTTPException(400, f"Réglage inconnu : {cle}")
+        libelle, unite, mini, maxi = _SEUILS_ALERTES[cle]
+        if not (mini <= valeur <= maxi):
+            raise HTTPException(400, f"« {libelle} » doit être entre {mini} et {maxi} {unite}.")
+
+    for cle, valeur in body.seuils.items():
+        # Un entier s'écrit sans décimale : « 4 » et non « 4.0 » — cette valeur se relit à l'écran.
+        texte = str(int(valeur)) if float(valeur).is_integer() else str(valeur)
+        row = db.query(Setting).filter(Setting.key == cle).first()
+        if row:
+            row.value = texte
+        else:
+            db.add(Setting(key=cle, value=texte))
+    db.commit()
+    log_admin_action(db=db, admin_email=_get_admin_email(request), action="SEUILS_ALERTES",
+                     ip=request.client.host if request.client else None,
+                     details=", ".join(f"{c}={v:g}" for c, v in body.seuils.items()))
+    return {"status": "ok"}
 
 
 @router.post("/admin/alerts/{alert_id}/read")
@@ -2623,8 +3118,8 @@ def admin_demos_proposition(referentiel_id: int = Query(...),
     rien n'est enregistré ici. Si la base n'existe pas encore — cas normal, l'admin déclare la
     fiche AVANT que le dev fabrique — les compteurs valent zéro et `base_trouvee` est faux.
 
-    LE NOM DE BASE NE SE DÉDUIT PAS DU RÉFÉRENTIEL. `ciela_demo` ne se calcule pas depuis
-    « BTS CIEL option A », ni `crsa_demo` depuis « licence_ergotherapie ». On regarde donc ce
+    LE NOM DE BASE NE SE DÉDUIT PAS DU RÉFÉRENTIEL : un nom court comme `ciela_demo` ne se
+    calcule pas depuis l'intitulé complet du niveau, ni `ergo_demo` depuis « licence_ergotherapie ». On regarde donc ce
     qui EXISTE sur le serveur : les bases en `_demo` qu'aucune fiche ne revendique. S'il n'en
     reste qu'une, c'est celle-là — et c'est le cas réel, puisqu'on déclare la fiche d'une
     démonstration à la fois. Sinon on propose un nom bâti sur le nom du référentiel, que
@@ -2796,4 +3291,88 @@ def admin_demos_supprimer(demo_id: int, request: Request,
     log_admin_action(db=db, admin_email=_get_admin_email(request), action="DEMO_RETIREE",
                      ip=request.client.host if request.client else None,
                      details=f"Fiche retirée de la liste : {nom} (la base PostgreSQL, elle, reste)")
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# LE CARNET DE L'ADMINISTRATEUR — écran « Tâches à faire »
+#
+# À NE PAS CONFONDRE avec `/admin/taches` juste au-dessus, qui règle le PLANIFICATEUR : là, des
+# travaux que le serveur exécute tout seul ; ici, des notes que personne n'exécute. Le préfixe
+# d'URL les sépare (`taches-a-faire`), et les deux écrans portent des noms différents.
+# ---------------------------------------------------------------------------
+
+class TacheAFaireBody(BaseModel):
+    titre: str
+    detail: str | None = None
+    fait: bool = False
+
+
+def _tache_a_faire_vue(t: TacheAFaire) -> dict:
+    return {
+        "id": t.id,
+        "titre": t.titre,
+        "detail": t.detail,
+        "fait": t.fait,
+        "fait_at": t.fait_at.isoformat() if t.fait_at else None,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+    }
+
+
+@router.get("/admin/taches-a-faire")
+def lister_taches_a_faire(db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Le carnet, à faire d'abord. Une note cochée descend, elle ne disparaît pas : c'est la
+    trace de ce qui a été décidé, et parfois la preuve qu'on l'avait déjà tranché."""
+    lignes = (
+        db.query(TacheAFaire)
+        .order_by(TacheAFaire.fait.asc(), TacheAFaire.created_at.desc())
+        .all()
+    )
+    return {"taches": [_tache_a_faire_vue(t) for t in lignes]}
+
+
+@router.post("/admin/taches-a-faire", status_code=201)
+def creer_tache_a_faire(body: TacheAFaireBody, db: Session = Depends(get_db),
+                        _: None = Depends(_require_admin)):
+    titre = (body.titre or "").strip()
+    if not titre:
+        raise HTTPException(400, "Une note sans titre ne se retrouve pas : donnez-lui un titre.")
+    t = TacheAFaire(titre=titre[:200], detail=(body.detail or "").strip() or None)
+    db.add(t)
+    db.commit()
+    return _tache_a_faire_vue(t)
+
+
+@router.put("/admin/taches-a-faire/{tache_id}")
+def modifier_tache_a_faire(tache_id: int, body: TacheAFaireBody, db: Session = Depends(get_db),
+                           _: None = Depends(_require_admin)):
+    t = db.get(TacheAFaire, tache_id)
+    if t is None:
+        raise HTTPException(404, "Note introuvable.")
+    titre = (body.titre or "").strip()
+    if not titre:
+        raise HTTPException(400, "Une note sans titre ne se retrouve pas : donnez-lui un titre.")
+    t.titre = titre[:200]
+    t.detail = (body.detail or "").strip() or None
+    # LA DATE SUIT LA CASE, dans les deux sens : décocher une note la remet à faire, et garder
+    # une date de clôture sur une note rouverte la ferait passer pour terminée dans tout comptage.
+    if body.fait and not t.fait:
+        t.fait_at = maintenant_utc()
+    elif not body.fait:
+        t.fait_at = None
+    t.fait = body.fait
+    db.commit()
+    return _tache_a_faire_vue(t)
+
+
+@router.delete("/admin/taches-a-faire/{tache_id}")
+def supprimer_tache_a_faire(tache_id: int, db: Session = Depends(get_db),
+                            _: None = Depends(_require_admin)):
+    """Supprime VRAIMENT la ligne. Un carnet qu'on ne peut pas raturer se remplit de notes mortes,
+    et plus personne ne le lit."""
+    t = db.get(TacheAFaire, tache_id)
+    if t is None:
+        raise HTTPException(404, "Note introuvable.")
+    db.delete(t)
+    db.commit()
     return {"status": "ok"}

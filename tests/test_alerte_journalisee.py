@@ -40,10 +40,12 @@ def _brancher(monkeypatch, *, deja_alerte=False):
     """Isole create_alert : pas de BDD, pas de SMTP. Rend le journal des effets observés."""
     effets = {"ajoutes": [], "commits": 0, "rollbacks": 0, "mails": []}
     monkeypatch.setattr(alerts, "session_pour", lambda _schema: _SessionFactice(effets))
-    monkeypatch.setattr(alerts, "_already_alerted", lambda db, title: deja_alerte)
+    monkeypatch.setattr(alerts, "_already_alerted",
+                        lambda db, title, user_id=None: deja_alerte)
     monkeypatch.setattr(
         alerts, "_send_alert_email",
-        lambda level, title, message, sujet_detail="": effets["mails"].append((level, title, message)),
+        lambda level, title, message, sujet_detail="", destinataire=None, **k:
+            effets["mails"].append((level, title, message)),
     )
     return effets
 

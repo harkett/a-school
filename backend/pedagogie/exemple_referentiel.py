@@ -23,7 +23,7 @@ from backend.core.models import ExempleReferentielResponse
 from backend.core.models_db import Niveau, Referentiel, User
 from backend.prof.profil import couple_de_travail, texte_cahier_du_profil
 from backend.rag.pgvector_store import retrieve_pg
-from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+from backend.systeme.admin import (get_ai_model, get_ai_provider, liste_fournisseurs, get_cle_texte, get_max_tokens,
                                    get_rag_top_k, get_retry_max, get_retry_wait_max, get_temperature)
 from backend.llm.generator import generate, LLMRateLimitError
 from backend.llm.prompts import build_exemple_referentiel_prompt, ajouter_cahier_au_prompt
@@ -71,9 +71,8 @@ AUCUN_EXTRAIT_PERTINENT = (
 #   que celles-ci au total. Aucune n'atteint 5/5 sur Bébés ET plus de 2/6 sur BTS.
 #
 # CE QUE LA MESURE A MONTRÉ AU PASSAGE, et que la requête ne peut pas réparer : sous l'ancienne
-# formulation, le chunk de rang 1 de CINQ matières BTS sur six était le même — « C11 MAINTENIR
-# UN RÉSEAU INFORMATIQUE — BTS CIEL Option B », un extrait de l'Option B servi dans un
-# référentiel Option A, y compris pour l'anglais. La collection contient 10 chunks Option B sur
+# formulation, le chunk de rang 1 de CINQ matières BTS sur six était le même — un extrait
+# d'Option B servi dans un référentiel Option A, y compris pour l'anglais. La collection contient 10 chunks Option B sur
 # 46, et 4 doublons (46 lignes pour 42 textes distincts). Aucune formulation ne choisit bien
 # dans un sac pollué : c'est l'ingestion qu'il faut reprendre, pas cette ligne.
 REQUETE_GABARIT = "Idée d'activité de {matiere}, niveau {niveau}, ancrée sur le programme"
@@ -101,10 +100,11 @@ def _resolve_collection(db: Session, niveau: str) -> tuple[str, dict | None, flo
     rid = referentiel_du_niveau_nomme(db, niveau)
     if rid is None:
         return None
-    if len(rows) > 1:
-        log.error(f"[exemple-ref] ambiguïté niveau : {len(rows)} référentiels pour nom={niveau!r}")
-        raise HTTPException(500, f"Ambiguïté niveau : {len(rows)} référentiels trouvés pour ce nom de niveau. Configuration à corriger.")
-    collection, filtres_json, score_min = rows[0]
+    ligne = (db.query(Referentiel.collection, Referentiel.filtres, Referentiel.score_min)
+               .filter(Referentiel.id == rid).first())
+    if ligne is None:
+        return None
+    collection, filtres_json, score_min = ligne
     filters = json.loads(filtres_json) if filtres_json else None
     return collection, filters, score_min
 
@@ -160,7 +160,7 @@ def api_exemple_referentiel(
     try:
         # retry_max / retry_wait_max : même politique de rattrapage qu'ailleurs, lue en base.
         # Elle manquait ici : le réglage `ai_retry_max` de l'admin ne s'appliquait pas.
-        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+        texte = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db), model=get_ai_model(db),
                          max_tokens=get_max_tokens(db, "exemple"), temperature=get_temperature(db),
                          retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
                          outil="exemple")

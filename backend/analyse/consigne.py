@@ -10,7 +10,7 @@ from backend.pedagogie.exemple_referentiel import (AUCUN_EXTRAIT_PERTINENT, REQU
                                                    _resolve_collection)
 from backend.prof.profil import couple_de_travail
 from backend.rag.pgvector_store import retrieve_pg
-from backend.systeme.admin import (get_ai_model, get_ai_provider, get_cle_texte, get_max_tokens,
+from backend.systeme.admin import (get_ai_model, get_ai_provider, liste_fournisseurs, get_cle_texte, get_max_tokens,
                                    get_rag_top_k, get_retry_max, get_retry_wait_max,
                                    get_temperature, get_prompt)
 from backend.llm.generator import generate, LLMRateLimitError
@@ -96,7 +96,8 @@ def api_exemple_consigne_genere(
     collection, filtres, seuil = resolu
 
     chunks = retrieve_pg(collection, REQUETE_GABARIT.format(matiere=matiere, niveau=niveau),
-                         filters=filtres, top_k=get_rag_top_k(db), schema=schema_de_session(db))
+                         filters=filtres, top_k=get_rag_top_k(db),
+                         schema=schema_de_session(db), annee=niveau)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on le dit au prof, et `generate` n'est PAS appelé (rien payé).
@@ -106,7 +107,7 @@ def api_exemple_consigne_genere(
     # Pas de cahier des charges de l'établissement ici, contrairement aux prompts de génération :
     # ses règles servent à rendre un contenu PROPRE, et cette consigne-ci doit être imparfaite.
     try:
-        brut = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db),
+        brut = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db),
                         model=get_ai_model(db),
                         max_tokens=get_max_tokens(db, "consigne_exemple_genere"),
                         temperature=get_temperature(db), retry_max=get_retry_max(db),
@@ -144,7 +145,7 @@ def api_analyser_consigne(
     try:
         # retry_max / retry_wait_max : même politique de rattrapage qu'ailleurs, lue en base.
         # Elle manquait ici : le réglage `ai_retry_max` de l'admin ne s'appliquait pas.
-        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), model=get_ai_model(db),
+        raw = generate(prompt, cle=get_cle_texte(db), provider=get_ai_provider(db), voies_fournisseurs=liste_fournisseurs(db), model=get_ai_model(db),
                        max_tokens=get_max_tokens(db, "consigne"), temperature=get_temperature(db),
                        retry_max=get_retry_max(db), retry_wait_max=get_retry_wait_max(db),
                        outil="consigne")

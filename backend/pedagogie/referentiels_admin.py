@@ -29,6 +29,7 @@ from backend.core.database import get_db, session_pour, SCHEMA_REEL
 # Règle de nommage des dossiers (« BMG_0-3 » → « BMG_0_3 ») : UNE seule source,
 # elle était recopiée mot pour mot ici, dans pgvector_store et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
+from backend.core.resolution_couple import recalculer_nom_affichage
 from backend.core.models_db import (
     Activite, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType,
     ReferentielTypePrecision,
@@ -212,6 +213,9 @@ def lister_referentiels(db: Session = Depends(get_db)):
     # se valident au fur et à mesure mais ne suffisent PAS à déclarer le référentiel complet.
     refs = [
         {"id": r.id, "cycle": cyc, "cycle_id": cyc_id, "niveau": niv, "niveau_id": r.niveau_id,
+         # Ce que l'écran AFFICHE : tous les niveaux desservis. `niveau` reste le niveau PORTEUR,
+         # qui sert à ouvrir la fiche du couple — le remplacer casserait la navigation.
+         "nom_affichage": r.nom_affichage or niv,
          "fichier": r.fichier, "source": r.source, "forcage_motif": r.forcage_motif,
          "complet": bool(r.decoupe_valide)}
         for r, cyc, niv, cyc_id in rows
@@ -343,9 +347,11 @@ def controle_couple(body: ControleCoupleBody, db: Session = Depends(get_db)):
     technicien supérieur Cybersécurité… option B »). Le cycle est cherché en plus, seulement pour
     que le message d'erreur puisse dire ce qui a été trouvé.
 
-    On regarde d'abord les premières pages (le titre s'y trouve — réponse immédiate), et seulement
-    si le niveau n'y est pas, le document ENTIER : un document valable n'est jamais refusé à tort.
-    Lecture seule : ne range rien, n'écrit rien."""
+    Le document est lu ENTIER, d'un seul tenant. Il l'était déjà, mais après une première passe
+    sur six pages : cette avance n'en était pas une — un titre trouvé tôt faisait gagner trois
+    secondes, un titre absent faisait payer la lecture DEUX fois. Or c'est précisément quand le
+    niveau ne se lit pas dès le titre que le contrôle a besoin d'être court : un programme de
+    cycle ne nomme ses années qu'au fil de ses pages. Lecture seule : ne range rien, n'écrit rien."""
     cycle = db.get(Cycle, body.cycle_id)
     if not cycle:
         raise HTTPException(404, "Cycle inconnu.")
@@ -355,14 +361,9 @@ def controle_couple(body: ControleCoupleBody, db: Session = Depends(get_db)):
 
     cible_cycle = _texte_cherchable(cycle.nom)
     mots_niveau = list(dict.fromkeys(_texte_cherchable(niv.nom).split()))   # sans doublon, ordre gardé
-    trouve_cycle = False
-    manquants: list[str] = list(mots_niveau)
-    for max_pages in (6, None):
-        texte = _texte_cherchable(_texte_staged(body.token, max_pages=max_pages))
-        trouve_cycle = bool(cible_cycle) and re.search(rf"\b{re.escape(cible_cycle)}\b", texte) is not None
-        manquants = [m for m in mots_niveau if not re.search(rf"\b{re.escape(m)}\b", texte)]
-        if not manquants:
-            break
+    texte = _texte_cherchable(_texte_staged(body.token, max_pages=None))
+    trouve_cycle = bool(cible_cycle) and re.search(rf"\b{re.escape(cible_cycle)}\b", texte) is not None
+    manquants = [m for m in mots_niveau if not re.search(rf"\b{re.escape(m)}\b", texte)]
 
     trouve_niveau = bool(mots_niveau) and not manquants
     return {
@@ -561,12 +562,26 @@ def _etapes_enregistrement(body: "ValiderBody", db: Session):
             forcage_motif=forcage_motif,
             verif_couple=verif_couple_json,
             controle_niveau=controle_niveau_json,
-        # Le rattachement à son niveau porteur part avec la création, tenu par le modèle
-        # (`_referentiel_dessert_au_moins_son_niveau_porteur`) : rien à écrire ici.
             texte_epure=texte_epure,
         )
         db.add(ref)
+        # Le rattachement à son niveau porteur part avec la création, tenu par le modèle
+        # (`_referentiel_dessert_au_moins_son_niveau_porteur`) : rien à écrire ici.
+        db.flush()
+        # Le nom d'affichage se calcule APRÈS le rattachement, puisqu'il en dérive. Même
+        # transaction : un référentiel ne peut pas exister sans le nom sous lequel il se montre.
+        recalculer_nom_affichage(db, ref.id)
         db.commit()
+
+    # AUCUN méta-prompt n'est posé ici, et c'est voulu. Un référentiel neuf arrive avec ses
+    # quatre colonnes VIDES : c'est son état normal, pas une panne. La recopie automatique d'un
+    # gabarit, essayée le 14/08/2026, a été retirée le jour même — elle remplissait Collège · 4e
+    # avec les méta-prompts d'un BTS, qui parlent d'options, de règlement d'examen et de codes
+    # d'unités. Un texte faux qui a l'air juste est PIRE qu'une colonne vide : vide, l'écran dit
+    # ce qu'il faut charger ; rempli, personne ne va compter les mots pour s'apercevoir qu'il
+    # décrit un autre diplôme. C'est la même faute que le repli commun retiré le 08/08/2026
+    # (il faisait chercher une grille d'horaires dans un programme de crèche), refaite sous un
+    # autre nom. Chaque méta-prompt se charge à la main, dans la cartouche de son étape.
 
     yield ("tache", "base")        # la fiche du référentiel est écrite (commit fait)
 
@@ -641,8 +656,8 @@ def _prompt_matieres_du_referentiel(db: Session, ref: Referentiel, texte: str) -
     """LE prompt qui lit les matières de CE référentiel — le couple cycle+niveau, pas le cycle.
 
     Rangé sur le référentiel depuis le 06/08/2026. Il était sur le cycle, et c'était faux : le
-    cycle « BTS » porte dix-huit niveaux, et le prompt écrit sur le premier (BTS CIEL, avec ses
-    options réseau) était ensuite servi à tous les autres — il ne dit rien du BTS CRSA. Une famille
+    cycle « BTS » porte dix-huit niveaux, et le prompt écrit sur le premier déposé était ensuite
+    servi à tous les autres — il ne dit rien des dix-sept qui suivent. Une famille
     de diplômes n'est pas une famille de documents.
 
     S'il n'existe pas encore, il est ÉCRIT ICI, tout de suite, par l'IA (méta-prompt en base + ce
@@ -948,7 +963,7 @@ def valider_prompt_decoupe_couple(body: PromptDecoupeCoupleBody, db: Session = D
 # Les trois portes qui lisaient et écrivaient `cycles.prompt_matieres` (lire / generer / valider)
 # ont été retirées le 06/08/2026 avec la colonne elle-même : le prompt des matières appartient au
 # RÉFÉRENTIEL, un par couple cycle+niveau. Un cycle « BTS » porte dix-huit diplômes qui ne se lisent
-# pas avec les mêmes repères — le prompt écrit sur le BTS CIEL n'apprenait rien sur le BTS CRSA.
+# pas avec les mêmes repères — le prompt écrit sur l'un d'eux n'apprenait rien sur ses voisins.
 
 
 # ── État d'un couple : le référentiel est-il DÉJÀ enregistré ? nom réel + matières ──

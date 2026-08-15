@@ -1434,7 +1434,7 @@ export default function AdminReferentiels() {
           const actif = String(cycleId) === String(r.cycle_id) && niveau === r.niveau
           return (
             <button key={r.id} type="button" onClick={() => ouvrirRef(r)}
-              title={`${r.cycle} · ${r.niveau}`}
+              title={`${r.cycle} · ${r.nom_affichage || r.niveau}`}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
                 border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
                 background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
@@ -1443,7 +1443,7 @@ export default function AdminReferentiels() {
                   prompt de découpe validé), rouge = à terminer. Reflet, jamais recopié. */}
               <Pastille etat={r.complet ? 'vert' : 'rouge'}
                 titre={r.complet ? 'Procédure complète' : 'Procédure à terminer'} />
-              {r.cycle} · {r.niveau}
+              {r.cycle} · {r.nom_affichage || r.niveau}
               {r.forcage_motif && <span title="Validé en forçage" style={{ marginLeft: 6, color: '#b45309' }}>⚠</span>}
             </button>
           )

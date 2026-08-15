@@ -51,6 +51,11 @@ HORS_EMPREINTE = {
     "outil": "mesure seule — deux outils qui posent la meme question meritent la meme reponse",
     "prefixe_cache": "redite du debut du prompt, deja dans l'empreinte via `prompt` — il dit au "
                      "fournisseur ou couper, il ne change pas la question posee",
+    "voies_fournisseurs": "acheminement : la liste dit QUI appeler, pas ce qu'on lui "
+               "demande. Deux appels identiques mentionnent le meme prompt, le meme modele et les "
+               "memes bornes — la reponse en cache leur convient aux deux. L'y faire entrer "
+               "creerait une empreinte differente chaque fois qu'un fournisseur est desactive, "
+               "c'est-a-dire un cache qui ne tombe jamais.",
 }
 
 

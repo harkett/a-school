@@ -26,7 +26,7 @@ from backend.main import app
 from backend.systeme.admin import _make_admin_token
 from fastapi.testclient import TestClient
 
-# Les 27 lectures d'administration qui n'étaient tenues par rien.
+# Les lectures d'administration qui n'étaient tenues par rien.
 LECTURES_ADMIN = [
     "/api/admin/audit-log",
     "/api/admin/check",
@@ -36,7 +36,6 @@ LECTURES_ADMIN = [
     "/api/admin/feature-votes",
     "/api/admin/fonctionnalites",
     "/api/admin/ia/catalogue",
-    "/api/admin/ia/en-cours",
     "/api/admin/ia/usage",
     "/api/admin/logs",
     "/api/admin/maintenance/stats",

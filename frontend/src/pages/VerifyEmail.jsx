@@ -1,7 +1,8 @@
-﻿import { useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import Attente from '../components/Attente.jsx'
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams()
@@ -31,10 +32,14 @@ export default function VerifyEmail() {
     enabled: !!token,
     queryFn: async () => {
       try {
-        const r = await fetchWithTimeout(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, {}, TIMEOUT_AUTH)
+        // `credentials` explicite : c'est le cookie posé à l'inscription qui voyage ici, et
+        // c'est lui qui décide si la session s'ouvre. Le laisser au comportement par défaut du
+        // navigateur reviendrait à parier sur un réglage qu'on ne maîtrise pas.
+        const r = await fetchWithTimeout(`/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+                                         { credentials: 'include' }, TIMEOUT_AUTH)
         let data = {}
         try { data = await r.json() } catch { /* corps vide ou illisible : le code HTTP suffit */ }
-        return r.ok ? { status: 'ok', message: '' }
+        return r.ok ? { status: data.connecte ? 'entree' : 'ok', message: '' }
                     : { status: 'error', message: data.detail || 'Lien invalide ou expiré.' }
       } catch {
         return { status: 'error', message: 'Erreur réseau — réessayez.' }
@@ -42,6 +47,15 @@ export default function VerifyEmail() {
     },
   })
   const { status, message } = token ? verdict : { status: 'error', message: 'Lien de vérification manquant.' }
+
+  // LE COMPTE EST OUVERT ET LA SESSION AUSSI : on entre, sans écran intermédiaire à cliquer.
+  // Rechargement complet plutôt que navigation interne — l'application relit sa session au
+  // démarrage, et c'est le seul moyen sûr qu'elle parte avec les cookies qu'on vient de poser.
+  useEffect(() => {
+    if (status !== 'entree') return
+    const t = setTimeout(() => window.location.replace('/'), 900)
+    return () => clearTimeout(t)
+  }, [status])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
@@ -57,9 +71,11 @@ export default function VerifyEmail() {
             <img src="/Logo_aSchool.png" alt="aSchool" style={{ width: 160, height: 'auto' }} />
           </div>
 
-          {status === 'loading' && (
-            <p className="text-sm text-gray-400">Activation en cours…</p>
-          )}
+          {status === 'loading' && <Attente texte="Activation en cours…" />}
+
+          {/* Le compte vient de s'ouvrir sur le navigateur qui s'est inscrit : rien à cliquer,
+              l'application s'ouvre. La phrase dit ce qui se passe pendant la seconde d'attente. */}
+          {status === 'entree' && <Attente texte="Compte activé — ouverture de votre espace…" />}
 
           {status === 'ok' && (
             <>
@@ -90,9 +106,16 @@ export default function VerifyEmail() {
               <p className="text-sm text-gray-500 mb-6">{message}</p>
 
               {resendStatus === 'sent' ? (
-                <p className="text-sm text-green-600 mb-4">
-                  Email renvoyé — vérifiez votre boîte mail.
-                </p>
+                <>
+                  <p className="text-sm text-green-600 mb-2">
+                    Email renvoyé — <strong>vérifiez votre boîte mail</strong>.
+                  </p>
+                  {/* Même situation qu'après l'inscription : quelqu'un attend un courriel qui
+                      peut tomber en indésirables. Le dire ici aussi, sinon il attend pour rien. */}
+                  <p className="text-xs mb-4" style={{ color: '#92400e' }}>
+                    Pensez à regarder dans vos courriers indésirables.
+                  </p>
+                </>
               ) : (
                 <form onSubmit={handleResend} className="text-left mb-6">
                   <p className="text-xs text-gray-500 mb-2 text-center">

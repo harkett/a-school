@@ -65,7 +65,14 @@
       "Bash(grep -vE '^\\\\s*#|^\\\\s*$')",
       "Bash(mkdir -p fusion)",
       "Bash(pdftotext -enc UTF-8 -layout \"d:/A-SCHOOL/REFERENTIELS/CRECHE/BMG_0_3/REFERENTIEL-EVEIL-0-3-aSchool-hab.pdf\" fusion/A_hab.txt)",
-      "Bash(pdftotext -enc UTF-8 -layout \"d:/A-SCHOOL/REFERENTIELS/CRECHE/BMG_0_3/REFERENTIEL-EVEIL-0-3-aSchool-CC.pdf\" fusion/B_cc.txt)"
+      "Bash(pdftotext -enc UTF-8 -layout \"d:/A-SCHOOL/REFERENTIELS/CRECHE/BMG_0_3/REFERENTIEL-EVEIL-0-3-aSchool-CC.pdf\" fusion/B_cc.txt)",
+      "Bash(npx eslint *)",
+      "Bash(docker compose *)",
+      "Bash(docker compose exec -T backend python -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"hosts:%{http_code}\\\\n\" -m 5 \"http://demo-college4e.aschool.fr:8080/api/demo/etat\")",
+      "Bash(curl -s -m 5 -H \"Host: demo-college4e.aschool.fr\" http://localhost:8080/api/demo/etat)",
+      "Bash(cat deploy/nginx-demos-local.conf; echo \"=== hosts ===\"; grep -i \"aschool\" /c/Windows/System32/drivers/etc/hosts 2>/dev/null || echo \"\\(aucune ligne aschool dans hosts\\)\")",
+      "Read(//c/Windows/System32/drivers/etc/**)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",

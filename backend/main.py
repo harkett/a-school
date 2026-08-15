@@ -32,7 +32,9 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.core.limiter import limiter, plafond_depasse
 from backend.llm.generator import (LLMIndisponibleError, LLMModeleIncompatibleError,
-                                   LLMQuotaCompteError, LLMRateLimitError)
+                                   LLMQuotaCompteError, LLMRateLimitError,
+                                   LLMCleRefuseeError, LLMSoldeEpuiseError,
+                                   LLMDemandeInvalideError)
 from backend.core.middleware import UserSessionMiddleware
 from backend.core.schema_requete import SchemaRequeteMiddleware
 from backend.securite import auth
@@ -57,9 +59,13 @@ _scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    from backend.supervision.alerts import run_all_checks
-    _scheduler.add_job(run_all_checks, "interval", minutes=5, id="alert_checks")
+    # LES TRAVAUX AUTOMATIQUES VIENNENT DE LA BASE, plus d'ici. Leur heure et leur cadence
+    # étaient écrites en dur à cet endroit : les changer demandait un développeur et un
+    # redéploiement pour deux chiffres d'exploitation. L'administrateur les règle maintenant dans
+    # Administration → Planificateur, et `programmer_tout` les repose à chaud.
+    from backend.systeme.planificateur import programmer_tout
     _scheduler.start()
+    programmer_tout(_scheduler)
 
     # Préchauffe le modèle d'embeddings RAG en tâche de fond. Sans ça, le 1er clic
     # « Tester un exemple » paie ~30s de chargement à froid (torch + modèle). Ici le
@@ -105,6 +111,18 @@ _CODES_LLM = [
     (LLMIndisponibleError, 503),
     (LLMModeleIncompatibleError, 409),
     (LLMQuotaCompteError, 413),
+    # Les trois suivantes sont nées avec la trace des refus et n'étaient RACCORDÉES NULLE PART :
+    # faute d'être ici, elles repartaient en 500 « erreur interne » — le code qui dit « le serveur
+    # a planté ». Or aucune des trois n'est un plantage, et leur message était déjà écrit pour un
+    # humain : il arrivait donc habillé du mauvais code, dans l'écran d'erreur le plus alarmant.
+    #
+    # 503 pour les deux premières : l'application est intacte, c'est son accès au service d'IA qui
+    # est coupé. Le professeur n'y peut rien, l'administrateur si.
+    (LLMCleRefuseeError, 503),      # accès refusé — clé à renouveler
+    (LLMSoldeEpuiseError, 503),     # compte à court — à recharger
+    # 500 assumé pour la dernière, et c'est le seul cas où il est mérité : la demande était mal
+    # formée, donc le défaut est chez nous. Le dire franchement vaut mieux que de le déguiser.
+    (LLMDemandeInvalideError, 500),
 ]
 
 

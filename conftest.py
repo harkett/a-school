@@ -10,9 +10,11 @@ jamais sur SQLite, jamais sur la base dev `aschool`. Trois verrous :
      sinon on refuse de tourner (et donc de TRUNCATE).
   3. ISOLATION — `TRUNCATE` entre chaque test, exclusivement sur `aschool_test`.
 """
+import atexit
 import os
 import sys
 import tempfile
+import time as _time
 from pathlib import Path
 
 import pytest
@@ -131,6 +133,37 @@ _assert_test_engine()
 # --- Schéma sur aschool_test (l'extension vector existe déjà ; create_all fait le reste) ---
 from backend.core import models_db  # noqa: E402
 from backend.core.llm_prompts import PROMPTS as _PROMPTS  # noqa: E402
+
+# --- UN SEUL RUN À LA FOIS SUR aschool_test (15/08/2026) ---------------------------------
+# La base de test est UNE, et deux suites lancées en même temps s'y battent : l'une demande
+# l'AccessExclusiveLock du DROP ou du TRUNCATE pendant que l'autre tient un RowExclusiveLock sur
+# ses propres écritures. PostgreSQL tranche par `deadlock detected`, et c'est la suite ENTIÈRE qui
+# refuse de démarrer — mesuré le 15/08/2026 : quatre lancements de suite perdus, deux process
+# pytest concurrents (une session de développement de plus sur le même dépôt suffit).
+#
+# Le remède n'est PAS de couper les connexions d'en face : ce serait tuer le run du voisin, et le
+# voisin tuerait le nôtre. On prend un verrou consultatif — un simple numéro que PostgreSQL ne
+# donne qu'à une session à la fois — et le second run ATTEND son tour au lieu d'échouer. Le verrou
+# vit sur une connexion tenue ouverte tout le run, et tombe de lui-même si le process meurt :
+# rien à nettoyer, jamais de base restée verrouillée.
+_CLE_VERROU_SUITE = 8_150_826    # arbitraire, propre à la suite aSchool
+_ATTENTE_MAX = 600               # 10 min : au-delà, mieux vaut le dire que d'attendre en silence
+# AUTOCOMMIT, et ce n'est pas un détail : hors autocommit, le premier `SELECT` ouvre une
+# transaction qui reste ensuite « idle in transaction » tout le run — donc coupée au bout de 60 s
+# par `idle_in_transaction_session_timeout` (posé plus haut). Le verrou tombait avec elle, et la
+# suite s'arrêtait net en plein milieu. En autocommit, la connexion ne tient aucune transaction :
+# elle ne fait que porter le verrou.
+_verrou_conn = _test_engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+_depart = _time.monotonic()
+while not _verrou_conn.execute(
+        text("SELECT pg_try_advisory_lock(:cle)"), {"cle": _CLE_VERROU_SUITE}).scalar():
+    if _time.monotonic() - _depart > _ATTENTE_MAX:
+        raise RuntimeError(
+            f"Une autre suite de tests occupe 'aschool_test' depuis plus de {_ATTENTE_MAX} s. "
+            "Attendez qu'elle finisse, ou vérifiez qu'un run n'est pas resté bloqué."
+        )
+    _time.sleep(1)
+atexit.register(_verrou_conn.close)   # rend le verrou ET la connexion, quoi qu'il arrive
 
 with _test_engine.begin() as _conn:
     _conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))

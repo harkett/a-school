@@ -104,11 +104,10 @@ def demo_pour_moi(request: Request, user: User = Depends(get_current_user),
     rid = referentiel_du_niveau(db, niveau_id)
     ligne = (
         db.query(Demo, Niveau.nom)
-        .join(Referentiel, Referentiel.id == Demo.referentiel_id)
-        .join(Niveau, Niveau.id == Referentiel.niveau_id)
-        .filter(Niveau.id == niveau_id)
+        .join(Niveau, Niveau.id == niveau_id)
+        .filter(Demo.referentiel_id == rid)
         .first()
-    )
+    ) if rid else None
     if not ligne:
         return {"disponible": False,
                 "raison": "Aucune démonstration n’existe encore pour votre niveau."}
@@ -126,14 +125,21 @@ def demo_pour_moi(request: Request, user: User = Depends(get_current_user),
 
 
 @router.get("/demo/aller")
-def demo_aller(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def demo_aller(request: Request, user: User = Depends(get_current_user),
+               db: Session = Depends(get_db)):
     """Le clic sur l'entrée du menu : fabrique le jeton MAINTENANT et redirige.
 
     Une vraie redirection, et pas une adresse rendue en JSON puis ouverte en JavaScript : le
     navigateur bloque les fenêtres ouvertes après un appel réseau. Ici l'entrée du menu est un
     lien ordinaire vers cette route, le navigateur suit, rien n'est bloqué — et le jeton est
     aussi frais que le clic."""
-    etat = demo_pour_moi(user=user, db=db)
+    # `request` EST OBLIGATOIRE ICI. `demo_pour_moi` le prend en premier paramètre — il lui sert
+    # à reconnaître qu'on est DÉJÀ dans une démonstration. L'appel l'omettait : Python levait
+    # « missing 1 required positional argument », donc 500 à chaque clic sur l'entrée du menu,
+    # sur toutes les instances à la fois. Une route qui en appelle une autre doit lui passer
+    # TOUT ce qu'elle demande — FastAPI n'injecte les dépendances qu'à l'entrée d'une requête,
+    # jamais dans un appel Python ordinaire.
+    etat = demo_pour_moi(request=request, user=user, db=db)
     if not etat.get("disponible"):
         raise HTTPException(409, etat.get("raison") or "Démonstration indisponible.")
 
@@ -193,7 +199,7 @@ def demo_etat(request: Request, db: Session = Depends(get_db)):
     """Sans authentification, à dessein : l'écran doit savoir qu'il est en démonstration AVANT
     que quiconque soit connecté, sinon le bandeau n'apparaîtrait qu'après coup.
 
-    Rend AUSSI le couple que cette base sert — « BTS · BTS CIEL Option A » —, pour que le bandeau
+    Rend AUSSI le couple que cette base sert — « cycle · niveau » —, pour que le bandeau
     ne dise pas seulement « vous êtes en démonstration » mais « en démonstration de QUOI ». Sans
     lui, un prof qui ouvre deux démonstrations dans deux onglets ne sait plus laquelle il regarde.
 

@@ -16,7 +16,7 @@ dit plus que le niveau porteur du document.
 """
 from sqlalchemy.orm import Session
 
-from backend.core.models_db import Matiere, Niveau, ReferentielNiveau
+from backend.core.models_db import Matiere, Niveau, Referentiel, ReferentielNiveau
 
 
 def referentiel_du_niveau(db: Session, niveau_id: int | None) -> int | None:
@@ -36,6 +36,29 @@ def referentiel_du_niveau(db: Session, niveau_id: int | None) -> int | None:
     return (db.query(ReferentielNiveau.referentiel_id)
               .filter(ReferentielNiveau.niveau_id == niveau_id)
               .scalar())
+
+
+def recalculer_nom_affichage(db: Session, referentiel_id: int) -> str:
+    """Réécrit `referentiels.nom_affichage` depuis les niveaux réellement desservis, et le rend.
+
+    « 5e, 4e, 3e » pour un document de cycle, « BTS CRSA » pour un document d'un seul niveau.
+    L'ordre est celui du cycle (`niveaux.ordre`), celui que l'administrateur a sous les yeux dans
+    ses menus — pas l'ordre d'insertion des rattachements, qui ne veut rien dire pour un lecteur.
+
+    À APPELER PARTOUT OÙ UN RATTACHEMENT CHANGE. La colonne est une copie : elle ne se corrige pas
+    toute seule, et un libellé faux est pire qu'un libellé absent — il affirme. Aujourd'hui un seul
+    appelant (la création d'un référentiel) ; le jour où un écran permettra de rattacher un niveau,
+    il devra appeler ceci dans le même geste.
+
+    Ne commit pas : l'appelant décide quand écrire, dans SA transaction."""
+    noms = [n for (n,) in db.query(Niveau.nom)
+                            .join(ReferentielNiveau, ReferentielNiveau.niveau_id == Niveau.id)
+                            .filter(ReferentielNiveau.referentiel_id == referentiel_id)
+                            .order_by(Niveau.ordre).all()]
+    nom = ", ".join(noms)
+    db.query(Referentiel).filter(Referentiel.id == referentiel_id).update(
+        {"nom_affichage": nom or None}, synchronize_session=False)
+    return nom
 
 
 def referentiel_du_niveau_nomme(db: Session, nom: str | None) -> int | None:
@@ -58,8 +81,7 @@ def matiere_id_du_nom(db: Session, nom: str | None, niveau_id: int | None) -> in
     if rid is None:
         return None
     return (db.query(Matiere.id)
-              .join(Referentiel, Referentiel.id == Matiere.referentiel_id)
-              .filter(Referentiel.niveau_id == niveau_id,
+              .filter(Matiere.referentiel_id == rid,
                       Matiere.nom == nom,
                       Matiere.validee.is_(True),
                       Matiere.actif.is_(True))

@@ -1,5 +1,6 @@
 import logging
 import threading
+import contextvars
 import time
 from contextlib import contextmanager
 
@@ -41,6 +42,50 @@ class LLMQuotaCompteError(RuntimeError):
     sur l'offre gratuite, alors qu'un référentiel entier en réclame ~49 000). Ni une panne, ni un
     mauvais modèle : réessayer ou changer de modèle ne sert à rien. Seuls l'abonnement ou la taille
     du document peuvent changer — d'où un message qui dit CE geste-là et pas un autre."""
+
+
+class LLMCleRefuseeError(RuntimeError):
+    """Le fournisseur REFUSE NOTRE IDENTITÉ (401 « unauthorized », 403 « forbidden ») : clé absente,
+    révoquée, mal recopiée, ou compte fermé. Rien à voir avec une saturation — attendre n'y changera
+    rien, et le prof n'y peut rien : c'est une variable du `.env` ou un compte à remettre en état.
+    Sans cette classe, un 401 remontait comme « le service a refusé la demande », qui envoie
+    chercher une panne là où il n'y a qu'une clé morte."""
+
+
+class LLMSoldeEpuiseError(RuntimeError):
+    """Le compte n'a plus de CRÉDIT chez ce fournisseur (402 « payment required »). Ni panne, ni
+    réglage, ni taille de document : il faut recharger. Distinct de LLMQuotaCompteError, qui dit
+    « votre palier est trop bas pour CETTE demande » — ici, aucune demande ne passera plus."""
+
+
+class LLMDemandeInvalideError(RuntimeError):
+    """NOTRE demande est mal formée (400 que rien d'autre n'explique) : c'est un défaut de
+    l'application, pas du fournisseur. La distinction n'est pas cosmétique — elle dit qu'aucun autre
+    fournisseur ne répondra mieux, puisqu'ils recevraient tous la même demande."""
+
+
+# --- Ce qui fait changer de fournisseur, et ce qui arrête tout ---------------------------------
+#
+# LA SEULE QUESTION QUI COMPTE : un AUTRE fournisseur répondrait-il mieux ?
+#
+# Oui, quand l'échec vient de CELUI-CI — il n'a plus de quota, il est en panne, sa clé est morte,
+# son compte est vide, sa fenêtre est trop étroite, il a coupé sa réponse en route. Le suivant n'a
+# aucune raison de faire pareil : on l'essaie.
+#
+# Non, quand l'échec vient de NOTRE demande — elle est mal formée. Les autres recevraient la même
+# et répondraient la même chose. Insister brûlerait toute la liste pour rien, en facturant chaque
+# essai. On s'arrête au premier, comme avant.
+#
+# Écrit ici plutôt qu'au fil du code : la question se pose une fois, la réponse se lit d'un coup
+# d'œil, et une exception ajoutée demain se range sciemment dans l'une ou l'autre colonne.
+_ECHECS_DU_FOURNISSEUR = (
+    LLMRateLimitError,          # 429 — quota atteint
+    LLMIndisponibleError,       # 5xx — panne ou saturation
+    LLMCleRefuseeError,         # 401 / 403 — clé morte
+    LLMSoldeEpuiseError,        # 402 — compte vide
+    LLMQuotaCompteError,        # palier du compte trop bas pour cette taille
+    LLMModeleIncompatibleError, # fenêtre trop étroite : un autre modèle la portera peut-être
+)
 
 
 def _marquer(e: Exception, detail: str) -> Exception:
@@ -90,7 +135,11 @@ def _traduire_echec_fournisseur(statut: int, corps: str, modele: str, fournisseu
     # volontairement basse pour ne jamais bloquer à tort — quand elle est trop optimiste, c'est le
     # fournisseur qui trancne, et il le dit en clair (« inputs tokens + max_tokens = 46235 but must
     # be < 32000 »). Le geste attendu est le même : changer de modèle, pas réessayer.
-    if statut == 400 and "must be <" in texte:
+    # Deux façons de dire la même chose : Groq compare (« inputs tokens + max_tokens = 46235 but
+    # must be < 32000 »), Anthropic constate (« prompt is too long: 208000 tokens > 200000
+    # maximum »). Ne reconnaître que la première rangerait le refus d'Anthropic parmi les demandes
+    # mal formées — c'est-à-dire au mauvais endroit, celui d'où l'on ne change pas de modèle.
+    if statut == 400 and ("must be <" in texte or "too long" in texte):
         raise tech(LLMModeleIncompatibleError(
             f"Le document est trop volumineux pour le modèle « {modele} » : sa fenêtre ne peut pas "
             f"le contenir en entier. Choisissez un modèle à plus grande fenêtre dans "
@@ -112,11 +161,37 @@ def _traduire_echec_fournisseur(statut: int, corps: str, modele: str, fournisseu
             "d'IA : il refuse une demande de cette taille. Basculez sur un autre fournisseur dans "
             "Paramètres → Génération, ou relevez le palier de votre abonnement."
         ))
+    # Identité refusée. 401 et 403 disent la même chose du point de vue du geste : la clé de CE
+    # fournisseur est à revoir. Le message nomme le fournisseur, sans quoi l'admin ne sait pas
+    # laquelle des trois clés est morte.
+    if statut in (401, 403):
+        raise tech(LLMCleRefuseeError(
+            "L'application n'arrive plus à se connecter à son service d'intelligence artificielle : "
+            "l'accès a été refusé. Ce n'est pas lié à ce que vous avez écrit, et rien n'est perdu. "
+            "Prévenez l'administrateur — c'est un accès à renouveler, il en a pour une minute."
+        ))
+    if statut == 402:
+        raise tech(LLMSoldeEpuiseError(
+            "Le compte qui alimente l'intelligence artificielle n'a plus de crédit : le service "
+            "n'accepte plus de nouvelle demande tant qu'il n'est pas rechargé. Signalez-le à "
+            "l'administrateur, et réessayez un peu plus tard."
+        ))
     if statut >= 500:   # 500/502/503 = panne, 529 = « overloaded » (saturation Anthropic)
         raise tech(LLMIndisponibleError(
             "Le service d'IA est saturé ou indisponible en ce moment. Ce n'est pas une panne de "
             "l'application : réessayez dans quelques minutes, ou basculez sur un autre fournisseur "
             "dans Paramètres → Génération."
+        ))
+    # DERNIER des 400, après les cas connus (fenêtre, format refusé) : ce qui reste vient de notre
+    # demande, pas du service. Le nommer ici plutôt que de le laisser tomber dans le message
+    # générique change ce que l'appelant peut en faire — on saura, plus tard, qu'il est inutile de
+    # présenter la même demande à un autre fournisseur.
+    if statut == 400:
+        raise tech(LLMDemandeInvalideError(
+            "L'application a mal formulé sa demande, et le service d'intelligence artificielle l'a "
+            "refusée. Ce n'est pas votre texte qui est en cause, et changer quelque chose n'y "
+            "changerait rien : c'est un défaut de l'application. Signalez-le, le détail est déjà "
+            "noté pour l'administrateur."
         ))
 
 
@@ -170,8 +245,26 @@ def _retry_wait(retry_after_raw, wait_max: int) -> float:
 _URL_GROQ = "https://api.groq.com/openai/v1/chat/completions"
 
 
+# Les deux mots par lesquels un fournisseur annonce qu'il a coupé sa réponse sur la limite de
+# sortie : `length` dans le dialecte OpenAI (Groq, Infomaniak), `max_tokens` chez Anthropic.
+_MOTIFS_TRONQUES = ("length", "max_tokens")
+
+
+# LE RANG DE LA TENTATIVE EN COURS — posé par la boucle, lu par les deux journaux.
+#
+# POURQUOI PAR LE CONTEXTE ET NON PAR LA SIGNATURE. Les quatre adaptateurs (`_groq`, `_groq_stream`,
+# `_anthropic`, `_anthropic_stream`) et leurs appels internes auraient dû se passer de main en main
+# un paramètre qui ne les concerne pas : ils appellent un fournisseur, ils ne savent pas — et n'ont
+# pas à savoir — qu'une liste les enveloppe. `ContextVar` est propre à l'appel en cours, y compris
+# dans le pool de threads de FastAPI : deux générations simultanées ne mélangent pas leurs rangs.
+#
+# NULL par défaut : sans liste, écrire « 1 » inventerait une cascade qui n'a pas eu lieu.
+_rang_courant: contextvars.ContextVar[int | None] = contextvars.ContextVar("_rang_courant", default=None)
+
+
 def _journal_appel(fournisseur: str, modele: str, motif, entree, sortie, debut: float,
-                   outil: str | None = None, cache_ecriture=None, cache_lecture=None) -> None:
+                   outil: str | None = None, cache_ecriture=None, cache_lecture=None,
+                   rang: int | None = None) -> None:
     """UNE ligne par appel LLM RÉUSSI : qui a répondu, avec quel modèle, pourquoi il s'est arrêté,
     ce qu'il a consommé, en combien de temps.
 
@@ -195,6 +288,11 @@ def _journal_appel(fournisseur: str, modele: str, motif, entree, sortie, debut: 
     surtout parce qu'Anthropic les SORT de `input_tokens` : les ignorer ferait afficher un appel
     de 70 000 tokens comme un appel de 200, et une facture dix fois trop basse."""
     duree = time.time() - debut
+    # « coupe » se DÉDUIT du motif rendu par le fournisseur, il ne se demande pas à l'appelant :
+    # les quatre voies le connaissent déjà, et le mot change selon la maison (`length` chez ceux qui
+    # parlent OpenAI, `max_tokens` chez Anthropic). Le traduire une fois ici évite qu'un cinquième
+    # appelant l'oublie, et évite surtout de compter comme un succès une réponse inutilisable.
+    resultat = "coupe" if str(motif) in _MOTIFS_TRONQUES else "ok"
     log.info(
         "LLM %s · %s · outil=%s · arrêt=%s · tokens entrée=%s sortie=%s "
         "cache(écrit=%s lu=%s) · %.1fs",
@@ -213,9 +311,41 @@ def _journal_appel(fournisseur: str, modele: str, motif, entree, sortie, debut: 
             tokens_entree=entree, tokens_sortie=sortie,
             duree_ms=int(duree * 1000), motif_arret=motif,
             tokens_cache_ecriture=cache_ecriture, tokens_cache_lecture=cache_lecture,
+            resultat=resultat, rang=rang if rang is not None else _rang_courant.get(),
         )
     except Exception as e:  # y compris l'import lui-même : mesurer ne casse jamais générer
         log.error("Usage LLM non enregistré : %s: %s", type(e).__name__, e)
+
+
+
+def _journal_echec(fournisseur: str, modele: str, statut: int | None, debut: float,
+                   outil: str | None = None, rang: int | None = None) -> None:
+    """UNE ligne pour la tentative qui N'A PAS abouti — l'exact symétrique de `_journal_appel`.
+
+    POURQUOI ELLE MANQUAIT. Un refus ne laissait qu'un `log.warning`, c'est-à-dire rien : un journal
+    défile, il ne s'additionne pas. On ne pouvait donc pas répondre à « qu'est-ce qui refuse, et à
+    quelle fréquence ? » — la question à laquelle il faut répondre avant de décider dans quel ordre
+    essayer les fournisseurs.
+
+    AUCUN TOKEN. Un appel refusé n'a rien produit et ne se facture pas : les colonnes de
+    consommation restent NULL plutôt que de porter des zéros, qui se laisseraient additionner.
+
+    `statut` None = aucune réponse n'est venue (délai dépassé, connexion perdue). C'est un refus
+    quand même, et le distinguer d'un refus annoncé est précisément l'intérêt de la colonne.
+
+    Comme `_journal_appel`, cette fonction ne peut JAMAIS faire échouer l'appel qu'elle mesure."""
+    duree = time.time() - debut
+    log.info("LLM %s · %s · outil=%s · REFUS · code=%s · %.1fs",
+             fournisseur, modele, outil or "?", statut if statut is not None else "-", duree)
+    try:
+        from backend.analytique.usage import enregistrer_usage
+        enregistrer_usage(
+            fournisseur=fournisseur, modele=modele, outil=outil,
+            duree_ms=int(duree * 1000), resultat="refus", code_http=statut,
+            rang=rang if rang is not None else _rang_courant.get(),
+        )
+    except Exception as e:
+        log.error("Refus LLM non enregistré : %s: %s", type(e).__name__, e)
 
 
 def _tokens_estimes(texte: str) -> int:
@@ -288,6 +418,7 @@ def generate(
     contexte_max: int | None = None,
     outil: str | None = None,
     prefixe_cache: str | None = None,
+    voies_fournisseurs: list[dict] | None = None,
 ) -> str:
     """Point d'entrée UNIQUE pour tout appel LLM texte.
 
@@ -333,13 +464,134 @@ def generate(
     où il s'arrête. On passe donc le TEXTE lui-même, et non un nombre de caractères : le moteur
     vérifie que le prompt commence bien par lui, sinon il n'y touche pas (cf. `_contenu_utilisateur`).
     Sans effet sur la réponse, sans effet chez Groq/Infomaniak, qui n'ont pas cette mécanique.
+
+    `voies_fournisseurs` : L'ORDRE D'APPEL — la liste des fournisseurs, du premier au dernier. Une liste de
+    dictionnaires `{provider, cle, model, max_tokens, contexte_max}` — l'appelant la résout en base
+    (`liste_fournisseurs`), le moteur ne fait que la parcourir : il reste pur, il ne sait toujours
+    pas d'où elle vient.
+
+    ELLE EST L'ORDRE. Le premier est appelé d'abord parce qu'il est premier au catalogue — il n'y a
+    plus de fournisseur « en service » désigné à part. Chaque entrée porte SA clé, SON modèle et SES
+    bornes : `mistral3` n'existe pas chez Anthropic, et la fenêtre de l'un n'est pas celle de l'autre.
+
+    ABSENTE OU VIDE ⇒ COMPORTEMENT D'HIER, À L'IDENTIQUE : un seul appel avec les paramètres reçus,
+    la même erreur au même moment. C'est ce qui garde vivants les appels sans base sous la main.
+
+    Ce qu'elle NE fait pas : aucun compteur de quota, aucune lecture d'en-tête, aucune mémoire d'un
+    appel à l'autre. Chaque appel repart du premier de la liste. Le refus est le seul signal.
     """
+    # LA LISTE, ET RIEN D'AUTRE. Quand `voies` est fournie, elle EST l'ordre d'appel : le premier
+    # est appelé d'abord parce qu'il est premier au catalogue, et chaque entrée porte SA clé, SON
+    # modèle et SES bornes. Les paramètres `provider` / `cle` / `model` sont alors ignorés — ils
+    # décrivaient l'élu unique de l'ancien système, qui n'existe plus.
+    #
+    # LISTE ABSENTE ⇒ UN SEUL APPEL, celui d'hier, avec les paramètres reçus. C'est ce qui garde
+    # vivants les appels qui n'ont pas de base sous la main (le mode long de la découpe) et les
+    # tests qui appellent le moteur directement.
+    voies = [dict(v) for v in (voies_fournisseurs or [])] or [
+        {"provider": provider, "cle": cle, "model": model, "max_tokens": max_tokens,
+         "contexte_max": contexte_max}]
+    dernier = None
+    for rang, voie in enumerate(voies, start=1):
+        try:
+            return _un_essai(
+                prompt, cle=voie.get("cle") or cle, provider=voie.get("provider"),
+                model=voie.get("model"), max_tokens=_plafond(max_tokens, voie.get("max_tokens")),
+                contexte_max=voie.get("contexte_max"), temperature=temperature,
+                json_mode=json_mode, schema=schema, outil=outil,
+                rang=rang if len(voies) > 1 else None,
+                retry_max=retry_max, retry_wait_max=retry_wait_max, appel_long=appel_long,
+                read_timeout=read_timeout, prefixe_cache=prefixe_cache,
+            )
+        except _ECHECS_DU_FOURNISSEUR as e:
+            # Ce fournisseur-là ne peut pas : on garde son erreur au cas où il serait le dernier,
+            # et on essaie le suivant. Rien n'est dit au professeur tant qu'il reste une voie.
+            dernier = e
+            log.warning("Rang %s (%s) écarté : %s", rang, voie.get("provider"), e)
+            continue
+        except RuntimeError as e:
+            # Réponse COUPÉE : le fournisseur a bien répondu, mais sa réponse est inutilisable. Un
+            # autre modèle écrit peut-être plus long — Infomaniak s'arrête à 5 000 tokens, Anthropic
+            # va à 128 000. Reconnue par son marqueur, pas par son texte : le message est traduit.
+            if "finish_reason=length" not in str(getattr(e, "detail_admin", ""))                and "limite de sortie" not in str(e):
+                raise
+            dernier = e
+            log.warning("Rang %s (%s) a coupé sa réponse : on essaie le suivant", rang, voie.get("provider"))
+            continue
+    # Toutes les voies ont refusé : l'appelant reçoit l'erreur du DERNIER essayé, pas une erreur
+    # inventée. Le professeur voit ce qu'il aurait vu sans la liste — ni plus alarmant, ni plus flou.
+    raise dernier if dernier is not None else RuntimeError("Aucun fournisseur d'IA n'est configuré.")
+
+
+def _plafond(demande: int, limite: int | None) -> int:
+    """Le plus PETIT des deux : ce que l'outil demande, ce que le fournisseur accepte.
+
+    LE PIÈGE QUE ÇA ÉVITE. La voie porte le plafond du fournisseur — 5 000 chez Infomaniak, qui
+    REFUSE au-delà (422). Le prendre tel quel, c'est envoyer 5 000 à un outil réglé sur 2 000 :
+    la borne du fournisseur deviendrait une CONSIGNE, et l'admin verrait ses réglages de longueur
+    ignorés dès que la boucle change de rang. Le prendre à l'envers — garder la demande — ferait
+    refuser l'appel. Il faut les deux : on demande ce qu'on veut, dans la limite de ce qui passe.
+
+    Limite absente (fournisseur sans plafond connu) ⇒ la demande, inchangée."""
+    return min(demande, limite) if limite else demande
+
+
+def _un_essai(
+    prompt: str,
+    *,
+    cle: str,
+    provider: str | None,
+    model: str | None,
+    max_tokens: int,
+    contexte_max: int | None,
+    temperature: float | None,
+    json_mode: bool,
+    schema: dict | None,
+    outil: str | None,
+    rang: int | None,
+    retry_max: int,
+    retry_wait_max: int,
+    appel_long: bool,
+    read_timeout: int,
+    prefixe_cache: str | None,
+) -> str:
+    """UN appel chez UN fournisseur — le corps historique de `generate()`, déplacé sans un mot de
+    changé pour que la liste puisse l'appeler plusieurs fois. Il ne connaît toujours ni la base ni
+    la liste : il reçoit un fournisseur résolu, il l'appelle, il lève s'il échoue."""
     fournisseur = provider or AI_PROVIDER
     if fournisseur not in ("groq", "anthropic", "infomaniak"):
         raise ValueError(f"Fournisseur inconnu : {fournisseur}")  # validé AVANT de prendre un créneau
     # Fenêtre du modèle : contrôlée AVANT le créneau, comme le fournisseur. Un appel voué au refus
     # ne doit ni occuper une place ni faire attendre le temps d'un envoi complet.
     verifier_fenetre(prompt, max_tokens=max_tokens, contexte_max=contexte_max, modele=model or AI_MODEL)
+    jeton = _rang_courant.set(rang)
+    try:
+        return _appeler(prompt, cle=cle, fournisseur=fournisseur, model=model, max_tokens=max_tokens,
+                        temperature=temperature, json_mode=json_mode, schema=schema, outil=outil,
+                        retry_max=retry_max, retry_wait_max=retry_wait_max, appel_long=appel_long,
+                        read_timeout=read_timeout, prefixe_cache=prefixe_cache)
+    finally:
+        _rang_courant.reset(jeton)
+
+
+def _appeler(
+    prompt: str,
+    *,
+    cle: str,
+    fournisseur: str,
+    model: str | None,
+    max_tokens: int,
+    temperature: float | None,
+    json_mode: bool,
+    schema: dict | None,
+    outil: str | None,
+    retry_max: int,
+    retry_wait_max: int,
+    appel_long: bool,
+    read_timeout: float,
+    prefixe_cache: str | None,
+) -> str:
+    """Le créneau, puis l'adaptateur du fournisseur. Inchangé depuis l'origine."""
     with _llm_slot():
         if appel_long:
             # Le créneau LLM est tenu par ce `with` pendant TOUTE la consommation du flux (le
@@ -372,6 +624,7 @@ def generate_cached(
     contexte_max: int | None = None,
     outil: str | None = None,
     prefixe_cache: str | None = None,
+    voies_fournisseurs: list[dict] | None = None,
 ) -> str:
     """`generate()` qui ne repaie pas deux fois la même question — EN DÉVELOPPEMENT SEULEMENT.
 
@@ -405,6 +658,7 @@ def generate_cached(
     compare les deux signatures pour que l'oubli se voie avant l'exécution."""
     if not cache.actif():
         return generate(prompt, cle=cle, provider=provider, model=model, max_tokens=max_tokens,
+                        voies_fournisseurs=voies_fournisseurs,
                         temperature=temperature, json_mode=json_mode, schema=schema,
                         appel_long=appel_long, read_timeout=read_timeout, retry_max=retry_max,
                         retry_wait_max=retry_wait_max, contexte_max=contexte_max, outil=outil,
@@ -435,6 +689,7 @@ def generate_cached(
         return deja
 
     reponse = generate(prompt, cle=cle, provider=provider, model=model, max_tokens=max_tokens,
+                       voies_fournisseurs=voies_fournisseurs,
                        temperature=temperature, json_mode=json_mode, schema=schema,
                        appel_long=appel_long, read_timeout=read_timeout, retry_max=retry_max,
                        retry_wait_max=retry_wait_max, contexte_max=contexte_max, outil=outil,
@@ -498,13 +753,23 @@ def _groq(
         body["response_format"] = {"type": "json_object"}
     # Résilience 429 : sur une limite de débit fournisseur, on RE-TENTE (jusqu'à retry_max fois) en
     # respectant le délai `Retry-After` plafonné à retry_wait_max. retry_max=0 -> comportement d'avant.
-    for tentative in range(retry_max + 1):
-        response = requests.post(url, headers=headers, json=body, timeout=60)
-        if response.status_code == 429 and tentative < retry_max:
-            time.sleep(_retry_wait(response.headers.get("Retry-After"), retry_wait_max))
-            continue
-        break
+    try:
+        for tentative in range(retry_max + 1):
+            response = requests.post(url, headers=headers, json=body, timeout=60)
+            if response.status_code == 429 and tentative < retry_max:
+                time.sleep(_retry_wait(response.headers.get("Retry-After"), retry_wait_max))
+                continue
+            break
+    except requests.exceptions.RequestException:
+        # Délai dépassé, DNS, connexion refusée : le fournisseur n'a rien dit du tout. On pose la
+        # ligne (code vide) et on RELÈVE L'ERREUR D'ORIGINE — mesurer ne change pas ce que
+        # l'appelant reçoit, et ce qui remontait hier remonte à l'identique.
+        _journal_echec(fournisseur, model or AI_MODEL, None, debut, outil)
+        raise
     if not response.ok:
+        # La ligne AVANT la traduction : `_traduire_echec_fournisseur` lève dès qu'elle sait
+        # nommer le refus, et tout ce qui suivrait ne serait jamais exécuté.
+        _journal_echec(fournisseur, model or AI_MODEL, response.status_code, debut, outil)
         # Traduction à la source : 429 / format refusé / service en panne repartent en message
         # d'humain. Le corps brut du fournisseur ne va JAMAIS à l'écran, seulement au journal.
         _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL, fournisseur)
@@ -591,13 +856,18 @@ def transcribe_image(image_bytes: bytes, mime_type: str = "image/jpeg", *, api_k
     return choix["message"]["content"]
 
 
-def _echec_anthropic(e, modele: str) -> None:
+def _echec_anthropic(e, modele: str, debut: float | None = None, outil: str | None = None) -> None:
     """Traduit une erreur du SDK Anthropic en message d'humain — même règle que pour Groq, mais
     l'échec arrive ici sous forme d'exception plutôt que de réponse HTTP. Ne rend jamais la main :
-    ou bien elle lève l'exception métier, ou bien elle relaie l'erreur d'origine."""
+    ou bien elle lève l'exception métier, ou bien elle relaie l'erreur d'origine.
+
+    `debut` / `outil` : de quoi poser la ligne de refus au passage. Facultatifs — un appelant qui
+    ne les donne pas obtient la traduction seule, comme avant."""
     statut = getattr(e, "status_code", 0) or 0
     corps = str(e)  # le SDK met déjà le corps de la réponse dans le texte de l'exception
     log.warning("Anthropic %s : %s", statut, corps[:500])
+    if debut is not None:
+        _journal_echec("anthropic", modele, statut or None, debut, outil)
     _traduire_echec_fournisseur(statut, corps, modele, "anthropic")
     raise e  # statut non répertorié : on ne masque rien, l'erreur d'origine repart telle quelle
 
@@ -689,14 +959,29 @@ def _anthropic(
     if not cle:
         raise _marquer(RuntimeError("Clé API texte manquante (non résolue en base)."),
                        "anthropic · clé vide reçue par l'adaptateur (voir ai_fournisseurs.cle_env)")
-    client = anthropic.Anthropic(api_key=cle, timeout=60)
+    # `max_retries=0` — LE SDK NE RÉESSAIE PLUS TOUT SEUL.
+    #
+    # Par défaut, le client Anthropic retente DEUX FOIS sur 408, 409, 429 et toute erreur 5xx, avec
+    # un délai croissant. C'était bon quand Anthropic était le seul recours : mieux valait attendre
+    # que rendre un échec. Depuis qu'une LISTE de fournisseurs existe, c'est l'inverse — un 429 chez
+    # Anthropic doit rendre la main tout de suite pour que le suivant réponde. Sinon la boucle
+    # attend trois échecs et plusieurs secondes avant même de savoir qu'elle doit avancer, et le
+    # professeur regarde tourner la jauge pendant ce temps-là.
+    #
+    # Le 429 reste re-tenté, mais par NOUS (`retry_max`, réglable dans l'admin), au même endroit et
+    # de la même façon que pour Groq et Infomaniak — une seule résilience, visible, plutôt que deux
+    # empilées dont l'une est invisible.
+    client = anthropic.Anthropic(api_key=cle, timeout=60, max_retries=0)
     debut = time.time()
     try:
         message = client.messages.create(**kwargs)
     except anthropic.APIStatusError as e:
-        _echec_anthropic(e, model or AI_MODEL)
+        _echec_anthropic(e, model or AI_MODEL, debut, outil)
     except (anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
         log.warning("Anthropic : connexion interrompue — %s", e)
+        # Refus sans code : rien n'est venu. La ligne le dit avec `code_http` vide, ce qui n'est
+        # pas la même information qu'un refus annoncé — et c'est celle qu'on veut pouvoir compter.
+        _journal_echec("anthropic", model or AI_MODEL, None, debut, outil)
         raise _marquer(LLMIndisponibleError(
             "La réponse de l'IA n'est pas arrivée jusqu'au bout (connexion interrompue). "
             "Réessayez dans un instant."
@@ -779,9 +1064,12 @@ def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=N
     # timeout de LECTURE = coupure de silence (se réarme à chaque morceau) ; connect/write/pool =
     # petits garde-fous de connexion, indépendants de la durée de génération. Ce client est PROPRE au
     # flux : il ne reprend rien du client non-streaming, donc le 60 s total ne peut pas mordre ici.
+    # `max_retries=0` : même raison que la voie non-streaming — la liste des fournisseurs remplace
+    # l'attente par le passage au suivant.
     client = anthropic.Anthropic(
         api_key=cle,
         timeout=httpx.Timeout(read_timeout, connect=10.0, write=10.0, pool=10.0),
+        max_retries=0,
     )
     # Même construction que la voie non-streaming (schéma compris) : `_anthropic_kwargs` est le seul
     # endroit qui décide du contrat de sortie. Structured Outputs vaut en flux comme hors flux.
@@ -808,9 +1096,10 @@ def _anthropic_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=N
                     f"anthropic (flux) · {model or AI_MODEL} · stop_reason=max_tokens · max_tokens={max_tokens}",
                 )
     except anthropic.APIStatusError as e:
-        _echec_anthropic(e, model or AI_MODEL)
+        _echec_anthropic(e, model or AI_MODEL, debut, outil)
     except (anthropic.APIConnectionError, anthropic.APITimeoutError) as e:
         log.warning("Anthropic (flux) : silence trop long ou connexion perdue — %s", e)
+        _journal_echec("anthropic", model or AI_MODEL, None, debut, outil)
         raise _marquer(LLMIndisponibleError(
             "La réponse de l'IA s'est interrompue en cours de route. Réessayez dans un instant."
         ), f"anthropic (flux) · {model or AI_MODEL} · silence > read_timeout — {type(e).__name__}: {e}")
@@ -848,16 +1137,21 @@ def _groq_stream(prompt, *, cle, model=None, max_tokens=2048, temperature=None, 
     # Résilience 429 : la limite de débit arrive dans les EN-TÊTES (avant le 1er mot) -> on peut
     # RE-TENTER proprement l'ouverture du flux (jusqu'à retry_max fois) tant qu'aucun texte n'est
     # encore parti à l'écran. Une fois le flux commencé, on ne re-tente JAMAIS. retry_max=0 -> avant.
-    for tentative in range(retry_max + 1):
-        response = requests.post(url, headers=headers, json=body, stream=True, timeout=(10, read_timeout))
-        if response.status_code == 429 and tentative < retry_max:
-            attente = _retry_wait(response.headers.get("Retry-After"), retry_wait_max)
-            response.close()
-            time.sleep(attente)
-            continue
-        break
+    try:
+        for tentative in range(retry_max + 1):
+            response = requests.post(url, headers=headers, json=body, stream=True, timeout=(10, read_timeout))
+            if response.status_code == 429 and tentative < retry_max:
+                attente = _retry_wait(response.headers.get("Retry-After"), retry_wait_max)
+                response.close()
+                time.sleep(attente)
+                continue
+            break
+    except requests.exceptions.RequestException:
+        _journal_echec(fournisseur, model or AI_MODEL, None, debut, outil)
+        raise
     with response:
         if not response.ok:
+            _journal_echec(fournisseur, model or AI_MODEL, response.status_code, debut, outil)
             _traduire_echec_fournisseur(response.status_code, response.text, model or AI_MODEL, fournisseur)
             log.warning("%s (flux) %s : %s", fournisseur, response.status_code, response.text[:500])
             raise _avec_technique(

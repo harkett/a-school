@@ -30,7 +30,25 @@ const duree = ms => ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000)
 // réponse est complète ou tronquée — et la tronquée se voit en rouge.
 const COUPE = ['max_tokens', 'length', 'MAX_TOKENS']
 
-const arret = m => {
+// Ce qu'est devenue la tentative prime sur le motif d'arrêt : un appel REFUSÉ n'a pas de motif,
+// puisqu'il n'a rien produit. Sans ce cas, il s'affichait « — », c'est-à-dire comme un appel dont
+// on ignore la fin — alors qu'on sait très bien ce qui s'est passé : le fournisseur a dit non.
+const REFUS = {
+  429: 'Quota atteint chez ce fournisseur.',
+  402: 'Plus de crédit sur le compte.',
+  401: 'Clé d’accès refusée.',
+  403: 'Clé d’accès refusée.',
+  400: 'Demande refusée par le fournisseur.',
+}
+
+const arret = (m, resultat, code) => {
+  if (resultat === 'refus') {
+    return {
+      texte: 'Refusé', coupe: true,
+      brut: (REFUS[code] || 'Le fournisseur a refusé l’appel.')
+        + (code ? ` (code ${code})` : ' Aucune réponse reçue — délai dépassé ou connexion perdue.'),
+    }
+  }
   if (!m) return { texte: '—', coupe: false, brut: 'Le fournisseur n’a pas dit pourquoi il s’est arrêté.' }
   if (COUPE.includes(m)) {
     return {
@@ -173,7 +191,7 @@ export default function AdminIAJournal() {
               </thead>
               <tbody>
                 {lignes.map(l => {
-                  const a = arret(l.motif_arret)
+                  const a = arret(l.motif_arret, l.resultat, l.code_http)
                   return (
                     <tr key={l.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ ...TD, whiteSpace: 'nowrap' }}>{quand(l.quand)}</td>
@@ -199,7 +217,8 @@ export default function AdminIAJournal() {
                       <td style={TDD}>{nb(l.tokens_sortie)}</td>
                       <td style={TDD}>{duree(l.duree_ms)}</td>
                       <td style={{ ...TDD, color: l.cout_usd == null ? '#9ca3af' : '#374151' }}
-                          title={l.depuis_cache ? 'Rejeu du cache : rien n’a été facturé.'
+                          title={l.resultat === 'refus' ? 'Appel refusé : rien n’a été produit, rien n’a été facturé.'
+                            : l.depuis_cache ? 'Rejeu du cache : rien n’a été facturé.'
                             : l.cout_usd == null ? 'Tarif non renseigné pour ce modèle' : undefined}>
                         {usd(l.cout_usd)}
                       </td>

@@ -27,21 +27,16 @@ const AIDE = {
 
 export default function AdminParametresGeneration() {
   const [onglet, setOnglet] = useState('modele')
-  const [aiModel, setAiModel] = useState('')
   // Le modèle en service accepte-t-il `temperature` ? Certains Claude la REFUSENT (erreur 400).
   const [tempSupportee, setTempSupportee] = useState(true)
   const [tempModele, setTempModele] = useState('')
-  const [supportedModels, setSupportedModels] = useState([])
-  const [recommandeModel, setRecommandeModel] = useState('') // modèle marqué « recommandé » (affiché entre parenthèses)
-  const [saving, setSaving]   = useState(false)
-  const [message, setMessage] = useState(null) // { type: 'ok', text }
-
-  // Fournisseur — la combo affiche TOUS les fournisseurs connus du moteur (champ `all` du backend,
-  // LU EN BASE) ; les non-opérationnels sont grisés « pas encore disponible ». Source UNIQUE : la
-  // base. Aucun repli en dur : `all` vide → message d'erreur clair, jamais de faux libellés.
-  const [aiProvider, setAiProvider] = useState('')
-  const [allProviders, setAllProviders] = useState([]) // [{ name, label, available }]
-  const [providersLoaded, setProvidersLoaded] = useState(false) // distingue « en cours » de « vide »
+  // CE QUI A DISPARU LE 15/08/2026 : la combo du fournisseur, celle du modèle, et tout ce qui
+  // les enregistrait. Il n'y a plus un fournisseur ÉLU — les appels descendent la liste du
+  // catalogue — donc plus rien à choisir ici : la section ne fait que MONTRER cet ordre.
+  // L'ORDRE D'APPEL, tel qu'il est vraiment. Lu dans le catalogue (`/admin/ia/catalogue`) et non
+  // dans un réglage : c'est le catalogue qui décide depuis le 15/08/2026, et cet écran ne fait
+  // plus que le montrer.
+  const [ordreAppel, setOrdreAppel] = useState([])
 
   // Température (Phase 4.1.d) — GLOBALE. Vide = défaut du fournisseur (non réglée), sinon 0.0–2.0.
   const [temperature, setTemperature] = useState('')
@@ -64,23 +59,24 @@ export default function AdminParametresGeneration() {
   const [messageRetry, setMessageRetry] = useState(null)
 
   useEffect(() => {
-    fetch('/api/admin/ai-models', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        setAiModel(data.current || '')
-        setSupportedModels(data.supported || [])
-        setRecommandeModel(data.recommande || '')
+    // Le catalogue donne les fournisseurs, leur rang, leur état, et leurs modèles. On y refait le
+    // même tri que `liste_fournisseurs` côté serveur : actifs, clé présente, par ordre — pour que
+    // l'écran ne montre jamais autre chose que ce qui part réellement.
+    fetch('/api/admin/ia/catalogue', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return
+        const modeleDe = code => {
+          const siens = (d.modeles || []).filter(m => m.fournisseur === code && m.actif)
+          siens.sort((a, b) => (b.recommande - a.recommande) || (a.ordre - b.ordre))
+          return siens[0]?.modele
+        }
+        setOrdreAppel((d.fournisseurs || [])
+          .filter(f => f.actif && f.cle_configuree)
+          .map(f => ({ code: f.code, label: f.label, modele: modeleDe(f.code) }))
+          .filter(f => f.modele))
       })
       .catch(() => {})
-
-    fetch('/api/admin/ai-providers', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        setAiProvider(data.current || '')
-        setAllProviders(data.all || [])
-      })
-      .catch(() => {})
-      .finally(() => setProvidersLoaded(true))
 
     fetch('/api/admin/temperature', { credentials: 'include' })
       .then(r => r.json())
@@ -111,52 +107,6 @@ export default function AdminParametresGeneration() {
       })
       .catch(() => {})
   }, [])
-
-  // Fournisseur & modèle groupés : le modèle DÉPEND du fournisseur (l'endpoint filtre les
-  // modèles par fournisseur). Changer de fournisseur recharge SES modèles (?fournisseur=)
-  // et présélectionne le recommandé.
-  async function onChangeFournisseur(code) {
-    setAiProvider(code)
-    setMessage(null)
-    try {
-      const res = await fetch(`/api/admin/ai-models?fournisseur=${encodeURIComponent(code)}`, { credentials: 'include' })
-      const data = await res.json()
-      const liste = data.supported || []
-      setSupportedModels(liste)
-      setRecommandeModel(data.recommande || '')
-      setAiModel(data.recommande || liste[0]?.modele || '')  // présélectionne le recommandé (meilleur défaut)
-    } catch {
-      setSupportedModels([]); setRecommandeModel(''); setAiModel('')
-    }
-  }
-
-  // Un seul enregistrement pour les deux : le fournisseur D'ABORD (le backend valide le
-  // modèle contre le fournisseur ENREGISTRÉ), puis le modèle.
-  async function saveFournisseurModele() {
-    setSaving(true)
-    setMessage(null)
-    try {
-      let res = await fetchWithTimeout('/api/admin/ai-provider', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ provider: aiProvider }),
-      }, TIMEOUT_STD)
-      let data = await res.json().catch(() => ({}))
-      if (!res.ok) { showError(data.detail || 'Erreur lors de l\'enregistrement du fournisseur.'); return }
-
-      res = await fetchWithTimeout('/api/admin/ai-model', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ model: aiModel }),
-      }, TIMEOUT_STD)
-      data = await res.json().catch(() => ({}))
-      if (!res.ok) { showError(data.detail || 'Erreur lors de l\'enregistrement du modèle.'); return }
-
-      setMessage({ type: 'ok', text: 'Fournisseur et modèle enregistrés.' })
-    } catch {
-      showError('Erreur réseau — vérifiez que le backend tourne.')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   // Température : vide = valide (= défaut fournisseur) ; sinon nombre dans [min, max].
   const tempInvalide = v => {
@@ -270,7 +220,10 @@ export default function AdminParametresGeneration() {
   // recopiés : ajouter une section demain, c'est ajouter une ligne ici — et le bouton reste
   // seul, donc il ne peut pas y en avoir deux qui divergent.
   const ACTIONS = {
-    modele:      { onClick: saveFournisseurModele, disabled: saving || !aiProvider || !aiModel, libelle: saving ? 'Enregistrement…' : 'Enregistrer',            titre: 'Enregistrer le fournisseur et le modèle' },
+    // Ordre d'appel : une LECTURE du catalogue, pas un réglage. L'ordre se change dans
+    // IA -> Fournisseurs. Un bouton « Enregistrer » sur un écran qui n'écrit rien ferait
+    // croire à un réglage perdu à chaque visite.
+    modele:      null,
     temperature: { onClick: saveTemperature,       disabled: savingTemp || tempInvalide(temperature), libelle: savingTemp ? 'Enregistrement…' : 'Enregistrer',  titre: 'Enregistrer la température' },
     stream:      { onClick: saveStreamTimeout,     disabled: savingStream || streamInvalide(streamTimeout), libelle: savingStream ? 'Enregistrement…' : 'Enregistrer', titre: 'Enregistrer la coupure du flux' },
     retry:       { onClick: saveRetry,             disabled: savingRetry || retryInvalide,      libelle: savingRetry ? 'Enregistrement…' : 'Enregistrer',       titre: 'Enregistrer la résilience' },
@@ -299,20 +252,24 @@ export default function AdminParametresGeneration() {
             Réglages du moteur de génération des textes.
           </p>
         </div>
-        <button
-          onClick={action.onClick}
-          disabled={action.disabled}
-          title={action.titre}
-          style={{
-            background: '#1F6EEB', color: 'white', border: 'none',
-            borderRadius: 7, height: 34, padding: '0 20px', fontSize: 13, fontWeight: 500,
-            cursor: action.disabled ? 'not-allowed' : 'pointer',
-            opacity: action.disabled ? 0.6 : 1,
-            flexShrink: 0,
-          }}
-        >
-          {action.libelle}
-        </button>
+        {/* Une section qui ne fait que lire n'a pas de bouton : `ACTIONS[onglet]` vaut alors
+            `null`, et le bandeau n'en montre aucun. */}
+        {action && (
+          <button
+            onClick={action.onClick}
+            disabled={action.disabled}
+            title={action.titre}
+            style={{
+              background: '#1F6EEB', color: 'white', border: 'none',
+              borderRadius: 7, height: 34, padding: '0 20px', fontSize: 13, fontWeight: 500,
+              cursor: action.disabled ? 'not-allowed' : 'pointer',
+              opacity: action.disabled ? 0.6 : 1,
+              flexShrink: 0,
+            }}
+          >
+            {action.libelle}
+          </button>
+        )}
       </div>
 
       {/* Maître-détail : liste verticale des sections à gauche, détail à droite (motif admin qui
@@ -326,7 +283,7 @@ export default function AdminParametresGeneration() {
                 vient du `max_tokens` de la fiche du modèle (IA › Fournisseurs & modèles). Laisser
                 l'onglet aurait été pire que l'enlever — il aurait accepté des valeurs sans effet. */}
             {[
-              ['modele', 'Fournisseur & modèle'],
+              ['modele', 'Ordre d’appel'],
               ['temperature', 'Température'],
               ['stream', 'Coupure du flux'],
               ['retry', 'Résilience'],
@@ -357,66 +314,48 @@ export default function AdminParametresGeneration() {
         {/* ── Colonne droite : détail de la section sélectionnée ── */}
         <div style={{ flex: 1, minWidth: 0 }} className="flex flex-col gap-6">
 
-      {/* Section « Fournisseur & modèle » — REGROUPÉES car le modèle DÉPEND du fournisseur
-          (l'endpoint /ai-models filtre par fournisseur). On choisit le fournisseur, ses modèles
-          se rechargent dessous (?fournisseur=), un seul bouton enregistre les deux (fournisseur
-          d'abord : le backend valide le modèle contre le fournisseur enregistré). */}
+      {/* Section « Fournisseur & modèle » — DEVENUE UNE LECTURE, le 15/08/2026.
+          ═══════════════════════════════════════════════════════════════════════════════════════
+          POURQUOI LE CHOIX A DISPARU. Cet écran faisait élire UN fournisseur et UN modèle, seuls
+          appelés : s'ils refusaient, le professeur voyait un échec. L'application appelle
+          désormais une LISTE, dans l'ordre, et s'arrête au premier qui répond. Il n'y a donc plus
+          d'élu à désigner — et laisser la combo aurait été pire que de la retirer : l'admin aurait
+          cru agir sur quelque chose que plus personne ne lit.
+
+          CE QUI DÉCIDE MAINTENANT, et où : l'ORDRE et l'état actif se règlent dans IA →
+          Fournisseurs ; le MODÈLE appelé chez chacun est son modèle recommandé, sur sa fiche.
+          Deux endroits au lieu de trois, et chacun dit ce qu'il fait.
+
+          CE QUI RESTE ICI : la température et les re-tentatives, qui valent pour TOUS les
+          fournisseurs — ce sont des réglages de génération, pas de routage. */}
       {onglet === 'modele' && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-5">
-          {/* Fournisseur */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Fournisseur d'IA
-            </label>
-            <select
-              value={aiProvider}
-              onChange={e => onChangeFournisseur(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              {!providersLoaded && <option value="">Chargement…</option>}
-              {providersLoaded && allProviders.length === 0 &&
-                <option value="">Aucun fournisseur en base — vérifiez la table ai_fournisseurs</option>}
-              {allProviders.map(p => (
-                <option key={p.name} value={p.name} disabled={!p.available}>
-                  {p.label}{p.available ? '' : ' — pas encore disponible'}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Service d'IA qui exécute la génération. Les fournisseurs grisés ne sont pas encore
-              disponibles (leur clé n'est pas configurée).
+            <div className="text-xs font-medium text-gray-600 mb-2">Ordre d'appel</div>
+            <p className="text-xs text-gray-500 mb-3">
+              L'application essaie ces fournisseurs dans cet ordre et s'arrête au premier qui
+              répond. Si l'un refuse — plus de quota, panne, compte à court — le suivant prend le
+              relais sans que l'enseignant s'en aperçoive.
             </p>
-          </div>
-
-          {/* Modèle du fournisseur sélectionné */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Modèle de génération
-            </label>
-            <select
-              value={aiModel}
-              onChange={e => setAiModel(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-            >
-              {supportedModels.length === 0 && <option value="">Aucun modèle pour ce fournisseur</option>}
-              {supportedModels.map(m => (
-                <option key={m.modele} value={m.modele}>{m.label}{m.modele === recommandeModel ? ' (recommandé)' : ''}</option>
+            <ol className="flex flex-col gap-2 m-0 p-0 list-none">
+              {ordreAppel.length === 0 && (
+                <li className="text-xs text-amber-700">
+                  Aucun fournisseur opérationnel : vérifiez leurs clés dans IA → Fournisseurs.
+                </li>
+              )}
+              {ordreAppel.map((f, i) => (
+                <li key={f.code}
+                    className="flex items-center gap-3 border border-gray-200 rounded px-3 py-2">
+                  <span className="text-xs font-bold text-violet-700 w-6">{i + 1}</span>
+                  <span className="text-sm text-gray-800 flex-1">{f.label}</span>
+                  <span className="text-xs text-gray-500 font-mono">{f.modele || '—'}</span>
+                </li>
               ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Modèle utilisé pour générer les activités. Pris en compte immédiatement, sans redémarrage.
+            </ol>
+            <p className="text-xs text-gray-400 mt-3">
+              Cet ordre se change dans <b>IA → Fournisseurs</b>, avec le rang de chacun. Le modèle
+              appelé chez un fournisseur est celui marqué « recommandé » sur sa fiche.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-3 pt-1">
-            {message && (
-              <div style={{
-                background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534',
-                borderRadius: 8, padding: '10px 14px', fontSize: 13,
-              }}>
-                {message.text}
-              </div>
-            )}
           </div>
         </div>
       )}

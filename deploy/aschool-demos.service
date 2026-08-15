@@ -12,6 +12,12 @@
 Description=A-SCHOOL — backend unique des démonstrations
 After=network.target postgresql.service
 
+# `--proxy-headers` N'EST PAS UN DÉTAIL. Sans lui, uvicorn ne lit pas les en-têtes posés par
+# nginx et l'application voit l'adresse du proxy — 127.0.0.1 — pour TOUT LE MONDE. Les sessions,
+# le journal des connexions et les tentatives échouées enregistraient donc la même adresse pour
+# tous les professeurs, et le lieu d'une connexion ne voulait rien dire.
+# `--forwarded-allow-ips=127.0.0.1` : on ne fait confiance à ces en-têtes QUE s'ils viennent du
+# nginx local. Sans cette borne, n'importe qui pourrait annoncer l'adresse de son choix.
 [Service]
 Type=simple
 User=ubuntu
@@ -21,7 +27,7 @@ WorkingDirectory=/var/www/a-school
 # recopiés nulle part à la main, et ce fichier n'est pas versionné.
 EnvironmentFile=/var/www/a-school/deploy/demos.env
 
-ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port ${PORT_DEMOS}
+ExecStart=/var/www/a-school/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port ${PORT_DEMOS} --proxy-headers --forwarded-allow-ips=127.0.0.1
 
 Restart=always
 RestartSec=3

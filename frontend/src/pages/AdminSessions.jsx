@@ -79,6 +79,7 @@ export default function AdminSessions() {
                 <th className="px-4 py-3 font-medium">Statut</th>
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Navigateur / OS</th>
+                <th className="px-4 py-3 font-medium">Lieu</th>
                 <th className="px-4 py-3 font-medium">Connexion</th>
                 <th className="px-4 py-3 font-medium">Durée</th>
                 <th className="px-4 py-3 font-medium"></th>
@@ -96,6 +97,13 @@ export default function AdminSessions() {
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     <div>{s.browser}</div>
                     <div className="text-gray-400">{s.os} · {s.device}</div>
+                  </td>
+                  {/* LE LIEU D'ABORD, L'ADRESSE DESSOUS. « Lyon, France » se lit ; « 83.228.245.163 »
+                      ne se lit pas, mais reste là — c'est elle qui fait foi le jour où l'on doit
+                      prouver qu'une connexion vient bien d'ailleurs. */}
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    <div>{s.lieu}</div>
+                    <div className="text-gray-400">{s.ip}</div>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{s.login_at}</td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap font-medium" style={{ color: s.is_online ? '#15803d' : '#94a3b8' }}>{s.duree}</td>

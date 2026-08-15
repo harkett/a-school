@@ -238,7 +238,7 @@ def _referentiel_du_profil(db: Session, user: User) -> Referentiel | None:
     rid = referentiel_du_niveau(db, user.niveau_id)
     if rid is None:
         return None
-    return db.query(Referentiel).filter(Referentiel.niveau_id == user.niveau_id).first()
+    return db.get(Referentiel, rid)
 
 
 @router.get("/user/referentiel")

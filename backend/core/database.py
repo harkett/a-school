@@ -17,6 +17,18 @@ if not DATABASE_URL or DATABASE_URL.startswith("sqlite"):
 # sous-domaine ; tout le reste — le réel, les scripts, les tâches de fond — vit ici.
 SCHEMA_REEL = "public"
 
+# CE PROCESS SERT-IL LES DÉMONSTRATIONS ? La question se pose au DÉMARRAGE, avant toute requête :
+# à ce moment-là aucun `Host` n'a été lu, donc aucun schéma n'est résolu — et il y en a autant que
+# de démonstrations. Ce qui doit se décider avant la première requête (les travaux automatiques,
+# par exemple) n'a donc qu'un seul repère : la base sur laquelle ce process est branché.
+#
+# Le signal est le nom de la base, comme dans `outils_bdd/migrer_les_demos.py` qui refuse déjà de
+# tourner ailleurs que sur celle des démonstrations. Le réel s'appelle `aschool` ou `aschool_dev`,
+# les démonstrations `aschool_demos` — et les anciennes bases `<option>_demo`, d'avant la bascule
+# en schémas, restent couvertes.
+_BASE = (DATABASE_URL.rsplit("/", 1)[-1] or "").split("?")[0].lower()
+INSTANCE_DEMOS = _BASE.endswith("_demos") or _BASE.endswith("_demo")
+
 # PostgreSQL (psycopg, synchrone) : pool robuste.
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

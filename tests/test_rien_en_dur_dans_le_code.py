@@ -104,6 +104,47 @@ EXCEPTIONS_PERMANENTES = {
     "backend/dictee/ocr.py::jpeg|jpg|png":
         "ocr.py:65 — extensions d'image acceptées. Technique.",
 
+    # LE PLANIFICATEUR, DEUX ENTRÉES — et aucune n'est un réglage.
+    #   `TACHES` fait le lien entre un code stocké en base et la FONCTION PYTHON qui porte le
+    #   travail : c'est le seul morceau qui ne peut pas descendre en base, par nature. Tout ce
+    #   qui se règle (heure, cadence, destinataire, activation) est déjà en base, dans
+    #   `taches_planifiees`.
+    #   « quotidien | intervalle » sont les deux façons de déclencher que l'ordonnanceur sait
+    #   construire — une capacité du code, pas un choix d'exploitation. En base, la valeur y est
+    #   déjà : ce test-ci ne voit que la VALIDATION qui refuse tout le reste.
+    "backend/systeme/planificateur.py:TACHES":
+        "planificateur.py:50 — le registre code → fonction Python des travaux automatiques. "
+        "Une fonction ne se stocke pas en base ; ses réglages, si, et ils y sont.",
+    "backend/systeme/admin.py::intervalle|quotidien":
+        "admin.py:1642 — les deux types de déclenchement admis par l'ordonnanceur. Validation "
+        "d'une capacité technique, pas une donnée métier.",
+
+    # LES SEUILS D'ALERTE — le registre porte les LIBELLÉS, jamais les valeurs.
+    #   Décision de l'utilisateur, 15/08/2026. Les sept valeurs (90 %, 4 appareils, 500 km…)
+    #   vivent en base et se règlent depuis Supervision → Alertes : c'est précisément le travail
+    #   qui a créé ce registre. Ce qui reste ici est le texte affiché à gauche de chaque case
+    #   (« Appareils simultanés tolérés par compte »), son unité, et les bornes de saisie qui
+    #   empêchent d'écrire 0 appareil ou trois millions de kilomètres. Un administrateur n'irait
+    #   pas modifier un libellé d'écran depuis son écran — c'est de l'affichage et un garde-fou,
+    #   la règle du « rien en dur » ne parle pas de ça.
+    "backend/systeme/admin.py:_SEUILS_ALERTES":
+        "admin.py:2758 — libellés, unités et bornes de saisie des sept seuils de surveillance. "
+        "Les valeurs, elles, sont en base (`settings`) et modifiables à l'écran.",
+
+    # LES MONNAIES, DEUX FOIS — et aucune des deux n'est une donnée d'exploitation.
+    #   `DEVISES` dit ce que le CONVERTISSEUR SAIT FAIRE : offrir le yen dans une combo alors
+    #   qu'aucun taux ne suit ne raccorderait rien. Une ligne en base ne rendrait pas la
+    #   conversion possible — c'est le code qui la rend possible.
+    #   `SYMBOLES` est de la typographie : « $ » vaut USD partout et depuis toujours. Personne
+    #   ne configurera jamais ça, et une table de deux colonnes pour quatre signes coûterait
+    #   plus cher à lire qu'à écrire.
+    "backend/core/devises.py:DEVISES":
+        "devises.py:36 — EUR / USD / CHF, les monnaies dont le module sait relever le taux à la "
+        "Banque centrale européenne. Capacité du code, pas réglage.",
+    "backend/systeme/releve_tarifs.py:SYMBOLES":
+        "releve_tarifs.py:51 — $ → USD, € → EUR, £ → GBP, Fr. → CHF. Typographie monétaire, "
+        "lue sur les grilles tarifaires des fournisseurs.",
+
     # Faux ami de plus : des noms de PARAMÈTRES PYTHON, pas des données. Les mettre en base
     # n'aurait aucun sens — ils ne décrivent que la signature de `generate()`. Et ils sont déjà
     # gardés ailleurs : test_cache_llm.py les compare à la signature réelle, dans les deux sens.
@@ -302,6 +343,11 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # 12 -> 11 le 10/08/2026 : les valeurs acceptées de MODE_DEMO dans l'environnement, retirées
     # avec la migration des démonstrations. Le drapeau ne se lit plus dans un fichier d'env : il se
     # déduit du schéma que sert la requête, et il n'y a donc plus de liste à tolérer.
-    assert len(EXCEPTIONS_PERMANENTES) == 11, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 11 attendues."
+    # 15 -> 16 le 15/08/2026 : `_SEUILS_ALERTES`, les libellés et bornes de saisie des sept
+    # seuils de surveillance. Décision de l'utilisateur, prise en connaissance du contenu : les
+    # VALEURS sont en base et se règlent à l'écran (c'est le travail qui a créé ce registre) ;
+    # ce qui reste est le texte affiché et un garde-fou de saisie. La règle du « rien en dur »
+    # vise les données qu'un administrateur modifierait — pas les intitulés de ses cases.
+    assert len(EXCEPTIONS_PERMANENTES) == 16, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 16 attendues."
     )

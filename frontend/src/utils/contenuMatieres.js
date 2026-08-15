@@ -35,7 +35,7 @@ export function nbAuProgramme(niveau) {
 }
 
 // Le compteur d'en-tête, lu sur l'arbre entier. Les matières se comptent SANS dédoublonner par
-// nom : le « Mathématiques » du BTS CIEL et celui de la Terminale sont deux matières, portées par
+// nom : le « Mathématiques » d'un BTS et celui de la Terminale sont deux matières, portées par
 // deux référentiels, et l'admin doit les voir toutes les deux.
 export function compterContenu(cycles) {
   const liste = cycles || []

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import OngletsPrompts from '../components/OngletsPrompts'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
@@ -169,8 +169,8 @@ export default function AdminPromptsReferentiels() {
   const [typesRef, setTypesRef] = useState([])  // types du niveau choisi : [{ id, label, prompt, validee }]
   const [champ, setChamp] = useState('')        // '' = tous les liens ; sinon la clé d'un CHAMPS, ou `type:<id>`
   const [texte, setTexte] = useState('')
+  const zoneTexte = useRef(null)          // pour « Sélectionner tout » : on parle au DOM
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [panne, setPanne] = useState(false)
   const [detailCache, setDetailCache] = useState(false)
@@ -254,22 +254,35 @@ export default function AdminPromptsReferentiels() {
     } else {
       setTexte(refCourant ? (refCourant[cle] || '') : '')
     }
-    setMessage(null)
   }
 
   function choisirRef(id) {
     setRefId(id)
     setChamp('')
     setTexte('')
-    setMessage(null)
     setDetailCache(false)   // choisir un niveau veut dire « montre-moi le détail »
+  }
+
+  // Sortir de l'éditeur. UN SEUL geste, appelé par Annuler, par le × de la barre de titre ET
+  // par un enregistrement réussi — sinon la fenêtre reste ouverte sur un texte déjà écrit et
+  // on ne sait plus si le clic a porté.
+  function fermerEditeur() {
+    setChamp(''); setTexte('')
+  }
+
+  // Le texte d'un prompt se recopie ailleurs (chez l'agent extérieur) : il faut pouvoir le
+  // prendre d'un geste, sans traîner la souris sur trois mille caractères.
+  function toutSelectionner() {
+    const zone = zoneTexte.current
+    if (!zone) return
+    zone.focus()
+    zone.select()
   }
 
   // Enregistrement — AUCUNE IA. Le serveur refuse un texte à qui il manque son repère.
   async function enregistrer() {
     if (!refCourant || !champCourant) return
     setSaving(true)
-    setMessage(null)
     try {
       // Le prompt d'un TYPE part sur sa propre route (PUT, avec `type_id`) : il écrit une ligne de
       // `types_activite`, pas une colonne de `referentiels`. C'est la route du ✎ Prompt de l'écran
@@ -285,7 +298,7 @@ export default function AdminPromptsReferentiels() {
         if (!r.ok) throw new Error(d.detail || `Erreur ${r.status}`)
         const propre = texte.trim()
         setTypesRef(prev => prev.map(t => (t.id === champCourant.typeId ? { ...t, prompt: propre } : t)))
-        setMessage({ ok: true, texte: `Enregistré — ${propre.length} caractères.` })
+        fermerEditeur()
         return
       }
       const r = await fetchWithTimeout(champCourant.route, {
@@ -305,7 +318,7 @@ export default function AdminPromptsReferentiels() {
             types_relu: champCourant.cle === 'types' ? !!propre : x.types_relu,
             precisions_relu: champCourant.cle === 'precisions' ? !!propre : x.precisions_relu }
         : x)))
-      setMessage({ ok: true, texte: propre ? `Enregistré — ${propre.length} caractères.` : 'Champ vidé.' })
+      fermerEditeur()
     } catch (e) {
       showError(`Enregistrement impossible.\n\n${e.message}`, { danger: true })
     } finally {
@@ -593,7 +606,8 @@ export default function AdminPromptsReferentiels() {
   // laquelle on travaille ; modale parce qu'un texte en cours de saisie ne doit pas pouvoir être
   // écrasé par un clic derrière : cliquer un autre lien remplacerait le brouillon sans un mot.
   // Le voile ne ferme rien au clic — perdre un prompt collé parce qu'on a visé à côté serait pire
-  // que tout. On sort par Annuler ou par le × de la barre de titre.
+  // que tout. On sort par Annuler, par le × de la barre de titre, ou par un enregistrement
+  // réussi — un refus du serveur, lui, laisse la fenêtre ET le texte en place.
   const fenetreEditeur = (!refCourant || !champCourant) ? null : (
     <>
     <div
@@ -603,7 +617,7 @@ export default function AdminPromptsReferentiels() {
         cursor: 'not-allowed' }} />
     <FenetrePro
       titre={`${refCourant.niveau} — ${champCourant.titre}`}
-      onFermer={() => { setChamp(''); setTexte(''); setMessage(null) }}
+      onFermer={fermerEditeur}
       largeur={720}
       hauteur="min(78vh, 720px)"
       minWidth={420}
@@ -620,8 +634,9 @@ export default function AdminPromptsReferentiels() {
             </p>
           </div>
           <textarea
+            ref={zoneTexte}
             value={texte}
-            onChange={e => { setTexte(e.target.value); setMessage(null) }}
+            onChange={e => setTexte(e.target.value)}
             spellCheck={false}
             placeholder={`Collez ici le texte. ${champCourant.repere2
               ? `Les repères ${champCourant.repere} et ${champCourant.repere2} sont obligatoires.`
@@ -641,12 +656,23 @@ export default function AdminPromptsReferentiels() {
                 {texte.includes(rep) ? `${rep} présent` : `${rep} manquant — le texte sera refusé`}
               </span>
             ))}
-            {message && (
-              <span style={{ fontSize: 11.5, color: '#166534' }}>{message.texte}</span>
-            )}
             <button
               type="button"
-              onClick={() => { setChamp(''); setTexte(''); setMessage(null) }}
+              onClick={toutSelectionner}
+              disabled={saving || !texte}
+              title="Sélectionner tout le texte de la zone, pour le copier d’un seul geste"
+              style={{
+                height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #cbd5e1',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                background: 'white', color: (saving || !texte) ? '#94a3b8' : '#334155',
+                fontSize: 13, fontWeight: 600,
+                cursor: (saving || !texte) ? 'not-allowed' : 'pointer',
+              }}>
+              <span aria-hidden="true">▣</span> Sélectionner tout
+            </button>
+            <button
+              type="button"
+              onClick={fermerEditeur}
               disabled={saving}
               title="Fermer sans enregistrer : ce qui est en base ne bouge pas"
               style={{

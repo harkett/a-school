@@ -23,6 +23,11 @@ _ACCESS = "aschool_access"
 _REFRESH = "aschool_refresh"
 _ACCESS_MAX = 15 * 60
 _REFRESH_MAX = 30 * 24 * 3600
+# Le navigateur qui vient de demander une inscription. Sa durée est celle du lien d'activation :
+# une heure. Voir `comptes.create_signup_device_token` pour ce qu'il autorise — et surtout ce
+# qu'il n'autorise pas.
+_INSCRIPTION = "aschool_inscription"
+_INSCRIPTION_MAX = 60 * 60
 
 
 def _set_cookies(response: Response, access: str, refresh: str):
@@ -76,7 +81,7 @@ class ResetPasswordBody(BaseModel):
 
 @router.post("/auth/signup", status_code=201)
 @limiter.limit(PLAFOND_SIGNUP)
-def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
+def signup(body: SignupBody, request: Request, response: Response, db: Session = Depends(get_db)):
     if body.password != body.password_confirm:
         raise HTTPException(400, "Les mots de passe ne correspondent pas.")
     if len(body.password) < 8:
@@ -103,6 +108,15 @@ def signup(body: SignupBody, request: Request, db: Session = Depends(get_db)):
 
     db.add(ConnexionLog(email=user.email, user_id=user.id, action="signup", ip=request.client.host if request.client else None))
     db.commit()
+
+    # ON MARQUE CE NAVIGATEUR. Au retour du courriel, c'est lui qui permettra d'ouvrir la session
+    # sans redemander le mot de passe — et lui seul : le lien ouvert ailleurs activera le compte
+    # puis s'arrêtera là.
+    response.set_cookie(
+        _INSCRIPTION, comptes.create_signup_device_token(user.email),
+        max_age=_INSCRIPTION_MAX, httponly=True, samesite="lax",
+        secure=os.getenv("ENV") == "production",
+    )
     return {"status": "ok", "message": "Vérifiez votre boîte mail pour activer votre compte."}
 
 
@@ -177,12 +191,31 @@ def reset_password(body: ResetPasswordBody, db: Session = Depends(get_db)):
 
 
 @router.get("/auth/verify-email")
-def verify_email(token: str, db: Session = Depends(get_db)):
+def verify_email(token: str, request: Request, response: Response, db: Session = Depends(get_db)):
+    """Active le compte — et ouvre la session si c'est bien le navigateur qui s'est inscrit.
+
+    DEUX PREUVES, PAS UNE. Le jeton du courriel dit « cette adresse existe et son propriétaire
+    l'a lue » ; le cookie posé à l'inscription dit « c'est le même navigateur qui a demandé le
+    compte ». Réunies, elles valent une connexion : le professeur entre directement, sans
+    ressaisir un mot de passe qu'il vient de choisir. Séparées, elles ne valent rien de plus
+    qu'aujourd'hui — le lien ouvert sur le téléphone ou dans une autre boîte active le compte et
+    renvoie à l'écran de connexion."""
     email = comptes.verify_email_token(db, token, "verify_email")
     if not email:
         raise HTTPException(400, "Lien invalide ou expiré.")
     comptes.mark_user_verified(db, email)
     user = db.query(User).filter(User.email == email).first()
+
+    # Le cookie ne sert qu'ici, et une seule fois : il part dans tous les cas, réussite comprise.
+    meme_navigateur = comptes.read_signup_device_token(request.cookies.get(_INSCRIPTION)) == email
+    response.delete_cookie(_INSCRIPTION, path="/")
+    if meme_navigateur and user:
+        access = comptes.create_access_token(email)
+        refresh = comptes.create_refresh_token(db, email)
+        _set_cookies(response, access, refresh)
+        db.add(ConnexionLog(email=email, user_id=user.id, action="login",
+                            ip=request.client.host if request.client else None))
+        db.commit()
     try:
         from backend.systeme.admin import get_welcome_template, record_email_envoi
         tpl = get_welcome_template(db)
@@ -193,6 +226,10 @@ def verify_email(token: str, db: Session = Depends(get_db)):
                 user.prenom if user else None,
                 tpl.objet,
                 tpl.corps,
+                # SANS BOUTON D'ENTRÉE. Ce courriel arrive à l'instant où le compte s'ouvre : le
+                # professeur est déjà dans l'application. Un « Accéder à aSchool » l'inviterait à
+                # y entrer une seconde fois — c'est exactement la porte de trop qu'on retire.
+                bouton=False,
             )
         except Exception as e:
             statut, err = "echec", str(e)
@@ -206,7 +243,9 @@ def verify_email(token: str, db: Session = Depends(get_db)):
         comptes.send_admin_new_user_notification(email, matiere_nom_de_id(db, user.subject_id) if user else None)
     except Exception:
         pass
-    return {"status": "ok", "email": email}
+    # `connecte` dit à l'écran s'il doit ouvrir l'application ou proposer de se connecter. Sans
+    # ce mot, la page ne peut pas savoir ce que le serveur vient de faire.
+    return {"status": "ok", "email": email, "connecte": bool(meme_navigateur and user)}
 
 
 @router.post("/auth/refresh")

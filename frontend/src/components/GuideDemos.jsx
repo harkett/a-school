@@ -100,9 +100,9 @@ const ADMIN_ETAPES = [
 // qui divergent, jamais de les faire concorder. Le 10/08/2026 la cause a été traitée : le
 // CATALOGUE cycles/niveaux de la démonstration est COPIÉ du réel avant tout le reste. Les deux
 // bases portent alors les mêmes numéros, et il n'y a plus rien à résoudre ni à réécrire ensuite.
-// Ce qui l'a déclenché : le BTS CRSA portait 101 en démonstration contre 89 dans le réel, et la
-// Licence Ergothérapie 99 contre 100. Les deux bases ont été détruites et remontées par cette
-// recette-ci.
+// Ce qui l'a déclenché : deux démonstrations portaient des identifiants de niveau différents de
+// ceux du réel (101 contre 89, 99 contre 100). Les deux bases ont été détruites et remontées par
+// cette recette-ci.
 const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
   + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
   + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
@@ -117,7 +117,7 @@ const PROCEDURE = [
         + '  backend alembic upgrade head' },
 
   { n: 2, titre: 'Le catalogue du réel, puis le référentiel',
-    texte: '**Le catalogue `cycles` + `niveaux` de la démonstration est celui de la base réelle, copié tel quel.** C’est la première chose qu’on fait, avant toute autre donnée : les migrations viennent d’en semer un, on le remplace en entier. Les deux bases portent alors les mêmes numéros, et plus aucun identifiant n’a besoin d’être résolu, vérifié ou réécrit ensuite — le référentiel garde son `niveau_id` d’origine, et il désigne la même chose des deux côtés. Sans cette étape, les numéros divergent dès qu’un niveau a été créé à la main dans le réel : il y prend une place que le semis donnera à un autre. Le BTS CRSA l’a montré — 89 dans le réel, 101 en démonstration — et la Licence Ergothérapie aussi, 100 contre 99. Les tables du référentiel passent ensuite telles quelles, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id`, elles se prennent par jointure sur leur type, d’où leur ligne à part.',
+    texte: '**Le catalogue `cycles` + `niveaux` de la démonstration est celui de la base réelle, copié tel quel.** C’est la première chose qu’on fait, avant toute autre donnée : les migrations viennent d’en semer un, on le remplace en entier. Les deux bases portent alors les mêmes numéros, et plus aucun identifiant n’a besoin d’être résolu, vérifié ou réécrit ensuite — le référentiel garde son `niveau_id` d’origine, et il désigne la même chose des deux côtés. Sans cette étape, les numéros divergent dès qu’un niveau a été créé à la main dans le réel : il y prend une place que le semis donnera à un autre. Deux démonstrations l’ont montré — 89 dans le réel contre 101, 100 contre 99. Les tables du référentiel passent ensuite telles quelles, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id`, elles se prennent par jointure sur leur type, d’où leur ligne à part.',
     code: '# a) LE CATALOGUE — copié du réel, en entier. C’est ce qui fait concorder les numéros.\n'
         + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
         + '  truncate niveaux, cycles restart identity cascade;"\n'

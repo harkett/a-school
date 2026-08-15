@@ -42,7 +42,7 @@ def _titres(monkeypatch):
     titres = []
     monkeypatch.setattr(
         alerts, "create_alert",
-        lambda level, title, message, sujet_detail="": titres.append(title),
+        lambda level, title, message, sujet_detail="", **k: titres.append(title),
     )
     return titres
 
@@ -85,7 +85,7 @@ def test_la_valeur_reste_lisible_dans_le_message(monkeypatch):
     messages = []
     monkeypatch.setattr(
         alerts, "create_alert",
-        lambda level, title, message, sujet_detail="": messages.append(message),
+        lambda level, title, message, sujet_detail="", **k: messages.append(message),
     )
     _sonde_cpu(monkeypatch, _temps(1000.0, 4000.0), _temps(1570.0, 4030.0))   # 95.0 %
     alerts.check_cpu_alert()

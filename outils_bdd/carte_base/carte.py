@@ -130,9 +130,15 @@ DOMAINS = {
         # `prompt_fonctionnalites` : le rangement de l'ecran admin « Prompts » — une ligne par
         # outil du produit, dont le libelle est le CHEMIN dans le menu du prof. Elle est du meme
         # cote qu'`outils_llm` : ce qui decrit l'IA et sa configuration, jamais du pedagogique.
+        # `taches_planifiees` : ce que le serveur execute tout seul (surveillance, veille des
+        # tarifs) — l'heure, la cadence, le destinataire et le compte rendu du dernier passage.
+        # Exploitation pure, au meme titre que `settings`.
+        # `taches_a_faire` : le carnet de l'administrateur — les idees et les chantiers notes
+        # avant d'etre oublies. Rien ne s'y execute, a la difference de `taches_planifiees` :
+        # les deux ne se ressemblent que par le nom.
         ["settings", "ai_fournisseurs", "ai_modeles", "outils_llm", "prompt_fonctionnalites", "usage_llm",
          "email_templates", "email_envois", "incidents", "demos", "fonctionnalites",
-         "alembic_version"]),
+         "taches_planifiees", "taches_a_faire", "alembic_version"]),
 }
 
 TYPE_MAP = {

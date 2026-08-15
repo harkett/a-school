@@ -61,6 +61,8 @@ import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
 import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
+import AdminPlanificateur from './pages/AdminPlanificateur'
+import AdminTachesAFaire from './pages/AdminTachesAFaire'
 import AdminBase from './pages/AdminBase'
 import AdminBaseDemos from './pages/AdminBaseDemos'
 import AdminAnalytique from './pages/AdminAnalytique'
@@ -469,10 +471,16 @@ function MainApp() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
 
-      {/* Profil sans matière : le blocage se fait en amont — `page` vaut « mon-profil » tant que
-          profilIncomplet est vrai (voir plus haut), il n'y a rien d'autre à afficher. Pas de modale ici. */}
-
-      <Header
+      {/* PREMIÈRE OUVERTURE : TOUT EST ÉTEINT SAUF LE PROFIL.
+          `page` valait déjà « mon-profil » quoi qu'il arrive (voir plus haut) — mais l'en-tête et
+          la barre de gauche restaient allumés et cliquables. Le prof cliquait, rien ne se passait,
+          et rien ne lui disait pourquoi. Ils sont maintenant grisés et sourds au clic : il reste
+          UN seul endroit vivant à l'écran, celui où on lui demande sa matière.
+          `pointerEvents: none` plutôt qu'un voile posé par-dessus : un voile laisserait le clavier
+          atteindre les boutons (Tab), et masquerait le contenu au lieu de le désactiver. */}
+      <div style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
+           aria-hidden={profilIncomplet || undefined}>
+        <Header
         matiere={matiereLabel}
         niveau={user?.travail_niveau}
         email={user?.email}
@@ -487,10 +495,14 @@ function MainApp() {
         onValiderCouple={validerCoupleTravail}
         onRevenirProfil={revenirAuProfil}
         onOuvrirGuide={guidesParPage[page] ? () => setFenetreGuide(true) : null}
-      />
+        />
+      </div>
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
-        <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
+        <div style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
+             aria-hidden={profilIncomplet || undefined}>
+          <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
+        </div>
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
@@ -756,6 +768,8 @@ export default function App() {
             <Route path="communication" element={<AdminCommunication />} />
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
+            <Route path="planificateur" element={<AdminPlanificateur />} />
+            <Route path="taches-a-faire" element={<AdminTachesAFaire />} />
             <Route path="base"          element={<AdminBase />} />
             <Route path="base/demos"    element={<AdminBaseDemos />} />
             <Route path="analytique">

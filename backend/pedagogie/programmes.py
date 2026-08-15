@@ -96,8 +96,8 @@ def get_programmes(db: Session = Depends(get_db)):
 
     # Matières PAR NIVEAU (scope fin = le programme du diplôme/niveau, via son référentiel).
     # C'est ce que lit le menu matière du profil : un niveau ne propose QUE les matières de SON
-    # référentiel (deux diplômes d'un même cycle ont des matières différentes — ex. BTS CIEL ≠
-    # Master). Clé = nom du niveau (unique dans le référentiel actuel).
+    # référentiel (deux diplômes d'un même cycle ont des matières différentes).
+    # Clé = nom du niveau (unique dans le référentiel actuel).
     noms_niveaux = dict(db.query(Niveau.id, Niveau.nom).all())
     par_niveau = {}
     for niveau_id, _, m in programme:

@@ -58,8 +58,11 @@ def _source(fn) -> str:
 
 
 def test_generate_transmet_la_temperature_au_flux_anthropic():
-    """`appel_long=True` (la découpe, les matières, les méta-prompts) passe par ce chemin."""
-    src = _source(generator.generate)
+    """`appel_long=True` (la découpe, les matières, les méta-prompts) passe par ce chemin.
+
+    Lu dans `_appeler` : depuis que `generate` descend une LISTE de fournisseurs, c'est elle qui
+    porte l'appel aux adaptateurs. Le maillon vérifié est le même, il a seulement changé de nom."""
+    src = _source(generator._appeler)
     appel = src[src.index("_anthropic_stream("):]
     assert "temperature=temperature" in appel[:appel.index(")")], (
         "generate(appel_long=True) appelle _anthropic_stream sans température : tous les appels "
@@ -89,7 +92,7 @@ def test_le_flux_anthropic_transmet_la_temperature_au_corps():
 
 def test_le_flux_groq_transmet_aussi_la_temperature():
     """Il était déjà juste — on le garde tel quel, pour que le défaut ne se déplace pas."""
-    for fn in (generator.generate, generator.generate_stream):
+    for fn in (generator._appeler, generator.generate_stream):
         src = _source(fn)
         appel = src[src.index("_groq_stream("):]
         assert "temperature=temperature" in appel[:appel.index(")")], (

@@ -15,6 +15,7 @@ indépendant.
 
 Lancer : docker compose exec backend python -m pytest tests/test_prompts_en_base.py -q
 """
+import ast
 import importlib.util
 import os
 
@@ -41,6 +42,48 @@ def _charger(nom: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _ordre_de_la_chaine() -> list[str]:
+    """Les révisions, de la plus ancienne à la plus récente, dans l'ordre où `alembic upgrade
+    head` les joue. Lecture par `ast` : on ne veut que deux constantes par fichier, pas exécuter
+    quatre-vingt-dix migrations. `down_revision` peut être un tuple (migration de fusion) : une
+    révision n'est posée qu'une fois TOUS ses parents posés."""
+    parents: dict[str, tuple[str, ...]] = {}
+    for nom in sorted(os.listdir(VERSIONS)):
+        if not nom.endswith(".py"):
+            continue
+        with open(os.path.join(VERSIONS, nom), encoding="utf-8") as f:
+            arbre = ast.parse(f.read())
+        valeurs: dict[str, object] = {}
+        for noeud in arbre.body:
+            if isinstance(noeud, ast.AnnAssign) and isinstance(noeud.target, ast.Name):
+                cible, source = noeud.target.id, noeud.value
+            elif (isinstance(noeud, ast.Assign) and len(noeud.targets) == 1
+                    and isinstance(noeud.targets[0], ast.Name)):
+                cible, source = noeud.targets[0].id, noeud.value
+            else:
+                continue
+            if cible in ("revision", "down_revision") and source is not None:
+                valeurs[cible] = ast.literal_eval(source)
+        revision = valeurs.get("revision")
+        if not isinstance(revision, str):
+            continue
+        bas = valeurs.get("down_revision")
+        parents[revision] = () if bas is None else (
+            (bas,) if isinstance(bas, str) else tuple(bas))
+
+    ordre, poses, restants = [], set(), dict(parents)
+    while restants:
+        # `x not in parents` : un parent qui n'a pas de fichier ici ne doit pas bloquer la chaîne.
+        prets = sorted(r for r, p in restants.items()
+                       if all(x in poses or x not in parents for x in p))
+        assert prets, f"chaîne alembic cassée ou cyclique, restants : {sorted(restants)}"
+        for revision in prets:
+            ordre.append(revision)
+            poses.add(revision)
+            del restants[revision]
+    return ordre
 
 
 def _prompts_geles() -> dict[str, str]:
@@ -73,18 +116,16 @@ def _prompts_geles() -> dict[str, str]:
         maj = getattr(m, "PROMPTS_MAJ", None)
         if maj is None:
             continue
-        majs[m.revision] = (m.down_revision, dict(maj))
+        majs[m.revision] = dict(maj)
 
-    ordonnees, restants = [], dict(majs)
-    precedente = "b8e5f2a1c9d7"
-    while restants:
-        suivante = next((r for r, (dr, _) in restants.items() if dr == precedente), None)
-        if suivante is None:            # mise à jour posée plus loin dans la chaîne : ordre du nom
-            suivante = sorted(restants)[0]
-        ordonnees.append(restants.pop(suivante)[1])
-        precedente = suivante
-    for maj in ordonnees:
-        textes.update(maj)
+    # L'ordre est celui de la chaîne alembic ENTIÈRE, pas celui des seules migrations qui portent
+    # des prompts : deux d'entre elles se suivent rarement sans intermédiaire. L'ordre de repli
+    # alphabétique d'avant inversait alors une mise à jour et le seed qu'elle corrige — le seed
+    # repassait en dernier et remettait l'ancien texte. Vu le 14/08/2026 : b6e2c4a9f7d1 corrige
+    # `gabarit_meta_matieres` semé par e3f7b1d5a8c2, et se rangeait AVANT lui.
+    for revision in _ordre_de_la_chaine():
+        if revision in majs:
+            textes.update(majs[revision])
 
     # Les retraits en dernier : une clé retirée l'est quel que soit l'endroit de la chaîne où
     # elle avait été semée ou mise à jour. Aucune migration ne re-sème un prompt retiré (le

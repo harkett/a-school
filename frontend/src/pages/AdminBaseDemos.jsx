@@ -194,6 +194,11 @@ export default function AdminBaseDemos() {
               sans toucher au réel. Cet écran tient leur fiche — les données, elles, vivent dans
               leur propre base.
             </p>
+            <p className="text-xs text-gray-400 mt-1">
+              <b>On n’entre jamais dans une démonstration par un compte de démonstration.</b> D’ici,
+              « Visiter » vous y emmène avec votre identité d’administrateur ; l’enseignant, lui, y
+              entre depuis son propre écran. Aucun identifiant ne circule.
+            </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button

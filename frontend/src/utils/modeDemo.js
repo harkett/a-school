@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react'
 
 let connu = null          // true / false une fois la réponse reçue
-let couple = null         // « BTS · BTS CIEL Option A » — le couple que cette base sert
+let couple = null         // « cycle · niveau » — le couple que cette base sert
 let enCours = null        // la promesse partagée, tant que l'appel n'est pas revenu
 const abonnes = new Set()
 
@@ -40,9 +40,9 @@ const ICONE_DEMO = 'data:image/svg+xml,' + encodeURIComponent(
   '</svg>'
 )
 
-// « BTS · BTS CIEL Option A » → « BTS CIEL Option A ». Le cycle précède le niveau et se répète
-// presque toujours dans son nom ; un onglet ne montre que ses premiers caractères, et « BTS · BTS…
-// » les gaspillerait à dire deux fois la même chose. Plusieurs couples restent séparés par « / ».
+// « BTS · BTS Machin » → « BTS Machin » : le cycle précède le niveau et se répète presque
+// toujours dans son nom ; un onglet ne montre que ses premiers caractères, et « BTS · BTS… »
+// les gaspillerait à dire deux fois la même chose. Plusieurs couples restent séparés par « / ».
 function niveauxDe(valeur) {
   return valeur.split(' / ').map(p => p.split(' · ').pop().trim()).filter(Boolean).join(' / ')
 }
@@ -103,7 +103,7 @@ export function useModeDemo() {
   return demo
 }
 
-// Le couple servi par cette base — « BTS · BTS CIEL Option A ». Vide tant que la réponse n'est
+// Le couple servi par cette base — « cycle · niveau ». Vide tant que la réponse n'est
 // pas revenue, et vide aussi quand la base n'a aucun référentiel découpé : le bandeau garde alors
 // sa phrase seule plutôt que d'afficher un trou.
 export function coupleDemo() {

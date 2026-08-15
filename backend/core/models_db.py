@@ -1,5 +1,5 @@
 ﻿from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, Text, ForeignKey, UniqueConstraint, Identity, func, text
+from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, JSON, Text, ForeignKey, UniqueConstraint, Identity, func, text
 from sqlalchemy import event
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -516,6 +516,13 @@ class UserSession(Base):
     browser: Mapped[str | None] = mapped_column(String(100), nullable=True)
     os: Mapped[str | None] = mapped_column(String(100), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # D'OÙ VIENT CETTE CONNEXION. L'adresse IP est là depuis toujours, mais elle ne dit rien à
+    # personne : « 83.228.245.163 » ne permet pas de voir qu'un même compte est ouvert à Lille et
+    # à Marseille en même temps. La ville est résolue UNE FOIS puis gardée ici — pas à chaque
+    # affichage — et les coordonnées servent à mesurer l'écart entre deux sessions du même compte.
+    localisation: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     login_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -550,12 +557,42 @@ class AdminAuditLog(Base):
 
 
 class AdminAlert(Base):
+    """UNE ALERTE D'ADMINISTRATION — ce que la surveillance a trouvé, et de quoi elle parle.
+
+    CE QU'ELLE ÉTAIT. Un niveau, un titre, une phrase. Tout le reste — de qui il s'agit, ce qui a
+    été mesuré, où aller voir — vivait DANS la phrase. « 47 tentatives détectées, vérifier les IPs
+    dans le panel admin » : le lecteur repart chercher lui-même, et rien n'est comptable. On ne
+    peut ni regrouper, ni trier, ni suivre une évolution sur trois mois.
+
+    LES QUATRE COLONNES AJOUTÉES le 15/08/2026, et à quoi chacune sert vraiment :
+      - `code` : le GENRE d'alerte, stable dans le temps (« cpu », « compte_multi_postes »). C'est
+        lui qui rend les statistiques possibles — un titre se réécrit, un code non ;
+      - `user_id` / `user_email` : DE QUI l'alerte parle, quand elle parle de quelqu'un. Écrire le
+        courriel à côté de l'identifiant est volontaire : un compte supprimé six mois plus tard ne
+        doit pas rendre son alerte anonyme ;
+      - `donnees` : les FAITS mesurés (nombre de postes, distance, villes). Relire une phrase pour
+        en extraire un nombre est le meilleur moyen de se tromper ;
+      - `lien` : OÙ aller voir. L'écran cesse d'être un cul-de-sac.
+
+    SURVEILLER, PAS INTERDIRE. Aucune de ces colonnes ne déclenche quoi que ce soit : rien n'est
+    bloqué, rien n'est fermé. Une alerte informe l'administrateur, qui décide."""
     __tablename__ = "admin_alerts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     level: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Le genre d'alerte, stable — c'est la clé de tout regroupement et de toute statistique.
+    # NULL pour les alertes écrites avant cette colonne : on ne leur invente pas un code.
+    code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    # De qui parle l'alerte. NULL quand elle parle de la machine (processeur, disque).
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Les faits, tels quels. Pas de format imposé : chaque genre d'alerte a les siens, et forcer
+    # un schéma commun reviendrait à ne rien pouvoir y mettre.
+    donnees: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Le chemin dans l'administration où l'on peut vérifier par soi-même.
+    lien: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     read_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -614,7 +651,7 @@ class Cycle(Base):
     # types) vivent sur le RÉFÉRENTIEL : `Referentiel.prompt_matieres`, `.prompt_decoupe`,
     # `.prompt_types` — un jeu par couple cycle+niveau. Ils étaient rangés ici parce qu'un cycle
     # ressemble à une famille de documents bâtis pareil ; c'est faux, et prouvé : le cycle « BTS »
-    # porte dix-huit diplômes, et le prompt écrit sur le BTS CIEL n'apprenait rien sur le BTS CRSA.
+    # porte dix-huit diplômes, et le prompt écrit sur l'un d'eux n'apprenait rien sur ses voisins.
     # Une famille de diplômes n'est pas une famille de documents.
 
 
@@ -630,7 +667,7 @@ class Niveau(Base):
 class Matiere(Base):
     """Une matière DU référentiel qui la nomme — jamais un catalogue partagé entre diplômes.
 
-    Le BTS CIEL a ses matières, la Terminale a les siennes, avec l'orthographe de LEUR document :
+    Chaque diplôme a ses matières, la Terminale a les siennes, avec l'orthographe de LEUR document :
     deux « Mathématiques » dans deux référentiels sont deux matières distinctes, et elles ne se
     comparent jamais. D'où l'unicité sur (referentiel_id, nom) — et non sur le nom seul. La
     disparition du référentiel emporte ses matières (CASCADE) : une matière sans document qui la
@@ -699,10 +736,21 @@ class AiModele(Base):
     # dans le moteur, deux fois, au nom du fournisseur entier — donc invisible pour l'admin, qui
     # réglait une valeur silencieusement jetée. La contrainte tient au MODÈLE : elle se déclare ici.
     supporte_temperature: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
-    # Tarifs $/million de tokens, pour l'estimation de coût de l'écran statistiques. VIDES tant
+    # Tarifs par million de tokens, pour l'estimation de coût de l'écran statistiques. VIDES tant
     # qu'ils n'ont pas été relevés : un tarif inventé serait pire qu'un tarif absent.
+    #
+    # DANS LA MONNAIE DU FOURNISSEUR, pas en dollars : Infomaniak publie en francs suisses, les
+    # autres en dollars. Stocker tel qu'affiché sur leur page laisse l'admin vérifier d'un coup
+    # d'œil ; convertir à l'écriture donnerait un montant faux dès le lendemain, et faux en
+    # silence. L'euro se calcule à l'affichage (`backend/core/devises.py`).
     cout_entree_million: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
     cout_sortie_million: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
+    devise: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD", default="USD")
+    # LE NOM PUBLIC DU MODÈLE, quand il diffère de son nom d'appel. Infomaniak n'accepte que
+    # « mistral3 » dans une requête, mais publie « mistralai/Ministral-3-14B-Instruct-2512 » dans sa
+    # liste et sur sa grille tarifaire : sans les deux, retrouver ce qu'un modèle coûte se fait au
+    # jugé. Vide = les deux noms sont le même (Anthropic, Groq).
+    nom_fournisseur: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -736,6 +784,16 @@ class AiFournisseur(Base):
     # tokens d'Infomaniak ne tiennent pas au modèle : les trois du produit les partagent. Même nom
     # que sur le modèle, parce que c'est la même valeur — seule la portée diffère.
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # « gratuit » ou « payant » — DIT PAR L'ADMINISTRATEUR, jamais déduit. Ni le tarif des modèles ni
+    # la présence d'une clé ne permettent de le savoir : un tarif à zéro peut vouloir dire « offert »
+    # comme « pas encore relevé », et un plan gratuit devient payant sans qu'aucun chiffre ne bouge
+    # chez nous. Sert à ranger l'écran en deux zones ; ne touche PAS l'ordre d'appel.
+    tarification: Mapped[str] = mapped_column(String(10), nullable=False,
+                                              server_default="payant", default="payant")
+    # L'adresse de sa grille tarifaire publique. Sert au bouton « Relever les tarifs », qui va la
+    # lire et remplit le prix de chaque modèle. Donnée du fournisseur, comme `base_url` : elle
+    # change quand il refait son site, et seul l'administrateur peut la corriger.
+    lien_tarifs: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -789,14 +847,17 @@ class UsageLlm(Base):
     relire : y stocker du contenu de prof en ferait un second entrepôt de données personnelles,
     et le volume la rendrait inexploitable. Pour diagnostiquer un appel, c'est `incidents`.
 
-    ÉCHECS. Seuls les appels RÉUSSIS sont ici — un appel refusé ne consomme rien de facturable et
-    laisse déjà sa trace dans `incidents`. Un appel COUPÉ (`motif_arret = "max_tokens"`), lui, est
-    bien enregistré : il a été payé, et le voir est précisément ce qui explique une facture."""
+    ÉCHECS — UNE LIGNE PAR TENTATIVE, ABOUTIE OU NON. Un appel refusé ne laissait qu'un
+    `log.warning`, c'est-à-dire rien : impossible de dire ce qui refuse ni à quelle fréquence. Il
+    écrit maintenant sa ligne, avec `resultat = "refus"` et le `code_http` du fournisseur. La
+    conséquence est à connaître : compter la consommation demande désormais de filtrer sur
+    `resultat`, un refus ne consommant rien de facturable."""
     __tablename__ = "usage_llm"
     __table_args__ = (
         Index("ix_usage_llm_created_at", "created_at"),
         Index("ix_usage_llm_modele", "modele"),
         Index("ix_usage_llm_outil", "outil"),
+        Index("ix_usage_llm_resultat", "resultat"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -834,40 +895,17 @@ class UsageLlm(Base):
     # le modèle et l'outil restent les vrais — c'est justement ce qu'on veut lire (« la découpe sur
     # Sonnet 5 a été rejouée »). Faux par défaut : tout l'historique d'avant est de vrais appels.
     depuis_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
-
-
-class Referentiel(Base):
-    """Référentiel officiel d'un NIVEAU → collection de recherche + filtres de retrieval.
-
-    Schéma PostgreSQL : id en IDENTITY, created_at DateTime/func.now().
-    Clé d'identification = le NIVEAU, un seul référentiel par niveau (unique sur `niveau_id`).
-    Il POSSÈDE ses matières (`matieres.referentiel_id`) : la colonne `matiere_id` qui pointait
-    en sens inverse a disparu — elle était NULL partout et la boucle n'avait pas de sens.
-
-    `niveau_id` EST LE NIVEAU PORTEUR, ET RIEN D'AUTRE (15/08/2026) : il donne le chemin du PDF
-    (`REFERENTIELS/<CYCLE>/<NIVEAU>/`), le nom et la collection. Il ne répond PLUS à la question
-    « quel référentiel pour ce prof ? » — c'est `referentiel_niveaux` qui répond, par la porte
-    unique `referentiel_du_niveau()`. Deux sources pour une même question seraient pires que le
-    défaut d'origine : elles se contrediraient un jour sans que rien ne le signale.
-
-    `uq_referentiels_niveau` RESTE. Elle ne bloquait pas le service de plusieurs niveaux — c'est
-    l'absence de table de liaison qui le bloquait. Elle garde son sens : deux référentiels ne
-    peuvent pas se ranger dans le même dossier de PDF."""
-    __tablename__ = "referentiels"
-    __table_args__ = (UniqueConstraint("niveau_id", name="uq_referentiels_niveau"),)
-
-    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
-    nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-    collection: Mapped[str] = mapped_column(Text, nullable=False)
-    filtres: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Seuil de pertinence RAG (1 - distance cosinus) par référentiel — un chunk sous ce seuil
-    # n'ancre jamais une génération. Donnée métier EN BASE (plus de constante SCORE_MIN en dur).
-    score_min: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.30")
-    fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source: Mapped[str | None] = mapped_column(Text, nullable=True)
-    date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Empreinte SHA-256 du PDF retenu pour ce couple — écrite à la validation, même calcul que
+    # Ce qu'est devenue la tentative : "ok" · "refus" · "coupe". TROIS états et non deux — une
+    # réponse coupée (le modèle a atteint sa limite de sortie) a été payée mais reste inutilisable ;
+    # la ranger avec les succès masquerait une dépense sans contrepartie. Défaut "ok" : une ligne
+    # écrite sans le préciser est un appel qui a abouti, un refus se déclare toujours.
+    resultat: Mapped[str] = mapped_column(String(10), nullable=False, server_default="ok", default="ok")
+    # Ce que le fournisseur a répondu (429, 402, 500…). NULL quand l'appel a abouti. C'est lui qui
+    # sépare « plus de quota » de « service en panne » : deux refus, deux gestes différents.
+    code_http: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # La place du fournisseur dans la liste au moment de la tentative. NULL tant qu'il n'y a pas de
+    # liste — écrire « 1 » quand un seul fournisseur est appelé inventerait une cascade.
+    rang: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ReferentielNiveau(Base):
@@ -897,8 +935,47 @@ class ReferentielNiveau(Base):
     referentiel_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
     niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
+
+
+class Referentiel(Base):
+    """Référentiel officiel → collection de recherche + filtres de retrieval.
+
+    Schéma PostgreSQL : id en IDENTITY, created_at DateTime/func.now().
+    Il POSSÈDE ses matières (`matieres.referentiel_id`) : la colonne `matiere_id` qui pointait
+    en sens inverse a disparu — elle était NULL partout et la boucle n'avait pas de sens.
+
+    `niveau_id` EST LE NIVEAU PORTEUR, ET RIEN D'AUTRE (15/08/2026) : il donne le chemin du PDF
+    (`REFERENTIELS/<CYCLE>/<NIVEAU>/`), le nom et la collection. Il ne répond PLUS à la question
+    « quel référentiel pour ce prof ? » — c'est `referentiel_niveaux` qui répond, par la porte
+    unique `referentiel_du_niveau()`. Deux sources pour une même question seraient pires que le
+    défaut d'origine : elles se contrediraient un jour sans que rien ne le signale.
+
+    `uq_referentiels_niveau` RESTE. Elle ne bloquait pas le service de plusieurs niveaux — c'est
+    l'absence de table de liaison qui le bloquait. Elle garde son sens : deux référentiels ne
+    peuvent pas se ranger dans le même dossier de PDF."""
+    __tablename__ = "referentiels"
+    __table_args__ = (UniqueConstraint("niveau_id", name="uq_referentiels_niveau"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    niveau_id: Mapped[int] = mapped_column(Integer, ForeignKey("niveaux.id"), nullable=False)
+    nom_fixe: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    # Les niveaux DESSERVIS, écrits pour être lus : « 5e, 4e, 3e ». C'est ce que la liste des
+    # référentiels affiche à la place du seul niveau porteur — sans quoi l'administrateur venu
+    # modifier le programme de la 3e ne trouve aucune ligne pour la 3e et en dépose un second.
+    # CALCULÉE, jamais saisie (`recalculer_nom_affichage`) : un libellé tapé à la main ment le
+    # jour où un rattachement bouge, et rien ne permet de s'en apercevoir.
+    nom_affichage: Mapped[str | None] = mapped_column(Text, nullable=True)
+    collection: Mapped[str] = mapped_column(Text, nullable=False)
+    filtres: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Seuil de pertinence RAG (1 - distance cosinus) par référentiel — un chunk sous ce seuil
+    # n'ancre jamais une génération. Donnée métier EN BASE (plus de constante SCORE_MIN en dur).
+    score_min: Mapped[float] = mapped_column(Float, nullable=False, server_default="0.30")
+    fichier: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Empreinte SHA-256 du PDF retenu pour ce couple — écrite à la validation, même calcul que
     # `referentiel_depots.empreinte`. Elle permet de reconnaître, AU DÉPÔT, un document déjà
-    # validé quelque part (« ce PDF est déjà le référentiel de BTS · CIEL Option A »). NULL =
+    # validé quelque part (« ce PDF est déjà le référentiel d'un autre couple »). NULL =
     # référentiel dont le fichier n'était plus lisible au moment du rétro-remplissage.
     empreinte: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Prompt de découpe du couple — GÉNÉRÉ PAR L'IA (méta-prompt en base), puis affiché, corrigé et
@@ -907,8 +984,8 @@ class ReferentielNiveau(Base):
     prompt_decoupe: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_decoupe_valide: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0", default=False)
     # Prompts MATIÈRES et TYPES du couple (06/08/2026). Ils étaient rangés sur le CYCLE : une seule
-    # case pour les 18 niveaux du BTS, remplie à partir du CIEL option A — elle aurait lu le CRSA
-    # avec les repères du CIEL. Ils descendent ici, où vivent déjà le texte de travail et le prompt
+    # case pour les 18 niveaux du BTS, remplie à partir du premier déposé — elle aurait lu les dix-sept
+    # autres avec les repères de celui-là. Ils descendent ici, où vivent déjà le texte de travail et le prompt
     # de découpe, et où pointent les matières et les types qu'ils produisent.
     # `_valide` ne commande rien : le prompt sert dès qu'il existe, le booléen dit seulement que
     # l'admin l'a relu (même règle que sur le cycle).
@@ -994,11 +1071,38 @@ class ReferentielChunk(Base):
         Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     option_ab: Mapped[str] = mapped_column(Text, nullable=False)
+    # L'annee du CYCLE a laquelle cette unite appartient ('5e'/'4e'/'3e'), NULL quand elle vaut
+    # pour tout le cycle. NULL n'est pas « on ne sait pas », c'est « commune » : le filtre RAG
+    # lit `annee IS NULL OR annee = <annee du prof>`, comme il lit deja l'option.
+    annee: Mapped[str | None] = mapped_column(Text, nullable=True)
     page: Mapped[int] = mapped_column(Integer, nullable=False)
     texte: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+@event.listens_for(Referentiel, "after_insert")
+def _referentiel_dessert_au_moins_son_niveau_porteur(mapper, connection, target) -> None:
+    """TOUT référentiel créé dessert d'emblée son niveau porteur.
+
+    C'EST UN INVARIANT, PAS UNE COMMODITÉ. Un référentiel absent de `referentiel_niveaux` ne sert
+    PERSONNE : `referentiel_du_niveau` rend None et l'application répond « available: false » sans
+    qu'aucune erreur ne soit levée — le pire des défauts, celui qui se présente comme un état
+    normal. Le tenir ici, dans le modèle, plutôt que dans les douze endroits qui créent un
+    référentiel (l'écran admin, et onze semis de tests), c'est zéro occasion de l'oublier.
+
+    Un document de CYCLE en dessert plusieurs : les rattachements SUPPLÉMENTAIRES s'ajoutent
+    ensuite, par migration (il n'y a pas encore d'écran pour les dire — dette du 15/08/2026).
+    Ils ne passent pas par ici, et c'est bien : cette fonction ne connaît que le niveau porteur.
+
+    `connection.execute` et non une session : on est dans le flush en cours, sur la MÊME
+    transaction et le MÊME schéma que l'insertion qui l'a déclenchée. Un échec ici annule donc
+    aussi la création du référentiel — un référentiel sans rattachement ne peut pas exister."""
+    connection.execute(
+        ReferentielNiveau.__table__.insert().values(
+            referentiel_id=target.id, niveau_id=target.niveau_id)
+    )
 
 
 class ActiviteType(Base):
@@ -1028,10 +1132,6 @@ class ActiviteType(Base):
     `is_default` a disparu avec le catalogue : le repli « Activité d'apprentissage » servi au prof
     quand un couple n'a aucun type est désormais UN LIBELLÉ DE SECOURS EN DUR (backend.contenu.
     activites). Il ne perd rien : le type par défaut n'avait de prompt pour aucun couple, donc il
-    # L'annee du CYCLE a laquelle cette unite appartient ('5e'/'4e'/'3e'), NULL quand elle vaut
-    # pour tout le cycle. NULL n'est pas « on ne sait pas », c'est « commune » : le filtre RAG
-    # lit `annee IS NULL OR annee = <annee du prof>`, comme il lit deja l'option.
-    annee: Mapped[str | None] = mapped_column(Text, nullable=True)
     n'était déjà pas générable — il ne servait que d'affichage.
 
     Le `prompt` (génération de CE type pour CE référentiel) est descendu de la liaison sur la ligne,
@@ -1039,29 +1139,6 @@ class ActiviteType(Base):
     à l'instant."""
     __tablename__ = "types_activite"
     __table_args__ = (UniqueConstraint("referentiel_id", "label", name="uq_types_activite_referentiel_label"),)
-@event.listens_for(Referentiel, "after_insert")
-def _referentiel_dessert_au_moins_son_niveau_porteur(mapper, connection, target) -> None:
-    """TOUT référentiel créé dessert d'emblée son niveau porteur.
-
-    C'EST UN INVARIANT, PAS UNE COMMODITÉ. Un référentiel absent de `referentiel_niveaux` ne sert
-    PERSONNE : `referentiel_du_niveau` rend None et l'application répond « available: false » sans
-    qu'aucune erreur ne soit levée — le pire des défauts, celui qui se présente comme un état
-    normal. Le tenir ici, dans le modèle, plutôt que dans les douze endroits qui créent un
-    référentiel (l'écran admin, et onze semis de tests), c'est zéro occasion de l'oublier.
-
-    Un document de CYCLE en dessert plusieurs : les rattachements SUPPLÉMENTAIRES s'ajoutent
-    ensuite, par migration (il n'y a pas encore d'écran pour les dire — dette du 15/08/2026).
-    Ils ne passent pas par ici, et c'est bien : cette fonction ne connaît que le niveau porteur.
-
-    `connection.execute` et non une session : on est dans le flush en cours, sur la MÊME
-    transaction et le MÊME schéma que l'insertion qui l'a déclenchée. Un échec ici annule donc
-    aussi la création du référentiel — un référentiel sans rattachement ne peut pas exister."""
-    connection.execute(
-        ReferentielNiveau.__table__.insert().values(
-            referentiel_id=target.id, niveau_id=target.niveau_id)
-    )
-
-
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     referentiel_id: Mapped[int] = mapped_column(
@@ -1204,3 +1281,74 @@ class Fonctionnalite(Base):
     # écrit : il n'y a pas de fichier à citer.
     composant: Mapped[str | None] = mapped_column(Text, nullable=True)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
+
+
+class TachePlanifiee(Base):
+    """LES TRAVAUX QUE L'APPLICATION FAIT TOUTE SEULE — une ligne par tâche, réglée par l'admin.
+
+    POURQUOI EN BASE. L'heure de la veille des tarifs et la cadence de la surveillance étaient
+    écrites dans `main.py`. Passer un contrôle de 6 h à 22 h demandait un développeur et un
+    redéploiement pour changer deux chiffres qui ne regardent que l'exploitation.
+
+    CE QUI N'EST PAS ICI : la fonction exécutée. Elle vit dans le registre `TACHES` de
+    `backend/systeme/planificateur.py`, où `code` la retrouve — on ne met pas du Python en base.
+
+    LES TROIS DERNIÈRES COLONNES sont le compte rendu du dernier passage. Sans elles, une tâche
+    silencieuse est indiscernable d'une tâche qui ne tourne plus : l'écran dirait « active » d'un
+    travail mort depuis trois semaines."""
+    __tablename__ = "taches_planifiees"
+    __table_args__ = (UniqueConstraint("code", name="uq_taches_planifiees_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # L'identifiant technique, celui qui retrouve la fonction dans le registre du planificateur.
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    actif: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true", default=True)
+    # « quotidien » (à telle heure) ou « intervalle » (toutes les N minutes). Deux façons, pas
+    # cinq : une expression cron complète serait ingérable dans un écran d'administration, et
+    # aucune des tâches connues n'en a besoin.
+    type_planif: Mapped[str] = mapped_column(String(12), nullable=False,
+                                             server_default="quotidien", default="quotidien")
+    heure: Mapped[int | None] = mapped_column(Integer, nullable=True)     # 0–23, UTC
+    minute: Mapped[int | None] = mapped_column(Integer, nullable=True)    # 0–59
+    intervalle_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # À qui écrire. Vide = l'adresse d'administration du serveur (`ADMIN_EMAIL`) : on n'oblige pas
+    # à recopier une adresse déjà connue, et une tâche ne devient pas muette parce qu'un champ est
+    # resté vide.
+    destinataire: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    dernier_passage: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dernier_resultat: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dernier_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    derniere_duree_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class TacheAFaire(Base):
+    """LE CARNET DE L'ADMINISTRATEUR — les idées et les chantiers, notés avant d'être oubliés.
+
+    POURQUOI CETTE TABLE. Les professeurs ont « Mes feedbacks » pour faire remonter une remarque,
+    et l'administrateur a l'écran qui les reçoit. Lui n'avait rien. Une idée qui lui vient en
+    pleine autre tâche — « alerter quand un compte tourne sur dix postes » — n'avait aucun endroit
+    où atterrir : elle se disait, et elle se perdait.
+
+    CE QUE CE N'EST PAS. Ni le planificateur (`taches_planifiees`), qui exécute des travaux à
+    l'heure dite ; ni la carte des fonctionnalités (`fonctionnalites`), qui décrit ce qui existe.
+    Ici, rien ne s'exécute et rien n'est vérifié : c'est un carnet, il ne contient que ce qu'on y
+    écrit.
+
+    DEUX ÉTATS, PAS TROIS. À faire, ou fait. « En cours » se raconte dans le détail de la ligne —
+    un troisième état oblige à décider où ranger chaque note, et le carnet cesse d'être un carnet.
+    """
+    __tablename__ = "taches_a_faire"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    titre: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Le détail, facultatif : le pourquoi, les pièges, ce qu'on avait décidé. C'est ce qui fait
+    # qu'une note relue dans six mois veut encore dire quelque chose.
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fait: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
+    # QUAND elle a été cochée. Sans cette date, une ligne faite hier et une ligne faite l'an
+    # dernier se ressemblent, et le carnet ne se purge plus jamais.
+    fait_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
