@@ -53,7 +53,6 @@ _VALIDITE = timedelta(minutes=5)
 
 # Seules ces deux étapes ouvrent la porte. Une démonstration « fabriquée » n'est pas relue ; on
 # n'y envoie personne. Même règle que partout : ce qui n'est pas vérifié n'est pas proposé.
-_STATUTS_VISITABLES = ("teste", "valide")
 
 # La clé de `settings` qui désigne le compte porteur du contenu d'exemple, dans la base de
 # démonstration. En base et pas dans le code : le gabarit change d'une démonstration à l'autre.
@@ -112,9 +111,6 @@ def demo_pour_moi(request: Request, user: User = Depends(get_current_user),
         return {"disponible": False,
                 "raison": "Aucune démonstration n’existe encore pour votre niveau."}
     d, niveau_nom = ligne
-    if d.statut not in _STATUTS_VISITABLES:
-        return {"disponible": False,
-                "raison": f"La démonstration de {niveau_nom} est en préparation."}
     if not d.url:
         return {"disponible": False,
                 "raison": f"La démonstration de {niveau_nom} n’est pas encore en ligne."}

@@ -4,7 +4,7 @@
 // démonstration, qu'est-ce que CET écran commande, et que voit le prof à l'autre bout. Puis elle
 // donne la quatrième réponse, celle qu'on cherchait jusqu'ici dans l'historique des sessions :
 // comment on en fabrique une nouvelle. En DEUX MOITIÉS, parce que le travail se fait à deux —
-// ce que l'admin fait depuis cet écran (ouvrir la fiche, relire, donner le statut), puis ce que
+// ce que l'admin fait depuis cet écran (ouvrir la fiche, relire, renseigner l'adresse), puis ce que
 // le dev fait en ligne de commande (la base, la copie, le contenu, la pile).
 //
 // POURQUOI LA PROCÉDURE EST ICI ET PAS DANS UN FICHIER À PART. Elle a d'abord été écrite en
@@ -21,9 +21,9 @@
 // ET à l'aperçu mis en forme, qui est aussi la page imprimée. Un balisage minimal (**gras**,
 // `code`) évite d'injecter du HTML dans le JSX pour obtenir un mot en gras.
 //
-// Tout ce qui y est affirmé se vérifie dans le code : les statuts qui ouvrent la porte
-// (`_STATUTS_VISITABLES`, backend/prof/demo.py), la durée du jeton (`_VALIDITE`), et la copie du
-// contenu à l'entrée (`_copier_le_gabarit`). Si l'un des trois change, ce texte change avec.
+// Tout ce qui y est affirmé se vérifie dans le code : l'adresse qui ouvre la porte (le contrôle
+// `if not d.url`, backend/prof/demo.py), la durée du jeton (`_VALIDITE`), et la copie du contenu
+// à l'entrée (`_copier_le_gabarit`). Si l'un des trois change, ce texte change avec.
 import { useState } from 'react'
 import FenetrePro from './FenetrePro.jsx'
 import { imprimerApercu } from '../utils/apercuHtml.js'
@@ -57,13 +57,12 @@ const GUIDE = [
   ] },
   { titre: 'Côté admin — ce que cet écran commande', items: [
     'Il tient la **fiche**, jamais les données. Il n’ouvre aucune autre base : les compteurs se saisissent, ils ne se calculent pas.',
-    'Cinq statuts, du vide au livrable : À faire → En cours → Fabriquée → Testée → Validée. **Seules « Testée » et « Validée » ouvrent la porte aux profs** — ce qui n’a pas été relu n’est proposé à personne.',
-    'L’**adresse** branche la fiche sur son instance. Sans elle, l’entrée du menu prof reste grisée, même en statut Validée.',
-    '**Visiter** ouvre n’importe quelle démonstration avec l’identité admin, quel que soit son couple et son statut. C’est par là qu’on la relit avant de la passer en « Testée ».',
+    'L’**adresse** branche la fiche sur son instance, et c’est LE seul contrôle : une démonstration est visitable dès qu’elle en a une, invisible tant qu’elle n’en a pas. (Cinq statuts — À faire, En cours, Fabriquée, Testée, Validée — doublaient ce contrôle sans rien y ajouter ; supprimés le 16/08/2026.)',
+    '**Visiter** ouvre n’importe quelle démonstration avec l’identité admin, quel que soit son couple. C’est par là qu’on la relit avant de renseigner son adresse.',
     '**Retirer** efface la fiche, pas la base : celle-ci survit et se détruit à la main.',
   ] },
   { titre: 'Côté prof — ce qu’il voit', items: [
-    'Une entrée **« Démonstration »** dans son menu, active seulement s’il existe une démonstration relue **pour son niveau**.',
+    'Une entrée **« Démonstration »** dans son menu, active seulement s’il existe une démonstration en ligne **pour son niveau**.',
     'Il part avec un jeton signé, valable **cinq minutes**, qui porte son identité : il arrive connecté, sans second mot de passe à retenir.',
     'À son arrivée, le contenu du compte modèle est **recopié à son nom**. Chacun a sa copie : ce qu’il modifie ou supprime ne touche ni le modèle ni les autres visiteurs.',
     'Le filigrane **DÉMONSTRATION** marque l’écran, l’impression, le Word et le PDF — une page sortie de là ne peut pas se confondre avec une vraie.',
@@ -73,19 +72,18 @@ const GUIDE = [
 
 // FABRIQUER, PREMIÈRE MOITIÉ : ce que l'ADMIN fait, depuis cet écran, sans terminal. C'est la
 // moitié qui manquait — la procédure ne parlait que de commandes, alors que la fiche s'ouvre, se
-// remplit et change de statut ici. L'admin encadre le travail du dev : il ouvre la fiche avant,
-// il relit et donne le statut après.
+// remplit ici. L'admin encadre le travail du dev : il ouvre la fiche avant, il relit après.
 const ADMIN_ETAPES = [
   { n: 1, titre: 'Déclarer la fiche',
-    texte: 'Bouton **+ Déclarer une démonstration**. Il ne propose que les référentiels qui n’en ont pas encore — un référentiel, une démonstration, pas deux. On donne le nom de la base à venir (`<option>_demo`, minuscules et soulignés) et la fiche naît en **À faire**.' },
+    texte: 'Bouton **+ Déclarer une démonstration**. Il ne propose que les référentiels qui n’en ont pas encore — un référentiel, une démonstration, pas deux. On donne le nom de la base à venir (`<option>_demo`, minuscules et soulignés), et on laisse l’adresse vide : tant qu’elle l’est, aucun prof ne voit cette démonstration.' },
   { n: 2, titre: 'Suivre pendant la fabrication',
-    texte: 'Passer la fiche en **En cours** quand le dev s’y met. Rien d’autre à faire : l’écran ne fabrique pas, il attend.' },
+    texte: 'Rien à faire pendant que le dev s’y met : l’écran ne fabrique pas, il attend.' },
   { n: 3, titre: 'Recevoir le travail',
-    texte: 'À la livraison, vérifier ce qui est renseigné : l’**adresse** de l’instance, les trois compteurs, la **date de génération**. Les compteurs se saisissent à la main — cet écran n’ouvre pas la base pour les recompter. Statut **Fabriquée**.' },
+    texte: 'À la livraison, vérifier ce qui est renseigné : l’**adresse** de l’instance, les trois compteurs, la **date de génération**. Les compteurs se saisissent à la main — cet écran n’ouvre pas la base pour les recompter.' },
   { n: 4, titre: 'Relire soi-même, par Visiter',
-    texte: 'Le bouton **Visiter** ouvre la démonstration avec l’identité admin, quel que soit son couple et son statut. Parcourir une séquence, une séance et deux activités ; vérifier le filigrane à l’écran et sur une impression. Ce qui cloche va dans **Défauts connus**, pas dans un carnet à part.' },
+    texte: 'Le bouton **Visiter** ouvre la démonstration avec l’identité admin, quel que soit son couple. Parcourir une séquence, une séance et deux activités ; vérifier le filigrane à l’écran et sur une impression. Ce qui cloche va dans **Défauts connus**, pas dans un carnet à part.' },
   { n: 5, titre: 'Ouvrir la porte aux profs',
-    texte: 'Passer en **Testée** — et seulement à ce moment-là : c’est ce statut qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau. **Validée** vient ensuite, quand elle a servi sans incident. Renseigner la **date du dernier test**.' },
+    texte: 'Renseigner l’**adresse** — et seulement à ce moment-là : c’est elle qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau. Renseigner aussi la **date du dernier test**.' },
   { n: 6, titre: 'Corriger, ou retirer',
     texte: '**Modifier** rouvre la fiche à tout moment. **Retirer** l’efface de la liste — la base PostgreSQL, elle, survit : elle se détruit à la main, par le dev.' },
 ]
@@ -169,7 +167,7 @@ const PROCEDURE = [
     code: 'docker compose exec -T db psql -U aschool -d <nom>_demo < demos/<nom>_demo/<nom>_01_sequences.sql' },
 
   { n: 6, titre: 'La pile Docker, puis la fiche',
-    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple, et la vérification l’**exige** au lieu de se contenter de ne pas voir d’erreur : la route rend `couple: null` plutôt qu’un mauvais couple, et un vide passerait pour un silence. S’il ne colle pas, c’est le `DATABASE_URL` qui vise la mauvaise base, ou le rattachement du temps 2 qui a manqué. Le test porte sur le nom du niveau seul : le séparateur `·` n’est pas de l’ASCII, une console qui le transcode mal ferait échouer une copie pourtant juste. La fiche se met à jour depuis cet écran : statut, adresse, compteurs, date.',
+    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple, et la vérification l’**exige** au lieu de se contenter de ne pas voir d’erreur : la route rend `couple: null` plutôt qu’un mauvais couple, et un vide passerait pour un silence. S’il ne colle pas, c’est le `DATABASE_URL` qui vise la mauvaise base, ou le rattachement du temps 2 qui a manqué. Le test porte sur le nom du niveau seul : le séparateur `·` n’est pas de l’ASCII, une console qui le transcode mal ferait échouer une copie pourtant juste. La fiche se met à jour depuis cet écran : adresse, compteurs, date.',
     code: 'docker compose up -d backend_demo_<x> frontend_demo_<x>\n'
         + 'curl -s http://localhost:<PORT_API>/api/demo/etat | grep -q \'<NIVEAU>\' && echo "couple correct" || echo "COPIE FAUSSE"' },
 
@@ -195,7 +193,7 @@ const PIEGES = [
   '**Recalculer les vecteurs.** Ils se copient. Une ré-ingestion coûte des appels et ne donne rien de plus.',
   '**Rejouer les prompts** du référentiel dans la base de démonstration : le découpage arrive avec la copie.',
   '**Écrire le contenu ailleurs que dans `demos/`.** Un dossier temporaire de session est purgé par le système, et le travail disparaît avec.',
-  '**Passer une démonstration en « Testée » sans l’avoir ouverte** — ou la laisser en « Fabriquée » alors qu’elle a été relue. Le statut est une promesse faite aux profs.',
+  '**Renseigner l’adresse sans avoir ouvert la démonstration.** L’adresse est une promesse faite aux profs : dès qu’elle est là, ils entrent.',
 ]
 
 // **gras** → <b>, `code` → <code>. Découpage sur les paires de marqueurs : rangs impairs marqués.

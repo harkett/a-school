@@ -1218,12 +1218,10 @@ class Demo(Base):
     referentiel_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
     nom_base: Mapped[str] = mapped_column(Text, nullable=False)
-    # L'adresse de l'instance branchée sur cette base. NULL = pas encore montée, donc pas
-    # visitable : l'entrée « Démonstration » du menu prof reste grisée tant qu'elle manque.
+    # L'adresse de l'instance branchée sur cette base, et LE SEUL contrôle de visite : NULL = pas
+    # encore montée, donc pas visitable. Un `statut` en cinq mots (à faire, en cours, fabriquée,
+    # testée, validée) doublait ce contrôle sans rien y ajouter — supprimé le 16/08/2026.
     url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # a_faire | en_cours | fait | teste | valide — la progression, du vide au livrable.
-    statut: Mapped[str] = mapped_column(
-        String(16), nullable=False, server_default="a_faire", default="a_faire")
     nb_activites: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
     nb_sequences: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
     nb_seances: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)

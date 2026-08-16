@@ -11,15 +11,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import GuideDemos from '../components/GuideDemos.jsx'
 
-// Les cinq statuts, du vide au livrable. Le mot affiché est celui qu'on prononce ; la valeur
-// stockée reste celle de la base (`a_faire`…), jamais traduite en dur ailleurs.
-const STATUTS = {
-  a_faire:  { label: 'À faire',   bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
-  en_cours: { label: 'En cours',  bg: '#fffbeb', color: '#92400e', border: '#fde68a' },
-  fait:     { label: 'Fabriquée', bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  teste:    { label: 'Testée',    bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
-  valide:   { label: 'Validée',   bg: '#ecfdf5', color: '#065f46', border: '#a7f3d0' },
-}
+// LE STATUT A DISPARU (16/08/2026). Cinq mots — À faire, En cours, Fabriquée, Testée, Validée —
+// dont deux seulement agissaient, et au même endroit : ouvrir l'entrée « Démonstration » du menu
+// prof. Une démonstration pas prête n'a pas d'adresse, et cette absence la tenait déjà fermée. La
+// règle tient en une phrase : une démonstration est visitable dès qu'elle a une adresse. La
+// colonne « Adresse » de ce tableau la dit déjà, en toutes lettres.
 
 // Norme maison : même hauteur pour tous, curseur interdit quand c'est grisé, une couleur par geste
 // (valider bleu, annuler rouge, ajouter vert), et une bulle d'aide sur chacun — posée à l'appel.
@@ -59,7 +55,7 @@ const champ = {
 }
 
 const VIDE = {
-  referentiel_id: '', nom_base: '', url: '', statut: 'a_faire',
+  referentiel_id: '', nom_base: '', url: '',
   nb_activites: 0, nb_sequences: 0, nb_seances: 0,
   date_generation: '', date_dernier_test: '', defauts_connus: '', notes: '',
 }
@@ -111,7 +107,6 @@ export default function AdminBaseDemos() {
       referentiel_id: Number(edition.referentiel_id),
       nom_base: edition.nom_base,
       url: edition.url.trim() || null,
-      statut: edition.statut,
       nb_activites: Number(edition.nb_activites) || 0,
       nb_sequences: Number(edition.nb_sequences) || 0,
       nb_seances: Number(edition.nb_seances) || 0,
@@ -169,7 +164,6 @@ export default function AdminBaseDemos() {
       referentiel_id: d.referentiel_id,
       nom_base: d.nom_base,
       url: d.url || '',
-      statut: d.statut,
       nb_activites: d.nb_activites,
       nb_sequences: d.nb_sequences,
       nb_seances: d.nb_seances,
@@ -250,7 +244,6 @@ export default function AdminBaseDemos() {
                       title="L'instance branchée sur cette base — sans elle, le prof ne peut pas s'y rendre">
                     Adresse
                   </th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Statut</th>
                   <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}
                       title="Compteurs figés à la fabrication — cet écran ne peut pas les recompter">
                     Act. / Séq. / Séa.
@@ -264,7 +257,7 @@ export default function AdminBaseDemos() {
                 {data.demos.map(d => (
                   edition && edition.id === d.id
                     ? <LigneEdition key={d.id} edition={edition} setEdition={setEdition}
-                                    statuts={data.statuts} libres={libres} demo={d}
+                                    libres={libres} demo={d}
                                     busy={busy} onValider={enregistrer}
                                     onAnnuler={() => setEdition(null)} />
                     : <LigneLecture key={d.id} d={d} busy={busy} bloque={!!edition}
@@ -273,7 +266,7 @@ export default function AdminBaseDemos() {
                 ))}
                 {edition && edition.id === 'nouveau' && (
                   <LigneEdition edition={edition} setEdition={setEdition}
-                                statuts={data.statuts} libres={libres} demo={null}
+                                libres={libres} demo={null}
                                 busy={busy} onValider={enregistrer}
                                 onAnnuler={() => setEdition(null)} />
                 )}
@@ -287,7 +280,6 @@ export default function AdminBaseDemos() {
 }
 
 function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
-  const s = STATUTS[d.statut] || STATUTS.a_faire
   return (
     <>
       <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -305,13 +297,6 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
                     title="Tant qu'aucune adresse n'est renseignée, l'entrée « Démonstration » du menu prof reste grisée">
                 instance non montée
               </span>}
-        </td>
-        <td style={{ padding: '8px' }}>
-          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999,
-                         fontSize: 11.5, fontWeight: 600,
-                         background: s.bg, color: s.color, border: '1px solid ' + s.border }}>
-            {s.label}
-          </span>
         </td>
         <td style={{ padding: '8px', textAlign: 'right', color: '#334155' }}>
           {d.nb_activites} / {d.nb_sequences} / {d.nb_seances}
@@ -361,7 +346,7 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
   )
 }
 
-function LigneEdition({ edition, setEdition, statuts, libres, demo, busy, onValider, onAnnuler }) {
+function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAnnuler }) {
   const set = (k, v) => setEdition(e => ({ ...e, [k]: v }))
   const nouveau = edition.id === 'nouveau'
   // Ce que le serveur a proposé au dernier choix de référentiel : sert uniquement à dire, sous
@@ -444,17 +429,6 @@ function LigneEdition({ edition, setEdition, statuts, libres, demo, busy, onVali
                    onChange={e => set('url', e.target.value)}
                    placeholder="https://demo-ciela.aschool.fr"
                    title="L’application branchée sur cette base — c’est là que le menu prof enverra l’enseignant" />
-          </label>
-
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Statut
-            <select style={champ} value={edition.statut} disabled={busy}
-                    onChange={e => set('statut', e.target.value)}
-                    title="Où en est cette démonstration">
-              {statuts.map(s => (
-                <option key={s} value={s}>{(STATUTS[s] || {}).label || s}</option>
-              ))}
-            </select>
           </label>
 
           <label style={{ fontSize: 11.5, color: '#64748b' }}>

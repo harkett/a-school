@@ -3013,14 +3013,17 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
 # pourquoi les compteurs sont saisis et non calculés — les recompter voudrait dire se connecter
 # ailleurs, ce que ce moteur-ci ne fait pas.
 
-STATUTS_DEMO = ("a_faire", "en_cours", "fait", "teste", "valide")
+# LE STATUT A ÉTÉ SUPPRIMÉ (16/08/2026). Cinq mots — À faire, En cours, Fabriquée, Testée,
+# Validée — dont deux seulement agissaient, et au même endroit : ouvrir l'entrée « Démonstration »
+# du menu prof. Or une démonstration qui n'est pas prête n'a pas d'adresse, et cette absence
+# suffisait déjà à la tenir fermée. Cinq mots à comprendre pour un contrôle qui existait en double.
+# La règle tient maintenant en une phrase : une démonstration est visitable dès qu'elle a une adresse.
 
 
 class DemoIn(BaseModel):
     referentiel_id: int
     nom_base: str
     url: str | None = None
-    statut: str = "a_faire"
     nb_activites: int = 0
     nb_sequences: int = 0
     nb_seances: int = 0
@@ -3038,7 +3041,6 @@ def _demo_en_dict(d: Demo, cycle_nom: str | None, niveau_nom: str | None) -> dic
         "niveau": niveau_nom,
         "nom_base": d.nom_base,
         "url": d.url,
-        "statut": d.statut,
         "nb_activites": d.nb_activites,
         "nb_sequences": d.nb_sequences,
         "nb_seances": d.nb_seances,
@@ -3049,12 +3051,10 @@ def _demo_en_dict(d: Demo, cycle_nom: str | None, niveau_nom: str | None) -> dic
     }
 
 
-def _valider_demo(body: DemoIn, db: Session) -> tuple[str, str, str | None]:
-    """Refuse tôt ce que la base refuserait tard, avec un message lisible. Rend (nom_base, statut,
-    url) nettoyés. Le nom de base est contraint à la convention `<option>_demo` : minuscules, chiffres
+def _valider_demo(body: DemoIn, db: Session) -> tuple[str, str | None]:
+    """Refuse tôt ce que la base refuserait tard, avec un message lisible. Rend (nom_base, url)
+    nettoyés. Le nom de base est contraint à la convention `<option>_demo` : minuscules, chiffres
     et soulignés. Un tiret obligerait à écrire le nom entre guillemets dans toute commande SQL."""
-    if body.statut not in STATUTS_DEMO:
-        raise HTTPException(400, f"Statut inconnu. Attendu : {', '.join(STATUTS_DEMO)}.")
     nom = (body.nom_base or "").strip().lower()
     if not re.fullmatch(r"[a-z][a-z0-9_]*", nom):
         raise HTTPException(400, "Nom de base invalide : minuscules, chiffres et soulignés, "
@@ -3068,7 +3068,7 @@ def _valider_demo(body: DemoIn, db: Session) -> tuple[str, str, str | None]:
     url = (body.url or "").strip().rstrip("/") or None
     if url and not re.fullmatch(r"https?://[^\s]+", url):
         raise HTTPException(400, "Adresse invalide : attendue sous la forme https://demo.exemple.fr")
-    return nom, body.statut, url
+    return nom, url
 
 
 @router.get("/admin/demos")
@@ -3099,7 +3099,6 @@ def admin_demos_liste(db: Session = Depends(get_db), _: None = Depends(_require_
         "referentiels_libres": [
             {"id": rid, "cycle": c, "niveau": n} for rid, c, n in libres if rid not in pris
         ],
-        "statuts": list(STATUTS_DEMO),
     }
 
 
@@ -3182,10 +3181,10 @@ def admin_demos_proposition(referentiel_id: int = Query(...),
 @router.post("/admin/demos")
 def admin_demos_creer(body: DemoIn, request: Request,
                       db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    nom, statut, url = _valider_demo(body, db)
+    nom, url = _valider_demo(body, db)
     if db.query(Demo).filter(Demo.referentiel_id == body.referentiel_id).first():
         raise HTTPException(409, "Ce référentiel a déjà une démonstration.")
-    d = Demo(referentiel_id=body.referentiel_id, nom_base=nom, url=url, statut=statut,
+    d = Demo(referentiel_id=body.referentiel_id, nom_base=nom, url=url,
              nb_activites=body.nb_activites, nb_sequences=body.nb_sequences,
              nb_seances=body.nb_seances, date_generation=body.date_generation,
              date_dernier_test=body.date_dernier_test,
@@ -3205,7 +3204,7 @@ def admin_demos_modifier(demo_id: int, body: DemoIn, request: Request,
     d = db.get(Demo, demo_id)
     if not d:
         raise HTTPException(404, "Démonstration introuvable.")
-    nom, statut, url = _valider_demo(body, db)
+    nom, url = _valider_demo(body, db)
     doublon = (db.query(Demo)
                  .filter(Demo.referentiel_id == body.referentiel_id, Demo.id != demo_id)
                  .first())
@@ -3214,7 +3213,6 @@ def admin_demos_modifier(demo_id: int, body: DemoIn, request: Request,
     d.referentiel_id = body.referentiel_id
     d.nom_base = nom
     d.url = url
-    d.statut = statut
     d.nb_activites = body.nb_activites
     d.nb_sequences = body.nb_sequences
     d.nb_seances = body.nb_seances

@@ -16,7 +16,7 @@ démarrage — seulement quand quelqu'un clique.
 CE QUE LE TEST PROUVE :
   1. Le clic redirige (307) vers l'adresse de la démonstration, jeton accroché.
   2. Le jeton porte le prof et SON niveau.
-  3. Une démonstration en préparation refuse en 409 — un message, jamais une 500.
+  3. Une démonstration sans adresse refuse en 409 — un message, jamais une 500.
   4. Un prof sans niveau reçoit lui aussi un 409 lisible.
   5. `/demo/pour-moi` et `/demo/aller` sont d'accord : ce que la première déclare disponible,
      la seconde le sert. C'est cet accord que la panne avait rompu.
@@ -59,7 +59,7 @@ def teardown_module(_module):
             os.environ[cle] = valeur
 
 
-def _semer(statut="teste", avec_niveau=True):
+def _semer(avec_url=True, avec_niveau=True):
     """Un prof, son niveau, son référentiel et la démonstration de ce référentiel."""
     db = dbmod.SessionLocal()
     db.query(User).filter(User.email == EMAIL).delete()
@@ -76,7 +76,7 @@ def _semer(statut="teste", avec_niveau=True):
     db.add(ref); db.flush()
     mat = Matiere(nom=MATIERE, referentiel_id=ref.id, ordre=1, actif=True)
     db.add(mat); db.flush()
-    db.add(Demo(referentiel_id=ref.id, nom_base="passage_demo", url=URL, statut=statut))
+    db.add(Demo(referentiel_id=ref.id, nom_base="passage_demo", url=URL if avec_url else None))
     db.add(User(email=EMAIL, password_hash="x", is_verified=True,
                 subject_id=mat.id if avec_niveau else None,
                 niveau_id=niveau.id if avec_niveau else None))
@@ -107,12 +107,16 @@ def test_le_jeton_porte_le_prof_et_son_niveau(client):
     assert charge["matiere"] == MATIERE
 
 
-def test_une_demo_en_preparation_refuse_avec_un_message(client):
-    """409 et une phrase — jamais une 500, qui ne dit rien au prof."""
-    _semer(statut="fait")
+def test_une_demo_sans_adresse_refuse_avec_un_message(client):
+    """409 et une phrase — jamais une 500, qui ne dit rien au prof.
+
+    L'ADRESSE EST LE SEUL CONTRÔLE depuis le 16/08/2026. Ce test posait le statut « fait » pour
+    fermer la porte ; les cinq statuts ont été supprimés — ils doublaient exactement ce que dit
+    l'absence d'adresse : la démonstration n'est pas en ligne, personne n'y entre."""
+    _semer(avec_url=False)
     r = client.get("/api/demo/aller")
     assert r.status_code == 409, r.text
-    assert "préparation" in r.json()["detail"]
+    assert "en ligne" in r.json()["detail"].lower()
 
 
 def test_un_prof_sans_niveau_recoit_un_refus_lisible(client):
@@ -125,8 +129,8 @@ def test_un_prof_sans_niveau_recoit_un_refus_lisible(client):
 def test_les_deux_routes_sont_d_accord(client):
     """Ce que le menu déclare disponible, le clic doit le servir. La panne rompait cet accord :
     `/demo/pour-moi` disait oui, `/demo/aller` rendait 500."""
-    for statut, attendu in (("teste", 307), ("fait", 409)):
-        _semer(statut=statut)
+    for avec_url, attendu in ((True, 307), (False, 409)):
+        _semer(avec_url=avec_url)
         dispo = client.get("/api/demo/pour-moi").json()["disponible"]
         r = client.get("/api/demo/aller")
         assert r.status_code == attendu, r.text

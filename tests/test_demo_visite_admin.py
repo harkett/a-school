@@ -10,7 +10,7 @@ l'administrateur seulement.
 
 Ce que le test PROUVE (chaîne réelle) :
   1. Sans cookie admin : 401 — la porte n'est pas ouverte à tout le monde.
-  2. Avec cookie admin, sur une démonstration en statut « fait » (donc INTERDITE au prof) :
+  2. Avec cookie admin, sur une démonstration d'un AUTRE niveau que le sien :
      307 vers l'adresse de l'instance, jeton accroché.
   3. Le jeton est signé avec DEMO_SECRET et porte l'identité de l'admin, le NIVEAU DE LA
      DÉMONSTRATION VISÉE (et non celui de l'admin) et une matière de son référentiel.
@@ -42,7 +42,7 @@ def _admin():
 
 
 def _semer():
-    """Deux démonstrations de NIVEAUX DIFFÉRENTS, toutes deux en statut « fait » — c'est-à-dire
+    """Deux démonstrations de NIVEAUX DIFFÉRENTS — c'est-à-dire
     invisibles pour un prof. Rend (id_demo_a, id_demo_b)."""
     db = dbmod.SessionLocal()
     db.query(Demo).delete()
@@ -68,7 +68,7 @@ def _semer():
         db.add(ref)
         db.flush()
         db.add(Matiere(nom=matiere, referentiel_id=ref.id, ordre=1, actif=True))
-        d = Demo(referentiel_id=ref.id, nom_base=nom_base, url=url, statut="fait")
+        d = Demo(referentiel_id=ref.id, nom_base=nom_base, url=url)
         db.add(d)
         db.flush()
         faits.append((d.id, nom_niveau, matiere))

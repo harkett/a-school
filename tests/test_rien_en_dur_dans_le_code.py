@@ -152,14 +152,6 @@ EXCEPTIONS_PERMANENTES = {
         "cache.py — les paramètres de generate() qui entrent dans l'empreinte du cache disque. "
         "Registre technique, vérifié contre le code par test_cache_llm.py.",
 
-    # Les étapes de fabrication d'une base de démonstration — un suivi de chantier interne à
-    # l'administration, pas une donnée que quelqu'un configure. Les cinq mots sont aussi les
-    # cinq libellés de l'écran (AdminBaseDemos.jsx) et la valeur stockée en base : les descendre
-    # en table demanderait une table de plus pour qu'aucun écran ne les lise autrement.
-    "backend/systeme/admin.py:STATUTS_DEMO":
-        "admin.py:2595 — a_faire / en_cours / fait / teste / valide, les étapes du chantier "
-        "d'une base de démonstration. Suivi interne, pas une donnée métier.",
-
     # DETTE REMBOURSÉE LE 10/08/2026 — elle est ici, et plus dans DETTE, parce qu'il ne reste
     # rien à descendre. Ce dictionnaire portait 18 réglages dont 16 sans ligne en base : le code
     # gagnait en silence. Les 14 réellement lus ont été semés (migration f1c9a3e7b5d2, valeurs
@@ -348,6 +340,11 @@ def test_le_compte_de_la_dette_est_celui_du_01_08_2026():
     # VALEURS sont en base et se règlent à l'écran (c'est le travail qui a créé ce registre) ;
     # ce qui reste est le texte affiché et un garde-fou de saisie. La règle du « rien en dur »
     # vise les données qu'un administrateur modifierait — pas les intitulés de ses cases.
-    assert len(EXCEPTIONS_PERMANENTES) == 16, (
-        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 16 attendues."
+    # 16 -> 15 le 16/08/2026 : `STATUTS_DEMO` retiré avec la colonne qu'il décrivait. Les cinq
+    # étapes de fabrication d'une démonstration (à faire, en cours, fabriquée, testée, validée)
+    # n'agissaient qu'à un seul endroit — ouvrir l'entrée du menu prof — et doublaient un contrôle
+    # qui existait déjà : une démonstration sans adresse n'est pas visitable. Le mot a disparu de
+    # la base, du serveur et de l'écran ; l'exception n'a plus d'objet.
+    assert len(EXCEPTIONS_PERMANENTES) == 15, (
+        f"Exceptions permanentes : {len(EXCEPTIONS_PERMANENTES)}, 15 attendues."
     )
