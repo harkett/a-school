@@ -15,8 +15,13 @@ export const HAUTEUR_HEADER = 65
 // travail, avec son bouton « Changer niveau et/ou matière » juste dessous) et « compte »
 // (l'identité au-dessus de « Se déconnecter »). onOuvrirGuide null = la page n'a pas de
 // mode d'emploi → le bouton est CACHÉ (pas grisé).
+// `bloque` : le professeur vient de s'inscrire, son profil est vide, et TOUT l'écran est éteint
+// sauf la carte « Mon profil ». Le bandeau, lui, ne s'éteint PAS — il porte la seule phrase qui
+// dit quoi faire, et le logo, qu'une application sérieuse ne grise jamais. Ce sont ses BOUTONS
+// qui deviennent inertes : ils mèneraient ailleurs, et cet ailleurs n'existe pas encore.
 export default function Header({ matiere, niveau, email, prenom, nom, profilNomIncomplet, onLogout, onNavigate, onFeedback,
-                                 sessionMatiere, coupleAjuste, onValiderCouple, onRevenirProfil, onOuvrirGuide }) {
+                                 sessionMatiere, coupleAjuste, onValiderCouple, onRevenirProfil, onOuvrirGuide,
+                                 bloque = false }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
   const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
@@ -42,21 +47,48 @@ export default function Header({ matiere, niveau, email, prenom, nom, profilNomI
         </span>
       </div>
       <div className="flex items-center gap-4 text-sm">
-        {profilNomIncomplet && (
-          <button
-            onClick={() => onNavigate('mon-profil')}
-            title="Compléter votre profil (prénom et nom)"
-            style={{
-              color: '#ff6b6b', background: 'none', border: 'none', padding: 0,
-              cursor: 'pointer', fontSize: isMobile ? '0.7rem' : 'inherit',
-              fontWeight: 600, textDecoration: 'underline', fontFamily: 'inherit',
-              whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.35,
-            }}
-          >
-            Merci de compléter votre profil
-          </button>
+        {/* LA CONSIGNE, ET ELLE DOIT SE VOIR. Écrite en rouge sombre sur pastille claire, elle
+            respire lentement — assez pour attirer l'œil, pas assez pour agacer. Quand tout le
+            reste de l'écran est éteint, c'est la seule chose qui dit au nouvel inscrit ce qu'on
+            attend de lui ; discrète, elle le laisse devant une application qu'il croit en panne. */}
+        {(bloque || profilNomIncomplet) && (
+          <>
+            <style>{`
+              @keyframes aschool-consigne {
+                0%, 100% { opacity: 1;    box-shadow: 0 0 0 0 rgba(255,255,255,0.5) }
+                50%      { opacity: 0.72; box-shadow: 0 0 0 6px rgba(255,255,255,0) }
+              }
+            `}</style>
+            <button
+              onClick={() => onNavigate('mon-profil')}
+              title="Ouvrir « Mon profil » — indiquez votre niveau et votre matière pour commencer"
+              style={{
+                background: '#fff', color: '#b91c1c', border: 'none', borderRadius: 999,
+                padding: isMobile ? '4px 10px' : '6px 16px', cursor: 'pointer',
+                fontSize: isMobile ? '0.72rem' : '0.85rem', fontWeight: 700,
+                fontFamily: 'inherit', whiteSpace: 'nowrap', lineHeight: 1.2,
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                animation: 'aschool-consigne 1.8s ease-in-out infinite',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}>
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="7" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {bloque ? 'Complétez votre profil pour commencer' : 'Merci de compléter votre profil'}
+            </button>
+          </>
         )}
         {!isMobile && <span style={{ color: 'rgba(255,255,255,0.35)' }}>|</span>}
+        {/* CE QUI SUIT EST INERTE TANT QUE LE PROFIL EST VIDE : ces boutons mènent ailleurs, et
+            cet ailleurs n'existe pas encore. Ils restent VISIBLES — pâlis, pas effacés — pour
+            qu'on voie ce qui attend une fois le profil rempli. */}
+        <div style={bloque
+                    ? { display: 'flex', alignItems: 'center', gap: '1rem',
+                        opacity: 0.45, pointerEvents: 'none' }
+                    : { display: 'flex', alignItems: 'center', gap: '1rem' }}
+             aria-hidden={bloque || undefined}>
         {/* Colonne assistance : le mode d'emploi de la page (si elle en a un) + le feedback */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           {onOuvrirGuide && (
@@ -134,6 +166,7 @@ export default function Header({ matiere, niveau, email, prenom, nom, profilNomI
             </svg>
             {isMobile ? 'Déconnecter' : 'Se déconnecter'}
           </button>
+        </div>
         </div>
       </div>
     </header>

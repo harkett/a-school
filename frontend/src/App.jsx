@@ -478,9 +478,16 @@ function MainApp() {
           UN seul endroit vivant à l'écran, celui où on lui demande sa matière.
           `pointerEvents: none` plutôt qu'un voile posé par-dessus : un voile laisserait le clavier
           atteindre les boutons (Tab), et masquerait le contenu au lieu de le désactiver. */}
-      <div style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
-           aria-hidden={profilIncomplet || undefined}>
+      {/* LE BANDEAU N'EST PLUS GRISÉ, et c'est une correction, pas un revirement. Il porte
+          « Merci de compléter votre profil » : en l'éteignant avec le reste, on avait effacé LE
+          SEUL TEXTE qui dit quoi faire. Le nouvel inscrit voyait une application morte, sans
+          savoir où aller — constaté le 16/08/2026, à quelques jours des premières inscriptions.
+          Le LOGO non plus ne se grise pas : une application sérieuse n'éteint jamais son
+          identité. Ce qui doit être hors d'atteinte, ce sont les BOUTONS du bandeau, et c'est
+          `Header` qui s'en charge lui-même (`bloque`). */}
+      <div>
         <Header
+        bloque={profilIncomplet}
         matiere={matiereLabel}
         niveau={user?.travail_niveau}
         email={user?.email}

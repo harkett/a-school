@@ -65,7 +65,13 @@ def create_user(db: Session, email: str, password: str) -> User:
     existing = db.query(User).filter(User.email == email).first()
     if existing:
         if existing.is_verified:
-            raise ValueError("Un compte existe déjà avec cet email.")
+            # LE MESSAGE DIT QUOI FAIRE, pas seulement ce qui ne va pas. « Un compte existe
+            # déjà » laisse devant un formulaire qu'on ne sait pas comment quitter : les deux
+            # issues — se connecter, ou récupérer son mot de passe — sont nommées.
+            raise ValueError(
+                f"L'adresse {email} a déjà un compte actif sur aSchool.\n\n"
+                "Connectez-vous avec cette adresse, ou utilisez « Mot de passe oublié » si vous "
+                "ne vous en souvenez plus.")
         # Compte fantôme non vérifié : on le remplace proprement
         db.query(EmailToken).filter(EmailToken.email == email).delete()
         db.delete(existing)

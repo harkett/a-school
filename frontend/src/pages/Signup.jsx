@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Attente from '../components/Attente.jsx'
 import EyeIcon from '../components/EyeIcon'
@@ -42,6 +42,31 @@ export default function Signup() {
       setLoading(false)
     }
   }
+
+  // CET ONGLET NE RESTE PAS ORPHELIN. Le professeur clique le lien de son courriel — souvent
+  // dans un autre onglet du MÊME navigateur — et sa session s'ouvre là-bas. Ici, rien ne se
+  // passait : un sablier tournait dans le vide devant un compte activé depuis longtemps.
+  //
+  // ON DEMANDE AU SERVEUR, toutes les trois secondes, si une session est ouverte. Dès qu'elle
+  // l'est, on entre dans l'application — rechargement complet, comme après l'activation, pour
+  // que tout reparte de la session neuve.
+  //
+  // TROIS SECONDES, ET SEULEMENT PENDANT L'ATTENTE : la question est minuscule et cesse dès que
+  // l'écran change. Le jour où l'utilisateur ferme l'onglet, elle s'arrête avec lui.
+  useEffect(() => {
+    if (!done) return
+    let vivant = true
+    const battement = setInterval(async () => {
+      try {
+        const r = await fetch('/api/auth/me', { credentials: 'include' })
+        if (vivant && r.ok) {
+          clearInterval(battement)
+          window.location.replace('/')
+        }
+      } catch { /* le serveur ne répond pas : on réessaiera au prochain battement */ }
+    }, 3000)
+    return () => { vivant = false; clearInterval(battement) }
+  }, [done])
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
@@ -166,6 +191,9 @@ export default function Signup() {
                   terminé — sans eux, cette page ressemblait à une fin de parcours, et le futur
                   professeur repartait vers la connexion sans avoir ouvert son courriel. */}
               <Attente sablier={false} />
+              <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 8 }}>
+                Cette page se déverrouille toute seule dès que votre compte est activé.
+              </p>
               {/* AUCUNE PORTE VERS LA CONNEXION ICI. Le compte n'est pas encore actif : le lien
                   « Retour à la connexion » menait à un écran qui refuse — « Email non vérifié ».
                   On ouvrait une porte fermée à clé. Le seul chemin, c'est le courriel. */}

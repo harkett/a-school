@@ -65,7 +65,13 @@ export default function ErrorDialog() {
     <div
       role="alertdialog"
       aria-modal="true"
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      // EN HAUT DE L'ÉCRAN, PAS AU MILIEU. Centrée, la boîte se posait pile sur le formulaire
+      // qu'on venait de remplir : impossible de relire l'adresse que l'application dit déjà
+      // prise. Constaté le 16/08/2026 sur l'inscription. En haut, elle laisse voir ce dont elle
+      // parle — c'est ce que font les alertes des navigateurs, et pour la même raison.
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', zIndex: 2000,
+               display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+               padding: 16, paddingTop: '5vh', overflowY: 'auto' }}
     >
       <div style={{ background: '#fff', borderRadius: 12, maxWidth: 460, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
 
