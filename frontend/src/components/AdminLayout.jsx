@@ -1,10 +1,51 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
 import { ActionsEcran } from './actionsEcran.jsx'
 import FenetrePro from './FenetrePro.jsx'
 
 const SEP = { separator: true }
+
+// L'AIDE DU MENU NE PASSE PLUS PAR LA BULLE DU NAVIGATEUR (16/08/2026). L'attribut `title` fait
+// trois choses qu'on ne veut pas : il attend une seconde, il s'affiche en police système minuscule,
+// et il rend illisibles les explications longues — celle du Journal fait 538 caractères, étalés
+// sur toute la largeur de l'écran ou tronqués selon le navigateur.
+//
+// Celle-ci s'ouvre TOUT DE SUITE, à droite de la barre, dans la police de l'application, sur une
+// largeur fixe où le texte se lit en paragraphe. Elle suit le survol ET le focus clavier : depuis
+// que les rubriques sont des boutons tabulables, la tabulation doit expliquer autant que la souris.
+//
+// `position: fixed` et non `absolute` : la barre de navigation défile (`overflow-y: auto`), une
+// bulle posée dedans serait coupée par le bord. Elle est mesurée après rendu et remontée si elle
+// dépasse du bas de l'écran — sans quoi l'aide des dernières entrées sortait de la fenêtre.
+const BULLE_LARGEUR = 300
+const BULLE_MARGE = 12
+
+function BulleAide({ bulle }) {
+  const ref = useRef(null)
+  const [haut, setHaut] = useState(bulle.top)
+  useLayoutEffect(() => {
+    const hauteur = ref.current ? ref.current.offsetHeight : 0
+    const plafond = window.innerHeight - hauteur - BULLE_MARGE
+    setHaut(Math.max(BULLE_MARGE, Math.min(bulle.top, plafond)))
+  }, [bulle])
+  return (
+    <div
+      ref={ref}
+      role="tooltip"
+      style={{
+        position: 'fixed', left: 220 + 8, top: haut, width: BULLE_LARGEUR, zIndex: 60,
+        background: '#0f172a', color: '#e2e8f0', borderRadius: 10,
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 10px 30px rgba(15,23,42,0.35)',
+        padding: '11px 13px', pointerEvents: 'none',
+      }}
+    >
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', marginBottom: 5 }}>{bulle.titre}</div>
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(226,232,240,0.85)' }}>{bulle.texte}</div>
+    </div>
+  )
+}
 
 // Une sous-entrée est « active » sur l'égalité stricte de son URL — sauf si elle déclare un
 // `prefix`, pour une entrée dont plusieurs adresses mènent au même écran. La règle vit ici, pas
@@ -304,6 +345,15 @@ export default function AdminLayout() {
   // Les boutons que la page affiche en haut à droite. `null` tant qu'aucune n'en pose.
   const [actionsEcran, setActionsEcran] = useState(null)
 
+  // L'aide survolée (ou reçue au clavier). `null` = aucune bulle ouverte.
+  const [bulle, setBulle] = useState(null)
+  const montrerAide = (e, titre, texte) => {
+    if (!texte) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    setBulle({ titre, texte, top: rect.top })
+  }
+  const cacherAide = () => setBulle(null)
+
   // showError() est un singleton (errorDialog.js) : son handler est enregistré dans le
   // shell prof, NON monté en admin. Sans ce réenregistrement, showError serait inactif
   // sur /admin/* — l'erreur de saisie échouerait en silence. On rebranche la modale ici.
@@ -385,7 +435,10 @@ export default function AdminLayout() {
         </div>
 
         {/* Nav items — défile à l'intérieur de la sidebar si le menu est long */}
-        <nav className="admin-nav" style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
+        {/* La bulle est posée en coordonnées d'écran : si la barre défile sous la souris, elle
+            resterait affichée en face du vide. On la ferme au défilement. */}
+        <nav className="admin-nav" onScroll={cacherAide}
+             style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
           {NAV_ITEMS.map((item, i) => {
             if (item.separator) return (
               <div key={`sep-${i}`} style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '6px 4px' }} />
@@ -425,7 +478,6 @@ export default function AdminLayout() {
                     type="button"
                     onClick={() => setOpenGroup(isOpen ? null : item.label)}
                     aria-expanded={isOpen}
-                    title={item.aide}
                     className="admin-categorie"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -437,8 +489,16 @@ export default function AdminLayout() {
                       borderLeft: isGroupActive ? '3px solid #3b82f6' : '3px solid transparent',
                       cursor: 'pointer', userSelect: 'none', transition: 'color 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.9)' }}
-                    onMouseLeave={e => { if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.62)' }}
+                    onMouseEnter={e => {
+                      if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.9)'
+                      montrerAide(e, item.label, item.aide)
+                    }}
+                    onMouseLeave={e => {
+                      if (!isGroupActive) e.currentTarget.style.color = 'rgba(255,255,255,0.62)'
+                      cacherAide()
+                    }}
+                    onFocus={e => montrerAide(e, item.label, item.aide)}
+                    onBlur={cacherAide}
                   >
                     <span style={{ opacity: isGroupActive ? 1 : 0.75, display: 'flex' }}>{item.icon}</span>
                     <span>{item.label}</span>
@@ -464,7 +524,6 @@ export default function AdminLayout() {
                           <Link
                             key={sub.to}
                             to={sub.to}
-                            title={sub.aide}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8,
                               padding: '7px 12px', marginLeft: -1,
@@ -475,8 +534,16 @@ export default function AdminLayout() {
                               background: isSubActive ? 'rgba(166,48,69,0.16)' : 'transparent',
                               textDecoration: 'none', transition: 'all 0.15s',
                             }}
-                            onMouseEnter={e => { if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
-                            onMouseLeave={e => { if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.5)' }}
+                            onMouseEnter={e => {
+                              if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                              montrerAide(e, sub.label, sub.aide)
+                            }}
+                            onMouseLeave={e => {
+                              if (!isSubActive) e.currentTarget.style.color = 'rgba(255,255,255,0.5)'
+                              cacherAide()
+                            }}
+                            onFocus={e => montrerAide(e, sub.label, sub.aide)}
+                            onBlur={cacherAide}
                           >
                             <span>{sub.label}</span>
                             {subBadge && <span style={{ ...badgeStyle, marginLeft: 'auto' }}>{subBadge}</span>}
@@ -522,8 +589,10 @@ export default function AdminLayout() {
                     {badge}
                   </span>
                 )}
+                {/* Le « ? » n'a plus d'aide propre : c'est la ligne entière qui l'ouvre, et la
+                    bulle sort au même endroit qu'on survole le mot ou le rond. */}
                 <span
-                  title={item.aide}
+                  aria-hidden="true"
                   style={{
                     marginLeft:   'auto',
                     width:        16,
@@ -551,10 +620,17 @@ export default function AdminLayout() {
                 href={item.to}
                 target="afeedback"
                 rel="noopener noreferrer"
-                title={item.aide}
                 style={style}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.55)' }}
+                onMouseEnter={e => {
+                  if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                  montrerAide(e, item.label, item.aide)
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.55)'
+                  cacherAide()
+                }}
+                onFocus={e => montrerAide(e, item.label, item.aide)}
+                onBlur={cacherAide}
               >
                 {content}
               </a>
@@ -562,10 +638,17 @@ export default function AdminLayout() {
               <Link
                 key={item.to}
                 to={item.to}
-                title={item.aide}
                 style={style}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)' }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.55)' }}
+                onMouseEnter={e => {
+                  if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'
+                  montrerAide(e, item.label, item.aide)
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.55)'
+                  cacherAide()
+                }}
+                onFocus={e => montrerAide(e, item.label, item.aide)}
+                onBlur={cacherAide}
               >
                 {content}
               </Link>
@@ -620,6 +703,10 @@ export default function AdminLayout() {
           </div>
         </div>
       </aside>
+
+      {/* L'aide de l'entrée survolée. Hors de la barre : elle déborde sur le contenu, ce qu'une
+          bulle enfermée dans un conteneur qui défile ne peut pas faire. */}
+      {bulle && <BulleAide bulle={bulle} />}
 
       {/* Contenu principal — en-tête fixe + zone centrale qui défile + footer figé */}
       <main style={{ flex: 1, height: '100vh', background: '#f0f4f8', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
