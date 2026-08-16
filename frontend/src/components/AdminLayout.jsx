@@ -385,7 +385,7 @@ export default function AdminLayout() {
         </div>
 
         {/* Nav items — défile à l'intérieur de la sidebar si le menu est long */}
-        <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
+        <nav className="admin-nav" style={{ flex: 1, padding: '12px 10px', overflowY: 'auto' }}>
           {NAV_ITEMS.map((item, i) => {
             if (item.separator) return (
               <div key={`sep-${i}`} style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '6px 4px' }} />
@@ -413,12 +413,24 @@ export default function AdminLayout() {
                       d'ouvrir — mais un détail de couleur ne justifie pas de changer d'écran à la
                       place de l'utilisateur. On déplie pour REGARDER ; on ne bouge que si on
                       clique une sous-entrée. */}
-                  <div
+                  {/* UN VRAI BOUTON, PAS UN BLOC CLIQUABLE. C'était un <div> : la tabulation le
+                      sautait, et les cinq rubriques du menu étaient inatteignables sans souris —
+                      donc leurs écrans aussi, puisqu'aucun autre chemin n'y mène quand la rubrique
+                      est repliée. Un <button> prend le focus, répond à Entrée et à Espace, et
+                      annonce son état (`aria-expanded`) aux lecteurs d'écran ; tout cela est offert
+                      par la balise, il n'y a rien à écrire. Les styles remis à zéro (bordure, fond,
+                      police, alignement) ne servent qu'à ce que le bouton garde EXACTEMENT
+                      l'apparence du bloc qu'il remplace. */}
+                  <button
+                    type="button"
                     onClick={() => setOpenGroup(isOpen ? null : item.label)}
+                    aria-expanded={isOpen}
                     title={item.aide}
+                    className="admin-categorie"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '11px 12px', borderRadius: 8, marginTop: 4,
+                      width: '100%', textAlign: 'left', font: 'inherit',
+                      padding: '11px 12px', border: 'none', borderRadius: 8, marginTop: 4,
                       fontSize: 14, fontWeight: 600,
                       color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.62)',
                       background: isGroupActive ? 'rgba(255,255,255,0.06)' : 'transparent',
@@ -440,7 +452,7 @@ export default function AdminLayout() {
                         <polyline points="9 18 15 12 9 6"/>
                       </svg>
                     </span>
-                  </div>
+                  </button>
 
                   {/* Sous-entrées — plus petites, décalées sous un rail, liseré bordeaux quand actives */}
                   {isOpen && (
