@@ -7,6 +7,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
 import { lignesMatieres, nbRetenues as compterRetenues, aRetenir as resteARetenir } from '../utils/matieresReferentiel.js'
 import FenetrePro from '../components/FenetrePro.jsx'
+import Attente from '../components/Attente.jsx'
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
@@ -3331,8 +3332,17 @@ function TransfertReferentiel({ referentiel }) {
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
         </svg>
-        {occupe === 'export' ? 'Export…' : 'Exporter ce référentiel'}
+        Exporter ce référentiel
       </button>
+
+      {/* L'ATTENTE SE VOIT, elle ne se devine pas. Un référentiel pèse quelques mégaoctets : entre
+          le clic et le fichier, il se passe plusieurs secondes pendant lesquelles rien ne bougeait
+          — et un écran figé ne se distingue pas d'un écran en panne. */}
+      {occupe === 'export' && (
+        <div style={{ marginTop: 12 }}>
+          <Attente texte="Rassemblement du référentiel…" compact />
+        </div>
+      )}
 
       {reussite && (
         <p style={{ marginTop: 14, fontSize: 12.5, color: '#15803d' }}>{reussite}</p>
@@ -3399,10 +3409,17 @@ function ImporterReferentiel({ onImporte }) {
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        {occupe ? 'Import…' : 'Importer un référentiel'}
+        Importer un référentiel
       </button>
       <input ref={champFichier} type="file" accept=".json,application/json"
              onChange={importer} style={{ display: 'none' }} />
+
+      {/* L'import est plus long que l'export : le fichier monte, puis chaque ligne se pose. */}
+      {occupe && (
+        <div style={{ marginTop: 10 }}>
+          <Attente texte="Installation du référentiel…" compact />
+        </div>
+      )}
     </>
   )
 }
