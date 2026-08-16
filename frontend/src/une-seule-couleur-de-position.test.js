@@ -5,8 +5,10 @@
 // bordeaux est par ailleurs la couleur de la marque (logo, icône d'en-tête, pied de page, trente-
 // quatre fichiers) : à servir aussi de balise de position, elle ne signifiait plus rien nulle part.
 //
-// LA RÉPARATION : le bleu, et lui seul. Plein sur la page où l'on est (sous-entrée ou entrée
-// simple), atténué sur la rubrique qui la contient — elle situe, elle ne désigne pas.
+// LA RÉPARATION : UN SEUL TRAIT dans la colonne, bleu, sur la PAGE ouverte — sous-entrée ou
+// entrée simple. La rubrique qui la contient n'en porte aucun : elle se signale par son texte
+// blanc et son fond léger. Deux traits, même d'intensités différentes, obligent encore l'œil à
+// les comparer pour savoir lequel désigne l'écran.
 //
 // CE QUE CE TEST ATTRAPE : le retour du bordeaux comme marque de position dans le menu.
 //
@@ -39,17 +41,17 @@ test('le menu ne se sert plus du bordeaux pour marquer la position', () => {
   )
 })
 
-test('la page où l’on se trouve porte le bleu plein, sa rubrique le bleu atténué', () => {
+test('seule la page ouverte porte un trait', () => {
   const m = menu()
   assert.match(
     m,
     /isSubActive \? '3px solid #3b82f6'/,
-    'La sous-entrée active ne porte plus le bleu plein : on ne voit plus quelle page est ouverte.'
+    'La sous-entrée active ne porte plus le trait bleu : on ne voit plus quelle page est ouverte.'
   )
-  assert.match(
+  assert.doesNotMatch(
     m,
-    /isGroupActive \? '3px solid rgba\(59,130,246,0\.5\)'/,
-    'La rubrique active porte à nouveau un trait aussi fort que la page elle-même : deux repères\n' +
-    'de même intensité sur la même colonne, on ne sait plus lequel désigne l’écran ouvert.'
+    /isGroupActive \? '3px solid (?!transparent)/,
+    'La rubrique porte à nouveau un trait : deux repères dans la même colonne, et l’œil doit les\n' +
+    'comparer pour savoir lequel désigne l’écran ouvert. Elle se signale par son fond, pas par un trait.'
   )
 })

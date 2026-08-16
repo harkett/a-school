@@ -552,9 +552,12 @@ export default function AdminLayout() {
                       fontSize: 14, fontWeight: 600,
                       color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.62)',
                       background: isGroupActive ? 'rgba(255,255,255,0.06)' : 'transparent',
-                      // UNE SEULE COULEUR DIT « VOUS ÊTES ICI » : le bleu (16/08/2026). Ce trait
-                      // est le bleu ATTÉNUÉ — la rubrique contient la page, elle n'est pas la page.
-                      borderLeft: isGroupActive ? '3px solid rgba(59,130,246,0.5)' : '3px solid transparent',
+                      // UN SEUL TRAIT DANS LA COLONNE, celui de la PAGE ouverte (16/08/2026).
+                      // La rubrique n'en porte aucun : elle contient la page, elle n'est pas la
+                      // page. Elle se signale par son texte blanc et son fond léger — deux traits
+                      // bleus d'intensités voisines obligeaient l'œil à les comparer pour savoir
+                      // lequel désignait l'écran, ce qui était la moitié du défaut d'origine.
+                      borderLeft: '3px solid transparent',
                       cursor: 'pointer', userSelect: 'none', transition: 'color 0.15s',
                     }}
                     onMouseEnter={e => {
