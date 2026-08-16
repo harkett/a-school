@@ -404,13 +404,17 @@ export default function AdminLayout() {
               )
               return (
                 <div key={`group-${i}`} style={{ marginBottom: 2 }}>
-                  {/* En-tête de catégorie — plus grand/gras ; clic = bascule ouvrir / replier */}
+                  {/* En-tête de catégorie — plus grand/gras ; clic = bascule ouvrir / replier.
+                      DÉPLIER N'EMMÈNE NULLE PART, et c'est une correction du 16/08/2026. Le clic
+                      ouvrait la catégorie ET envoyait sur sa première sous-entrée : on regardait
+                      Formations, on ouvrait « Système » par curiosité, et l'écran partait sur
+                      Système → Email sans qu'on ait rien demandé. Le travail en cours disparaissait.
+                      C'était voulu — pour que la surbrillance bleue suive la catégorie qu'on vient
+                      d'ouvrir — mais un détail de couleur ne justifie pas de changer d'écran à la
+                      place de l'utilisateur. On déplie pour REGARDER ; on ne bouge que si on
+                      clique une sous-entrée. */}
                   <div
-                    onClick={() => {
-                      if (isOpen) { setOpenGroup(null); return }   // ouverte → on la replie
-                      setOpenGroup(item.label)                      // fermée → on l'ouvre…
-                      if (!isGroupActive) navigate(item.items[0].to) // …et on y va (le bleu suit) si on n'y est pas déjà
-                    }}
+                    onClick={() => setOpenGroup(isOpen ? null : item.label)}
                     title={item.aide}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
