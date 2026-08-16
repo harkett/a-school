@@ -189,7 +189,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
 
   return (
     <aside
-      className="bg-white border-r border-gray-200 flex flex-col shrink-0 transition-all"
+      className="bg-white border-r border-gray-200 flex flex-col shrink-0 h-full transition-all"
       style={{ width: collapsed ? 48 : 176, overflow: 'hidden' }}
     >
       <button
@@ -343,7 +343,6 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
 
         {/* « Mon réseau » (partages de l'ancien monde) a été démoli le 30/07 — il renaîtra
             sur le partage du monde neuf, conçu sur les tables neuves. */}
-        {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
         {/* MES FEEDBACKS — un groupe, deux gestes. Écrire un retour et relire ceux qu'on a
             envoyés sont deux choses différentes, et l'entrée unique n'en offrait qu'une : pour
             écrire, il fallait passer par le menu du haut. Les deux sont maintenant côte à côte,
@@ -378,9 +377,10 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
           )}
         </div>
         {navItem('mes-stats', 'Mes stats', IconStats, 'Mes statistiques personnelles et la vitalité de la plateforme')}
+        {navItem('mon-profil', 'Mon profil', IconUser, 'Modifier vos informations : prénom, nom, matière, niveau par défaut')}
       </nav>
 
-      <nav className={`shrink-0 flex flex-col gap-1 pb-3 border-t border-gray-100 pt-3 ${collapsed ? '' : 'px-4'}`}>
+      <nav className={`shrink-0 flex flex-col gap-1 pb-3 border-t border-gray-200 pt-3 ${collapsed ? '' : 'px-4'}`}>
         <LienDemonstration collapsed={collapsed} />
         {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
         {navItem('aide', 'Centre d\'aide', IconHelp, 'Consulter la documentation et l\'aide')}

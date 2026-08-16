@@ -499,7 +499,7 @@ function MainApp() {
       </div>
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
-        <div style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
+        <div className="flex" style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
              aria-hidden={profilIncomplet || undefined}>
           <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
         </div>
