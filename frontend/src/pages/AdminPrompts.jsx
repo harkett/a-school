@@ -19,14 +19,17 @@ import { buildSearchIndex, searchSections } from '../utils/aideSearch.js'
 // celui du prof. Le bouton « Cacher le détail » est permanent (règle maison).
 const CATEGORIES = {
   fonctionnalites: {
+    bande: 'Prompt de fonctionnalité',
     titre: 'Prompts — Fonctionnalités aSchool',
     intro: 'Les textes rangés par FONCTIONNALITÉ — le chemin du menu où le professeur trouve le bouton qui les déclenche. Un prompt ne se cherche pas par « qui s\'en sert » : l\'admin est le seul à les lire tous.',
   },
   referentiels_communs: {
+    bande: 'Prompt commun à tous les référentiels',
     titre: 'Prompts — Communs à tous les référentiels',
     intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité. Les mêmes pour TOUS les référentiels — ceux qui appartiennent à un couple sont dans l\'entrée « Référentiels » du menu.',
   },
   autres: {
+    bande: 'Prompt — autres',
     titre: 'Prompts — Autres',
     intro: 'Le filet : ce qui ne sert aucun outil en propre. La ligne qui colle le cahier des charges de l\'établissement au bas des prompts de génération y vit — elle porte une décision, pas une fonctionnalité.',
   },
@@ -223,7 +226,11 @@ export default function AdminPrompts({ categorie }) {
             background: ouverte ? '#fdf2f4' : 'white',
             fontSize: 13, fontWeight: 600,
             color: ouverte ? '#A63045' : '#1e293b',
+            opacity: (promptKey && !ouverte) ? 0.4 : 1,
+            transition: 'opacity 0.15s',
           }}
+          onMouseEnter={e => { e.currentTarget.style.opacity = 1 }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = (promptKey && !ouverte) ? 0.4 : 1 }}
         >
           {f.label}
           <span style={{ display: 'block', fontSize: 11.5, fontWeight: 400, color: '#94a3b8', marginTop: 3 }}>
@@ -258,7 +265,11 @@ export default function AdminPrompts({ categorie }) {
               border: 'none', borderBottom: '1px solid #f1f5f9',
               borderLeft: active ? '3px solid #A63045' : '3px solid transparent',
               background: active ? '#fdf2f4' : 'white',
+              opacity: (promptKey && !active) ? 0.4 : 1,
+              transition: 'opacity 0.15s',
             }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = 1 }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = (promptKey && !active) ? 0.4 : 1 }}
           >
             <span style={{
               display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13,
@@ -336,11 +347,22 @@ export default function AdminPrompts({ categorie }) {
         </div>
       )}
 
-      <div style={{ flexShrink: 0 }}>
-        <h3 className="text-sm font-semibold text-gray-700">{promptActif.label}</h3>
-        <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+      {/* Le prompt ouvert, en BANDE (16/08/2026) — même geste que sur l'écran Référentiels : le
+          titre gris se perdait au milieu des repères et des boutons, on éditait un texte sans
+          voir lequel. */}
+      <div style={{
+        flexShrink: 0, background: '#fdf2f4', border: '1px solid #f3d3da',
+        borderLeft: '4px solid #A63045', borderRadius: 8, padding: '12px 16px',
+      }}>
+        <div style={{ fontSize: 11, color: '#A63045', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          {meta.bande}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#6b1226', lineHeight: 1.2, marginTop: 2 }}>
+          {promptActif.label}
+        </div>
+        <div className="text-xs" style={{ color: '#b98b96', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
           {promptActif.key}
-        </p>
+        </div>
         {/* À QUOI SERT CE TEXTE, en clair, avant de le lire. Sans cette phrase, trois prompts
             voisins se ressemblaient à s'y méprendre : celui qui analyse l'énoncé du prof et ceux
             qui écrivent ses exemples. On ouvrait un prompt sans savoir ce qu'on tenait. */}
