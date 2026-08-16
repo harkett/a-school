@@ -1221,12 +1221,14 @@ class Demo(Base):
     # L'adresse de l'instance branchée sur cette base, et LE SEUL contrôle de visite : NULL = pas
     # encore montée, donc pas visitable. Un `statut` en cinq mots (à faire, en cours, fabriquée,
     # testée, validée) doublait ce contrôle sans rien y ajouter — supprimé le 16/08/2026.
-    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # `info={"voyage": False}` : cette colonne NE SUIT PAS la fiche quand on la transporte d'une
+    # installation à l'autre (backend/pedagogie/transfert_demo.py). Elle décrit une machine —
+    # l'emporter ouvrirait l'entrée « Démonstration » du menu prof vers l'adresse d'un autre monde.
+    url: Mapped[str | None] = mapped_column(Text, nullable=True, info={"voyage": False})
     nb_activites: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
     nb_sequences: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
     nb_seances: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
     date_generation: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    date_dernier_test: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     defauts_connus: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

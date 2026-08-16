@@ -1,12 +1,13 @@
-﻿import logging
+﻿import json
+import logging
 import os
 import re
 import secrets
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import RedirectResponse, StreamingResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from sqlalchemy import create_engine, func, text
@@ -3028,7 +3029,6 @@ class DemoIn(BaseModel):
     nb_sequences: int = 0
     nb_seances: int = 0
     date_generation: datetime | None = None
-    date_dernier_test: datetime | None = None
     defauts_connus: str | None = None
     notes: str | None = None
 
@@ -3045,7 +3045,6 @@ def _demo_en_dict(d: Demo, cycle_nom: str | None, niveau_nom: str | None) -> dic
         "nb_sequences": d.nb_sequences,
         "nb_seances": d.nb_seances,
         "date_generation": d.date_generation.isoformat() if d.date_generation else None,
-        "date_dernier_test": d.date_dernier_test.isoformat() if d.date_dernier_test else None,
         "defauts_connus": d.defauts_connus,
         "notes": d.notes,
     }
@@ -3187,7 +3186,6 @@ def admin_demos_creer(body: DemoIn, request: Request,
     d = Demo(referentiel_id=body.referentiel_id, nom_base=nom, url=url,
              nb_activites=body.nb_activites, nb_sequences=body.nb_sequences,
              nb_seances=body.nb_seances, date_generation=body.date_generation,
-             date_dernier_test=body.date_dernier_test,
              defauts_connus=body.defauts_connus, notes=body.notes)
     db.add(d)
     db.commit()
@@ -3217,7 +3215,6 @@ def admin_demos_modifier(demo_id: int, body: DemoIn, request: Request,
     d.nb_sequences = body.nb_sequences
     d.nb_seances = body.nb_seances
     d.date_generation = body.date_generation
-    d.date_dernier_test = body.date_dernier_test
     d.defauts_connus = body.defauts_connus
     d.notes = body.notes
     db.commit()
@@ -3290,6 +3287,82 @@ def admin_demos_supprimer(demo_id: int, request: Request,
                      ip=request.client.host if request.client else None,
                      details=f"Fiche retirée de la liste : {nom} (la base PostgreSQL, elle, reste)")
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# TRANSPORTER UNE DÉMONSTRATION D'UNE INSTALLATION À L'AUTRE
+#
+# Une démonstration se déclare sur le poste de développement, en même temps qu'on la fabrique.
+# Un déploiement porte le code, jamais les fiches saisies : constaté le 16/08/2026, la
+# démonstration du Collège tournait en production sans que personne la voie — sa fiche était
+# restée ici. Deux boutons règlent cela, sur le modèle du référentiel.
+#
+# LA RÈGLE DU MODULE : l'adresse ne voyage pas (elle décrit une installation), et une fiche déjà
+# présente n'est jamais écrasée sans confirmation.
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/demos/{demo_id}/exporter")
+def exporter_demo(demo_id: int, db: Session = Depends(get_db), _: None = Depends(_require_admin)):
+    """Rend la fiche d'une démonstration, en un fichier. Ne modifie rien."""
+    from backend.pedagogie.transfert_demo import exporter
+
+    try:
+        contenu = exporter(db, demo_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    # Le nom du fichier porte le niveau : deux exports ne se recouvrent pas dans un dossier de
+    # téléchargements. `dossier_cle` enlève les accents AVANT de couper — sans lui, « Collège · 4e »
+    # devenait « coll-ge-4e », le « è » ayant simplement disparu.
+    from backend.core.nommage import dossier_cle
+    cle = dossier_cle(contenu["etiquette"] or str(demo_id)).lower().replace("_", "-")
+    return StreamingResponse(
+        iter([json.dumps(contenu, ensure_ascii=False).encode("utf-8")]),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="demonstration-{cle}.json"'},
+    )
+
+
+@router.post("/admin/demos/importer")
+async def importer_demo(fichier: UploadFile = File(...), remplacer: bool = Form(False),
+                        request: Request = None, db: Session = Depends(get_db),
+                        _: None = Depends(_require_admin)):
+    """Installe la fiche d'une démonstration exportée ailleurs. Tout ou rien.
+
+    LA TRANSACTION EST TENUE ICI, pas dans le module de transfert : c'est ce qui permet de tout
+    défaire si un contrôle échoue plus loin.
+
+    `remplacer` vient de l'écran, après DEUX confirmations : la première demande, la seconde
+    valide. Sans lui, une fiche déjà présente fait refuser l'import avec un message qui explique."""
+    from backend.pedagogie.transfert_demo import importer, lire_fichier
+
+    brut = await fichier.read()
+    try:
+        contenu = lire_fichier(brut)
+    except ValueError as e:
+        raise HTTPException(400, f"Le fichier « {fichier.filename} » n'a pas pu être lu.\n\n{e}")
+
+    try:
+        resultat = importer(db, contenu, remplacer=remplacer)
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        db.rollback()
+        log.exception("Import de démonstration")
+        raise HTTPException(
+            500,
+            "L'installation de la démonstration s'est arrêtée en cours de route.\n\n"
+            f"{type(e).__name__} : {e}\n\n"
+            "Rien n'a été écrit — la base est dans l'état où vous l'avez trouvée.")
+
+    if request is not None:
+        log_admin_action(db=db, admin_email=_get_admin_email(request),
+                         action="DEMO_REMPLACEE" if resultat["remplacee"] else "DEMO_IMPORTEE",
+                         ip=request.client.host if request.client else None,
+                         details=f"Fiche importée : {resultat['etiquette']}")
+    return resultat
 
 
 # ---------------------------------------------------------------------------

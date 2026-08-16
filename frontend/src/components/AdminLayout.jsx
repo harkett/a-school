@@ -274,8 +274,10 @@ const NAV_ITEMS = [
       // longtemps après que l'écran fut livré et branché sur six routes. Une aide qui décrit un
       // état passé est pire que pas d'aide : elle détourne de l'écran qu'elle est censée ouvrir.
       { to: '/admin/base/demos', label: 'Démos',
-        aide: 'Les bases de démonstration, une par niveau : leur adresse, le référentiel qu’elles montrent, et l’état de chacune. On en crée une, on modifie sa fiche, on la retire, et « Visiter » y emmène directement avec votre identité d’administrateur.',
-        resume: 'Les vitrines : une base de démonstration par niveau.' },
+        // PAS DE RÉSUMÉ ICI, et c'est délibéré : cet écran porte ses trois boutons dans la barre
+        // du haut. Une phrase entre le titre et les boutons les repoussait hors du cadre sur une
+        // fenêtre étroite. Le « i » suffit — il ouvre la même explication, en entier.
+        aide: 'Les bases de démonstration, une par niveau : leur adresse, le référentiel qu’elles montrent, et l’état de chacune. On en crée une, on modifie sa fiche, on la retire, et « Visiter » y emmène directement avec votre identité d’administrateur.' },
     ],
   },
   // — Système —

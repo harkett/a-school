@@ -83,7 +83,7 @@ const ADMIN_ETAPES = [
   { n: 4, titre: 'Relire soi-même, par Visiter',
     texte: 'Le bouton **Visiter** ouvre la démonstration avec l’identité admin, quel que soit son couple. Parcourir une séquence, une séance et deux activités ; vérifier le filigrane à l’écran et sur une impression. Ce qui cloche va dans **Défauts connus**, pas dans un carnet à part.' },
   { n: 5, titre: 'Ouvrir la porte aux profs',
-    texte: 'Renseigner l’**adresse** — et seulement à ce moment-là : c’est elle qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau. Renseigner aussi la **date du dernier test**.' },
+    texte: 'Renseigner l’**adresse** — et seulement à ce moment-là : c’est elle qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau.' },
   { n: 6, titre: 'Corriger, ou retirer',
     texte: '**Modifier** rouvre la fiche à tout moment. **Retirer** l’efface de la liste — la base PostgreSQL, elle, survit : elle se détruit à la main, par le dev.' },
 ]

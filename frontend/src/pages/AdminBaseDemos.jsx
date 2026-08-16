@@ -6,10 +6,14 @@
 //   · les compteurs se SAISISSENT et ne se calculent pas (les recompter voudrait dire se
 //     connecter à l'autre base, ce que le serveur ne fait pas) ;
 //   · « Retirer » retire la fiche de la liste, pas la base — elle survit et se détruit à la main.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_XLONG } from '../utils/api.js'
 import GuideDemos from '../components/GuideDemos.jsx'
+import { useActionsEcran } from '../components/actionsEcran.jsx'
+import Attente from '../components/Attente.jsx'
+import { showError } from '../errorDialog.js'
+import { demanderConfirmation } from '../confirmDialog.js'
 
 // LE STATUT A DISPARU (16/08/2026). Cinq mots — À faire, En cours, Fabriquée, Testée, Validée —
 // dont deux seulement agissaient, et au même endroit : ouvrir l'entrée « Démonstration » du menu
@@ -57,7 +61,7 @@ const champ = {
 const VIDE = {
   referentiel_id: '', nom_base: '', url: '',
   nb_activites: 0, nb_sequences: 0, nb_seances: 0,
-  date_generation: '', date_dernier_test: '', defauts_connus: '', notes: '',
+  date_generation: '', defauts_connus: '', notes: '',
 }
 
 // « 2026-08-07T10:17:00 » → « 07/08/2026 ». Une date absente s'écrit « — », jamais « Invalid Date ».
@@ -113,7 +117,6 @@ export default function AdminBaseDemos() {
       // <input type="date"> rend « 2026-08-07 » ; le serveur attend un instant. Midi évite qu'un
       // décalage de fuseau ne recule la date d'un jour à l'affichage.
       date_generation: edition.date_generation ? edition.date_generation + 'T12:00:00' : null,
-      date_dernier_test: edition.date_dernier_test ? edition.date_dernier_test + 'T12:00:00' : null,
       defauts_connus: edition.defauts_connus || null,
       notes: edition.notes || null,
     }
@@ -168,7 +171,6 @@ export default function AdminBaseDemos() {
       nb_sequences: d.nb_sequences,
       nb_seances: d.nb_seances,
       date_generation: pourInput(d.date_generation),
-      date_dernier_test: pourInput(d.date_dernier_test),
       defauts_connus: d.defauts_connus || '',
       notes: d.notes || '',
     })
@@ -176,11 +178,44 @@ export default function AdminBaseDemos() {
 
   const libres = (data && data.referentiels_libres) || []
 
+  // LES TROIS BOUTONS VIVENT DANS LA BARRE FIXE DU HAUT, en face du titre de l'écran. Ils
+  // occupaient le coin droit de la carte, où ils débordaient dès que la fenêtre rétrécissait —
+  // et ils y répétaient une place que l'administration réserve déjà aux actions d'un écran.
+  useActionsEcran(
+    <>
+      <button
+        type="button"
+        style={btnNeutre(false)}
+        onClick={() => setGuide(true)}
+        title="Ce qu’est une démonstration, ce que cet écran pilote, et ce que le prof en voit"
+      >
+        <IconAide />Comment ça marche
+      </button>
+      {/* IMPORTER UNE FICHE VENUE D'AILLEURS. Une démonstration se déclare sur le poste où on la
+          fabrique ; un déploiement ne porte pas les fiches saisies. Sans ce bouton, il fallait
+          retaper la fiche en production — et le 16/08/2026 personne ne l'avait fait : la
+          démonstration du Collège tournait sans qu'aucun professeur la voie. */}
+      <ImporterDemo onImporte={recharger} />
+      <button
+        type="button"
+        style={btnAjouter(busy || !!edition || libres.length === 0)}
+        disabled={busy || !!edition || libres.length === 0}
+        onClick={() => setEdition({ id: 'nouveau', ...VIDE })}
+        title={libres.length === 0
+          ? 'Tous les référentiels ont déjà leur démonstration'
+          : 'Déclarer une démonstration pour un référentiel qui n’en a pas encore'}
+      >
+        + Déclarer
+      </button>
+    </>,
+    [busy, edition, libres.length]
+  )
+
   return (
     <div className="flex flex-col gap-6">
       {guide && <GuideDemos onFermer={() => setGuide(false)} />}
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-        <div className="flex items-start justify-between gap-4">
+        <div>
           <div>
             <h2 className="text-base font-semibold text-gray-800">Bases de démonstration</h2>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -193,27 +228,6 @@ export default function AdminBaseDemos() {
               « Visiter » vous y emmène avec votre identité d’administrateur ; l’enseignant, lui, y
               entre depuis son propre écran. Aucun identifiant ne circule.
             </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <button
-              type="button"
-              style={btnNeutre(false)}
-              onClick={() => setGuide(true)}
-              title="Ce qu’est une démonstration, ce que cet écran pilote, et ce que le prof en voit"
-            >
-              <IconAide />Comment ça marche
-            </button>
-            <button
-              type="button"
-              style={btnAjouter(busy || !!edition || libres.length === 0)}
-              disabled={busy || !!edition || libres.length === 0}
-              onClick={() => setEdition({ id: 'nouveau', ...VIDE })}
-              title={libres.length === 0
-                ? 'Tous les référentiels ont déjà leur démonstration'
-                : 'Déclarer une démonstration pour un référentiel qui n’en a pas encore'}
-            >
-              + Déclarer une démonstration
-            </button>
           </div>
         </div>
 
@@ -238,19 +252,20 @@ export default function AdminBaseDemos() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid #e5e7eb' }}>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Niveau</th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Base</th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', minWidth: 190 }}>Niveau</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>Base</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}
                       title="L'instance branchée sur cette base — sans elle, le prof ne peut pas s'y rendre">
                     Adresse
                   </th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}
-                      title="Compteurs figés à la fabrication — cet écran ne peut pas les recompter">
-                    Act. / Séq. / Séa.
-                  </th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Fabriquée</th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Testée</th>
-                  <th style={{ padding: '6px 8px', fontWeight: 600 }} />
+                  {/* LES COMPTEURS ONT QUITTÉ LA VUE D'ENSEMBLE (16/08/2026). Trois nombres
+                      saisis à la main, qu'on ne compare à rien : ils allongeaient la ligne sans
+                      jamais aider à choisir. La donnée reste, elle se lit dans « Modifier ».
+                      LA COLONNE « TESTÉE » A DISPARU AVEC SA DONNÉE, le même jour : une date de
+                      relecture que personne n'a jamais remplie, dernier vestige du suivi de
+                      chantier parti avec les cinq statuts. */}
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>Fabriquée</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }} />
                 </tr>
               </thead>
               <tbody>
@@ -283,7 +298,9 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
   return (
     <>
       <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-        <td style={{ padding: '8px', color: '#0f172a', fontWeight: 600 }}>
+        {/* Sur une seule ligne, et large : « BTS · BTS CIEL Option A » se cassait en trois, et
+            chaque ligne du tableau prenait trois fois sa hauteur pour rien. */}
+        <td style={{ padding: '8px', color: '#0f172a', fontWeight: 600, whiteSpace: 'nowrap' }}>
           {[d.cycle, d.niveau].filter(Boolean).join(' · ')}
         </td>
         <td style={{ padding: '8px', fontFamily: 'ui-monospace, monospace', color: '#334155' }}>
@@ -298,11 +315,7 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
                 instance non montée
               </span>}
         </td>
-        <td style={{ padding: '8px', textAlign: 'right', color: '#334155' }}>
-          {d.nb_activites} / {d.nb_sequences} / {d.nb_seances}
-        </td>
         <td style={{ padding: '8px', color: '#64748b' }}>{jour(d.date_generation)}</td>
-        <td style={{ padding: '8px', color: '#64748b' }}>{jour(d.date_dernier_test)}</td>
         <td style={{ padding: '8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
           {/* VISITER — un vrai lien, pas un appel en JavaScript : la route répond par une
               redirection vers l'autre instance, et c'est le navigateur qui doit la suivre en
@@ -317,6 +330,15 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
             <IconVisiter /> Visiter
           </a>
           {' '}
+          {/* EXPORTER — un vrai lien lui aussi : le serveur répond par un fichier à télécharger,
+              c'est au navigateur de le recevoir. Un fetch() le garderait en mémoire sans jamais
+              l'écrire sur le disque. */}
+          <a href={`/api/admin/demos/${d.id}/exporter`}
+             style={{ ...btnNeutre(false), textDecoration: 'none' }}
+             title="Emporter cette fiche vers une autre installation — l'adresse ne part pas avec, elle décrit cette machine">
+            Exporter
+          </a>
+          {' '}
           <button type="button" style={btnNeutre(busy || bloque)} disabled={busy || bloque}
                   onClick={onModifier}
                   title="Modifier la fiche de cette démonstration">Modifier</button>
@@ -328,20 +350,10 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
           </button>
         </td>
       </tr>
-      {(d.defauts_connus || d.notes) && (
-        <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-          <td colSpan={8} style={{ padding: '0 8px 10px 8px' }}>
-            {d.defauts_connus && (
-              <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb',
-                            border: '1px solid #fde68a', borderRadius: 6, padding: '6px 8px',
-                            marginBottom: d.notes ? 6 : 0 }}>
-                <strong>Défauts connus :</strong> {d.defauts_connus}
-              </div>
-            )}
-            {d.notes && <div style={{ fontSize: 12, color: '#475569' }}>{d.notes}</div>}
-          </td>
-        </tr>
-      )}
+      {/* LES DÉFAUTS CONNUS ET LES NOTES NE S'AFFICHENT PLUS ICI (16/08/2026). Ce sont des notes
+          de chantier — « le PDF est hors base », « 0 appel API, contenu rédigé directement » —
+          écrites par qui montait la démonstration, pour un développeur. Elles doublaient la
+          hauteur de chaque ligne. La donnée reste : elle se lit dans « Modifier ». */}
     </>
   )
 }
@@ -389,7 +401,7 @@ function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAn
 
   return (
     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
-      <td colSpan={8} style={{ padding: '10px 8px' }}>
+      <td colSpan={6} style={{ padding: '10px 8px' }}>
         <div style={{ display: 'grid', gap: 8,
                       gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
           <label style={{ fontSize: 11.5, color: '#64748b' }}>
@@ -459,12 +471,6 @@ function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAn
                    title="Date de fabrication de la base" />
           </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Testée le
-            <input style={champ} type="date" value={edition.date_dernier_test} disabled={busy}
-                   onChange={e => set('date_dernier_test', e.target.value)}
-                   title="Date du dernier parcours de vérification" />
-          </label>
         </div>
 
         <div style={{ display: 'grid', gap: 8, marginTop: 8,
@@ -497,5 +503,111 @@ function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAn
         </div>
       </td>
     </tr>
+  )
+}
+
+
+// IMPORTER LA FICHE D'UNE DÉMONSTRATION VENUE D'UNE AUTRE INSTALLATION.
+//
+// CE QU'ELLE APPORTE : le nom du compartiment de données, les compteurs, la date de fabrication,
+// les défauts connus et les notes. Le rattachement se fait par le NOM du référentiel — s'il n'est
+// pas là, l'import refuse en le disant, plutôt que de poser une fiche qui ne montrerait rien.
+//
+// L'ADRESSE NE VOYAGE PAS. Elle décrit une machine, et c'est elle qui ouvre la porte au
+// professeur : importer « localhost » en production ouvrirait une entrée de menu vers le vide.
+// On la renseigne à l'arrivée. Lors d'un remplacement, l'adresse déjà en place est conservée.
+//
+// DEUX CONFIRMATIONS POUR ÉCRASER, jamais une. Le serveur refuse d'abord ; l'écran demande alors
+// si l'on remplace, puis fait confirmer une seconde fois. Écraser une fiche est sans retour.
+function ImporterDemo({ onImporte }) {
+  const [occupe, setOccupe] = useState(false)
+  const champFichier = useRef(null)
+
+  async function envoyer(fichier, remplacer) {
+    const corps = new FormData()
+    corps.append('fichier', fichier)
+    corps.append('remplacer', remplacer ? 'true' : 'false')
+    const r = await fetchWithTimeout('/api/admin/demos/importer',
+                                     { method: 'POST', credentials: 'include', body: corps },
+                                     TIMEOUT_XLONG)
+    // UN REFUS EN AMONT NE PARLE PAS JSON : quand le serveur web écarte le fichier, il rend une
+    // page HTML et `r.json()` échoue. Le code se dit en clair.
+    if (r.status === 413) {
+      throw new Error('Ce fichier est trop lourd pour être envoyé au serveur.\n\n'
+                      + 'La limite se règle dans la configuration du serveur web.')
+    }
+    const d = await r.json().catch(() => ({}))
+    return { ok: r.ok, corps: d }
+  }
+
+  async function importer(evenement) {
+    const fichier = evenement.target.files?.[0]
+    evenement.target.value = ''          // pour que le même fichier puisse être redéposé
+    if (!fichier) return
+    setOccupe(true)
+    try {
+      let { ok, corps } = await envoyer(fichier, false)
+
+      // Le seul refus qui se rattrape : une fiche existe déjà pour ce référentiel.
+      if (!ok && (corps.detail || '').includes('Confirmez le remplacement')) {
+        const veut = await demanderConfirmation({
+          titre: 'Une démonstration existe déjà',
+          message: corps.detail.replace(' Confirmez le remplacement pour l’écraser — rien n’a été modifié.', '')
+                   + '\n\nVoulez-vous la remplacer par celle du fichier ?',
+          confirmLabel: 'Remplacer',
+          danger: true,
+        })
+        if (!veut) return
+        const sur = await demanderConfirmation({
+          titre: 'Confirmer le remplacement',
+          message: 'La fiche actuelle sera écrasée : compteurs, date de fabrication, défauts '
+                   + 'connus et notes seront ceux du fichier.\n\nL’adresse déjà renseignée, elle, '
+                   + 'est conservée — les professeurs gardent leur accès.\n\nCette opération est '
+                   + 'sans retour.',
+          confirmLabel: 'Oui, écraser',
+          danger: true,
+        })
+        if (!sur) return
+        ;({ ok, corps } = await envoyer(fichier, true))
+      }
+
+      if (!ok) throw new Error(corps.detail || 'Import impossible.')
+      onImporte?.()
+      showError(`« ${corps.etiquette || 'Démonstration'} » ${corps.remplacee ? 'remplacée' : 'installée'}.`
+                + (corps.url ? '' : '\n\nRenseignez son adresse pour que les professeurs la voient.'),
+                { titre: 'Import terminé', danger: false })
+    } catch (e) {
+      showError(e.message === 'timeout'
+        ? 'Le serveur met trop de temps à répondre. Rien n’a été écrit.'
+        : e.message)
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => champFichier.current?.click()}
+        disabled={occupe}
+        style={btnNeutre(occupe)}
+        title="Installer la fiche d'une démonstration exportée depuis une autre installation"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        Importer
+      </button>
+      <input ref={champFichier} type="file" accept=".json,application/json"
+             onChange={importer} style={{ display: 'none' }} />
+      {occupe && (
+        <div style={{ marginLeft: 8 }}>
+          <Attente texte="Installation…" compact />
+        </div>
+      )}
+    </>
   )
 }
