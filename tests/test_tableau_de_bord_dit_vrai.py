@@ -29,13 +29,39 @@ VERSIONS = RACINE / "alembic" / "versions"
 MIGRATION_COMPOSANTS = "c3a7e9b1d854_chaque_fonctionnalite_dit_son_ecran.py"
 
 
-def _composants() -> dict:
-    """La table de correspondance, lue dans la migration qui la sème."""
-    chemin = VERSIONS / MIGRATION_COMPOSANTS
-    spec = importlib.util.spec_from_file_location("_mig_composants", chemin)
+def _charger(chemin: Path):
+    spec = importlib.util.spec_from_file_location(f"_mig_{chemin.stem}", chemin)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.COMPOSANTS
+    return module
+
+
+def _retirees() -> set:
+    """Les lignes qu'une migration POSTÉRIEURE a supprimées.
+
+    La table de correspondance est figée dans `c3a7e9b1d854` — on ne réécrit pas une migration
+    déjà passée. Quand un écran est supprimé, sa migration retire la ligne de la base ET le
+    déclare ici, par un `FONCTIONNALITES_RETIREES = {(écran, nom), ...}` en tête de fichier.
+    Premier cas : `c9f5a3e8d1b6`, l'écran « Consulter un référentiel » (16/08/2026).
+
+    Le garde-fou ne s'affaiblit pas : une ligne encore en base qui cite un fichier disparu fait
+    toujours tomber le test. Seule une suppression ASSUMÉE, écrite dans une migration, sort du
+    compte — et c'est exactement ce que le message d'erreur demande de faire.
+    """
+    retirees = set()
+    for f in sorted(VERSIONS.glob("*.py")):
+        if "FONCTIONNALITES_RETIREES" not in f.read_text(encoding="utf-8", errors="replace"):
+            continue
+        retirees |= set(getattr(_charger(f), "FONCTIONNALITES_RETIREES", ()))
+    return retirees
+
+
+def _composants() -> dict:
+    """La table de correspondance, lue dans la migration qui la sème, moins les lignes
+    supprimées depuis."""
+    composants = _charger(VERSIONS / MIGRATION_COMPOSANTS).COMPOSANTS
+    retirees = _retirees()
+    return {cle: chemin for cle, chemin in composants.items() if cle not in retirees}
 
 
 def test_la_table_de_correspondance_est_lisible():

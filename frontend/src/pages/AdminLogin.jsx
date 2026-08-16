@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
+import { fetchWithTimeout } from '../utils/api.js'
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('')
@@ -25,14 +25,14 @@ export default function AdminLogin() {
         const data = await res.json()
         throw new Error(data.detail || 'Identifiants incorrects.')
       }
-      // Première mise en route : tant que tout n'est pas prêt, on ouvre l'assistant ; sinon l'admin normal.
-      try {
-        const er = await fetchWithTimeout('/api/admin/mise-en-route/etat', { credentials: 'include' }, TIMEOUT_AUTH)
-        const et = er.ok ? await er.json() : null
-        navigate(et && et.complet === false ? '/admin/mise-en-route' : '/admin/logs')
-      } catch {
-        navigate('/admin/logs')
-      }
+      // ON ARRIVE SUR LE TABLEAU DE BORD (16/08/2026). La connexion ouvrait Supervision →
+      // Connexions : le journal des connexions, écran de contrôle qui ne dit rien de l'état de la
+      // plateforme. On y atterrissait sans l'avoir demandé, et il fallait retraverser le menu.
+      //
+      // Le Tableau de bord EST `/admin/mise-en-route` : la branche « branchement incomplet » y
+      // menait déjà. Les deux cas se rejoignent, l'interrogation qui les départageait n'a plus
+      // d'objet — un appel réseau de moins avant d'entrer.
+      navigate('/admin/mise-en-route')
     } catch (e) {
       setErreur(e.message)
     } finally {

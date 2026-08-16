@@ -64,7 +64,9 @@ function BulleAide({ bulle, gauche }) {
 // recopiée aux quatre endroits qui s'en servent.
 const estActive = (sub, chemin) => (sub.prefix ? chemin.startsWith(sub.prefix) : chemin === sub.to)
 
-// Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
+// Menu rangé du général au détaillé, en TROIS BLOCS séparés par un trait : où l'on arrive
+// (Tableau de bord), ce que l'on administre (les familles à déplier), ce qui est à soi
+// (Tâches à faire, Mon compte, Aide).
 // RÈGLE : un menu se range du général au détaillé — familles, puis options. Toute nouvelle
 // page se loge SOUS une famille existante, jamais en entrée à plat de plus : une liste plate
 // qui grandit d'une ligne par écran finit illisible, et c'est irréversible en pratique.
@@ -83,44 +85,35 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  // — Référentiel (écran unique CRUD) —
+  SEP,
+  // — Pédagogie — LE CONTENU, réuni sous une famille (16/08/2026). Ces écrans traînaient à plat
+  //   en haut du menu, quatre entrées seules au-dessus de huit rubriques : rien ne disait pourquoi
+  //   eux échappaient au rangement. Ils parlent pourtant du même sujet — le programme et ce qu'on
+  //   en tire — et la règle du menu, écrite juste au-dessus, veut que toute page loge sous une
+  //   famille. Seul « Tableau de bord » reste en tête : c'est l'écran d'arrivée, pas un sujet.
+  //
+  //   « Consulter » a été SUPPRIMÉ le même jour. Il montrait exactement ce que montre Référentiel
+  //   — PDF, source, matières, prompt de découpe — mais sans bouton qui écrit. Deux portes vers un
+  //   même contenu, dont une que l'administrateur ne se rappelait pas avoir demandée : l'écran,
+  //   sa route et sa ligne au tableau de bord sont partis ensemble.
   {
-    to:    '/admin/referentiels',
-    label: 'Référentiel',
-    aide:  'L’écran unique du référentiel : choisir un couple, puis créer / consulter / modifier / supprimer — tout en base (get pour afficher, put pour enregistrer).',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <path d="M14 2v6h6"/>
-        <path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>
-      </svg>
-    ),
-  },
-  // — Consulter les référentiels (LECTURE SEULE) —
-  //   L'écran existait depuis longtemps et sa route était déclarée, mais aucune entrée n'y menait :
-  //   on ne l'atteignait qu'en tapant l'URL. Entrée posée le 10/08/2026.
-  {
-    to:    '/admin/referentiels-consulter',
-    label: 'Consulter',
-    aide:  'Les référentiels déjà déposés, en lecture seule : le PDF, la source, les matières et le prompt de découpe, sans aucun bouton qui écrit.',
-    icon:  (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    ),
-  },
-  // — Formations (l'arbre déroulant + les actions du programme officiel) —
-  {
-    to:    '/admin/contenu',
-    label: 'Formations',
-    aide:  'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d\'activité. Le programme officiel se règle sur place : cocher les matières du niveau, ajouter cycles et niveaux, gérer le catalogue des matières. Désactivation, jamais de suppression.',
+    group:  true,
+    label:  'Pédagogie',
+    aide:   'Le contenu enseigné : le référentiel officiel qu’on dépose et découpe, puis le programme qui en découle, cycle par cycle et niveau par niveau.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
         <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/referentiels', label: 'Référentiel',
+        aide: 'L’écran unique du référentiel : choisir un couple, puis créer / consulter / modifier / supprimer — tout en base (get pour afficher, put pour enregistrer).',
+        resume: 'Le document officiel : dépôt, découpe et prompts.' },
+      { to: '/admin/contenu', label: 'Formations',
+        aide: 'Tout le contenu pédagogique en un seul tableau : chaque cycle déroule ses niveaux, chaque niveau montre son référentiel, ses matières et ses types d’activité. Le programme officiel se règle sur place : cocher les matières du niveau, ajouter cycles et niveaux, gérer le catalogue des matières. Désactivation, jamais de suppression.',
+        resume: 'Le programme : cycles, niveaux, matières et types.' },
+    ],
   },
   // — IA — tout ce qui touche au moteur, réuni (05/08/2026). Les trois morceaux vivaient à trois
   //   endroits sans rapport : « Prompts » en entrée de premier niveau, « Génération LLM » perdue
@@ -349,11 +342,30 @@ export default function AdminLayout() {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  // Accordéon : la catégorie dépliée. Initialisée sur celle qui contient la page courante.
+  // Accordéon : la catégorie dépliée. Elle suit la page — pas seulement au premier affichage.
   const _activeGroup = NAV_ITEMS.find(
     it => it.group && (it.prefix ? location.pathname.startsWith(it.prefix) : it.items.some(s => estActive(s, location.pathname)))
   )
-  const [openGroup, setOpenGroup] = useState(_activeGroup ? _activeGroup.label : null)
+  const groupeDeLaPage = _activeGroup ? _activeGroup.label : null
+  const [openGroup, setOpenGroup] = useState(groupeDeLaPage)
+
+  // LE MENU SUIT LA PAGE, MÊME QUAND ON N'EST PAS PASSÉ PAR LUI. Le calcul ci-dessus ne servait
+  // qu'au tout premier affichage : un écran atteint autrement — un lien posé dans une page, une
+  // redirection — laissait le menu figé sur la rubrique d'avant. Aujourd'hui aucun lien du
+  // back-office ne traverse deux rubriques, donc rien ne se voyait ; le premier qu'on posera le
+  // ferait apparaître, et personne ne penserait à regarder ici.
+  //
+  // Replier une rubrique à la main ne change pas l'adresse : elle reste repliée jusqu'à ce qu'on
+  // change de page. C'est l'accordéon qui obéit, pas l'inverse.
+  //
+  // L'ajustement se fait PENDANT LE RENDU, pas dans un effet : c'est le motif React pour un état
+  // qui se recale sur ce qui l'entoure. Un effet redessinerait l'écran une seconde fois, menu
+  // fermé d'abord, ouvert ensuite — un battement visible à chaque changement de page.
+  const [pagePrecedente, setPagePrecedente] = useState(groupeDeLaPage)
+  if (groupeDeLaPage && groupeDeLaPage !== pagePrecedente) {
+    setPagePrecedente(groupeDeLaPage)
+    setOpenGroup(groupeDeLaPage)
+  }
   // Les boutons que la page affiche en haut à droite. `null` tant qu'aucune n'en pose.
   const [actionsEcran, setActionsEcran] = useState(null)
 
@@ -812,9 +824,16 @@ export default function AdminLayout() {
             {!reduit && 'Déconnexion'}
           </button>
 
+          {/* LA VRAIE VERSION, ET ON PEUT LA LIRE. « v1.3 · 02/05/2026 » était écrit en dur :
+              trois versions de retard, et une date figée au jour où quelqu'un l'a tapée. Elle
+              vient maintenant de `package.json`, lue à la construction (`__APP_VERSION__`), et la
+              date s'en va — un numéro suffit à dire ce qui tourne.
+              Le gris à 20 % la rendait par ailleurs illisible : c'est la première chose qu'on
+              demande quand on signale un défaut. */}
           {!reduit && (
-            <div style={{ padding: '8px 12px 2px', fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.3px' }}>
-              v1.3 · 02/05/2026
+            <div style={{ padding: '8px 12px 2px', fontSize: 11.5, color: 'rgba(255,255,255,0.45)',
+                          letterSpacing: '0.3px', fontWeight: 600 }}>
+              v{__APP_VERSION__}
             </div>
           )}
         </div>

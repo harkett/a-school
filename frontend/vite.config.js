@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import pkg from './package.json' with { type: 'json' }
 
 export default defineConfig({
   plugins: [
@@ -62,6 +63,13 @@ export default defineConfig({
       },
     }),
   ],
+  // LA VERSION AFFICHÉE EST LA VRAIE (16/08/2026). Le bas du menu admin annonçait
+  // « v1.3 · 02/05/2026 », écrit en dur : trois versions et trois mois de retard. Une version
+  // recopiée à la main finit toujours par mentir — celle-ci est lue dans `package.json` au
+  // moment de la construction, elle ne peut plus diverger.
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     // Docker/Windows : les événements de fichiers ne traversent pas la frontière hôte→conteneur.
     // Sans polling, Vite ne voit jamais les éditions du code → pas de hot-reload (il sert l'ancien

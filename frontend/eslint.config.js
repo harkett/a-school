@@ -14,7 +14,10 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      globals: globals.browser,
+      // `__APP_VERSION__` est posé par Vite (`define`, cf. vite.config.js) : il vaut la version
+      // de package.json au moment de la construction. Sans cette ligne, ESLint le voit comme une
+      // variable inventée — c'est un global du même ordre que ceux du navigateur.
+      globals: { ...globals.browser, __APP_VERSION__: 'readonly' },
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },

@@ -58,7 +58,6 @@ import AdminCommunication from './pages/AdminCommunication'
 import AdminAide from './pages/AdminAide'
 import AdminReferentiels from './pages/AdminReferentiels'
 import AdminMiseEnRoute from './pages/AdminMiseEnRoute'
-import AdminReferentielsConsulter from './pages/AdminReferentielsConsulter'
 import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminPlanificateur from './pages/AdminPlanificateur'
@@ -723,7 +722,10 @@ export default function App() {
           <Route path="/mentions-legales" element={<MentionsLegales />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/serveur" replace />} />
+            {/* `/admin` tout court mène au Tableau de bord — l'écran qui dit l'état de la
+                plateforme. Il ouvrait Supervision → Serveur : des courbes de CPU en guise
+                d'accueil, et le sentiment d'être tombé au mauvais endroit. */}
+            <Route index element={<Navigate to="/admin/mise-en-route" replace />} />
             <Route path="mise-en-route" element={<AdminMiseEnRoute />} />
             <Route path="serveur"    element={<AdminServeur />} />
             <Route path="sessions"   element={<AdminSessions />} />
@@ -731,7 +733,6 @@ export default function App() {
             <Route path="feedbacks"  element={<AdminFeedbacks />} />
             <Route path="profils"    element={<AdminProfils />} />
             <Route path="referentiels" element={<AdminReferentiels />} />
-            <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
             {/* Prompts — contenu pédagogique, pas plomberie : sorti de Système → Génération LLM.
                 Quatre sous-entrées de menu (16/08/2026), une par famille de prompts. Le `key`
