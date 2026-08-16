@@ -52,7 +52,7 @@ DB_PREFIXE="${DB_MODELE%/*}"      # tout jusqu'au dernier / : le serveur et ses 
 lignes() { grep -vE "^\s*#|^\s*$" "$LISTE"; }
 
 echo ""
-echo "=== [demos 1/6] Fichier d'environnement ==="
+echo "=== [demos 1/7] Fichier d'environnement ==="
 # UN seul fichier, contre cinq auparavant. Plus de MODE_DEMO : le drapeau ne vient plus de
 # l'environnement du process — qui sert maintenant les cinq — mais du schéma que la requête vise.
 cat > "$FICHIER_ENV" <<EOF
@@ -63,7 +63,7 @@ EOF
 echo "  → $FICHIER_ENV (base $BASE_DEMOS, port $PORT_DEMOS)"
 
 echo ""
-echo "=== [demos 2/6] Service systemd ==="
+echo "=== [demos 2/7] Service systemd ==="
 sudo cp deploy/aschool-demos.service /etc/systemd/system/aschool-demos.service
 sudo systemctl daemon-reload
 sudo systemctl enable aschool-demos >/dev/null
@@ -71,7 +71,7 @@ sudo systemctl restart aschool-demos
 echo "  → aschool-demos démarré"
 
 echo ""
-echo "=== [demos 3/6] Certificat HTTPS ==="
+echo "=== [demos 3/7] Certificat HTTPS ==="
 # LE PIÈGE QUE NGINX NE SIGNALE PAS. Le bloc ci-dessous réutilise le certificat d'`aschool.fr`.
 # Or un certificat ne vaut QUE pour les noms qu'il porte : servir `demo-crsa.aschool.fr` avec le
 # certificat d'`aschool.fr` donne une alerte de sécurité en pleine figure du visiteur — et
@@ -110,7 +110,7 @@ else
 fi
 
 echo ""
-echo "=== [demos 4/6] Bloc nginx ==="
+echo "=== [demos 4/7] Bloc nginx ==="
 # UN SEUL BLOC POUR LES CINQ, et il ne les nomme pas : `server_name` est une expression
 # régulière qui accepte tout `demo-<x>.aschool.fr`. Ajouter une démonstration ne demandera plus
 # de toucher à nginx — créer son schéma suffira. Un `<x>` sans schéma reçoit un 404 du backend,
@@ -170,7 +170,63 @@ sudo systemctl reload nginx
 echo "  → nginx rechargé"
 
 echo ""
-echo "=== [demos 5/6] Schémas à jour ==="
+echo "=== [demos 5/7] Propriété des schémas ==="
+# LE PIÈGE QUI NE SE VOIT PAS, rencontré en production le 11/08/2026 sur les CINQ démonstrations
+# à la fois. Un schéma versé par `pg_dump` appartient au rôle qui a lancé le versement. Versé en
+# `postgres` — le réflexe, puisque c'est le rôle qui a le droit de créer — il reste INVISIBLE
+# pour l'application, qui se connecte sous le sien. Le serveur répond alors 404 sur une
+# démonstration parfaitement présente, sans la moindre erreur dans les journaux : le contrôle de
+# `schema_existe` interroge `pg_namespace` et ne voit rien qui lui appartienne.
+#
+# POURQUOI ICI ET PAS DANS UNE PROCÉDURE ÉCRITE. Il A ÉTÉ documenté, et il est revenu : la
+# démonstration suivante a été versée le lendemain, par quelqu'un qui n'avait pas la note sous
+# les yeux. Un piège qui dépend de la mémoire de celui qui tape la commande n'est pas réglé. Ces
+# quelques lignes le règlent pour toutes les démonstrations, y compris celles qui n'existent pas
+# encore.
+#
+# REJOUABLE et sans effet quand tout va bien : reprendre la propriété d'un objet qu'on possède
+# déjà ne change rien.
+ROLE_APP=$(printf '%s' "$DB_MODELE" | sed -E 's|^[^:]+://([^:/]+).*|\1|')
+if [ -z "$ROLE_APP" ] || [ "$ROLE_APP" = "$DB_MODELE" ]; then
+    echo "  ERREUR : rôle de l'application illisible dans DATABASE_URL."
+    exit 1
+fi
+sudo -u postgres psql -d "$BASE_DEMOS" -v ON_ERROR_STOP=1 -q <<SQL
+DO \$\$
+DECLARE
+    s text;
+    o record;
+BEGIN
+    FOR s IN
+        SELECT nspname FROM pg_namespace
+         WHERE nspname NOT LIKE 'pg\\_%'
+           AND nspname NOT IN ('public', 'information_schema')
+    LOOP
+        EXECUTE format('ALTER SCHEMA %I OWNER TO %I', s, '$ROLE_APP');
+        -- Le schéma ne suffit pas : chaque table, vue et séquence porte SON propre
+        -- propriétaire. Un schéma rendu sans son contenu laisse l'application devant des
+        -- tables qu'elle ne peut pas lire — le même 404, une couche plus bas.
+        FOR o IN
+            SELECT c.relname, c.relkind FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = s AND c.relkind IN ('r', 'v', 'm', 'S', 'p')
+        LOOP
+            EXECUTE format('ALTER %s %I.%I OWNER TO %I',
+                CASE o.relkind
+                    WHEN 'S' THEN 'SEQUENCE'
+                    WHEN 'v' THEN 'VIEW'
+                    WHEN 'm' THEN 'MATERIALIZED VIEW'
+                    ELSE 'TABLE'
+                END, s, o.relname, '$ROLE_APP');
+        END LOOP;
+    END LOOP;
+END
+\$\$;
+SQL
+echo "  → schémas et objets rendus à « $ROLE_APP »"
+
+echo ""
+echo "=== [demos 6/7] Schémas à jour ==="
 # LE GESTE QUI MANQUAIT. Chaque démonstration est un SCHÉMA, avec sa propre table
 # `alembic_version` : le `alembic upgrade head` du déploiement ne migre que le réel, dans
 # `public`, et les schémas de démonstration restent au niveau où le dernier déploiement les a
@@ -197,7 +253,7 @@ else
 fi
 
 echo ""
-echo "=== [demos 6/6] Contrôle ==="
+echo "=== [demos 7/7] Contrôle ==="
 # On INTERROGE chaque démonstration au lieu de se contenter de « le service est actif » : un
 # uvicorn qui démarre puis se plante sur un schéma absent reste « actif » quelques secondes.
 # La question se pose maintenant au SEUL port, en variant l'en-tête `Host` — c'est exactement
