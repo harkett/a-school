@@ -393,11 +393,19 @@ export default function AdminPromptsReferentiels() {
             {refsAffiches.map(r => {
               const actif = r.id === refId
               return (
+                /* Un niveau choisi ÉTEINT les autres (16/08/2026) : la liste ne sert plus qu'à en
+                   changer, et douze lignes de même intensité faisaient oublier laquelle est
+                   ouverte. Le survol rallume la ligne visée — on doit pouvoir lire avant de
+                   cliquer. */
                 <tr key={r.id}
                   onClick={() => choisirRef(r.id)}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = 1 }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = (refId && !actif) ? 0.4 : 1 }}
                   style={{
                     cursor: 'pointer', borderBottom: '1px solid #f1f5f9',
                     background: actif ? '#eff6ff' : 'white',
+                    opacity: (refId && !actif) ? 0.4 : 1,
+                    transition: 'opacity 0.15s',
                   }}>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ fontSize: 13, fontWeight: actif ? 700 : 600, color: '#1e293b' }}>
@@ -541,14 +549,23 @@ export default function AdminPromptsReferentiels() {
   ) : (
     <div className="bg-white rounded-lg border border-gray-200 p-6 flex flex-col gap-4"
          style={{ height: '100%', minHeight: 320 }}>
-      <div style={{ flexShrink: 0 }}>
-        <h3 className="text-sm font-semibold text-gray-700">
-          {refCourant.niveau} <span className="text-gray-400 font-normal">— {refCourant.cycle}</span>
-        </h3>
-        <p className="text-xs text-gray-400 mt-1"
-           style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+      {/* Le référentiel en cours, en BANDE (16/08/2026). Il tenait sur une ligne de titre grise
+          au milieu du reste : on écrivait un prompt sans savoir à quel niveau il allait. Bande
+          pleine largeur, texte grand, le cycle dans la même graisse que le niveau — c'est un
+          seul nom, pas un titre et sa note. */}
+      <div style={{
+        flexShrink: 0, background: '#eff6ff', border: '1px solid #bfdbfe',
+        borderLeft: '4px solid #3b82f6', borderRadius: 8, padding: '12px 16px',
+      }}>
+        <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          Prompts du référentiel
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#1e3a8a', lineHeight: 1.2, marginTop: 2 }}>
+          {refCourant.niveau} {refCourant.cycle}
+        </div>
+        <div className="text-xs" style={{ color: '#93a8c8', marginTop: 2, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
           referentiels, ligne id {refCourant.id}
-        </p>
+        </div>
       </div>
 
       {/* Les liens, groupés par couple. Toujours affichés : on doit pouvoir passer de l'un à
