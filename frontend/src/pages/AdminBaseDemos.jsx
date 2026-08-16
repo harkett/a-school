@@ -6,9 +6,10 @@
 //   · les compteurs se SAISISSENT et ne se calculent pas (les recompter voudrait dire se
 //     connecter à l'autre base, ce que le serveur ne fait pas) ;
 //   · « Retirer » retire la fiche de la liste, pas la base — elle survit et se détruit à la main.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_XLONG } from '../utils/api.js'
+import FenetrePro from '../components/FenetrePro.jsx'
 import GuideDemos from '../components/GuideDemos.jsx'
 import { useActionsEcran } from '../components/actionsEcran.jsx'
 import Attente from '../components/Attente.jsx'
@@ -56,6 +57,19 @@ const IconAide = () => (
 const champ = {
   height: 32, padding: '0 8px', borderRadius: 6, border: '1px solid #cbd5e1',
   fontSize: 12.5, color: '#0f172a', background: '#fff', width: '100%', boxSizing: 'border-box',
+}
+
+// UNE ÉTIQUETTE QUI LAISSE GRANDIR SON CHAMP : le libellé garde sa hauteur, la zone de texte
+// prend tout le reste. En bloc ordinaire, un `height: '100%'` sur le textarea ne se rapporte à
+// rien et la zone reste haute de trois lignes quelle que soit la taille de la fenêtre.
+const etiquetteHaute = {
+  fontSize: 11.5, color: '#64748b',
+  display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0,
+}
+
+const zoneTexte = {
+  ...champ, height: 'auto', flex: 1, minHeight: 64, padding: '6px 8px', resize: 'none',
+  lineHeight: 1.5,
 }
 
 const VIDE = {
@@ -241,13 +255,13 @@ export default function AdminBaseDemos() {
 
         {!data && !erreur && <div className="text-gray-400 text-sm">Lecture…</div>}
 
-        {data && data.demos.length === 0 && (!edition || edition.id !== 'nouveau') && (
+        {data && data.demos.length === 0 && (
           <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
             Aucune démonstration déclarée pour l’instant.
           </p>
         )}
 
-        {data && (data.demos.length > 0 || (edition && edition.id === 'nouveau')) && (
+        {data && data.demos.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
@@ -270,31 +284,32 @@ export default function AdminBaseDemos() {
               </thead>
               <tbody>
                 {data.demos.map(d => (
-                  edition && edition.id === d.id
-                    ? <LigneEdition key={d.id} edition={edition} setEdition={setEdition}
-                                    libres={libres} demo={d}
-                                    busy={busy} onValider={enregistrer}
-                                    onAnnuler={() => setEdition(null)} />
-                    : <LigneLecture key={d.id} d={d} busy={busy} bloque={!!edition}
-                                    onModifier={() => ouvrirModification(d)}
-                                    onRetirer={() => retirer(d)} />
+                  <LigneLecture key={d.id} d={d} busy={busy}
+                                onModifier={() => ouvrirModification(d)}
+                                onRetirer={() => retirer(d)} />
                 ))}
-                {edition && edition.id === 'nouveau' && (
-                  <LigneEdition edition={edition} setEdition={setEdition}
-                                libres={libres} demo={null}
-                                busy={busy} onValider={enregistrer}
-                                onAnnuler={() => setEdition(null)} />
-                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* LA FICHE S'OUVRE PAR-DESSUS L'ECRAN, plus dans le tableau : voir l'en-tete de
+          FenetreEdition. Montee ici, hors de <table>, elle n'est plus tenue par la grille. */}
+      {edition && (
+        <FenetreEdition
+          edition={edition} setEdition={setEdition} libres={libres}
+          demo={edition.id === 'nouveau'
+            ? null
+            : (data ? data.demos.find(x => x.id === edition.id) : null)}
+          busy={busy} erreur={erreurEcriture}
+          onValider={enregistrer} onAnnuler={() => setEdition(null)} />
+      )}
     </div>
   )
 }
 
-function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
+function LigneLecture({ d, busy, onModifier, onRetirer }) {
   return (
     <>
       <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -339,11 +354,11 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
             Exporter
           </a>
           {' '}
-          <button type="button" style={btnNeutre(busy || bloque)} disabled={busy || bloque}
+          <button type="button" style={btnNeutre(busy)} disabled={busy}
                   onClick={onModifier}
                   title="Modifier la fiche de cette démonstration">Modifier</button>
           {' '}
-          <button type="button" style={btnAnnuler(busy || bloque)} disabled={busy || bloque}
+          <button type="button" style={btnAnnuler(busy)} disabled={busy}
                   onClick={onRetirer}
                   title="Retirer cette fiche de la liste — la base PostgreSQL n’est pas touchée">
             Retirer
@@ -358,7 +373,15 @@ function LigneLecture({ d, busy, bloque, onModifier, onRetirer }) {
   )
 }
 
-function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAnnuler }) {
+// LA FICHE SE REMPLIT DANS UNE FENETRE, PLUS DANS LE TABLEAU (16/08/2026). Elle s'ouvrait en
+// depliant la ligne : le tableau sautait de hauteur, les lignes voisines restaient cliquables, et
+// il fallait griser leurs boutons un par un pour empecher d'ouvrir deux fiches a la fois. Une
+// fenetre modale regle les trois d'un coup — l'ecran derriere est couvert, on valide ou on annule.
+//
+// TROIS SORTIES SANS ENREGISTRER : le bouton « Annuler », la croix, la touche Echap. Le clic sur
+// le voile n'en est PAS une, a la difference des boites de confirmation : ici il y a une saisie en
+// cours, et un clic a cote ne doit pas la faire disparaitre.
+function FenetreEdition({ edition, setEdition, libres, demo, busy, erreur, onValider, onAnnuler }) {
   const set = (k, v) => setEdition(e => ({ ...e, [k]: v }))
   const nouveau = edition.id === 'nouveau'
   // Ce que le serveur a proposé au dernier choix de référentiel : sert uniquement à dire, sous
@@ -399,99 +422,143 @@ function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAn
     : [{ id: demo.referentiel_id, cycle: demo.cycle, niveau: demo.niveau }, ...libres]
   const pret = String(edition.referentiel_id) !== '' && edition.nom_base.trim() !== ''
 
+  // Echap sort de la fenetre, comme partout ailleurs dans l'application. Pas pendant un
+  // enregistrement : la requete est partie, la fermer laisserait croire qu'elle est annulee.
+  useEffect(() => {
+    const auClavier = e => { if (e.key === 'Escape' && !busy) onAnnuler() }
+    window.addEventListener('keydown', auClavier)
+    return () => window.removeEventListener('keydown', auClavier)
+  }, [busy, onAnnuler])
+
+  const titre = nouveau ? 'Nouvelle démonstration' : 'Modifier la démonstration'
+
   return (
-    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
-      <td colSpan={6} style={{ padding: '10px 8px' }}>
-        <div style={{ display: 'grid', gap: 8,
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Niveau
-            <select style={champ} value={edition.referentiel_id} disabled={busy}
-                    onChange={e => choisirReferentiel(e.target.value)}
-                    title="Le référentiel que cette démonstration fait découvrir — le choisir renseigne la base, l’adresse et les compteurs">
-              <option value="">— choisir —</option>
-              {choix.map(r => (
-                <option key={r.id} value={r.id}>
-                  {[r.cycle, r.niveau].filter(Boolean).join(' · ')}
-                </option>
-              ))}
-            </select>
-          </label>
+    <>
+      {/* LE VOILE. FenetrePro est faite pour laisser toucher l'ecran derriere — deux fenetres
+          d'aide ouvertes cote a cote, c'est voulu. Ici non : on remplit une fiche, et l'ecran
+          d'en dessous ne doit pas repondre tant qu'on n'a pas valide ou annule. Le voile est
+          donc pose ICI, autour de la fenetre, sans toucher a la coquille commune. */}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 449 }} />
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Base PostgreSQL
-            <input style={champ} value={edition.nom_base} disabled={busy}
-                   onChange={e => set('nom_base', e.target.value)}
-                   placeholder="ciela_demo"
-                   title="Nom de la base qui contient les données — minuscules et soulignés, jamais de tiret" />
-            {/* D'où viennent les compteurs affichés. Sans cette ligne, trois zéros passeraient
-                pour un comptage réel alors que la base n'a pas encore été fabriquée. */}
-            {propose && (
-              <span style={{ fontSize: 11, color: propose.base_trouvee ? '#15803d' : '#92400e' }}>
-                {propose.base_trouvee ? 'Base lue — compteurs à jour'
-                  : propose.erreur ? 'Base injoignable (' + propose.erreur + ') — compteurs à saisir'
-                  : 'Base pas encore fabriquée — compteurs à saisir'}
-              </span>
-            )}
-          </label>
+      <FenetrePro
+        titre={titre}
+        onFermer={busy ? () => {} : onAnnuler}
+        largeur={Math.min(820, window.innerWidth - 40)}
+        hauteur="min(80vh, 700px)"
+        minWidth={420}
+        minHeight={340}
+        zIndex={450}
+      >
+        {/* LE CORPS EST UNE COLONNE QUI SE REMPLIT. Les champs courts gardent leur hauteur ;
+            les deux zones de texte prennent tout ce qui reste, et grandissent quand on etire la
+            fenetre. Sans cela, agrandir la fenetre n'agrandissait que le vide, pendant que les
+            notes se lisaient par une lucarne de trois lignes. */}
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, minHeight: 0,
+                      display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* L'ECHEC D'ENREGISTREMENT SE LIT ICI. La page en garde un, mais il serait sous le
+              voile : la fenetre reste ouverte quand le serveur refuse, et l'admin ne verrait
+              rien se passer. */}
+          {erreur && (
+            <div style={{ fontSize: 12.5, color: '#b91c1c', background: '#fef2f2',
+                          border: '1px solid #fecaca', borderRadius: 6, padding: '8px 10px',
+                          marginBottom: 12 }}>
+              {erreur}
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: 8, flexShrink: 0,
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Niveau
+              <select style={champ} value={edition.referentiel_id} disabled={busy}
+                      onChange={e => choisirReferentiel(e.target.value)}
+                      title="Le référentiel que cette démonstration fait découvrir — le choisir renseigne la base, l’adresse et les compteurs">
+                <option value="">— choisir —</option>
+                {choix.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {[r.cycle, r.niveau].filter(Boolean).join(' · ')}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Adresse de l’instance
-            <input style={champ} value={edition.url} disabled={busy}
-                   onChange={e => set('url', e.target.value)}
-                   placeholder="https://demo-ciela.aschool.fr"
-                   title="L’application branchée sur cette base — c’est là que le menu prof enverra l’enseignant" />
-          </label>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Base PostgreSQL
+              <input style={champ} value={edition.nom_base} disabled={busy}
+                     onChange={e => set('nom_base', e.target.value)}
+                     placeholder="ciela_demo"
+                     title="Nom de la base qui contient les données — minuscules et soulignés, jamais de tiret" />
+              {/* D'où viennent les compteurs affichés. Sans cette ligne, trois zéros passeraient
+                  pour un comptage réel alors que la base n'a pas encore été fabriquée. */}
+              {propose && (
+                <span style={{ fontSize: 11, color: propose.base_trouvee ? '#15803d' : '#92400e' }}>
+                  {propose.base_trouvee ? 'Base lue — compteurs à jour'
+                    : propose.erreur ? 'Base injoignable (' + propose.erreur + ') — compteurs à saisir'
+                    : 'Base pas encore fabriquée — compteurs à saisir'}
+                </span>
+              )}
+            </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Activités
-            <input style={champ} type="number" min="0" value={edition.nb_activites} disabled={busy}
-                   onChange={e => set('nb_activites', e.target.value)}
-                   title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
-          </label>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Adresse de l’instance
+              <input style={champ} value={edition.url} disabled={busy}
+                     onChange={e => set('url', e.target.value)}
+                     placeholder="https://demo-ciela.aschool.fr"
+                     title="L’application branchée sur cette base — c’est là que le menu prof enverra l’enseignant" />
+            </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Séquences
-            <input style={champ} type="number" min="0" value={edition.nb_sequences} disabled={busy}
-                   onChange={e => set('nb_sequences', e.target.value)}
-                   title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
-          </label>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Activités
+              <input style={champ} type="number" min="0" value={edition.nb_activites} disabled={busy}
+                     onChange={e => set('nb_activites', e.target.value)}
+                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+            </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Séances
-            <input style={champ} type="number" min="0" value={edition.nb_seances} disabled={busy}
-                   onChange={e => set('nb_seances', e.target.value)}
-                   title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
-          </label>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Séquences
+              <input style={champ} type="number" min="0" value={edition.nb_sequences} disabled={busy}
+                     onChange={e => set('nb_sequences', e.target.value)}
+                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+            </label>
 
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Fabriquée le
-            <input style={champ} type="date" value={edition.date_generation} disabled={busy}
-                   onChange={e => set('date_generation', e.target.value)}
-                   title="Date de fabrication de la base" />
-          </label>
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Séances
+              <input style={champ} type="number" min="0" value={edition.nb_seances} disabled={busy}
+                     onChange={e => set('nb_seances', e.target.value)}
+                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+            </label>
+
+            <label style={{ fontSize: 11.5, color: '#64748b' }}>
+              Fabriquée le
+              <input style={champ} type="date" value={edition.date_generation} disabled={busy}
+                     onChange={e => set('date_generation', e.target.value)}
+                     title="Date de fabrication de la base" />
+            </label>
+
+          </div>
+
+          <div style={{ display: 'grid', gap: 8, flex: 1, minHeight: 120,
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+            <label style={{ ...etiquetteHaute }}>
+              Défauts connus
+              <textarea style={{ ...zoneTexte }}
+                        value={edition.defauts_connus} disabled={busy}
+                        onChange={e => set('defauts_connus', e.target.value)}
+                        title="Ce qu’on a déjà trouvé sur cette démonstration — pour ne pas le rechercher deux fois" />
+            </label>
+            <label style={{ ...etiquetteHaute }}>
+              Notes
+              <textarea style={{ ...zoneTexte }}
+                        value={edition.notes} disabled={busy}
+                        onChange={e => set('notes', e.target.value)}
+                        title="Tout ce qui mérite d’être retenu sur cette démonstration" />
+            </label>
+          </div>
 
         </div>
 
-        <div style={{ display: 'grid', gap: 8, marginTop: 8,
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Défauts connus
-            <textarea style={{ ...champ, height: 56, padding: '6px 8px', resize: 'vertical' }}
-                      value={edition.defauts_connus} disabled={busy}
-                      onChange={e => set('defauts_connus', e.target.value)}
-                      title="Ce qu’on a déjà trouvé sur cette démonstration — pour ne pas le rechercher deux fois" />
-          </label>
-          <label style={{ fontSize: 11.5, color: '#64748b' }}>
-            Notes
-            <textarea style={{ ...champ, height: 56, padding: '6px 8px', resize: 'vertical' }}
-                      value={edition.notes} disabled={busy}
-                      onChange={e => set('notes', e.target.value)}
-                      title="Tout ce qui mérite d’être retenu sur cette démonstration" />
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+        {/* LE PIED DE LA FENETRE : les deux gestes de sortie, l'action principale a droite. */}
+        <div style={{ display: 'flex', gap: 8, padding: '12px 20px', justifyContent: 'flex-end',
+                      borderTop: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
           <button type="button" style={btnAnnuler(busy)} disabled={busy} onClick={onAnnuler}
                   title="Abandonner la saisie sans rien enregistrer">Annuler</button>
           <button type="button" style={btnValider(busy || !pret)} disabled={busy || !pret}
@@ -501,8 +568,8 @@ function LigneEdition({ edition, setEdition, libres, demo, busy, onValider, onAn
             {busy ? 'Enregistrement…' : 'Valider'}
           </button>
         </div>
-      </td>
-    </tr>
+      </FenetrePro>
+    </>
   )
 }
 
