@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import OngletsPrompts from '../components/OngletsPrompts'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { buildSearchIndex, searchSections, queryTerms, highlightSegments } from '../utils/aideSearch.js'
 import { showError } from '../errorDialog'
@@ -705,7 +704,6 @@ export default function AdminPromptsReferentiels() {
   return (
     <div className="flex flex-col gap-3" style={{ height: '100%' }}>
       {fenetreEditeur}
-      <OngletsPrompts />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-semibold text-gray-700">Prompts — Référentiels</h2>

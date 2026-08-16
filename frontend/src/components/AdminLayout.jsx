@@ -8,9 +8,8 @@ import FenetrePro from './FenetrePro.jsx'
 const SEP = { separator: true }
 
 // Une sous-entrée est « active » sur l'égalité stricte de son URL — sauf si elle déclare un
-// `prefix` : c'est le cas d'un écran dont les ONGLETS sont des URL distinctes (Prompts). Sans ça,
-// ouvrir l'onglet « Admin » éteindrait l'entrée « Prompts » du menu, et le fil d'Ariane perdrait
-// la page. La règle vit ici, pas recopiée aux quatre endroits qui s'en servent.
+// `prefix`, pour une entrée dont plusieurs adresses mènent au même écran. La règle vit ici, pas
+// recopiée aux quatre endroits qui s'en servent.
 const estActive = (sub, chemin) => (sub.prefix ? chemin.startsWith(sub.prefix) : chemin === sub.to)
 
 // Menu rangé du général au détaillé : 5 catégories (groupes) + 3 entrées simples.
@@ -76,10 +75,6 @@ const NAV_ITEMS = [
   //   dans Système, et rien du tout pour les fournisseurs. Un troisième fournisseur les a rendus
   //   indissociables — on choisit un modèle, on règle sa longueur, on écrit son prompt : c'est le
   //   même sujet, ce sont trois clics au même endroit.
-  //
-  //   RÈGLE DE RÉPARTITION : le menu porte la NAVIGATION (une entrée = un écran), la page porte
-  //   les OPTIONS (les onglets). D'où quatre entrées ici et pas quinze : les cinq catégories de
-  //   prompts sont devenues les onglets de leur page, comme les cinq sections de Génération.
   {
     group:  true,
     label:  'IA',
@@ -101,17 +96,45 @@ const NAV_ITEMS = [
         // dans le « i » : ce qui est utile une fois n'a pas à occuper la place en permanence.
         resume: 'Les moteurs d’IA raccordés, et l’ordre dans lequel ils répondent.',
         aide: 'Le CATALOGUE : quels fournisseurs d’IA sont raccordés, quels modèles ils offrent, et les bornes de chacun (fenêtre, longueur de réponse). C’est ici qu’on ajoute — pas ici qu’on choisit.' },
-      // `prefix` : les cinq catégories restent des URL distinctes (les onglets de la page les
-      // pointent), mais le menu ne montre plus qu'une entrée — qui doit rester allumée sur
-      // n'importe laquelle d'entre elles, d'où le préfixe plutôt qu'une égalité stricte.
-      { to: '/admin/prompts', prefix: '/admin/prompts', label: 'Prompts',
-        aide: 'Les textes d’instruction envoyés à l’IA, un par outil. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.' },
       { to: '/admin/parametres/generation', label: 'Génération',
         aide: 'Le RÉGLAGE : quel fournisseur et quel modèle sont en service, et comment ils répondent — longueur, température, coupure du flux, re-tentatives. C’est ici qu’on choisit dans le catalogue.' },
       { to: '/admin/ia/statistiques', label: 'Statistiques',
         aide: 'Les TOTAUX : ce que l’IA a consommé, regroupé par modèle, par tâche et par jour. Pour la facture et les tendances — pas pour un appel précis.' },
       { to: '/admin/ia/journal', label: 'Journal',
         aide: 'Le DÉTAIL, appel par appel : la liste de toutes les demandes envoyées à l’IA, la plus récente en haut. Pour chacune : l’heure, la fonction du logiciel qui l’a demandée, le modèle qui a répondu, s’il est allé au bout ou s’il a été coupé en route, le temps qu’il a pris et ce que ça a coûté. C’est ici qu’on regarde quand une génération s’arrête au milieu ou quand un montant surprend. Le texte envoyé et la réponse n’y sont pas : le journal compte les appels, il ne conserve pas leur contenu.' },
+    ],
+  },
+  // — Prompts — rubrique à part entière (16/08/2026). Les quatre familles de prompts étaient les
+  //   ONGLETS d'une seule page, derrière l'entrée « Prompts » de la rubrique IA : depuis le menu,
+  //   rien ne disait qu'il y en avait quatre — il fallait ouvrir l'écran pour l'apprendre, et y
+  //   revenir pour changer de famille. Elles sont désormais quatre sous-entrées, visibles sans
+  //   ouvrir. Les URL ne bougent pas : liens et favoris existants continuent de fonctionner.
+  {
+    group:  true,
+    label:  'Prompts',
+    // Les quatre sous-entrées partagent la racine `/admin/prompts` : le préfixe suffit à allumer
+    // la rubrique, y compris sur les vieilles adresses (`/prompts/prof`) qui redirigent.
+    prefix: '/admin/prompts',
+    aide:   'Les textes d’instruction envoyés à l’IA, un par outil. Les repères {…} entre accolades sont obligatoires — sans eux, matière, niveau et contenu de l’enseignant ne sont pas injectés.',
+    icon:  (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        <path d="M8 9h8"/><path d="M8 13h5"/>
+      </svg>
+    ),
+    items: [
+      { to: '/admin/prompts/referentiels', label: 'Référentiels',
+        resume: 'Les prompts écrits à la main pour UN couple cycle-niveau.',
+        aide: 'Les prompts qui appartiennent à un référentiel précis — matières, découpe, types d’activité, précisions. Un jeu par couple cycle-niveau : deux diplômes ne se lisent pas avec les mêmes repères.' },
+      { to: '/admin/prompts/fonctionnalites', label: 'Fonctionnalités',
+        resume: 'Les prompts des outils du prof, rangés par bouton.',
+        aide: 'Les textes rangés par FONCTIONNALITÉ : le chemin du menu où le professeur trouve le bouton qui les déclenche (détecteur d’ambiguïtés, analyse de consigne…).' },
+      { to: '/admin/prompts/referentiels-communs', label: 'Commun',
+        resume: 'Les prompts valables pour TOUS les référentiels.',
+        aide: 'Les textes du traitement d’un référentiel au dépôt du PDF — découpe en unités, analyse amont, détection du couple, des matières et des types d’activité. Les mêmes pour tous les référentiels.' },
+      { to: '/admin/prompts/autres', label: 'Autres',
+        resume: 'Le filet : ce qui ne sert aucun outil en propre.',
+        aide: 'Ce qui ne se range nulle part ailleurs — par exemple la ligne qui colle le cahier des charges de l’établissement au bas des prompts de génération.' },
     ],
   },
   // — Profs — les ENSEIGNANTS eux-mêmes. Séparé de « Communication » le 07/08/2026 : gérer un

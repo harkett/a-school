@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import OngletsPrompts from '../components/OngletsPrompts'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
@@ -10,10 +9,10 @@ import { buildSearchIndex, searchSections } from '../utils/aideSearch.js'
 // Écran « Prompts » — sorti de Système → Génération LLM (31/07) : un prompt n'est pas de la
 // plomberie (clés, modèles, délais) mais le texte qui décide de ce que le prof reçoit.
 //
-// UN SEUL fichier commun pour les trois sous-options (Prof / Admin / Autres) : elles montrent la
-// même chose sur un jeu de prompts différent. La `categorie` arrive en prop depuis la route, qui
-// pose aussi un `key` : changer de sous-option REMONTE le composant, donc chaque vue a bien SON
-// état (rien de la vue précédente ne traîne).
+// UN SEUL fichier commun pour trois des quatre entrées du menu Prompts (Fonctionnalités, Commun,
+// Autres) : elles montrent la même chose sur un jeu de prompts différent. La `categorie` arrive en
+// prop depuis la route, qui pose aussi un `key` : changer d'entrée REMONTE le composant, donc
+// chaque vue a bien SON état (rien de la vue précédente ne traîne).
 //
 // Deux colonnes, comme les pages listes de « Mes contenus » : la liste à gauche, le détail du
 // prompt choisi à droite, la liste reste visible pendant qu'on travaille. Habillage admin, pas
@@ -25,7 +24,7 @@ const CATEGORIES = {
   },
   referentiels_communs: {
     titre: 'Prompts — Communs à tous les référentiels',
-    intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité. Les mêmes pour TOUS les référentiels — ceux qui appartiennent à un couple sont dans l\'onglet voisin.',
+    intro: 'Les textes du traitement d\'un référentiel au dépôt du PDF : découpe en unités, analyse amont, détection du couple, des matières et des types d\'activité. Les mêmes pour TOUS les référentiels — ceux qui appartiennent à un couple sont dans l\'entrée « Référentiels » du menu.',
   },
   autres: {
     titre: 'Prompts — Autres',
@@ -452,8 +451,6 @@ export default function AdminPrompts({ categorie }) {
 
   return (
     <div className="flex flex-col gap-4">
-
-      <OngletsPrompts />
 
       {/* En-tête : titre + compteur à gauche ; « Cacher le détail » tout à droite, au-dessus de
           la liste — permanent sur les pages listes (règle maison, il ne se retire jamais). */}

@@ -727,10 +727,11 @@ export default function App() {
             <Route path="referentiels-consulter" element={<AdminReferentielsConsulter />} />
             <Route path="contenu" element={<AdminContenu />} />
             {/* Prompts — contenu pédagogique, pas plomberie : sorti de Système → Génération LLM.
-                Trois sous-options : à qui sert le texte. Le `key` force le remontage en changeant
-                de sous-option, donc chaque vue repart sur SON état (rien ne traîne d'avant). */}
+                Quatre sous-entrées de menu (16/08/2026), une par famille de prompts. Le `key`
+                force le remontage en changeant de famille, donc chaque vue repart sur SON état
+                (rien ne traîne d'avant). L'index mène à la première entrée du menu. */}
             <Route path="prompts">
-              <Route index element={<Navigate to="/admin/prompts/fonctionnalites" replace />} />
+              <Route index element={<Navigate to="/admin/prompts/referentiels" replace />} />
               {/* « Prof » et « Admin » ont disparu le 12/08/2026 (rangement par fonctionnalité).
                   Leurs adresses restent debout et mènent au bon onglet : un favori ne casse pas. */}
               <Route path="prof"  element={<Navigate to="/admin/prompts/fonctionnalites" replace />} />
