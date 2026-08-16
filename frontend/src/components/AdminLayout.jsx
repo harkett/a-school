@@ -21,7 +21,19 @@ const SEP = { separator: true }
 const BULLE_LARGEUR = 300
 const BULLE_MARGE = 12
 
-function BulleAide({ bulle }) {
+// LA BARRE SE REPLIE (16/08/2026). Elle prenait 220 pixels quoi qu'il arrive : sur un portable 13
+// pouces ou une fenêtre en demi-écran, les écrans larges — Référentiel, Journal, Formations — se
+// tassaient sur ce qui restait, sans aucun moyen de récupérer la place.
+//
+// Repliée, elle ne garde que les icônes. Les libellés ne sont pas perdus : la bulle d'aide, déjà
+// posée sur chaque entrée, donne le nom en gras et l'explication dessous — il n'y avait rien de
+// plus à écrire. Le choix est retenu d'une visite à l'autre : régler sa largeur à chaque
+// ouverture de l'administration serait une corvée quotidienne.
+const LARGEUR_OUVERTE = 220
+const LARGEUR_REDUITE = 62
+const CLE_MENU_REDUIT = 'aschool_admin_menu_reduit'
+
+function BulleAide({ bulle, gauche }) {
   const ref = useRef(null)
   const [haut, setHaut] = useState(bulle.top)
   useLayoutEffect(() => {
@@ -34,7 +46,7 @@ function BulleAide({ bulle }) {
       ref={ref}
       role="tooltip"
       style={{
-        position: 'fixed', left: 220 + 8, top: haut, width: BULLE_LARGEUR, zIndex: 60,
+        position: 'fixed', left: gauche + 8, top: haut, width: BULLE_LARGEUR, zIndex: 60,
         background: '#0f172a', color: '#e2e8f0', borderRadius: 10,
         border: '1px solid rgba(255,255,255,0.12)',
         boxShadow: '0 10px 30px rgba(15,23,42,0.35)',
@@ -345,6 +357,15 @@ export default function AdminLayout() {
   // Les boutons que la page affiche en haut à droite. `null` tant qu'aucune n'en pose.
   const [actionsEcran, setActionsEcran] = useState(null)
 
+  // La barre repliée en colonne d'icônes. Le choix survit à la fermeture de l'onglet.
+  const [reduit, setReduit] = useState(() => {
+    try { return localStorage.getItem(CLE_MENU_REDUIT) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(CLE_MENU_REDUIT, reduit ? '1' : '0') } catch { /* navigation privée */ }
+  }, [reduit])
+  const largeurBarre = reduit ? LARGEUR_REDUITE : LARGEUR_OUVERTE
+
   // L'aide survolée (ou reçue au clavier). `null` = aucune bulle ouverte.
   const [bulle, setBulle] = useState(null)
   const montrerAide = (e, titre, texte) => {
@@ -418,20 +439,59 @@ export default function AdminLayout() {
     }
   }
 
+  // La bulle du bouton de repli annonce ce qu'il VA faire, pas l'état où l'on est.
+  const titreRepli = reduit ? 'Déplier le menu' : 'Replier le menu'
+  const aideRepli = reduit
+    ? 'Rendre au menu sa largeur normale, avec les intitulés écrits en toutes lettres.'
+    : 'Réduire le menu à ses icônes pour laisser la place aux écrans larges — Référentiel, Journal, Formations. Les intitulés restent lisibles au survol, dans cette bulle.'
+
   return (
     <div style={{ height: '100vh', display: 'flex', overflow: 'hidden' }}>
 
-      {/* Sidebar — figée, pleine hauteur */}
-      <aside style={{ width: 220, height: '100vh', background: '#1e293b', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      {/* Sidebar — figée, pleine hauteur, repliable en colonne d'icônes */}
+      <aside style={{ width: largeurBarre, height: '100vh', background: '#1e293b',
+                      display: 'flex', flexDirection: 'column', flexShrink: 0,
+                      transition: 'width 0.18s ease' }}>
 
-        {/* Logo */}
-        <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'white', letterSpacing: '-0.3px' }}>
-            <span style={{ color: '#e05a6e' }}>A</span>-SCHOOL
+        {/* Logo — réduit à son initiale quand la barre est repliée, et le bouton passe dessous */}
+        <div style={{ padding: reduit ? '16px 8px 14px' : '24px 20px 20px',
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
+                      display: 'flex', flexDirection: reduit ? 'column' : 'row',
+                      alignItems: reduit ? 'center' : 'flex-start', gap: reduit ? 10 : 8 }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'white', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#e05a6e' }}>A</span>{!reduit && '-SCHOOL'}
+            </div>
+            {!reduit && (
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                Administration
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-            Administration
-          </div>
+          {/* REPLIER / DÉPLIER. Le seul bouton de la barre qui ne mène nulle part : il ne change
+              que la place qu'elle prend. Sa bulle dit ce qu'il fera, pas l'état où il est. */}
+          <button
+            type="button"
+            onClick={() => { setReduit(v => !v); cacherAide() }}
+            aria-label={titreRepli}
+            className="admin-categorie"
+            onMouseEnter={e => montrerAide(e, titreRepli, aideRepli)}
+            onMouseLeave={cacherAide}
+            onFocus={e => montrerAide(e, titreRepli, aideRepli)}
+            onBlur={cacherAide}
+            style={{
+              flexShrink: 0, width: 26, height: 26, borderRadius: 7, padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(255,255,255,0.07)', border: 'none', cursor: 'pointer',
+              color: 'rgba(255,255,255,0.55)', transition: 'color 0.15s, background 0.15s',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                 style={{ transform: reduit ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}>
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
         </div>
 
         {/* Nav items — défile à l'intérieur de la sidebar si le menu est long */}
@@ -476,13 +536,19 @@ export default function AdminLayout() {
                       l'apparence du bloc qu'il remplace. */}
                   <button
                     type="button"
-                    onClick={() => setOpenGroup(isOpen ? null : item.label)}
-                    aria-expanded={isOpen}
+                    onClick={() => {
+                      // BARRE REPLIÉE : on la rouvre d'abord. Déplier une rubrique dans une colonne
+                      // de 62 pixels n'afficherait que des sous-entrées illisibles.
+                      if (reduit) { setReduit(false); setOpenGroup(item.label); cacherAide(); return }
+                      setOpenGroup(isOpen ? null : item.label)
+                    }}
+                    aria-expanded={reduit ? false : isOpen}
                     className="admin-categorie"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
+                      justifyContent: reduit ? 'center' : 'flex-start',
                       width: '100%', textAlign: 'left', font: 'inherit',
-                      padding: '11px 12px', border: 'none', borderRadius: 8, marginTop: 4,
+                      padding: reduit ? '11px 0' : '11px 12px', border: 'none', borderRadius: 8, marginTop: 4,
                       fontSize: 14, fontWeight: 600,
                       color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.62)',
                       background: isGroupActive ? 'rgba(255,255,255,0.06)' : 'transparent',
@@ -500,9 +566,19 @@ export default function AdminLayout() {
                     onFocus={e => montrerAide(e, item.label, item.aide)}
                     onBlur={cacherAide}
                   >
-                    <span style={{ opacity: isGroupActive ? 1 : 0.75, display: 'flex' }}>{item.icon}</span>
-                    <span>{item.label}</span>
-                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ opacity: isGroupActive ? 1 : 0.75, display: 'flex', position: 'relative' }}>
+                      {item.icon}
+                      {/* Repliée, la barre n'a plus de place pour un badge à droite : il se pose
+                          en pastille sur l'icône, comme sur une application de téléphone. */}
+                      {reduit && groupBadge > 0 && (
+                        <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 15, height: 15,
+                                       borderRadius: 99, background: '#dc2626', color: '#fff',
+                                       fontSize: 9.5, fontWeight: 700, lineHeight: '15px',
+                                       textAlign: 'center', padding: '0 3px' }}>{groupBadge}</span>
+                      )}
+                    </span>
+                    {!reduit && <span>{item.label}</span>}
+                    <span style={{ marginLeft: 'auto', display: reduit ? 'none' : 'flex', alignItems: 'center', gap: 8 }}>
                       {!isOpen && groupBadge > 0 && <span style={badgeStyle}>{groupBadge}</span>}
                       <svg
                         width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -514,8 +590,10 @@ export default function AdminLayout() {
                     </span>
                   </button>
 
-                  {/* Sous-entrées — plus petites, décalées sous un rail, liseré bordeaux quand actives */}
-                  {isOpen && (
+                  {/* Sous-entrées — plus petites, décalées sous un rail, liseré bordeaux quand
+                      actives. Jamais affichées quand la barre est repliée : elles n'ont que des
+                      mots à montrer, et il n'y a plus la place de les écrire. */}
+                  {isOpen && !reduit && (
                     <div style={{ marginLeft: 18, borderLeft: '1px solid rgba(255,255,255,0.10)', marginTop: 2, marginBottom: 4 }}>
                       {item.items.map(sub => {
                         const isSubActive = estActive(sub, location.pathname)
@@ -560,8 +638,9 @@ export default function AdminLayout() {
             const style = {
               display:        'flex',
               alignItems:     'center',
+              justifyContent: reduit ? 'center' : 'flex-start',
               gap:            10,
-              padding:        '9px 12px',
+              padding:        reduit ? '9px 0' : '9px 12px',
               borderRadius:   8,
               marginBottom:   2,
               fontSize:       14,
@@ -578,9 +657,17 @@ export default function AdminLayout() {
 
             const content = (
               <>
-                <span style={{ opacity: isActive ? 1 : 0.7 }}>{item.icon}</span>
-                <span>{item.label}</span>
-                {badge && (
+                <span style={{ opacity: isActive ? 1 : 0.7, display: 'flex', position: 'relative' }}>
+                  {item.icon}
+                  {reduit && badge && (
+                    <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 15, height: 15,
+                                   borderRadius: 99, background: '#dc2626', color: '#fff',
+                                   fontSize: 9.5, fontWeight: 700, lineHeight: '15px',
+                                   textAlign: 'center', padding: '0 3px' }}>{badge}</span>
+                  )}
+                </span>
+                {!reduit && <span>{item.label}</span>}
+                {!reduit && badge && (
                   <span style={{
                     padding: '1px 6px', borderRadius: 99, fontSize: 10,
                     fontWeight: 700, background: '#fee2e2', color: '#dc2626',
@@ -594,6 +681,7 @@ export default function AdminLayout() {
                 <span
                   aria-hidden="true"
                   style={{
+                    display:      reduit ? 'none' : 'flex',
                     marginLeft:   'auto',
                     width:        16,
                     height:       16,
@@ -602,7 +690,6 @@ export default function AdminLayout() {
                     color:        'rgba(255,255,255,0.5)',
                     fontSize:     10,
                     fontWeight:   700,
-                    display:      'flex',
                     alignItems:   'center',
                     justifyContent: 'center',
                     cursor:       'help',
@@ -663,7 +750,8 @@ export default function AdminLayout() {
             title="Retourner à l'application aSchool"
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px', borderRadius: 8,
+              justifyContent: reduit ? 'center' : 'flex-start',
+              padding: reduit ? '9px 0' : '9px 12px', borderRadius: 8,
               fontSize: 13, color: 'rgba(255,255,255,0.45)',
               background: 'none', border: 'none', cursor: 'pointer',
               textAlign: 'left', width: '100%', transition: 'color 0.15s',
@@ -674,7 +762,7 @@ export default function AdminLayout() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            aSchool
+            {!reduit && 'aSchool'}
           </button>
 
           <button
@@ -682,7 +770,8 @@ export default function AdminLayout() {
             title="Se déconnecter de l'administration"
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px', borderRadius: 8,
+              justifyContent: reduit ? 'center' : 'flex-start',
+              padding: reduit ? '9px 0' : '9px 12px', borderRadius: 8,
               fontSize: 13, color: 'rgba(255,255,255,0.45)',
               background: 'none', border: 'none', cursor: 'pointer',
               textAlign: 'left', width: '100%', transition: 'color 0.15s',
@@ -695,18 +784,20 @@ export default function AdminLayout() {
               <polyline points="16 17 21 12 16 7"/>
               <line x1="21" y1="12" x2="9" y2="12"/>
             </svg>
-            Déconnexion
+            {!reduit && 'Déconnexion'}
           </button>
 
-          <div style={{ padding: '8px 12px 2px', fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.3px' }}>
-            v1.3 · 02/05/2026
-          </div>
+          {!reduit && (
+            <div style={{ padding: '8px 12px 2px', fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.3px' }}>
+              v1.3 · 02/05/2026
+            </div>
+          )}
         </div>
       </aside>
 
       {/* L'aide de l'entrée survolée. Hors de la barre : elle déborde sur le contenu, ce qu'une
           bulle enfermée dans un conteneur qui défile ne peut pas faire. */}
-      {bulle && <BulleAide bulle={bulle} />}
+      {bulle && <BulleAide bulle={bulle} gauche={largeurBarre} />}
 
       {/* Contenu principal — en-tête fixe + zone centrale qui défile + footer figé */}
       <main style={{ flex: 1, height: '100vh', background: '#f0f4f8', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

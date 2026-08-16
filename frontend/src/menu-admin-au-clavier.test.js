@@ -25,12 +25,13 @@ const SRC = dirname(fileURLToPath(import.meta.url))
 const layout = readFileSync(join(SRC, 'components', 'AdminLayout.jsx'), 'utf8')
 const css = readFileSync(join(SRC, 'index.css'), 'utf8')
 
-// Le bloc de l'en-tête de rubrique : de la balise ouvrante au `>` qui la ferme.
+// Le bloc de l'en-tête de rubrique : de sa balise ouvrante jusqu'à la bascule de l'accordéon.
+// On part de la bascule, qui ne bougera pas, et on remonte à la balise qui la porte.
 function enTeteRubrique() {
-  const i = layout.indexOf('onClick={() => setOpenGroup(')
-  assert.notEqual(i, -1, "L'en-tête de rubrique est introuvable dans AdminLayout.jsx")
-  const debut = layout.lastIndexOf('<', i)
-  return layout.slice(debut, i + 400)
+  const bascule = layout.indexOf('setOpenGroup(isOpen ? null : item.label)')
+  assert.notEqual(bascule, -1, "L'en-tête de rubrique est introuvable dans AdminLayout.jsx")
+  const debut = layout.lastIndexOf('<', bascule)
+  return layout.slice(debut, bascule + 600)
 }
 
 test("l'en-tête de rubrique est un bouton, pas un bloc cliquable", () => {
@@ -48,7 +49,7 @@ test("l'en-tête de rubrique est un bouton, pas un bloc cliquable", () => {
 test("l'état replié / déplié est annoncé", () => {
   assert.match(
     enTeteRubrique(),
-    /aria-expanded=\{isOpen\}/,
+    /aria-expanded=\{[^}]*isOpen\}/,
     "aria-expanded a disparu : un lecteur d'écran ne sait plus si la rubrique est ouverte."
   )
 })

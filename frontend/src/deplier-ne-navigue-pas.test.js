@@ -24,15 +24,15 @@ import { dirname, join } from 'node:path'
 const SRC = dirname(fileURLToPath(import.meta.url))
 const layout = readFileSync(join(SRC, 'components', 'AdminLayout.jsx'), 'utf8')
 
-// Le gestionnaire de clic de l'en-tête de catégorie : tout ce qui suit `onClick={` jusqu'à la
-// fermeture `}}` ou `)}` — on le lit tel quel, commentaires exclus.
+// Le gestionnaire de clic de l'en-tête de catégorie : du `onClick=` jusqu'à la bascule de
+// l'accordéon, corps entier compris. On part de la bascule — la seule chose que ce clic a le
+// droit de faire — et on remonte au `onClick=` qui la contient.
 function clicEnTeteCategorie() {
-  const marqueur = 'onClick={() => setOpenGroup('
-  const autre = layout.indexOf('onClick={() => {\n                      if (isOpen)')
-  if (autre !== -1) return layout.slice(autre, autre + 500)   // l'ancienne forme, si elle revient
-  const i = layout.indexOf(marqueur)
-  assert.notEqual(i, -1, "Le clic de l'en-tête de catégorie est introuvable dans AdminLayout.jsx")
-  return layout.slice(i, layout.indexOf('\n', i))
+  const bascule = layout.indexOf('setOpenGroup(isOpen ? null : item.label)')
+  assert.notEqual(bascule, -1, "Le clic de l'en-tête de catégorie est introuvable dans AdminLayout.jsx")
+  const debut = layout.lastIndexOf('onClick=', bascule)
+  assert.notEqual(debut, -1, "La bascule de l'accordéon n'est plus dans un gestionnaire de clic.")
+  return layout.slice(debut, layout.indexOf('\n', bascule))
 }
 
 test("déplier une catégorie ne fait que basculer l'accordéon", () => {
