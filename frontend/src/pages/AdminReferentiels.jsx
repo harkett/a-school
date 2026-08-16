@@ -3254,12 +3254,15 @@ export default function AdminReferentiels() {
 // il se déclencherait un jour en visant autre chose.
 function TransfertReferentiel({ referentiel, onImporte }) {
   const [occupe, setOccupe] = useState('')
-  const [message, setMessage] = useState(null)   // { ok: bool, texte: string }
+  // Ne reste ici que ce qui INFORME sans arrêter : « fichier téléchargé », « référentiel
+  // installé ». Tout ce qui REFUSE passe par `showError`, une fenêtre qui bloque l'écran — un
+  // refus écrit en petit sous un bouton se lit après coup, ou pas du tout.
+  const [reussite, setReussite] = useState('')
   const champFichier = useRef(null)
 
   async function exporter() {
     setOccupe('export')
-    setMessage(null)
+    setReussite('')
     try {
       const r = await fetchWithTimeout(`/api/admin/referentiels/exporter?id=${referentiel.id}`,
                                        { credentials: 'include' }, TIMEOUT_LONG)
@@ -3276,9 +3279,9 @@ function TransfertReferentiel({ referentiel, onImporte }) {
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
-      setMessage({ ok: true, texte: 'Fichier téléchargé. Portez-le sur l’autre installation.' })
+      setReussite('Fichier téléchargé. Portez-le sur l’autre installation.')
     } catch (e) {
-      setMessage({ ok: false, texte: e.message === 'timeout' ? MSG_TIMEOUT : e.message })
+      showError(e.message === 'timeout' ? MSG_TIMEOUT : e.message)
     } finally {
       setOccupe('')
     }
@@ -3289,7 +3292,7 @@ function TransfertReferentiel({ referentiel, onImporte }) {
     evenement.target.value = ''          // pour que le même fichier puisse être redéposé
     if (!fichier) return
     setOccupe('import')
-    setMessage(null)
+    setReussite('')
     try {
       const corps = new FormData()
       corps.append('fichier', fichier)
@@ -3299,12 +3302,13 @@ function TransfertReferentiel({ referentiel, onImporte }) {
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.detail || 'Import impossible.')
       const total = Object.values(d.compte || {}).reduce((a, b) => a + b, 0)
-      setMessage({ ok: true,
-        texte: `« ${d.etiquette || 'Référentiel'} » installé — ${total} lignes posées.` })
+      setReussite(`« ${d.etiquette || 'Référentiel'} » installé — ${total} lignes posées.`)
       // La fenêtre se ferme d'elle-même : le travail est fait, la liste se rafraîchit derrière.
       setTimeout(() => onImporte?.(), 1200)
     } catch (e) {
-      setMessage({ ok: false, texte: e.message === 'timeout' ? MSG_TIMEOUT : e.message })
+      // LE REFUS ARRÊTE L'ÉCRAN. « Un référentiel dessert déjà 4e » n'est pas une remarque : c'est
+      // la raison pour laquelle rien ne s'est passé, et elle doit être lue avant tout autre geste.
+      showError(e.message === 'timeout' ? MSG_TIMEOUT : e.message)
     } finally {
       setOccupe('')
     }
@@ -3372,11 +3376,8 @@ function TransfertReferentiel({ referentiel, onImporte }) {
       <input ref={champFichier} type="file" accept=".json,application/json"
              onChange={importer} style={{ display: 'none' }} />
 
-      {message && (
-        <p style={{ marginTop: 14, fontSize: 12.5,
-                    color: message.ok ? '#15803d' : '#dc2626' }}>
-          {message.texte}
-        </p>
+      {reussite && (
+        <p style={{ marginTop: 14, fontSize: 12.5, color: '#15803d' }}>{reussite}</p>
       )}
     </div>
   )
