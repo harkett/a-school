@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_LONG, TIMEOUT_XLONG, MSG_TIMEOUT } from '../utils/api.js'
 import { lignesMatieres, nbRetenues as compterRetenues, aRetenir as resteARetenir } from '../utils/matieresReferentiel.js'
+import FenetrePro from '../components/FenetrePro.jsx'
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import JaugeAttente from '../components/JaugeAttente.jsx'
@@ -164,6 +165,9 @@ function BadgeIA({ titre }) {
 export default function AdminReferentiels() {
   const [arbre, setArbre] = useState([])        // arbre COMPLET cycles → niveaux (GET /admin/programmes)
   const [refsListe, setRefsListe] = useState([])  // colonne 2 : référentiels déposés (GET /admin/referentiels/liste)
+  // Le référentiel dont la fenêtre de transfert est ouverte. `null` = fermée : une opération qui
+  // déplace un référentiel entier ne doit pas pouvoir être déclenchée en visant autre chose.
+  const [transfertPour, setTransfertPour] = useState(null)
   const [cycleId, setCycleId] = useState('')    // cycle choisi (cascade, 1er select)
   const [niveauId, setNiveauId] = useState('')  // niveau choisi (cascade, 2e select) — envoyé à valider/verifier-depot
   const [niveau, setNiveau] = useState('')      // NOM du niveau choisi (requis par les endpoints post-dépôt)
@@ -1433,19 +1437,37 @@ export default function AdminReferentiels() {
         ) : refsListe.map(r => {
           const actif = String(cycleId) === String(r.cycle_id) && niveau === r.niveau
           return (
-            <button key={r.id} type="button" onClick={() => ouvrirRef(r)}
-              title={`${r.cycle} · ${r.nom_affichage || r.niveau}`}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
-                border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 13,
-                background: actif ? '#eff6ff' : '#fff', color: actif ? '#1d4ed8' : '#1e293b',
-                fontWeight: actif ? 600 : 400 }}>
-              {/* Puce de synthèse : verte = procédure complète (lue en base via /liste : matières +
-                  prompt de découpe validé), rouge = à terminer. Reflet, jamais recopié. */}
-              <Pastille etat={r.complet ? 'vert' : 'rouge'}
-                titre={r.complet ? 'Procédure complète' : 'Procédure à terminer'} />
-              {r.cycle} · {r.nom_affichage || r.niveau}
-              {r.forcage_motif && <span title="Validé en forçage" style={{ marginLeft: 6, color: '#b45309' }}>⚠</span>}
-            </button>
+            // LA LIGNE PORTE DEUX GESTES, donc deux boutons — un bouton dans un bouton n'existe
+            // pas en HTML. Le premier ouvre le référentiel, le second son transfert.
+            <div key={r.id}
+              style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid #f1f5f9',
+                background: actif ? '#eff6ff' : '#fff' }}>
+              <button type="button" onClick={() => ouvrirRef(r)}
+                title={`${r.cycle} · ${r.nom_affichage || r.niveau}`}
+                style={{ flex: 1, minWidth: 0, textAlign: 'left', padding: '9px 12px',
+                  border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13,
+                  color: actif ? '#1d4ed8' : '#1e293b', fontWeight: actif ? 600 : 400 }}>
+                {/* Puce de synthèse : verte = procédure complète (lue en base via /liste : matières +
+                    prompt de découpe validé), rouge = à terminer. Reflet, jamais recopié. */}
+                <Pastille etat={r.complet ? 'vert' : 'rouge'}
+                  titre={r.complet ? 'Procédure complète' : 'Procédure à terminer'} />
+                {r.cycle} · {r.nom_affichage || r.niveau}
+                {r.forcage_motif && <span title="Validé en forçage" style={{ marginLeft: 6, color: '#b45309' }}>⚠</span>}
+              </button>
+              {/* LE TRANSFERT S'OUVRE À PART, dans sa propre fenêtre. Il déplace un référentiel
+                  entier d'une installation à l'autre : le tenir à l'écart du reste de l'écran,
+                  c'est s'assurer qu'on ne le déclenche pas en visant autre chose. */}
+              <button type="button" onClick={() => setTransfertPour(r)}
+                title={`Transférer « ${r.cycle} · ${r.nom_affichage || r.niveau} » vers une autre installation`}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer',
+                  padding: '0 10px', color: '#64748b', display: 'flex', alignItems: 'center' }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="8 3 8 9 5 9 9.5 14 14 9 11 9 11 3" />
+                  <polyline points="16 21 16 15 19 15 14.5 10 10 15 13 15 13 21" />
+                </svg>
+              </button>
+            </div>
           )
         })}
       </aside>
@@ -3173,6 +3195,22 @@ export default function AdminReferentiels() {
           </div>
         </div>
       )}
+      {/* La fenêtre de transfert — ouverte depuis l'icône d'une ligne, fermée dès que c'est fini. */}
+      {transfertPour && (
+        <FenetrePro
+          titre={`Transfert — ${transfertPour.cycle} · ${transfertPour.nom_affichage || transfertPour.niveau}`}
+          largeur={520}
+          // `auto` : la fenêtre prend la hauteur de son contenu. La valeur par défaut de la
+          // coquille impose 72 % de l'écran quoi qu'on y mette — d'où le grand vide blanc sous
+          // les fenêtres courtes. Le plafond (92vh) et l'ascenseur restent, eux, dans la coquille.
+          hauteur="auto"
+          onFermer={() => setTransfertPour(null)}
+        >
+          <TransfertReferentiel referentiel={transfertPour}
+                                onImporte={() => { chargerListe(); setTransfertPour(null) }} />
+        </FenetrePro>
+      )}
+
       {/* Panneau « Comment ça marche ? » — les deux procédures, lues dans le catalogue d'aide.
           Fermé par le ✕, par un clic sur le fond, ou par Échap : on ne piège jamais l'admin. */}
       {proceduresOuvert && (
@@ -3200,6 +3238,146 @@ export default function AdminReferentiels() {
         </div>
       )}
       </div>
+    </div>
+  )
+}
+
+
+// LE TRANSFERT — un fichier, deux gestes, aucune connexion entre les deux mondes.
+//
+// POURQUOI PAS UN LIEN DIRECT ENTRE LES DEUX BASES. Parce qu'il vaut mieux qu'elles ne se parlent
+// jamais : rien ne part sans que quelqu'un ait porté le fichier lui-même. C'est aussi ce qui rend
+// le geste vérifiable — on peut ouvrir le fichier, le garder, le rejouer.
+//
+// POURQUOI DANS UNE FENÊTRE À PART. Le geste déplace un référentiel entier — le document, ses
+// unités vectorisées, ses matières. Sur l'écran principal, à côté des boutons de la procédure,
+// il se déclencherait un jour en visant autre chose.
+function TransfertReferentiel({ referentiel, onImporte }) {
+  const [occupe, setOccupe] = useState('')
+  const [message, setMessage] = useState(null)   // { ok: bool, texte: string }
+  const champFichier = useRef(null)
+
+  async function exporter() {
+    setOccupe('export')
+    setMessage(null)
+    try {
+      const r = await fetchWithTimeout(`/api/admin/referentiels/exporter?id=${referentiel.id}`,
+                                       { credentials: 'include' }, TIMEOUT_LONG)
+      if (!r.ok) throw new Error('Export impossible.')
+      // On passe par un objet en mémoire plutôt que par un lien direct : c'est le seul moyen
+      // d'attraper une erreur du serveur au lieu d'ouvrir un onglet sur une page d'erreur.
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `referentiel-${referentiel.nom_affichage || referentiel.id}.json`
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setMessage({ ok: true, texte: 'Fichier téléchargé. Portez-le sur l’autre installation.' })
+    } catch (e) {
+      setMessage({ ok: false, texte: e.message === 'timeout' ? MSG_TIMEOUT : e.message })
+    } finally {
+      setOccupe('')
+    }
+  }
+
+  async function importer(evenement) {
+    const fichier = evenement.target.files?.[0]
+    evenement.target.value = ''          // pour que le même fichier puisse être redéposé
+    if (!fichier) return
+    setOccupe('import')
+    setMessage(null)
+    try {
+      const corps = new FormData()
+      corps.append('fichier', fichier)
+      const r = await fetchWithTimeout('/api/admin/referentiels/importer',
+                                       { method: 'POST', credentials: 'include', body: corps },
+                                       TIMEOUT_XLONG)
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.detail || 'Import impossible.')
+      const total = Object.values(d.compte || {}).reduce((a, b) => a + b, 0)
+      setMessage({ ok: true,
+        texte: `« ${d.etiquette || 'Référentiel'} » installé — ${total} lignes posées.` })
+      // La fenêtre se ferme d'elle-même : le travail est fait, la liste se rafraîchit derrière.
+      setTimeout(() => onImporte?.(), 1200)
+    } catch (e) {
+      setMessage({ ok: false, texte: e.message === 'timeout' ? MSG_TIMEOUT : e.message })
+    } finally {
+      setOccupe('')
+    }
+  }
+
+  const btn = {
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 14px',
+    borderRadius: 7, fontSize: 12.5, fontWeight: 500, border: '1px solid transparent',
+    cursor: 'pointer',
+  }
+  const grise = st => ({ ...st, opacity: 0.45, cursor: 'not-allowed' })
+  const stExport = { ...btn, background: '#1F6EEB', color: '#fff' }
+  const stImport = { ...btn, background: '#fff', color: '#374151', borderColor: '#d1d5db' }
+
+  return (
+    // LA MARGE EST POSÉE ICI, faute d'être dans la coquille : sans elle le texte touche les
+    // bords de la fenêtre. À remonter dans `FenetrePro` le jour où on reprendra les quinze
+    // fenêtres de l'application d'un coup.
+    <div style={{ fontSize: 13, color: '#334155', padding: '16px 18px 18px' }}>
+      <p style={{ margin: '0 0 4px', fontWeight: 700, color: '#A63045' }}>
+        {referentiel.cycle} · {referentiel.nom_affichage || referentiel.niveau}
+      </p>
+      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b' }}>
+        Le document, ses niveaux, ses matières, ses types et ses unités déjà vectorisées.
+        Aucun appel d’IA : rien n’est recalculé.
+      </p>
+
+      <button
+        type="button"
+        onClick={exporter}
+        disabled={!!occupe}
+        title="Télécharger ce référentiel dans un fichier"
+        style={occupe ? grise(stExport) : stExport}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        {occupe === 'export' ? 'Export…' : 'Exporter ce référentiel'}
+      </button>
+
+      {/* L'IMPORT NE DÉPEND D'AUCUNE LIGNE, et le trait le dit : ce qu'on dépose ici vient d'une
+          autre installation, il ne remplace pas le référentiel ouvert. */}
+      <div style={{ borderTop: '1px solid #e2e8f0', margin: '18px 0 14px' }} />
+      <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#64748b' }}>
+        Ou installer ici un référentiel exporté ailleurs. Il s’ajoute — rien n’est remplacé, et
+        un référentiel qui dessert déjà les mêmes classes fait refuser le fichier.
+      </p>
+      <button
+        type="button"
+        onClick={() => champFichier.current?.click()}
+        disabled={!!occupe}
+        title="Déposer un fichier exporté depuis une autre installation"
+        style={occupe ? grise(stImport) : stImport}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        {occupe === 'import' ? 'Import…' : 'Importer un fichier'}
+      </button>
+
+      <input ref={champFichier} type="file" accept=".json,application/json"
+             onChange={importer} style={{ display: 'none' }} />
+
+      {message && (
+        <p style={{ marginTop: 14, fontSize: 12.5,
+                    color: message.ok ? '#15803d' : '#dc2626' }}>
+          {message.texte}
+        </p>
+      )}
     </div>
   )
 }

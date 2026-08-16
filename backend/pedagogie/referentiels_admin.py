@@ -223,6 +223,72 @@ def lister_referentiels(db: Session = Depends(get_db)):
     return {"total": len(refs), "referentiels": refs}
 
 
+# ---------------------------------------------------------------------------
+# TRANSFERT — porter un référentiel d'une installation à l'autre
+#
+# POURQUOI DEUX GESTES SÉPARÉS PAR UN FICHIER. Les référentiels se construisent sur le poste de
+# développement ; la production ne doit jamais refaire cette procédure. Or un déploiement porte le
+# code et la structure de la base, jamais son contenu. On exporte donc d'un côté, on importe de
+# l'autre, et le fichier voyage à la main : les deux bases ne s'ouvrent aucune connexion l'une
+# vers l'autre, et rien ne part sans qu'on l'ait voulu.
+#
+# LES DEUX BOUTONS EXISTENT DES DEUX CÔTÉS, et ce n'est pas un oubli. Cacher l'import en
+# développement en ferait un geste jamais essayé — découvert le jour où il compte, en production.
+# Les deux sens servent d'ailleurs : importer chez soi remonte un référentiel après une base
+# refaite, exporter en production en garde une copie.
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/referentiels/exporter", dependencies=[Depends(_require_admin)])
+def exporter_referentiel(id: int, db: Session = Depends(get_db)):
+    """Rend le référentiel et tout ce qui pend dessous, en un fichier. Ne modifie rien."""
+    from backend.pedagogie.transfert_referentiel import exporter
+
+    try:
+        contenu = exporter(db, id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+    # Le nom du fichier porte le référentiel ET la date : deux exports du même document ne se
+    # recouvrent pas dans un dossier de téléchargements.
+    nom = f"referentiel-{_dossier_cle(contenu['etiquette'] or str(id)).lower()}.json"
+    return StreamingResponse(
+        iter([json.dumps(contenu, ensure_ascii=False).encode("utf-8")]),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )
+
+
+@router.post("/admin/referentiels/importer", dependencies=[Depends(_require_admin)])
+async def importer_referentiel(fichier: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Installe un référentiel exporté ailleurs. Tout ou rien.
+
+    LA TRANSACTION EST TENUE ICI, pas dans le module de transfert : un référentiel à moitié posé
+    est l'état le plus cher à diagnostiquer, parce que l'application répond quand même."""
+    from backend.pedagogie.transfert_referentiel import importer
+
+    brut = await fichier.read()
+    try:
+        contenu = json.loads(brut.decode("utf-8"))
+    except Exception:
+        raise HTTPException(400, "Ce fichier n'est pas un export de référentiel lisible.")
+
+    try:
+        resultat = importer(db, contenu)
+        # Le nom d'affichage se DÉDUIT des niveaux desservis : il est recalculé plutôt que
+        # recopié, sinon un rattachement différent à l'arrivée laisserait un libellé faux.
+        recalculer_nom_affichage(db, resultat["referentiel_id"])
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        db.rollback()
+        log.exception("Import de référentiel")
+        raise HTTPException(500, f"Import impossible : {type(e).__name__} — {e}")
+
+    return resultat
+
+
 @router.get("/admin/cycles", dependencies=[Depends(_require_admin)])
 def lister_cycles_table(db: Session = Depends(get_db)):
     """Contenu de la table `cycles` (get direct, lecture seule) — fenêtre de contrôle admin."""
