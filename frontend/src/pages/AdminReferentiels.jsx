@@ -168,6 +168,9 @@ export default function AdminReferentiels() {
   // Le référentiel dont la fenêtre de transfert est ouverte. `null` = fermée : une opération qui
   // déplace un référentiel entier ne doit pas pouvoir être déclenchée en visant autre chose.
   const [transfertPour, setTransfertPour] = useState(null)
+  // Le compte rendu du dernier import réussi. Il INFORME, il n'arrête rien : il reste sous le
+  // bouton. Ce qui refuse, lui, passe par la fenêtre bloquante.
+  const [importOk, setImportOk] = useState('')
   const [cycleId, setCycleId] = useState('')    // cycle choisi (cascade, 1er select)
   const [niveauId, setNiveauId] = useState('')  // niveau choisi (cascade, 2e select) — envoyé à valider/verifier-depot
   const [niveau, setNiveau] = useState('')      // NOM du niveau choisi (requis par les endpoints post-dépôt)
@@ -1416,6 +1419,16 @@ export default function AdminReferentiels() {
         <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', fontSize: 12,
           fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Catalogues ({refsListe.length})
+        </div>
+        {/* IMPORTER EST AU-DESSUS DE LA LISTE, jamais dedans : ce bouton CRÉE un référentiel qui
+            n'existe pas encore. Le loger dans la fenêtre d'une ligne obligeait à ouvrir le
+            transfert d'un AUTRE référentiel pour installer celui-ci — et sur une installation
+            vierge, sans aucune ligne, il devenait inatteignable. */}
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0' }}>
+          <ImporterReferentiel onImporte={(texte) => { chargerListe(); setImportOk(texte) }} />
+          {importOk && (
+            <p style={{ margin: '8px 0 0', fontSize: 11.5, color: '#15803d' }}>{importOk}</p>
+          )}
         </div>
         {/* « + Nouveau » en premier, couleur distincte, sélectionné par défaut (aucun référentiel ouvert). */}
         {(() => {
@@ -3206,8 +3219,7 @@ export default function AdminReferentiels() {
           hauteur="auto"
           onFermer={() => setTransfertPour(null)}
         >
-          <TransfertReferentiel referentiel={transfertPour}
-                                onImporte={() => { chargerListe(); setTransfertPour(null) }} />
+          <TransfertReferentiel referentiel={transfertPour} />
         </FenetrePro>
       )}
 
@@ -3252,13 +3264,12 @@ export default function AdminReferentiels() {
 // POURQUOI DANS UNE FENÊTRE À PART. Le geste déplace un référentiel entier — le document, ses
 // unités vectorisées, ses matières. Sur l'écran principal, à côté des boutons de la procédure,
 // il se déclencherait un jour en visant autre chose.
-function TransfertReferentiel({ referentiel, onImporte }) {
+function TransfertReferentiel({ referentiel }) {
   const [occupe, setOccupe] = useState('')
-  // Ne reste ici que ce qui INFORME sans arrêter : « fichier téléchargé », « référentiel
-  // installé ». Tout ce qui REFUSE passe par `showError`, une fenêtre qui bloque l'écran — un
-  // refus écrit en petit sous un bouton se lit après coup, ou pas du tout.
+  // Ne reste ici que ce qui INFORME sans arrêter : « fichier téléchargé ». Tout ce qui REFUSE
+  // passe par `showError`, une fenêtre qui bloque l'écran — un refus écrit en petit sous un
+  // bouton se lit après coup, ou pas du tout.
   const [reussite, setReussite] = useState('')
-  const champFichier = useRef(null)
 
   async function exporter() {
     setOccupe('export')
@@ -3287,33 +3298,6 @@ function TransfertReferentiel({ referentiel, onImporte }) {
     }
   }
 
-  async function importer(evenement) {
-    const fichier = evenement.target.files?.[0]
-    evenement.target.value = ''          // pour que le même fichier puisse être redéposé
-    if (!fichier) return
-    setOccupe('import')
-    setReussite('')
-    try {
-      const corps = new FormData()
-      corps.append('fichier', fichier)
-      const r = await fetchWithTimeout('/api/admin/referentiels/importer',
-                                       { method: 'POST', credentials: 'include', body: corps },
-                                       TIMEOUT_XLONG)
-      const d = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(d.detail || 'Import impossible.')
-      const total = Object.values(d.compte || {}).reduce((a, b) => a + b, 0)
-      setReussite(`« ${d.etiquette || 'Référentiel'} » installé — ${total} lignes posées.`)
-      // La fenêtre se ferme d'elle-même : le travail est fait, la liste se rafraîchit derrière.
-      setTimeout(() => onImporte?.(), 1200)
-    } catch (e) {
-      // LE REFUS ARRÊTE L'ÉCRAN. « Un référentiel dessert déjà 4e » n'est pas une remarque : c'est
-      // la raison pour laquelle rien ne s'est passé, et elle doit être lue avant tout autre geste.
-      showError(e.message === 'timeout' ? MSG_TIMEOUT : e.message)
-    } finally {
-      setOccupe('')
-    }
-  }
-
   const btn = {
     display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 14px',
     borderRadius: 7, fontSize: 12.5, fontWeight: 500, border: '1px solid transparent',
@@ -3321,7 +3305,6 @@ function TransfertReferentiel({ referentiel, onImporte }) {
   }
   const grise = st => ({ ...st, opacity: 0.45, cursor: 'not-allowed' })
   const stExport = { ...btn, background: '#1F6EEB', color: '#fff' }
-  const stImport = { ...btn, background: '#fff', color: '#374151', borderColor: '#d1d5db' }
 
   return (
     // LA MARGE EST POSÉE ICI, faute d'être dans la coquille : sans elle le texte touche les
@@ -3351,34 +3334,75 @@ function TransfertReferentiel({ referentiel, onImporte }) {
         {occupe === 'export' ? 'Export…' : 'Exporter ce référentiel'}
       </button>
 
-      {/* L'IMPORT NE DÉPEND D'AUCUNE LIGNE, et le trait le dit : ce qu'on dépose ici vient d'une
-          autre installation, il ne remplace pas le référentiel ouvert. */}
-      <div style={{ borderTop: '1px solid #e2e8f0', margin: '18px 0 14px' }} />
-      <p style={{ margin: '0 0 8px', fontSize: 12.5, color: '#64748b' }}>
-        Ou installer ici un référentiel exporté ailleurs. Il s’ajoute — rien n’est remplacé, et
-        un référentiel qui dessert déjà les mêmes classes fait refuser le fichier.
-      </p>
+      {reussite && (
+        <p style={{ marginTop: 14, fontSize: 12.5, color: '#15803d' }}>{reussite}</p>
+      )}
+    </div>
+  )
+}
+
+
+// L'IMPORT N'APPARTIENT À AUCUNE LIGNE — il en CRÉE une.
+//
+// LA BÊTISE DU 16/08/2026, corrigée ici : il vivait dans la fenêtre de transfert, celle qui
+// s'ouvre depuis une ligne existante. Pour installer un référentiel absent, il fallait donc
+// ouvrir la fenêtre d'un AUTRE référentiel — et sur une installation vierge, sans aucune ligne,
+// le bouton était carrément inatteignable. Sa place est au-dessus de la liste, où il ne dépend
+// de rien.
+function ImporterReferentiel({ onImporte }) {
+  const [occupe, setOccupe] = useState(false)
+  const champFichier = useRef(null)
+
+  async function importer(evenement) {
+    const fichier = evenement.target.files?.[0]
+    evenement.target.value = ''          // pour que le même fichier puisse être redéposé
+    if (!fichier) return
+    setOccupe(true)
+    try {
+      const corps = new FormData()
+      corps.append('fichier', fichier)
+      const r = await fetchWithTimeout('/api/admin/referentiels/importer',
+                                       { method: 'POST', credentials: 'include', body: corps },
+                                       TIMEOUT_XLONG)
+      // UN REFUS EN AMONT NE PARLE PAS JSON. Quand le serveur web écarte le fichier parce qu'il
+      // le trouve trop lourd, il rend une page HTML : `r.json()` échoue, et l'écran affichait
+      // « Import impossible. » sans rien de plus. Le code 413 se dit en clair.
+      if (r.status === 413) {
+        throw new Error('Ce fichier est trop lourd pour être envoyé au serveur.\n\n'
+                        + 'La limite se règle dans la configuration du serveur web.')
+      }
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.detail || `Import impossible (code ${r.status}).`)
+      const total = Object.values(d.compte || {}).reduce((a, b) => a + b, 0)
+      onImporte?.(`« ${d.etiquette || 'Référentiel'} » installé — ${total} lignes posées.`)
+    } catch (e) {
+      showError(e.message === 'timeout' ? MSG_TIMEOUT : e.message)
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <>
       <button
         type="button"
         onClick={() => champFichier.current?.click()}
-        disabled={!!occupe}
-        title="Déposer un fichier exporté depuis une autre installation"
-        style={occupe ? grise(stImport) : stImport}
+        disabled={occupe}
+        title="Installer un référentiel exporté depuis une autre installation"
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                 width: '100%', height: 32, borderRadius: 7, fontSize: 12.5, fontWeight: 500,
+                 border: '1px solid #d1d5db', background: '#fff', color: '#374151',
+                 cursor: occupe ? 'not-allowed' : 'pointer', opacity: occupe ? 0.45 : 1 }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
           <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        {occupe === 'import' ? 'Import…' : 'Importer un fichier'}
+        {occupe ? 'Import…' : 'Importer un référentiel'}
       </button>
-
       <input ref={champFichier} type="file" accept=".json,application/json"
              onChange={importer} style={{ display: 'none' }} />
-
-      {reussite && (
-        <p style={{ marginTop: 14, fontSize: 12.5, color: '#15803d' }}>{reussite}</p>
-      )}
-    </div>
+    </>
   )
 }

@@ -250,3 +250,24 @@ def test_sans_cookie_admin_les_deux_routes_refusent():
     assert c.get("/api/admin/referentiels/exporter?id=1").status_code == 401
     assert c.post("/api/admin/referentiels/importer",
                   files={"fichier": ("x.json", b"{}", "application/json")}).status_code == 401
+
+
+def test_chaque_refus_dit_ce_qu_il_a_vu():
+    """« Import impossible » est le pire message : il oblige a deviner, puis a lire un journal de
+    serveur. Constaté le 16/08/2026 — le fichier était trop lourd pour le serveur web, et rien ne
+    le disait. Chaque refus nomme donc le fichier ET la raison."""
+    c = _admin()
+
+    def _refus(contenu, nom="essai.json"):
+        r = c.post("/api/admin/referentiels/importer",
+                   files={"fichier": (nom, contenu, "application/json")})
+        assert r.status_code == 400, r.text[:200]
+        return r.json()["detail"]
+
+    assert "vide" in _refus(b"")
+    illisible = _refus(b"\xff\xfe\x00 pas du texte", nom="photo.png")
+    assert "photo.png" in illisible and "json" in illisible.lower()
+    casse = _refus(b'{"format": 1, "referentiel": {', nom="tronque.json")
+    assert "tronque.json" in casse and "ligne" in casse
+    autre = _refus(b'{"ceci": "est un json valide"}', nom="autre.json")
+    assert "autre.json" in autre and "aucun référentiel" in autre

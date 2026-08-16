@@ -267,10 +267,33 @@ async def importer_referentiel(fichier: UploadFile = File(...), db: Session = De
     from backend.pedagogie.transfert_referentiel import importer
 
     brut = await fichier.read()
+
+    # CHAQUE REFUS DIT CE QU'IL A VU. « Import impossible » est le pire message possible : il
+    # oblige à deviner, puis à aller lire un journal de serveur. Constaté le 16/08/2026 — le
+    # fichier était simplement trop lourd pour le serveur web, et rien ne le disait.
+    if not brut:
+        raise HTTPException(400, "Le fichier est vide — rien n'a été envoyé.")
     try:
-        contenu = json.loads(brut.decode("utf-8"))
-    except Exception:
-        raise HTTPException(400, "Ce fichier n'est pas un export de référentiel lisible.")
+        texte = brut.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(
+            400,
+            f"Le fichier « {fichier.filename} » n'est pas du texte lisible.\n\n"
+            "Un export de référentiel est un fichier .json. Vérifiez que vous n'avez pas déposé "
+            "un PDF ou une archive.")
+    try:
+        contenu = json.loads(texte)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            400,
+            f"Le fichier « {fichier.filename} » n'est pas un export de référentiel.\n\n"
+            f"Sa lecture s'arrête ligne {e.lineno} : {e.msg}. Il a peut-être été modifié, "
+            "tronqué au téléchargement, ou ce n'est pas le bon fichier.")
+    if not isinstance(contenu, dict) or "referentiel" not in contenu:
+        raise HTTPException(
+            400,
+            f"Le fichier « {fichier.filename} » est bien lisible, mais ce n'est pas un export de "
+            "référentiel : il ne contient aucun référentiel.")
 
     try:
         resultat = importer(db, contenu)
@@ -284,7 +307,11 @@ async def importer_referentiel(fichier: UploadFile = File(...), db: Session = De
     except Exception as e:
         db.rollback()
         log.exception("Import de référentiel")
-        raise HTTPException(500, f"Import impossible : {type(e).__name__} — {e}")
+        raise HTTPException(
+            500,
+            f"L'installation du référentiel s'est arrêtée en cours de route.\n\n"
+            f"{type(e).__name__} : {e}\n\n"
+            "Rien n'a été écrit — la base est dans l'état où vous l'avez trouvée.")
 
     return resultat
 
