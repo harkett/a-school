@@ -745,25 +745,38 @@ export default function AdminLayout() {
 
         {/* Bas de sidebar */}
         <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <button
-            onClick={() => navigate('/')}
-            title="Retourner à l'application aSchool"
+          {/* L'APPLICATION S'OUVRE À CÔTÉ, ELLE NE REMPLACE PAS L'ADMINISTRATION (16/08/2026).
+              Ce bouton chargeait l'application du prof dans le même onglet : l'administration
+              disparaissait sans un mot, et il fallait refaire tout le chemin — connexion comprise —
+              pour revenir à l'écran qu'on était en train de régler.
+              Un nouvel onglet règle les deux problèmes à la fois : rien à confirmer, puisque rien
+              n'est perdu, et le va-et-vient entre les deux côtés devient un clic d'onglet.
+              La flèche « retour » a laissé la place à l'icône de l'ouverture externe : elle
+              annonce ce qui va se passer avant qu'on clique. */}
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Ouvrir l'application aSchool dans un nouvel onglet — l'administration reste ouverte ici"
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               justifyContent: reduit ? 'center' : 'flex-start',
               padding: reduit ? '9px 0' : '9px 12px', borderRadius: 8,
               fontSize: 13, color: 'rgba(255,255,255,0.45)',
               background: 'none', border: 'none', cursor: 'pointer',
+              textDecoration: 'none',
               textAlign: 'left', width: '100%', transition: 'color 0.15s',
             }}
             onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
             onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.45)'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
             {!reduit && 'aSchool'}
-          </button>
+          </a>
 
           <button
             onClick={logout}
