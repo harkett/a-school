@@ -507,7 +507,12 @@ function MainApp() {
       <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
         <div className="flex" style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
              aria-hidden={profilIncomplet || undefined}>
-          <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)} />
+          {/* LE COUPLE PASSE À LA BARRE, et il n'y sert qu'à une chose : l'entrée
+              « Démonstration » interroge le serveur une fois par couple, pas une fois pour
+              toutes. Au sortir de l'inscription le profil est vide, la réponse est « pas de
+              niveau » — et elle restait affichée après que le profil fut rempli. */}
+          <Sidebar page={page} onNavigate={naviguer} onNotation={() => setShowNotation(true)}
+                   couple={`${user?.travail_matiere || user?.subject || ''}|${user?.travail_niveau || user?.niveau || ''}`} />
         </div>
 
         <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>

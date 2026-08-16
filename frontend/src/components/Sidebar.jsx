@@ -98,7 +98,7 @@ const MES_ANALYSES_PAGES = ['ambiguites', 'consigne', 'equite']
 // fini le mélange des trois dans un seul écran). Les écrans seance/activite en font partie.
 const MES_CONTENUS_PAGES = ['mes-contenus', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'seance', 'activite']
 
-export default function Sidebar({ page, onNavigate, onNotation }) {
+export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
   const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
   const [evalOpen, setEvalOpen] = useState(false)
@@ -381,7 +381,7 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
       </nav>
 
       <nav className={`shrink-0 flex flex-col gap-1 pb-3 border-t border-gray-200 pt-3 ${collapsed ? '' : 'px-4'}`}>
-        <LienDemonstration collapsed={collapsed} />
+        <LienDemonstration collapsed={collapsed} couple={couple} />
         {navItem('bientot-disponible', 'Bientôt disponible', IconRocket, 'Fonctionnalités à venir — proposez vos idées')}
         {navItem('aide', 'Centre d\'aide', IconHelp, 'Consulter la documentation et l\'aide')}
         <a
@@ -414,9 +414,18 @@ export default function Sidebar({ page, onNavigate, onNotation }) {
 //
 // Grisée tant que le prof n'a pas de démonstration : sa bulle d'aide porte alors la raison
 // rendue par le serveur — pas de niveau au profil, démonstration en préparation, pas en ligne.
-function LienDemonstration({ collapsed }) {
+function LienDemonstration({ collapsed, couple }) {
   const [etat, setEtat] = useState(null)
 
+  // LA QUESTION SE REPOSE À CHAQUE COUPLE (16/08/2026). Elle n'était posée qu'une fois, au premier
+  // affichage du menu. Au sortir de l'inscription le profil est vide : le serveur répond
+  // « Choisissez d'abord votre niveau dans Mon profil », et cette phrase restait accrochée à
+  // l'entrée grisée APRÈS que le profil fut rempli — l'en-tête affichait « Mathématiques · 4e »
+  // pendant que le bas du menu réclamait un niveau. Il fallait recharger la page pour en sortir.
+  //
+  // La règle du serveur n'a jamais été en cause : elle lit la même source que l'en-tête. C'est la
+  // question qui n'était jamais reposée. `couple` change dès que le prof enregistre ou ajuste sa
+  // matière et son niveau — l'entrée s'allume alors toute seule.
   useEffect(() => {
     let vivant = true
     fetch('/api/demo/pour-moi', { credentials: 'include' })
@@ -424,7 +433,7 @@ function LienDemonstration({ collapsed }) {
       .then(d => { if (vivant) setEtat(d) })
       .catch(() => { /* le menu ne doit pas tomber parce que cette entrée-là n'a pas répondu */ })
     return () => { vivant = false }
-  }, [])
+  }, [couple])
 
   if (!etat || etat.ici) return null   // `ici` : on EST déjà dans la démonstration
 
