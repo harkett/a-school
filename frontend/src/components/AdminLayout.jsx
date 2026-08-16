@@ -270,7 +270,12 @@ const NAV_ITEMS = [
     ),
     items: [
       { to: '/admin/base',       label: 'Réelle', aide: 'Sur quelle base l\'application est réellement connectée (réelle « aschool » vs miroir de test) — garde-fou.' },
-      { to: '/admin/base/demos', label: 'Démos',  aide: 'Les bases de démonstration — chantier à venir, rien n\'est branché pour l\'instant.' },
+      // Cette bulle a annoncé « chantier à venir, rien n'est branché » jusqu'au 16/08/2026 —
+      // longtemps après que l'écran fut livré et branché sur six routes. Une aide qui décrit un
+      // état passé est pire que pas d'aide : elle détourne de l'écran qu'elle est censée ouvrir.
+      { to: '/admin/base/demos', label: 'Démos',
+        aide: 'Les bases de démonstration, une par niveau : leur adresse, le référentiel qu’elles montrent, et l’état de chacune. On en crée une, on modifie sa fiche, on la retire, et « Visiter » y emmène directement avec votre identité d’administrateur.',
+        resume: 'Les vitrines : une base de démonstration par niveau.' },
     ],
   },
   // — Système —
