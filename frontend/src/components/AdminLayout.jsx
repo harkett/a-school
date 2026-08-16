@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation, Link, Outlet } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_AUTH } from '../utils/api.js'
-import { registerErrorHandler } from '../errorDialog'
 import { ActionsEcran } from './actionsEcran.jsx'
 import FenetrePro from './FenetrePro.jsx'
 
@@ -294,7 +293,6 @@ const NAV_ITEMS = [
 export default function AdminLayout() {
   const [checked, setChecked] = useState(false)
   const [notifs, setNotifs]   = useState({ feedbacks_nouveaux: 0, alertes_nonlues: 0 })
-  const [adminAlert, setAdminAlert] = useState(null)  // modale bloquante côté admin
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -309,7 +307,12 @@ export default function AdminLayout() {
   // showError() est un singleton (errorDialog.js) : son handler est enregistré dans le
   // shell prof, NON monté en admin. Sans ce réenregistrement, showError serait inactif
   // sur /admin/* — l'erreur de saisie échouerait en silence. On rebranche la modale ici.
-  useEffect(() => { registerErrorHandler(setAdminAlert) }, [])
+  // PLUS D'ENREGISTREMENT ICI, et c'est le fond du sujet. `ErrorDialog` est montée à la racine
+  // de l'application (App.jsx) et écoute déjà ce canal ; cette ligne le lui volait dès qu'on
+  // entrait dans l'administration, au profit d'une boîte écrite à la main juste en dessous —
+  // sans barre de titre, sans icône, sans croix, et bleue quoi qu'il arrive. Deux dessins pour
+  // le même geste, dont un seul recevait les corrections. Constaté le 16/08/2026 : la règle
+  // « rouge par défaut » posée dans `ErrorDialog` restait invisible côté administration.
 
   useEffect(() => {
     fetch('/api/admin/check', { credentials: 'include' })
@@ -699,21 +702,6 @@ export default function AdminLayout() {
       </main>
 
       {/* Modale bloquante admin (showError) — overlay plein écran, impossible à ignorer */}
-      {adminAlert && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '28px 24px', maxWidth: '420px', width: '90%', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontSize: '14px', color: '#1e293b', marginBottom: '20px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{adminAlert}</div>
-            <button
-              onClick={() => setAdminAlert(null)}
-              title="Fermer ce message"
-              style={{ background: '#1F6EEB', color: '#fff', border: 'none', borderRadius: '8px', padding: '9px 28px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
     </div>
   )
 }

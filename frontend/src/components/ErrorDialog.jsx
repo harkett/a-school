@@ -18,7 +18,10 @@ export default function ErrorDialog() {
   useEffect(() => {
     registerErrorHandler((text, opts = {}) => setDialog({
       text, feedback: !!opts.feedback, ref: opts.ref || null,
-      danger: !!opts.danger, titre: opts.titre || '',
+      // `opts.danger` GARDE ses trois états : absent (= refus, le défaut), true, ou false pour
+      // demander explicitement le ton informatif. Un `!!` ici écrasait `undefined` en `false` et
+      // rendait le défaut impossible à distinguer d'une demande de bleu.
+      danger: opts.danger, titre: opts.titre || '',
     }))
     registerServerHealthHandler((degraded) => { if (degraded) setDialog({
       text: MSG_SERVEUR_INDISPONIBLE, feedback: false, ref: null, danger: true, titre: '' }) })
@@ -43,11 +46,20 @@ export default function ErrorDialog() {
   // proprement sur le texte simple.
   const [avant, apres] = dialog.feedback ? dialog.text.split('cliquez ici') : [dialog.text, null]
 
-  // TON de la boîte : bandeau BLEU par défaut (un message à lire), ROUGE quand c'est grave
-  // (showError(msg, { danger: true }) ou serveur indisponible). Le bandeau est plein, avec son
-  // titre et sa croix en blanc — le patron d'une vraie application.
-  const accent = dialog.danger ? '#dc2626' : 'var(--bleu)'
-  const titre = dialog.titre || (dialog.danger ? 'Attention' : 'Information')
+  // TON de la boîte : ROUGE PAR DÉFAUT, et c'est la règle — pas un réglage à répéter.
+  //
+  // POURQUOI L'INVERSE NE MARCHAIT PAS. Le bleu était le défaut et le rouge s'obtenait en passant
+  // `{ danger: true }`. Résultat, au 16/08/2026 : DEUX CENTS appels à `showError` dans
+  // l'application, et pas un seul ne le passait. « Enregistrement impossible », « Suppression
+  // impossible », « les deux mots de passe ne sont pas identiques » s'affichaient tous en bleu,
+  // sous le titre « Information ». Un refus qui a l'air d'une remarque se lit comme une remarque.
+  //
+  // La fonction s'appelle `showError` : ce qui passe par elle est un problème, et se voit comme
+  // tel. Le bleu reste possible — `showError(msg, { danger: false })` — pour le cas rare d'un
+  // message qui informe sans rien refuser. Il faut le demander, il ne s'obtient plus par oubli.
+  const informatif = dialog.danger === false
+  const accent = informatif ? 'var(--bleu)' : '#dc2626'
+  const titre = dialog.titre || (informatif ? 'Information' : 'Attention')
 
   return (
     <div
@@ -61,8 +73,10 @@ export default function ErrorDialog() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: accent }}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0 }}>
             <circle cx="12" cy="12" r="10" fill="#fff" />
-            <rect x="11" y={dialog.danger ? 6.5 : 10.5} width="2" height="7" rx="1" fill={accent} />
-            <circle cx="12" cy={dialog.danger ? 16.6 : 7.4} r="1.25" fill={accent} />
+            {/* Point d'exclamation quand on refuse, « i » quand on informe : le dessin dit la
+                même chose que la couleur, pour qui ne distingue pas le rouge du bleu. */}
+            <rect x="11" y={informatif ? 10.5 : 6.5} width="2" height="7" rx="1" fill={accent} />
+            <circle cx="12" cy={informatif ? 7.4 : 16.6} r="1.25" fill={accent} />
           </svg>
           <span style={{ fontWeight: 700, fontSize: 15, color: '#fff', flex: 1 }}>{titre}</span>
           <button
