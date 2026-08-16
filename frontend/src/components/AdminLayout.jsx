@@ -552,7 +552,9 @@ export default function AdminLayout() {
                       fontSize: 14, fontWeight: 600,
                       color: isGroupActive ? '#fff' : 'rgba(255,255,255,0.62)',
                       background: isGroupActive ? 'rgba(255,255,255,0.06)' : 'transparent',
-                      borderLeft: isGroupActive ? '3px solid #3b82f6' : '3px solid transparent',
+                      // UNE SEULE COULEUR DIT « VOUS ÊTES ICI » : le bleu (16/08/2026). Ce trait
+                      // est le bleu ATTÉNUÉ — la rubrique contient la page, elle n'est pas la page.
+                      borderLeft: isGroupActive ? '3px solid rgba(59,130,246,0.5)' : '3px solid transparent',
                       cursor: 'pointer', userSelect: 'none', transition: 'color 0.15s',
                     }}
                     onMouseEnter={e => {
@@ -605,11 +607,16 @@ export default function AdminLayout() {
                             style={{
                               display: 'flex', alignItems: 'center', gap: 8,
                               padding: '7px 12px', marginLeft: -1,
-                              borderLeft: isSubActive ? '3px solid #A63045' : '3px solid transparent',
+                              // LE BORDEAUX N'EST PLUS UNE BALISE DE POSITION (16/08/2026). C'est
+                              // la couleur de la marque — logo, icône d'en-tête, pied de page,
+                              // trente-quatre fichiers. À servir aussi de « vous êtes ici », elle
+                              // ne voulait plus rien dire nulle part. La page où l'on se trouve
+                              // porte le bleu PLEIN, le seul repère de position du menu.
+                              borderLeft: isSubActive ? '3px solid #3b82f6' : '3px solid transparent',
                               borderRadius: '0 6px 6px 0',
                               fontSize: 12, fontWeight: isSubActive ? 600 : 400,
                               color: isSubActive ? '#fff' : 'rgba(255,255,255,0.5)',
-                              background: isSubActive ? 'rgba(166,48,69,0.16)' : 'transparent',
+                              background: isSubActive ? 'rgba(59,130,246,0.16)' : 'transparent',
                               textDecoration: 'none', transition: 'all 0.15s',
                             }}
                             onMouseEnter={e => {
@@ -646,7 +653,9 @@ export default function AdminLayout() {
               fontSize:       14,
               fontWeight:     isActive ? 600 : 500,
               color:          isActive ? 'white' : 'rgba(255,255,255,0.55)',
-              background:     isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+              // Une entrée simple est une PAGE, au même rang qu'une sous-entrée : même bleu
+              // plein, même fond bleuté. Le gris d'avant en faisait un troisième code visuel.
+              background:     isActive ? 'rgba(59,130,246,0.16)' : 'transparent',
               textDecoration: 'none',
               cursor:         'pointer',
               transition:     'all 0.15s',
