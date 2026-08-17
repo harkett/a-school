@@ -651,24 +651,55 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
     expected_user = os.getenv("ADMIN_USERNAME", "")
     expected_pass = os.getenv("ADMIN_PASSWORD", "")
     ip = request.client.host if request.client else None
-    pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
-    username_ok = bool(expected_user) and secrets.compare_digest(body.username, expected_user)
-    # AMORÇAGE SEUL, et non « les deux ouvrent ». Le mot de passe du .env sert tant qu'aucun
-    # n'a été choisi ; dès qu'un existe en base, lui seul ouvre. C'est déjà la règle appliquée
-    # par /admin/change-password (voir plus bas, `if pwd_setting: ... else: ...`) : la connexion
-    # faisait `env_ok or db_ok`, donc l'ancien mot de passe du .env continuait d'ouvrir APRÈS
-    # un changement — le bouton « changer mon mot de passe » ne fermait rien. Les deux routes
-    # disent maintenant la même chose.
-    # SECOURS en cas d'oubli : supprimer la ligne `admin_password_hash` de la table `settings`
-    # remet le mot de passe du .env en service (procédure dans PROJET.md).
-    if pwd_setting:
-        try:
-            password_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
-        except Exception:
+
+    # ── LA BASE D'ABORD (17/08/2026) ──────────────────────────────────────────────────────
+    #
+    # L'administration n'était pas un compte : un identifiant et un mot de passe posés dans les
+    # variables d'environnement, un seul jeu. Impossible d'en avoir deux, impossible de savoir
+    # lequel a agi. Elle est maintenant une LIGNE de `users` portant `role = 'admin'`, avec la
+    # même empreinte bcrypt qu'un professeur.
+    #
+    # LE FILET, et il n'est pas facultatif : tant qu'AUCUN compte `admin` n'existe en base, les
+    # variables d'environnement ouvrent comme avant. Sans lui, une base neuve — ou une base dont
+    # la ligne d'administration a été effacée — mettrait dehors sans retour possible.
+    admin_du_compte = (db.query(User)
+                         .filter(User.role == "admin", User.email == body.username)
+                         .first())
+    un_admin_existe = db.query(User).filter(User.role == "admin").first() is not None
+
+    if un_admin_existe:
+        # Un compte `prof` qui tenterait cette porte échoue ici : le filtre porte sur le rôle,
+        # pas seulement sur l'adresse. Le mot de passe juste d'un professeur n'ouvre rien.
+        password_ok = False
+        if admin_du_compte and not admin_du_compte.is_active:
             password_ok = False
+        elif admin_du_compte:
+            try:
+                password_ok = _bcrypt.checkpw(body.password.encode("utf-8"),
+                                              admin_du_compte.password_hash.encode("utf-8"))
+            except Exception:
+                password_ok = False
+        ok = password_ok
     else:
-        password_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
-    ok = username_ok and password_ok
+        # ── LE FILET — le comportement d'avant, mot pour mot ──────────────────────────────
+        pwd_setting = db.query(Setting).filter(Setting.key == "admin_password_hash").first()
+        username_ok = bool(expected_user) and secrets.compare_digest(body.username, expected_user)
+        # AMORÇAGE SEUL, et non « les deux ouvrent ». Le mot de passe du .env sert tant qu'aucun
+        # n'a été choisi ; dès qu'un existe en base, lui seul ouvre. C'est déjà la règle appliquée
+        # par /admin/change-password (voir plus bas, `if pwd_setting: ... else: ...`) : la connexion
+        # faisait `env_ok or db_ok`, donc l'ancien mot de passe du .env continuait d'ouvrir APRÈS
+        # un changement — le bouton « changer mon mot de passe » ne fermait rien. Les deux routes
+        # disent maintenant la même chose.
+        # SECOURS en cas d'oubli : supprimer la ligne `admin_password_hash` de la table `settings`
+        # remet le mot de passe du .env en service (procédure dans PROJET.md).
+        if pwd_setting:
+            try:
+                password_ok = _bcrypt.checkpw(body.password.encode("utf-8"), pwd_setting.value.encode("utf-8"))
+            except Exception:
+                password_ok = False
+        else:
+            password_ok = bool(expected_pass) and secrets.compare_digest(body.password, expected_pass)
+        ok = username_ok and password_ok
     if not ok:
         attempt = FailedLoginAttempt(
             ip_address=ip,
@@ -692,7 +723,7 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
             db.commit()
         raise HTTPException(401, "Identifiants incorrects.")
     response.set_cookie(_COOKIE, _make_admin_token(), max_age=_MAX_AGE, httponly=True, samesite="lax", secure=os.getenv("ENV") == "production")
-    admin_email = os.getenv("ADMIN_EMAIL", expected_user)
+    admin_email = admin_du_compte.email if admin_du_compte else os.getenv("ADMIN_EMAIL", expected_user)
     db.add(ConnexionLog(email=admin_email, action="admin_login", ip=ip))
     db.commit()
     return {"status": "ok"}
