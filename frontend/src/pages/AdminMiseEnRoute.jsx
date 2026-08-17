@@ -275,8 +275,8 @@ export default function AdminMiseEnRoute() {
                          onAller={setSection} />
           )}
           {section === 'technique' && <Technique etapes={etapes} navigate={navigate} />}
-          {section === 'admin' && domAdmin && <Domaine dom={domAdmin} />}
-          {section === 'prof' && domProf && <Domaine dom={domProf} />}
+          {section === 'admin' && domAdmin && <Domaine dom={domAdmin} titre="Côté admin" />}
+          {section === 'prof' && domProf && <Domaine dom={domProf} titre="Côté prof" />}
         </div>
       </div>
 
@@ -502,7 +502,7 @@ function Technique({ etapes, navigate }) {
 // ── UN DOMAINE (admin ou prof) ──────────────────────────────────────────────────────────
 // Groupé par écran, chaque groupe avec sa jauge : c'est l'écran qui parle à l'admin, pas la
 // fonctionnalité isolée.
-function Domaine({ dom }) {
+function Domaine({ dom, titre }) {
   // Les lignes faites partent, et un écran entièrement fait part avec elles : garder son cadre
   // vide reviendrait à afficher le fait sous une autre forme — une cartouche qui ne contient
   // rien dit quand même « il y a quelque chose ici ».
@@ -512,12 +512,15 @@ function Domaine({ dom }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <EnteteSection
-        milieu={<Legende etats={['en_cours', 'a_venir']} />}
-        droite={<span style={{ fontVariantNumeric: 'tabular-nums' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{titre}</span>
+        <div style={{ marginLeft: 'auto', marginRight: 'auto' }}>
+          <Legende etats={['en_cours', 'a_venir']} />
+        </div>
+        <span style={{ fontSize: 12, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
           {dom.fait} / {dom.total} · {dom.pourcent} %
-        </span>}
-      />
+        </span>
+      </div>
 
       {ecrans.length === 0 && (
         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,
