@@ -380,28 +380,43 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     libelles = {o.outil: o.libelle for o in db.query(OutilLlm).all()}
 
     def _lignes(colonne, nommer):
-        lignes = []
-        for r in (db.query(colonne.label("cle"), somme_entree.label("entree"),
-                           somme_sortie.label("sortie"),
+        """Une ligne par valeur de `colonne` — volume ET montant.
+
+        LE COÛT SE CALCULE PAR MODÈLE, PUIS SE SOMME. Grouper d'abord sur la seule clé demandée
+        mélangerait des tokens facturés à des tarifs différents : multiplier ce mélange donnerait
+        un montant inventé. Le regroupement porte donc AUSSI le modèle, et les montants — eux,
+        déjà en dollars — se replient ensuite par clé, ce qui est légitime.
+
+        Un modèle sans tarif ne rend pas la ligne muette : ses tokens comptent, sa part de montant
+        manque, et `cout_partiel` prévient l'écran que le total de cette ligne est un plancher.
+        """
+        agrege: dict = {}
+        for r in (db.query(colonne.label("cle"), UsageLlm.modele.label("modele"),
+                           somme_entree.label("entree"), somme_sortie.label("sortie"),
                            somme_cache_ecriture.label("cache_ecriture"),
                            somme_cache_lecture.label("cache_lecture"),
                            func.count(UsageLlm.id).label("appels"))
                     .filter(UsageLlm.created_at >= depuis, _abouti)
-                    .group_by(colonne).all()):
+                    .group_by(colonne, UsageLlm.modele).all()):
+            entree, sortie = int(r.entree), int(r.sortie)
+            cache_e, cache_l = int(r.cache_ecriture), int(r.cache_lecture)
+            ligne = agrege.setdefault(r.cle, {
+                "cle": r.cle, "libelle": nommer(r.cle), "appels": 0,
+                "tokens_entree": 0, "tokens_sortie": 0,
+                "cout_usd": 0.0, "cout_partiel": False,
+            })
+            ligne["appels"] += r.appels
             # Cache compris, comme dans « par modèle » : les trois onglets doivent donner le même
             # volume pour les mêmes appels, sinon l'un des trois passe pour cassé.
-            entree = int(r.entree) + int(r.cache_ecriture) + int(r.cache_lecture)
-            sortie = int(r.sortie)
-            lignes.append({
-                "cle": r.cle, "libelle": nommer(r.cle), "appels": r.appels,
-                "tokens_entree": entree, "tokens_sortie": sortie,
-                # Le coût se calcule TOUJOURS par modèle, jamais sur un agrégat multi-modèles :
-                # additionner des tokens de modèles à prix différents puis multiplier donnerait
-                # un montant inventé. D'où le calcul par ligne quand la clé est le modèle, et
-                # l'absence de montant sur les regroupements qui mélangent les modèles.
-                "cout_usd": None,
-            })
-        return sorted(lignes, key=lambda l: l["tokens_entree"] + l["tokens_sortie"], reverse=True)
+            ligne["tokens_entree"] += entree + cache_e + cache_l
+            ligne["tokens_sortie"] += sortie
+            montant = _cout(tarifs, r.modele, entree, sortie, cache_e, cache_l)
+            if montant is None:
+                ligne["cout_partiel"] = True
+            else:
+                ligne["cout_usd"] = round(ligne["cout_usd"] + montant, 4)
+        return sorted(agrege.values(),
+                      key=lambda l: l["tokens_entree"] + l["tokens_sortie"], reverse=True)
 
     # « Par modèle » croise le MODÈLE et L'ORIGINE (l'outil qui a déclenché l'appel). Regroupé sur
     # le seul modèle, le tableau répondait « claude-sonnet-5 : 210 000 tokens, 0,85 $ » sans dire
@@ -443,6 +458,13 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     par_modele.sort(key=lambda l: l["tokens_entree"] + l["tokens_sortie"], reverse=True)
 
     par_outil = _lignes(UsageLlm.outil, lambda c: libelles.get(c) or c or "Non précisé")
+
+    # PAR FOURNISSEUR — la question que pose l'administration devant une facture : qui a été payé.
+    # Elle n'a de sens que depuis la liste de repli : tant qu'il n'y avait qu'un fournisseur, le
+    # total du haut suffisait. Maintenant qu'un refus du gratuit envoie l'appel chez un payant,
+    # c'est cette ligne-là qui montre ce que le refus coûte.
+    par_fournisseur = _lignes(UsageLlm.fournisseur, lambda c: (c or "—").capitalize())
+
     par_jour = _lignes(func.date(UsageLlm.created_at), lambda c: str(c))
     par_jour.sort(key=lambda l: str(l["cle"]))
 
@@ -483,6 +505,7 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
         "cout_partiel": any(l["cout_usd"] is None for l in par_modele),
         "par_modele": par_modele,
         "par_outil": par_outil,
+        "par_fournisseur": par_fournisseur,
         "par_jour": par_jour,
     }
 

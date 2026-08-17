@@ -33,6 +33,10 @@ export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
   const abouti  = chemin.find(l => l.resultat !== 'refus')
   const refuses = chemin.filter(l => l.resultat === 'refus')
 
+  // Ce que cet appel a coute EN TOUT : un refus ne facture rien, mais deux fournisseurs qui
+  // repondent facturent deux fois. On additionne le chemin entier, pas la derniere etape.
+  const total = chemin.reduce((s, l) => s + (l.cout_usd || 0), 0)
+
   // Pas de hauteur imposée : un appel qui a réussi du premier coup tient en un bloc, une
   // cascade de trois en tient trois. La fenêtre suit.
   return (
@@ -41,8 +45,16 @@ export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
 
         {/* D'où part l'appel : la fonction du logiciel qui l'a demandé, et quand. */}
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{ligne.origine}</div>
-        <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2, marginBottom: 12 }}>
-          {quandLong(ligne.quand)}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12,
+                      marginTop: 2, marginBottom: 12 }}>
+          <span style={{ fontSize: 11.5, color: '#94a3b8' }}>{quandLong(ligne.quand)}</span>
+          {/* LE TOTAL, en face de l'heure : la question qu'on se pose en ouvrant la fenetre a
+              sa reponse avant meme d'avoir lu. C'est bien la somme de TOUTES les tentatives —
+              deux fournisseurs sollicites, deux montants ; le detail par etape reste plus bas. */}
+          <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                         color: total ? '#A63045' : '#166534' }}>
+            Total : {usd(total)}
+          </span>
         </div>
 
         {/* ── CE QUE ÇA VEUT DIRE, EN PREMIER. On vient ici pour savoir ce qui s'est passé ; le

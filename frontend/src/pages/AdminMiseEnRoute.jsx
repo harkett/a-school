@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import ActionsAdmin from '../components/ActionsAdmin.jsx'
+import ConsommationIA from '../components/ConsommationIA.jsx'
 
 // TABLEAU DE BORD de la plateforme. Deux natures de vérité, jamais mélangées :
 //
@@ -176,6 +177,11 @@ export default function AdminMiseEnRoute() {
           action, elle, s'impose — elle ne se range donc pas dans une colonne qu'il faut aller
           chercher. L'encart ne s'affiche pas du tout quand il n'y a rien à faire. */}
       <ActionsAdmin />
+
+      {/* CE QUE LA PLATEFORME DÉPENSE, juste après ce qui attend un geste et avant l'état
+          détaillé : une facture qui se consulte dans un écran dédié ne se regarde qu'une fois
+          qu'on s'inquiète. Le détail reste à IA › Statistiques, où la cartouche renvoie. */}
+      <ConsommationIA />
 
       <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* ── MENU DE GAUCHE — collé sous le bandeau, à la hauteur mesurée ─────────────── */}
