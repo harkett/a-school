@@ -1005,9 +1005,10 @@ function AideEcran({ titre, texte }) {
         }}
       >i</button>
 
+      {/* Pas de hauteur imposée : ces aides font trois lignes pour certaines et vingt pour
+          d'autres — la fenêtre s'ajuste au texte qu'elle porte. */}
       {ouvert && (
-        <FenetrePro titre={`Aide — ${titre}`} onFermer={() => setOuvert(false)}
-                    largeur={520} hauteur="min(60vh, 420px)">
+        <FenetrePro titre={`Aide — ${titre}`} onFermer={() => setOuvert(false)} largeur={520}>
           <div style={{ overflowY: 'auto', padding: '14px 16px', fontSize: 13, lineHeight: 1.55, color: '#334155' }}>
             {texte}
           </div>

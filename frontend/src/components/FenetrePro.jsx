@@ -7,8 +7,14 @@ import { useState, useRef } from 'react'
 // `actions` : les boutons propres à la fenêtre, posés dans la barre de titre À GAUCHE du ×.
 // Règle maison : ils restent visibles quoi qu'il arrive au contenu — on n'a pas à faire défiler
 // pour retrouver le geste principal d'une fenêtre.
-export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = 'min(72vh, 640px)',
-                                     minWidth = 340, minHeight = 240, zIndex = 450,
+// LA FENÊTRE PREND LA TAILLE DE SON CONTENU (17/08/2026). Elle avait une hauteur imposée par
+// défaut : une aide de trois lignes ouvrait une fenêtre de 640 pixels, dont 500 de blanc sous le
+// texte. Le défaut est maintenant `auto` — la fenêtre descend jusqu'au bas du contenu et pas plus
+// loin —, bornée par `maxHeight` : au-delà, c'est le contenu qui défile, jamais la page.
+// Une hauteur explicite reste possible et se justifie pour un ÉDITEUR, où la zone de saisie ne
+// doit pas changer de taille pendant qu'on écrit.
+export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = 'auto',
+                                     minWidth = 340, minHeight, zIndex = 450,
                                      actions = null, children }) {
   const [pos, setPos] = useState({ x: Math.max(12, window.innerWidth - largeur - 28), y: 90 })
   const dragRef = useRef(null)   // décalage souris→coin pendant le glisser
@@ -41,7 +47,7 @@ export default function FenetrePro({ titre, onFermer, largeur = 400, hauteur = '
   return (
     <div style={{
       position: 'fixed', left: pos.x, top: pos.y, width: largeur, height: hauteur,
-      minWidth, minHeight, maxWidth: '94vw', maxHeight: '92vh', zIndex,
+      minWidth, minHeight, maxWidth: '94vw', maxHeight: 'min(88vh, 760px)', zIndex,
       background: '#fff', borderRadius: 10, boxShadow: '0 12px 40px rgba(0,0,0,0.28)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #e2e8f0',
       resize: 'both',   // poignée en bas à droite : la fenêtre s'étire librement

@@ -33,9 +33,10 @@ export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
   const abouti  = chemin.find(l => l.resultat !== 'refus')
   const refuses = chemin.filter(l => l.resultat === 'refus')
 
+  // Pas de hauteur imposée : un appel qui a réussi du premier coup tient en un bloc, une
+  // cascade de trois en tient trois. La fenêtre suit.
   return (
-    <FenetrePro titre="Le chemin de cet appel" onFermer={onFermer}
-                largeur={480} hauteur="min(78vh, 640px)">
+    <FenetrePro titre="Le chemin de cet appel" onFermer={onFermer} largeur={480}>
       <div style={{ overflowY: 'auto', padding: '14px 18px 18px' }}>
 
         {/* D'où part l'appel : la fonction du logiciel qui l'a demandé, et quand. */}
