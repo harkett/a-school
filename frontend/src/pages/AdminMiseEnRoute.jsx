@@ -40,7 +40,10 @@ const COULEURS = {
 // entrée « fait » sous une liste d'où le fait est exclu n'explique rien, elle égare.
 function Legende({ etats }) {
   return (
-    <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8', flexWrap: 'wrap' }}>
+    // Gris ardoise et non gris pâle : à #94a3b8, la légende s'effaçait sur les écrans peu
+    // contrastés — une explication qu'on ne voit pas n'explique rien.
+    <div style={{ display: 'flex', gap: 16, fontSize: 11.5, fontWeight: 600, color: '#475569',
+                  flexWrap: 'wrap' }}>
       {etats.map(cle => (
         <span key={cle} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: COULEURS[cle].pastille }} />
@@ -54,8 +57,29 @@ function Legende({ etats }) {
 // Les titres de l'écran, à UNE seule place : un titre de section domine un titre de cartouche,
 // qui domine une entrée de menu. Trois corps, jamais quatre — et jamais deux valeurs pour le
 // même rang, sinon la hiérarchie se défait au premier écran ajouté.
-const TITRE_SECTION  = { fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }
+const TITRE_SECTION  = { fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.015em' }
 const TITRE_CARTOUCHE = { fontSize: 14, fontWeight: 700, color: '#1e293b' }
+
+// L'EN-TÊTE D'UNE SECTION — trois places, toujours les mêmes : le titre à gauche, ce qui
+// explique la liste AU MILIEU, ce qui la mesure à droite.
+//
+// Le milieu est tenu par deux marges automatiques, comme le montant de la cartouche de
+// consommation : l'espace libre se partage à parts égales des deux côtés. Poussée contre le
+// bord droit, la légende se lisait comme une note en marge alors qu'elle est la clé de lecture
+// de ce qui suit.
+function EnteteSection({ titre, milieu, droite }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
+      <h2 style={{ ...TITRE_SECTION, margin: 0 }}>{titre}</h2>
+      {milieu && <div style={{ marginLeft: 'auto', marginRight: 'auto' }}>{milieu}</div>}
+      {droite && (
+        <div style={{ marginLeft: milieu ? 0 : 'auto', fontSize: 12.5, color: '#64748b' }}>
+          {droite}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Une jauge lue d'un coup d'œil : la barre porte le pourcentage, jamais un chiffre à décimale.
 function Jauge({ pourcent, hauteur = 8, couleur = '#2563eb', fond = '#e2e8f0' }) {
@@ -256,13 +280,9 @@ export default function AdminMiseEnRoute() {
         </div>
       </div>
 
-      {/* La légende ne reste en pied que là où les trois états s'affichent. Dans la vue du reste
-          à faire, elle est remontée en face du titre, réduite aux deux états qui s'y trouvent. */}
-      {section !== 'ensemble' && (
-        <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
-          <Legende etats={['fait', 'en_cours', 'a_venir']} />
-        </div>
-      )}
+      {/* Plus de légende en pied de page : chaque section porte la sienne EN TÊTE, réduite aux
+          états qu'elle affiche. Une clé de lecture placée après la liste arrive trop tard, et
+          celle du pied listait trois états quelle que soit la section regardée. */}
     </div>
   )
 }
@@ -316,11 +336,10 @@ function VueEnsemble({ fonc, etapes, techFait, onAller }) {
 
       {/* LE TITRE, ET LA LÉGENDE EN FACE. Elle explique les pastilles de la première liste ;
           au pied de la page, elle arrivait après ce qu'elle devait aider à lire. */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                    gap: 16, flexWrap: 'wrap' }}>
-        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>Vue d'ensemble du reste à faire</h2>
-        <Legende etats={['en_cours', 'a_venir']} />
-      </div>
+      <EnteteSection
+        titre="Vue d'ensemble du reste à faire"
+        milieu={<Legende etats={['en_cours', 'a_venir']} />}
+      />
 
       {/* La plomberie : visible seulement quand elle retient quelque chose. */}
       {restant > 0 && (
@@ -438,13 +457,12 @@ function Technique({ etapes, navigate }) {
   const restant = etapes.filter(e => !e.fait).length
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                    gap: 16, flexWrap: 'wrap', marginBottom: 4 }}>
-        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>Technique</h2>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>
-          {restant === 0 ? 'tout est branché'
-                         : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
-        </span>
+      <div style={{ marginBottom: 4 }}>
+        <EnteteSection
+          titre="Technique"
+          droite={restant === 0 ? 'tout est branché'
+                                : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
+        />
       </div>
       {etapes.map(e => (
         <div key={e.num} style={{
@@ -492,12 +510,13 @@ function Technique({ etapes, navigate }) {
 function Domaine({ dom, titre }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>{titre}</h2>
-        <span style={{ fontSize: 12, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+      <EnteteSection
+        titre={titre}
+        milieu={<Legende etats={['fait', 'en_cours', 'a_venir']} />}
+        droite={<span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {dom.fait} / {dom.total} · {dom.pourcent} %
-        </span>
-      </div>
+        </span>}
+      />
 
       {dom.ecrans.map(e => (
         <div key={e.ecran} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
