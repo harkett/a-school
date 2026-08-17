@@ -73,10 +73,13 @@ export default function ConsommationIA() {
       {/* ── L'en-tête : le titre, la fenêtre, et le menu des actions juste dessous ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12,
                     flexWrap: 'wrap' }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0f766e',
-                       flexShrink: 0, marginTop: 7 }} />
-        <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.05em',
-                       textTransform: 'uppercase', color: '#0f766e' }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#0f766e',
+                       flexShrink: 0, marginTop: 10 }} />
+        {/* AU CORPS DU TITRE DE SECTION (24 px). Une cartouche du tableau de bord est un sujet
+            a part entiere, pas une sous-partie de la page : la lire en petites capitales la
+            rangeait sous le titre voisin alors qu'elle est a son rang. Les capitales tombent
+            avec la petite taille — a 24 px, elles se lisent comme un cri. */}
+        <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.015em', color: '#0f766e' }}>
           Consommation IA
         </span>
 

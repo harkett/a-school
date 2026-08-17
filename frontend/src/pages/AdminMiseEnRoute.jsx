@@ -460,7 +460,14 @@ function Technique({ etapes, navigate }) {
                                 : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
         />
       </div>
-      {etapes.map(e => (
+      {restant === 0 && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,
+                      padding: '16px', fontSize: 13, color: '#15803d' }}>
+          Toute la plomberie est branchée : rien ne reste à faire ici.
+        </div>
+      )}
+
+      {etapes.filter(e => !e.fait).map(e => (
         <div key={e.num} style={{
           display: 'flex', alignItems: 'flex-start', gap: 13,
           background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '13px 15px',
@@ -468,31 +475,23 @@ function Technique({ etapes, navigate }) {
           <span style={{
             flexShrink: 0, marginTop: 1, width: 22, height: 22, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: e.fait ? '#16a34a' : '#fee2e2',
-            color: e.fait ? '#fff' : '#dc2626', fontSize: 11, fontWeight: 700,
-            border: e.fait ? 'none' : '1px solid #fecaca',
+            background: '#fee2e2', color: '#dc2626', fontSize: 11, fontWeight: 700,
+            border: '1px solid #fecaca',
           }}>
-            {e.fait
-              ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              : e.num}
+            {e.num}
           </span>
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{e.titre}</div>
-            {!e.fait && (
-              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.55, marginTop: 4 }}>{e.message}</div>
-            )}
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.55, marginTop: 4 }}>{e.message}</div>
           </div>
 
-          {!e.fait && e.ecran && (
+          {e.ecran && (
             <button onClick={() => navigate(e.ecran)} className="btn-primary"
               style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
               title={`Aller à l’écran pour : ${e.titre}`}>
               Aller à l'écran
             </button>
-          )}
-          {e.fait && (
-            <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#16a34a', marginTop: 3 }}>Fait</span>
           )}
         </div>
       ))}
@@ -504,22 +503,36 @@ function Technique({ etapes, navigate }) {
 // Groupé par écran, chaque groupe avec sa jauge : c'est l'écran qui parle à l'admin, pas la
 // fonctionnalité isolée.
 function Domaine({ dom }) {
+  // Les lignes faites partent, et un écran entièrement fait part avec elles : garder son cadre
+  // vide reviendrait à afficher le fait sous une autre forme — une cartouche qui ne contient
+  // rien dit quand même « il y a quelque chose ici ».
+  const ecrans = dom.ecrans
+    .map(e => ({ ...e, lignes: e.lignes.filter(l => l.etat !== 'fait') }))
+    .filter(e => e.lignes.length > 0)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <EnteteSection
-        milieu={<Legende etats={['fait', 'en_cours', 'a_venir']} />}
+        milieu={<Legende etats={['en_cours', 'a_venir']} />}
         droite={<span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {dom.fait} / {dom.total} · {dom.pourcent} %
         </span>}
       />
 
-      {dom.ecrans.map(e => (
+      {ecrans.length === 0 && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,
+                      padding: '16px', fontSize: 13, color: '#15803d' }}>
+          Rien ne reste à faire de ce côté.
+        </div>
+      )}
+
+      {ecrans.map(e => (
         <div key={e.ecran} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
           <div style={{ padding: '11px 15px', borderBottom: '1px solid #f1f5f9' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{e.ecran}</span>
               <span style={{ fontSize: 11, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
-                {e.fait}/{e.total}
+                {e.lignes.length} sur {e.total}
               </span>
             </div>
             <div style={{ marginTop: 7 }}>

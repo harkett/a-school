@@ -46,14 +46,12 @@ export default function ActionsAdmin() {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{
-          width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', flexShrink: 0,
+          width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', flexShrink: 0,
         }} />
-        {/* Le titre de cartouche est au même corps partout (13 px, gras) : c'est le repère qui
-            dit « nouveau sujet », et il doit dominer les titres qui vivent À L'INTÉRIEUR. */}
-        <span style={{
-          fontSize: 13, fontWeight: 800, letterSpacing: '0.05em',
-          textTransform: 'uppercase', color: '#92400e',
-        }}>
+        {/* Au corps du titre de section (24 px), comme les autres cartouches du tableau de
+            bord : chacune est un sujet a part entiere, aucune n'est la sous-partie d'une
+            autre. Un seul rang de titre pour toutes, sinon l'oeil cherche laquelle prime. */}
+        <span style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.015em', color: '#92400e' }}>
           À traiter
         </span>
         <span style={{
