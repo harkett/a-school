@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
@@ -11,14 +11,14 @@ import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 // tard. La facture d'un logiciel qui appelle un modèle à chaque geste de professeur est un
 // indicateur de première page, au même rang que l'avancement.
 //
-// UN RÉSUMÉ, PAS UN ÉCRAN. Trois choses seulement, et rien d'autre : le total, qui a été payé,
-// et pour quoi. Le détail (par modèle, par jour, tokens, cache, refus) reste à IA ›
-// Statistiques, où le lien de la cartouche mène en un clic. Tout ce qui ne tient pas en une
-// bande de colonnes n'a rien à faire ici.
+// UN RÉSUMÉ, PAS UN ÉCRAN. Deux choses restent visibles en permanence : le total, et qui a été
+// payé. Les ACTIONS — il y en a une vingtaine — se replient dans un menu déroulant : étalées en
+// colonnes, elles faisaient de la cartouche l'écran qu'elle résume. On les ouvre quand on
+// cherche où part l'argent, on les referme aussitôt.
 //
-// LES COLONNES SE LISENT DE HAUT EN BAS : le titre, puis le montant, puis le nombre d'appels.
-// C'est la forme des tuiles de facturation d'Azure et de Google Cloud, et elle vaut pour la
-// même raison — on compare des montants côte à côte, sans lire une seule étiquette de ligne.
+// CE QUI RESTE VISIBLE SE LIT DE HAUT EN BAS : le titre, puis le montant, puis le nombre
+// d'appels. C'est la forme des tuiles de facturation d'Azure et de Google Cloud, et elle vaut
+// pour la même raison — on compare des montants côte à côte, sans lire une seule étiquette.
 //
 // LA SOURCE EST CELLE DE L'ÉCRAN DÉTAILLÉ : `GET /api/admin/ia/usage?jours=N`. Aucun calcul
 // n'est refait ici — deux façons de compter la même facture finiraient par donner deux montants,
@@ -31,10 +31,6 @@ const PERIODES = [
   { cle: 'mois',  label: 'Mois',  jours: 30,  phrase: 'sur 30 jours' },
   { cle: 'annee', label: 'Année', jours: 365, phrase: 'sur 12 mois' },
 ]
-
-// Combien d'actions détaillées avant de replier le reste. Cinq colonnes tiennent sur une ligne
-// d'écran ordinaire ; au-delà, la cartouche deviendrait l'écran qu'elle résume.
-const ACTIONS_MONTREES = 5
 
 const nb = n => (n ?? 0).toLocaleString('fr-FR')
 
@@ -63,14 +59,10 @@ export default function ConsommationIA() {
   })
 
   const fournisseurs = data?.par_fournisseur || []
-  const actions = data?.par_outil || []
 
-  // Les actions les plus chères devant, le reste replié en une colonne. Trier par MONTANT et non
-  // par volume : la cartouche répond à « où part l'argent », pas à « qui écrit le plus ».
-  const parCout = [...actions].sort((a, b) => (b.cout_usd || 0) - (a.cout_usd || 0))
-  const tete = parCout.slice(0, ACTIONS_MONTREES)
-  const reste = parCout.slice(ACTIONS_MONTREES)
-  const coutReste = reste.reduce((s, l) => s + (l.cout_usd || 0), 0)
+  // Les actions les plus chères en tête. Trier par MONTANT et non par volume : la cartouche
+  // répond à « où part l'argent », pas à « qui écrit le plus ».
+  const actions = [...(data?.par_outil || [])].sort((a, b) => (b.cout_usd || 0) - (a.cout_usd || 0))
 
   return (
     <div style={{
@@ -78,43 +70,52 @@ export default function ConsommationIA() {
       padding: '14px 18px 13px', marginBottom: 18,
     }}>
 
-      {/* ── L'en-tête : le titre, et le choix de la fenêtre ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0f766e', flexShrink: 0 }} />
+      {/* ── L'en-tête : le titre, la fenêtre, et le menu des actions juste dessous ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12,
+                    flexWrap: 'wrap' }}>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0f766e',
+                       flexShrink: 0, marginTop: 6 }} />
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-                       textTransform: 'uppercase', color: '#0f766e' }}>
+                       textTransform: 'uppercase', color: '#0f766e', marginTop: 2 }}>
           Consommation IA
         </span>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Les trois périodes en segments collés — un seul geste pour changer de fenêtre,
-              sans liste à dérouler ni bouton à valider. */}
-          <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 7,
-                        overflow: 'hidden' }}>
-            {PERIODES.map(p => {
-              const actif = p.cle === periode.cle
-              return (
-                <button
-                  key={p.cle}
-                  type="button"
-                  onClick={() => setPeriode(p)}
-                  title={`Ce qui a été dépensé ${p.phrase}`}
-                  style={{
-                    border: 'none', padding: '4px 11px', fontFamily: 'inherit', fontSize: 11.5,
-                    fontWeight: actif ? 700 : 500, cursor: actif ? 'default' : 'pointer',
-                    background: actif ? '#0f766e' : '#fff', color: actif ? '#fff' : '#64748b',
-                  }}
-                >
-                  {p.label}
-                </button>
-              )
-            })}
+        <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column',
+                      alignItems: 'flex-end', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Les trois périodes en segments collés — un seul geste pour changer de fenêtre,
+                sans liste à dérouler ni bouton à valider. */}
+            <div style={{ display: 'inline-flex', border: '1px solid #e2e8f0', borderRadius: 7,
+                          overflow: 'hidden' }}>
+              {PERIODES.map(p => {
+                const actif = p.cle === periode.cle
+                return (
+                  <button
+                    key={p.cle}
+                    type="button"
+                    onClick={() => setPeriode(p)}
+                    title={`Ce qui a été dépensé ${p.phrase}`}
+                    style={{
+                      border: 'none', padding: '4px 11px', fontFamily: 'inherit', fontSize: 11.5,
+                      fontWeight: actif ? 700 : 500, cursor: actif ? 'default' : 'pointer',
+                      background: actif ? '#0f766e' : '#fff', color: actif ? '#fff' : '#64748b',
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
+            <Link to="/admin/ia/statistiques" title="Le détail : par modèle, par jour, tokens et cache"
+                  style={{ fontSize: 12, fontWeight: 600, color: '#1F6EEB', textDecoration: 'none',
+                           whiteSpace: 'nowrap' }}>
+              Détail →
+            </Link>
           </div>
-          <Link to="/admin/ia/statistiques" title="Le détail : par modèle, par jour, tokens et cache"
-                style={{ fontSize: 12, fontWeight: 600, color: '#1F6EEB', textDecoration: 'none',
-                         whiteSpace: 'nowrap' }}>
-            Détail →
-          </Link>
+
+          {/* Le menu des actions, sous la fenêtre qu'il suit : changer de période change ce
+              qu'il contient, la place le dit sans qu'une phrase soit nécessaire. */}
+          <ComboActions actions={actions} />
         </div>
       </div>
 
@@ -148,39 +149,121 @@ export default function ConsommationIA() {
             )}
           </div>
 
-          {/* ── LES DEUX BANDES : qui a été payé, et pour quoi ── */}
-          <div style={{ flex: '1 1 420px', minWidth: 0, display: 'flex', flexDirection: 'column',
-                        gap: 12 }}>
+          {/* ── QUI A ÉTÉ PAYÉ — la question que pose la cascade des fournisseurs ── */}
+          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
             <Bande
               titre="Par fournisseur"
               vide="Aucun appel sur la période."
               colonnes={fournisseurs.map(f => ({
                 cle: f.cle, titre: f.libelle, montant: f.cout_usd, appels: f.appels,
                 partiel: f.cout_partiel,
-                // Le gratuit qui n'a rien coûté est une bonne nouvelle, pas un manque : il se
-                // lit en vert, comme un appel qui n'a pas été payé.
                 aide: `${f.libelle} — ${nb(f.appels)} appel(s), ${nb(f.tokens_entree)} jetons envoyés`,
               }))}
             />
-            <Bande
-              titre="Par action"
-              vide="Aucun appel sur la période."
-              colonnes={[
-                ...tete.map(a => ({
-                  cle: a.cle || 'non-precise', titre: a.libelle, montant: a.cout_usd,
-                  appels: a.appels, partiel: a.cout_partiel,
-                  aide: `${a.libelle} — ${nb(a.appels)} appel(s), ${nb(a.tokens_entree)} jetons envoyés`,
-                })),
-                // Le reste ne disparaît pas : il se replie. Une somme tronquée en silence ferait
-                // un total de colonnes inférieur au total affiché à gauche, sans explication.
-                ...(reste.length > 0 ? [{
-                  cle: '__reste', titre: `${reste.length} autres`, montant: coutReste,
-                  appels: reste.reduce((s, l) => s + (l.appels || 0), 0),
-                  aide: reste.map(l => l.libelle).join(', '),
-                }] : []),
-              ]}
-            />
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// LE MENU DES ACTIONS — fermé, il tient sur une ligne ; ouvert, il donne TOUT.
+//
+// Rien n'est tronqué ici, et c'est la raison d'être du menu : une liste repliée peut être
+// complète, une bande de colonnes ne le peut pas. Le « + 12 autres » qui masquait le reste
+// disparaît avec elle.
+//
+// Un menu écrit à la main plutôt qu'un <select> natif : le natif ne sait afficher qu'une chaîne
+// par ligne, donc le montant se collerait au libellé au lieu de s'aligner à droite — et c'est
+// justement la colonne qu'on vient lire.
+function ComboActions({ actions }) {
+  const [ouvert, setOuvert] = useState(false)
+  const boite = useRef(null)
+
+  // Un menu se ferme au clic dehors ET à Échap. Sans ça, il reste ouvert par-dessus la page
+  // pendant qu'on essaie de lire ce qu'il recouvre.
+  useEffect(() => {
+    if (!ouvert) return
+    const dehors = e => { if (boite.current && !boite.current.contains(e.target)) setOuvert(false) }
+    const echap = e => { if (e.key === 'Escape') setOuvert(false) }
+    document.addEventListener('mousedown', dehors)
+    document.addEventListener('keydown', echap)
+    return () => {
+      document.removeEventListener('mousedown', dehors)
+      document.removeEventListener('keydown', echap)
+    }
+  }, [ouvert])
+
+  const vide = actions.length === 0
+  // La part de la plus chère sert d'échelle aux barres : elles comparent les actions entre
+  // elles, pas au total — sinon toutes seraient des traits invisibles sauf la première.
+  const plusCher = actions.reduce((m, a) => Math.max(m, a.cout_usd || 0), 0)
+
+  return (
+    <div ref={boite} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOuvert(o => !o)}
+        disabled={vide}
+        title={vide ? 'Aucun appel sur la période'
+                    : 'Voir ce que chaque action a coûté sur la période'}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 210,
+          border: '1px solid #e2e8f0', borderRadius: 7, background: '#fff',
+          padding: '4px 10px', fontFamily: 'inherit', fontSize: 11.5, color: '#64748b',
+          cursor: vide ? 'not-allowed' : 'pointer',
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>Par action</span>
+        <span style={{ color: '#cbd5e1' }}>
+          {vide ? 'aucune' : `${actions.length} action${actions.length > 1 ? 's' : ''}`}
+        </span>
+        <svg style={{ marginLeft: 'auto', transform: ouvert ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.12s' }}
+             width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {ouvert && !vide && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 30,
+          width: 340, maxHeight: 300, overflowY: 'auto',
+          background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+          boxShadow: '0 10px 26px rgba(15,23,42,0.13)', padding: '6px 0',
+        }}>
+          {actions.map(a => (
+            // UNE ACTION PAR LIGNE : ce qu'elle est, ce qu'elle a coûté, et la barre qui la
+            // situe face à la plus chère. Le nombre d'appels en dessous répond à la question
+            // suivante — cher parce que souvent, ou cher parce que long ?
+            <div key={a.cle || 'non-precise'}
+                 style={{ padding: '6px 12px' }}
+                 title={`${nb(a.tokens_entree)} jetons envoyés, ${nb(a.tokens_sortie)} produits`}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#334155',
+                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.libelle}
+                </span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
+                               color: a.cout_usd ? '#1e293b' : '#166534' }}>
+                  {usd(a.cout_usd)}{a.cout_partiel && <span style={{ color: '#b45309' }}> +</span>}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                <div style={{ flex: 1, height: 3, borderRadius: 2, background: '#f1f5f9' }}>
+                  <div style={{
+                    width: `${plusCher ? Math.round(100 * (a.cout_usd || 0) / plusCher) : 0}%`,
+                    height: '100%', borderRadius: 2, background: '#0f766e',
+                  }} />
+                </div>
+                <span style={{ fontSize: 10.5, color: '#cbd5e1', whiteSpace: 'nowrap' }}>
+                  {nb(a.appels)} appel{a.appels > 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
