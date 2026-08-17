@@ -60,22 +60,19 @@ function Legende({ etats }) {
 const TITRE_SECTION  = { fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.015em' }
 const TITRE_CARTOUCHE = { fontSize: 14, fontWeight: 700, color: '#1e293b' }
 
-// L'EN-TÊTE D'UNE SECTION — trois places, toujours les mêmes : le titre à gauche, ce qui
-// explique la liste AU MILIEU, ce qui la mesure à droite.
+// L'EN-TÊTE D'UNE SECTION — ce qui explique la liste à gauche, ce qui la mesure à droite.
 //
-// Le milieu est tenu par deux marges automatiques, comme le montant de la cartouche de
-// consommation : l'espace libre se partage à parts égales des deux côtés. Poussée contre le
-// bord droit, la légende se lisait comme une note en marge alors qu'elle est la clé de lecture
-// de ce qui suit.
-function EnteteSection({ titre, milieu, droite }) {
+// PAS DE TITRE ICI. Il y en avait un, et c'était le doublon exact de l'entrée de menu posée à
+// deux centimètres, dans un autre corps : le même texte écrit deux fois, à deux tailles, se lit
+// comme deux choses différentes. Le titre de la section est l'entrée de menu sélectionnée — un
+// seul endroit, celui qu'on vient de cliquer.
+function EnteteSection({ milieu, droite }) {
+  if (!milieu && !droite) return null
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-      <h2 style={{ ...TITRE_SECTION, margin: 0 }}>{titre}</h2>
-      {milieu && <div style={{ marginLeft: 'auto', marginRight: 'auto' }}>{milieu}</div>}
+      {milieu}
       {droite && (
-        <div style={{ marginLeft: milieu ? 0 : 'auto', fontSize: 12.5, color: '#64748b' }}>
-          {droite}
-        </div>
+        <div style={{ marginLeft: 'auto', fontSize: 12.5, color: '#64748b' }}>{droite}</div>
       )}
     </div>
   )
@@ -236,7 +233,7 @@ export default function AdminMiseEnRoute() {
 
       <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* ── MENU DE GAUCHE — collé sous le bandeau, à la hauteur mesurée ─────────────── */}
-        <nav style={{ flex: '0 0 218px', display: 'flex', flexDirection: 'column', gap: 4,
+        <nav style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', gap: 10,
                       position: 'sticky', top: hautBandeau, alignSelf: 'flex-start' }}>
           {SECTIONS.map(s => {
             const actif = section === s.cle
@@ -244,23 +241,26 @@ export default function AdminMiseEnRoute() {
               <button key={s.cle} onClick={() => setSection(s.cle)}
                 title={`Voir : ${s.label}`}
                 style={{
-                  textAlign: 'left', padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                  background: actif ? '#eff6ff' : 'transparent',
-                  border: `1px solid ${actif ? '#bfdbfe' : 'transparent'}`,
+                  textAlign: 'left', padding: 0, background: 'none', border: 'none',
+                  cursor: actif ? 'default' : 'pointer', fontFamily: 'inherit',
                 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 13, fontWeight: actif ? 700 : 500, color: actif ? '#1d4ed8' : '#475569' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8,
+                              alignItems: 'baseline' }}>
+                  <span style={actif
+                    ? { ...TITRE_SECTION, lineHeight: 1.2 }
+                    : { fontSize: 14, fontWeight: 600, color: '#64748b' }}>
                     {s.label}
                   </span>
                   {s.compte && (
-                    <span style={{ fontSize: 11, color: actif ? '#3b82f6' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 11.5, color: '#94a3b8', flexShrink: 0,
+                                   fontVariantNumeric: 'tabular-nums' }}>
                       {s.compte}
                     </span>
                   )}
                 </div>
                 {s.pourcent !== null && (
                   <div style={{ marginTop: 6 }}>
-                    <Jauge pourcent={s.pourcent} hauteur={4} couleur={actif ? '#2563eb' : '#94a3b8'} />
+                    <Jauge pourcent={s.pourcent} hauteur={4} couleur={actif ? '#2563eb' : '#cbd5e1'} />
                   </div>
                 )}
               </button>
@@ -275,8 +275,8 @@ export default function AdminMiseEnRoute() {
                          onAller={setSection} />
           )}
           {section === 'technique' && <Technique etapes={etapes} navigate={navigate} />}
-          {section === 'admin' && domAdmin && <Domaine dom={domAdmin} titre="Côté admin" />}
-          {section === 'prof' && domProf && <Domaine dom={domProf} titre="Côté prof" />}
+          {section === 'admin' && domAdmin && <Domaine dom={domAdmin} />}
+          {section === 'prof' && domProf && <Domaine dom={domProf} />}
         </div>
       </div>
 
@@ -336,10 +336,7 @@ function VueEnsemble({ fonc, etapes, techFait, onAller }) {
 
       {/* LE TITRE, ET LA LÉGENDE EN FACE. Elle explique les pastilles de la première liste ;
           au pied de la page, elle arrivait après ce qu'elle devait aider à lire. */}
-      <EnteteSection
-        titre="Vue d'ensemble du reste à faire"
-        milieu={<Legende etats={['en_cours', 'a_venir']} />}
-      />
+      <EnteteSection milieu={<Legende etats={['en_cours', 'a_venir']} />} />
 
       {/* La plomberie : visible seulement quand elle retient quelque chose. */}
       {restant > 0 && (
@@ -459,7 +456,6 @@ function Technique({ etapes, navigate }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ marginBottom: 4 }}>
         <EnteteSection
-          titre="Technique"
           droite={restant === 0 ? 'tout est branché'
                                 : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
         />
@@ -507,11 +503,10 @@ function Technique({ etapes, navigate }) {
 // ── UN DOMAINE (admin ou prof) ──────────────────────────────────────────────────────────
 // Groupé par écran, chaque groupe avec sa jauge : c'est l'écran qui parle à l'admin, pas la
 // fonctionnalité isolée.
-function Domaine({ dom, titre }) {
+function Domaine({ dom }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <EnteteSection
-        titre={titre}
         milieu={<Legende etats={['fait', 'en_cours', 'a_venir']} />}
         droite={<span style={{ fontVariantNumeric: 'tabular-nums' }}>
           {dom.fait} / {dom.total} · {dom.pourcent} %
