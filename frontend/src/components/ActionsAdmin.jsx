@@ -46,10 +46,12 @@ export default function ActionsAdmin() {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{
-          width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', flexShrink: 0,
+          width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', flexShrink: 0,
         }} />
+        {/* Le titre de cartouche est au même corps partout (13 px, gras) : c'est le repère qui
+            dit « nouveau sujet », et il doit dominer les titres qui vivent À L'INTÉRIEUR. */}
         <span style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+          fontSize: 13, fontWeight: 800, letterSpacing: '0.05em',
           textTransform: 'uppercase', color: '#92400e',
         }}>
           À traiter

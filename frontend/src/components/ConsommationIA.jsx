@@ -73,12 +73,40 @@ export default function ConsommationIA() {
       {/* ── L'en-tête : le titre, la fenêtre, et le menu des actions juste dessous ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12,
                     flexWrap: 'wrap' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0f766e',
-                       flexShrink: 0, marginTop: 6 }} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-                       textTransform: 'uppercase', color: '#0f766e', marginTop: 2 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#0f766e',
+                       flexShrink: 0, marginTop: 7 }} />
+        <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.05em',
+                       textTransform: 'uppercase', color: '#0f766e' }}>
           Consommation IA
         </span>
+
+        {/* LE TOTAL SUR LA LIGNE DU TITRE. Il occupait une colonne à lui seul sous l'en-tête,
+            et c'était une colonne de plus pour un seul chiffre : le montant EST le sujet de la
+            cartouche, il se lit donc dans son titre, pas en dessous.
+
+            AU MILIEU, et pas collé au titre : deux marges automatiques, une de chaque côté,
+            partagent l'espace libre à parts égales. Contre le titre, le montant se lisait
+            comme la suite du mot « consommation » plutôt que comme un chiffre à lui. */}
+        {!isLoading && data && (
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'baseline',
+                         gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em',
+                           color: data.cout_usd ? '#A63045' : '#166534' }}>
+              {usd(data.cout_usd)}
+            </span>
+            <span style={{ fontSize: 11.5, color: '#94a3b8' }}>
+              {periode.phrase} · {nb(data.appels)} appel{data.appels > 1 ? 's' : ''}
+            </span>
+            {/* Un modèle sans tarif ne rend pas le total faux, il le rend INCOMPLET — et un
+                montant incomplet lu comme une facture est pire qu'un montant absent. */}
+            {data.cout_partiel && (
+              <span style={{ fontSize: 10.5, color: '#b45309' }}
+                    title="Un ou plusieurs modèles n'ont pas de tarif renseigné dans Admin › IA › Fournisseurs">
+                au moins — tarif manquant
+              </span>
+            )}
+          </span>
+        )}
 
         <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column',
                       alignItems: 'flex-end', gap: 6 }}>
@@ -126,42 +154,15 @@ export default function ConsommationIA() {
       )}
 
       {!isLoading && data && (
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 20, flexWrap: 'wrap' }}>
-
-          {/* ── LE TOTAL — la seule chose qu'on lit si on ne lit qu'une chose ── */}
-          <div style={{ flex: '0 0 auto', paddingRight: 20, borderRight: '1px solid #f1f5f9',
-                        minWidth: 130 }}>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em',
-                          color: data.cout_usd ? '#A63045' : '#166534' }}>
-              {usd(data.cout_usd)}
-            </div>
-            <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2 }}>{periode.phrase}</div>
-            <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 6 }}>
-              {nb(data.appels)} appel{data.appels > 1 ? 's' : ''}
-            </div>
-            {/* Un modèle sans tarif ne rend pas le total faux, il le rend INCOMPLET — et un
-                montant incomplet lu comme une facture est pire qu'un montant absent. */}
-            {data.cout_partiel && (
-              <div style={{ fontSize: 10.5, color: '#b45309', marginTop: 4, lineHeight: 1.35 }}
-                   title="Un ou plusieurs modèles n'ont pas de tarif renseigné dans Admin › IA › Fournisseurs">
-                au moins — tarif manquant
-              </div>
-            )}
-          </div>
-
-          {/* ── QUI A ÉTÉ PAYÉ — la question que pose la cascade des fournisseurs ── */}
-          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
-            <Bande
-              titre="Par fournisseur"
-              vide="Aucun appel sur la période."
-              colonnes={fournisseurs.map(f => ({
-                cle: f.cle, titre: f.libelle, montant: f.cout_usd, appels: f.appels,
-                partiel: f.cout_partiel,
-                aide: `${f.libelle} — ${nb(f.appels)} appel(s), ${nb(f.tokens_entree)} jetons envoyés`,
-              }))}
-            />
-          </div>
-        </div>
+        <Bande
+          titre="Par fournisseur"
+          vide="Aucun appel sur la période."
+          colonnes={fournisseurs.map(f => ({
+            cle: f.cle, titre: f.libelle, montant: f.cout_usd, appels: f.appels,
+            partiel: f.cout_partiel,
+            aide: `${f.libelle} — ${nb(f.appels)} appel(s), ${nb(f.tokens_entree)} jetons envoyés`,
+          }))}
+        />
       )}
     </div>
   )

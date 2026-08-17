@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
 import ActionsAdmin from '../components/ActionsAdmin.jsx'
@@ -27,10 +27,35 @@ const PROTOCOLE_SPECS = 'aschool-spec:'
 const SPECS = ['CCF']
 
 const COULEURS = {
-  fait:     { pastille: '#16a34a', fond: '#f0fdf4', bord: '#bbf7d0', texte: '#15803d', libelle: 'fait' },
-  en_cours: { pastille: '#f59e0b', fond: '#fffbeb', bord: '#fde68a', texte: '#b45309', libelle: 'en cours' },
-  a_venir:  { pastille: '#cbd5e1', fond: '#f8fafc', bord: '#e2e8f0', texte: '#94a3b8', libelle: 'à venir' },
+  fait:     { pastille: '#16a34a', fond: '#f0fdf4', bord: '#bbf7d0', texte: '#15803d',
+              libelle: 'fait', phrase: 'fait — livré et utilisable' },
+  en_cours: { pastille: '#f59e0b', fond: '#fffbeb', bord: '#fde68a', texte: '#b45309',
+              libelle: 'en cours', phrase: 'en cours — visible, pas utilisable' },
+  a_venir:  { pastille: '#cbd5e1', fond: '#f8fafc', bord: '#e2e8f0', texte: '#94a3b8',
+              libelle: 'à venir', phrase: 'à venir — rien encore' },
 }
+
+// LA LÉGENDE — au plus près de ce qu'elle explique, et réduite aux états RÉELLEMENT présents.
+// Reléguée en pied de page, elle se lisait après la liste qu'elle devait aider à lire ; et une
+// entrée « fait » sous une liste d'où le fait est exclu n'explique rien, elle égare.
+function Legende({ etats }) {
+  return (
+    <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8', flexWrap: 'wrap' }}>
+      {etats.map(cle => (
+        <span key={cle} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: COULEURS[cle].pastille }} />
+          {COULEURS[cle].phrase}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// Les titres de l'écran, à UNE seule place : un titre de section domine un titre de cartouche,
+// qui domine une entrée de menu. Trois corps, jamais quatre — et jamais deux valeurs pour le
+// même rang, sinon la hiérarchie se défait au premier écran ajouté.
+const TITRE_SECTION  = { fontSize: 20, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }
+const TITRE_CARTOUCHE = { fontSize: 14, fontWeight: 700, color: '#1e293b' }
 
 // Une jauge lue d'un coup d'œil : la barre porte le pourcentage, jamais un chiffre à décimale.
 function Jauge({ pourcent, hauteur = 8, couleur = '#2563eb', fond = '#e2e8f0' }) {
@@ -110,7 +135,9 @@ export default function AdminMiseEnRoute() {
   const domProf = fonc.domaines.find(d => d.domaine === 'prof')
 
   const SECTIONS = [
-    { cle: 'ensemble', label: "Vue d'ensemble", compte: null, pourcent: null },
+    // « Vue d'ensemble » ne disait pas de QUOI : la section ne montre que ce qui reste, le
+    // fait n'y a jamais eu sa place. Le nom le dit maintenant, ici comme dans son titre.
+    { cle: 'ensemble', label: "Vue d'ensemble du reste à faire", compte: null, pourcent: null },
     { cle: 'technique', label: 'Technique', compte: `${techFait}/${etapes.length}`,
       pourcent: Math.round(100 * techFait / etapes.length) },
     { cle: 'admin', label: 'Côté admin', compte: domAdmin ? `${domAdmin.fait}/${domAdmin.total}` : '',
@@ -220,7 +247,7 @@ export default function AdminMiseEnRoute() {
         {/* ── PANNEAU DE DROITE ───────────────────────────────────────────────────────── */}
         <div style={{ flex: '1 1 480px', minWidth: 0 }}>
           {section === 'ensemble' && (
-            <VueEnsemble tech={tech} fonc={fonc} etapes={etapes} techFait={techFait}
+            <VueEnsemble fonc={fonc} etapes={etapes} techFait={techFait}
                          onAller={setSection} />
           )}
           {section === 'technique' && <Technique etapes={etapes} navigate={navigate} />}
@@ -229,87 +256,196 @@ export default function AdminMiseEnRoute() {
         </div>
       </div>
 
-      {/* Légende — trois états, pas quatre : au-delà, plus personne ne sait où ranger une ligne. */}
-      <div style={{ display: 'flex', gap: 18, marginTop: 20, paddingTop: 14, borderTop: '1px solid #f1f5f9',
-                    fontSize: 11, color: '#94a3b8', flexWrap: 'wrap' }}>
-        {Object.entries(COULEURS).map(([cle, c]) => (
-          <span key={cle} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.pastille }} />
-            {c.libelle === 'fait' ? 'fait — livré et utilisable'
-              : c.libelle === 'en cours' ? 'en cours — visible, pas utilisable'
-              : 'à venir — rien encore'}
-          </span>
-        ))}
-      </div>
+      {/* La légende ne reste en pied que là où les trois états s'affichent. Dans la vue du reste
+          à faire, elle est remontée en face du titre, réduite aux deux états qui s'y trouvent. */}
+      {section !== 'ensemble' && (
+        <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid #f1f5f9' }}>
+          <Legende etats={['fait', 'en_cours', 'a_venir']} />
+        </div>
+      )}
     </div>
   )
 }
 
-// ── VUE D'ENSEMBLE ──────────────────────────────────────────────────────────────────────
-// Ce qui mérite d'être vu sans cliquer : la plomberie en une ligne, et TOUT ce qui n'est pas
-// fait, les deux côtés confondus. Le reste est à un clic.
-function VueEnsemble({ tech, fonc, etapes, techFait, onAller }) {
+// ── VUE D'ENSEMBLE DU RESTE À FAIRE ─────────────────────────────────────────────────────
+//
+// CE QUI EST FAIT NE S'AFFICHE PLUS. Une liste où le fait côtoie le reste demande à l'œil de
+// trier avant de lire, et ce tri se refait à chaque visite. Ce qui est fait est fait : il se
+// compte (le bandeau le fait), il ne s'énumère pas.
+//
+// LE RESTE VIENT DE TROIS CARNETS QUI NE SE PARLAIENT PAS :
+//   · les fonctionnalités pas encore livrées (`fonctionnalites`, admin et prof mêlés) ;
+//   · le carnet de l'administrateur (Admin › Tâches à faire) ;
+//   · ce qui est promis aux professeurs (Admin › Bientôt disponible, non livré).
+// Chacun avait son écran, aucun n'avait de vue commune — donc personne ne savait ce qui restait
+// AU TOTAL. Les trois se lisent ici, chacun gardant son écran pour agir.
+//
+// La plomberie technique ne paraît QUE si elle a du retard : « tout est branché » est du fait,
+// et le fait n'a rien à faire dans cette vue.
+function VueEnsemble({ fonc, etapes, techFait, onAller }) {
   const restant = etapes.length - techFait
   const enChantier = fonc.domaines.flatMap(d =>
     d.ecrans.flatMap(e =>
       e.lignes.filter(l => l.etat !== 'fait')
               .map(l => ({ ...l, domaine: d.domaine, ecran: e.ecran }))))
 
+  // Les deux autres carnets. Une lecture qui échoue rend une liste vide : la vue perd un bloc,
+  // elle ne tombe pas — c'est le même principe que les sources du centre d'actions.
+  const { data: carnet } = useQuery({
+    queryKey: ['admin', 'taches-a-faire'],
+    queryFn: async () => {
+      const r = await fetchWithTimeout('/api/admin/taches-a-faire', { credentials: 'include' }, TIMEOUT_STD)
+      return r.ok ? await r.json() : { taches: [] }
+    },
+  })
+  const { data: bientot } = useQuery({
+    queryKey: ['admin', 'feature-votes'],
+    queryFn: async () => {
+      const r = await fetchWithTimeout('/api/admin/feature-votes', { credentials: 'include' }, TIMEOUT_STD)
+      return r.ok ? await r.json() : []
+    },
+  })
+
+  const aFaire = (carnet?.taches || []).filter(t => !t.fait)
+  // Non livrée = encore à faire. Une carte livrée reste à l'écran des votes, elle n'est plus un
+  // chantier — la ranger ici ferait grossir le reste à faire d'un travail déjà terminé.
+  const promises = (bientot || []).filter(f => !f.livree)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* La plomberie, résumée. Elle a son propre onglet pour le détail. */}
-      <div style={{
-        background: tech.complet ? '#f0fdf4' : '#fffbeb',
-        border: `1px solid ${tech.complet ? '#bbf7d0' : '#fde68a'}`,
-        borderRadius: 10, padding: '14px 16px',
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 3 }}>
-          {tech.complet ? 'Plomberie technique : tout est branché'
-                        : `Plomberie technique : ${restant} étape${restant > 1 ? 's' : ''} à faire`}
-        </div>
-        <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.55 }}>
-          {tech.complet
-            ? 'Clé d\'IA, envoi d\'email, référentiel découpé, activité générée de bout en bout : la chaîne fonctionne. Cela ne dit rien de ce qui reste à construire — voyez ci-dessous.'
-            : 'Certaines briques ne sont pas encore branchées : ouvrez l\'onglet Technique pour savoir lesquelles.'}
-        </div>
-        <button onClick={() => onAller('technique')} style={{ ...lienStyle, fontSize: 12, marginTop: 8 }}
-          title="Voir le détail des étapes techniques">
-          Voir le détail
-        </button>
+
+      {/* LE TITRE, ET LA LÉGENDE EN FACE. Elle explique les pastilles de la première liste ;
+          au pied de la page, elle arrivait après ce qu'elle devait aider à lire. */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 16, flexWrap: 'wrap' }}>
+        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>Vue d'ensemble du reste à faire</h2>
+        <Legende etats={['en_cours', 'a_venir']} />
       </div>
 
-      {/* Le chantier — ce qui n'est pas fait, et rien d'autre. */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex',
-                      justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Ce qui reste à faire</span>
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            {enChantier.length} sur {fonc.total}
-          </span>
+      {/* La plomberie : visible seulement quand elle retient quelque chose. */}
+      {restant > 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10,
+                      padding: '14px 16px' }}>
+          <div style={{ ...TITRE_CARTOUCHE, marginBottom: 3 }}>
+            Plomberie technique : {restant} étape{restant > 1 ? 's' : ''} à faire
+          </div>
+          <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.55 }}>
+            Certaines briques ne sont pas encore branchées : ouvrez l'onglet Technique pour savoir
+            lesquelles.
+          </div>
+          <button onClick={() => onAller('technique')} style={{ ...lienStyle, fontSize: 12, marginTop: 8 }}
+            title="Voir le détail des étapes techniques">
+            Voir le détail
+          </button>
         </div>
-        {enChantier.length === 0 ? (
-          <div style={{ padding: '16px', fontSize: 13, color: '#64748b' }}>
-            Toutes les fonctionnalités recensées sont livrées.
-          </div>
-        ) : (
-          <div>
-            {enChantier.map((l, i) => (
-              <Ligne key={`${l.domaine}-${l.ecran}-${l.nom}`} ligne={l} premier={i === 0}
-                     prefixe={`${l.domaine === 'admin' ? 'Admin' : 'Prof'} · ${l.ecran}`} />
-            ))}
-          </div>
-        )}
-      </div>
+      )}
+
+      {/* 1. LES FONCTIONNALITÉS — celles qui portent un état, donc une pastille. */}
+      <Carnet titre="Fonctionnalités en chantier" compte={`${enChantier.length} sur ${fonc.total}`}
+              vide="Toutes les fonctionnalités recensées sont livrées.">
+        {enChantier.map((l, i) => (
+          <Ligne key={`${l.domaine}-${l.ecran}-${l.nom}`} ligne={l} premier={i === 0}
+                 prefixe={`${l.domaine === 'admin' ? 'Admin' : 'Prof'} · ${l.ecran}`} />
+        ))}
+      </Carnet>
+
+      {/* 2. LE CARNET DE L'ADMINISTRATEUR — noté à la main, sans état ni preuve : c'est un
+             carnet, il ne contient que ce qu'on y écrit. */}
+      <Carnet titre="Carnet de l'administrateur" compte={`${aFaire.length}`}
+              lien="/admin/taches-a-faire"
+              vide="Rien de noté dans le carnet.">
+        {aFaire.map((t, i) => (
+          <LigneSimple key={t.id} titre={t.titre} detail={t.detail} premier={i === 0} />
+        ))}
+      </Carnet>
+
+      {/* 3. CE QUI EST PROMIS AUX PROFESSEURS — ils le voient et ils votent dessus, donc c'est
+             un engagement, pas une idée. */}
+      <Carnet titre="Promis aux professeurs" compte={`${promises.length}`}
+              lien="/admin/bientot-disponible"
+              vide="Tout ce qui est annoncé aux professeurs est livré.">
+        {promises.map((f, i) => (
+          <LigneSimple key={f.key} titre={f.label} detail={f.description} premier={i === 0}
+                       marque={f.count > 0 ? `${f.count} vote${f.count > 1 ? 's' : ''}` : null} />
+        ))}
+      </Carnet>
     </div>
   )
 }
+
+
+// UN CARNET — un en-tête, un compte, et ses lignes. Trois listes de natures différentes, un
+// seul moule : sans lui, chacune dériverait à sa prochaine retouche.
+//
+// Un carnet vide GARDE sa place et le dit. C'est l'inverse de l'encart « À traiter », qui
+// disparaît quand il n'y a rien : là, l'absence est une information (« rien ne reste »), ici
+// elle serait un trou dans une vue qui prétend tout montrer.
+function Carnet({ titre, compte, lien, vide, children }) {
+  const lignes = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : [])
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex',
+                    justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={TITRE_CARTOUCHE}>{titre}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 12 }}>
+          <span style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>{compte}</span>
+          {lien && (
+            <Link to={lien} style={{ fontSize: 12, fontWeight: 600, color: '#1F6EEB',
+                                     textDecoration: 'none', whiteSpace: 'nowrap' }}
+                  title="Ouvrir l'écran où ces lignes se modifient">
+              Ouvrir →
+            </Link>
+          )}
+        </span>
+      </div>
+      {lignes.length === 0
+        ? <div style={{ padding: 16, fontSize: 13, color: '#64748b' }}>{vide}</div>
+        : <div>{lignes}</div>}
+    </div>
+  )
+}
+
+
+// UNE LIGNE SANS ÉTAT — pour les deux carnets tenus à la main. Pas de pastille : ni le carnet
+// ni les cartes de vote ne portent d'état vérifié, et une pastille inventée ici serait une
+// affirmation que rien ne soutient.
+function LigneSimple({ titre, detail, premier, marque }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 15px',
+                  borderTop: premier ? 'none' : '1px solid #f8fafc' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: '#334155' }}>{titre}</div>
+        {detail && (
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, lineHeight: 1.45 }}>{detail}</div>
+        )}
+      </div>
+      {marque && (
+        <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: '#64748b',
+                       background: '#f1f5f9', borderRadius: 4, padding: '2px 7px', marginTop: 1,
+                       whiteSpace: 'nowrap' }}>
+          {marque}
+        </span>
+      )}
+    </div>
+  )
+}
+
 
 // ── TECHNIQUE ───────────────────────────────────────────────────────────────────────────
 // Les 8 étapes, telles qu'elles étaient : le message et le bouton n'apparaissent que sur une
 // étape à faire — une étape faite n'a plus rien à dire.
 function Technique({ etapes, navigate }) {
+  const restant = etapes.filter(e => !e.fait).length
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                    gap: 16, flexWrap: 'wrap', marginBottom: 4 }}>
+        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>Technique</h2>
+        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+          {restant === 0 ? 'tout est branché'
+                         : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
+        </span>
+      </div>
       {etapes.map(e => (
         <div key={e.num} style={{
           display: 'flex', alignItems: 'flex-start', gap: 13,
@@ -357,7 +493,7 @@ function Domaine({ dom, titre }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{titre}</span>
+        <h2 style={{ ...TITRE_SECTION, margin: 0 }}>{titre}</h2>
         <span style={{ fontSize: 12, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
           {dom.fait} / {dom.total} · {dom.pourcent} %
         </span>
