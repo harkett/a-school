@@ -158,7 +158,10 @@ export default function AdminMiseEnRoute() {
   const SECTIONS = [
     // « Vue d'ensemble » ne disait pas de QUOI : la section ne montre que ce qui reste, le
     // fait n'y a jamais eu sa place. Le nom le dit maintenant, ici comme dans son titre.
-    { cle: 'ensemble', label: "Vue d'ensemble du reste à faire", compte: null, pourcent: null },
+    // Une puce comme celle des cartouches : l'entrée annonce une liste, elle ne décrit pas
+    // une vue. Le nom long disait ce qu'elle N'EST PAS (une vue d'ensemble) avant de dire ce
+    // qu'elle contient.
+    { cle: 'ensemble', label: 'Reste à faire :', puce: '#2563eb', compte: null, pourcent: null },
     { cle: 'technique', label: 'Technique', compte: `${techFait}/${etapes.length}`,
       pourcent: Math.round(100 * techFait / etapes.length) },
     { cle: 'admin', label: 'Côté admin', compte: domAdmin ? `${domAdmin.fait}/${domAdmin.total}` : '',
@@ -246,9 +249,14 @@ export default function AdminMiseEnRoute() {
                 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8,
                               alignItems: 'baseline' }}>
-                  <span style={actif
+                  <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8,
+                                 minWidth: 0, ...(actif
                     ? { ...TITRE_SECTION, lineHeight: 1.2 }
-                    : { fontSize: 14, fontWeight: 600, color: '#64748b' }}>
+                    : { fontSize: 14, fontWeight: 600, color: '#64748b' }) }}>
+                    {s.puce && (
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                     background: s.puce, alignSelf: 'center' }} />
+                    )}
                     {s.label}
                   </span>
                   {s.compte && (
