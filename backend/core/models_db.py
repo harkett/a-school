@@ -27,6 +27,23 @@ class User(Base):
     langue_lv: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mobile: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='1', nullable=False)
+    # LE RÔLE — ce que ce compte a le droit de faire (17/08/2026).
+    #
+    # POURQUOI. L'administration n'était pas un compte : un identifiant et un mot de passe posés
+    # dans les variables d'environnement, un seul jeu, lu à un seul endroit. Conséquences —
+    # impossible d'avoir deux administrateurs, impossible de savoir LEQUEL a agi, et rien de ce
+    # que la maison sait déjà faire (mot de passe oublié, sessions, révocation, journal des
+    # connexions) ne s'appliquait à lui. Le rôle le fait entrer dans `users`, là où sont déjà
+    # les professeurs, avec la même empreinte bcrypt et les mêmes mécanismes.
+    #
+    # UN TEXTE, PAS UN ENUM POSTGRES. Un ENUM oblige une migration pour chaque rôle ajouté ;
+    # ceux qui viendront (invité, super administrateur) ne doivent pas coûter ça.
+    #
+    # `prof` PAR DÉFAUT, et le défaut est posé EN BASE (`server_default`) : les comptes existants
+    # sont tous des professeurs, et un compte créé par un chemin qui ignore cette colonne ne doit
+    # jamais naître administrateur par accident.
+    role: Mapped[str] = mapped_column(String(20), default='prof', server_default='prof',
+                                      nullable=False, index=True)
     # Couple de TRAVAIL (écran Créer, « Changer niveau et/ou matière ») — NULL = couple du profil.
     # C'est LA donnée que le serveur lit pour générer ; rangé UNIQUEMENT par CLÉ (get sur
     # matieres/niveaux pour le nom), jamais recopié côté écran ni en texte.
