@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import FenetrePro from '../components/FenetrePro.jsx'
 
 // IA › Journal — un appel par ligne, le plus récent en haut.
 //
@@ -68,6 +69,8 @@ export default function AdminIAJournal() {
   // affichée ne montrerait qu'une partie du journal, et les pages suivantes seraient fausses.
   const [fournisseur, setFournisseur] = useState('')
   const [erreur, setErreur] = useState('')
+  // La ligne dont on regarde le détail. `null` = aucune fenêtre ouverte.
+  const [detail, setDetail] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -187,6 +190,11 @@ export default function AdminIAJournal() {
                   <th style={THD} title="Ce que le modèle a écrit en réponse.">Produits</th>
                   <th style={THD} title="Temps qu’a pris l’appel, de l’envoi à la dernière ligne reçue.">Durée</th>
                   <th style={THD} title="Tokens × tarif du modèle (écran Fournisseurs). Estimation, pas une facture.">Coût</th>
+                  {/* LE DÉTAIL DE L'APPEL. La base garde plus que ce que huit colonnes peuvent
+                      montrer — le fournisseur qui a répondu, son rang dans la cascade, le code
+                      qu'il a rendu, le cache. Élargir le tableau le rendrait illisible ; un « i »
+                      par ligne le donne à la demande. */}
+                  <th style={{ ...TH, width: 30 }} />
                 </tr>
               </thead>
               <tbody>
@@ -222,6 +230,21 @@ export default function AdminIAJournal() {
                             : l.cout_usd == null ? 'Tarif non renseigné pour ce modèle' : undefined}>
                         {usd(l.cout_usd)}
                       </td>
+                      <td style={{ ...TD, padding: '4px 6px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => setDetail(l)}
+                          title="Tout ce que la base garde de cet appel"
+                          style={{
+                            width: 17, height: 17, borderRadius: '50%', cursor: 'pointer', padding: 0,
+                            border: '1px solid ' + (detail?.id === l.id ? '#A63045' : '#cbd5e1'),
+                            color: detail?.id === l.id ? '#fff' : '#64748b',
+                            background: detail?.id === l.id ? '#A63045' : '#f8fafc',
+                            fontSize: 11, fontWeight: 700, fontStyle: 'italic', lineHeight: '15px',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          }}
+                        >i</button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -240,7 +263,70 @@ export default function AdminIAJournal() {
           )}
         </>
       )}
+
+      {detail && <DetailAppel ligne={detail} onFermer={() => setDetail(null)} />}
     </div>
+  )
+}
+
+
+// LE DÉTAIL D'UN APPEL — tout ce que `usage_llm` garde de cette ligne, et rien de plus.
+//
+// POURQUOI UNE FENÊTRE ET PAS DES COLONNES. Huit colonnes tiennent à l'écran, quinze non : le
+// tableau deviendrait illisible pour montrer, à chaque ligne, des champs qu'on ne regarde qu'une
+// fois sur cinquante. La fenêtre est celle de la maison (`FenetrePro`) : déplaçable, sans voile
+// qui bloque la page derrière — on peut comparer deux appels en la traînant à côté.
+//
+// LE TEXTE ENVOYÉ ET LA RÉPONSE N'Y SONT PAS, et n'y seront pas : la table compte les appels,
+// elle ne conserve pas leur contenu. La fenêtre le dit, sinon on la croit incomplète.
+function DetailAppel({ ligne, onFermer }) {
+  const a = arret(ligne.motif_arret, ligne.resultat, ligne.code_http)
+  const cache = (ligne.tokens_cache_ecriture || 0) + (ligne.tokens_cache_lecture || 0)
+
+  const lignes = [
+    ['Quand',        quand(ligne.quand)],
+    ['Origine',      ligne.origine + (ligne.outil ? ` (${ligne.outil})` : '')],
+    ['Fournisseur',  ligne.fournisseur],
+    ['Modèle',       ligne.modele],
+    // LE RANG DIT LA CASCADE : « 2ᵉ appelé » veut dire que le premier — le gratuit — a refusé.
+    // C'est l'information qui explique pourquoi un appel censé être gratuit a coûté quelque chose.
+    ['Rang d’appel', ligne.rang ? `${ligne.rang}${ligne.rang === 1 ? 'er' : 'e'} fournisseur essayé` : '—'],
+    ['Résultat',     ligne.resultat === 'refus' ? 'Refusé par le fournisseur'
+                     : ligne.resultat === 'coupe' ? 'Réponse coupée' : 'Abouti'],
+    ['Code rendu',   ligne.code_http ? String(ligne.code_http) : '—'],
+    ['Arrêt',        a.texte],
+    ['Jetons envoyés', nb(ligne.tokens_entree)],
+    ['dont cache',   cache ? `${nb(ligne.tokens_cache_lecture || 0)} relus · ${nb(ligne.tokens_cache_ecriture || 0)} écrits` : '—'],
+    ['Jetons produits', nb(ligne.tokens_sortie)],
+    ['Durée',        duree(ligne.duree_ms)],
+    ['Coût',         ligne.depuis_cache ? 'Rejeu du cache — rien n’a été envoyé'
+                     : ligne.resultat === 'refus' ? 'Aucun — rien n’a été produit'
+                     : usd(ligne.cout_usd)],
+  ]
+
+  return (
+    <FenetrePro titre="Détail de l’appel" onFermer={onFermer} largeur={430} hauteur="min(70vh, 520px)">
+      <div style={{ overflowY: 'auto', padding: '12px 16px 16px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <tbody>
+            {lignes.map(([cle, valeur]) => (
+              <tr key={cle} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                <td style={{ padding: '7px 0', color: '#94a3b8', whiteSpace: 'nowrap', width: 132 }}>{cle}</td>
+                <td style={{ padding: '7px 0', color: '#1e293b', fontWeight: 500 }}>{valeur}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <p style={{ margin: '12px 0 0', fontSize: 11.5, lineHeight: 1.5, color: '#64748b' }}>
+          {a.brut}
+        </p>
+        <p style={{ margin: '10px 0 0', fontSize: 11, lineHeight: 1.5, color: '#94a3b8' }}>
+          Le texte envoyé et la réponse reçue ne sont pas conservés : le journal compte les appels,
+          il ne relit pas leur contenu.
+        </p>
+      </div>
+    </FenetrePro>
   )
 }
 
