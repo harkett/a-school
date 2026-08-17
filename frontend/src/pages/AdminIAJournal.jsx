@@ -24,6 +24,16 @@ const quand = iso => {
   })
 }
 
+// La date ENTIÈRE, année comprise — pour la fenêtre de détail seulement. La colonne du tableau
+// s'en passe : elle ne montre que trente jours, et l'année y prendrait la place pour rien.
+const quandLong = iso => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+}
+
 const duree = ms => ms == null ? '—' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`
 
 // Le motif d'arrêt vient du fournisseur, dans SON vocabulaire (« end_turn », « length »,
@@ -270,7 +280,7 @@ export default function AdminIAJournal() {
         <DetailAppelIA
           ligne={detail}
           lignes={lignes}
-          outils={{ quand, duree, nb, usd, arret }}
+          outils={{ quand, quandLong, duree, nb, usd, arret }}
           onFermer={() => setDetail(null)}
         />
       )}

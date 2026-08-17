@@ -21,7 +21,7 @@ import FenetrePro from './FenetrePro.jsx'
 const PROCHE_MS = 60000
 
 export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
-  const { quand, duree, nb, usd, arret } = outils
+  const { quandLong, duree, nb, usd, arret } = outils
 
   const t0 = new Date(ligne.quand).getTime()
   const tentatives = (lignes || [])
@@ -40,21 +40,15 @@ export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
 
         {/* D'où part l'appel : la fonction du logiciel qui l'a demandé, et quand. */}
         <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{ligne.origine}</div>
-        <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2, marginBottom: 14 }}>
-          {quand(ligne.quand)}
+        <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 2, marginBottom: 12 }}>
+          {quandLong(ligne.quand)}
         </div>
 
-        {/* ── LE SCHÉMA — un bloc par fournisseur essayé, dans l'ordre où ils l'ont été. ── */}
-        {chemin.map((l, i) => (
-          <div key={l.id}>
-            <Etape ligne={l} rang={l.rang || i + 1} outils={outils} />
-            {i < chemin.length - 1 && <Fleche />}
-          </div>
-        ))}
-
-        {/* ── CE QUE ÇA VEUT DIRE, en une phrase. Le schéma montre, la phrase conclut. ── */}
+        {/* ── CE QUE ÇA VEUT DIRE, EN PREMIER. On vient ici pour savoir ce qui s'est passé ; le
+            schéma qui suit montre COMMENT. La conclusion placée sous le dessin obligeait à
+            déchiffrer trois blocs avant de lire la phrase qu'on était venu chercher. ── */}
         <div style={{
-          marginTop: 14, padding: '10px 12px', borderRadius: 8,
+          marginBottom: 14, padding: '10px 12px', borderRadius: 8,
           background: refuses.length > 0 ? '#fffbeb' : '#f0fdf4',
           border: '1px solid ' + (refuses.length > 0 ? '#fde68a' : '#bbf7d0'),
           fontSize: 12, lineHeight: 1.55, color: '#374151',
@@ -76,6 +70,14 @@ export default function DetailAppelIA({ ligne, lignes, onFermer, outils }) {
               {' '}Tant que le gratuit refuse, chaque appel est payé.</>
           )}
         </div>
+
+        {/* ── LE SCHÉMA — un bloc par fournisseur essayé, dans l'ordre où ils l'ont été. ── */}
+        {chemin.map((l, i) => (
+          <div key={l.id}>
+            <Etape ligne={l} rang={l.rang || i + 1} outils={outils} />
+            {i < chemin.length - 1 && <Fleche />}
+          </div>
+        ))}
 
         <p style={{ margin: '12px 0 0', fontSize: 11, lineHeight: 1.5, color: '#94a3b8' }}>
           Le texte envoyé et la réponse reçue ne sont pas conservés : le journal compte les appels,
