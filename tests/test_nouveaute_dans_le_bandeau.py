@@ -10,6 +10,8 @@ Ce que ces tests PROUVENT (base aschool_test via conftest.py — JAMAIS SQLite) 
      « nouveauté » sans « livrée » n'annonce rien.
   4. Décocher « livrée » éteint « nouveauté » du même geste.
   5. Une fonctionnalité livrée n'est plus votable : le vote est refusé par un 400 humain.
+  6. UNE SEULE nouveauté à la fois : cocher une ligne décoche celle qui était annoncée.
+  7. L'écran que « Découvrir » ouvre (`page`) suit la nouveauté jusqu'au professeur.
 
 Lancer : docker compose exec backend python -m pytest tests/test_nouveaute_dans_le_bandeau.py -q
 """
@@ -112,3 +114,34 @@ def test_on_ne_vote_plus_pour_ce_qui_est_livre():
     r = _client_prof().post("/api/feature-vote", json={"feature_key": "quiz-interactif"})
     assert r.status_code == 400
     assert "plus" in r.json()["detail"]
+
+
+def test_une_seule_nouveaute_a_la_fois():
+    with dbmod.SessionLocal() as db:
+        _make_user(db)
+    a = _client_admin()
+
+    # Les deux codes semés par conftest — le catalogue de test en compte deux, pas neuf.
+    a.patch("/api/admin/feature-votes/quiz-interactif", json={"livree": True, "nouveaute": True})
+    a.patch("/api/admin/feature-votes/analyser-consigne", json={"livree": True, "nouveaute": True})
+
+    # La seconde a pris la place de la première : le bandeau du professeur n'annonce qu'un titre.
+    annonces = _client_prof().get("/api/nouveautes").json()
+    assert [n["key"] for n in annonces] == ["analyser-consigne"]
+
+    vu_admin = {f["key"]: f for f in a.get("/api/admin/feature-votes").json()}
+    assert vu_admin["quiz-interactif"]["nouveaute"] is False
+    assert vu_admin["quiz-interactif"]["livree"] is True     # livrée, elle, ne bouge pas
+
+
+def test_l_ecran_a_ouvrir_suit_la_nouveaute():
+    with dbmod.SessionLocal() as db:
+        _make_user(db)
+        db.execute(text("UPDATE features_votables SET livree = true, nouveaute = true, "
+                        "page = 'consigne' WHERE code = 'analyser-consigne'"))
+        db.execute(text("UPDATE features_votables SET nouveaute = false "
+                        "WHERE code <> 'analyser-consigne'"))
+        db.commit()
+
+    annonces = _client_prof().get("/api/nouveautes").json()
+    assert [n["page"] for n in annonces] == ["consigne"]

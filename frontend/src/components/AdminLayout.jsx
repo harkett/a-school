@@ -77,6 +77,9 @@ const NAV_ITEMS = [
   {
     to:    '/admin/mise-en-route',
     label: 'Tableau de bord',
+    // Le TOTAL des gestes en attente, toutes sources confondues : l'entrée de tête porte ce que
+    // l'encart « À traiter » de cet écran détaille. Elle s'éteint seule quand tout est traité.
+    badgeKey: 'actions_total',
     aide:  'État de la plateforme : les 8 étapes de branchement technique, lues en direct dans la base, et l’avancement des fonctionnalités côté admin et côté prof — fait, en cours, à venir.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -324,7 +327,9 @@ const NAV_ITEMS = [
       { to: '/admin/taches-a-faire', label: 'Développement',
         resume: 'Les idées et les chantiers, notés avant d’être oubliés.',
         aide: 'Le carnet de l’administrateur : ce qu’on décide de faire un jour, avec le contexte qui va avec. Rien ne s’exécute ici — à ne pas confondre avec le « Planificateur », qui fait tourner les travaux automatiques du serveur. Une note se coche quand elle est faite : elle descend dans « Faites » et y reste, parce qu’une décision prise sert encore le jour où la question revient. Pour la faire disparaître pour de bon, « Supprimer ».' },
-      { to: '/admin/bientot-disponible', label: 'Bientôt disponible',
+      // `badgeKey` : le compteur vient du CENTRE D'ACTIONS, pas d'un calcul refait ici — c'est
+      // la même source que l'encart « À traiter » du tableau de bord (`GET /api/admin/actions`).
+      { to: '/admin/bientot-disponible', label: 'Bientôt disponible', badgeKey: 'actions_bientot_disponible',
         resume: 'Ce qui est annoncé aux professeurs, et ce qu’ils en demandent.',
         aide: 'Les fonctionnalités annoncées dans l’écran « Bientôt disponible » du professeur : le titre et le texte qu’il lit, la famille dont elles relèvent, et le nombre de professeurs qui les ont demandées. En lecture seule — une promesse faite ne se réécrit pas d’un clic, elle se change par migration.' },
     ],
@@ -356,7 +361,10 @@ const NAV_ITEMS = [
 
 export default function AdminLayout() {
   const [checked, setChecked] = useState(false)
-  const [notifs, setNotifs]   = useState({ feedbacks_nouveaux: 0, alertes_nonlues: 0 })
+  const [notifs, setNotifs]   = useState({
+    feedbacks_nouveaux: 0, alertes_nonlues: 0,
+    actions_total: 0, actions_bientot_disponible: 0,
+  })
   const navigate  = useNavigate()
   const location  = useLocation()
 
@@ -427,10 +435,20 @@ export default function AdminLayout() {
   useEffect(() => {
     if (!checked) return
     function fetchNotifs() {
-      fetch('/api/admin/stats/overview', { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) setNotifs({ feedbacks_nouveaux: d.feedbacks_nouveaux || 0, alertes_nonlues: d.alertes_nonlues || 0 }) })
-        .catch(() => {})
+      // Deux lectures, deux sujets : les compteurs d'activité d'un côté, les GESTES EN ATTENTE
+      // de l'autre. Le centre d'actions est calculé à un seul endroit côté serveur — le menu ne
+      // recompte rien, il affiche ce que l'encart « À traiter » affiche aussi.
+      Promise.all([
+        fetch('/api/admin/stats/overview', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch('/api/admin/actions', { credentials: 'include' }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]).then(([stats, actions]) => {
+        setNotifs({
+          feedbacks_nouveaux: stats?.feedbacks_nouveaux || 0,
+          alertes_nonlues:    stats?.alertes_nonlues || 0,
+          actions_total:      actions?.total || 0,
+          actions_bientot_disponible: actions?.par_ecran?.['bientot-disponible'] || 0,
+        })
+      })
     }
     fetchNotifs()
     const id = setInterval(fetchNotifs, 60000)

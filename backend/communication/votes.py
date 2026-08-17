@@ -76,7 +76,8 @@ def get_nouveautes(
         .all()
     )
     return [
-        {"key": f.code, "label": f.label, "description": f.description, "icone": f.icone}
+        {"key": f.code, "label": f.label, "description": f.description,
+         "icone": f.icone, "page": f.page}
         for f in rows
     ]
 
@@ -132,7 +133,7 @@ def admin_get_votes(
     result = [
         {"key": f.code, "label": f.label, "description": f.description,
          "categorie": f.categorie, "actif": f.actif, "ordre": f.ordre,
-         "livree": f.livree, "nouveaute": f.nouveaute,
+         "livree": f.livree, "nouveaute": f.nouveaute, "page": f.page,
          "count": votes.get(f.code, 0)}
         for f in catalogue_features(db, actives_seulement=False)
     ]
@@ -163,5 +164,15 @@ def admin_etat_feature(
 
     ligne.livree = body.livree
     ligne.nouveaute = body.nouveaute and body.livree
+
+    # UNE SEULE NOUVEAUTÉ À LA FOIS. Annoncer trois choses, c'est n'en annoncer aucune : le
+    # bandeau du professeur porte UN titre, celui qu'on a choisi de mettre en avant. Cocher une
+    # ligne décoche donc la précédente — l'administration n'a rien à décocher à la main, et
+    # deux écrans ne peuvent pas en allumer deux chacun de son côté.
+    if ligne.nouveaute:
+        (db.query(FeatureVotable)
+           .filter(FeatureVotable.code != ligne.code, FeatureVotable.nouveaute.is_(True))
+           .update({FeatureVotable.nouveaute: False}, synchronize_session=False))
+
     db.commit()
     return {"key": ligne.code, "livree": ligne.livree, "nouveaute": ligne.nouveaute}

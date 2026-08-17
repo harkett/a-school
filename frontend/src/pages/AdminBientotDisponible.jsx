@@ -42,6 +42,9 @@ export default function AdminBientotDisponible() {
       }, TIMEOUT_STD)
       if (!r.ok) throw new Error('enregistrement refusé par le serveur')
       await qc.invalidateQueries({ queryKey: ['admin', 'feature-votes'] })
+      // L'encart « À traiter » du tableau de bord compte les fonctionnalités livrées non
+      // annoncées : cocher ici en retire une, la liste doit suivre sans attendre son heure.
+      await qc.invalidateQueries({ queryKey: ['admin', 'actions'] })
     } catch (e) {
       showError('La case n’a pas pu être enregistrée : ' + e.message)
     }
@@ -73,7 +76,8 @@ export default function AdminBientotDisponible() {
         <div className="text-xs" style={{ color: '#64748b', marginTop: 4 }}>
           Écran « Bientôt disponible » du professeur · {total} vote{total > 1 ? 's' : ''} au total.
           Cochez <b>Livrée</b> quand la fonctionnalité existe : sa carte quitte son écran.
-          Cochez ensuite <b>Nouveauté</b> pour l’annoncer dans son bandeau d’accueil.
+          Cochez ensuite <b>Nouveauté</b> pour l’annoncer dans son bandeau d’accueil —
+          une seule à la fois : la précédente se décoche d’elle-même.
         </div>
       </div>
 
@@ -110,7 +114,7 @@ export default function AdminBientotDisponible() {
                 <Case
                   label="Nouveauté"
                   aide={f.livree
-                    ? 'Annonce la fonctionnalité dans le bandeau d’accueil du professeur. À recocher si elle est améliorée plus tard.'
+                    ? 'Annonce la fonctionnalité dans le bandeau d’accueil du professeur — et décoche celle qui y était : on n’annonce qu’une chose à la fois. À recocher si elle est améliorée plus tard.'
                     : 'Cochez d’abord « Livrée » : on n’annonce en nouveauté que ce qui existe.'}
                   coche={f.nouveaute}
                   off={!f.livree}

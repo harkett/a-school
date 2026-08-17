@@ -38,7 +38,7 @@ from backend.llm.generator import (LLMIndisponibleError, LLMModeleIncompatibleEr
 from backend.core.middleware import UserSessionMiddleware
 from backend.core.schema_requete import SchemaRequeteMiddleware
 from backend.securite import auth
-from backend.systeme import admin
+from backend.systeme import admin, actions_admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
 from backend.contenu import activites, mes_contenus
 from backend.prof import demo, profil
@@ -179,6 +179,7 @@ app.include_router(transcribe.router, prefix="/api")
 app.include_router(programmes.router, prefix="/api")
 app.include_router(referentiels_admin.router, prefix="/api")
 app.include_router(mise_en_route.router, prefix="/api")
+app.include_router(actions_admin.router, prefix="/api")
 
 @app.get("/api/health")
 def health():
