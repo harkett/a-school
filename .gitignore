@@ -58,3 +58,4 @@ Bagage/
 deploy/dumps/
 # Ecrits par deploy/installer-demos.sh sur le serveur, a partir de deploy/demos.conf.
 deploy/env-demos/
+Scripts/.recette.env
