@@ -19,7 +19,10 @@ def catalogue_features(db: Session, actives_seulement: bool = True) -> list[Feat
     rows = db.query(FeatureVotable).order_by(FeatureVotable.ordre, FeatureVotable.id).all()
     if not rows:
         raise HTTPException(500, "Fonctionnalités votables absentes en base (migration non appliquée ?).")
-    return [r for r in rows if r.actif] if actives_seulement else rows
+    # UNE FONCTIONNALITÉ LIVRÉE N'EST PLUS « BIENTÔT ». Elle quitte l'écran du professeur sans
+    # que personne ait à décocher `actif` : on ne fait pas voter pour ce qui existe déjà. Ses
+    # votes restent — ils disent ce qui était attendu. L'administration, elle, voit tout.
+    return [r for r in rows if r.actif and not r.livree] if actives_seulement else rows
 
 
 def _email_ou_401(aschool_access: str | None) -> str:
@@ -55,6 +58,27 @@ def get_votes(
         for f in catalogue_features(db)
     ]
     return {"features": features, "mes_votes": mes_votes}
+
+
+@router.get("/nouveautes")
+def get_nouveautes(
+    db: Session = Depends(get_db),
+    aschool_access: str | None = Cookie(default=None),
+):
+    """Ce qui vient d'arriver, pour le bandeau d'accueil : les fonctionnalités LIVRÉES que
+    l'administration a choisi d'annoncer. Deux conditions, jamais une seule — une ligne cochée
+    « nouveauté » mais pas livrée ne s'affiche pas, l'écran d'administration l'interdit déjà."""
+    _email_ou_401(aschool_access)
+    rows = (
+        db.query(FeatureVotable)
+        .filter(FeatureVotable.livree.is_(True), FeatureVotable.nouveaute.is_(True))
+        .order_by(FeatureVotable.ordre, FeatureVotable.id)
+        .all()
+    )
+    return [
+        {"key": f.code, "label": f.label, "description": f.description, "icone": f.icone}
+        for f in rows
+    ]
 
 
 class VoteBody(BaseModel):
@@ -108,8 +132,36 @@ def admin_get_votes(
     result = [
         {"key": f.code, "label": f.label, "description": f.description,
          "categorie": f.categorie, "actif": f.actif, "ordre": f.ordre,
+         "livree": f.livree, "nouveaute": f.nouveaute,
          "count": votes.get(f.code, 0)}
         for f in catalogue_features(db, actives_seulement=False)
     ]
     result.sort(key=lambda x: -x["count"])
     return result
+
+
+class EtatFeatureBody(BaseModel):
+    livree: bool
+    nouveaute: bool
+
+
+@router.patch("/admin/feature-votes/{code}")
+def admin_etat_feature(
+    code: str,
+    body: EtatFeatureBody,
+    db: Session = Depends(get_db),
+    _=Depends(_require_admin),
+):
+    """Les deux cases de l'écran « Bientôt disponible » de l'administration.
+
+    LA RÈGLE EST TENUE ICI, PAS SEULEMENT À L'ÉCRAN : annoncer en nouveauté ce qui n'est pas
+    livré n'a pas de sens, et un appel direct au serveur contournerait la case grisée. Décocher
+    « livrée » retire donc aussi « nouveauté »."""
+    ligne = db.query(FeatureVotable).filter(FeatureVotable.code == code).first()
+    if not ligne:
+        raise HTTPException(404, "Fonctionnalité inconnue.")
+
+    ligne.livree = body.livree
+    ligne.nouveaute = body.nouveaute and body.livree
+    db.commit()
+    return {"key": ligne.code, "livree": ligne.livree, "nouveaute": ligne.nouveaute}

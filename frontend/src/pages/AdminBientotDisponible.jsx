@@ -1,17 +1,25 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD } from '../utils/api.js'
+import { showError } from '../errorDialog'
 
 // Écran « Tâches à faire → Bientôt disponible » (16/08/2026).
 //
-// CE QUE LE PROFESSEUR VOIT, VU D'ICI. Les six cartes de l'écran prof « Bientôt disponible »
-// vivent en base (table `features_votables`) : jusqu'ici, l'administrateur ne pouvait les lire
-// qu'en ouvrant l'application côté prof, et il n'avait de leur côté qu'un classement de votes
-// perdu dans un onglet de Feedbacks. Cet écran-ci les montre telles qu'elles sont annoncées —
-// le titre, le texte, la famille — avec ce qu'elles ont récolté.
+// CE QUE LE PROFESSEUR VOIT, ET CE QU'ON LUI PROMET. Les cartes de son écran « Bientôt
+// disponible » vivent en base (table `features_votables`) : l'administrateur ne pouvait les
+// lire qu'en ouvrant l'application de son côté. Elles sont ici, telles qu'il les lit, avec
+// ce qu'elles ont récolté.
 //
-// LECTURE SEULE, et c'est voulu : une promesse faite aux professeurs ne se réécrit pas d'un
-// clic entre deux visites. Elle se change par migration, comme elle a été posée.
+// LES DEUX CASES, ET LEUR LIEN. « Livrée » veut dire que la fonctionnalité existe : sa carte
+// quitte l'écran du professeur, car on ne fait pas voter pour ce qui est fait. « Nouveauté »
+// l'annonce dans son bandeau d'accueil — elle ne s'ouvre que sur une ligne livrée, et se
+// recoche des mois plus tard quand la fonctionnalité est améliorée. Le serveur tient la même
+// règle : décocher « livrée » retire « nouveauté ».
+//
+// Le TEXTE des cartes, lui, ne se modifie pas ici : une promesse faite aux professeurs se
+// change par migration, comme elle a été posée.
 export default function AdminBientotDisponible() {
+  const qc = useQueryClient()
+
   const { data: features, isError } = useQuery({
     queryKey: ['admin', 'feature-votes'],
     queryFn: async () => {
@@ -21,14 +29,33 @@ export default function AdminBientotDisponible() {
     },
   })
 
-  if (isError)  return <p className="text-red-600 text-sm">Impossible de charger les fonctionnalités annoncées.</p>
+  async function basculer(f, champ) {
+    const etat = { livree: f.livree, nouveaute: f.nouveaute, [champ]: !f[champ] }
+    // Décocher « livrée » éteint « nouveauté » : la règle se voit avant même la réponse.
+    if (!etat.livree) etat.nouveaute = false
+    try {
+      const r = await fetchWithTimeout(`/api/admin/feature-votes/${f.key}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(etat),
+      }, TIMEOUT_STD)
+      if (!r.ok) throw new Error('enregistrement refusé par le serveur')
+      await qc.invalidateQueries({ queryKey: ['admin', 'feature-votes'] })
+    } catch (e) {
+      showError('La case n’a pas pu être enregistrée : ' + e.message)
+    }
+  }
+
+  if (isError)   return <p className="text-red-600 text-sm">Impossible de charger les fonctionnalités annoncées.</p>
   if (!features) return <p className="text-gray-400 text-sm">Chargement…</p>
 
   // L'ordre d'affichage est celui du professeur (`ordre`), pas celui des votes : on lit ici la
   // page telle qu'elle se présente à lui. Le classement par popularité a déjà son écran.
-  const liste = [...features].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
-  const total = liste.reduce((s, f) => s + f.count, 0)
-  const annoncees = liste.filter(f => f.actif).length
+  const liste     = [...features].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+  const attendues = liste.filter(f => f.actif && !f.livree).length
+  const annoncees = liste.filter(f => f.livree && f.nouveaute).length
+  const total     = liste.reduce((s, f) => s + f.count, 0)
 
   return (
     <div className="flex flex-col gap-4">
@@ -41,11 +68,12 @@ export default function AdminBientotDisponible() {
           Ce que le professeur voit
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, color: '#1e3a8a', lineHeight: 1.2, marginTop: 2 }}>
-          {annoncees} fonctionnalité{annoncees > 1 ? 's' : ''} annoncée{annoncees > 1 ? 's' : ''}
+          {attendues} à venir · {annoncees} en nouveauté
         </div>
         <div className="text-xs" style={{ color: '#64748b', marginTop: 4 }}>
-          Écran prof « Bientôt disponible » · {total} vote{total > 1 ? 's' : ''} au total ·
-          {' '}lecture seule, le texte se change par migration
+          Écran « Bientôt disponible » du professeur · {total} vote{total > 1 ? 's' : ''} au total.
+          Cochez <b>Livrée</b> quand la fonctionnalité existe : sa carte quitte son écran.
+          Cochez ensuite <b>Nouveauté</b> pour l’annoncer dans son bandeau d’accueil.
         </div>
       </div>
 
@@ -53,38 +81,83 @@ export default function AdminBientotDisponible() {
         {liste.map(f => (
           <div key={f.key}
                className="bg-white rounded-xl border border-gray-200 px-5 py-4"
-               style={{ opacity: f.actif ? 1 : 0.55 }}>
-            <div className="flex items-start justify-between gap-3 mb-1" style={{ flexWrap: 'wrap' }}>
-              <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                <span className="text-sm font-semibold text-gray-800">{f.label}</span>
-                <span style={{
-                  fontSize: 10.5, padding: '1px 8px', borderRadius: 5, whiteSpace: 'nowrap',
-                  background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0',
-                }}>
-                  {f.categorie}
-                </span>
-                {/* Une carte retirée de l'écran prof garde ses votes : le dire, sinon le chiffre
-                    d'à côté se lit comme un engouement actuel. */}
-                {!f.actif && (
-                  <span style={{
-                    fontSize: 10.5, padding: '1px 8px', borderRadius: 5, whiteSpace: 'nowrap',
-                    background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca',
-                  }}>
-                    retirée de l’écran prof
-                  </span>
-                )}
+               style={{ opacity: (f.actif || f.livree) ? 1 : 0.55 }}>
+
+            <div className="flex items-start justify-between gap-4" style={{ flexWrap: 'wrap' }}>
+
+              <div style={{ flex: '1 1 380px', minWidth: 0 }}>
+                <div className="flex items-center gap-2 mb-1" style={{ flexWrap: 'wrap' }}>
+                  <span className="text-sm font-semibold text-gray-800">{f.label}</span>
+                  <span style={etiquette('#f1f5f9', '#64748b', '#e2e8f0')}>{f.categorie}</span>
+                  {f.livree && <span style={etiquette('#ecfdf5', '#065f46', '#a7f3d0')}>livrée</span>}
+                  {f.livree && f.nouveaute && <span style={etiquette('#fffbeb', '#92400e', '#fde68a')}>en nouveauté</span>}
+                  {/* Une carte retirée de l'écran prof garde ses votes : le dire, sinon le
+                      chiffre d'à côté se lit comme un engouement actuel. */}
+                  {!f.actif && !f.livree && <span style={etiquette('#fef2f2', '#b91c1c', '#fecaca')}>retirée de l’écran prof</span>}
+                </div>
+                <p className="text-xs text-gray-500" style={{ lineHeight: 1.55, margin: 0 }}>
+                  {f.description}
+                </p>
               </div>
-              <span className="text-sm font-bold" style={{ color: f.count > 0 ? '#A63045' : '#94a3b8', flexShrink: 0 }}>
-                {f.count} vote{f.count !== 1 ? 's' : ''}
-              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}>
+                <Case
+                  label="Livrée"
+                  aide="La fonctionnalité existe : sa carte quitte l’écran « Bientôt disponible » du professeur. Ses votes sont conservés."
+                  coche={f.livree}
+                  onChange={() => basculer(f, 'livree')}
+                />
+                <Case
+                  label="Nouveauté"
+                  aide={f.livree
+                    ? 'Annonce la fonctionnalité dans le bandeau d’accueil du professeur. À recocher si elle est améliorée plus tard.'
+                    : 'Cochez d’abord « Livrée » : on n’annonce en nouveauté que ce qui existe.'}
+                  coche={f.nouveaute}
+                  off={!f.livree}
+                  onChange={() => basculer(f, 'nouveaute')}
+                />
+                <div style={{ textAlign: 'right', minWidth: 62 }}>
+                  <div className="text-sm font-bold" style={{ color: f.count > 0 ? '#A63045' : '#94a3b8' }}>
+                    {f.count}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#94a3b8' }}>vote{f.count !== 1 ? 's' : ''}</div>
+                </div>
+              </div>
+
             </div>
-            <p className="text-xs text-gray-500" style={{ lineHeight: 1.55, margin: 0 }}>
-              {f.description}
-            </p>
           </div>
         ))}
       </div>
 
     </div>
+  )
+}
+
+const etiquette = (fond, texte, bord) => ({
+  fontSize: 10.5, padding: '1px 8px', borderRadius: 5, whiteSpace: 'nowrap',
+  background: fond, color: texte, border: '1px solid ' + bord,
+})
+
+// Norme maison : une bulle d'aide sur chaque commande, et le curseur interdit quand elle est
+// grisée — la case « Nouveauté » d'une ligne non livrée doit REFUSER le clic, pas l'ignorer.
+function Case({ label, aide, coche, off = false, onChange }) {
+  return (
+    <label
+      title={aide}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        cursor: off ? 'not-allowed' : 'pointer',
+        opacity: off ? 0.45 : 1, userSelect: 'none',
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={coche}
+        disabled={off}
+        onChange={onChange}
+        style={{ width: 16, height: 16, cursor: off ? 'not-allowed' : 'pointer', accentColor: '#1F6EEB' }}
+      />
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: off ? '#94a3b8' : '#334155' }}>{label}</span>
+    </label>
   )
 }
