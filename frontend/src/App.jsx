@@ -62,6 +62,7 @@ import AdminContenu from './pages/AdminContenu'
 import AdminMaintenance from './pages/AdminMaintenance'
 import AdminPlanificateur from './pages/AdminPlanificateur'
 import AdminTachesAFaire from './pages/AdminTachesAFaire'
+import AdminBientotDisponible from './pages/AdminBientotDisponible'
 import AdminBase from './pages/AdminBase'
 import AdminBaseDemos from './pages/AdminBaseDemos'
 import AdminAnalytique from './pages/AdminAnalytique'
@@ -370,11 +371,12 @@ function MainApp() {
           return
         }
         if (type === 'activite') ouvrirActiviteContenus(row)
+        else if (type === 'sequence') ouvrirSequence(row)
         else ouvrirSeance(row)
         return
       }
     } catch { /* relecture impossible : on retombe sur la liste */ }
-    naviguer(type === 'activite' ? 'contenus-activites' : 'contenus-seances')
+    naviguer(`contenus-${type}s`)
   }
 
   // Routeur de navigation.
@@ -515,7 +517,7 @@ function MainApp() {
                    couple={`${user?.travail_matiere || user?.subject || ''}|${user?.travail_niveau || user?.niveau || ''}`} />
         </div>
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['accueil', 'ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -783,7 +785,10 @@ export default function App() {
             <Route path="aide"          element={<AdminAide />} />
             <Route path="maintenance"   element={<AdminMaintenance />} />
             <Route path="planificateur" element={<AdminPlanificateur />} />
+            {/* Taches a faire — deux ecrans : le carnet du developpement, et ce qui est
+                annonce aux professeurs dans « Bientot disponible ». */}
             <Route path="taches-a-faire" element={<AdminTachesAFaire />} />
+            <Route path="bientot-disponible" element={<AdminBientotDisponible />} />
             <Route path="base"          element={<AdminBase />} />
             <Route path="base/demos"    element={<AdminBaseDemos />} />
             <Route path="analytique">

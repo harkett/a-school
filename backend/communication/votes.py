@@ -102,8 +102,13 @@ def admin_get_votes(
 
     # Toutes les lignes, y compris inactives : les votes recueillis restent visibles de
     # l'admin même quand la carte a quitté l'écran prof.
+    # LA FICHE ENTIERE, PAS SEULEMENT LE COMPTEUR (16/08/2026). L'ecran « Bientot disponible »
+    # de l'administration montre ce que le professeur lit : le texte de la carte et sa famille.
+    # Le classement des votes s'en sert toujours — il ignore simplement les champs en plus.
     result = [
-        {"key": f.code, "label": f.label, "count": votes.get(f.code, 0)}
+        {"key": f.code, "label": f.label, "description": f.description,
+         "categorie": f.categorie, "actif": f.actif, "ordre": f.ordre,
+         "count": votes.get(f.code, 0)}
         for f in catalogue_features(db, actives_seulement=False)
     ]
     result.sort(key=lambda x: -x["count"])

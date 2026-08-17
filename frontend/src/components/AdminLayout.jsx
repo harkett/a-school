@@ -306,17 +306,28 @@ const NAV_ITEMS = [
   // — Entrées simples (hors catégorie) —
   // Hors catégorie, comme « Mon compte » : ce carnet n'appartient à aucune rubrique de la
   // plateforme — c'est celui de l'administrateur, sur tous les sujets à la fois.
+  // — Tâches à faire — deux listes, et elles ne se mélangent pas (16/08/2026) : ce qui reste à
+  //   CODER, et ce qui est déjà PROMIS aux professeurs. La seconde n'existait nulle part côté
+  //   administration — pour savoir ce que le prof lit dans « Bientôt disponible », il fallait
+  //   ouvrir l'application de son côté.
   {
-    to:     '/admin/taches-a-faire',
+    group:  true,
     label:  'Tâches à faire',
-    resume: 'Les idées et les chantiers, notés avant d’être oubliés.',
-    aide:   'Le carnet de l’administrateur : ce qu’on décide de faire un jour, avec le contexte qui va avec. Rien ne s’exécute ici — à ne pas confondre avec le « Planificateur », qui fait tourner les travaux automatiques du serveur. Une note se coche quand elle est faite : elle descend dans « Faites » et y reste, parce qu’une décision prise sert encore le jour où la question revient. Pour la faire disparaître pour de bon, « Supprimer ».',
+    aide:   'Ce qui reste à faire, des deux côtés : le carnet du développement, et les fonctionnalités annoncées aux professeurs.',
     icon:  (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 11l2 2 4-4"/>
         <path d="M20 6v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9z"/>
       </svg>
     ),
+    items: [
+      { to: '/admin/taches-a-faire', label: 'Développement',
+        resume: 'Les idées et les chantiers, notés avant d’être oubliés.',
+        aide: 'Le carnet de l’administrateur : ce qu’on décide de faire un jour, avec le contexte qui va avec. Rien ne s’exécute ici — à ne pas confondre avec le « Planificateur », qui fait tourner les travaux automatiques du serveur. Une note se coche quand elle est faite : elle descend dans « Faites » et y reste, parce qu’une décision prise sert encore le jour où la question revient. Pour la faire disparaître pour de bon, « Supprimer ».' },
+      { to: '/admin/bientot-disponible', label: 'Bientôt disponible',
+        resume: 'Ce qui est annoncé aux professeurs, et ce qu’ils en demandent.',
+        aide: 'Les fonctionnalités annoncées dans l’écran « Bientôt disponible » du professeur : le titre et le texte qu’il lit, la famille dont elles relèvent, et le nombre de professeurs qui les ont demandées. En lecture seule — une promesse faite ne se réécrit pas d’un clic, elle se change par migration.' },
+    ],
   },
   {
     to:    '/admin/compte',
