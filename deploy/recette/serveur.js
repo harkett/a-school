@@ -58,14 +58,25 @@ function lire(ligne, p) {
 
 // CE QUI A LÂCHÉ, en une phrase lisible. La sortie de Playwright fait des centaines de lignes ;
 // ce qui compte tient dans les lignes d'échec numérotées et le message d'erreur qui suit.
+//
+// LE NETTOYAGE N'EST PAS COSMÉTIQUE. Playwright encadre chaque échec de filets de tirets, et le
+// titre du scénario se retrouvait avec « ──────────── » collé au bout : la phrase affichée à
+// l'administrateur devenait illisible là où elle devait être la plus claire.
+const DECOR = /[─═━–—\-]{3,}/g
+
+function propre(texte) {
+  return texte.replace(DECOR, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function motif(lignes) {
   const echecs = lignes.filter(l => /^\s*\d+\)\s+e2e/.test(l))
-                       .map(l => l.split('›').pop().trim())
+                       .map(l => propre(l.split('›').pop()))
+                       .filter(Boolean)
   const message = lignes.find(l => /^\s*(Error:|TimeoutError:)/.test(l.trim()))
   const quoi = echecs.length
     ? echecs.map(e => `« ${e} »`).join(', ')
     : 'un scénario'
-  const pourquoi = message ? ` — ${message.trim().slice(0, 200)}` : ''
+  const pourquoi = message ? ` — ${propre(message).slice(0, 200)}` : ''
   return `${echecs.length > 1 ? 'Ont' : 'A'} échoué : ${quoi}${pourquoi}`
 }
 

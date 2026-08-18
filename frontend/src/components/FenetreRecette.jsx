@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 //
 // LA RÈGLE QU'ELLE APPLIQUE : une tâche ne devient « faite » que si la recette est verte. On ne
 // demande donc l'avis de personne — cocher LANCE. La fenêtre annonce, montre l'avancement, puis
-// rend le verdict. Un seul bouton, à la fin.
+// donne le résultat. Un seul bouton, à la fin.
 //
 // ELLE NE SE FERME PAS PENDANT. Ni croix, ni Échap, ni clic dehors : c'est ce sondage-ci qui
 // fait écrire le verdict dans la note (le backend le pose à la première réponse « terminé »).
@@ -131,6 +131,15 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
         const r = await fetch(`/api/admin/taches-a-faire/${tacheId}/recette`, {
           method: 'POST', credentials: 'include',
         })
+        // UN PASSAGE DÉJÀ EN COURS N'EST PAS UN REFUS. Le lanceur n'en accepte qu'un à la fois —
+        // deux navigateurs dans la même base se marchent dessus. Mais du point de vue de qui
+        // regarde, une recette tourne : on s'y raccroche et on suit son avancement, au lieu de
+        // renvoyer une porte fermée. C'est le même écran, la même jauge, le même verdict.
+        if (r.status === 409) {
+          if (arretRef.current) return
+          minuteur = setTimeout(sonder, 0)
+          return
+        }
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'La recette n’a pas pu démarrer.')
         if (arretRef.current) return
         setEtat(await r.json())
@@ -161,7 +170,12 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [attente, etat, onFini])
 
-  const verdict = erreur ? 'ratee' : etat?.verdict
+  // « LA RECETTE A RATÉ » ET « ELLE N'A PAS TOURNÉ » SONT DEUX CHOSES. Ratée : elle a parcouru
+  // l'application et quelque chose a lâché — la note reste à faire, et c'est mérité. Pas tournée :
+  // le service était éteint, le réseau coupé, un passage occupait déjà la place — rien n'a été
+  // parcouru, donc la note n'a rien fait de mal. Les confondre affichait « Recette à refaire »
+  // sur un travail que personne n'avait regardé.
+  const verdict = erreur ? null : etat?.verdict
   const fini = !attente
   const total = etat?.total || 0
 
@@ -245,24 +259,36 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
             </div>
           )}
 
-          {/* ── 3. RATÉE — ce qui a lâché. Un verdict sans motif est une porte fermée dont on n'a
-                 pas la clef : on relance à l'aveugle. ── */}
+          {/* ── 3. RATÉE, ou PAS TOURNÉ — deux fins rouges, deux sens différents. Ratée : la
+                 recette a parcouru l'application et quelque chose a lâché. Pas tournée : elle
+                 n'a rien parcouru du tout, et la note en ressort intacte. ── */}
           {fini && verdict !== 'verte' && (
             <>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 16px',
                             borderRadius: 10, background: bandeau.fond, border: `1px solid ${bandeau.bord}` }}>
                 <Pastille couleur="#dc2626" fond="#fee2e2"><Croix /></Pastille>
                 <div style={{ fontSize: 14, color: '#7f1d1d', lineHeight: 1.6 }}>
-                  <strong>La note reste à faire.</strong>
-                  <div style={{ marginTop: 4, color: '#991b1b' }}>
-                    Elle porte maintenant la mention « recette à refaire ».
-                  </div>
+                  {erreur ? (
+                    <>
+                      <strong>La recette n’a pas tourné.</strong>
+                      <div style={{ marginTop: 4, color: '#991b1b' }}>
+                        Rien n’a changé. La note est comme avant.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <strong>La recette a raté.</strong>
+                      <div style={{ marginTop: 4, color: '#991b1b' }}>
+                        La note reste à faire, avec « Recette à refaire » en face.
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, color: '#94a3b8',
                               textTransform: 'uppercase', marginBottom: 6 }}>
-                  Ce qui a lâché
+                  {erreur ? 'Ce qui s’est passé' : 'Ce qui a lâché'}
                 </div>
                 <div style={{ padding: '11px 13px', borderRadius: 8, background: '#f8fafc',
                               border: '1px solid #e2e8f0', fontSize: 13, color: '#334155',
