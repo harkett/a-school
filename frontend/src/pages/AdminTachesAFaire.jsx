@@ -337,6 +337,14 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                 }}>
                   {t.titre}
                 </div>
+                {/* LA DATE, en petit et en gris — celle qui compte pour le bloc où l'on est :
+                    quand la note a été prise tant qu'elle est à faire, quand elle a été terminée
+                    une fois qu'elle l'est. Le détail garde les trois, celle-ci est là pour le
+                    coup d'œil : voir d'un balayage ce qui traîne depuis trois semaines. */}
+                <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0,
+                               fontVariantNumeric: 'tabular-nums' }}>
+                  {faites ? jour(t.fait_at) : jour(t.created_at)}
+                </span>
                 <Mention tache={t} />
                 <button
                   onClick={() => setOuverte(ouvert ? null : t.id)}
