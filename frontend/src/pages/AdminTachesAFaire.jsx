@@ -147,7 +147,10 @@ export default function AdminTachesAFaire() {
   if (form) {
     const nouvelle = form.id === null
     return (
-      <div style={{ maxWidth: 720 }}>
+      // L'ÉCRAN OCCUPE LA PLACE, ET SUIT LA FENÊTRE. Une largeur figée laissait la moitié droite
+      // vide sur un grand écran, et le champ « Détail » gardait ses quatre lignes au milieu d'un
+      // blanc de trois cents pixels.
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
         {erreur && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{erreur}</p>}
 
         <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 16px' }}>
@@ -174,11 +177,13 @@ export default function AdminTachesAFaire() {
         <textarea
           value={form.detail || ''}
           onChange={e => setForm({ ...form, detail: e.target.value })}
-          rows={4}
           placeholder="Le contexte, la décision prise, ce qui reste à trancher…"
-          style={{ ...CHAMP, resize: 'vertical' }}
+          // LA HAUTEUR SUIT LA FENÊTRE, en fraction de l'écran et non en pixels : la zone de
+          // saisie garde la même proportion sur un portable et sur un grand écran, et se réduit
+          // quand on rétrécit la fenêtre au lieu de pousser les boutons hors de vue.
+          style={{ ...CHAMP, height: '48vh', minHeight: 140, resize: 'vertical' }}
         />
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexShrink: 0 }}>
           <button
             onClick={enregistrer}
             disabled={occupe || !form.titre.trim()}
