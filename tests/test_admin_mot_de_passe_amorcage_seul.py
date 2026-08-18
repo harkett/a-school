@@ -27,7 +27,7 @@ import bcrypt
 import backend.core.database as dbmod
 
 from backend.main import app
-from backend.core.models_db import Setting, FailedLoginAttempt
+from backend.core.models_db import ROLES_ADMIN, ROLE_PROF, Setting, FailedLoginAttempt, User
 from backend.systeme.admin import _make_admin_token
 from fastapi.testclient import TestClient
 

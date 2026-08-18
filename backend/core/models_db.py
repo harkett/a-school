@@ -8,6 +8,30 @@ from backend.core.database import Base
 from backend.core.horloge import maintenant_utc
 
 
+# ── LES RÔLES D'UN COMPTE ──────────────────────────────────────────────────────────────────
+#
+# Le rôle dit ce que le compte a le DROIT de faire, et rien d'autre. Un seul endroit : ces
+# constantes, et les deux ensembles en dessous. Un test qui écrirait « admin » en clair ailleurs
+# est un endroit de plus à corriger le jour où un rôle s'ajoute.
+#
+# LES COMPTES DE RECETTE PORTENT LEUR NATURE DANS LEUR RÔLE. Ils vivent dans `users` comme les
+# autres — l'administration les voit dans sa liste de comptes — et rien ne doit permettre de les
+# confondre avec un vrai professeur. Une convention de nom (« recette-… ») ne tiendrait pas : elle
+# se lit à l'œil, elle ne se filtre pas, et personne ne s'en souvient six mois plus tard.
+ROLE_PROF = "prof"
+ROLE_ADMIN = "admin"
+ROLE_RECETTE_PROF = "recette_prof"
+ROLE_RECETTE_ADMIN = "recette_admin"
+
+# Qui ouvre l'administration. La recette doit pouvoir jouer les écrans d'administration, donc son
+# compte y entre — c'est le seul droit qu'il partage avec l'administrateur réel.
+ROLES_ADMIN = frozenset({ROLE_ADMIN, ROLE_RECETTE_ADMIN})
+
+# Qui n'est pas un vrai utilisateur : à écarter de tout décompte qui prétend dire combien de
+# professeurs se servent de l'application.
+ROLES_RECETTE = frozenset({ROLE_RECETTE_PROF, ROLE_RECETTE_ADMIN})
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (Index("ix_users_email", "email", unique=True),)

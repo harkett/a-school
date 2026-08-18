@@ -24,7 +24,7 @@ from backend.core.catalogues import catalogue
 from backend.core.devises import DEVISES, en_euros
 from backend.systeme.releve_tarifs import lire_page, relever
 from backend.core.llm_prompts import PROMPTS
-from backend.core.models_db import Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, PromptFonctionnalite, Referentiel, RefreshToken, Seance, Sequence, Setting, UsageLlm, User, UserSession, TacheAFaire, TachePlanifiee
+from backend.core.models_db import ROLES_ADMIN, Activite, AdminAlert, AdminAuditLog, AiFournisseur, AiModele, ConnexionLog, Cycle, Demo, EmailEnvoi, EmailTemplate, EmailToken, FailedLoginAttempt, Feedback, FeedbackStatut, Incident, Matiere, Niveau, OutilLlm, PromptFonctionnalite, Referentiel, RefreshToken, Seance, Sequence, Setting, UsageLlm, User, UserSession, TacheAFaire, TachePlanifiee
 # La fabrique du jeton de passage vit chez le prof (backend/prof/demo.py) : l'admin emprunte la
 # MÊME, il n'en a pas une seconde. Import du module et non des fonctions — les deux modules se
 # citent, et le module entier évite d'avoir à ordonner leurs imports.
@@ -656,16 +656,16 @@ def admin_login(request: Request, body: AdminLoginBody, response: Response, db: 
     #
     # L'administration n'était pas un compte : un identifiant et un mot de passe posés dans les
     # variables d'environnement, un seul jeu. Impossible d'en avoir deux, impossible de savoir
-    # lequel a agi. Elle est maintenant une LIGNE de `users` portant `role = 'admin'`, avec la
-    # même empreinte bcrypt qu'un professeur.
+    # lequel a agi. Elle est maintenant une LIGNE de `users` portant un rôle d'administration
+    # (`ROLES_ADMIN`), avec la même empreinte bcrypt qu'un professeur.
     #
     # LE FILET, et il n'est pas facultatif : tant qu'AUCUN compte `admin` n'existe en base, les
     # variables d'environnement ouvrent comme avant. Sans lui, une base neuve — ou une base dont
     # la ligne d'administration a été effacée — mettrait dehors sans retour possible.
     admin_du_compte = (db.query(User)
-                         .filter(User.role == "admin", User.email == body.username)
+                         .filter(User.role.in_(ROLES_ADMIN), User.email == body.username)
                          .first())
-    un_admin_existe = db.query(User).filter(User.role == "admin").first() is not None
+    un_admin_existe = db.query(User).filter(User.role.in_(ROLES_ADMIN)).first() is not None
 
     if un_admin_existe:
         # Un compte `prof` qui tenterait cette porte échoue ici : le filtre porte sur le rôle,

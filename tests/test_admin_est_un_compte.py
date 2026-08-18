@@ -21,7 +21,8 @@ import bcrypt
 import pytest
 
 from backend.core.database import SessionLocal
-from backend.core.models_db import ConnexionLog, Setting, User
+from backend.core.limiter import limiter
+from backend.core.models_db import ROLES_ADMIN, ROLE_RECETTE_ADMIN, ConnexionLog, Setting, User
 from backend.main import app
 from fastapi.testclient import TestClient
 
@@ -44,11 +45,16 @@ def _poser(email: str, role: str, actif: bool = True) -> None:
 
 @pytest.fixture(autouse=True)
 def table_propre():
-    """Aucun administrateur au départ : chaque test pose exactement ce qu'il veut prouver."""
+    """Aucun administrateur au départ : chaque test pose exactement ce qu'il veut prouver.
+
+    Le compteur de débit est remis à zéro : /admin/login est plafonné à dix tentatives par
+    heure, et sept tests qui se connectent tour à tour atteignent le plafond avant la fin — le
+    dernier échouerait sur un 429 sans rapport avec ce qu'il vérifie."""
+    limiter.reset()
     with SessionLocal() as db:
         db.query(User).filter(User.email.in_([ADMIN, PROF])).delete(synchronize_session=False)
-        db.query(User).filter(User.role == "admin").update({"role": "prof"},
-                                                           synchronize_session=False)
+        db.query(User).filter(User.role.in_(ROLES_ADMIN)).update({"role": "prof"},
+                                                                 synchronize_session=False)
         db.commit()
     yield
     with SessionLocal() as db:
@@ -101,6 +107,14 @@ def test_un_compte_admin_ferme_la_porte_du_env():
     if not identifiant or not clair:
         pytest.skip("ADMIN_USERNAME / ADMIN_PASSWORD absents de cet environnement")
     assert _connexion(identifiant, clair).status_code == 401
+
+
+def test_le_compte_de_recette_ouvre_aussi_l_administration():
+    """La recette doit jouer les écrans d'administration : son compte y entre, et c'est le seul
+    droit qu'il partage avec l'administrateur réel. Son rôle le distingue partout ailleurs — dans
+    la liste des comptes comme dans tout décompte de professeurs."""
+    _poser(ADMIN, ROLE_RECETTE_ADMIN)
+    assert _connexion(ADMIN, MOT_DE_PASSE).status_code == 200
 
 
 def test_le_journal_nomme_celui_qui_est_entre():
