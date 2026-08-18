@@ -224,7 +224,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
           {/* La note concernée, toujours rappelée : la fenêtre couvre l'écran, on doit savoir sur
               quelle ligne on a cliqué. */}
           <div style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>
-            <span style={{ color: '#94a3b8' }}>Note&nbsp;:</span>{' '}
+            <span style={{ color: '#94a3b8' }}>Tâche&nbsp;:</span>{' '}
             <span style={{ color: '#0f172a', fontWeight: 600 }}>{titre}</span>
           </div>
 
@@ -235,7 +235,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
                             color: '#1e3a8a', lineHeight: 1.6,
                             background: bandeau.fond, border: `1px solid ${bandeau.bord}` }}>
                 Un navigateur parcourt l’application comme un utilisateur : il se connecte, ouvre
-                les écrans et vérifie ce qui s’affiche. La note ne sera cochée que si tout passe.
+                les écrans et vérifie ce qui s’affiche. La tâche ne sera cochée que si tout passe.
               </div>
               <Jauge faits={etat?.faits || 0} total={total} />
               <div style={{ marginTop: 12, fontSize: 13, color: '#475569',
@@ -254,7 +254,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
               <Pastille couleur="#16a34a" fond="#dcfce7"><Coche /></Pastille>
               <div style={{ fontSize: 14, color: '#14532d', lineHeight: 1.6 }}>
                 <strong>{total} scénario{total > 1 ? 's' : ''} parcouru{total > 1 ? 's' : ''}, rien de cassé.</strong>
-                <div style={{ marginTop: 4, color: '#166534' }}>La note passe dans « Faites ».</div>
+                <div style={{ marginTop: 4, color: '#166534' }}>La tâche passe dans « Faites ».</div>
               </div>
             </div>
           )}
@@ -272,14 +272,14 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
                     <>
                       <strong>La recette n’a pas tourné.</strong>
                       <div style={{ marginTop: 4, color: '#991b1b' }}>
-                        Rien n’a changé. La note est comme avant.
+                        Rien n’a changé. La tâche est comme avant.
                       </div>
                     </>
                   ) : (
                     <>
                       <strong>La recette a raté.</strong>
                       <div style={{ marginTop: 4, color: '#991b1b' }}>
-                        La note reste à faire, avec « Recette à refaire » en face.
+                        La tâche reste à faire, avec « Recette à refaire » en face.
                       </div>
                     </>
                   )}

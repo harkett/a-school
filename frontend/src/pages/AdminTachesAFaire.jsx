@@ -116,18 +116,19 @@ export default function AdminTachesAFaire() {
   }
 
   useActionsEcran(
-    taches ? (
+    taches && !form ? (
       <button
         onClick={() => setForm({ id: null, ...VIDE })}
-        disabled={!!form}
-        title={form ? 'Terminez la note en cours' : 'Noter une idée ou un chantier à traiter'}
-        style={form ? grise(BTN_AJOUTER) : BTN_AJOUTER}
+        title={'Inscrire une tâche à faire : son titre, et en détail ce qu’il faut faire. '
+             + 'Elle ne se coche pas à la main — quand elle sera finie, cocher lancera la recette, '
+             + 'et la case ne tombera que si tout passe.'}
+        style={BTN_AJOUTER}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              strokeWidth="2.5" strokeLinecap="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
-        Ajouter une note
+        Ajouter une nouvelle tâche
       </button>
     ) : null,
     [!!taches, !!form],
@@ -135,6 +136,78 @@ export default function AdminTachesAFaire() {
 
   if (erreur && !taches) return <p style={{ fontSize: 13, color: '#dc2626' }}>{erreur}</p>
   if (!taches) return <p style={{ fontSize: 13, color: '#9ca3af' }}>Chargement…</p>
+
+  // ── L'ÉCRAN DE CRÉATION PREND TOUTE LA PLACE ────────────────────────────────────────────
+  // Le formulaire s'insérait entre la recherche et les listes, qui restaient affichées dessous :
+  // on créait une tâche avec, sous les yeux, une barre de recherche dont on n'avait que faire et
+  // trente lignes qu'on ne lisait pas. Écrire, c'est écrire — la liste attend son tour.
+  //
+  // AUCUNE DATE ICI. Celle qui compte est l'heure du clic sur « Valider », posée par la base.
+  // L'afficher avant, c'est afficher une valeur qui n'est pas encore vraie.
+  if (form) {
+    const nouvelle = form.id === null
+    return (
+      <div style={{ maxWidth: 720 }}>
+        {erreur && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{erreur}</p>}
+
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 16px' }}>
+          {nouvelle ? 'Nouvelle tâche' : 'Modifier la tâche'}
+        </h3>
+
+        <label style={{ display: 'block', fontSize: 11, color: '#64748b', marginBottom: 4 }}>
+          Titre
+        </label>
+        <input
+          value={form.titre}
+          onChange={e => setForm({ ...form, titre: e.target.value })}
+          onKeyDown={e => e.key === 'Enter' && enregistrer()}
+          placeholder="Ce qu'il faut faire, en une ligne"
+          autoFocus
+          maxLength={200}
+          style={CHAMP}
+        />
+        <label style={{ display: 'block', fontSize: 11, color: '#64748b', margin: '10px 0 4px' }}>
+          Détail <span style={{ color: '#9ca3af' }}>(facultatif)</span>
+        </label>
+        {/* LE POURQUOI, LES PIÈGES, CE QU'ON AVAIT DÉCIDÉ. C'est ce qui fait qu'une note
+            relue dans six mois veut encore dire quelque chose. */}
+        <textarea
+          value={form.detail || ''}
+          onChange={e => setForm({ ...form, detail: e.target.value })}
+          rows={4}
+          placeholder="Le contexte, la décision prise, ce qui reste à trancher…"
+          style={{ ...CHAMP, resize: 'vertical' }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button
+            onClick={enregistrer}
+            disabled={occupe || !form.titre.trim()}
+            title={form.titre.trim() ? 'Enregistrer cette tâche' : 'Le titre est obligatoire'}
+            style={(occupe || !form.titre.trim()) ? grise(BTN_VALIDER) : BTN_VALIDER}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Valider
+          </button>
+          <button
+            onClick={() => setForm(null)}
+            disabled={occupe}
+            title="Abandonner cette tâche"
+            style={occupe ? grise(BTN_ANNULER) : BTN_ANNULER}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Annuler
+          </button>
+        </div>
+
+      </div>
+    )
+  }
 
   // LA RECHERCHE PORTE SUR LE DÉTAIL AUTANT QUE SUR LE TITRE. Ce qu'on retrouve six mois plus
   // tard, ce n'est presque jamais le titre exact — c'est un mot du contexte : « SMTP », « alias »,
@@ -163,7 +236,7 @@ export default function AdminTachesAFaire() {
         <input
           value={cherche}
           onChange={e => setCherche(e.target.value)}
-          placeholder="Rechercher dans les notes — titre et détail"
+          placeholder="Rechercher dans les tâches — titre et détail"
           style={{ ...CHAMP, paddingLeft: 32, paddingRight: cherche ? 32 : 10 }}
         />
         {cherche && (
@@ -178,67 +251,11 @@ export default function AdminTachesAFaire() {
         )}
       </div>
 
-      {form && (
-        <div style={{ border: '1px solid #bfdbfe', background: '#eff6ff', borderRadius: 10,
-                      padding: 14, marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 11, color: '#64748b', marginBottom: 4 }}>
-            Titre
-          </label>
-          <input
-            value={form.titre}
-            onChange={e => setForm({ ...form, titre: e.target.value })}
-            onKeyDown={e => e.key === 'Enter' && enregistrer()}
-            placeholder="Ce qu'il faut faire, en une ligne"
-            autoFocus
-            maxLength={200}
-            style={CHAMP}
-          />
-          <label style={{ display: 'block', fontSize: 11, color: '#64748b', margin: '10px 0 4px' }}>
-            Détail <span style={{ color: '#9ca3af' }}>(facultatif)</span>
-          </label>
-          {/* LE POURQUOI, LES PIÈGES, CE QU'ON AVAIT DÉCIDÉ. C'est ce qui fait qu'une note
-              relue dans six mois veut encore dire quelque chose. */}
-          <textarea
-            value={form.detail || ''}
-            onChange={e => setForm({ ...form, detail: e.target.value })}
-            rows={4}
-            placeholder="Le contexte, la décision prise, ce qui reste à trancher…"
-            style={{ ...CHAMP, resize: 'vertical' }}
-          />
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button
-              onClick={enregistrer}
-              disabled={occupe || !form.titre.trim()}
-              title={form.titre.trim() ? 'Enregistrer cette note' : 'Le titre est obligatoire'}
-              style={(occupe || !form.titre.trim()) ? grise(BTN_VALIDER) : BTN_VALIDER}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              Valider
-            </button>
-            <button
-              onClick={() => setForm(null)}
-              disabled={occupe}
-              title="Abandonner cette note"
-              style={occupe ? grise(BTN_ANNULER) : BTN_ANNULER}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
-
-      <Bloc titre="À faire" lignes={aFaire} vide={motif ? 'Aucune note ne correspond.' : 'Rien en attente.'}
+      <Bloc titre="À faire" lignes={aFaire} vide={motif ? 'Aucune tâche ne correspond.' : 'Rien en attente.'}
             basculer={basculer} supprimer={supprimer} occupe={occupe}
             modifier={t => setForm({ id: t.id, titre: t.titre, detail: t.detail || '', fait: t.fait })} />
 
-      <Bloc titre="Faites" lignes={faites} vide={motif ? 'Aucune note ne correspond.' : 'Aucune note terminée.'} faites
+      <Bloc titre="Faites" lignes={faites} vide={motif ? 'Aucune tâche ne correspond.' : 'Aucune tâche terminée.'} faites
             basculer={basculer} supprimer={supprimer} occupe={occupe}
             modifier={t => setForm({ id: t.id, titre: t.titre, detail: t.detail || '', fait: t.fait })} />
 
@@ -270,7 +287,7 @@ function Mention({ tache }) {
   return (
     <span
       title={vert
-        ? 'La recette est passée : cette note a été vérifiée, pas seulement cochée'
+        ? 'La recette est passée : cette tâche a été vérifiée, pas seulement cochée'
         : 'La recette a échoué — ouvrez le détail pour voir ce qui a lâché'}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
@@ -348,7 +365,7 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                 <Mention tache={t} />
                 <button
                   onClick={() => setOuverte(ouvert ? null : t.id)}
-                  title={ouvert ? 'Replier cette note' : 'Voir le détail de cette note, la modifier ou la supprimer'}
+                  title={ouvert ? 'Replier cette tâche' : 'Voir le détail de cette tâche, la modifier ou la supprimer'}
                   style={{ ...BTN_NEUTRE, flexShrink: 0 }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -366,7 +383,7 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                       laisserait croire que le dépliage a raté. */}
                   <div style={{ fontSize: 12, color: t.detail ? '#374151' : '#9ca3af',
                                 whiteSpace: 'pre-wrap', fontStyle: t.detail ? 'normal' : 'italic' }}>
-                    {t.detail || 'Aucun détail pour cette note.'}
+                    {t.detail || 'Aucun détail pour cette tâche.'}
                   </div>
                   {/* CE QUI A LÂCHÉ, gardé sous la note. Une mention « recette à refaire » sans
                       motif oblige à relancer trois minutes pour réapprendre ce qu'on savait. */}
@@ -386,7 +403,7 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                     <button
                       onClick={() => modifier(t)}
                       disabled={occupe}
-                      title="Modifier cette note"
+                      title="Modifier cette tâche"
                       style={occupe ? grise(BTN_NEUTRE) : BTN_NEUTRE}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -399,7 +416,7 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                     <button
                       onClick={() => supprimer(t)}
                       disabled={occupe}
-                      title="Supprimer définitivement cette note"
+                      title="Supprimer définitivement cette tâche"
                       style={occupe ? grise(BTN_ANNULER) : BTN_ANNULER}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
