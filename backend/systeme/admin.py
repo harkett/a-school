@@ -10,9 +10,7 @@ from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Query
 from fastapi.responses import RedirectResponse, StreamingResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel
-from sqlalchemy import create_engine, func, text
-from sqlalchemy.exc import ProgrammingError, SQLAlchemyError
-from sqlalchemy.pool import NullPool
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.securite.audit import log_admin_action
@@ -2711,8 +2709,8 @@ def server_metrics(db: Session = Depends(get_db), _: None = Depends(_require_adm
 
 @router.get("/admin/db-size")
 def db_size(request: Request, _: None = Depends(_require_admin)):
-    # Le schéma de la requête, pas la base : les cinq démonstrations partagent la leur, et sans
-    # cette précision chacune se verrait attribuer le total des cinq.
+    # Le schéma de la requête, pas la base : les démonstrations partagent la leur, et sans
+    # cette précision chacune se verrait attribuer le total de toutes.
     return {"size_mb": get_db_size_mb(schema_de(request))}
 
 
@@ -3038,12 +3036,9 @@ def get_stats_analytique(db: Session = Depends(get_db), _: None = Depends(_requi
 
 
 # ---------------------------------------------------------------------------
-# Bases de démonstration — PILOTAGE (table `demos`), jamais leur contenu
+# Démonstrations — PILOTAGE (table `demos`), jamais leur contenu
 # ---------------------------------------------------------------------------
-# Une démonstration vit dans une base PostgreSQL À PART (ciela_demo, cielb_demo…). Ces routes ne
-# l'ouvrent JAMAIS : elles lisent et écrivent la fiche qui la décrit, dans la base réelle. C'est
-# pourquoi les compteurs sont saisis et non calculés — les recompter voudrait dire se connecter
-# ailleurs, ce que ce moteur-ci ne fait pas.
+# Ces routes lisent et écrivent la FICHE d'une démonstration, jamais son contenu.
 
 # LE STATUT A ÉTÉ SUPPRIMÉ (16/08/2026). Cinq mots — À faire, En cours, Fabriquée, Testée,
 # Validée — dont deux seulement agissaient, et au même endroit : ouvrir l'entrée « Démonstration »
@@ -3083,12 +3078,11 @@ def _demo_en_dict(d: Demo, cycle_nom: str | None, niveau_nom: str | None) -> dic
 
 def _valider_demo(body: DemoIn, db: Session) -> tuple[str, str | None]:
     """Refuse tôt ce que la base refuserait tard, avec un message lisible. Rend (nom_base, url)
-    nettoyés. Le nom de base est contraint à la convention `<option>_demo` : minuscules, chiffres
-    et soulignés. Un tiret obligerait à écrire le nom entre guillemets dans toute commande SQL."""
+    nettoyés — minuscules, chiffres et soulignés, jamais de tiret."""
     nom = (body.nom_base or "").strip().lower()
     if not re.fullmatch(r"[a-z][a-z0-9_]*", nom):
-        raise HTTPException(400, "Nom de base invalide : minuscules, chiffres et soulignés, "
-                                 "commençant par une lettre (ex. ciela_demo).")
+        raise HTTPException(400, "Nom de compartiment invalide : minuscules, chiffres et "
+                                 "soulignés, commençant par une lettre.")
     if not db.get(Referentiel, body.referentiel_id):
         raise HTTPException(404, "Référentiel introuvable.")
     if min(body.nb_activites, body.nb_sequences, body.nb_seances) < 0:
@@ -3130,82 +3124,6 @@ def admin_demos_liste(db: Session = Depends(get_db), _: None = Depends(_require_
             {"id": rid, "cycle": c, "niveau": n} for rid, c, n in libres if rid not in pris
         ],
     }
-
-
-@router.get("/admin/demos/proposition")
-def admin_demos_proposition(referentiel_id: int = Query(...),
-                            db: Session = Depends(get_db), _: None = Depends(_require_admin)):
-    """Ce que l'écran peut renseigner tout seul quand l'admin choisit un référentiel.
-
-    POURQUOI CETTE ROUTE EXISTE. La fiche se remplissait entièrement à la main, y compris les
-    trois compteurs — et le commentaire d'en-tête de ce bloc l'expliquait par le fait que ce
-    moteur n'ouvre pas les bases de démonstration. C'était un choix, pas une limite : le serveur
-    PostgreSQL est le même conteneur, le même utilisateur, et seul le nom de base change. On
-    ouvre donc une connexion le temps de trois `count(*)`, et on la referme.
-
-    ELLE NE DÉCIDE RIEN : elle PROPOSE. Tout ce qu'elle renvoie reste modifiable à l'écran, et
-    rien n'est enregistré ici. Si la base n'existe pas encore — cas normal, l'admin déclare la
-    fiche AVANT que le dev fabrique — les compteurs valent zéro et `base_trouvee` est faux.
-
-    LE NOM DE BASE NE SE DÉDUIT PAS DU RÉFÉRENTIEL : un nom court comme `ciela_demo` ne se
-    calcule pas depuis l'intitulé complet du niveau, ni `ergo_demo` depuis « licence_ergotherapie ». On regarde donc ce
-    qui EXISTE sur le serveur : les bases en `_demo` qu'aucune fiche ne revendique. S'il n'en
-    reste qu'une, c'est celle-là — et c'est le cas réel, puisqu'on déclare la fiche d'une
-    démonstration à la fois. Sinon on propose un nom bâti sur le nom du référentiel, que
-    l'admin corrigera."""
-    ref = db.query(Referentiel).filter(Referentiel.id == referentiel_id).first()
-    if not ref:
-        raise HTTPException(404, "Référentiel inconnu.")
-
-    # Les bases `_demo` du serveur, moins celles qu'une fiche revendique déjà.
-    presentes = [r[0] for r in db.execute(text(
-        r"SELECT datname FROM pg_database WHERE datname LIKE '%\_demo' ORDER BY datname"
-    )).all()]
-    declarees = {n for (n,) in db.query(Demo.nom_base).all()}
-    candidates = [n for n in presentes if n not in declarees]
-
-    if len(candidates) == 1:
-        nom_base = candidates[0]
-    else:
-        # Repli : le nom du référentiel, ramené à des minuscules et des soulignés.
-        base = re.sub(r"[^a-z0-9]+", "_", (ref.nom_fixe or "").lower()).strip("_")
-        nom_base = f"{base}_demo" if base else ""
-
-    # L'adresse suit le port libre suivant : les piles se numérotent à la file (5174, 5175…).
-    ports = [int(m.group(1)) for (u,) in db.query(Demo.url).all() if u
-             for m in [re.search(r":(\d{4,5})", u)] if m]
-    url = f"http://localhost:{max(ports) + 1}" if ports else ""
-
-    compteurs = {"nb_sequences": 0, "nb_seances": 0, "nb_activites": 0}
-    base_trouvee = nom_base in presentes
-    erreur = None
-    if base_trouvee:
-        # Une connexion jetable vers l'autre base : même serveur, même utilisateur, seul le nom
-        # change. On dérive l'URL de l'objet `engine.url` et JAMAIS de son `str()` : SQLAlchemy
-        # y remplace le mot de passe par des étoiles, et la connexion échouerait sur un refus
-        # d'authentification. `dispose()` en sortie — aucun pool ne reste ouvert vers une démo.
-        autre = create_engine(engine.url.set(database=nom_base),
-                              pool_pre_ping=True, poolclass=NullPool)
-        try:
-            with autre.connect() as conn:
-                for cle, table in (("nb_sequences", "sequences"), ("nb_seances", "seances"),
-                                   ("nb_activites", "activites")):
-                    compteurs[cle] = conn.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0
-        except ProgrammingError:
-            # Base présente mais pas encore migrée : les tables n'existent pas. Ce n'est pas une
-            # erreur — c'est l'état normal entre le temps 1 et le temps 5 de la fabrication.
-            base_trouvee = False
-        except SQLAlchemyError as e:
-            # Tout le reste — base injoignable, droits refusés — se DIT. Un `except` muet
-            # renverrait trois zéros qui passeraient pour un comptage, et c'est exactement
-            # ainsi qu'un mot de passe masqué est passé inaperçu la première fois.
-            base_trouvee = False
-            erreur = type(e).__name__
-        finally:
-            autre.dispose()
-
-    return {"nom_base": nom_base, "url": url, "base_trouvee": base_trouvee,
-            "candidates": candidates, "erreur": erreur, **compteurs}
 
 
 @router.post("/admin/demos")
@@ -3407,7 +3325,10 @@ async def importer_demo(fichier: UploadFile = File(...), remplacer: bool = Form(
 class TacheAFaireBody(BaseModel):
     titre: str
     detail: str | None = None
-    fait: bool = False
+    # `None` = « ne touche pas à la case ». Le formulaire de modification n'envoie que le titre
+    # et le détail : avec un défaut à False, corriger une faute de frappe dans une note FAITE la
+    # remettait à faire, sans que personne ne l'ait demandé.
+    fait: bool | None = None
 
 
 def _tache_a_faire_vue(t: TacheAFaire) -> dict:
@@ -3417,6 +3338,9 @@ def _tache_a_faire_vue(t: TacheAFaire) -> dict:
         "detail": t.detail,
         "fait": t.fait,
         "fait_at": t.fait_at.isoformat() if t.fait_at else None,
+        "recette_etat": t.recette_etat,
+        "recette_at": t.recette_at.isoformat() if t.recette_at else None,
+        "recette_detail": t.recette_detail,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
@@ -3458,11 +3382,18 @@ def modifier_tache_a_faire(tache_id: int, body: TacheAFaireBody, db: Session = D
     t.detail = (body.detail or "").strip() or None
     # LA DATE SUIT LA CASE, dans les deux sens : décocher une note la remet à faire, et garder
     # une date de clôture sur une note rouverte la ferait passer pour terminée dans tout comptage.
-    if body.fait and not t.fait:
-        t.fait_at = maintenant_utc()
-    elif not body.fait:
-        t.fait_at = None
-    t.fait = body.fait
+    if body.fait is not None:
+        if body.fait and not t.fait:
+            t.fait_at = maintenant_utc()
+        elif not body.fait:
+            t.fait_at = None
+            # DÉCOCHER EFFACE LA RECETTE. La pastille verte dit « cette case a été gagnée » ; la
+            # garder sur une note redevenue à faire ferait passer un verdict périmé pour un
+            # verdict courant. Le prochain passage la réécrira.
+            t.recette_etat = None
+            t.recette_at = None
+            t.recette_detail = None
+        t.fait = body.fait
     db.commit()
     return _tache_a_faire_vue(t)
 
@@ -3478,3 +3409,81 @@ def supprimer_tache_a_faire(tache_id: int, db: Session = Depends(get_db),
     db.delete(t)
     db.commit()
     return {"status": "ok"}
+
+
+# --- LA RECETTE, DEPUIS LE CARNET -------------------------------------------------------------
+# COCHER NE SUFFIT PLUS. « Fait » était une déclaration : on cochait, et rien ne disait si le
+# travail tenait debout. Désormais la case lance la recette — le robot parcourt l'application
+# comme un utilisateur — et elle ne tombe que si tout est vert.
+#
+# LE BACKEND NE LANCE RIEN LUI-MÊME. Il n'a ni navigateur ni Node : il parle au service
+# `recette` (deploy/recette/serveur.js), qui les porte. Ces deux routes ne font que relayer, et
+# ÉCRIRE LE VERDICT dans la note au moment où il tombe — c'est le seul endroit où l'état de la
+# tâche change, ce qui évite qu'un écran fermé trop tôt laisse une note à moitié cochée.
+# ---------------------------------------------------------------------------
+
+RECETTE_URL = os.getenv("RECETTE_URL", "http://recette:9100")
+RECETTE_ABSENTE = ("Le service de recette ne répond pas. Il ne démarre pas tout seul : "
+                   "docker compose --profile recette up -d recette")
+
+
+def _appeler_le_lanceur(chemin: str, methode: str = "GET") -> dict:
+    """Un aller-retour vers le lanceur, avec un message utile quand la boîte n'est pas là."""
+    import httpx
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.request(methode, f"{RECETTE_URL}{chemin}")
+    except httpx.HTTPError:
+        raise HTTPException(503, RECETTE_ABSENTE)
+    if r.status_code == 409:
+        raise HTTPException(409, "Une recette est déjà en cours. Attendez qu'elle finisse.")
+    if r.status_code >= 400:
+        raise HTTPException(502, "Le service de recette a répondu de travers.")
+    return r.json()
+
+
+@router.post("/admin/taches-a-faire/{tache_id}/recette")
+def lancer_la_recette(tache_id: int, db: Session = Depends(get_db),
+                      _: None = Depends(_require_admin)):
+    """Démarre un passage. Rend la main tout de suite : la recette dure des minutes, l'écran
+    suit son avancement en interrogeant la route jumelle."""
+    t = db.get(TacheAFaire, tache_id)
+    if t is None:
+        raise HTTPException(404, "Note introuvable.")
+    etat = _appeler_le_lanceur("/lancer", "POST")
+    log_admin_action(db, "recette.lancer", f"tache #{tache_id} — {t.titre[:80]}")
+    return etat
+
+
+@router.get("/admin/taches-a-faire/{tache_id}/recette")
+def suivre_la_recette(tache_id: int, db: Session = Depends(get_db),
+                      _: None = Depends(_require_admin)):
+    """Où en est le passage — et, quand il est fini, LE VERDICT S'ÉCRIT DANS LA NOTE.
+
+    Verte : la note passe faite, datée. Ratée : elle reste à faire et porte le motif. C'est ici
+    que ça se joue, pas dans le navigateur : un écran fermé pendant la recette ne doit pas
+    laisser la note dans un entre-deux."""
+    t = db.get(TacheAFaire, tache_id)
+    if t is None:
+        raise HTTPException(404, "Note introuvable.")
+
+    etat = _appeler_le_lanceur("/etat")
+    verdict = etat.get("verdict")
+
+    if not etat.get("enCours") and verdict:
+        t.recette_etat = verdict
+        t.recette_at = maintenant_utc()
+        t.recette_detail = etat.get("detail")
+        if verdict == "verte":
+            if not t.fait:
+                t.fait = True
+                t.fait_at = maintenant_utc()
+        else:
+            # RATÉE : la note RESTE à faire. Si elle avait été cochée avant que la règle existe,
+            # elle se décoche — le carnet ne peut pas afficher « faite » sur un travail qui casse.
+            t.fait = False
+            t.fait_at = None
+        db.commit()
+
+    etat["tache"] = _tache_a_faire_vue(t)
+    return etat

@@ -145,7 +145,38 @@ services:
       - backend
 
 
-  # --- LES DÉMONSTRATIONS : une seule pile pour les cinq ---------------------------------------
+  # --- LE LANCEUR DE RECETTE : la boîte qui sait ouvrir un navigateur ---------------------------
+  # L'administrateur coche une note ; la recette part et le verdict decide si la case tombe.
+  # C'est ce service qui l'execute — pas le backend, qui est une image Python partant AUSSI en
+  # production : y installer Chromium et ses bibliotheques ajouterait 1,5 Go au serveur pour une
+  # fonction de developpement. Ici, l'image officielle Playwright porte deja tout.
+  #
+  # PROFIL `recette` : le service NE DEMARRE PAS avec `docker compose up`. Il faut le demander —
+  #     docker compose --profile recette up -d recette
+  # L'image pese 2 Go : personne ne la telecharge sans en avoir besoin.
+  #
+  # LES IDENTIFIANTS viennent de Scripts/.recette.env, jamais du depot. Sans ce fichier, le
+  # service demarre et repond, mais chaque passage echoue en le disant.
+  recette:
+    image: mcr.microsoft.com/playwright:v1.62.1-noble
+    profiles: ["recette"]
+    restart: unless-stopped
+    working_dir: /app/frontend
+    env_file:
+      - Scripts/.recette.env
+    environment:
+      # Dans la boite, le front se joint par le nom du service — pas par localhost, qui
+      # designerait le conteneur du lanceur lui-meme.
+      BASE_URL: http://frontend:5173
+      PORT: "9100"
+    command: sh -c "npm ci && npx playwright install chromium && node /app/deploy/recette/serveur.js"
+    volumes:
+      - .:/app
+      - /app/frontend/node_modules   # node_modules propre a la boite, comme pour le front
+    depends_on:
+      - frontend
+
+  # --- LES DÉMONSTRATIONS : une seule pile pour toutes ------------------------------------------
   # IL Y AVAIT CINQ PILES ICI, une par démonstration : cinq backends de 800 Mo et cinq serveurs
   # Vite, mesurés à 5,7 Go pour cinq bacs à sable presque toujours au repos. La raison en était
   # qu'une démonstration était une BASE, et qu'un process ne se connecte qu'à une base.
@@ -166,14 +197,14 @@ services:
     environment:
       ENV: development
       # LA ligne qui distingue cette pile de `backend` : la base des démonstrations, celle qui
-      # porte les cinq schémas. Plus de MODE_DEMO — le drapeau ne vient plus de l'environnement
-      # du process, qui sert maintenant les cinq, mais du schéma que la requête vise.
+      # porte leurs schémas. Plus de MODE_DEMO — le drapeau ne vient plus de l'environnement
+      # du process, qui les sert toutes, mais du schéma que la requête vise.
       DATABASE_URL: postgresql+psycopg://aschool:aschool@db:5432/aschool_demos
       OMP_NUM_THREADS: "8"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
     # PAS de `alembic upgrade head` ici, contrairement à la pile réelle : il ne verrait que
-    # `public`, qui ne porte que l'extension `vector`. Les cinq schémas se migrent chacun avec
+    # `public`, qui ne porte que l'extension `vector`. Les schémas se migrent chacun avec
     # leur propre table de version, par `outils_bdd/migrer_les_demos.py`.
     command: sh -c "python outils_bdd/attendre_la_base.py && uvicorn backend.main:app --host 0.0.0.0 --port 8001 --reload"
     ports:

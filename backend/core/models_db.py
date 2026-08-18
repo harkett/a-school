@@ -543,6 +543,119 @@ class ActiviteVersion(Base):
 
 
 # ---------------------------------------------------------------------------
+# Mes évals — Grilles d'évaluation (migration c9e4b7f2a1d6)
+# ---------------------------------------------------------------------------
+
+class Grille(Base):
+    """LA GRILLE D'ÉVALUATION DU PROFESSEUR — un TABLEAU, jamais un texte.
+
+    Des critères en lignes (`grille_criteres`), des niveaux de maîtrise en colonnes
+    (`grille_niveaux_maitrise`), et dans chaque case le descripteur qui dit ce qu'il faut avoir
+    fait pour obtenir ce niveau sur ce critère (`grille_cellules`). C'est ce descripteur que le
+    professeur lit, que l'IA écrit, et que tout ce qui viendra ensuite consommera.
+
+    ELLE APPARTIENT AU PROFESSEUR (`user_id`), comme une activité : il la crée, la retouche, la
+    duplique pour une autre classe, la rouvre l'année suivante, la supprime. Même cycle de vie
+    que `Activite` — mais PAS le même rangement : l'activité tient dans une colonne `resultat`
+    parce que c'est un texte ; une grille rangée de même serait belle à l'écran et inutilisable
+    ailleurs, à relire au parseur dès qu'on voudrait en ressortir quoi que ce soit.
+
+    IL N'Y A PAS DE TABLE DE VERSIONS ici, et ce n'est pas un oubli. Une version d'activité est
+    une photo d'un champ ; la photo d'une grille est celle de quatre tables. Le jour où le besoin
+    se présente, il se traite pour ce qu'il est — pas en recopiant un moule fait pour du texte.
+    """
+    __tablename__ = "grilles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # Titre = ce que le professeur évalue, saisi par lui (zone libre) -> Text, jamais borné :
+    # même leçon que les titres de séance, qu'une borne avait tronqués.
+    titre: Mapped[str] = mapped_column(Text, nullable=False)
+    # La DEMANDE du professeur, gardée telle qu'il l'a écrite — ce sur quoi la génération
+    # s'appuie, et ce qu'il relit l'année suivante avant de regénérer.
+    contexte: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    matiere: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, onupdate=maintenant_utc, nullable=False)
+
+
+class GrilleNiveauMaitrise(Base):
+    """LES COLONNES DU TABLEAU — l'échelle de la grille, commune à tous ses critères.
+
+    ELLE PEND SUR LA GRILLE, PAS SUR LE CRITÈRE, et c'est le point de fond. Rattachée au
+    critère, chaque ligne aurait sa propre échelle : le tableau cesserait d'être un tableau,
+    aucune colonne ne s'alignerait à l'écran ni à l'impression, et le professeur lirait une
+    juxtaposition de listes. Une échelle commune est ce qui fait qu'une grille se lit d'un coup
+    d'œil.
+
+    `points` = ce que vaut cet échelon ; `ordre` = de gauche à droite, du moins maîtrisé au plus
+    maîtrisé. UNIQUE sur le libellé : deux colonnes « Satisfaisant » dans la même grille ne
+    veulent rien dire.
+
+    NOM : `grille_niveaux_maitrise` et non `grille_niveaux`. Partout ailleurs dans le produit,
+    `niveau` désigne une classe (6e, BTS…) — `niveaux`, `referentiel_niveaux`, `activites.niveau`.
+    Deux sens pour un même mot dans un même schéma se paient au premier lecteur pressé. Le nom
+    dit lequel des deux, et c'est celui de l'écran : « niveau de maîtrise »."""
+    __tablename__ = "grille_niveaux_maitrise"
+    __table_args__ = (
+        UniqueConstraint("grille_id", "libelle", name="uq_grille_niveaux_maitrise_libelle"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    grille_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("grilles.id", ondelete="CASCADE"), nullable=False, index=True)
+    libelle: Mapped[str] = mapped_column(String(64), nullable=False)
+    points: Mapped[float] = mapped_column(Float, nullable=False, default=0, server_default="0")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class GrilleCritere(Base):
+    """LES LIGNES DU TABLEAU — ce que la grille évalue, un point par ligne.
+
+    `poids` = l'importance relative du critère dans la note ; il se multiplie aux `points` de
+    l'échelon coché. LES POINTS NE SONT PAS DANS LA CASE, et c'est une limite assumée le
+    17/08/2026 : un barème non linéaire — « Satisfaisant » valant 3 points sur un critère et 5
+    sur un autre — ne rentre pas dans ce modèle. Pour la grille du professeur, l'échelle commune
+    vaut mieux que la souplesse ; le jour où le contraire est vrai, c'est `grille_cellules` qui
+    portera les points, et ce sera une décision, pas une découverte.
+
+    `libelle` est Text : un critère réel est une phrase (« Rend un raisonnement dont chaque étape
+    se justifie »), pas une étiquette."""
+    __tablename__ = "grille_criteres"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    grille_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("grilles.id", ondelete="CASCADE"), nullable=False, index=True)
+    libelle: Mapped[str] = mapped_column(Text, nullable=False)
+    poids: Mapped[float] = mapped_column(Float, nullable=False, default=1, server_default="1")
+    ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class GrilleCellule(Base):
+    """LES CASES — le descripteur au croisement d'un critère et d'un niveau de maîtrise.
+
+    C'est LE contenu de la grille : « ce qu'il faut avoir fait pour obtenir Satisfaisant sur ce
+    critère ». Le reste (libellés, points, ordre) n'est que la charpente qui le porte.
+
+    UNE LIGNE PAR CROISEMENT RÉELLEMENT REMPLI : une case vide n'a pas de ligne, l'absence est le
+    vide — même règle que `outils_llm`, où l'absence est le réglage. UNIQUE sur le couple : une
+    case, un descripteur, jamais deux qui se contrediraient. CASCADE des deux côtés : retirer un
+    critère ou une colonne emporte ses cases, il n'en reste jamais d'orpheline."""
+    __tablename__ = "grille_cellules"
+    __table_args__ = (
+        UniqueConstraint("critere_id", "niveau_maitrise_id", name="uq_grille_cellules_croisement"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    critere_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("grille_criteres.id", ondelete="CASCADE"), nullable=False, index=True)
+    niveau_maitrise_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("grille_niveaux_maitrise.id", ondelete="CASCADE"), nullable=False, index=True)
+    descripteur: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+
+
+# ---------------------------------------------------------------------------
 # Admin backoffice — Phase 0
 # ---------------------------------------------------------------------------
 
@@ -656,6 +769,22 @@ class FeatureVotable(Base):
     icone: Mapped[str] = mapped_column(String(32), nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     actif: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # LE CYCLE DE VIE D'UNE PROMESSE. `livree` : la fonctionnalité existe, sa carte quitte
+    # l'écran « Bientôt disponible » — on ne fait pas voter pour ce qui est fait. `nouveaute` :
+    # elle s'annonce dans le bandeau d'accueil du professeur ; ne se coche que sur une ligne
+    # livrée, et se recoche des mois plus tard si la fonctionnalité est améliorée.
+    #
+    # CONVENTION DE LIVRAISON (16/08/2026) : c'est LA MIGRATION QUI LIVRE la fonctionnalité qui
+    # pose `livree = true` sur sa ligne. Le développement sait qu'elle existe, l'administrateur
+    # ne le devine pas — et la carte quitte l'écran du professeur le jour du déploiement, sans
+    # que personne ait à y penser. Il ne reste alors qu'une décision humaine, l'annonce, et elle
+    # remonte d'elle-même dans le centre d'actions (`backend/systeme/actions_admin.py`).
+    livree: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='0')
+    nouveaute: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default='0')
+    # L'écran du professeur que la nouveauté OUVRE quand il clique « Découvrir » : la clé de
+    # page du menu (`Sidebar.jsx`). Vide tant que la fonctionnalité n'existe pas — la bande dit
+    # alors « En savoir plus », qui ne promet que le texte.
+    page: Mapped[str | None] = mapped_column(String(48), nullable=True)
 
 
 class FeatureVote(Base):
@@ -679,6 +808,11 @@ class ToolUsageLog(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     tool: Mapped[str] = mapped_column(String(32), nullable=False)  # consigne | ambiguites
     score_label: Mapped[str | None] = mapped_column(String(32), nullable=True)  # Bon | Moyen | À revoir
+    # LE COUPLE SUR LEQUEL L'ANALYSE A ÉTÉ LANCÉE (16/08/2026). Un prof peut enseigner deux
+    # couples sans rapport : sans ces deux colonnes, ses compteurs d'analyses les additionnaient.
+    # NULL = ligne écrite avant cette date, elle ne remonte dans aucun compteur par couple.
+    matiere: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    niveau: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=maintenant_utc, nullable=False)
 
 
@@ -1224,27 +1358,13 @@ class ReferentielTypePrecision(Base):
 class Demo(Base):
     """Le PILOTAGE des bases de démonstration — jamais leur contenu.
 
-    Une démonstration, c'est une base PostgreSQL À PART qui contient un référentiel déjà fabriqué,
-    un compte de démonstration et du contenu d'exemple : un enseignant qui découvre le produit y
-    entre, explore et bidouille sans toucher au réel. Cette table-ci ne contient rien de tout
-    cela ; elle vit dans la base réelle et se contente de dire, pour chaque niveau, OÙ est sa
-    démonstration et OÙ elle en est.
-
-    POURQUOI `nom_base` EST DU TEXTE ET NON UNE CLÉ ÉTRANGÈRE : PostgreSQL ne sait pas référencer
-    une autre base. La démonstration est ailleurs, hors de portée du moteur — le lien ne peut donc
-    être qu'un nom, et c'est à nous de le tenir juste. Convention retenue : `<option>_demo`
-    (ciela_demo, cielb_demo, crsa_demo…), en minuscules et sans tiret, parce qu'un tiret obligerait
-    à écrire le nom entre guillemets dans TOUTE commande SQL — et un oubli se lirait comme une
-    soustraction.
+    Une démonstration contient un référentiel déjà fabriqué, un compte de démonstration et du
+    contenu d'exemple : un enseignant qui découvre le produit y entre, explore et bidouille sans
+    toucher au réel. Cette table-ci ne contient rien de tout cela ; elle vit dans la base réelle
+    et se contente de dire, pour chaque niveau, OÙ est sa démonstration et OÙ elle en est.
 
     UNE SEULE DÉMONSTRATION PAR RÉFÉRENTIEL (`uq_demos_referentiel`) : deux démonstrations du même
     niveau n'auraient aucun sens et l'admin ne saurait pas laquelle est livrée.
-
-    LES COMPTEURS SONT FIGÉS À DESSEIN. `nb_activites`, `nb_sequences` et `nb_seances` décrivent
-    une base que cette connexion-ci NE PEUT PAS interroger. Ils sont écrits au moment de la
-    fabrication et relus tels quels ; les rafraîchir demanderait d'ouvrir la base de démonstration.
-    Ils peuvent donc mentir si quelqu'un modifie la démonstration sans repasser par ici — c'est le
-    prix de la séparation, pas un oubli.
 
     `defauts_connus` est une MÉMOIRE, pas un journal d'incidents : ce qu'on a déjà trouvé sur cette
     démonstration et qu'il ne faut pas rechercher deux fois."""
@@ -1391,5 +1511,24 @@ class TacheAFaire(Base):
     # QUAND elle a été cochée. Sans cette date, une ligne faite hier et une ligne faite l'an
     # dernier se ressemblent, et le carnet ne se purge plus jamais.
     fait_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # LA RECETTE — une note ne se coche plus a la main, elle se GAGNE.
+    #
+    # POURQUOI. « Fait » etait une declaration : on cochait, et rien ne verifiait que le travail
+    # tenait debout. Un ecran casse ailleurs par la meme modification restait invisible jusqu'a
+    # ce que quelqu'un tombe dessus. Cocher lance donc la recette, et la case ne tombe que si
+    # elle est verte.
+    #
+    # TROIS ETATS, PAS QUATRE. NULL = jamais tentee (le cas de toute note fraiche, et le silence
+    # a l'ecran). 'verte' = la recette est passee, la note est faite. 'ratee' = elle a tourne et
+    # quelque chose a lache, la note RESTE a faire et le dit. Un quatrieme etat « en cours »
+    # n'a pas sa place ici : un passage dure trois minutes et vit dans la fenetre ouverte, pas
+    # dans la base — s'il s'y inscrivait, un navigateur ferme laisserait la note bloquee.
+    recette_etat: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    recette_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # CE QUI A LACHE, en clair. « La recette a rate » sans le motif est une porte fermee dont on
+    # n'a pas la clef : on relance a l'aveugle. Ce texte est celui qu'on relit dans six mois.
+    recette_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
