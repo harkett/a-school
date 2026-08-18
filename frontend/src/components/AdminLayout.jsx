@@ -280,7 +280,7 @@ const NAV_ITEMS = [
         // PAS DE RÉSUMÉ ICI, et c'est délibéré : cet écran porte ses trois boutons dans la barre
         // du haut. Une phrase entre le titre et les boutons les repoussait hors du cadre sur une
         // fenêtre étroite. Le « i » suffit — il ouvre la même explication, en entier.
-        aide: 'Les bases de démonstration, une par niveau : leur adresse, le référentiel qu’elles montrent, et l’état de chacune. On en crée une, on modifie sa fiche, on la retire, et « Visiter » y emmène directement avec votre identité d’administrateur.' },
+        aide: 'Les démonstrations : leur adresse et le référentiel qu’elles montrent. On en crée une, on modifie sa fiche, on la retire, et « Visiter » y emmène directement avec votre identité d’administrateur.' },
     ],
   },
   // — Système —
@@ -423,13 +423,26 @@ export default function AdminLayout() {
   // le même geste, dont un seul recevait les corrections. Constaté le 16/08/2026 : la règle
   // « rouge par défaut » posée dans `ErrorDialog` restait invisible côté administration.
 
+  // LA SESSION SE VÉRIFIE AU MONTAGE — et SEUL un 401 déconnecte.
+  //
+  // Le `.catch(() => navigate('/admin/login'))` d'avant éjectait sur N'IMPORTE QUELLE erreur du
+  // fetch, y compris celle que le navigateur lève quand il ANNULE une requête en vol. C'est
+  // exactement ce qui se passe à chaque retour arrière : le composant se remonte, la
+  // vérification part, la navigation l'annule, et l'administrateur se retrouve devant l'écran
+  // de connexion alors que son cookie est parfaitement valide. Trouvé par la recette
+  // (frontend/e2e/admin.spec.js), reproduit à tous les coups.
+  //
+  // Une coupure réseau n'est pas une déconnexion : dans ce cas l'écran monte quand même, et
+  // c'est la première lecture de données qui dira ce qui ne va pas — avec son message à elle.
   useEffect(() => {
-    fetch('/api/admin/check', { credentials: 'include' })
+    const arret = new AbortController()
+    fetch('/api/admin/check', { credentials: 'include', signal: arret.signal })
       .then(r => {
         if (r.status === 401) navigate('/admin/login')
         else setChecked(true)
       })
-      .catch(() => navigate('/admin/login'))
+      .catch(() => { if (!arret.signal.aborted) setChecked(true) })
+    return () => arret.abort()
   }, [navigate])
 
   useEffect(() => {

@@ -124,8 +124,13 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Adresse e-mail</label>
+              {/* Le libellé est RATTACHÉ à son champ (`htmlFor` / `id`) : sans ce lien, cliquer
+                  sur le mot ne met pas le curseur dans la case, et un lecteur d'écran annonce
+                  « zone de texte » sans dire laquelle. Même correction que sur l'écran de
+                  connexion de l'administration. */}
+              <label htmlFor="login-email" className="block text-xs text-gray-500 mb-1">Adresse e-mail</label>
               <input
+                id="login-email"
                 type="text"
                 inputMode="email"
                 className="w-full border border-gray-300 rounded p-2 text-sm"
@@ -140,9 +145,10 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Mot de passe</label>
+              <label htmlFor="login-mot-de-passe" className="block text-xs text-gray-500 mb-1">Mot de passe</label>
               <div className="relative">
                 <input
+                  id="login-mot-de-passe"
                   type={showPwd ? 'text' : 'password'}
                   className="w-full border border-gray-300 rounded p-2 pr-9 text-sm"
                   placeholder="••••••••"

@@ -57,8 +57,14 @@ export default function AdminLogin() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-300">Identifiant</label>
+            {/* LE LIBELLÉ EST RATTACHÉ À SON CHAMP (`htmlFor` / `id`). Sans ce lien, les deux
+                mots ne sont que du texte posé au-dessus d'une case : cliquer dessus ne met pas
+                le curseur dans le champ, et un lecteur d'écran annonce « zone de texte » sans
+                dire laquelle. La recette l'a trouvé — elle cherche les champs par leur libellé,
+                comme le ferait un lecteur d'écran. */}
+            <label htmlFor="admin-identifiant" className="text-xs font-medium text-gray-300">Identifiant</label>
             <input
+              id="admin-identifiant"
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -69,9 +75,10 @@ export default function AdminLogin() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-300">Mot de passe</label>
+            <label htmlFor="admin-mot-de-passe" className="text-xs font-medium text-gray-300">Mot de passe</label>
             <div className="relative">
               <input
+                id="admin-mot-de-passe"
                 type={showPwd ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
