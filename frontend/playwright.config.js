@@ -1,7 +1,9 @@
 import { defineConfig } from '@playwright/test'
 
 // Tests bout-en-bout : un vrai navigateur ouvre l'application et parcourt les ecrans.
-// Aucun appel a une IA, aucun cout. `BASE_URL` pour viser autre chose que le poste local.
+// UN SEUL APPEL PAYANT dans toute la recette : la generation d'une grille (grilles.spec.js).
+// Tout le reste est gratuit, y compris « Propose-moi une idee », eprouve sans appeler le modele.
+// `BASE_URL` pour viser autre chose que le poste local.
 export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
