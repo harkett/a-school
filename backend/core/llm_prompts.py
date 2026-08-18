@@ -838,6 +838,76 @@ Raison : (une phrase disant ce qui manque, adressée au professeur)
 Format de réponse : l'évaluation, ET RIEN D'AUTRE — aucun titre ajouté, aucun préambule, aucune liste des défauts, aucune remarque de ta part. Ce texte part tel quel dans la zone de saisie du professeur."""
 
 
+PROMPT_GRILLE_GENERATION = """Tu écris une GRILLE D'ÉVALUATION CRITÉRIÉE pour un enseignant de {matiere}, niveau {niveau}.
+
+Ce que l'enseignant veut évaluer, dans ses mots :
+{texte}
+
+Les EXTRAITS DU RÉFÉRENTIEL OFFICIEL ci-dessous disent ce que cette matière recouvre réellement à ce niveau. Ils te sont donnés pour que tu n'aies pas à l'interpréter : un intitulé court comme « Langage » ou « Le besoin » ne veut rien dire hors de sa formation.
+
+{referentiel}
+
+UNE GRILLE CRITÉRIÉE EST UN TABLEAU. En lignes, les critères — ce que l'élève doit démontrer. En colonnes, les niveaux de maîtrise, la MÊME échelle pour tous les critères. Dans chaque case, le descripteur : ce que l'élève doit AVOIR FAIT pour obtenir ce niveau sur ce critère.
+
+Règles de rédaction — ce sont elles qui font qu'une grille sert à quelque chose :
+- Un descripteur décrit un COMPORTEMENT OBSERVABLE dans le travail rendu, jamais un jugement. « Cite trois sources et les met en relation » se constate ; « Bon travail de recherche » ne se constate pas.
+- Ce qui varie d'une colonne à l'autre est le DEGRÉ DE RÉUSSITE, jamais le sujet : les descripteurs d'un même critère parlent tous de la même chose, à des degrés différents.
+- Ne fais pas varier la quantité seule (« une source », « deux sources »…) quand c'est la qualité qui est évaluée : compter n'est pas évaluer.
+- Aucun descripteur n'est vide, y compris le plus bas. « N'a pas rendu » n'est pas un descripteur ; dire ce qui EST fait, même insuffisant, en est un.
+- Pas de négation seule (« ne sait pas… ») : décris ce qui est présent dans le travail.
+- Emploie le vocabulaire de la matière et du niveau, celui des extraits ci-dessus. L'élève doit pouvoir lire sa grille et comprendre ce qu'on attend de lui.
+- QUATRE À SIX CRITÈRES. Au-delà, la grille cesse d'être utilisable : personne ne coche douze lignes par copie.
+- L'échelle par défaut est celle du socle : « Maîtrise insuffisante », « Maîtrise fragile », « Maîtrise satisfaisante », « Très bonne maîtrise ». Suis l'échelle demandée par l'enseignant s'il en indique une autre.
+- Les points croissent avec le niveau de maîtrise. Le poids d'un critère dit son importance relative dans la note (1 = ordinaire).
+
+Format de réponse — JSON strict, rien d'autre autour :
+{{
+  "titre": "Ce que la grille évalue, en quelques mots",
+  "niveaux_maitrise": [
+    {{"libelle": "Maîtrise insuffisante", "points": 0}}
+  ],
+  "criteres": [
+    {{
+      "libelle": "Ce que l'élève doit démontrer, en une phrase",
+      "poids": 1,
+      "descripteurs": {{
+        "Maîtrise insuffisante": "Ce que l'élève doit avoir fait pour obtenir ce niveau sur ce critère"
+      }}
+    }}
+  ]
+}}
+
+Règles de format :
+- "niveaux_maitrise" est ordonné de la moins bonne maîtrise à la meilleure.
+- Les clés de "descripteurs" reprennent EXACTEMENT les "libelle" de "niveaux_maitrise" — TOUS, pour CHAQUE critère, sans en omettre un seul. Une case manquante est une case que le professeur devra écrire lui-même.
+- Réponds uniquement en JSON valide. Aucun texte avant ou après le JSON."""
+
+
+# L'IDÉE proposée au professeur quand il ne sait pas quoi évaluer, écrite comme la DEMANDE qu'il
+# taperait lui-même — elle atterrit dans la zone de saisie de « Nouvelle grille », il la relit, la
+# modifie, puis « Générer la grille » suit le circuit normal. Ce prompt n'écrit donc PAS de grille.
+#
+# {demande} EST CE QUI LE REND UTILE. Sans le thème du professeur (« les réseaux », « la Révolution
+# française »), les extraits du référentiel arrivent au hasard du document entier et l'idée rendue
+# est quelconque — vraie, dans le programme, et sans rapport avec ce que l'enseignant a en tête. Ce
+# même thème est aussi la requête envoyée au référentiel : il sert donc deux fois.
+PROMPT_GRILLE_IDEE = """Tu es enseignant·e pour le niveau « {niveau} », en {matiere}.
+
+Un professeur cherche une idée de production à évaluer.
+Le professeur indique le thème ou le support qu'il a en tête : « {demande} ».
+Ton idée porte sur CE thème.
+À partir des EXTRAITS du référentiel officiel ci-dessous, propose UNE idée, écrite comme la demande que le professeur taperait lui-même : 2 à 3 phrases concrètes disant ce que les élèves rendent et ce qu'on y regarde.
+
+Contraintes : reste dans le périmètre du référentiel ; ne rédige PAS la grille, ni critères, ni niveaux de maîtrise ; aucun titre, aucune liste — uniquement le texte de la demande.
+
+## Extraits du référentiel officiel — {niveau}
+
+{referentiel}
+
+## Idée à proposer
+"""
+
+
 PROMPTS = {
     "ambiguites": {
         "label": "Analyse de l'énoncé du prof",
@@ -1166,6 +1236,27 @@ PROMPTS = {
         "categorie": "fonctionnalites",
         "fonctionnalite": "creer_activite",
         "default": PROMPT_PROPOSER_IDEE,
+    },
+    "grille_generation": {
+        "label": "Grille d'évaluation écrite à la demande du professeur",
+        "onglet": "Génération de la grille",
+        "role": "C'est LUI qui écrit la grille : il rend les critères, les niveaux de maîtrise et le descripteur de chaque case, en JSON, ancrés sur le référentiel du couple. Il part au modèle à chaque clic sur « Générer la grille ».",
+        "placeholders": ["matiere", "niveau", "texte", "referentiel"],
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "grilles",
+        "default": PROMPT_GRILLE_GENERATION,
+    },
+    # Le frère de « proposer_idee » côté grilles, à deux différences près : il ne connaît pas de
+    # type d'activité (une grille n'en a pas), et il reçoit le THÈME que le professeur vient de
+    # taper dans la fenêtre — sans lui, l'idée rendue serait quelconque.
+    "grille_idee": {
+        "label": "« Propose-moi une idée » (demande de grille écrite à la place du prof)",
+        "onglet": "Propose une idée de grille",
+        "role": "Il n'écrit AUCUNE grille : il rend la demande que le professeur taperait lui-même, sur le thème qu'il vient d'indiquer, ancrée sur les extraits de son référentiel. Il part au modèle à chaque clic sur « Propose-moi une idée ».",
+        "placeholders": ["matiere", "niveau", "demande", "referentiel"],
+        "categorie": "fonctionnalites",
+        "fonctionnalite": "grilles",
+        "default": PROMPT_GRILLE_IDEE,
     },
     "entete_cahier": {
         "label": "Intitulé du cahier des charges de l'établissement (ajouté aux générations)",

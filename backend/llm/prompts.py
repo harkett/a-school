@@ -108,3 +108,36 @@ def build_proposer_idee_prompt(db: Session, chunks: list[dict], type_label: str,
     return get_prompt(db, "proposer_idee").format(
         quoi=quoi, niveau=niveau, referentiel=_bloc_referentiel(chunks, niveau),
     )
+
+
+def build_grille_prompt(db: Session, chunks: list[dict], matiere: str, niveau: str,
+                        texte: str) -> str:
+    """Prompt — ÉCRIT la grille d'évaluation critériée que le professeur demande, pour son
+    couple, ancrée sur les extraits de son référentiel.
+
+    Même geste que ses frères : les extraits entrent dans le prompt, et c'est ce qui empêche les
+    critères de partir dans une autre discipline que celle du couple. `texte` est la demande du
+    professeur, telle qu'il l'a écrite — le prompt ne la reformule pas.
+
+    Il rend du JSON, pas un texte : une grille est un tableau, et ce qui en sort se range dans
+    `grilles` + ses trois filles. L'assemblage reste ici comme pour les autres ; la lecture de
+    ce JSON, elle, appartient à la route (`backend/contenu/grilles.py`)."""
+    return get_prompt(db, "grille_generation").format(
+        matiere=matiere, niveau=niveau, texte=texte,
+        referentiel=_bloc_referentiel(chunks, niveau),
+    )
+
+
+def build_grille_idee_prompt(db: Session, chunks: list[dict], matiere: str, niveau: str,
+                             demande: str) -> str:
+    """Prompt — propose UNE idée de production à évaluer, formulée comme la DEMANDE COURTE que le
+    prof écrirait lui-même (c'est là qu'elle atterrit : la zone de « Nouvelle grille »). Il
+    n'écrit PAS la grille — celle-ci reste le travail de `build_grille_prompt`, au clic suivant.
+
+    `demande` est le thème tapé par le professeur dans la fenêtre. Il a DÉJÀ servi de requête au
+    référentiel (c'est lui qui a ramené `chunks`) ; il entre ici une seconde fois pour que l'idée
+    porte sur ce thème et pas sur le premier passage venu du programme."""
+    return get_prompt(db, "grille_idee").format(
+        matiere=matiere, niveau=niveau, demande=demande,
+        referentiel=_bloc_referentiel(chunks, niveau),
+    )
