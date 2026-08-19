@@ -165,16 +165,31 @@ services:
     env_file:
       - Scripts/.recette.env
     environment:
-      # Dans la boite, le front se joint par le nom du service — pas par localhost, qui
-      # designerait le conteneur du lanceur lui-meme.
-      BASE_URL: http://frontend:5173
+      # LA RECETTE PARCOURT L'APPLICATION CONSTRUITE, PAS LE SERVEUR DE DEVELOPPEMENT (18/08/2026).
+      #
+      # Elle visait `http://frontend:5173`, le Vite de developpement. Celui-ci recharge la page
+      # des qu'un fichier bouge : le robot perdait son ecran en pleine saisie et rapportait
+      # « Error: locator.fill: Test ended » — deux passages rates sans qu'aucun defaut de
+      # l'application soit en cause.
+      #
+      # Le lanceur construit donc l'application et la sert LUI-MEME, dans sa propre boite. D'ou
+      # `localhost` ici : ce n'est plus un autre conteneur qu'on joint, c'est le serveur que le
+      # lanceur vient d'allumer a cote de lui.
+      BASE_URL: http://localhost:4173
+      PREVIEW_PORT: "4173"
+      # Le proxy `/api` de l'application construite a besoin de savoir ou est le backend, comme
+      # celui du service `frontend` — meme cible, meme port.
+      VITE_API_HOST: backend
+      VITE_API_PORT: 8001
       PORT: "9100"
     command: sh -c "npm ci && npx playwright install chromium && node /app/deploy/recette/serveur.js"
     volumes:
       - .:/app
       - /app/frontend/node_modules   # node_modules propre a la boite, comme pour le front
     depends_on:
-      - frontend
+      # Plus `frontend` : le lanceur ne depend plus du serveur de developpement, il construit et
+      # sert l'application lui-meme. Il lui reste le backend, que l'application interroge.
+      - backend
 
   # --- LES DÉMONSTRATIONS : une seule pile pour toutes ------------------------------------------
   # IL Y AVAIT CINQ PILES ICI, une par démonstration : cinq backends de 800 Mo et cinq serveurs

@@ -13,7 +13,7 @@ modèles ne connaissent pas le sujet. C'était auparavant un process et une base
 
 LE PASSAGE. L'instance réelle émet un JETON signé, valable cinq minutes, qui porte l'identité du
 prof en CLAIR mais en NOMS (email, prénom, nom, matière, niveau) — jamais en identifiants : les
-`matieres.id` et `niveaux.id` de la base de démonstration n'ont rien à voir avec ceux du réel.
+`matieres.id` et `niveaux.id` d'une démonstration n'ont rien à voir avec ceux du réel.
 L'instance de démonstration le vérifie, retrouve ou crée le compte, pose ses cookies.
 
 LE SECRET. `DEMO_SECRET`, partagé par les deux instances. Il n'est PAS obligatoire au démarrage,
@@ -68,7 +68,7 @@ def _secret() -> str | None:
 
 def mode_demo(request: Request) -> bool:
     """CETTE REQUÊTE sert-elle une démonstration ? Décidé par le sous-domaine, plus par
-    l'environnement du process : un process unique sert maintenant le réel ET les cinq
+    l'environnement du process : un process unique sert maintenant le réel ET les
     démonstrations, donc le drapeau ne peut plus être une propriété du process.
 
     Il ne se lit pas non plus dans la base : le schéma est déjà la réponse. Tout schéma autre que
@@ -165,7 +165,7 @@ def passage(url: str, email: str, prenom: str | None, nom: str | None,
         "email": email,
         "prenom": prenom,
         "nom": nom,
-        # Des NOMS, jamais des identifiants : l'autre base a ses propres clés.
+        # Des NOMS, jamais des identifiants : de l'autre côté, les clés sont différentes.
         "matiere": matiere,
         "niveau": niveau,
         "exp": datetime.now(timezone.utc) + _VALIDITE,
@@ -195,12 +195,12 @@ def demo_etat(request: Request, db: Session = Depends(get_db)):
     """Sans authentification, à dessein : l'écran doit savoir qu'il est en démonstration AVANT
     que quiconque soit connecté, sinon le bandeau n'apparaîtrait qu'après coup.
 
-    Rend AUSSI le couple que cette base sert — « cycle · niveau » —, pour que le bandeau
+    Rend AUSSI le couple servi ici — « cycle · niveau » —, pour que le bandeau
     ne dise pas seulement « vous êtes en démonstration » mais « en démonstration de QUOI ». Sans
     lui, un prof qui ouvre deux démonstrations dans deux onglets ne sait plus laquelle il regarde.
 
-    Le couple se LIT, il ne se déclare pas : c'est celui des référentiels réellement découpés de
-    cette base. Plusieurs référentiels y sont possibles ; on les nomme tous plutôt que d'en élire
+    Le couple se LIT, il ne se déclare pas : c'est celui des référentiels réellement découpés
+    ici. Plusieurs référentiels y sont possibles ; on les nomme tous plutôt que d'en élire
     un au hasard. Aucun découpé : `couple` reste vide et le bandeau garde sa phrase seule.
     """
     if not mode_demo(request):
@@ -286,7 +286,7 @@ def _a_du_contenu(db: Session, user: User) -> bool:
 
 
 def _creer_visiteur(db: Session, email: str, charge: dict) -> User:
-    """Le compte du prof DANS la base de démonstration. Vérifié et actif d'emblée : il vient
+    """Le compte du prof DANS la démonstration. Vérifié et actif d'emblée : il vient
     d'une instance qui l'a déjà authentifié. Son mot de passe est tiré au hasard et jeté — la
     seule porte d'entrée ici est le jeton, il ne faut pas qu'une seconde existe."""
     import secrets as _secrets
@@ -306,7 +306,7 @@ def _creer_visiteur(db: Session, email: str, charge: dict) -> User:
 
 
 def _id_par_nom(db: Session, modele, nom: str | None) -> int | None:
-    """Le nom vient de l'autre base ; ici il peut ne correspondre à rien (une démonstration ne
+    """Le nom vient de l'autre côté ; ici il peut ne correspondre à rien (une démonstration ne
     porte qu'un niveau et quelques matières). Absent = NULL, le prof choisira sur place."""
     if not nom:
         return None

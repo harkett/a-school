@@ -191,8 +191,6 @@ EXCEPTIONS_PERMANENTES = {
         "alerts.py — les valeurs semées par f1c9a3e7b5d2, relues UNIQUEMENT si la ligne en base "
         "est illisible. Filet de saisie, pas une source.",
 
-    # Les écritures acceptées pour un booléen d'ENVIRONNEMENT (MODE_DEMO). Ce n'est pas une
-    # donnée : c'est la tolérance de lecture d'une variable posée à la main dans un compose.
 }
 
 TOLERE = set(DETTE) | set(EXCEPTIONS_PERMANENTES)

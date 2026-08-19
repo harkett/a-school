@@ -10,6 +10,7 @@ BDD de test PostgreSQL dédiée (aschool_test via conftest.py), IA et texte du P
 
 Lancer : docker compose exec backend python -m pytest tests/test_depot_couple.py -q
 """
+from datetime import date
 import os
 import uuid
 from unittest.mock import patch
@@ -141,14 +142,16 @@ def test_lettres_verticales_ecartees():
 def test_modifier_unite_recalcule_l_empreinte():
     """PUT d'une unité : le texte est écrit ET l'empreinte recalculée dans le MÊME geste (mock du
     calcul). Garde : 404 si l'unité n'appartient pas au couple ; 400 si texte vide."""
-    from backend.core.models_db import Referentiel, ReferentielChunk
+    from backend.core.models_db import Referentiel, ReferentielChunk, ReferentielDocument
     cid = _cycle("DC-Edit", 75)
     nid = _niveau(cid, "DC-NivEdit", 75)
     with dbmod.SessionLocal() as db:
         ref = Referentiel(niveau_id=nid, nom_fixe="dc_edit", collection="dc_edit",
                           filtres=None, fichier="doc.pdf")
         db.add(ref); db.flush()
-        ch = ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
+        doc = ReferentielDocument(referentiel_id=ref.id, fichier="doc.pdf"); db.add(doc); db.flush()
+        ch = ReferentielChunk(referentiel_id=ref.id, document_id=doc.id, portee="matiere",
+                              valide_du=date.today(), chunk_index=0, option_ab="", page=1,
                               texte="Titre\nRéaliser une pâte\n34", embedding=[0.0] * 1024,
                               embedding_model="test")
         db.add(ch); db.commit()
@@ -218,15 +221,20 @@ def test_lire_document_epure():
 def test_decoupe_lit_le_texte_en_base():
     """La découpe lit le texte de travail EN BASE (texte_epure) — plus aucune extraction du PDF :
     le texte passé à l'IA est EXACTEMENT la colonne figée au dépôt (règles de ce jour-là)."""
-    from backend.core.models_db import Referentiel
+    from backend.core.models_db import Referentiel, ReferentielDocument
     cid = _cycle("DC-Dec", 80)
     nid = _niveau(cid, "DC-NivDec", 80)
     with dbmod.SessionLocal() as db:
         # Le prompt de découpe vit sur le RÉFÉRENTIEL (06/08/2026) : posé là, aucune rédaction IA
         # n'est déclenchée et la découpe part directement.
-        db.add(Referentiel(niveau_id=nid, nom_fixe="dc_dec", collection="dc_dec",
-                           filtres=None, fichier="doc.pdf", texte_epure="TEXTE FIGE EN BASE",
-                           prompt_decoupe="PROMPT {texte}", prompt_decoupe_valide=True))
+        ref = Referentiel(niveau_id=nid, nom_fixe="dc_dec", collection="dc_dec",
+                          filtres=None, fichier="doc.pdf", texte_epure="TEXTE FIGE EN BASE",
+                          prompt_decoupe="PROMPT {texte}", prompt_decoupe_valide=True)
+        db.add(ref); db.flush()
+        # LE DOCUMENT EXISTE, comme après un vrai dépôt : les unités écrites par la découpe
+        # doivent dire de quel document elles sortent.
+        db.add(ReferentielDocument(referentiel_id=ref.id, fichier="doc.pdf",
+                                   texte_epure="TEXTE FIGE EN BASE"))
         db.commit()
     with patch("backend.rag.analyse_amont.decouper_texte",
                return_value=[{"titre": "T", "texte": "TEXTE FIGE EN BASE"}]) as mocked:
@@ -480,8 +488,8 @@ def test_page_contenu_arbre_complet():
     recollait. L'arbre porte donc TOUTES les matières du référentiel, y compris celles que le prof
     ne voit pas — retirée du programme (actif=false) ou seulement proposée (validee=false) — et
     l'id du référentiel, qu'il faut pour y créer une matière."""
-    from backend.core.models_db import (Referentiel, ReferentielChunk, Matiere,
-                                        ActiviteType, ReferentielTypePrecision)
+    from backend.core.models_db import (Referentiel, ReferentielChunk, ReferentielDocument,
+                                        Matiere, ActiviteType, ReferentielTypePrecision)
     cid = _cycle("DC-Cont", 84)
     nid = _niveau(cid, "DC-NivCont", 84)
     nid_vide = _niveau(cid, "DC-NivVide", 85)
@@ -497,7 +505,9 @@ def test_page_contenu_arbre_complet():
                        demande_langue=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Retiree", ordre=2, actif=False, validee=True))
         db.add(Matiere(referentiel_id=ref.id, nom="DC-Proposee", ordre=3, actif=True, validee=False))
-        db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab="", page=1,
+        doc = ReferentielDocument(referentiel_id=ref.id, fichier="doc.pdf"); db.add(doc); db.flush()
+        db.add(ReferentielChunk(referentiel_id=ref.id, document_id=doc.id, portee="matiere",
+                                valide_du=date.today(), chunk_index=0, option_ab="", page=1,
                                 texte="Unité 1", embedding=[0.0] * 1024, embedding_model="test"))
 
         db.add(ReferentielTypePrecision(type_activite_id=t1.id,

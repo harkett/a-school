@@ -4,6 +4,16 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import pkg from './package.json' with { type: 'json' }
 
+// LE RELAIS VERS LE BACKEND, écrit une fois pour les DEUX serveurs de Vite : `server` (le
+// développement) et `preview` (l'application construite, celle que la recette parcourt).
+const PROXY_API = {
+  '/api': {
+    target: `http://${process.env.VITE_API_HOST || 'localhost'}:${process.env.VITE_API_PORT || 8000}`,
+    changeOrigin: false,
+    cookieDomainRewrite: 'localhost',
+  },
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -75,12 +85,22 @@ export default defineConfig({
     // Sans polling, Vite ne voit jamais les éditions du code → pas de hot-reload (il sert l'ancien
     // module en cache). Le polling force la surveillance → toute modif se recharge toute seule.
     watch: { usePolling: true },
-    proxy: {
-      '/api': {
-        target: `http://${process.env.VITE_API_HOST || 'localhost'}:${process.env.VITE_API_PORT || 8000}`,
-        changeOrigin: false,
-        cookieDomainRewrite: 'localhost',
-      },
-    },
+    proxy: PROXY_API,
+  },
+  // LE SERVEUR DE L'APPLICATION CONSTRUITE — celui que la recette parcourt (18/08/2026).
+  //
+  // POURQUOI PAS `server`. En développement, Vite recharge la page dès qu'un fichier bouge. Un
+  // robot qui remplit un formulaire pendant ce rechargement perd son écran en pleine saisie et
+  // rapporte « Error: locator.fill: Test ended » — un échec qui ne dit rien de l'application.
+  // `preview` sert `dist/` : des fichiers figés, aucun rechargement, aucune surveillance.
+  //
+  // LE PROXY EST À REDIRE ICI. Vite ne partage pas les options de `server` avec `preview` :
+  // posé sur `server` seul, `/api` n'a plus de destination une fois construit et l'écran de
+  // connexion tombe en 404. D'où `PROXY_API`, écrit une fois et donné aux deux.
+  preview: {
+    host: true,
+    port: Number(process.env.PREVIEW_PORT || 4173),
+    strictPort: true,
+    proxy: PROXY_API,
   },
 })

@@ -22,16 +22,14 @@ const TYPE_SEQ = TYPES_CONTENUS.sequence
 
 // Icône du type : un « chemin à étapes » (départ → tracé → objectif), devant le titre de page.
 // PAS la pile : c'est déjà l'icône du menu « Mes contenus » (confusion signalée le 30/07).
-const IconChemin = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={TYPE_SEQ.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <circle cx="6" cy="19" r="3"/>
-    <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/>
-    <circle cx="18" cy="5" r="3"/>
-  </svg>
-)
 import SplitPane from '../SplitPane.jsx'
 import InfoGuide from '../InfoGuide.jsx'
 import { IconCalendar, IconShare, IconTrash } from '../icones.jsx'
+import { astucesEcran } from '../../utils/astuces.js'
+import { IconSequence } from '../icones.jsx'
+
+// Les astuces de cet écran, lues une fois (catalogue figé) : le « a » ne bouge pas d'un rendu à l'autre.
+const astucesContenus = astucesEcran('contenus')
 
 
 
@@ -337,7 +335,7 @@ export default function SequencesContenus({ onOuvrirSequence, sessionMatiere, se
           « Nouvelle séquence » à droite (« Cacher le détail » vit sur la ligne des onglets). */}
       <div className="flex items-center gap-3" style={{ flexShrink: 0, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div className="flex items-baseline gap-3">
-          <h2 className="text-lg font-semibold text-gray-800" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IconChemin />Mes séquences<InfoGuide {...aideSequences('ecran')} /></h2>
+          <h2 className="text-lg font-semibold text-gray-800" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IconSequence couleur={TYPE_SEQ.accent} />Mes séquences<InfoGuide {...aideSequences('ecran')} />{astucesContenus && <InfoGuide {...astucesContenus} />}</h2>
           {!loading && headerCount > 0 && (
             <span style={{ fontSize: 12, color: TYPE_SEQ.accent, background: TYPE_SEQ.fond, border: `1px solid ${TYPE_SEQ.bord}`, borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
               {headerCount} séquence{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}

@@ -52,10 +52,10 @@ export const GUIDE_EQUITE = [
     court: "Cochez les biais à faire chercher : aSchool ne remonte QUE ceux-là. Rien n'est coché au départ.",
     long: "Les neuf biais sont des cases à cocher, et aucune n'est cochée au départ : c'est vous qui dites ce "
       + "que vous voulez faire relire. Survolez-en une pour lire ce qu'elle repère.\n\n"
-      + "Ils ont tous la même forme : l'évaluation demande quelque chose EN PLUS de ce qu'elle veut mesurer, "
-      + "et ce quelque chose n'est pas également disponible à tous vos élèves. Un savoir qui n'a pas été "
-      + "enseigné, une expérience de vie que tous n'ont pas, un ordinateur à la maison, une longueur de "
-      + "lecture qui prend le pas sur la matière.\n\n"
+      + "Ils ont tous la même forme : l'évaluation exige quelque chose EN PLUS de ce qu'elle veut mesurer, "
+      + "et tous vos élèves n'en disposent pas. Un savoir qui n'a pas été enseigné, une expérience de vie "
+      + "que tous n'ont pas, un ordinateur à la maison, une longueur de lecture qui prend le pas sur la "
+      + "matière.\n\n"
       + "aSchool ne remonte QUE les biais demandés, et il les traite un par un au lieu de s'arrêter au "
       + "premier vu. La liste vient du catalogue de l'application, à la même source que celle sur laquelle "
       + "l'analyse travaille.",

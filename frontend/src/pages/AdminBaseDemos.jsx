@@ -1,11 +1,7 @@
-// Page « Base de données → Démos » — le PILOTAGE des bases de démonstration, jamais leur contenu.
+// Page « Démos » — le PILOTAGE des démonstrations, jamais leur contenu.
 //
-// Une démonstration vit dans une base PostgreSQL À PART (ciela_demo, cielb_demo…) : un référentiel
-// déjà fabriqué, un compte de démonstration, du contenu d'exemple. Cet écran ne l'ouvre JAMAIS —
-// il tient sa FICHE, dans la base réelle. D'où deux conséquences visibles ici :
-//   · les compteurs se SAISISSENT et ne se calculent pas (les recompter voudrait dire se
-//     connecter à l'autre base, ce que le serveur ne fait pas) ;
-//   · « Retirer » retire la fiche de la liste, pas la base — elle survit et se détruit à la main.
+// Cet écran tient la FICHE d'une démonstration — le référentiel qu'elle fait découvrir, son
+// adresse, ses compteurs — et jamais son contenu. « Retirer » retire la fiche de la liste.
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWithTimeout, TIMEOUT_STD, TIMEOUT_XLONG } from '../utils/api.js'
@@ -159,7 +155,7 @@ export default function AdminBaseDemos() {
   async function retirer(d) {
     const ok = window.confirm(
       'Retirer « ' + d.nom_base + ' » de cette liste ?\n\n'
-      + "La base PostgreSQL, elle, n'est pas touchée : elle continue d'exister sur le serveur."
+      + "Seule la fiche disparaît : la démonstration, elle, continue d'exister."
     )
     if (!ok) return
     setBusy(true); setErreurEcriture('')
@@ -231,11 +227,10 @@ export default function AdminBaseDemos() {
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
         <div>
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Bases de démonstration</h2>
+            <h2 className="text-base font-semibold text-gray-800">Démonstrations</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              Une base par niveau, livrée avec le produit : l’enseignant qui découvre y explore
-              sans toucher au réel. Cet écran tient leur fiche — les données, elles, vivent dans
-              leur propre base.
+              Une démonstration par niveau, livrée avec le produit : l’enseignant qui découvre y
+              explore sans toucher au réel. Cet écran tient leur fiche, jamais leur contenu.
             </p>
             <p className="text-xs text-gray-400 mt-1">
               <b>On n’entre jamais dans une démonstration par un compte de démonstration.</b> D’ici,
@@ -267,9 +262,9 @@ export default function AdminBaseDemos() {
               <thead>
                 <tr style={{ textAlign: 'left', color: '#64748b', borderBottom: '1px solid #e5e7eb' }}>
                   <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', minWidth: 190 }}>Niveau</th>
-                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>Base</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}>Compartiment</th>
                   <th style={{ padding: '6px 8px', fontWeight: 700, color: '#334155' }}
-                      title="L'instance branchée sur cette base — sans elle, le prof ne peut pas s'y rendre">
+                      title="L'adresse de cette démonstration — sans elle, le prof ne peut pas s'y rendre">
                     Adresse
                   </th>
                   {/* LES COMPTEURS ONT QUITTÉ LA VUE D'ENSEMBLE (16/08/2026). Trois nombres
@@ -327,7 +322,7 @@ function LigneLecture({ d, busy, onModifier, onRetirer }) {
                  title="Ouvrir cette démonstration dans un nouvel onglet">{d.url}</a>
             : <span style={{ color: '#b45309' }}
                     title="Tant qu'aucune adresse n'est renseignée, l'entrée « Démonstration » du menu prof reste grisée">
-                instance non montée
+                adresse non renseignée
               </span>}
         </td>
         <td style={{ padding: '8px', color: '#64748b' }}>{jour(d.date_generation)}</td>
@@ -340,7 +335,7 @@ function LigneLecture({ d, busy, onModifier, onRetirer }) {
              target="_blank" rel="noreferrer"
              style={{ ...btnVisiter(!d.url), textDecoration: 'none' }}
              title={d.url
-               ? "Ouvrir cette démonstration avec votre identité d'administrateur — quel que soit votre couple, et même si elle n'est pas encore déclarée testée"
+               ? "Ouvrir cette démonstration avec votre identité d'administrateur — quel que soit votre couple"
                : "Renseignez d'abord l'adresse de l'instance"}>
             <IconVisiter /> Visiter
           </a>
@@ -360,7 +355,7 @@ function LigneLecture({ d, busy, onModifier, onRetirer }) {
           {' '}
           <button type="button" style={btnAnnuler(busy)} disabled={busy}
                   onClick={onRetirer}
-                  title="Retirer cette fiche de la liste — la base PostgreSQL n’est pas touchée">
+                  title="Retirer cette fiche de la liste">
             Retirer
           </button>
         </td>
@@ -384,37 +379,6 @@ function LigneLecture({ d, busy, onModifier, onRetirer }) {
 function FenetreEdition({ edition, setEdition, libres, demo, busy, erreur, onValider, onAnnuler }) {
   const set = (k, v) => setEdition(e => ({ ...e, [k]: v }))
   const nouveau = edition.id === 'nouveau'
-  // Ce que le serveur a proposé au dernier choix de référentiel : sert uniquement à dire, sous
-  // le champ, d'où viennent les compteurs. `null` tant qu'aucun choix n'a été fait.
-  const [propose, setPropose] = useState(null)
-
-  // AU CHOIX DU RÉFÉRENTIEL, l'écran va chercher ce qu'il peut renseigner seul : le nom de la
-  // base, l'adresse, et les trois compteurs lus dans la base de démonstration elle-même.
-  // Rien n'est imposé — tous les champs restent modifiables, et un échec de la requête laisse
-  // simplement le formulaire tel qu'il était.
-  async function choisirReferentiel(v) {
-    set('referentiel_id', v)
-    setPropose(null)
-    if (!nouveau || v === '') return
-    try {
-      const r = await fetchWithTimeout('/api/admin/demos/proposition?referentiel_id=' + v,
-                                       { credentials: 'include' }, TIMEOUT_STD)
-      if (!r.ok) return
-      const p = await r.json()
-      setPropose(p)
-      setEdition(e => ({
-        ...e,
-        nom_base: p.nom_base || e.nom_base,
-        url: p.url || e.url,
-        nb_sequences: p.nb_sequences,
-        nb_seances: p.nb_seances,
-        nb_activites: p.nb_activites,
-      }))
-    } catch {
-      // Silence volontaire : la proposition est un confort, pas une étape. L'admin saisit.
-    }
-  }
-
   // En modification, le référentiel de la ligne ne figure pas dans « libres » (il est pris — par
   // elle). On le rajoute en tête, sinon le menu s'ouvrirait sur un choix vide.
   const choix = nouveau
@@ -470,8 +434,8 @@ function FenetreEdition({ edition, setEdition, libres, demo, busy, erreur, onVal
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
               Niveau
               <select style={champ} value={edition.referentiel_id} disabled={busy}
-                      onChange={e => choisirReferentiel(e.target.value)}
-                      title="Le référentiel que cette démonstration fait découvrir — le choisir renseigne la base, l’adresse et les compteurs">
+                      onChange={e => set('referentiel_id', e.target.value)}
+                      title="Le référentiel que cette démonstration fait découvrir">
                 <option value="">— choisir —</option>
                 {choix.map(r => (
                   <option key={r.id} value={r.id}>
@@ -482,56 +446,46 @@ function FenetreEdition({ edition, setEdition, libres, demo, busy, erreur, onVal
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
-              Base PostgreSQL
+              Compartiment de données
               <input style={champ} value={edition.nom_base} disabled={busy}
                      onChange={e => set('nom_base', e.target.value)}
-                     placeholder="ciela_demo"
-                     title="Nom de la base qui contient les données — minuscules et soulignés, jamais de tiret" />
-              {/* D'où viennent les compteurs affichés. Sans cette ligne, trois zéros passeraient
-                  pour un comptage réel alors que la base n'a pas encore été fabriquée. */}
-              {propose && (
-                <span style={{ fontSize: 11, color: propose.base_trouvee ? '#15803d' : '#92400e' }}>
-                  {propose.base_trouvee ? 'Base lue — compteurs à jour'
-                    : propose.erreur ? 'Base injoignable (' + propose.erreur + ') — compteurs à saisir'
-                    : 'Base pas encore fabriquée — compteurs à saisir'}
-                </span>
-              )}
+                     title="Le compartiment où vivent les contenus de cette démonstration — minuscules et soulignés, jamais de tiret" />
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
-              Adresse de l’instance
+              Adresse
               <input style={champ} value={edition.url} disabled={busy}
                      onChange={e => set('url', e.target.value)}
                      placeholder="https://demo-ciela.aschool.fr"
-                     title="L’application branchée sur cette base — c’est là que le menu prof enverra l’enseignant" />
+                     title="C’est là que le menu prof enverra l’enseignant" />
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
               Activités
               <input style={champ} type="number" min="0" value={edition.nb_activites} disabled={busy}
                      onChange={e => set('nb_activites', e.target.value)}
-                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+                     title="Nombre d’activités de la démonstration" />
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
               Séquences
               <input style={champ} type="number" min="0" value={edition.nb_sequences} disabled={busy}
                      onChange={e => set('nb_sequences', e.target.value)}
-                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+                     title="Nombre de séquences de la démonstration" />
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
               Séances
               <input style={champ} type="number" min="0" value={edition.nb_seances} disabled={busy}
                      onChange={e => set('nb_seances', e.target.value)}
-                     title="Compteur figé — cet écran ne peut pas ouvrir la base pour recompter" />
+                     title="Nombre de séances de la démonstration" />
             </label>
 
             <label style={{ fontSize: 11.5, color: '#64748b' }}>
               Fabriquée le
               <input style={champ} type="date" value={edition.date_generation} disabled={busy}
                      onChange={e => set('date_generation', e.target.value)}
-                     title="Date de fabrication de la base" />
+                     title="Date de fabrication de la démonstration" />
             </label>
 
           </div>
@@ -564,7 +518,7 @@ function FenetreEdition({ edition, setEdition, libres, demo, busy, erreur, onVal
           <button type="button" style={btnValider(busy || !pret)} disabled={busy || !pret}
                   onClick={onValider}
                   title={pret ? 'Enregistrer cette fiche'
-                              : 'Choisissez un niveau et donnez le nom de la base'}>
+                              : 'Choisissez un niveau et donnez le nom du compartiment'}>
             {busy ? 'Enregistrement…' : 'Valider'}
           </button>
         </div>

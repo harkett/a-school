@@ -20,12 +20,14 @@ CE QUE LE TEST PROUVE (embeddings MOCKÉS — déterministe, aucun modèle charg
 Base de test PostgreSQL dédiée (aschool_test via conftest.py) — JAMAIS SQLite.
 Lancer : docker compose exec backend python -m pytest tests/test_annee_du_cycle_filtre_le_rag.py -q
 """
+from datetime import date
 from unittest.mock import patch
 
 import pytest
 
 import backend.core.database as dbmod
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
+                                    ReferentielDocument)
 from backend.rag.pgvector_store import retrieve_pg
 
 VECTEUR = [0.1] * 1024          # un seul vecteur pour toutes les unités : le tri par distance
@@ -53,12 +55,21 @@ def cycle4():
         ref = Referentiel(niveau_id=n4.id, nom_fixe="AN-cycle4", collection="an_cycle4")
         solo = Referentiel(niveau_id=n_bts.id, nom_fixe="AN-solo", collection="an_solo")
         db.add_all([ref, solo]); db.flush()
+        # Chaque unité sort d'un document et dit ce qu'elle couvre : ici aucune matière n'est
+        # liée, donc le tri par matière ne s'applique pas — seule l'année filtre, comme avant.
+        doc = ReferentielDocument(referentiel_id=ref.id, fichier="cycle4.pdf")
+        doc_solo = ReferentielDocument(referentiel_id=solo.id, fichier="solo.pdf")
+        db.add_all([doc, doc_solo]); db.flush()
         for i, (texte, annee) in enumerate(UNITES):
-            db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=i, option_ab="",
+            db.add(ReferentielChunk(referentiel_id=ref.id, document_id=doc.id,
+                                    portee="matiere", valide_du=date.today(),
+                                    chunk_index=i, option_ab="",
                                     annee=annee, page=1, texte=texte,
                                     embedding=VECTEUR, embedding_model="test"))
         for i, texte in enumerate(["Bloc 1 du BTS", "Bloc 2 du BTS"]):
-            db.add(ReferentielChunk(referentiel_id=solo.id, chunk_index=i, option_ab="",
+            db.add(ReferentielChunk(referentiel_id=solo.id, document_id=doc_solo.id,
+                                    portee="matiere", valide_du=date.today(),
+                                    chunk_index=i, option_ab="",
                                     annee=None, page=1, texte=texte,
                                     embedding=VECTEUR, embedding_model="test"))
         db.commit()
@@ -70,7 +81,7 @@ def _textes(collection, annee, top_k=10):
     """retrieve_pg avec l'embedding de la QUESTION mocké — aucun modèle n'est chargé."""
     with patch("backend.rag.pgvector_store.embed_texts", return_value=[VECTEUR]):
         chunks = retrieve_pg(collection, "une question", top_k=top_k,
-                             schema="public", annee=annee)
+                             schema="public", annee=annee, matiere=None)
     return {c["text"] for c in chunks}
 
 
@@ -105,4 +116,4 @@ def test_un_referentiel_d_un_seul_niveau_rend_tout(cycle4):
 def test_annee_est_obligatoire(cycle4):
     """Sans valeur par défaut : l'oubli est une erreur immédiate, jamais une fuite silencieuse."""
     with pytest.raises(TypeError):
-        retrieve_pg("an_cycle4", "une question", schema="public")
+        retrieve_pg("an_cycle4", "une question", schema="public", matiere=None)

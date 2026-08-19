@@ -15,13 +15,16 @@ export const HAUTEUR_HEADER = 65
 // travail, avec son bouton « Changer niveau et/ou matière » juste dessous) et « compte »
 // (l'identité au-dessus de « Se déconnecter »). onOuvrirGuide null = la page n'a pas de
 // mode d'emploi → le bouton est CACHÉ (pas grisé).
+// `gele` : le prof est DANS « Mon profil ». Même effet que `bloque` sur les boutons — ils
+// deviennent inertes — mais SANS la consigne rouge : le profil peut être complet, on ne lui
+// reproche rien, on l'empêche seulement de partir travailler avec un profil à moitié changé.
 // `bloque` : le professeur vient de s'inscrire, son profil est vide, et TOUT l'écran est éteint
 // sauf la carte « Mon profil ». Le bandeau, lui, ne s'éteint PAS — il porte la seule phrase qui
 // dit quoi faire, et le logo, qu'une application sérieuse ne grise jamais. Ce sont ses BOUTONS
 // qui deviennent inertes : ils mèneraient ailleurs, et cet ailleurs n'existe pas encore.
 export default function Header({ matiere, niveau, email, prenom, nom, profilNomIncomplet, onLogout, onNavigate, onFeedback,
                                  sessionMatiere, coupleAjuste, onValiderCouple, onRevenirProfil, onOuvrirGuide,
-                                 bloque = false }) {
+                                 bloque = false, gele = false }) {
   const nomAffiche = [prenom, nom].filter(Boolean).join(' ') || email
   const matiereNiveau = [matiere, niveau].filter(Boolean).join(' - ')
   const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
@@ -84,11 +87,11 @@ export default function Header({ matiere, niveau, email, prenom, nom, profilNomI
         {/* CE QUI SUIT EST INERTE TANT QUE LE PROFIL EST VIDE : ces boutons mènent ailleurs, et
             cet ailleurs n'existe pas encore. Ils restent VISIBLES — pâlis, pas effacés — pour
             qu'on voie ce qui attend une fois le profil rempli. */}
-        <div style={bloque
+        <div style={(bloque || gele)
                     ? { display: 'flex', alignItems: 'center', gap: '1rem',
                         opacity: 0.45, pointerEvents: 'none' }
                     : { display: 'flex', alignItems: 'center', gap: '1rem' }}
-             aria-hidden={bloque || undefined}>
+             aria-hidden={(bloque || gele) || undefined}>
         {/* Colonne assistance : le mode d'emploi de la page (si elle en a un) + le feedback */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           {onOuvrirGuide && (

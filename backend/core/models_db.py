@@ -1,5 +1,5 @@
-﻿from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, Integer, Float, Numeric, DateTime, Index, JSON, Text, ForeignKey, UniqueConstraint, Identity, func, text
+﻿from datetime import date, datetime, timezone
+from sqlalchemy import String, Boolean, Integer, Float, Numeric, Date, DateTime, Index, JSON, Text, ForeignKey, UniqueConstraint, CheckConstraint, Identity, func, text
 from sqlalchemy import event
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -1224,6 +1224,39 @@ class Referentiel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
+class ReferentielDocument(Base):
+    """UN DOCUMENT DÉPOSÉ, ET LE MORCEAU DE TEXTE QU'IL DONNE.
+
+    POURQUOI CETTE TABLE. Un référentiel n'était qu'UN fichier : redéposer, c'était tout
+    remplacer — le texte épuré entier, et les unités entières. Une réforme d'un seul programme
+    obligeait donc à refaire la découpe de tout le diplôme, parce que RIEN ne désignait les
+    unités venues du texte modifié.
+
+    L'IDENTIFIANT DE DOCUMENT EST LE LIEN. Le morceau de texte épuré vit ici ; les unités qui en
+    sortent portent `document_id`. Les deux disent la même provenance, donc un redépôt sait
+    exactement ce qu'il remplace : ce morceau-là, et ces unités-là.
+
+    CE QUE CETTE TABLE N'EST PAS ENCORE (19/08/2026). Elle ne porte pas la matière du document :
+    le dépôt par arrêté — un dépôt = un document = une matière — est l'étape 4 du chantier. Ici,
+    un référentiel a exactement UN document, celui de son PDF, et `referentiels.texte_epure`
+    reste le texte de travail que lisent les matières, le prompt et la découpe. Les deux sont
+    écrits dans le MÊME geste (la validation du dépôt) : ils ne peuvent pas diverger."""
+    __tablename__ = "referentiel_documents"
+    __table_args__ = (Index("ix_referentiel_documents_referentiel_id", "referentiel_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    referentiel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
+    # Le VRAI nom du fichier déposé (le disque, lui, garde `referentiel.pdf`) : c'est ce nom-là
+    # qu'on lit à l'écran pour reconnaître un arrêté parmi d'autres.
+    fichier: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)
+    date_doc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # LE MORCEAU DE TEXTE ÉPURÉ de CE document — extrait une seule fois à la validation, figé.
+    texte_epure: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
 class ReferentielChunk(Base):
     """Chunk d'un référentiel + son embedding (RAG sur PostgreSQL/pgvector — remplace ChromaDB).
 
@@ -1237,13 +1270,36 @@ class ReferentielChunk(Base):
     __table_args__ = (
         Index("ix_referentiel_chunks_referentiel_id", "referentiel_id"),
         Index("ix_referentiel_chunks_ref_option", "referentiel_id", "option_ab"),
+        Index("ix_referentiel_chunks_document_id", "document_id"),
         Index("ix_referentiel_chunks_embedding_hnsw", "embedding",
               postgresql_using="hnsw", postgresql_ops={"embedding": "vector_cosine_ops"}),
+        # DEUX VALEURS, ÉCRITES, ET RIEN D'AUTRE. Sans cette contrainte, une portée mal
+        # orthographiée passerait en base et l'unité disparaîtrait de toutes les recherches sans
+        # qu'aucune erreur ne soit levée — le pire des défauts, celui qui a l'air d'un état normal.
+        CheckConstraint("portee IN ('matiere', 'formation')", name="ck_referentiel_chunks_portee"),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
     referentiel_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("referentiels.id", ondelete="CASCADE"), nullable=False)
+    # DE QUEL DOCUMENT SORT CETTE UNITÉ. Sans lui, redéposer un texte oblige à effacer toutes les
+    # unités du référentiel : rien ne dit lesquelles venaient du document remplacé.
+    document_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiel_documents.id", ondelete="CASCADE"), nullable=False)
+    # LA PORTÉE : 'matiere' ou 'formation'. Elle est OBLIGATOIRE et SANS VALEUR PAR DÉFAUT —
+    # écrire une unité, c'est dire ce qu'elle couvre.
+    #   'matiere'    — l'unité appartient à une ou plusieurs matières, dites par la liaison
+    #                  `referentiel_chunk_matieres`. Aucune liaison = unité pas encore étiquetée,
+    #                  c'est un travail qui reste à faire, jamais un « vaut pour toutes ».
+    #   'formation'  — un texte de CADRE (socle commun, compétences travaillées, repères de
+    #                  progressivité) : il ne se rattache à aucune matière, et le moteur l'ajoute
+    #                  à toutes les générations, quelle que soit celle du prof.
+    portee: Mapped[str] = mapped_column(String(10), nullable=False)
+    # LA PLAGE DE VALIDITÉ — ce qui remplace l'écrasement. Une réforme ne détruit plus le texte
+    # d'avant : l'ancienne version se FERME (`valide_au` prend une date) et la nouvelle s'ouvre.
+    # `valide_au` vide = en vigueur. La recherche ne lit que ce qui vaut le jour même.
+    valide_du: Mapped[date] = mapped_column(Date, nullable=False)
+    valide_au: Mapped[date | None] = mapped_column(Date, nullable=True)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     option_ab: Mapped[str] = mapped_column(Text, nullable=False)
     # L'annee du CYCLE a laquelle cette unite appartient ('5e'/'4e'/'3e'), NULL quand elle vaut
@@ -1254,6 +1310,32 @@ class ReferentielChunk(Base):
     texte: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(1024), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+
+
+class ReferentielChunkMatiere(Base):
+    """DE QUELLE MATIÈRE PARLE CETTE UNITÉ — une liaison, jamais une liste dans une colonne.
+
+    POURQUOI UNE TABLE ET PAS UN CHAMP. Une unité peut relever de plusieurs matières (un texte
+    d'histoire-géographie, un enseignement commun à deux disciplines), et une matière renommée
+    doit rester la même matière. Une liste de noms dans une colonne ne sait faire ni l'un ni
+    l'autre : elle se désynchronise au premier renommage, et personne ne s'en aperçoit.
+
+    LE VIDE N'EST PAS « TOUTES ». Une unité de portée `matiere` SANS liaison n'est pas une unité
+    universelle : c'est une unité qu'on n'a pas encore étiquetée. C'est ce que compte l'écran
+    (« 0 sans matière »), et c'est ce que l'étape 2 du chantier vient solder. Les textes qui
+    valent pour tout le monde, eux, le disent autrement : portée `formation`.
+
+    CASCADE DES DEUX CÔTÉS. L'unité disparaît (redépôt) : sa liaison n'a plus d'objet. La
+    matière disparaît (retirée du programme) : le rattachement non plus. Une liaison orpheline
+    ferait rentrer dans une recherche une matière qui n'existe plus."""
+    __tablename__ = "referentiel_chunk_matieres"
+    __table_args__ = (Index("ix_referentiel_chunk_matieres_matiere_id", "matiere_id"),)
+
+    chunk_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("referentiel_chunks.id", ondelete="CASCADE"), primary_key=True)
+    matiere_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("matieres.id", ondelete="CASCADE"), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
 
 
@@ -1511,6 +1593,30 @@ class TacheAFaire(Base):
     # QUAND elle a été cochée. Sans cette date, une ligne faite hier et une ligne faite l'an
     # dernier se ressemblent, et le carnet ne se purge plus jamais.
     fait_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # L'ÉPREUVE DE CETTE TÂCHE-LÀ (18/08/2026).
+    #
+    # POURQUOI. Cocher lançait une suite de scénarios FIXE, la même pour toutes les notes :
+    # cocher « Une seule connexion par prof » rejouait l'administration, le menu et les grilles.
+    # La case tombait sans que la fonctionnalité demandée ait été regardée une seule fois.
+    #
+    # CE QU'ON MET ICI. Les gestes propres à la note, tirés de son détail : ce qu'il faut ouvrir,
+    # cliquer, vérifier. C'est LE DEV qui l'écrit et qui la met à jour quand la demande change —
+    # l'administrateur la lit, il ne la rédige pas.
+    #
+    # NULL = pas encore écrite. Une note fraîche n'a pas d'épreuve tant que personne ne l'a
+    # rédigée ; c'est un manque à combler, pas un état de repos.
+    recette: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # « DÉVELOPPEMENT EN COURS » — la note est entre les mains d'une session.
+    #
+    # Le carnet ne disait pas ce qui était PARTI. Une note copiée et confiée à une session
+    # ressemblait trait pour trait à une note jamais ouverte : on la redonnait deux fois, ou on
+    # attendait un travail que personne n'avait lancé.
+    #
+    # POSÉ PAR « COPIER », RETIRÉ PAR LA COCHE. Copier la note, c'est la donner ; la cocher, c'est
+    # que le travail est fini. Aucun troisième geste à retenir.
+    dev_en_cours: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
 
     # LA RECETTE — une note ne se coche plus a la main, elle se GAGNE.
     #

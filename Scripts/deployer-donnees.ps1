@@ -1,15 +1,15 @@
 ﻿# ─────────────────────────────────────────────────────────────
-# deployer-donnees.ps1 — envoie les SIX bases du poste vers le VPS et les y remplace.
+# deployer-donnees.ps1 — envoie la base reelle du poste vers le VPS et l'y remplace.
 #
 # CE QUE deploy.ps1 NE FAIT PAS, et pourquoi ce script existe. `deploy.ps1` pousse le CODE :
 # git pull, dépendances, `alembic upgrade head`, build. Alembic crée des tables VIDES. Le
-# contenu — cinq référentiels découpés, 384 unités vectorisées, les types, les précisions, et
-# le contenu pédagogique des cinq démonstrations écrit à la main — n'existe que sur ce poste.
-# Sans ce script-ci, le serveur reçoit une application parfaite et vide.
+# contenu — les référentiels découpés, leurs unités vectorisées, les types, les précisions —
+# n'existe que sur ce poste. Sans ce script-ci, le serveur reçoit une application parfaite
+# et vide.
 #
 # CE QU'IL FAIT :
-#   1. dumpe les six bases depuis le conteneur PostgreSQL local ;
-#   2. les envoie par SCP dans deploy/dumps/ sur le VPS ;
+#   1. dumpe la base reelle depuis le conteneur PostgreSQL local ;
+#   2. l'envoie par SCP dans deploy/dumps/ sur le VPS ;
 #   3. y lance `deploy/restaurer-bases.sh`, qui sauvegarde puis REMPLACE.
 #
 # IL NE DÉPLOIE PAS LE CODE. Les deux sont séparés à dessein : on repousse du code dix fois par
@@ -32,13 +32,7 @@ $VPS_PATH = "/var/www/a-school"
 $CONTENEUR_DB = "a-school-db-1"
 
 $racine = Split-Path -Parent $PSScriptRoot
-$listeDemos = Join-Path $racine "deploy\demos.conf"
 $dossierDumps = Join-Path $racine "deploy\dumps"
-
-if (-not (Test-Path $listeDemos)) {
-    Write-Host "ERREUR : deploy\demos.conf introuvable." -ForegroundColor Red
-    exit 1
-}
 
 # La base réelle se lit dans le .env — jamais recopiée ici, sinon elle divergera un jour.
 $envLocal = Join-Path $racine ".env"
@@ -49,29 +43,22 @@ if (-not $ligneDb) {
 }
 $baseReelle = ($ligneDb -split '/')[-1] -replace '\?.*$', ''
 
-# Les démonstrations viennent de la liste unique.
-$basesDemo = Get-Content $listeDemos |
-    Where-Object { $_ -notmatch '^\s*#' -and $_.Trim() -ne '' } |
-    ForEach-Object { ($_ -split ':')[0] }
+$bases = @($baseReelle)
 
-$bases = @($baseReelle) + $basesDemo
-
-# LE NOM DU DUMP N'EST PAS LE NOM DE LA BASE, pour la base reelle seulement. Elle s'appelle
-# `aschool_dev` sur le poste et `aschool` sur le serveur : un dump nomme d'apres la base locale
-# serait cherche en vain la-bas. Il voyage donc sous `_reelle.dump`, et c'est le serveur qui
-# lit SON propre .env pour savoir dans quelle base le verser. Les demonstrations, elles,
-# portent le meme nom des deux cotes : leur nom EST leur identite.
+# LE NOM DU DUMP N'EST PAS LE NOM DE LA BASE. Elle s'appelle `aschool_dev` sur le poste et
+# `aschool` sur le serveur : un dump nomme d'apres la base locale serait cherche en vain
+# la-bas. Il voyage donc sous `_reelle.dump`, et c'est le serveur qui lit SON propre .env pour
+# savoir dans quelle base le verser.
 function NomDump([string]$base) {
-    if ($base -eq $baseReelle) { return "_reelle" } else { return $base }
+    return "_reelle"
 }
 
 Write-Host ""
-Write-Host "Bases a envoyer : $($bases -join ', ')" -ForegroundColor Cyan
 Write-Host "Base reelle locale : $baseReelle  (envoyee sous _reelle.dump)" -ForegroundColor DarkGray
 
 # ── 1. Dumps ─────────────────────────────────────────────────
 Write-Host ""
-Write-Host "1/3  Dump des bases locales..." -ForegroundColor Cyan
+Write-Host "1/2  Dump de la base locale..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $dossierDumps | Out-Null
 
 foreach ($b in $bases) {
@@ -81,8 +68,7 @@ foreach ($b in $bases) {
     # vers un fichier avec `>` : PowerShell 5.1 — la seule version installée sur ce poste —
     # prend la sortie d'un programme pour du TEXTE. Il la décode, la réencode en UTF-8 et lui
     # colle un BOM en tête. Sur un dump binaire, le fichier GROSSIT au lieu d'être invalide de
-    # façon visible : 935 921 octets au lieu de 570 931 pour `ciela_demo` (mesuré le
-    # 10/08/2026), en-tête `EF BB BF` au lieu de `PGDMP`. `pg_restore` répond alors « input
+    # façon visible : en-tête `EF BB BF` au lieu de `PGDMP`. `pg_restore` répond alors « input
     # file does not appear to be a valid archive » — mais côté serveur seulement, une fois les
     # dumps envoyés. `-f` fait écrire pg_dump lui-même, `docker cp` transporte les octets tels
     # quels : aucun décodage nulle part.
@@ -106,7 +92,7 @@ foreach ($b in $bases) {
     }
 
     # ON RELIT CE QU'ON VIENT D'ÉCRIRE. Le contrôle de taille ne prouve rien : c'est justement
-    # un fichier GROS et illisible que produisait la redirection ci-dessus, et les six dumps
+    # un fichier GROS et illisible que produisait la redirection ci-dessus, et les dumps
     # sont passés au vert pendant une journée d'essais sans que personne ne les ouvre. On fait
     # donc ici, sur le poste, EXACTEMENT le test que `deploy/restaurer-bases.sh` fera sur le
     # serveur avant de détruire quoi que ce soit — la seule différence étant qu'ici, le rattraper
@@ -125,44 +111,15 @@ foreach ($b in $bases) {
     Write-Host "     $b  ->  $taille Mo  (relu : archive valide)" -ForegroundColor Green
 }
 
-# ── 2. Controle de coherence AVANT d'envoyer ────────────────
-# On vérifie ici ce que le serveur ne pourra plus vérifier une fois les bases détruites : que
-# chaque démonstration porte bien un référentiel, et que son niveau concorde avec la base
-# réelle. C'est le défaut du 10/08/2026 (CRSA à 101 côté démo contre 89 côté réel) — il ne
-# doit pas partir en production.
-Write-Host ""
-Write-Host "2/3  Controle de coherence des demos..." -ForegroundColor Cyan
-$sqlReel = "SELECT r.nom_fixe || '=' || r.niveau_id FROM referentiels r ORDER BY r.nom_fixe;"
-$reel = @{}
-(docker exec $CONTENEUR_DB psql -U aschool -d $baseReelle -tAc $sqlReel) |
-    Where-Object { $_.Trim() -ne '' } |
-    ForEach-Object { $p = $_ -split '='; $reel[$p[0]] = $p[1] }
-
-$ecarts = @()
-foreach ($b in $basesDemo) {
-    $ligne = (docker exec $CONTENEUR_DB psql -U aschool -d $b -tAc $sqlReel | Where-Object { $_.Trim() -ne '' } | Select-Object -First 1)
-    if (-not $ligne) { $ecarts += "$b : aucun referentiel"; continue }
-    $p = $ligne -split '='
-    if ($reel[$p[0]] -ne $p[1]) {
-        $ecarts += "$b : $($p[0]) porte niveau_id=$($p[1]) alors que la base reelle dit $($reel[$p[0]])"
-    }
-}
-if ($ecarts.Count -gt 0) {
-    Write-Host "     ECART(S) DETECTE(S) — rien n'a ete envoye :" -ForegroundColor Red
-    $ecarts | ForEach-Object { Write-Host "       $_" -ForegroundColor Red }
-    exit 1
-}
-Write-Host "     Les $($basesDemo.Count) demos concordent avec la base reelle." -ForegroundColor Green
-
 if ($Simulation) {
     Write-Host ""
-    Write-Host "Simulation : les dumps sont dans deploy\dumps\, rien n'a ete envoye." -ForegroundColor Yellow
+    Write-Host "Simulation : le dump est dans deploy\dumps\, rien n'a ete envoye." -ForegroundColor Yellow
     exit 0
 }
 
-# ── 3. Envoi et remplacement ────────────────────────────────
+# ── 2. Envoi et remplacement ────────────────────────────────
 Write-Host ""
-Write-Host "3/3  Envoi vers $VPS_HOST et remplacement..." -ForegroundColor Cyan
+Write-Host "2/2  Envoi vers $VPS_HOST et remplacement..." -ForegroundColor Cyan
 ssh "$VPS_USER@$VPS_HOST" "mkdir -p $VPS_PATH/deploy/dumps"
 if ($LASTEXITCODE -ne 0) { Write-Host "     ERREUR : connexion SSH impossible." -ForegroundColor Red; exit 1 }
 
@@ -180,4 +137,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "  Donnees deployees. Les six bases du VPS sont celles du poste." -ForegroundColor Green
+Write-Host "  Donnees deployees. La base reelle du VPS est celle du poste." -ForegroundColor Green

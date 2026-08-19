@@ -97,6 +97,43 @@ def test_pendant_le_passage_rien_ne_bouge(note, monkeypatch):
     assert apres["at"] is None
 
 
+def test_le_passage_impossible_ne_marque_rien(note, monkeypatch):
+    """« IMPOSSIBLE » N'ACCUSE PAS LA NOTE. Le lanceur le rend quand il n'a RIEN parcouru :
+    l'application construite n'a pas répondu, le navigateur n'a pas démarré. Écrire « recette à
+    refaire » là-dessus accuserait un travail que personne n'a regardé — la note ressort intacte,
+    et c'est l'écran qui dit qu'elle n'a jamais été testée."""
+    _lanceur(monkeypatch, {"enCours": False, "verdict": "impossible", "total": 0, "faits": 0,
+                           "etape": "L’application n’a pas répondu",
+                           "detail": "L’application construite n’a pas répondu en une minute."})
+    r = client.get(f"/api/admin/taches-a-faire/{note}/recette")
+    assert r.status_code == 200
+    assert r.json()["detail"]  # le motif remonte quand même à l'écran
+
+    apres = _relire(note)
+    assert apres["fait"] is False
+    assert apres["etat"] is None
+    assert apres["at"] is None
+
+
+def test_le_passage_impossible_ne_decoche_pas_une_note_faite(note, monkeypatch):
+    """L'autre bout de la même règle : une note gagnée ne se perd pas parce que le conteneur a
+    lâché. Rien n'a été parcouru, donc rien ne change — dans les deux sens."""
+    db = dbmod.SessionLocal()
+    t = db.get(TacheAFaire, note)
+    t.fait = True
+    t.recette_etat = "verte"
+    db.commit()
+    db.close()
+
+    _lanceur(monkeypatch, {"enCours": False, "verdict": "impossible", "total": 0, "faits": 0,
+                           "etape": "Le navigateur n’a pas pu démarrer", "detail": "spawn npx ENOENT"})
+    client.get(f"/api/admin/taches-a-faire/{note}/recette")
+
+    apres = _relire(note)
+    assert apres["fait"] is True
+    assert apres["etat"] == "verte"
+
+
 def test_une_note_deja_faite_qui_rate_se_decoche(note, monkeypatch):
     """Le carnet ne peut pas afficher « faite » sur un travail qui casse. Une note cochée avant
     que la règle existe redescend au premier passage rouge."""

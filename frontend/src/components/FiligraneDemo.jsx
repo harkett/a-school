@@ -3,7 +3,7 @@
 // POURQUOI EN PLUS DU BANDEAU. Le bandeau du bas dit où l'on est à qui le lit. Le filigrane, lui,
 // tient sur les captures d'écran, sur les photos d'écran prises en réunion, et sur les fenêtres
 // modales qui recouvrent le bandeau. Une application de démonstration ressemble trait pour trait
-// à la vraie — c'EST la vraie, branchée sur une autre base : rien à l'image ne les distingue.
+// à la vraie — c'EST la vraie, sur d'autres données : rien à l'image ne les distingue.
 //
 // CE QU'IL NE FAIT PAS. Il n'intercepte aucun clic (`pointerEvents: none`) : on tape, on clique,
 // on fait défiler à travers lui comme s'il n'existait pas. Et il ne se ferme pas — un rappel

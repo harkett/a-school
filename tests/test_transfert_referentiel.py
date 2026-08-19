@@ -18,11 +18,12 @@ CE QUE CES TESTS PROTÈGENT :
 
 Lancer : docker compose exec backend python -m pytest tests/test_transfert_referentiel.py -q
 """
+from datetime import date
 import json
 
 import backend.core.database as dbmod
 from backend.core.models_db import (Cycle, Matiere, Niveau, Referentiel, ReferentielChunk,
-                                    ActiviteType, ReferentielTypePrecision)
+                                    ReferentielDocument, ActiviteType, ReferentielTypePrecision)
 from backend.main import app
 from backend.pedagogie.transfert_referentiel import FORMAT, exporter, importer
 from backend.systeme.admin import _make_admin_token
@@ -84,12 +85,17 @@ def _semer(nom_fixe="test_transfert") -> tuple[int, list[int]]:
                                         type_activite_id=t.id))
         # `option_ab` ne se devine pas : la colonne refuse le vide (les référentiels BTS CIEL
         # portent deux options dans un même document). « commun » est ce qu'écrit la découpe.
-        db.add(ReferentielChunk(referentiel_id=r.id, chunk_index=0, texte="Unité une",
+        doc = ReferentielDocument(referentiel_id=r.id, fichier="essai.pdf",
+                                  texte_epure="TEXTE EPURE D'ESSAI")
+        db.add(doc); db.flush()
+        db.add(ReferentielChunk(referentiel_id=r.id, document_id=doc.id, portee="matiere",
+                                valide_du=date.today(), chunk_index=0, texte="Unité une",
                                 option_ab="commun", page=1,
                                 embedding=[0.1] * 1024, embedding_model="essai"))
         # Le vecteur est OBLIGATOIRE en base : une unité sans vecteur ne serait jamais retrouvée
         # par la recherche. Les deux en portent donc un.
-        db.add(ReferentielChunk(referentiel_id=r.id, chunk_index=1, texte="Unité deux",
+        db.add(ReferentielChunk(referentiel_id=r.id, document_id=doc.id, portee="formation",
+                                valide_du=date.today(), chunk_index=1, texte="Unité deux",
                                 option_ab="commun", page=2,
                                 embedding=[0.2] * 1024, embedding_model="essai"))
         db.commit()

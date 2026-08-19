@@ -35,21 +35,23 @@ from datetime import datetime, date, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.core.models_db import (ActiviteType, Matiere, ReferentielChunk, ReferentielNiveau,
-                                    ReferentielTypePrecision)
+from backend.core.models_db import (ActiviteType, Matiere, ReferentielChunk,
+                                    ReferentielChunkMatiere, ReferentielDocument,
+                                    ReferentielNiveau, ReferentielTypePrecision)
 
 # Le numéro de format du fichier. Il changera le jour où une table s'ajoute au voyage : un
 # fichier ancien doit être refusé clairement, pas importé à moitié.
-FORMAT = 1
+FORMAT = 2
 
 # L'ORDRE COMPTE — c'est celui des dépendances. `referentiel_type_precisions` vient après
-# `types_activite` parce qu'elle le désigne ; les chunks viennent en dernier, ce sont les plus
-# lourds et rien ne dépend d'eux.
+# `types_activite` parce qu'elle le désigne ; les documents avant les unités, qui les désignent ;
+# la liaison unité <-> matière en dernier, elle désigne les deux.
 #
 # LES NOMS SE LISENT DANS LES MODÈLES, ils ne sont pas recopiés : une table renommée un jour
 # entraînerait ce module avec elle, au lieu de le laisser chercher un nom qui n'existe plus.
 TABLES = tuple(m.__tablename__ for m in (
-    ReferentielNiveau, Matiere, ActiviteType, ReferentielTypePrecision, ReferentielChunk,
+    ReferentielNiveau, Matiere, ActiviteType, ReferentielTypePrecision,
+    ReferentielDocument, ReferentielChunk, ReferentielChunkMatiere,
 ))
 
 
@@ -97,26 +99,37 @@ def exporter(db: Session, referentiel_id: int) -> dict:
         "referentiel": {c: _lisible(v) for c, v in ref.items()},
         "tables": {},
     }
+    # CE QUI NE SE RATTACHE PAS DIRECTEMENT AU RÉFÉRENTIEL. Ces tables-là ne portent pas de
+    # `referentiel_id` : elles pendent d'une autre table qui, elle, en porte un. Déclarées ICI,
+    # dans leur unique lectrice, comme le veut le filet « rien en dur ».
+    par_ricochet = {
+        "referentiel_type_precisions":
+            "type_activite_id IN (SELECT id FROM types_activite WHERE referentiel_id = :id)",
+        "referentiel_chunk_matieres":
+            "chunk_id IN (SELECT id FROM referentiel_chunks WHERE referentiel_id = :id)",
+    }
     for table in TABLES:
-        if table == "referentiel_type_precisions":
-            contenu["tables"][table] = _lignes(
-                db, table,
-                "type_activite_id IN (SELECT id FROM types_activite WHERE referentiel_id = :id)",
-                {"id": referentiel_id})
-        else:
-            contenu["tables"][table] = _lignes(db, table, "referentiel_id = :id",
-                                               {"id": referentiel_id})
+        condition = par_ricochet.get(table, "referentiel_id = :id")
+        contenu["tables"][table] = _lignes(db, table, condition, {"id": referentiel_id})
     return contenu
 
 
-def _inserer(db: Session, table: str, ligne: dict) -> int:
-    """Insère une ligne SANS son identifiant d'origine, et rend celui que la base attribue."""
+def _inserer(db: Session, table: str, ligne: dict) -> int | None:
+    """Insère une ligne SANS son identifiant d'origine, et rend celui que la base attribue.
+
+    None pour une table de liaison, qui n'a pas d'identifiant à rendre — et personne ne le lui
+    demande : rien ne la désigne."""
     valeurs = {c: _relu(v) for c, v in ligne.items() if c != "id"}
     colonnes = ", ".join(valeurs)
     reperes = ", ".join(f":{c}" for c in valeurs)
-    return db.execute(
-        text(f"INSERT INTO {table} ({colonnes}) VALUES ({reperes}) RETURNING id"), valeurs
-    ).scalar()
+    requete = f"INSERT INTO {table} ({colonnes}) VALUES ({reperes})"
+    # Les tables SANS colonne `id` : l'insertion ne peut rien rendre, et rien n'a besoin de les
+    # désigner. `referentiel_chunk_matieres` est une liaison pure — sa clé, ce sont ses deux côtés.
+    sans_id = {"referentiel_chunk_matieres"}
+    if table in sans_id:
+        db.execute(text(requete), valeurs)
+        return None
+    return db.execute(text(requete + " RETURNING id"), valeurs).scalar()
 
 
 def resume(contenu: dict) -> dict:
@@ -165,9 +178,19 @@ def importer(db: Session, contenu: dict) -> dict:
 
     nouvel_id = _inserer(db, "referentiels", ref)
 
-    # Les types changent d'identifiant : leurs précisions doivent suivre le NOUVEAU, sans quoi
-    # elles pointeraient sur un type d'un autre référentiel — ou sur rien.
-    correspondance_types: dict[int, int] = {}
+    # ANCIEN IDENTIFIANT -> NOUVEAU, table par table. Les types, les documents, les unités et les
+    # matières sont tous désignés par quelqu'un : la correspondance se tient pour toutes, et
+    # `_REDIRECTIONS` dit qui suit qui. Une seule mécanique, plus un cas particulier par table.
+    # LES IDENTIFIANTS CHANGENT À L'ARRIVÉE : une ligne qui en désigne une autre doit suivre le
+    # NOUVEAU, sinon elle pointe sur une ligne d'un autre référentiel — ou sur rien.
+    # {table : {colonne qui désigne : table désignée}}
+    redirections = {
+        "referentiel_type_precisions": {"type_activite_id": "types_activite"},
+        "referentiel_chunks": {"document_id": "referentiel_documents"},
+        "referentiel_chunk_matieres": {"chunk_id": "referentiel_chunks",
+                                       "matiere_id": "matieres"},
+    }
+    correspondances: dict[str, dict[int, int]] = {t: {} for t in TABLES}
     compte: dict[str, int] = {}
 
     for table in TABLES:
@@ -177,11 +200,11 @@ def importer(db: Session, contenu: dict) -> dict:
             ancien = ligne.get("id")
             if "referentiel_id" in ligne:
                 ligne["referentiel_id"] = nouvel_id
-            if table == "referentiel_type_precisions":
-                ligne["type_activite_id"] = correspondance_types[_relu(ligne["type_activite_id"])]
+            for colonne, visee in redirections.get(table, {}).items():
+                ligne[colonne] = correspondances[visee][_relu(ligne[colonne])]
             neuf = _inserer(db, table, ligne)
-            if table == "types_activite":
-                correspondance_types[ancien] = neuf
+            if neuf is not None and ancien is not None:
+                correspondances[table][ancien] = neuf
             pose += 1
         compte[table] = pose
 

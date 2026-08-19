@@ -128,7 +128,7 @@ def api_exemple_ambiguites_genere(
 
     chunks = retrieve_pg(collection, REQUETE_GABARIT.format(matiere=matiere, niveau=niveau),
                          filters=filtres, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on le dit au prof, et `generate` n'est PAS appelé (rien payé).
@@ -232,7 +232,8 @@ def api_detect_ambiguites(
     #
     # Motif déjà correct ailleurs : core/middleware.py, supervision/alerts.py, systeme/admin.py.
     try:
-        db.add(ToolUsageLog(user_id=user.id, tool="ambiguites", score_label=str(nb)))
+        db.add(ToolUsageLog(user_id=user.id, tool="ambiguites", score_label=str(nb),
+                            matiere=matiere, niveau=niveau))
         db.commit()
     except Exception:
         db.rollback()

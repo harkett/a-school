@@ -3,7 +3,7 @@
     docker exec -e DATABASE_URL=postgresql+psycopg://aschool:aschool@db:5432/aschool_demos \
         a-school-backend-1 python outils_bdd/migrer_les_demos.py
 
-POURQUOI UN SCRIPT ET PAS UN `alembic upgrade head`. Les cinq démonstrations partagent une base
+POURQUOI UN SCRIPT ET PAS UN `alembic upgrade head`. Les démonstrations partagent une base
 et ont chacune leur table `alembic_version`, dans leur schéma. Un `upgrade head` ordinaire n'en
 verrait qu'une — celle de `public`, qui n'existe pas ici — et ne migrerait rien.
 

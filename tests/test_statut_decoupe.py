@@ -22,8 +22,11 @@ point n'est pas décoratif : c'est lui qui dirait qu'une orchestration est reven
 
 Lancer : docker compose exec backend python -m pytest tests/test_statut_decoupe.py -q
 """
+from datetime import date
+
 import backend.core.database as dbmod
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
+                                    ReferentielDocument)
 from backend.main import app
 from fastapi.testclient import TestClient
 
@@ -50,8 +53,11 @@ def _couple(decoupe_valide: bool, chunks: int = 0, suffixe: str = "") -> int:
                           collection=COLLECTION + suffixe,
                           decoupe_valide=decoupe_valide)
         db.add(ref); db.flush()
+        doc = ReferentielDocument(referentiel_id=ref.id, fichier="doc.pdf")
+        db.add(doc); db.flush()
         for i in range(chunks):
-            db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=i, option_ab="", page=1,
+            db.add(ReferentielChunk(referentiel_id=ref.id, document_id=doc.id, portee="matiere",
+                                    valide_du=date.today(), chunk_index=i, option_ab="", page=1,
                                     texte=f"unite {i}", embedding=[0.5] * 1024,
                                     embedding_model="BAAI/bge-m3"))
         db.commit()

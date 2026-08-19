@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/contexteAuth.js'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
@@ -6,7 +6,11 @@ import { matieresDuNiveau, matiereIncoherente, profilPretAValider, niveauxRefDis
 import { showError } from '../errorDialog.js'
 import { demanderConfirmation } from '../confirmDialog.js'
 import InfoGuide from './InfoGuide.jsx'
+import { astucesEcran } from '../utils/astuces.js'
 import { aideProfil } from '../utils/aideProfil.js'
+
+// Les astuces de cet écran, lues une fois (catalogue figé) : le « a » ne bouge pas d'un rendu à l'autre.
+const astucesProfil = astucesEcran('profil')
 
 
 // Message de la modale bloquante quand niveau et matière ne vont pas ensemble.
@@ -39,6 +43,21 @@ export default function MonProfil({ onNavigate }) {
     mobile:    user?.mobile    || '',
   })
   const [saving, setSaving] = useState(false)
+
+  // LE CHAMP À CORRIGER — celui dont parle le dernier message. Il prend le focus dès que la
+  // modale se ferme et porte un liseré rouge tant qu'il est vide : la consigne (« choisissez la
+  // matière ») et l'endroit où l'appliquer ne sont plus deux choses séparées.
+  const refNiveau  = useRef(null)
+  const refMatiere = useRef(null)
+  const [champAsignaler, setChampASignaler] = useState(null)   // 'niveau' | 'subject' | null
+  // Les deux « viser » lisent la ref AU MOMENT DU CLIC (dans la fonction rendue), jamais au
+  // rendu : une ref lue pendant le rendu ne vaut rien, le champ n'est pas encore posé.
+  const viserNiveau  = () => { setChampASignaler('niveau');  refNiveau.current?.focus() }
+  const viserMatiere = () => { setChampASignaler('subject'); refMatiere.current?.focus() }
+  // Un champ signalé qu'on remplit n'a plus rien à signaler.
+  const styleSignale = champ => (champAsignaler === champ && !form[champ]
+    ? { borderColor: '#dc2626', borderWidth: 2, boxShadow: '0 0 0 3px rgba(220,38,38,0.12)' }
+    : undefined)
   const [cahierBusy, setCahierBusy] = useState(false)              // dépôt en cours (sablier sur le bouton)
 
   // « Ouvrir le PDF d'origine » : ouvre le fichier déposé par l'admin dans un NOUVEL ONGLET
@@ -149,10 +168,11 @@ export default function MonProfil({ onNavigate }) {
              : matierePerimée ? { ...brouillon, subject: '' }
              : brouillon
 
-  // …et on le DIT, une fois, au moment où on l'apprend.
+  // …et on le DIT, une fois, au moment où on l'apprend — puis on emmène au champ à corriger :
+  // le niveau quand c'est lui qui a disparu, la matière quand elle ne va plus avec le niveau.
   useEffect(() => {
-    if (niveauPerimé)  showError(messageNiveauIndisponible(brouillon.niveau))
-    else if (matierePerimée) showError(messageIncoherence('ouverture', brouillon.niveau, brouillon.subject))
+    if (niveauPerimé)  showError(messageNiveauIndisponible(brouillon.niveau), { apres: viserNiveau })
+    else if (matierePerimée) showError(messageIncoherence('ouverture', brouillon.niveau, brouillon.subject), { apres: viserMatiere })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [niveauPerimé, matierePerimée])
 
@@ -182,14 +202,38 @@ export default function MonProfil({ onNavigate }) {
   // Changer de niveau peut rendre la matière incohérente (matière hors du programme du
   // nouveau niveau) → modale bloquante + matière vidée (le prof DOIT en rechoisir une).
   // (Les niveaux non disponibles ne sont pas dans la liste → impossible d'en choisir un ici.)
+  //
+  // LE MESSAGE DIT « choisissez la matière », L'ÉCRAN Y EMMÈNE (16/08/2026) : à la fermeture de
+  // la modale, la liste des matières prend le focus et se signale en rouge jusqu'au choix. Le
+  // prof lisait la consigne, puis devait chercher lui-même de quel champ elle parlait.
   function changerNiveau(value) {
     const incoherent = matiereIncoherente(matieresParNiveau, value, form.subject)
-    if (incoherent) showError(messageIncoherence('changement', value, form.subject))
+    if (incoherent) showError(messageIncoherence('changement', value, form.subject), { apres: viserMatiere })
     setForm(f => ({ ...f, niveau: value, subject: incoherent ? '' : f.subject }))
+  }
+
+  // LE RÉCAPITULATIF AVANT D'ENREGISTRER (16/08/2026). Le profil décide de tout ce que
+  // l'application fabrique ensuite : on relit à voix haute ce qui va être posé, et le prof dit
+  // oui. « Corriger » le ramène à son formulaire, rien n'est écrit.
+  function recapitulatif() {
+    const lignes = [
+      ['Prénom', form.prenom],
+      ['Nom', form.nom],
+      ['Niveau', form.niveau],
+      ['Matière', form.subject],
+      ['Langue enseignée', form.langue_lv],
+    ].filter(([, v]) => v)
+    return lignes.map(([champ, valeur]) => `${champ} : ${valeur}`).join('\n')
   }
 
   async function handleValider(e) {
     e.preventDefault()
+    if (!await demanderConfirmation({
+      titre: 'Enregistrer ce profil ?',
+      message: `${recapitulatif()}\n\nVos activités, séances et séquences seront rattachées à ce couple.`,
+      confirmLabel: 'Enregistrer',
+      cancelLabel: 'Corriger',
+    })) return
     setSaving(true)
     try {
       const res = await apiFetch('/api/user/profile', {
@@ -219,7 +263,7 @@ export default function MonProfil({ onNavigate }) {
         empilé (rien de tassé). */}
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
     <section className="bg-white rounded border border-gray-200 p-6" style={{ maxWidth: 480, flexShrink: 0 }}>
-      <div className="section-title mb-5">Mon profil<InfoGuide {...aideProfil('profil')} /></div>
+      <div className="section-title mb-5">Mon profil<InfoGuide {...aideProfil('profil')} />{astucesProfil && <InfoGuide {...astucesProfil} />}</div>
 
       {/* Lecture ratée : les menus niveau/matière sont vides parce qu'on n'a pas pu les lire,
           pas parce qu'il n'y a rien. Le message est déjà en boîte de dialogue — ici, le bouton. */}
@@ -282,7 +326,10 @@ export default function MonProfil({ onNavigate }) {
         <div>
           <label className="block text-xs text-gray-500 mb-1">Niveau par défaut</label>
           <select
+            ref={refNiveau}
+            aria-invalid={!!styleSignale('niveau')}
             className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
+            style={styleSignale('niveau')}
             value={form.niveau}
             onChange={e => changerNiveau(e.target.value)}
           >
@@ -299,7 +346,10 @@ export default function MonProfil({ onNavigate }) {
         <div>
           <label className="block text-xs text-gray-500 mb-1">Matière enseignée</label>
           <select
+            ref={refMatiere}
+            aria-invalid={!!styleSignale('subject')}
             className="w-full border border-gray-300 rounded p-2 text-sm bg-white"
+            style={styleSignale('subject')}
             value={form.subject}
             onChange={e => set('subject', e.target.value)}
           >
@@ -332,12 +382,16 @@ export default function MonProfil({ onNavigate }) {
         )}
 
         <div className="flex justify-end gap-3 pt-1">
+          {/* TOUJOURS ACTIF : c'est LA SORTIE de l'écran. Il était grisé tant que rien n'avait
+              été modifié — sans conséquence tant que le menu restait cliquable, mais depuis que
+              l'écran fige le reste de l'application, un prof qui entre ici sans rien changer
+              n'avait plus aucun moyen d'en repartir. */}
           <button
             type="button"
-            title="Annuler les modifications et revenir à l'accueil"
+            title="Revenir à l'accueil sans enregistrer"
             onClick={() => onNavigate('accueil')}
             className="btn-secondary"
-            disabled={saving || !modifie}
+            disabled={saving}
           >
             Annuler
           </button>

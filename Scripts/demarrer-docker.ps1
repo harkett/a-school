@@ -1,4 +1,4 @@
-# ─────────────────────────────────────────────────────
+﻿# ─────────────────────────────────────────────────────
 # aSchool — démarrage automatique de la pile à l'ouverture du projet.
 # Appelé par .vscode/tasks.json (runOn: folderOpen). Peut aussi se lancer à la main :
 #   .\Scripts\demarrer-docker.ps1
@@ -49,13 +49,9 @@ Write-Host "Montage de la pile aSchool..."
 docker compose -f "$root\docker-compose.yml" up -d
 if ($?) {
     Write-Host ""
-    # Les cinq demonstrations, pas deux : la liste s'arretait a CIEL A et B, restee
-    # telle quelle quand creche, CRSA et ergotherapie sont arrivees (10/08/2026).
     Write-Host "  Prof         : http://localhost:5173"
-    Write-Host "  Demo CIEL A  : http://localhost:5174"
-    Write-Host "  Demo CIEL B  : http://localhost:5175"
-    Write-Host "  Demo Creche  : http://localhost:5176"
-    Write-Host "  Demo CRSA    : http://localhost:5177"
-    Write-Host "  Demo Ergo    : http://localhost:5178"
+    # UNE PORTE LOCALE PAR DEMONSTRATION (deploy/nginx-demos-local.conf) : nginx y ecrit
+    # lui-meme le nom d'hote, c'est lui qui designe le schema servi.
+    Write-Host "  Demos        : CIEL A 8091 · CIEL B 8092 · Creche 8093 · CRSA 8094 · Ergo 8095 · College 4e 8096"
     Write-Host "  Adminer      : http://localhost:8082"
 }

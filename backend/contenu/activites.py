@@ -329,7 +329,9 @@ def api_proposer_idee(
     (lu en base, `referentiels.score_min`) → available:false + message honnête. On
     n'invente RIEN hors du programme. Le couple (matière + niveau) est LU EN BASE
     (couple de travail du prof) — l'écran ne l'envoie plus (décision du 25/07)."""
-    user, _matiere, niveau = _prof_et_couple(db, aschool_access)
+    # La matière du prof SERT désormais : c'est elle qui trie les unités du référentiel (le
+    # préfixe `_` disait « inutilisée », ce n'est plus vrai).
+    user, matiere, niveau = _prof_et_couple(db, aschool_access)
 
     # Le référentiel d'abord : le type lui APPARTIENT désormais, on ne peut donc pas le chercher
     # avant de savoir dans quel document le chercher. Pas de référentiel → available:false (règle
@@ -357,7 +359,7 @@ def api_proposer_idee(
         niveau=niveau,
     )
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-idee] aucun chunk >= seuil %s (%s, type=%r) → available=false", seuil, collection, t.label)
@@ -419,7 +421,7 @@ def api_generate(
     collection, filtres_json, seuil = ref
     filters = json.loads(filtres_json) if filtres_json else None
     chunks = retrieve_pg(collection, req.texte, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         raise HTTPException(400, "aSchool n'a pas trouvé, dans le référentiel officiel, de passage assez pertinent. Reformulez votre idée avec des termes plus proches du programme.")

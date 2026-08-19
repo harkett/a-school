@@ -91,11 +91,10 @@ _AVANT = {}
 
 
 def setup_module(_module):
-    for cle in ("DEMO_SECRET", "ADMIN_EMAIL", "MODE_DEMO"):
+    for cle in ("DEMO_SECRET", "ADMIN_EMAIL"):
         _AVANT[cle] = os.environ.get(cle)
     os.environ["DEMO_SECRET"] = SECRET
     os.environ["ADMIN_EMAIL"] = ADMIN
-    os.environ.pop("MODE_DEMO", None)
 
 
 def teardown_module(_module):

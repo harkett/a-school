@@ -17,8 +17,8 @@
 # qu'à une base. Les cinq bases sont devenues cinq SCHÉMAS d'une seule : le sous-domaine suffit
 # désormais à dire lequel servir, et un seul process les sert tous. Quatre gigaoctets rendus.
 #
-# CE FICHIER LIT ENCORE `demos.conf`, pour UNE seule raison : la liste des sous-domaines que le
-# certificat doit couvrir. Les ports qu'il porte ne servent plus — un port unique les remplace.
+# CE FICHIER LIT `demos.conf` pour UNE seule raison : la liste des sous-domaines que le
+# certificat doit couvrir.
 #
 # IL EST REJOUABLE. Chaque geste est idempotent : réécrire un fichier identique, réactiver un
 # service déjà actif, relire une configuration nginx déjà en place.
@@ -34,7 +34,7 @@ LISTE="deploy/demos.conf"
 FICHIER_ENV="deploy/demos.env"
 NGINX_DEMOS="/etc/nginx/sites-available/aschool-demos"
 
-# La base qui porte les cinq schémas, et le port du process unique. LE PORT EST NEUF : 8007 a
+# La base qui porte les schémas, et le port du process unique. LE PORT EST NEUF : 8007 a
 # servi à ciela, 8003 à 8006 aux autres. Un port ne se réutilise pas — une configuration nginx
 # oubliée quelque part pointerait sur un service qui n'est plus celui qu'elle croit.
 BASE_DEMOS="${BASE_DEMOS:-aschool_demos}"
@@ -54,7 +54,7 @@ lignes() { grep -vE "^\s*#|^\s*$" "$LISTE"; }
 echo ""
 echo "=== [demos 1/7] Fichier d'environnement ==="
 # UN seul fichier, contre cinq auparavant. Plus de MODE_DEMO : le drapeau ne vient plus de
-# l'environnement du process — qui sert maintenant les cinq — mais du schéma que la requête vise.
+# l'environnement du process — qui les sert toutes — mais du schéma que la requête vise.
 cat > "$FICHIER_ENV" <<EOF
 # Écrit par deploy/installer-demos.sh — ne pas modifier à la main, il sera réécrit.
 DATABASE_URL=$DB_PREFIXE/$BASE_DEMOS
@@ -88,7 +88,7 @@ if [ -f "$CERT" ]; then
 fi
 
 absents=""
-while IFS=: read -r base port sous_domaine; do
+while read -r sous_domaine; do
     echo "$NOMS_CERT" | grep -qx "$sous_domaine" || absents="$absents -d $sous_domaine"
 done < <(lignes)
 
@@ -111,7 +111,7 @@ fi
 
 echo ""
 echo "=== [demos 4/7] Bloc nginx ==="
-# UN SEUL BLOC POUR LES CINQ, et il ne les nomme pas : `server_name` est une expression
+# UN SEUL BLOC POUR TOUTES, et il ne les nomme pas : `server_name` est une expression
 # régulière qui accepte tout `demo-<x>.aschool.fr`. Ajouter une démonstration ne demandera plus
 # de toucher à nginx — créer son schéma suffira. Un `<x>` sans schéma reçoit un 404 du backend,
 # jamais une erreur SQL : la liste blanche, ce sont les schémas présents dans la base.
@@ -272,7 +272,7 @@ echo "=== [demos 7/7] Contrôle ==="
 # ce que fait nginx, et c'est le seul contrôle qui prouve que l'aiguillage fonctionne.
 sleep 2
 echec=0
-while IFS=: read -r base port sous_domaine; do
+while read -r sous_domaine; do
     reponse=$(curl -sf --max-time 5 -H "Host: $sous_domaine" \
         "http://127.0.0.1:$PORT_DEMOS/api/demo/etat" || echo "")
     if echo "$reponse" | grep -q '"mode_demo":true'; then

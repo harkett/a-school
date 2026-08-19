@@ -2,22 +2,15 @@
 //
 // Elle répond aux trois questions de celui qui arrive sur l'écran Démos : qu'est-ce qu'une
 // démonstration, qu'est-ce que CET écran commande, et que voit le prof à l'autre bout. Puis elle
-// donne la quatrième réponse, celle qu'on cherchait jusqu'ici dans l'historique des sessions :
-// comment on en fabrique une nouvelle. En DEUX MOITIÉS, parce que le travail se fait à deux —
-// ce que l'admin fait depuis cet écran (ouvrir la fiche, relire, renseigner l'adresse), puis ce que
-// le dev fait en ligne de commande (la base, la copie, le contenu, la pile).
-//
-// POURQUOI LA PROCÉDURE EST ICI ET PAS DANS UN FICHIER À PART. Elle a d'abord été écrite en
-// Markdown, dans le dépôt. Personne ne l'aurait ouverte : celui qui se demande comment fabriquer
-// une démonstration est devant CET écran, pas dans un dossier du dépôt. Elle est donc au même
-// endroit que le reste — et elle s'ouvre en aperçu, s'imprime, et se lit à côté du terminal.
+// donne la quatrième réponse : ce que l'admin fait depuis cet écran — ouvrir la fiche, relire,
+// renseigner l'adresse.
 //
 // POURQUOI UNE FENÊTRE ET NON UN PANNEAU DÉPLIÉ DANS L'ÉCRAN. Une explication qui pousse le
 // tableau vers le bas se lit une fois puis se referme ; une fenêtre se déplace, se garde ouverte
 // pendant qu'on remplit une fiche, et s'emporte. Elle réutilise `FenetrePro`, la coquille unique
 // de l'application — déplaçable par sa barre de titre, étirable par le coin.
 //
-// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE`, `PROCEDURE` et `PIEGES`. Il sert à la fenêtre
+// LE TEXTE N'EST ÉCRIT QU'UNE FOIS, dans `GUIDE` et `PIEGES`. Il sert à la fenêtre
 // ET à l'aperçu mis en forme, qui est aussi la page imprimée. Un balisage minimal (**gras**,
 // `code`) évite d'injecter du HTML dans le JSX pour obtenir un mot en gras.
 //
@@ -27,6 +20,7 @@
 import { useState } from 'react'
 import FenetrePro from './FenetrePro.jsx'
 import { imprimerApercu } from '../utils/apercuHtml.js'
+import { ech } from '../utils/echapperHtml.js'
 
 // Le globe de l'aperçu mis en forme, et l'imprimante — les mêmes que dans Mes contenus.
 const IconGlobe = () => (
@@ -46,20 +40,18 @@ const IconPrint = () => (
   </svg>
 )
 
-const SOUS_TITRE = 'Une démonstration est une base à part, avec sa propre instance. '
-  + 'Cet écran tient sa fiche ; il ne l’ouvre jamais.'
+const SOUS_TITRE = 'Cet écran tient la fiche d’une démonstration ; il ne tient jamais son contenu.'
 
 const GUIDE = [
   { titre: 'Ce qu’est une démonstration', items: [
-    'Une base PostgreSQL **séparée**, une par référentiel, avec son propre serveur et son propre écran. La base réelle n’est jamais touchée.',
     'Elle contient un référentiel déjà découpé et vectorisé — copié tel quel depuis le réel, sans rien recalculer — et un **compte modèle**, connexion coupée, qui porte le contenu d’exemple.',
-    'Elle ne se fabrique pas depuis cet écran : la base se crée et se remplit à la main, puis on vient déclarer sa fiche ici.',
+    'Elle ne se fabrique pas depuis cet écran : on vient y déclarer sa fiche une fois qu’elle est montée.',
   ] },
   { titre: 'Côté admin — ce que cet écran commande', items: [
-    'Il tient la **fiche**, jamais les données. Il n’ouvre aucune autre base : les compteurs se saisissent, ils ne se calculent pas.',
-    'L’**adresse** branche la fiche sur son instance, et c’est LE seul contrôle : une démonstration est visitable dès qu’elle en a une, invisible tant qu’elle n’en a pas. (Cinq statuts — À faire, En cours, Fabriquée, Testée, Validée — doublaient ce contrôle sans rien y ajouter ; supprimés le 16/08/2026.)',
+    'Il tient la **fiche**, jamais les données.',
+    'L’**adresse** est LE seul contrôle : une démonstration est visitable dès qu’elle en a une, invisible tant qu’elle n’en a pas. (Cinq statuts — À faire, En cours, Fabriquée, Testée, Validée — doublaient ce contrôle sans rien y ajouter ; supprimés le 16/08/2026.)',
     '**Visiter** ouvre n’importe quelle démonstration avec l’identité admin, quel que soit son couple. C’est par là qu’on la relit avant de renseigner son adresse.',
-    '**Retirer** efface la fiche, pas la base : celle-ci survit et se détruit à la main.',
+    '**Retirer** efface la fiche de la liste, jamais le contenu de la démonstration.',
   ] },
   { titre: 'Côté prof — ce qu’il voit', items: [
     'Une entrée **« Démonstration »** dans son menu, active seulement s’il existe une démonstration en ligne **pour son niveau**.',
@@ -70,128 +62,25 @@ const GUIDE = [
   ] },
 ]
 
-// FABRIQUER, PREMIÈRE MOITIÉ : ce que l'ADMIN fait, depuis cet écran, sans terminal. C'est la
-// moitié qui manquait — la procédure ne parlait que de commandes, alors que la fiche s'ouvre, se
-// remplit ici. L'admin encadre le travail du dev : il ouvre la fiche avant, il relit après.
+// FABRIQUER : ce que l'ADMIN fait, depuis cet écran. Il ouvre la fiche avant, il relit après.
 const ADMIN_ETAPES = [
   { n: 1, titre: 'Déclarer la fiche',
-    texte: 'Bouton **+ Déclarer une démonstration**. Il ne propose que les référentiels qui n’en ont pas encore — un référentiel, une démonstration, pas deux. On donne le nom de la base à venir (`<option>_demo`, minuscules et soulignés), et on laisse l’adresse vide : tant qu’elle l’est, aucun prof ne voit cette démonstration.' },
+    texte: 'Bouton **+ Déclarer une démonstration**. Il ne propose que les référentiels qui n’en ont pas encore — un référentiel, une démonstration, pas deux. On laisse l’adresse vide : tant qu’elle l’est, aucun prof ne voit cette démonstration.' },
   { n: 2, titre: 'Suivre pendant la fabrication',
-    texte: 'Rien à faire pendant que le dev s’y met : l’écran ne fabrique pas, il attend.' },
+    texte: 'Rien à faire pendant ce temps : l’écran ne fabrique pas, il attend.' },
   { n: 3, titre: 'Recevoir le travail',
-    texte: 'À la livraison, vérifier ce qui est renseigné : l’**adresse** de l’instance, les trois compteurs, la **date de génération**. Les compteurs se saisissent à la main — cet écran n’ouvre pas la base pour les recompter.' },
+    texte: 'À la livraison, vérifier ce qui est renseigné : l’**adresse**, les trois compteurs, la **date de génération**.' },
   { n: 4, titre: 'Relire soi-même, par Visiter',
     texte: 'Le bouton **Visiter** ouvre la démonstration avec l’identité admin, quel que soit son couple. Parcourir une séquence, une séance et deux activités ; vérifier le filigrane à l’écran et sur une impression. Ce qui cloche va dans **Défauts connus**, pas dans un carnet à part.' },
   { n: 5, titre: 'Ouvrir la porte aux profs',
     texte: 'Renseigner l’**adresse** — et seulement à ce moment-là : c’est elle qui rend l’entrée « Démonstration » active dans le menu des profs de ce niveau.' },
   { n: 6, titre: 'Corriger, ou retirer',
-    texte: '**Modifier** rouvre la fiche à tout moment. **Retirer** l’efface de la liste — la base PostgreSQL, elle, survit : elle se détruit à la main, par le dev.' },
-]
-
-// FABRIQUER, SECONDE MOITIÉ : ce que fait le DEV, en ligne de commande. La recette telle qu'elle a
-// été suivie pour les quatre démonstrations existantes. Elle ne coûte rien : le référentiel se
-// COPIE, le contenu s'ÉCRIT. Chaque étape porte le piège qui l'a fait rater au moins une fois —
-// c'est là que la procédure gagne son utilité.
-//
-// LE TEMPS 2 A CHANGÉ DEUX FOIS. Il a d'abord dit « vérifier l'identifiant du niveau », puis
-// « résoudre le niveau par son nom des deux côtés » — deux façons de vivre avec des identifiants
-// qui divergent, jamais de les faire concorder. Le 10/08/2026 la cause a été traitée : le
-// CATALOGUE cycles/niveaux de la démonstration est COPIÉ du réel avant tout le reste. Les deux
-// bases portent alors les mêmes numéros, et il n'y a plus rien à résoudre ni à réécrire ensuite.
-// Ce qui l'a déclenché : deux démonstrations portaient des identifiants de niveau différents de
-// ceux du réel (101 contre 89, 99 contre 100). Les deux bases ont été détruites et remontées par
-// cette recette-ci.
-const PREAMBULE = 'On n’écrit **que** dans la base de démonstration. Seule exception : la ligne '
-  + 'de la table `demos`, au temps 6 — c’est le pilotage, il vit dans le réel. Nom de base : '
-  + '`<option>_demo`, minuscules et soulignés, jamais de tiret. Et deux ports libres : 8002/5174, '
-  + '8003/5175, 8004/5176, 8005/5177 et 8006/5178 sont pris.'
-
-const PROCEDURE = [
-  { n: 1, titre: 'La base et son schéma',
-    texte: 'L’extension **vector** se pose AVANT les migrations : une table de vecteurs ne se crée pas sans elle. Contrôle : même nombre de tables et même révision que la base réelle.',
-    code: 'docker compose exec -T db psql -U aschool -d postgres -c "CREATE DATABASE <nom>_demo OWNER aschool;"\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "CREATE EXTENSION IF NOT EXISTS vector;"\n'
-        + 'docker compose exec -T -e DATABASE_URL=postgresql+psycopg://aschool:aschool@db:5432/<nom>_demo \\\n'
-        + '  backend alembic upgrade head' },
-
-  { n: 2, titre: 'Le catalogue du réel, puis le référentiel',
-    texte: '**Le catalogue `cycles` + `niveaux` de la démonstration est celui de la base réelle, copié tel quel.** C’est la première chose qu’on fait, avant toute autre donnée : les migrations viennent d’en semer un, on le remplace en entier. Les deux bases portent alors les mêmes numéros, et plus aucun identifiant n’a besoin d’être résolu, vérifié ou réécrit ensuite — le référentiel garde son `niveau_id` d’origine, et il désigne la même chose des deux côtés. Sans cette étape, les numéros divergent dès qu’un niveau a été créé à la main dans le réel : il y prend une place que le semis donnera à un autre. Deux démonstrations l’ont montré — 89 dans le réel contre 101, 100 contre 99. Les tables du référentiel passent ensuite telles quelles, vecteurs compris : on n’en recalcule aucun. Les précisions n’ont pas de `referentiel_id`, elles se prennent par jointure sur leur type, d’où leur ligne à part.',
-    code: '# a) LE CATALOGUE — copié du réel, en entier. C’est ce qui fait concorder les numéros.\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + '  truncate niveaux, cycles restart identity cascade;"\n'
-        + 'for T in cycles niveaux; do\n'
-        + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy $T TO STDOUT" > /tmp/$T.tsv\n'
-        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy $T FROM STDIN" < /tmp/$T.tsv\n'
-        + 'done\n'
-        + '\n'
-        + '# b) les quatre tables filtrées sur le référentiel\n'
-        + 'for T in "referentiels|id=<REF>" "matieres|referentiel_id=<REF>" \\\\n'
-        + '         "types_activite|referentiel_id=<REF>" "referentiel_chunks|referentiel_id=<REF>"; do\n'
-        + '  TABLE="${T%%|*}"; WHERE="${T##*|}"\n'
-        + '  docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT * FROM $TABLE WHERE $WHERE) TO STDOUT" > /tmp/$TABLE.tsv\n'
-        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy $TABLE FROM STDIN" < /tmp/$TABLE.tsv\n'
-        + 'done\n'
-        + '\n'
-        + '# c) les précisions — aucun referentiel_id, jointure sur le type\n'
-        + 'docker compose exec -T db psql -U aschool -d aschool_dev -c "\\copy (SELECT p.* FROM referentiel_type_precisions p\n'
-        + '  JOIN types_activite t ON t.id=p.type_activite_id WHERE t.referentiel_id=<REF>) TO STDOUT" > /tmp/prec.tsv\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\\copy referentiel_type_precisions FROM STDIN" < /tmp/prec.tsv\n'
-        + '\n'
-        + '# d) LE CONTRÔLE — aucun rattachement à corriger, on vérifie qu’il n’y en a pas besoin.\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + '  select r.id, n.id, n.nom, c.nom from referentiels r join niveaux n on n.id=r.niveau_id\n'
-        + '    join cycles c on c.id=n.cycle_id;"   # mêmes numéros que dans aschool_dev' },
-
-  { n: 3, titre: 'Recaler les compteurs d’identifiants',
-    texte: 'L’étape qu’on oublie. `\\copy` écrit les identifiants tels quels **sans toucher aux séquences** : sans ce `setval`, la première insertion faite depuis l’écran tombe en doublon. `cycles` et `niveaux` en font partie depuis qu’ils se copient du réel — un niveau créé ensuite depuis l’écran Formations réclamerait un numéro déjà pris.',
-    code: 'for T in cycles niveaux referentiels matieres types_activite \\\n'
-        + '         referentiel_type_precisions referentiel_chunks users; do\n'
-        + '  docker compose exec -T db psql -U aschool -d <nom>_demo -tAc \\\n'
-        + '    "select setval(pg_get_serial_sequence(\'$T\',\'id\'), (select coalesce(max(id),1) from $T));"\n'
-        + 'done' },
-
-  { n: 4, titre: 'Le compte modèle, et la clé qui le désigne',
-    texte: 'Il porte le contenu d’exemple et **ne se connecte pas** (`is_active=false`). Le mot de passe ne se choisit pas : on reprend l’empreinte d’une démonstration existante. Sans la clé `demo_gabarit_email`, le prof entre dans une démonstration vide. Son `niveau_id` est celui du réel, repris tel quel : le catalogue copié au temps 2 lui donne le même sens ici. `travail_niveau_id` et `travail_matiere_id` restent vides.',
-    code: 'HASH=$(docker compose exec -T db psql -U aschool -d ciela_demo -tAc \\\n'
-        + '  "select password_hash from users where email=\'demo.btsciela@aschool.fr\';" | tr -d \'\\r\')\n'
-        + 'docker compose exec -T db psql -U aschool -d <nom>_demo \\\n'
-        + '  -c "insert into users (email, password_hash, is_verified, is_active, failed_attempts,\n'
-        + '      guide_creer_vu, prenom, nom, subject_id, niveau_id, created_at) values\n'
-        + '      (\'demo.<nom>@aschool.fr\', \'$HASH\', true, false, 0, false, \'Prof\', \'Démo\', <MATIERE>,\n'
-        + '      <NIVEAU_ID>, now());" \\\n'
-        + '  -c "insert into settings (key, value) values (\'demo_gabarit_email\',\'demo.<nom>@aschool.fr\')\n'
-        + '      on conflict (key) do update set value=excluded.value;"' },
-
-  { n: 5, titre: 'Le contenu, écrit à la main',
-    texte: 'Trois fichiers SQL versionnés dans `demos/<nom>_demo/`, injectés dans l’ordre : séquences, séances, activités. **Une séquence par matière, deux activités par séance au moins, et tous les types du référentiel représentés** — un type jamais employé ne se voit pas. Ce qui ne vient pas du référentiel ne se rattache à rien : libellé du type, précision, matière et niveau se reprennent mot pour mot. Le ton suit le public : épreuves et barèmes pour un BTS, ni l’un ni l’autre pour la crèche.',
-    code: 'docker compose exec -T db psql -U aschool -d <nom>_demo < demos/<nom>_demo/<nom>_01_sequences.sql' },
-
-  { n: 6, titre: 'La pile Docker, puis la fiche',
-    texte: 'Copier les services `_demo_b` de `docker-compose.yml` et changer trois lignes : le nom, la base dans `DATABASE_URL`, les deux ports. `/api/demo/etat` doit rendre le bon couple, et la vérification l’**exige** au lieu de se contenter de ne pas voir d’erreur : la route rend `couple: null` plutôt qu’un mauvais couple, et un vide passerait pour un silence. S’il ne colle pas, c’est le `DATABASE_URL` qui vise la mauvaise base, ou le rattachement du temps 2 qui a manqué. Le test porte sur le nom du niveau seul : le séparateur `·` n’est pas de l’ASCII, une console qui le transcode mal ferait échouer une copie pourtant juste. La fiche se met à jour depuis cet écran : adresse, compteurs, date.',
-    code: 'docker compose up -d backend_demo_<x> frontend_demo_<x>\n'
-        + 'curl -s http://localhost:<PORT_API>/api/demo/etat | grep -q \'<NIVEAU>\' && echo "couple correct" || echo "COPIE FAUSSE"' },
-
-  { n: 7, titre: 'Contrôler avant de dire que c’est fait',
-    texte: 'Tout doit rendre **zéro**. Puis ouvrir la démonstration par **Visiter**, parcourir une séquence, une séance et deux activités, et vérifier le filigrane — écran, impression, Word et PDF.',
-    code: 'docker compose exec -T db psql -U aschool -d <nom>_demo -c "\n'
-        + "select 'matiere inconnue' ctrl, count(*) from sequences s\n"
-        + '  where not exists (select 1 from matieres m where m.nom=s.matiere)\n'
-        + "union all select 'seance hors niveau', count(*) from seances where niveau<>'<NIVEAU>'\n"
-        + "union all select 'activite sans seance', count(*) from activites a\n"
-        + '  where not exists (select 1 from seances s where s.id=a.seance_id)\n'
-        + "union all select 'contenu hors compte modele', count(*) from (select user_id from sequences\n"
-        + '  union all select user_id from seances union all select user_id from activites) x\n'
-        + "  where user_id<>(select id from users where email='demo.<nom>@aschool.fr')\n"
-        + "union all select 'label qui ne colle pas au type', count(*) from activites a\n"
-        + '  join types_activite t on t.id=a.activite_type_id where t.label<>a.activite_label\n'
-        + "union all select 'sous_type inconnu', count(*) from activites a where a.sous_type is not null\n"
-        + '  and not exists (select 1 from referentiel_type_precisions p\n'
-        + '                  where p.libelle=a.sous_type and p.type_activite_id=a.activite_type_id);"' },
+    texte: '**Modifier** rouvre la fiche à tout moment. **Retirer** l’efface de la liste.' },
 ]
 
 const PIEGES = [
   '**Recalculer les vecteurs.** Ils se copient. Une ré-ingestion coûte des appels et ne donne rien de plus.',
-  '**Rejouer les prompts** du référentiel dans la base de démonstration : le découpage arrive avec la copie.',
+  '**Rejouer les prompts** du référentiel dans la démonstration : le découpage arrive avec la copie.',
   '**Écrire le contenu ailleurs que dans `demos/`.** Un dossier temporaire de session est purgé par le système, et le travail disparaît avec.',
   '**Renseigner l’adresse sans avoir ouvert la démonstration.** L’adresse est une promesse faite aux profs : dès qu’elle est là, ils entrent.',
 ]
@@ -211,10 +100,11 @@ function riche(texte) {
 // suivent au lieu de se côtoyer : à l'impression, des colonnes obligeraient à remonter en haut de
 // page à chaque fois.
 //
-// LES CHEVRONS SONT ÉCHAPPÉS. La procédure est pleine de repères `<nom>_demo` et `<REF>` : sans
-// échappement, le navigateur les prend pour des balises et les fait disparaître de la page.
+// LES CHEVRONS SONT ÉCHAPPÉS : sans cela, le navigateur prendrait un repère entre chevrons pour
+// une balise et le ferait disparaître de la page. L'échappeur est celui de la maison
+// (`ech`, utils/echapperHtml.js) : la copie qui vivait ici avait déjà divergé — elle laissait
+// passer les guillemets, que les quatre autres échappaient.
 function guideEnHtml() {
-  const ech = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const enrichir = t => ech(t)
     .split('**').map((x, i) => (i % 2 ? '<strong>' + x + '</strong>' : x)).join('')
     .split('`').map((x, i) => (i % 2 ? '<code>' + x + '</code>' : x)).join('')
@@ -223,10 +113,6 @@ function guideEnHtml() {
         + b.items.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>').join('')
     + '<h2>Fabriquer une nouvelle démonstration — par l’admin, depuis cet écran</h2>'
     + ADMIN_ETAPES.map(e => '<h3>' + e.n + '. ' + e.titre + '</h3><p>' + enrichir(e.texte) + '</p>').join('')
-    + '<h2>Fabriquer une nouvelle démonstration — par le dev, en ligne de commande</h2>'
-    + '<p>' + enrichir(PREAMBULE) + '</p>'
-    + PROCEDURE.map(e => '<h3>' + e.n + '. ' + e.titre + '</h3><p>' + enrichir(e.texte) + '</p>'
-        + '<pre>' + ech(e.code) + '</pre>').join('')
     + '<h2>Ce qu’il ne faut pas faire</h2><ul>'
     + PIEGES.map(t => '<li>' + enrichir(t) + '</li>').join('') + '</ul>'
 }
@@ -281,11 +167,6 @@ export default function GuideDemos({ onFermer }) {
       <IconGlobe />Ouvrir en HTML
     </button>
   )
-  const code = {
-    margin: 0, padding: '8px 10px', background: '#0f172a', color: '#e2e8f0', borderRadius: 6,
-    fontFamily: 'Consolas, Monaco, monospace', fontSize: 11, lineHeight: 1.55,
-    overflowX: 'auto', whiteSpace: 'pre',
-  }
   return (
     <>
     {apercu && <ApercuHtmlGuide onFermer={() => setApercu(false)} />}
@@ -320,29 +201,6 @@ export default function GuideDemos({ onFermer }) {
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{e.titre}</p>
                   <p style={{ margin: '2px 0 0', fontSize: 12, lineHeight: 1.6, color: '#475569' }}>{riche(e.texte)}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: 0 }} />
-
-        <div>
-          <p style={{ fontSize: 12.5, fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
-            Fabriquer une nouvelle démonstration — <span style={{ color: 'var(--bleu)' }}>par le dev</span>, en ligne de commande
-          </p>
-          <p style={{ fontSize: 12, lineHeight: 1.6, color: '#475569', margin: '0 0 10px' }}>{riche(PREAMBULE)}</p>
-
-          <ol style={{ margin: 0, padding: 0, listStyle: 'none',
-                       display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {PROCEDURE.map(e => (
-              <li key={e.n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={pastille}>{e.n}</span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{e.titre}</p>
-                  <p style={{ margin: '2px 0 6px', fontSize: 12, lineHeight: 1.6, color: '#475569' }}>{riche(e.texte)}</p>
-                  <pre style={code}>{e.code}</pre>
                 </div>
               </li>
             ))}

@@ -1,7 +1,7 @@
 // Le bandeau qui dit où l'on est — visible en permanence dans une instance de démonstration.
 //
 // POURQUOI IL NE SE FERME PAS. Toute l'application ressemble à la vraie, parce que c'EST la vraie,
-// branchée sur une autre base. Un prof qui l'oublie une minute croira avoir perdu ses contenus, ou
+// sur d'autres données. Un prof qui l'oublie une minute croira avoir perdu ses contenus, ou
 // pire, croira que ceux qu'il fabrique ici sont les siens. Le rappel doit donc rester à l'écran
 // tout le temps, sans croix pour l'écarter.
 //
@@ -16,8 +16,8 @@ export default function BandeauDemo() {
   const demo = useModeDemo()
   if (!demo) return null
 
-  // Le couple servi par cette base. Il arrive avec la même réponse que `mode_demo` : quand le
-  // bandeau s'affiche, il est déjà là. Vide si la base n'a aucun référentiel découpé — la phrase
+  // Le couple servi ici. Il arrive avec la même réponse que `mode_demo` : quand le bandeau
+  // s'affiche, il est déjà là. Vide s'il n'y a aucun référentiel découpé — la phrase
   // tient alors toute seule, plutôt que d'afficher un séparateur suivi de rien.
   const couple = coupleDemo()
 

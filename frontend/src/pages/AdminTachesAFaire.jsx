@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchWithTimeout, TIMEOUT_STD, MSG_TIMEOUT } from '../utils/api.js'
 import { useActionsEcran } from '../components/actionsEcran.jsx'
 import FenetreRecette from '../components/FenetreRecette.jsx'
@@ -40,6 +40,123 @@ function jour(iso) {
 }
 
 const VIDE = { titre: '', detail: '' }
+
+// ── LA RECETTE, EN LECTURE ────────────────────────────────────────────────────────────────────
+// UNE MODALE EST MODALE. Voile sombre, l'écran de dessous ne se clique plus, le focus entre dans
+// la fenêtre et n'en sort pas, Échap et la croix ferment. Une fenêtre posée par-dessus un écran
+// resté vivant laisse supprimer une tâche pendant qu'on lit sa recette : c'est la règle de base
+// des fenêtres, elle ne se discute pas.
+function FenetreDeLaRecette({ tache, onFermer }) {
+  const fermerRef = useRef(null)
+  const carteRef = useRef(null)
+
+  // Le focus entre dans la fenêtre à l'ouverture, et Échap la ferme.
+  useEffect(() => {
+    fermerRef.current?.focus()
+    const onKey = e => {
+      if (e.key === 'Escape') { onFermer(); return }
+      // LE FOCUS NE SORT PAS. Sans ce piège, la tabulation repart dans la liste derrière le
+      // voile : on donne le focus à des boutons qu'on ne peut plus cliquer.
+      if (e.key !== 'Tab') return
+      const cibles = carteRef.current?.querySelectorAll('button, [href], textarea, [tabindex]:not([tabindex="-1"])')
+      if (!cibles?.length) return
+      const premier = cibles[0]
+      const dernier = cibles[cibles.length - 1]
+      if (e.shiftKey && document.activeElement === premier) { e.preventDefault(); dernier.focus() }
+      else if (!e.shiftKey && document.activeElement === dernier) { e.preventDefault(); premier.focus() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onFermer])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={e => { if (e.target === e.currentTarget) onFermer() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)',
+               backdropFilter: 'blur(2px)', zIndex: 2200, display: 'flex',
+               alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div ref={carteRef} style={{ background: '#fff', borderRadius: 12, width: '100%',
+                                   maxWidth: 660, maxHeight: '82vh', display: 'flex',
+                                   flexDirection: 'column', overflow: 'hidden',
+                                   boxShadow: '0 24px 70px rgba(0,0,0,0.34)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px',
+                      borderBottom: '1px solid #e2e8f0' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bleu)"
+               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          </svg>
+          <span style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', flex: 1, minWidth: 0,
+                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Recette — {tache.titre}
+          </span>
+        </div>
+
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, fontSize: 13,
+                      lineHeight: 1.7, whiteSpace: 'pre-wrap',
+                      color: tache.recette ? '#334155' : '#9ca3af',
+                      fontStyle: tache.recette ? 'normal' : 'italic' }}>
+          {tache.recette
+            || 'Aucune recette écrite pour cette tâche. Tant qu’elle manque, cocher ne prouve rien.'}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 16px',
+                      borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
+          <button ref={fermerRef} type="button" onClick={onFermer} title="Fermer cette fenêtre"
+                  style={BTN_VALIDER}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── LE MESSAGE POUR LA SESSION ────────────────────────────────────────────────────────────────
+// Une note du carnet finit toujours de la même façon : on ouvre une session neuve, et on lui
+// redit à la main ce qui est écrit là. Recopier, c'est perdre le détail — celui qui contient
+// justement la spécification. Le bouton met la note entière dans le presse-papiers.
+//
+// LE TITRE SEUL EN PREMIÈRE LIGNE, puis le détail : c'est la forme d'une demande, pas d'une
+// fiche. Une session qui reçoit ça n'a rien à décoder.
+// LE TITRE ET LE TEXTE, RIEN DE PLUS. La recette et l'encart script sont DANS le détail depuis
+// qu'ils sont posés à la création de la note : les rajouter ici les enverrait en double, et une
+// session qui reçoit deux fois la même consigne cherche ce qui les distingue.
+function messagePourLaSession(tache) {
+  const detail = (tache.detail || '').trim()
+  return detail ? `${tache.titre}\n\n${detail}` : tache.titre
+}
+
+// LE PRESSE-PAPIERS, AVEC SON REPLI. `navigator.clipboard` n'existe qu'en contexte sécurisé
+// (https, ou localhost) : l'application ouverte par l'adresse IP de la machine ne l'a pas, et le
+// bouton n'y ferait rien du tout. Le vieux `execCommand('copy')` sur un champ caché, lui, marche
+// partout — il est là pour ce cas-là, pas par habitude.
+async function copier(texte) {
+  try {
+    await navigator.clipboard.writeText(texte)
+    return true
+  } catch { /* contexte non sécurisé, ou permission refusée */ }
+  try {
+    const champ = document.createElement('textarea')
+    champ.value = texte
+    champ.style.position = 'fixed'
+    champ.style.opacity = '0'
+    document.body.appendChild(champ)
+    champ.select()
+    const fait = document.execCommand('copy')
+    document.body.removeChild(champ)
+    return fait
+  } catch {
+    return false
+  }
+}
 
 export default function AdminTachesAFaire() {
   const [taches, setTaches] = useState(null)
@@ -153,9 +270,42 @@ export default function AdminTachesAFaire() {
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
         {erreur && <p style={{ fontSize: 13, color: '#dc2626', marginBottom: 12 }}>{erreur}</p>}
 
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: '0 0 16px' }}>
-          {nouvelle ? 'Nouvelle tâche' : 'Modifier la tâche'}
-        </h3>
+        {/* LE TITRE ET LES DEUX GESTES SUR LA MÊME LIGNE, les boutons à droite. On lit de gauche
+            à droite : le nom de l'écran d'abord, ce qu'on peut en faire au bout du regard. En bas
+            de page, ils descendaient avec le champ « Détail » et sortaient de vue dès que la
+            fenêtre rétrécissait. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 16px' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0, flex: 1,
+                       minWidth: 0 }}>
+            {nouvelle ? 'Nouvelle tâche' : 'Modifier la tâche'}
+          </h3>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={enregistrer}
+              disabled={occupe || !form.titre.trim()}
+              title={form.titre.trim() ? 'Enregistrer cette tâche' : 'Le titre est obligatoire'}
+              style={(occupe || !form.titre.trim()) ? grise(BTN_VALIDER) : BTN_VALIDER}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Valider
+            </button>
+            <button
+              onClick={() => setForm(null)}
+              disabled={occupe}
+              title="Abandonner cette tâche"
+              style={occupe ? grise(BTN_ANNULER) : BTN_ANNULER}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              Annuler
+            </button>
+          </div>
+        </div>
 
         <label style={{ display: 'block', fontSize: 11, color: '#64748b', marginBottom: 4 }}>
           Titre
@@ -181,35 +331,8 @@ export default function AdminTachesAFaire() {
           // LA HAUTEUR SUIT LA FENÊTRE, en fraction de l'écran et non en pixels : la zone de
           // saisie garde la même proportion sur un portable et sur un grand écran, et se réduit
           // quand on rétrécit la fenêtre au lieu de pousser les boutons hors de vue.
-          style={{ ...CHAMP, height: '48vh', minHeight: 140, resize: 'vertical' }}
+          style={{ ...CHAMP, height: 'calc(100vh - 300px)', minHeight: 200, resize: 'vertical' }}
         />
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexShrink: 0 }}>
-          <button
-            onClick={enregistrer}
-            disabled={occupe || !form.titre.trim()}
-            title={form.titre.trim() ? 'Enregistrer cette tâche' : 'Le titre est obligatoire'}
-            style={(occupe || !form.titre.trim()) ? grise(BTN_VALIDER) : BTN_VALIDER}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            Valider
-          </button>
-          <button
-            onClick={() => setForm(null)}
-            disabled={occupe}
-            title="Abandonner cette tâche"
-            style={occupe ? grise(BTN_ANNULER) : BTN_ANNULER}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            Annuler
-          </button>
-        </div>
-
       </div>
     )
   }
@@ -257,11 +380,11 @@ export default function AdminTachesAFaire() {
       </div>
 
       <Bloc titre="À faire" lignes={aFaire} vide={motif ? 'Aucune tâche ne correspond.' : 'Rien en attente.'}
-            basculer={basculer} supprimer={supprimer} occupe={occupe}
+            basculer={basculer} supprimer={supprimer} occupe={occupe} marquee={charger}
             modifier={t => setForm({ id: t.id, titre: t.titre, detail: t.detail || '', fait: t.fait })} />
 
       <Bloc titre="Faites" lignes={faites} vide={motif ? 'Aucune tâche ne correspond.' : 'Aucune tâche terminée.'} faites
-            basculer={basculer} supprimer={supprimer} occupe={occupe}
+            basculer={basculer} supprimer={supprimer} occupe={occupe} marquee={charger}
             modifier={t => setForm({ id: t.id, titre: t.titre, detail: t.detail || '', fait: t.fait })} />
 
       {/* LA RECETTE. Elle s'ouvre sur le clic dans la case, elle décide, et elle recharge le
@@ -286,6 +409,23 @@ export default function AdminTachesAFaire() {
 // aucune ne l'a été : une mention « recette à faire » serait sur toutes les lignes et ne
 // distinguerait donc rien. Le silence dit « pas encore essayé ».
 function Mention({ tache }) {
+  // CE QUI EST PARTI CHEZ UNE SESSION passe devant le reste : c'est l'état du moment, alors que
+  // le verdict de recette parle du passage précédent.
+  if (tache.dev_en_cours && !tache.fait) {
+    return (
+      <span
+        title="Le texte de cette tâche a été copié et confié à une session. La mention partira quand la tâche sera cochée."
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+          padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+          color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa',
+        }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ea580c' }} />
+        Développement en cours
+      </span>
+    )
+  }
   const etat = tache.recette_etat
   if (!etat) return null
   const vert = etat === 'verte'
@@ -317,9 +457,27 @@ function Mention({ tache }) {
 // La liste ne porte donc que le titre et sa case à cocher ; « Détail » ouvre le reste, et c'est
 // là que Modifier et Supprimer attendent — deux gestes qui portent sur une note qu'on vient de
 // relire, jamais sur une ligne survolée au passage.
-function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occupe }) {
+function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occupe, marquee }) {
   // Une seule note ouverte à la fois : la liste reste une liste.
   const [ouverte, setOuverte] = useState(null)
+  // La note qu'on vient de copier. Un presse-papiers ne se voit pas : sans cette confirmation de
+  // deux secondes, on ne sait pas si le clic a pris et on recopie deux fois pour être sûr.
+  const [copiee, setCopiee] = useState(null)
+  // La note dont on lit l'épreuve. L'administrateur l'ouvre pour savoir ce qui sera vérifié ;
+  // c'est le dev qui l'écrit et la met à jour, jamais cet écran.
+  const [recetteLue, setRecetteLue] = useState(null)
+
+  async function copierLaNote(t) {
+    if (!(await copier(messagePourLaSession(t)))) return
+    setCopiee(t.id)
+    setTimeout(() => setCopiee(c => (c === t.id ? null : c)), 2000)
+    // COPIER, C'EST DONNER. Le texte part chez une session : la ligne le dit désormais, et ne
+    // le dira plus le jour où la note sera cochée.
+    await fetch(`/api/admin/taches-a-faire/${t.id}/en-developpement`,
+                { method: 'POST', credentials: 'include' }).catch(() => {})
+    marquee?.(t.id)
+  }
+
   return (
     <div style={{ marginBottom: 22 }}>
       <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>
@@ -340,13 +498,22 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
               background: faites ? '#f8fafc' : '#fff',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+                {/* SANS RECETTE, LA CASE NE SE COCHE PAS. Cocher, c'est lancer l'épreuve ; une
+                    note qui n'en a pas n'aurait rien à faire vérifier, et la case tomberait sur
+                    une déclaration — exactement ce que ce carnet ne veut plus. Décocher reste
+                    possible : retirer une affirmation ne demande aucune preuve. */}
                 <input
                   type="checkbox"
                   checked={t.fait}
-                  disabled={occupe}
+                  disabled={occupe || (!t.fait && !t.recette)}
                   onChange={() => basculer(t)}
-                  title={t.fait ? 'Remettre à faire' : 'Marquer comme faite'}
-                  style={{ cursor: occupe ? 'not-allowed' : 'pointer', width: 16, height: 16, flexShrink: 0 }}
+                  title={t.fait
+                    ? 'Remettre à faire'
+                    : (t.recette
+                        ? 'Marquer comme faite — la recette de cette tâche va être lancée'
+                        : 'Cette tâche n’a pas encore de recette : rien à vérifier, donc rien à cocher')}
+                  style={{ cursor: (occupe || (!t.fait && !t.recette)) ? 'not-allowed' : 'pointer',
+                           width: 16, height: 16, flexShrink: 0 }}
                 />
                 {/* Le titre seul, sur UNE ligne : coupé par des points de suspension plutôt que
                     replié sur trois lignes — la liste garde sa hauteur, le détail dira tout. */}
@@ -357,6 +524,9 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                   textDecoration: faites ? 'line-through' : 'none',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
+                  {/* LE NUMÉRO DE LA NOTE, devant son titre. C'est par lui qu'on la désigne
+                      quand on en parle ailleurs — dans une session, dans un message. */}
+                  <span style={{ color: '#94a3b8', fontWeight: 600, marginRight: 6 }}>{t.id}</span>
                   {t.titre}
                 </div>
                 {/* LA DATE, en petit et en gris — celle qui compte pour le bloc où l'on est :
@@ -368,6 +538,46 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                   {faites ? jour(t.fait_at) : jour(t.created_at)}
                 </span>
                 <Mention tache={t} />
+                {/* COPIER LA NOTE — sur la ligne, pas dans le détail : le geste sert à passer la
+                    tâche à une session neuve, on le fait en parcourant la liste, sans déplier. */}
+                <button
+                  onClick={() => copierLaNote(t)}
+                  title="Copier le message pour la session — le titre et le détail de cette tâche, prêts à coller dans une session neuve"
+                  style={{ ...BTN_NEUTRE, flexShrink: 0,
+                           ...(copiee === t.id ? { color: '#166534', borderColor: '#bbf7d0',
+                                                   background: '#f0fdf4' } : null) }}
+                >
+                  {copiee === t.id ? (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                  {copiee === t.id ? 'Copié' : 'Copier'}
+                </button>
+                {/* L'ÉPREUVE DE CETTE TÂCHE — ce que la recette vérifiera, en clair. Sans elle,
+                    cocher lançait une suite de scénarios qui n'avaient rien à voir avec la note. */}
+                <button
+                  onClick={() => setRecetteLue(t)}
+                  title={t.recette
+                    ? 'Voir la recette de cette tâche — les gestes qui seront vérifiés'
+                    : 'Cette tâche n’a pas encore de recette'}
+                  style={{ ...BTN_NEUTRE, flexShrink: 0,
+                           ...(t.recette ? null : { color: '#9ca3af' }) }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                  Recette
+                </button>
                 <button
                   onClick={() => setOuverte(ouvert ? null : t.id)}
                   title={ouvert ? 'Replier cette tâche' : 'Voir le détail de cette tâche, la modifier ou la supprimer'}
@@ -384,27 +594,10 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
 
               {ouvert && (
                 <div style={{ borderTop: '1px solid #f1f5f9', padding: '10px 12px 12px' }}>
-                  {/* Le texte de la note, en entier. Une note sans détail le dit : un blanc
-                      laisserait croire que le dépliage a raté. */}
-                  <div style={{ fontSize: 12, color: t.detail ? '#374151' : '#9ca3af',
-                                whiteSpace: 'pre-wrap', fontStyle: t.detail ? 'normal' : 'italic' }}>
-                    {t.detail || 'Aucun détail pour cette tâche.'}
-                  </div>
-                  {/* CE QUI A LÂCHÉ, gardé sous la note. Une mention « recette à refaire » sans
-                      motif oblige à relancer trois minutes pour réapprendre ce qu'on savait. */}
-                  {t.recette_etat === 'ratee' && t.recette_detail && (
-                    <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 8,
-                                  background: '#fef2f2', border: '1px solid #fecaca',
-                                  fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
-                      <strong style={{ color: '#dc2626' }}>Dernière recette</strong> — {t.recette_detail}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
-                    Notée le {jour(t.created_at)}
-                    {t.fait_at ? ` · faite le ${jour(t.fait_at)}` : ''}
-                    {t.recette_at ? ` · recette le ${jour(t.recette_at)}` : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  {/* LES DEUX GESTES EN HAUT À DROITE, sous « Copier » et « Détail » : la même
+                      place, la même règle que l'écran de modification. */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6,
+                                marginBottom: 10 }}>
                     <button
                       onClick={() => modifier(t)}
                       disabled={occupe}
@@ -433,12 +626,39 @@ function Bloc({ titre, lignes, vide, faites, basculer, supprimer, modifier, occu
                       Supprimer
                     </button>
                   </div>
+                  {/* Le texte de la note, en entier. Une note sans détail le dit : un blanc
+                      laisserait croire que le dépliage a raté. */}
+                  <div style={{ fontSize: 12, color: t.detail ? '#374151' : '#9ca3af',
+                                whiteSpace: 'pre-wrap', fontStyle: t.detail ? 'normal' : 'italic' }}>
+                    {t.detail || 'Aucun détail pour cette tâche.'}
+                  </div>
+                  {/* CE QUI A LÂCHÉ, gardé sous la note. Une mention « recette à refaire » sans
+                      motif oblige à relancer trois minutes pour réapprendre ce qu'on savait. */}
+                  {t.recette_etat === 'ratee' && t.recette_detail && (
+                    <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 8,
+                                  background: '#fef2f2', border: '1px solid #fecaca',
+                                  fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
+                      <strong style={{ color: '#dc2626' }}>Dernière recette</strong> — {t.recette_detail}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8 }}>
+                    Notée le {jour(t.created_at)}
+                    {t.fait_at ? ` · faite le ${jour(t.fait_at)}` : ''}
+                    {t.recette_at ? ` · recette le ${jour(t.recette_at)}` : ''}
+                  </div>
                 </div>
               )}
             </div>
             )
           })}
         </div>
+      )}
+
+      {/* LA RECETTE, EN LECTURE. Dans la coquille de la maison, comme toutes les fenêtres —
+          déplaçable, étirable, fermée par sa croix. On lit ce qui sera vérifié ; on ne l'écrit
+          pas ici. */}
+      {recetteLue && (
+        <FenetreDeLaRecette tache={recetteLue} onFermer={() => setRecetteLue(null)} />
       )}
     </div>
   )

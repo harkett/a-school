@@ -94,14 +94,24 @@ const IconStats = () => (
 // mes-sequences / creer-sequence / mon-reseau sont supprimés ; mes-outils / creer-activite /
 // optimiseur (inaccessibles depuis le menu) tombent au palier suivant.
 const MES_ANALYSES_PAGES = ['ambiguites', 'consigne', 'equite']
+// « Mes évals » — la liste des grilles ET l'éditeur d'une grille. Sans l'éditeur ici, ouvrir
+// une grille éteindrait le titre de la section dans le menu.
+const MES_EVALS_PAGES = ['eval-grilles', 'grille', 'grille-nouvelle']
 // Le monde NEUF « Mes contenus » : une sous-option PAR TYPE (décision utilisateur du 30/07 —
 // fini le mélange des trois dans un seul écran). Les écrans seance/activite en font partie.
 const MES_CONTENUS_PAGES = ['mes-contenus', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'seance', 'activite']
 
 export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
-  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 768)
+  // L'état du menu se RETIENT d'une session à l'autre (comme partout ailleurs) : il se
+  // recalculait sur la largeur de la fenêtre à chaque montage, donc un menu replié à la main
+  // se rouvrait tout seul au rechargement. La largeur ne sert plus que de premier réglage,
+  // le jour où le prof n'a encore rien choisi.
+  const [collapsed, setCollapsed] = useState(() => {
+    const garde = localStorage.getItem('aschool_menu_replie')
+    return garde === null ? window.innerWidth < 768 : garde === '1'
+  })
+  useEffect(() => { localStorage.setItem('aschool_menu_replie', collapsed ? '1' : '0') }, [collapsed])
   const [contenusOpen, setContenusOpen] = useState(true)   // les 3 sous-options visibles d'office
-  const [evalOpen, setEvalOpen] = useState(false)
   // « Mes feedbacks » s'ouvre de lui-même quand on est sur l'écran des retours, et se plie
   // sinon : le prof y va rarement, le groupe n'a pas à occuper deux lignes en permanence.
   const [retoursOuvert, setRetoursOuvert] = useState(false)
@@ -115,6 +125,17 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
   const setAnalysesOpen = (maj) => setAnalysesChoisi({
     pour: page,
     valeur: typeof maj === 'function' ? maj(analysesOpen) : maj,
+  })
+
+  // « Mes évals » suit exactement la même mécanique depuis que Grilles existe (17/08/2026) : le
+  // groupe s'ouvre de lui-même sur ses pages, et le geste du prof vaut pour la page où il l'a
+  // fait. Il était figé sur `useState(false)` — normal tant qu'aucune de ses entrées n'était
+  // cliquable, faux dès la première. Deux sections de même nature, une seule mécanique.
+  const [evalChoisi, setEvalChoisi] = useState(null)   // { pour: page, valeur } | null
+  const evalOpen = evalChoisi?.pour === page ? evalChoisi.valeur : MES_EVALS_PAGES.includes(page)
+  const setEvalOpen = (maj) => setEvalChoisi({
+    pour: page,
+    valeur: typeof maj === 'function' ? maj(evalOpen) : maj,
   })
 
   const navItem = (id, label, Icon, title) => (
@@ -186,30 +207,35 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
   }
 
   const analysesActive = MES_ANALYSES_PAGES.includes(page)
+  const evalActive = MES_EVALS_PAGES.includes(page)
 
   return (
     <aside
       className="bg-white border-r border-gray-200 flex flex-col shrink-0 h-full transition-all"
       style={{ width: collapsed ? 48 : 176, overflow: 'hidden' }}
     >
+      {/* LE BOUTON DE REPLI — un chevron, le MÊME dans les deux états, seul son sens change
+          (‹ replier, › déplier). C'est ce que font les applications professionnelles : le rail
+          replié ne porte que des icônes de navigation, et le logo vit dans la barre du haut.
+          Il portait ici `icon.png` réduit à 28 px : une image matricielle rétrécie, floue, qui
+          ne disait ni où l'on était ni ce que le clic ferait — et le bouton changeait d'aspect
+          d'un état à l'autre, donc on ne pouvait pas apprendre son geste. */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        title="Réduire ou agrandir le menu"
-        className="shrink-0 flex items-center gap-2 p-4 text-gray-500 hover:bg-gray-50 border-none bg-none cursor-pointer text-sm font-medium"
+        title={collapsed ? 'Déplier le menu' : 'Replier le menu'}
+        aria-label={collapsed ? 'Déplier le menu' : 'Replier le menu'}
+        aria-expanded={!collapsed}
+        className={`shrink-0 flex items-center gap-2 p-4 text-gray-500 hover:bg-gray-50 border-none bg-none cursor-pointer text-sm font-medium ${collapsed ? 'justify-center' : ''}`}
         style={{ background: 'none', border: 'none' }}
       >
-        {collapsed
-          ? <img src="/icon.png" alt="aSchool" style={{ width: 28, height: 28, borderRadius: 6 }} />
-          : <IconMenu />
-        }
-        {!collapsed && (
-          <>
-            <span>Menu</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-auto">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </>
-        )}
+        {!collapsed && <IconMenu />}
+        {!collapsed && <span>Menu</span>}
+        {/* Le chevron est LA prise de ce bouton : bordeaux et épais, il se voit sans être cherché. */}
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="var(--bordeaux)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+          className={collapsed ? '' : 'ml-auto'}>
+          <polyline points={collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'} />
+        </svg>
       </button>
 
       <nav className={`sidebar-scroll flex flex-col gap-1 flex-1 min-h-0 ${collapsed ? '' : 'px-4'}`}>
@@ -235,7 +261,7 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
               <span>Mes contenus</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2.5"
+                fill="none" stroke="var(--bordeaux)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
                 style={{ marginLeft: 'auto', flexShrink: 0, transform: contenusOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
               >
                 <polyline points="6 9 12 15 18 9"/>
@@ -273,7 +299,7 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
               <span>Mes analyses</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2.5"
+                fill="none" stroke="var(--bordeaux)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
                 style={{ marginLeft: 'auto', flexShrink: 0, transform: analysesOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
               >
                 <polyline points="6 9 12 15 18 9"/>
@@ -299,13 +325,9 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
 
         {/* Mes évaluations — toit posé, contenu à venir (formation = Mes outils ; évaluation = ici) */}
         {collapsed ? (
-          <span
-            title="Mes évaluations — bientôt"
-            className="py-1.5 flex items-center justify-center text-sm text-gray-400"
-            style={{ cursor: 'default' }}
-          >
-            <IconMesEvaluations />
-          </span>
+          // Replié, ce bouton EST la section : il vise sa première entrée vivante — les Grilles.
+          // C'était un `span` grisé « bientôt », vrai tant que les quatre entrées l'étaient.
+          navItem('eval-grilles', 'Mes évals', IconMesEvaluations, "Mes évals — composer une grille critériée")
         ) : (
           <div>
             <button
@@ -314,14 +336,15 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
               className="py-1.5 flex items-center gap-2 text-sm transition-colors w-full"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer', padding: '6px 0',
-                color: '#6b7280', fontWeight: 400,
+                color: evalActive ? 'var(--bordeaux)' : '#6b7280',
+                fontWeight: evalActive ? 600 : 400,
               }}
             >
               <IconMesEvaluations />
               <span>Mes évals</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2.5"
+                fill="none" stroke="var(--bordeaux)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
                 style={{ marginLeft: 'auto', flexShrink: 0, transform: evalOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
               >
                 <polyline points="6 9 12 15 18 9"/>
@@ -333,7 +356,10 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
                     « Sujets · grilles · quiz » débordait sur trois lignes et donnait un seul
                     état à trois chantiers distincts (migration a5c9e3b7d1f4). */}
                 {subNavItem('eval-sujets', 'Sujets', 'Bientôt disponible — créer et gérer vos sujets', { disabled: true })}
-                {subNavItem('eval-grilles', 'Grilles', "Bientôt disponible — créer et gérer vos grilles d'évaluation", { disabled: true })}
+                {/* Grilles EXISTE depuis le 17/08/2026 (GrillesContenus + GrilleEcran, tables
+                    `grilles` et ses trois filles). L'entrée était grisée et sa bulle annonçait
+                    « bientôt », comme celles des Consignes et de l'Équité avant elle. */}
+                {subNavItem('eval-grilles', 'Grilles', "Composer une grille critériée : vos critères, vos niveaux de maîtrise, et ce qu'il faut avoir fait pour chacun")}
                 {subNavItem('eval-quiz', 'Quiz', 'Bientôt disponible — créer et gérer vos quiz', { disabled: true })}
                 {subNavItem('eval-ccf', 'CCF', 'Bientôt disponible — le contrôle en cours de formation, sa situation et sa grille', { disabled: true })}
               </div>
@@ -362,7 +388,7 @@ export default function Sidebar({ page, onNavigate, onNotation, couple = '' }) {
             {!collapsed && (
               <svg
                 xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" strokeWidth="2.5"
+                fill="none" stroke="var(--bordeaux)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"
                 style={{ marginLeft: 'auto', flexShrink: 0, transform: retoursOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
               >
                 <polyline points="6 9 12 15 18 9"/>

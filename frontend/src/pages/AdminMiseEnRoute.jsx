@@ -57,7 +57,7 @@ function Legende({ etats }) {
 // Les titres de l'écran, à UNE seule place : un titre de section domine un titre de cartouche,
 // qui domine une entrée de menu. Trois corps, jamais quatre — et jamais deux valeurs pour le
 // même rang, sinon la hiérarchie se défait au premier écran ajouté.
-const TITRE_SECTION  = { fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.015em' }
+const TITRE_SECTION  = { fontSize: 14, fontWeight: 800, color: '#881337' }
 const TITRE_CARTOUCHE = { fontSize: 14, fontWeight: 700, color: '#1e293b' }
 
 // L'EN-TÊTE D'UNE SECTION — ce qui explique la liste à gauche, ce qui la mesure à droite.
@@ -156,12 +156,6 @@ export default function AdminMiseEnRoute() {
   const domProf = fonc.domaines.find(d => d.domaine === 'prof')
 
   const SECTIONS = [
-    // « Vue d'ensemble » ne disait pas de QUOI : la section ne montre que ce qui reste, le
-    // fait n'y a jamais eu sa place. Le nom le dit maintenant, ici comme dans son titre.
-    // Une puce comme celle des cartouches : l'entrée annonce une liste, elle ne décrit pas
-    // une vue. Le nom long disait ce qu'elle N'EST PAS (une vue d'ensemble) avant de dire ce
-    // qu'elle contient.
-    { cle: 'ensemble', label: 'Reste à faire :', puce: '#2563eb', compte: null, pourcent: null },
     { cle: 'technique', label: 'Technique', compte: `${techFait}/${etapes.length}`,
       pourcent: Math.round(100 * techFait / etapes.length) },
     { cle: 'admin', label: 'Côté admin', compte: domAdmin ? `${domAdmin.fait}/${domAdmin.total}` : '',
@@ -234,7 +228,22 @@ export default function AdminMiseEnRoute() {
           qu'on s'inquiète. Le détail reste à IA › Statistiques, où la cartouche renvoie. */}
       <ConsommationIA />
 
-      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+                    padding: '14px 18px 13px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb',
+                         flexShrink: 0, marginTop: 7 }} />
+          <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: '0.05em',
+                         textTransform: 'uppercase', color: '#2563eb' }}>
+            Reste à faire :
+          </span>
+          <span style={{ marginLeft: 'auto' }}>
+            <Legende etats={['en_cours', 'a_venir']} />
+          </span>
+        </div>
+
+      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap',
+                    marginTop: 14 }}>
         {/* ── MENU DE GAUCHE — collé sous le bandeau, à la hauteur mesurée ─────────────── */}
         <nav style={{ flex: '0 0 250px', display: 'flex', flexDirection: 'column', gap: 10,
                       position: 'sticky', top: hautBandeau, alignSelf: 'flex-start' }}>
@@ -286,6 +295,7 @@ export default function AdminMiseEnRoute() {
           {section === 'admin' && domAdmin && <Domaine dom={domAdmin} titre="Côté admin" />}
           {section === 'prof' && domProf && <Domaine dom={domProf} titre="Côté prof" />}
         </div>
+      </div>
       </div>
 
       {/* Plus de légende en pied de page : chaque section porte la sienne EN TÊTE, réduite aux
@@ -340,11 +350,16 @@ function VueEnsemble({ fonc, etapes, techFait, onAller }) {
   const promises = (bientot || []).filter(f => !f.livree)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    /* LA MÊME CARTOUCHE QUE « Consommation IA », juste au-dessus : même fond, même bordure,
+       même en-tête à puce. Deux blocs qui se suivent dans la même colonne et qui disent tous
+       deux ce qui attend un geste ne peuvent pas se présenter autrement l'un que l'autre. */
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+                  padding: '14px 18px 13px',
+                  display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* LE TITRE, ET LA LÉGENDE EN FACE. Elle explique les pastilles de la première liste ;
-          au pied de la page, elle arrivait après ce qu'elle devait aider à lire. */}
-      <EnteteSection milieu={<Legende etats={['en_cours', 'a_venir']} />} />
+      {/* LA LÉGENDE des pastilles de la première liste ; au pied de la page, elle arrivait
+          après ce qu'elle devait aider à lire. */}
+      <EnteteSection />
 
       {/* La plomberie : visible seulement quand elle retient quelque chose. */}
       {restant > 0 && (
@@ -462,11 +477,15 @@ function Technique({ etapes, navigate }) {
   const restant = etapes.filter(e => !e.fait).length
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ marginBottom: 4 }}>
-        <EnteteSection
-          droite={restant === 0 ? 'tout est branché'
-                                : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
-        />
+      {/* Le même en-tête que « Côté admin » et « Côté prof » : le titre à gauche, le compte
+          à droite. Sans lui, cliquer sur « Technique » n'affichait rien qui le confirme. */}
+      <div style={{ marginBottom: 4, display: 'flex', alignItems: 'baseline', gap: 10,
+                    flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Technique</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#64748b' }}>
+          {restant === 0 ? 'tout est branché'
+                         : `${restant} étape${restant > 1 ? 's' : ''} à faire`}
+        </span>
       </div>
       {restant === 0 && (
         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10,

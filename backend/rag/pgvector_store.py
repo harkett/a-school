@@ -14,14 +14,15 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, delete, func
 
 from backend.core.database import session_pour, SCHEMA_REEL
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.core.models_db import (Cycle, Matiere, Niveau, Referentiel, ReferentielChunk,
+                                    ReferentielChunkMatiere, ReferentielDocument)
 # Règle de nommage des dossiers, à UNE seule source : elle était recopiée à l'identique ici,
 # dans referentiels_admin et dans profil.py.
 from backend.core.nommage import dossier_cle as _dossier_cle
@@ -31,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parents[2]            # racine du depot
 REFERENTIELS_DIR = _ROOT / "REFERENTIELS"
+
+# COMBIEN DE TEXTES DE CADRE S'AJOUTENT À UNE RECHERCHE. Le socle commun et les compétences
+# transversales valent pour toutes les matières : ils accompagnent le programme, ils ne le
+# remplacent pas.
+#
+# UN SEUL, ET C'EST UNE QUESTION DE PRIX (19/08/2026). Ces textes-là sont les plus GROS du
+# référentiel — 3 451 caractères en moyenne au Collège 4e contre 1 877 pour une unité de
+# discipline, jusqu'à 5 723. Chaque extrait de cadre part dans un appel payant : deux, et le
+# cadre pesait plus lourd que les quatre extraits de programme demandés. Un seul suffit à poser
+# le repère. Le vrai gain viendra de la découpe de ces pavés (tâche 17), pas d'ici.
+CADRE_MAX = 1
 
 # Dossier des sauvegardes horodatées, filet AVANT toute suppression de chunks.
 # Convention projet *.bak-* (jamais commitée, cf. .gitignore).
@@ -43,6 +55,24 @@ def _pdf_path_for(db, ref: Referentiel) -> Path:
     niveau = db.get(Niveau, ref.niveau_id)
     cycle = db.get(Cycle, niveau.cycle_id)
     return REFERENTIELS_DIR / _dossier_cle(cycle.nom) / _dossier_cle(niveau.nom) / "referentiel.pdf"
+
+
+def document_courant(db, rid: int) -> int | None:
+    """LE document du référentiel — celui d'où sortent les unités qu'on écrit maintenant.
+
+    Un référentiel n'en a qu'un tant que le dépôt par arrêté n'existe pas (étape 4 du chantier) :
+    c'est celui de son PDF, écrit à la validation du dépôt. Le plus RÉCENT est pris, pour que le
+    jour où il y en aura plusieurs, une découpe lancée sans préciser lequel ne se rattache pas
+    silencieusement à un vieux document.
+
+    None = ce référentiel n'a aucun document. Ce n'est pas un état normal : plus rien ne peut
+    s'écrire, et les appelants le disent au lieu d'inventer un rattachement."""
+    return db.scalar(
+        select(ReferentielDocument.id)
+        .where(ReferentielDocument.referentiel_id == rid)
+        .order_by(ReferentielDocument.created_at.desc(), ReferentielDocument.id.desc())
+        .limit(1)
+    )
 
 
 def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None) -> dict:
@@ -61,6 +91,13 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
             ReferentielChunk.texte,
             ReferentielChunk.embedding,
             ReferentielChunk.embedding_model,
+            # CE QUI FAIT L'UNITE PART AVEC ELLE. Sans le document, la portee et la plage, un
+            # chunk restaure serait un chunk MUTILE : il ne saurait plus d'ou il vient, ni ce
+            # qu'il couvre, ni depuis quand il vaut — et la base le refuserait (NOT NULL).
+            ReferentielChunk.document_id,
+            ReferentielChunk.portee,
+            ReferentielChunk.valide_du,
+            ReferentielChunk.valide_au,
         )
         .where(ReferentielChunk.referentiel_id == rid)
         .order_by(ReferentielChunk.chunk_index)
@@ -76,7 +113,8 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
     # Mode exclusif "x" : si le nom existe déjà, on RAISE plutôt que d'écraser un backup
     # existant (un filet ne détruit jamais un autre filet).
     with chemin.open("x", encoding="utf-8") as f:
-        for (chunk_index, option_ab, annee, page, texte, embedding, embedding_model) in rows:
+        for (chunk_index, option_ab, annee, page, texte, embedding, embedding_model,
+             document_id, portee, valide_du, valide_au) in rows:
             f.write(json.dumps({
                 "referentiel_id": rid,
                 "chunk_index": chunk_index,
@@ -86,6 +124,10 @@ def _sauvegarder_chunks_avant_purge(db, rid: int, collection: str | None = None)
                 "texte": texte,
                 "embedding": [float(x) for x in embedding],
                 "embedding_model": embedding_model,
+                "document_id": document_id,
+                "portee": portee,
+                "valide_du": valide_du.isoformat() if valide_du else None,
+                "valide_au": valide_au.isoformat() if valide_au else None,
             }, ensure_ascii=False) + "\n")
 
     # Preuve avant : relire le fichier et exiger le bon compte, sinon ANNULER (raise).
@@ -209,10 +251,32 @@ def restaurer_chunks_depuis_sauvegarde(db, chemin: Path, rid: int, collection: s
     # 3. Filet avant de remplacer l'existant (RAISE si échec -> le delete n'est jamais atteint).
     filet = _sauvegarder_chunks_avant_purge(db, rid, collection)
 
+    # LE DOCUMENT DE REPLI, pour les dumps d'avant le 19/08/2026 : ils ne portent pas de
+    # `document_id`, et une unité doit en avoir un. On prend celui du référentiel — c'est bien
+    # de lui que venaient ces unités, il n'y en avait pas d'autre.
+    doc_repli = document_courant(db, rid)
+    documents_du_ref = set(db.scalars(
+        select(ReferentielDocument.id).where(ReferentielDocument.referentiel_id == rid)).all())
+    if doc_repli is None:
+        raise RuntimeError(
+            f"Refus : le référentiel {rid} n'a aucun document en base. Une unité restaurée doit "
+            f"dire de quel document elle sort — restaurez d'abord le document (dépôt du PDF)."
+        )
+
     db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
     for l in lignes:
+        # Un `document_id` de dump qui ne désigne plus un document de CE référentiel (document
+        # supprimé, dump ancien) retombe sur le document courant : un rattachement faux ferait
+        # disparaître l'unité au premier redépôt d'un autre document.
+        doc = l.get("document_id")
         db.add(ReferentielChunk(
             referentiel_id=rid,
+            document_id=doc if doc in documents_du_ref else doc_repli,
+            # Portée et plage : les dumps anciens n'en ont pas. 'matiere' sans liaison, c'est
+            # « à étiqueter » — l'état vrai de ces unités-là, et ce que l'écran compte.
+            portee=l.get("portee") or "matiere",
+            valide_du=date.fromisoformat(l["valide_du"]) if l.get("valide_du") else date.today(),
+            valide_au=date.fromisoformat(l["valide_au"]) if l.get("valide_au") else None,
             chunk_index=l["chunk_index"],
             option_ab=l["option_ab"],
             page=l["page"],
@@ -363,11 +427,34 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
 
     db = session_pour(SCHEMA_REEL)
     try:
+        # DE QUEL DOCUMENT SORTENT CES UNITES. Elles sortent du texte de travail du référentiel,
+        # donc de son document. Sans document, on refuse : une unité qui ne sait pas d'où elle
+        # vient ne peut plus être remplacée par un redépôt — c'est la panne que ce chantier ferme.
+        doc_id = document_courant(db, rid)
+        if doc_id is None:
+            raise RuntimeError(
+                f"Découpe refusée : le référentiel {rid} n'a aucun document en base. "
+                f"Le document est écrit à la validation du dépôt du PDF."
+            )
         sauvegarde = _sauvegarder_chunks_avant_purge(db, rid, collection)  # RAISE si échec -> delete jamais atteint
-        db.execute(delete(ReferentielChunk).where(ReferentielChunk.referentiel_id == rid))
+        # LE REDÉPÔT NE TOUCHE QUE SES UNITÉS : on n'efface que celles de CE document. Un autre
+        # arrêté du même référentiel garde les siennes (étape 4 du chantier) ; aujourd'hui, avec
+        # un document par référentiel, le résultat est le même qu'avant.
+        db.execute(delete(ReferentielChunk).where(ReferentielChunk.document_id == doc_id))
+        aujourdhui = date.today()
         for idx, (ch, vec) in enumerate(zip(chunks, vecs)):
             db.add(ReferentielChunk(
                 referentiel_id=rid,
+                document_id=doc_id,
+                # LA DÉCOUPE NE DIT PAS ENCORE LA PORTÉE : toute unité neuve naît 'matiere',
+                # c'est-à-dire « relève d'un programme, reste à étiqueter ». C'est l'étape 2 du
+                # chantier qui pose 'formation' sur les textes de cadre et lie les matières.
+                # Naître 'formation' serait plus commode et faux : le socle commun se
+                # confondrait avec les programmes, et on croirait le travail fait.
+                portee="matiere",
+                # En vigueur du jour où on l'écrit, sans fin : c'est le texte qui s'applique.
+                valide_du=aujourdhui,
+                valide_au=None,
                 chunk_index=idx,
                 option_ab=ch["meta"]["option"],   # option du document, ou "" s'il n'en a pas
                 # "" -> NULL, JAMAIS la chaîne vide : NULL est ce que le filtre RAG lit comme
@@ -381,15 +468,18 @@ def ingest_pgvector(collection: str, dry_run: bool = False, on_progress=None,
                 embedding_model=EMBEDDING_MODEL,
             ))
         db.commit()
+        # LA PREUVE PORTE SUR LE DOCUMENT, pas sur le référentiel : compter les unités du
+        # référentiel entier dirait un nombre juste par hasard tant qu'il n'a qu'un document, et
+        # faux le jour où il en aura deux — la vérification passerait sans rien vérifier.
         n = db.scalar(
             select(func.count()).select_from(ReferentielChunk)
-            .where(ReferentielChunk.referentiel_id == rid)
+            .where(ReferentielChunk.document_id == doc_id)
         )
         if n != len(chunks):
             raise RuntimeError(f"Incomplet : {n} ranges sur {len(chunks)} attendus")
         per_opt = dict(db.execute(
             select(ReferentielChunk.option_ab, func.count())
-            .where(ReferentielChunk.referentiel_id == rid)
+            .where(ReferentielChunk.document_id == doc_id)
             .group_by(ReferentielChunk.option_ab)
         ).all())
         report.update({
@@ -412,6 +502,7 @@ def retrieve_pg(
     *,
     schema: str,
     annee: str | None,
+    matiere: str | None,
 ) -> list[dict[str, Any]]:
     """Recherche pgvector (cosinus) sur referentiel_chunks — MEME forme de sortie que
     retrieve() ChromaDB (text, page, source, score=1-distance, meta). Voie DIRECTE pour
@@ -432,7 +523,22 @@ def retrieve_pg(
     des deux autres années. Le rendre optionnel serait pire que de ne rien faire : un appel
     l'oublierait un jour, et la fuite reprendrait SANS AUCUN MESSAGE — c'est exactement le
     défaut que ce paramètre corrige. `None` est une réponse valable (prof sans niveau résolu) :
-    elle ne rend alors que les unités communes, jamais celles d'une année."""
+    elle ne rend alors que les unités communes, jamais celles d'une année.
+
+    `matiere` = LA MATIÈRE DU PROF, obligatoire en mot-clé pour la même raison que l'année : un
+    appel qui l'oublierait ramènerait du français à un professeur de mathématiques, sans aucun
+    message. Ce qui sort : `top_k` unités de SA matière, PLUS un texte de portée `formation` —
+    socle commun, compétences travaillées — qui ne se rattache à personne parce qu'il vaut pour
+    tous. Le résultat peut donc porter `top_k + 1` extraits : le cadre s'ajoute au programme, il
+    ne prend pas sa place. `None` (prof sans matière résolue) ne rend que le cadre, et alors sur
+    les `top_k` places.
+
+    LE TEMPS DU CHANTIER (19/08/2026). Un référentiel dont AUCUNE unité n'est encore liée à une
+    matière n'est pas étiqueté : le filtre ne peut alors rien trier, et l'appliquer viderait la
+    recherche — le prof ne recevrait plus rien du jour au lendemain. Tant que ce référentiel-là
+    n'a aucune liaison, la matière ne filtre pas et il rend ce qu'il rendait hier. Ce n'est pas
+    un « vide = toutes » caché : c'est un fait MESURÉ sur la base, référentiel par référentiel,
+    et la branche s'éteint d'elle-même quand l'étape 2 les aura tous étiquetés."""
     q = (question or "").strip()
     if not q:
         logger.warning("[RAG-pg] retrieve_pg appele avec question vide, renvoie []")
@@ -472,8 +578,55 @@ def retrieve_pg(
         # Aucun effet sur les référentiels d'un seul niveau : chez eux tout est NULL, tout passe.
         stmt = stmt.where(
             (ReferentielChunk.annee.is_(None)) | (ReferentielChunk.annee == annee))
-        stmt = stmt.order_by(dist).limit(top_k)
-        rows = db.execute(stmt).all()
+
+        # CE QUI VAUT AUJOURD'HUI, et rien d'autre. Une unité fermée (`valide_au` posé par une
+        # réforme) reste en base — c'est tout l'intérêt de la plage : le texte d'avant n'est pas
+        # détruit — mais elle ne doit plus servir à générer quoi que ce soit.
+        aujourdhui = date.today()
+        stmt = stmt.where(ReferentielChunk.valide_du <= aujourdhui)
+        stmt = stmt.where((ReferentielChunk.valide_au.is_(None))
+                          | (ReferentielChunk.valide_au > aujourdhui))
+
+        # LA MATIÈRE. Le tri ne se faisait que sur la ressemblance du texte : rien ne garantissait
+        # qu'un prof de maths ne reçoive pas une unité de français.
+        etiquete = db.scalar(
+            select(func.count()).select_from(ReferentielChunkMatiere)
+            .join(ReferentielChunk, ReferentielChunk.id == ReferentielChunkMatiere.chunk_id)
+            .where(ReferentielChunk.referentiel_id == rid)
+        ) or 0
+
+        if not etiquete:
+            # Référentiel pas encore étiqueté : une seule recherche, comme avant le chantier.
+            rows = db.execute(stmt.order_by(dist).limit(top_k)).all()
+        else:
+            # DEUX RECHERCHES, PAS UNE — le cadre s'AJOUTE, il ne CONCOURT PAS.
+            #
+            # Mesuré le 19/08/2026 sur le Collège 4e : dans une seule recherche, les 9 unités de
+            # socle occupaient 3 places sur 5 en français et 5 sur 12 en mathématiques. Elles
+            # gagnaient au classement parce qu'elles parlent large — « les représentations du
+            # monde » ressemble à tout — et le prof recevait deux extraits de sa discipline sur
+            # cinq. Monter le nombre d'extraits ne corrigeait rien : le socle montait avec.
+            #
+            # La discipline garde donc TOUTES les places demandées, et le cadre en reçoit une de
+            # plus, à part (`CADRE_MAX`). Un prof sans matière résolue n'a aucune place à
+            # protéger : le cadre reprend alors le nombre demandé.
+            de_ma_matiere = (
+                select(ReferentielChunkMatiere.chunk_id)
+                .join(Matiere, Matiere.id == ReferentielChunkMatiere.matiere_id)
+                .where(Matiere.referentiel_id == rid, Matiere.nom == (matiere or ""))
+            )
+            rows = []
+            if matiere:
+                rows += db.execute(
+                    stmt.where(ReferentielChunk.id.in_(de_ma_matiere))
+                        .order_by(dist).limit(top_k)).all()
+            cadre = top_k if not matiere else CADRE_MAX
+            rows += db.execute(
+                stmt.where(ReferentielChunk.portee == "formation")
+                    .order_by(dist).limit(cadre)).all()
+            # Rendu dans l'ordre du classement, les deux ensembles mêlés : l'appelant applique
+            # ensuite son seuil de score, et il doit voir le meilleur en premier.
+            rows.sort(key=lambda r: r[-1] if r[-1] is not None else 1.0)
     finally:
         db.close()
 

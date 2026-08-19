@@ -4,7 +4,7 @@ CE QUE ÇA REMPLACE. Une démonstration était un PROCESS entier : son propre uv
 `DATABASE_URL`, sa propre base. Cinq démonstrations, cinq process, 800 Mo chacun. L'étanchéité
 ne coûtait aucune ligne de code, mais quatre gigaoctets de mémoire.
 
-CE QUE ÇA DEVIENT. Un seul process pour les cinq, une base à elles seules, un SCHÉMA par
+CE QUE ÇA DEVIENT. Un seul process pour toutes, une base à elles seules, un SCHÉMA par
 démonstration. Le sous-domaine dit lequel : `demo-crsa.aschool.fr` sert le schéma `crsa`.
 L'APPLICATION RÉELLE RESTE DEHORS — son service, son process et SA BASE sont séparés. Ce
 process-ci n'a donc pas le réel sous la main : il ne peut pas l'atteindre, même par erreur.

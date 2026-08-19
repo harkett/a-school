@@ -10,6 +10,7 @@ import Aschool from './Aschool.jsx'
 import { couleurStatut } from '../utils/statutsFeedback.js'
 import { useLimitesPiecesJointes } from '../utils/useLimitesPiecesJointes.js'
 import { listeFormats } from '../utils/piecesJointes.js'
+import { ASTUCES } from '../utils/astuces.js'
 
 const IconBook = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
@@ -664,10 +665,10 @@ const sections = [
       <div className="flex flex-col gap-5 text-sm text-gray-600">
         <div>
           <p className="font-semibold text-gray-700 mb-2">Ce que cet outil cherche</p>
-          <p>Une évaluation est inéquitable quand elle demande quelque chose <strong>en plus</strong> de la
-          compétence évaluée, et que ce quelque chose n'est pas également disponible à tous vos élèves :
-          un savoir qui n'a pas été enseigné, une expérience de vie supposée, un ordinateur à la maison,
-          une longueur de lecture qui prend le pas sur la matière.</p>
+          <p>Une évaluation est inéquitable quand elle exige quelque chose <strong>en plus</strong> de la
+          compétence évaluée, et que tous vos élèves n'en disposent pas : un savoir qui n'a pas été
+          enseigné, une expérience de vie supposée, un ordinateur à la maison, une longueur de lecture
+          qui prend le pas sur la matière.</p>
           <p className="text-xs text-gray-400 italic mt-2">Difficile n'est pas injuste. Une évaluation
           exigeante reste équitable tant que l'exigence porte sur ce qu'elle prétend mesurer.</p>
         </div>
@@ -927,6 +928,24 @@ const sections = [
   },
 ]
 
+// Une astuce = une fiche du Centre d'aide, fabriquée depuis le catalogue (utils/astuces.js) :
+// c'est la seconde partie de cet écran, à côté de l'aide. Zéro copie — la fiche et le « a » posé
+// sur l'écran concerné disent forcément la même chose.
+const sectionsAstuces = ASTUCES.map(a => ({
+  id: `astuce-${a.cle}`,
+  nav: a.titre,
+  titre: a.titre,
+  Icon: IconBulb,
+  contenu: (
+    <div className="flex flex-col gap-2 text-sm text-gray-600">
+      <p className="font-semibold text-gray-700">{a.court}</p>
+      <p style={{ whiteSpace: 'pre-line' }}>{a.long}</p>
+    </div>
+  ),
+}))
+
+sections.push(...sectionsAstuces)
+
 const CATEGORIES = [
   { label: 'Premiers pas', ids: ['compte', 'profil-setup', 'premiere-activite'] },
   { label: 'Installation', ids: ['install-ios', 'install-android', 'pwa-offline', 'pwa-update'] },
@@ -934,6 +953,7 @@ const CATEGORIES = [
   { label: 'Analyser', ids: ['ambiguites', 'consignes', 'equite'] },
   { label: 'Comprendre', ids: ['apprentissage', 'conseils-utilisation', 'espace', 'mes-feedbacks', 'bibliotheque-exemples'] },
   { label: 'Problèmes', ids: ['problemes'] },
+  { label: 'Astuces', ids: sectionsAstuces.map(s => s.id) },
 ]
 
 export default function Aide({ initialSection = null }) {

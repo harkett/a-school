@@ -31,8 +31,8 @@ from backend.core.database import get_db, session_pour, SCHEMA_REEL
 from backend.core.nommage import dossier_cle as _dossier_cle
 from backend.core.resolution_couple import recalculer_nom_affichage
 from backend.core.models_db import (
-    Activite, Cycle, Niveau, Referentiel, ReferentielChunk, Matiere, User, ActiviteType,
-    ReferentielTypePrecision,
+    Activite, Cycle, Niveau, Referentiel, ReferentielChunk, ReferentielDocument, Matiere, User,
+    ActiviteType, ReferentielTypePrecision,
 )
 # SETTING_DEFAULTS n'est plus importé : le gabarit des prompts de type était son dernier
 # usage ici, et il se lit désormais EN BASE par `get_prompt` (registre, clé `gabarit_type`).
@@ -91,6 +91,17 @@ def _ecrire_matieres_proposees(db: Session, referentiel_id: int, noms: list[str]
         db.add(Matiere(referentiel_id=referentiel_id, nom=nom, ordre=maxo,
                        actif=True, validee=False))
     db.commit()
+
+
+def _document_du_referentiel(db: Session, referentiel_id: int) -> "ReferentielDocument | None":
+    """La ligne DOCUMENT de ce référentiel — l'objet, pas son identifiant.
+
+    UNE SEULE DÉFINITION DE « LE DOCUMENT », celle de `pgvector_store.document_courant` : le plus
+    récent. La découpe et le dépôt doivent viser le MÊME, sinon un redépôt réécrirait un document
+    et la découpe en remplirait un autre — deux vérités pour une seule pièce."""
+    from backend.rag.pgvector_store import document_courant   # import paresseux (comme la découpe)
+    doc_id = document_courant(db, referentiel_id)
+    return db.get(ReferentielDocument, doc_id) if doc_id else None
 
 
 def _apercu(pdf_path: Path) -> tuple[int, str]:
@@ -632,7 +643,23 @@ def _etapes_enregistrement(body: "ValiderBody", db: Session):
         existing.verif_couple = verif_couple_json
         existing.controle_niveau = controle_niveau_json   # le NOUVEAU document a son propre contrôle
         existing.texte_epure = texte_epure   # le NOUVEAU PDF impose SON texte de travail
-        db.query(ReferentielChunk).filter(ReferentielChunk.referentiel_id == existing.id).delete()
+        # LE DOCUMENT, ET LUI SEUL. Le PDF redéposé remplace CE document du référentiel : son
+        # morceau de texte épuré est réécrit, et seules les unités qui en sortaient s'en vont.
+        # Avant, la suppression portait sur le référentiel entier — refaire un texte obligeait à
+        # refaire toute la découpe, parce que rien ne désignait les unités du document remplacé.
+        doc = _document_du_referentiel(db, existing.id)
+        if doc is None:
+            # Un référentiel d'avant le 19/08/2026 n'a pas encore sa ligne document (dépôt fait
+            # hors migration) : on la crée maintenant, elle décrit le PDF qu'on est en train de
+            # valider. Ses unités, elles, se rattacheront à la prochaine découpe.
+            doc = ReferentielDocument(referentiel_id=existing.id, fichier=fichier_origine)
+            db.add(doc)
+            db.flush()
+        doc.fichier = fichier_origine
+        doc.source = (body.source.strip() if body.source else None)
+        doc.date_doc = (body.date_doc.strip() if body.date_doc else None)
+        doc.texte_epure = texte_epure
+        db.query(ReferentielChunk).filter(ReferentielChunk.document_id == doc.id).delete()
         # Les unités de l'ANCIEN document viennent de partir : l'étape « Découpe » n'a plus rien à
         # montrer, son drapeau ne peut pas rester levé. Il restait vrai — la cartouche s'affichait
         # verte sans une seule unité en base, et « Découper » restait grisé sans moyen d'en sortir.
@@ -661,6 +688,17 @@ def _etapes_enregistrement(body: "ValiderBody", db: Session):
         # Le rattachement à son niveau porteur part avec la création, tenu par le modèle
         # (`_referentiel_dessert_au_moins_son_niveau_porteur`) : rien à écrire ici.
         db.flush()
+        # LE DOCUMENT NAÎT AVEC LE RÉFÉRENTIEL. Un référentiel sans document ne peut plus être
+        # découpé : ses unités ne sauraient pas d'où elles sortent. Il porte le morceau de texte
+        # épuré de CE PDF — le même que `referentiels.texte_epure` tant qu'il n'y a qu'un
+        # document, et les deux sont écrits dans ce seul geste.
+        db.add(ReferentielDocument(
+            referentiel_id=ref.id,
+            fichier=fichier_origine,
+            source=(body.source.strip() if body.source else None),
+            date_doc=(body.date_doc.strip() if body.date_doc else None),
+            texte_epure=texte_epure,
+        ))
         # Le nom d'affichage se calcule APRÈS le rattachement, puisqu'il en dérive. Même
         # transaction : un référentiel ne peut pas exister sans le nom sous lequel il se montre.
         recalculer_nom_affichage(db, ref.id)

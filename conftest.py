@@ -474,6 +474,31 @@ def _seed_catalogues():
             )
 
 
+# --- Verrou 4 : LES TESTS NE LAISSENT PAS DE DOSSIERS DERRIÈRE EUX (19/08/2026) -------------
+# Un test qui dépose un référentiel crée REFERENTIELS/<CYCLE>/<NIVEAU>/, du nom du cycle et du
+# niveau qu'il vient d'inventer. Les lignes partaient au TRUNCATE ; les dossiers, non.
+# Constat du 19/08 : 240 dossiers `MP_CYCLE_…`, 588 faux PDF, du 14 au 17 août — un par
+# exécution de `pytest`. Personne ne les voyait grossir, et personne n'aurait su lesquels
+# supprimer sans relire les tests un par un.
+#
+# CE QUI EST RETIRÉ : uniquement ce qui n'existait pas avant le test. Les référentiels du dépôt
+# (COLLEGE, BTS, LICENCE…) sont là avant, ils ne sont donc jamais touchés.
+_REFERENTIELS_DIR = _RACINE / "REFERENTIELS"
+
+
+@pytest.fixture(autouse=True)
+def _ranger_les_dossiers_de_referentiel():
+    import shutil
+    avant = ({p.name for p in _REFERENTIELS_DIR.iterdir() if p.is_dir()}
+             if _REFERENTIELS_DIR.exists() else set())
+    yield
+    if not _REFERENTIELS_DIR.exists():
+        return
+    for p in _REFERENTIELS_DIR.iterdir():
+        if p.is_dir() and p.name not in avant:
+            shutil.rmtree(p, ignore_errors=True)
+
+
 # --- Verrou 3 : isolation par test = TRUNCATE, UNIQUEMENT sur aschool_test ---
 @pytest.fixture(autouse=True)
 def _clean_db():

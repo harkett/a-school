@@ -64,8 +64,8 @@ def test_mail_groupe_ferme_sans_cookie_admin():
 
 
 def test_entrer_en_demonstration_n_existe_pas_sur_une_instance_ordinaire():
-    """La porte sans mot de passe ne doit exister QUE là où MODE_DEMO est allumé. Sur une
-    instance ordinaire elle répond 404 — pas 401 : on ne dit même pas qu'elle existe."""
+    """La porte sans mot de passe ne doit pas exister sur une instance ordinaire : elle répond
+    404 — pas 401, on ne dit même pas qu'elle existe."""
     r = TestClient(app).post("/api/demo/entrer", json={"jeton": "peu importe"})
     assert r.status_code == 404, (
         f"Une instance ordinaire doit ignorer cette adresse, elle rend {r.status_code}."

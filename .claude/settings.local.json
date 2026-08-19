@@ -72,7 +72,8 @@
       "Bash(curl -s -o /dev/null -w \"hosts:%{http_code}\\\\n\" -m 5 \"http://demo-college4e.aschool.fr:8080/api/demo/etat\")",
       "Bash(curl -s -m 5 -H \"Host: demo-college4e.aschool.fr\" http://localhost:8080/api/demo/etat)",
       "Bash(cat deploy/nginx-demos-local.conf; echo \"=== hosts ===\"; grep -i \"aschool\" /c/Windows/System32/drivers/etc/hosts 2>/dev/null || echo \"\\(aucune ligne aschool dans hosts\\)\")",
-      "Read(//c/Windows/System32/drivers/etc/**)"
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash(git fetch *)"
     ],
     "additionalDirectories": [
       "D:\\A-PUB\\PUB_ASCHOOL\\PLAN_CAMPAGNE-ASCHOOL",

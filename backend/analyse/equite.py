@@ -160,7 +160,7 @@ def api_exemple_equite_genere(
 
     chunks = retrieve_pg(collection, REQUETE_GABARIT.format(matiere=matiere, niveau=niveau),
                          filters=filtres, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on le dit au prof, et `generate` n'est PAS appelé (rien payé).
@@ -244,7 +244,8 @@ def api_detect_equite(
     # Une statistique ne casse JAMAIS l'outil du prof : si le journal d'usage ne s'écrit pas,
     # l'analyse est rendue quand même (motif de `ambiguites.py`, rollback compris).
     try:
-        db.add(ToolUsageLog(user_id=user.id, tool="equite", score_label=str(len(trouves))))
+        db.add(ToolUsageLog(user_id=user.id, tool="equite", score_label=str(len(trouves)),
+                            matiere=matiere, niveau=niveau))
         db.commit()
     except Exception:
         db.rollback()

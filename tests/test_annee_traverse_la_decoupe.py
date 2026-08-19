@@ -69,7 +69,8 @@ def test_une_entree_sans_le_champ_ne_casse_pas():
 def test_chaine_vide_devient_NULL_en_base(monkeypatch):
     """Le bout de la chaîne : ce que la découpe rend finit dans la colonne, "" en NULL."""
     import backend.core.database as dbmod
-    from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+    from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
+                                        ReferentielDocument)
     from backend.rag import pgvector_store as pg
 
     db = dbmod.SessionLocal()
@@ -78,7 +79,10 @@ def test_chaine_vide_devient_NULL_en_base(monkeypatch):
         niv = Niveau(cycle_id=cyc.id, nom="TA-5e", ordre=1); db.add(niv); db.flush()
         ref = Referentiel(niveau_id=niv.id, nom_fixe="TA-ref", collection="ta_ref",
                           texte_epure=TEXTE, prompt_decoupe="p")
-        db.add(ref); db.commit()
+        db.add(ref); db.flush()
+        # Le document du dépôt : les unités écrites par la découpe s'y rattachent.
+        db.add(ReferentielDocument(referentiel_id=ref.id, fichier="doc.pdf", texte_epure=TEXTE))
+        db.commit()
         rid = ref.id
     finally:
         db.close()

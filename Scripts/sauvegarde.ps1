@@ -1,7 +1,7 @@
 ﻿# =============================================================================
 # aSchool — SAUVEGARDE QUOTIDIENNE DES BASES
 #
-# CE QU'IL FAIT. Un pg_dump de aschool_dev et des cinq bases de démonstration,
+# CE QU'IL FAIT. Un pg_dump de aschool_dev et de aschool_demos,
 # vers db_backup\, un fichier horodaté par base, puis efface ce qui a plus de
 # 14 jours. Rien d'autre : il ne restaure pas, il ne touche à aucune base.
 #
@@ -37,7 +37,7 @@ $projet   = Split-Path -Parent $PSScriptRoot
 $dossier  = Join-Path $projet 'db_backup'
 $journal  = Join-Path $dossier 'sauvegarde.log'
 $jours    = 14
-$bases    = @('aschool_dev', 'ciela_demo', 'cielb_demo', 'creche_demo', 'crsa_demo', 'ergo_demo')
+$bases    = @('aschool_dev', 'aschool_demos')
 
 New-Item -ItemType Directory -Force -Path $dossier | Out-Null
 Set-Location $projet

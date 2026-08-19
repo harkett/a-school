@@ -134,7 +134,8 @@ def test_generation_utilise_le_couple_de_travail_en_base():
                  json={"matiere": "CT-HG", "niveau": "CT-5e"}).status_code == 200
     capture = {}
 
-    def _faux_rag(collection, query, filters=None, top_k=None, schema=None, annee=None):
+    def _faux_rag(collection, query, filters=None, top_k=None, schema=None, annee=None,
+                  matiere=None):
         capture["collection"] = collection
         capture["annee"] = annee
         return [{"text": "Extrait officiel CT-5e.", "score": 0.9}]

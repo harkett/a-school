@@ -31,7 +31,6 @@ LECTURES_ADMIN = [
     "/api/admin/audit-log",
     "/api/admin/check",
     "/api/admin/db-size",
-    "/api/admin/demos/proposition",
     "/api/admin/failed-attempts",
     "/api/admin/feature-votes",
     "/api/admin/fonctionnalites",

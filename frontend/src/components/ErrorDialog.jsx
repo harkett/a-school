@@ -22,6 +22,10 @@ export default function ErrorDialog() {
       // demander explicitement le ton informatif. Un `!!` ici écrasait `undefined` en `false` et
       // rendait le défaut impossible à distinguer d'une demande de bleu.
       danger: opts.danger, titre: opts.titre || '',
+      // `apres` : ce qu'il reste à faire une fois le message lu — rendre la main au champ que
+      // le prof doit corriger, par exemple. Le message dit quoi faire, l'écran l'y emmène ;
+      // sans cela il lit « choisissez la matière » et doit chercher lui-même où.
+      apres: typeof opts.apres === 'function' ? opts.apres : null,
     }))
     registerServerHealthHandler((degraded) => { if (degraded) setDialog({
       text: MSG_SERVEUR_INDISPONIBLE, feedback: false, ref: null, danger: true, titre: '' }) })
@@ -31,20 +35,22 @@ export default function ErrorDialog() {
   useEffect(() => {
     if (!dialog) return
     okRef.current?.focus()
-    const onEsc = e => { if (e.key === 'Escape') setDialog(null) }
+    const onEsc = e => { if (e.key === 'Escape') { const apres = dialog.apres; setDialog(null); apres?.() } }
     window.addEventListener('keydown', onEsc)
     return () => window.removeEventListener('keydown', onEsc)
   }, [dialog])
 
   if (!dialog) return null
 
-  const fermer = () => setDialog(null)
+  // La suite se joue APRÈS la fermeture (le champ visé ne peut pas prendre le focus tant que
+  // la modale le retient).
+  const fermer = () => { const apres = dialog.apres; setDialog(null); apres?.() }
   const signaler = () => { fermer(); openFeedbackFromError(dialog.ref) }
 
   // Avec le lien feedback : on coupe le texte imposé autour de « cliquez ici » et on rend ce
   // segment comme un lien. Si le repère n'est pas trouvé (message d'un autre appel), on retombe
   // proprement sur le texte simple.
-  const [avant, apres] = dialog.feedback ? dialog.text.split('cliquez ici') : [dialog.text, null]
+  const [avantLien, apresLien] = dialog.feedback ? dialog.text.split('cliquez ici') : [dialog.text, null]
 
   // TON de la boîte : ROUGE PAR DÉFAUT, et c'est la règle — pas un réglage à répéter.
   //
@@ -98,9 +104,9 @@ export default function ErrorDialog() {
 
         {/* ── Corps : le message, aligné à gauche, lisible ── */}
         <div style={{ padding: '18px 20px', fontSize: 14, color: '#334155', lineHeight: 1.65, whiteSpace: 'pre-line', textAlign: 'left' }}>
-          {dialog.feedback && apres !== null ? (
+          {dialog.feedback && apresLien !== null ? (
             <>
-              {avant}
+              {avantLien}
               <button
                 type="button"
                 onClick={signaler}
@@ -108,7 +114,7 @@ export default function ErrorDialog() {
               >
                 cliquez ici
               </button>
-              {apres}
+              {apresLien}
             </>
           ) : dialog.text}
           {dialog.ref && (

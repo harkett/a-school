@@ -24,10 +24,9 @@ SCHEMA_REEL = "public"
 #
 # Le signal est le nom de la base, comme dans `outils_bdd/migrer_les_demos.py` qui refuse déjà de
 # tourner ailleurs que sur celle des démonstrations. Le réel s'appelle `aschool` ou `aschool_dev`,
-# les démonstrations `aschool_demos` — et les anciennes bases `<option>_demo`, d'avant la bascule
-# en schémas, restent couvertes.
+# les démonstrations `aschool_demos`.
 _BASE = (DATABASE_URL.rsplit("/", 1)[-1] or "").split("?")[0].lower()
-INSTANCE_DEMOS = _BASE.endswith("_demos") or _BASE.endswith("_demo")
+INSTANCE_DEMOS = _BASE.endswith("_demos")
 
 # PostgreSQL (psycopg, synchrone) : pool robuste.
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=1800)
@@ -84,9 +83,9 @@ def get_db(request: Request):
 def get_db_size_mb(schema: str = SCHEMA_REEL) -> float:
     """Taille du SCHÉMA en Mo — plus celle de la base entière.
 
-    `pg_database_size(current_database())` rendait le même chiffre à tout le monde : les cinq
+    `pg_database_size(current_database())` rendait le même chiffre à tout le monde : les
     démonstrations partagent maintenant une seule base — la leur, distincte du réel — et cette
-    mesure aurait affiché le total des cinq à chacune. On somme donc les tables du schéma. `pg_total_relation_size` comprend
+    mesure aurait affiché le total à chacune. On somme donc les tables du schéma. `pg_total_relation_size` comprend
     déjà les index et le TOAST de chaque table, d'où le filtre sur les seules tables ordinaires
     et vues matérialisées (`r`, `m`) : compter aussi les index les compterait deux fois."""
     with engine.connect() as conn:

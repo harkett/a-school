@@ -6,11 +6,13 @@ from sqlalchemy import Integer, func
 
 from backend.core.database import get_db
 from backend.core.models_db import (
-    Activite, AiFournisseur, AiModele, ConnexionLog, OutilLlm, Seance, Sequence, UsageLlm, User,
+    Activite, AiFournisseur, AiModele, ConnexionLog, OutilLlm, Seance, Sequence, ToolUsageLog,
+    UsageLlm, User,
 )
 from backend.securite import comptes
 from backend.systeme.admin import _require_admin, get_minutes_par_activite, get_few_shot_seuil
 from backend.core.horloge import maintenant_utc
+from backend.prof.profil import couple_de_travail
 
 router = APIRouter()
 
@@ -77,25 +79,56 @@ def get_dashboard(
     créations via /api/mes-contenus (relecture en base, règle 0) : ici on ne renvoie que
     l'identité et de quoi afficher la carte, jamais le contenu complet."""
     email = _get_email(aschool_access)
-    uid = db.query(User.id).filter(User.email == email).scalar()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(401, "Session expirée.")
+    uid = user.id
 
-    mes_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
+    # LE COUPLE DE TRAVAIL FILTRE TOUT CET ÉCRAN (16/08/2026). Un prof peut enseigner deux
+    # couples sans rapport — BTS technique le lundi, Licence Ergothérapie le mercredi. L'Accueil
+    # ne lisait que `user_id` : en basculant de couple, il retrouvait la dernière création de
+    # l'autre et des totaux qui mélangeaient les deux. Les listes de Mes contenus filtrent
+    # depuis toujours ; cet écran était le seul à ne pas le faire.
+    matiere, niveau, _ajuste = couple_de_travail(db, user)
 
-    derniere_act = (
-        db.query(Activite)
-        .filter(Activite.user_id == uid)
-        .order_by(Activite.id.desc())
-        .first()
+    def _du_couple(q, modele):
+        """Le même filtre pour les six lectures : jamais deux règles pour une seule question."""
+        q = q.filter(modele.user_id == uid)
+        if matiere:
+            q = q.filter(modele.matiere == matiere)
+        if niveau:
+            q = q.filter(modele.niveau == niveau)
+        return q
+
+    # Les trois totaux du prof, un par type : l'Accueil les affiche en face de chaque bloc.
+    # `mes_activites` reste le nom historique (la phrase d'accueil et l'ancien tableau de bord
+    # le lisent) — les deux autres arrivent à côté, sous leur nom de type.
+    mes_activites = _du_couple(db.query(func.count(Activite.id)), Activite).scalar() or 0
+    mes_seances = _du_couple(db.query(func.count(Seance.id)), Seance).scalar() or 0
+    mes_sequences = _du_couple(db.query(func.count(Sequence.id)), Sequence).scalar() or 0
+
+    # Les analyses ne vivent pas dans une table à elles : chaque lancement laisse une ligne dans
+    # le journal d'usage (`tool_usage_logs`), une par outil. Un seul group_by donne les trois
+    # totaux — l'écran d'accueil les affiche comme ceux des contenus, même cadre, même règle.
+    # Le journal porte son couple depuis le 16/08/2026 (migration b7d4e1a9c3f6) : les analyses
+    # lancées avant n'en ont pas et ne sont donc comptées dans aucun couple.
+    mes_analyses = dict(
+        _du_couple(db.query(ToolUsageLog.tool, func.count(ToolUsageLog.id)), ToolUsageLog)
+        .group_by(ToolUsageLog.tool)
+        .all()
     )
-    derniere_sea = (
-        db.query(Seance)
-        .filter(Seance.user_id == uid)
-        .order_by(Seance.id.desc())
-        .first()
-    )
+
+    derniere_act = _du_couple(db.query(Activite), Activite).order_by(Activite.id.desc()).first()
+    derniere_sea = _du_couple(db.query(Seance), Seance).order_by(Seance.id.desc()).first()
+    derniere_seq = _du_couple(db.query(Sequence), Sequence).order_by(Sequence.id.desc()).first()
 
     return {
         "mes_activites": mes_activites,
+        "mes_seances": mes_seances,
+        "mes_sequences": mes_sequences,
+        "mes_ambiguites": mes_analyses.get("ambiguites", 0),
+        "mes_consignes": mes_analyses.get("consigne", 0),
+        "mes_equites": mes_analyses.get("equite", 0),
         "derniere_activite": {
             "id": derniere_act.id,
             "titre": derniere_act.objet or derniere_act.activite_label,
@@ -109,6 +142,12 @@ def get_dashboard(
             "niveau": derniere_sea.niveau,
             "duree_minutes": derniere_sea.duree_minutes,
         } if derniere_sea else None,
+        "derniere_sequence": {
+            "id": derniere_seq.id,
+            "titre": derniere_seq.titre,
+            "matiere": derniere_seq.matiere,
+            "niveau": derniere_seq.niveau,
+        } if derniere_seq else None,
     }
 
 
@@ -179,14 +218,29 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     décision 30/07). Minutes gagnées par activité : réglage EN BASE
     (stats_minutes_par_activite), plus de « 15 » en dur."""
     email = _get_email(aschool_access)
-    uid = db.query(User.id).filter(User.email == email).scalar()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(401, "Session expirée.")
+    uid = user.id
 
-    total_sequences = db.query(func.count(Sequence.id)).filter(Sequence.user_id == uid).scalar() or 0
-    total_seances = db.query(func.count(Seance.id)).filter(Seance.user_id == uid).scalar() or 0
+    # MÊME RÈGLE QUE L'ACCUEIL (16/08/2026) : ces chiffres sont ceux du COUPLE DE TRAVAIL, pas
+    # ceux du compte. Un prof qui enseigne deux couples sans rapport lisait ici le total des
+    # deux — « 40 activités » dont trente appartenaient à l'autre classe.
+    matiere, niveau, _ajuste = couple_de_travail(db, user)
+
+    def _du_couple(q, modele):
+        q = q.filter(modele.user_id == uid)
+        if matiere:
+            q = q.filter(modele.matiere == matiere)
+        if niveau:
+            q = q.filter(modele.niveau == niveau)
+        return q
+
+    total_sequences = _du_couple(db.query(func.count(Sequence.id)), Sequence).scalar() or 0
+    total_seances = _du_couple(db.query(func.count(Seance.id)), Seance).scalar() or 0
 
     type_row = (
-        db.query(Activite.activite_label, func.count().label("nb"))
-        .filter(Activite.user_id == uid)
+        _du_couple(db.query(Activite.activite_label, func.count().label("nb")), Activite)
         .group_by(Activite.activite_label)
         .order_by(func.count().desc())
         .first()
@@ -198,9 +252,14 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     # — et non le type toutes classes confondues. Sinon la jauge annoncerait « style reconnu »
     # alors que rien ne s'appliquerait. Le seuil est EN BASE (few_shot_seuil), plus de « 3 » en dur.
     seuil = get_few_shot_seuil(db)
+    # Le groupe se cherche DANS LE COUPLE affiché : sinon la jauge annonçait « style reconnu »
+    # en s'appuyant sur les activités de l'autre classe, qui ne s'appliqueront jamais ici. Le
+    # `group_by` garde matière et niveau : le filtre ne les fixe que si le prof a un couple, et
+    # sans lui (compte tout neuf) le groupe doit rester ce qu'il a toujours été — un type POUR
+    # UN couple, exactement ce que le few-shot exige à la génération.
     meilleur_groupe = (
-        db.query(func.count().label("nb"))
-        .filter(Activite.user_id == uid, Activite.resultat != "")
+        _du_couple(db.query(func.count().label("nb")), Activite)
+        .filter(Activite.resultat != "")
         .group_by(Activite.activite_type_id, Activite.matiere, Activite.niveau)
         .order_by(func.count().desc())
         .first()
@@ -208,14 +267,15 @@ def stats_perso(aschool_access: str = Cookie(default=None), db: Session = Depend
     max_par_type = meilleur_groupe[0] if meilleur_groupe else 0
     score_adaptation = min(100, int(max_par_type / seuil * 100))
 
-    total_activites = db.query(func.count(Activite.id)).filter(Activite.user_id == uid).scalar() or 0
+    total_activites = _du_couple(db.query(func.count(Activite.id)), Activite).scalar() or 0
     heures_gagnees = (total_activites * get_minutes_par_activite(db)) // 60
 
     debut_mois = maintenant_utc().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    activites_ce_mois = db.query(func.count(Activite.id)).filter(
-        Activite.user_id == uid,
-        Activite.created_at >= debut_mois,
-    ).scalar() or 0
+    activites_ce_mois = (
+        _du_couple(db.query(func.count(Activite.id)), Activite)
+        .filter(Activite.created_at >= debut_mois)
+        .scalar() or 0
+    )
 
     return {
         "sequences": total_sequences,
@@ -465,8 +525,11 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     # c'est cette ligne-là qui montre ce que le refus coûte.
     par_fournisseur = _lignes(UsageLlm.fournisseur, lambda c: (c or "—").capitalize())
 
+    # DU PLUS RÉCENT AU PLUS ANCIEN : la question posée devant ce tableau est « qu'est-ce qui
+    # s'est passé hier ? », pas « qu'est-ce qui s'est passé il y a trente jours ? ». L'ordre
+    # croissant obligeait à faire défiler jusqu'en bas pour lire la ligne qui compte.
     par_jour = _lignes(func.date(UsageLlm.created_at), lambda c: str(c))
-    par_jour.sort(key=lambda l: str(l["cle"]))
+    par_jour.sort(key=lambda l: str(l["cle"]), reverse=True)
 
     # Total : la somme des seuls modèles TARIFÉS. `cout_partiel` prévient l'écran qu'une part de la
     # consommation n'est pas chiffrée — un total muet sur ce point se lirait comme une facture.
@@ -510,11 +573,18 @@ def admin_ia_usage(jours: int = Query(30, ge=1, le=365),
     }
 
 
+# La clé que l'écran envoie pour demander le détail des appels SANS outil (ligne « Non précisé »).
+# Un mot réservé plutôt qu'un paramètre de plus : la colonne n'a que deux états, nommée ou vide.
+SANS_OUTIL = "__sans_outil__"
+
+
 @router.get("/admin/ia/journal")
 def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
                      limite: int = Query(100, ge=1, le=500),
                      page: int = Query(1, ge=1),
                      fournisseur: str = Query(""),
+                     jour: str = Query(""),
+                     outil: str = Query(""),
                      db: Session = Depends(get_db), _=Depends(_require_admin)):
     """Le JOURNAL : un appel par ligne, le plus récent en haut.
 
@@ -551,6 +621,28 @@ def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
     conditions = [UsageLlm.created_at >= depuis]
     if fournisseur:
         conditions.append(UsageLlm.fournisseur == fournisseur)
+    # `jour` (AAAA-MM-JJ) : le détail d'UNE journée, pour le bouton « Détail » des statistiques.
+    # Le journal reste le journal — même table, mêmes lignes, même calcul de coût : l'écran des
+    # statistiques n'a pas sa propre source, il ouvre celle-ci sur une date.
+    # `outil` : le détail d'UNE tâche, pour le bouton « Détail » de l'onglet « Par tâche ». Le mot
+    # attendu est celui du code (`usage_llm.outil`), pas le libellé affiché — c'est la clé que les
+    # statistiques rendent déjà avec chaque ligne.
+    if outil:
+        # La ligne « Non précisé » des statistiques regroupe les appels dont l'outil est NUL : sans
+        # ce cas, son bouton « Détail » cherchait un outil nommé « null » et ne trouvait rien,
+        # alors que ces appels existent — et sont justement ceux qu'on veut identifier.
+        if outil == SANS_OUTIL:
+            conditions.append(UsageLlm.outil.is_(None))
+        else:
+            conditions.append(UsageLlm.outil == outil)
+    if jour:
+        # La date arrive en texte (AAAA-MM-JJ) : Postgres refuse de comparer un `date` à une
+        # chaîne. On la convertit ici, ce qui valide le format du même geste — une date illisible
+        # se dit en 400, elle ne part pas en erreur serveur.
+        try:
+            conditions.append(func.date(UsageLlm.created_at) == datetime.strptime(jour, "%Y-%m-%d").date())
+        except ValueError:
+            raise HTTPException(400, "Date attendue au format AAAA-MM-JJ.")
 
     base = db.query(UsageLlm).filter(*conditions)
     total = base.count()
@@ -583,7 +675,7 @@ def admin_ia_journal(jours: int = Query(30, ge=1, le=365),
 
     return {
         "jours": jours, "page": page, "limite": limite, "total": total,
-        "fournisseur": fournisseur,
+        "fournisseur": fournisseur, "jour": jour, "outil": outil,
         "cout_usd": round(cout_total, 4),
         "cout_partiel": cout_partiel,
         # « Tous » se compte ici plutôt qu'à l'écran : c'est la même période et la même table, et

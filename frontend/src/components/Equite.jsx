@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+import { ech } from '../utils/echapperHtml.js'
 import ApportTexte from './contenus/ApportTexte.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import SplitPane from './SplitPane.jsx'
@@ -64,13 +65,9 @@ const SOURCES_TEXTE = {
 // `print-color-adjust` demande à l'imprimante de les garder : sans lui, la plupart des navigateurs
 // suppriment les fonds pour épargner l'encre, et la feuille sortirait grise.
 //
-// Tout ce qui vient du modèle est ÉCHAPPÉ ici. Le nettoyage de sortie (DOMPurify, dans
-// apercuHtml.js) reste le dernier filet, jamais le premier.
-function ech(v) {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+// Tout ce qui vient du modèle est ÉCHAPPÉ (`ech`, utils/echapperHtml.js — une seule place pour
+// les cinq écrans qui composent une page). Le nettoyage de sortie (DOMPurify, dans apercuHtml.js)
+// reste le dernier filet, jamais le premier.
 
 const COULEURS_A_L_IMPRESSION = '-webkit-print-color-adjust:exact;print-color-adjust:exact'
 
@@ -222,7 +219,7 @@ export default function Equite() {
   const colonneFormulaire = (
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
-        Collez une évaluation. <Aschool /> cherche ce qu'elle demande <em>en plus</em> de la compétence visée — et qui n'est pas également disponible à tous vos élèves.
+        Collez une évaluation. <Aschool /> repère ce qu'elle exige <em>en plus</em> de la compétence évaluée : le vocabulaire, les références ou le matériel dont tous vos élèves ne disposent pas.
       </p>
 
       {/* Zone de saisie */}

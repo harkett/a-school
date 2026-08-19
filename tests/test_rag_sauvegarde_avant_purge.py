@@ -43,10 +43,14 @@ class _FakeDB:
 def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     monkeypatch.setattr(pgvector_store, "BACKUP_DIR", tmp_path)
     rows = [
-        # (chunk_index, option_ab, annee, page, texte, embedding, embedding_model)
-        (0, "A", "4e", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "bge-m3"),
-        (1, "A", None, 13, "Texte du chunk un", [0.4, 0.5, 0.6], "bge-m3"),
-        (2, "B", None, 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "bge-m3"),
+        # (chunk_index, option_ab, annee, page, texte, embedding, embedding_model,
+        #  document_id, portee, valide_du, valide_au)
+        (0, "A", "4e", 12, "Texte du chunk zero", [0.1, 0.2, 0.3], "bge-m3",
+         7, "matiere", _dt.date(2026, 8, 1), None),
+        (1, "A", None, 13, "Texte du chunk un", [0.4, 0.5, 0.6], "bge-m3",
+         7, "formation", _dt.date(2026, 8, 1), None),
+        (2, "B", None, 14, "Texte du chunk deux", [0.7, 0.8, 0.9], "bge-m3",
+         7, "matiere", _dt.date(2026, 8, 1), _dt.date(2026, 9, 1)),
     ]
     res = pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=42)
 
@@ -69,6 +73,14 @@ def test_sauvegarde_ecrit_dump_horodate(tmp_path, monkeypatch):
     assert premier["texte"] == "Texte du chunk zero"
     assert premier["embedding"] == [0.1, 0.2, 0.3]
     assert premier["embedding_model"] == "bge-m3"
+    # LE DOCUMENT, LA PORTÉE ET LA PLAGE PARTENT AUSSI. Sans eux, une unité restaurée ne saurait
+    # plus d'où elle vient ni ce qu'elle couvre — et la base la refuserait (NOT NULL).
+    assert premier["document_id"] == 7
+    assert premier["portee"] == "matiere"
+    assert premier["valide_du"] == "2026-08-01"
+    assert premier["valide_au"] is None
+    assert json.loads(lignes[1])["portee"] == "formation"
+    assert json.loads(lignes[2])["valide_au"] == "2026-09-01"
 
 
 def test_sauvegarde_zero_chunk_n_ecrit_rien(tmp_path, monkeypatch):
@@ -92,7 +104,8 @@ def test_sauvegarde_refuse_d_ecraser_un_bak_existant(tmp_path, monkeypatch):
             return fixe
 
     monkeypatch.setattr(pgvector_store, "datetime", _FixedDatetime)
-    rows = [(0, "A", None, 1, "texte", [0.1, 0.2], "bge-m3")]
+    rows = [(0, "A", None, 1, "texte", [0.1, 0.2], "bge-m3", 7, "matiere",
+             _dt.date(2026, 8, 1), None)]
 
     # 1er backup : ecrit normalement.
     pgvector_store._sauvegarder_chunks_avant_purge(_FakeDB(rows), rid=1)

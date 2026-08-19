@@ -15,12 +15,16 @@ import JaugeAttente from './JaugeAttente.jsx'
 import FriseProgression from './FriseProgression.jsx'
 import EtapeBadge from './EtapeBadge.jsx'
 import InfoGuide from './InfoGuide.jsx'
+import { astucesEcran } from '../utils/astuces.js'
 import HistoriqueVersions from './HistoriqueVersions.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { typeVierge } from '../utils/activites.js'
 import { apiFetch, detailPourEcran, lireReponse, messagePourEcran, refreshSession, TIMEOUT_STD } from '../utils/api.js'
 import { showError, openFeedbackFromError } from '../errorDialog'
 import { TYPES_CONTENUS } from '../utils/typesContenus.js'
+
+// Les astuces de cet écran, lues une fois (catalogue figé) : le « a » ne bouge pas d'un rendu à l'autre.
+const astucesActivite = astucesEcran('activite')
 
 // Identités de type (fichier commun) : le retour standard porte l'ambre activité ; le
 // retour vers la séance mère porte le vert séance — on voit vers quel étage on remonte.
@@ -444,6 +448,7 @@ export default function ActiviteEcran({ activite, seanceParente = null, onRetour
                     <span style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 700 }}>
                       Générer l'activité
                       <InfoGuide {...aideActivite('generer', { cahier: cahierPresent })} />
+                      {astucesActivite && <InfoGuide {...astucesActivite} />}
                     </span>
                     <button
                       type="button"

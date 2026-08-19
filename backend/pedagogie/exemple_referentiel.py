@@ -146,7 +146,7 @@ def api_exemple_referentiel(
     # (`referentiels.score_min`, résolu ci-dessus) — plus aucune constante en dur.
     requete = REQUETE_GABARIT.format(matiere=matiere, niveau=niveau)
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         # Rien d'assez pertinent : on n'invente RIEN, on le dit honnêtement au prof (generate PAS appelé).

@@ -45,10 +45,9 @@ _AVANT = {}
 
 
 def setup_module(_module):
-    for cle in ("DEMO_SECRET", "MODE_DEMO"):
+    for cle in ("DEMO_SECRET",):
         _AVANT[cle] = os.environ.get(cle)
     os.environ["DEMO_SECRET"] = SECRET
-    os.environ.pop("MODE_DEMO", None)
 
 
 def teardown_module(_module):

@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react'
 
 let connu = null          // true / false une fois la réponse reçue
-let couple = null         // « cycle · niveau » — le couple que cette base sert
+let couple = null         // « cycle · niveau » — le couple que cette démonstration sert
 let enCours = null        // la promesse partagée, tant que l'appel n'est pas revenu
 const abonnes = new Set()
 
@@ -103,8 +103,8 @@ export function useModeDemo() {
   return demo
 }
 
-// Le couple servi par cette base — « cycle · niveau ». Vide tant que la réponse n'est
-// pas revenue, et vide aussi quand la base n'a aucun référentiel découpé : le bandeau garde alors
+// Le couple servi ici — « cycle · niveau ». Vide tant que la réponse n'est pas revenue,
+// et vide aussi quand il n'y a aucun référentiel découpé : le bandeau garde alors
 // sa phrase seule plutôt que d'afficher un trou.
 export function coupleDemo() {
   return couple
@@ -120,7 +120,7 @@ export function estModeDemo() {
 // La marque, écrite une fois et portée par toutes les sorties.
 export const MENTION_DEMO = 'DÉMONSTRATION'
 export const PHRASE_DEMO =
-  'Document produit dans une base de démonstration — il ne provient pas de vos vrais contenus.'
+  'Document produit dans une démonstration — il ne provient pas de vos vrais contenus.'
 
 // La tuile du filigrane, en SVG : le mot incliné, dessiné une fois. Partagée par le fond d'écran
 // et par la page d'impression, pour que l'écran et le papier portent exactement la même marque.

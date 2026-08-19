@@ -2,6 +2,7 @@
 import InfoGuide from './InfoGuide.jsx'
 import { aideActivite } from '../utils/aideActivite.js'
 import { documentHtml, imprimerApercu } from '../utils/apercuHtml.js'
+import { IconWord } from './icones.jsx'
 import { telechargerWord } from '../utils/exportWord.js'
 import { telechargerPdf } from '../utils/exportPdf.js'
 import { IconPrint } from './icones.jsx'
@@ -11,12 +12,6 @@ const IconTxt = () => (
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
-  </svg>
-)
-const IconWord = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
   </svg>
 )
 const IconPdf = () => (

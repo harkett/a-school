@@ -40,7 +40,7 @@ from backend.core.schema_requete import SchemaRequeteMiddleware
 from backend.securite import auth
 from backend.systeme import admin, actions_admin
 from backend.pedagogie import programmes, exemple_referentiel, referentiels_admin
-from backend.contenu import activites, mes_contenus
+from backend.contenu import activites, grilles, mes_contenus
 from backend.prof import demo, profil
 from backend.communication import feedback, votes
 from backend.analytique import stats
@@ -164,6 +164,7 @@ app.include_router(exemple_referentiel.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(activites.router, prefix="/api")
 app.include_router(mes_contenus.router, prefix="/api")
+app.include_router(grilles.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(profil.router, prefix="/api")

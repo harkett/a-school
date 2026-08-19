@@ -378,7 +378,7 @@ def proposer_idee_grille(
     collection, filtres, seuil = resolu
 
     chunks = retrieve_pg(collection, theme, filters=filtres, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         return GrilleIdeeReponse(available=False, message=_AUCUN_EXTRAIT_POUR_IDEE)
@@ -438,7 +438,7 @@ def generer_grille(
     collection, filtres, seuil = resolu
 
     chunks = retrieve_pg(collection, demande, filters=filtres, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         raise HTTPException(400, "aSchool n'a pas trouvé, dans le référentiel officiel, de "

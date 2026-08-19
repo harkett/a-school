@@ -59,3 +59,8 @@ deploy/dumps/
 # Ecrits par deploy/installer-demos.sh sur le serveur, a partir de deploy/demos.conf.
 deploy/env-demos/
 Scripts/.recette.env
+
+# Artefacts de la recette Playwright — rapport HTML, traces, videos, sessions de test.
+# Ecrits a chaque passage, jamais relus depuis git : ils appartiennent au poste qui a joue.
+frontend/test-results/
+frontend/playwright-report/

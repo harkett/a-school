@@ -1,5 +1,5 @@
 [Unit]
-# UN SEUL SERVICE POUR LES CINQ DÉMONSTRATIONS. Il remplace l'unité paramétrée
+# UN SEUL SERVICE POUR TOUTES LES DÉMONSTRATIONS. Il remplace l'unité paramétrée
 # `aschool-demo@`, qui lançait un uvicorn par base — cinq process de 800 Mo mesurés, quatre
 # gigaoctets pour servir cinq bacs à sable presque toujours au repos.
 #

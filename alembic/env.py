@@ -46,9 +46,9 @@ target_metadata = Base.metadata
 # `alembic -x schema=crsa upgrade head` migre le schéma `crsa`, et lui seul. Sans `-x schema`,
 # STRICTEMENT RIEN NE CHANGE : le réel se migre comme avant, dans `public`.
 #
-# POURQUOI UNE `alembic_version` PAR SCHÉMA. Les cinq démonstrations partagent une base. Une
-# seule table de version, et le premier schéma migré ferait croire que les cinq le sont — les
-# quatre autres resteraient en arrière sans que rien ne le dise. Elles ne sont d'ailleurs
+# POURQUOI UNE `alembic_version` PAR SCHÉMA. Les démonstrations partagent une base. Une
+# seule table de version, et le premier schéma migré ferait croire que tous le sont — les
+# autres resteraient en arrière sans que rien ne le dise. Elles ne sont d'ailleurs
 # DÉJÀ PAS au même niveau : trois en b7e1f4a9c3d2, deux en a4d8f2c6e1b9 au moment de la bascule.
 #
 # `schema_translate_map` fait viser le bon schéma aux migrations, qui nomment leurs tables sans
@@ -99,7 +99,7 @@ def run_migrations_online() -> None:
             # migrations restantes écrivent leur SQL à la main — « DELETE FROM settings »,
             # « UPDATE fonctionnalites » — et ces noms-là ne sont pas traduits. Sans le chemin,
             # elles s'exécuteraient dans le `public` vide de la base des démonstrations : les
-            # DELETE ne trouveraient rien, l'estampille monterait quand même, et les cinq
+            # DELETE ne trouveraient rien, l'estampille monterait quand même, et les
             # schémas se diraient à jour sans l'être.
             connection = connection.execution_options(schema_translate_map={None: _schema})
         context.configure(

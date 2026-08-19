@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { APP_VERSION } from '../version'
+
+const DEVISE = '« Plus le monde s’ouvre, plus nous avons besoin de proximité… »'
 
 function ModalMentions({ onClose }) {
   return (
@@ -72,13 +73,15 @@ export default function Footer() {
   return (
     <>
       <footer className="bg-white border-t border-gray-200 px-6 py-3">
-        <p className="text-center text-xs italic text-gray-400 mb-1">
-          "Plus le monde s'ouvre, plus nous avons besoin de proximité..."
-        </p>
-        <div className="flex justify-between text-xs text-gray-400">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <img src="/Logo_aSchool.png" alt="aSchool" style={{ height: 18, width: 'auto' }} />
-            {' · '}
+        {/* UNE SEULE LIGNE, TROIS PLACES FIXES (16/08/2026) : mentions à gauche, devise au
+            CENTRE de la barre, version et contact à droite. Le pied tenait sur deux bandes, la
+            devise seule au-dessus — elle est simplement descendue sur la ligne, à sa place.
+            Trois colonnes de largeur égale, et non un `justify-between` : sans elles, la devise
+            se décalerait dès que le texte de gauche ou de droite change de longueur. Le logo
+            n'y est plus : réduit à 18 px, il n'était qu'une tache illisible. */}
+        <div className="text-xs text-gray-400"
+          style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 12 }}>
+          <span style={{ justifySelf: 'start' }}>
             <button
               onClick={() => setShowMentions(true)}
               title="Consulter les mentions légales"
@@ -87,10 +90,11 @@ export default function Footer() {
               Mentions légales
             </button>
           </span>
-          <span>
+          <span className="italic" style={{ justifySelf: 'center', textAlign: 'center', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {DEVISE}
+          </span>
+          <span style={{ justifySelf: 'end', whiteSpace: 'nowrap' }}>
             v{APP_VERSION} · <a href="mailto:contact@aschool.fr" style={{ color: '#94a3b8' }}>contact@aschool.fr</a>
-            {' · '}
-            <Link to="/admin" style={{ color: '#e2e8f0' }} title="Administration">admin</Link>
           </span>
         </div>
       </footer>

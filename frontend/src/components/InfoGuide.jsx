@@ -58,7 +58,11 @@ function useSuivi(ref, actif, recaler) {
 // PARTOUT. Une procédure en quatre points dans une colonne de 300 px se lisait en accordéon,
 // texte coupé et ascenseur invisible. Essayé sur une seule fiche (14/08/2026), l'usage a
 // confirmé : la prop `redimensionnable` a disparu le 15/08/2026, il n'y a plus qu'une carte.
-export default function InfoGuide({ titre, court, long }) {
+// `variante` : 'aide' → le « i » bleu de l'aide ; 'astuce' → un « a » violet, même mécanique
+// (survol = phrase courte, clic = fiche épinglée). Deux lettres, un seul composant : une astuce
+// se lit exactement comme une aide, le prof n'a qu'un geste à connaître.
+export default function InfoGuide({ titre, court, long, variante = 'aide' }) {
+  const estAstuce = variante === 'astuce'
   const [survol, setSurvol] = useState(false)
   const [ouvert, setOuvert] = useState(false)   // carte épinglée (au clic)
   const wrapRef = useRef(null)
@@ -166,7 +170,7 @@ export default function InfoGuide({ titre, court, long }) {
     <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex', verticalAlign: 'middle', marginLeft: 6 }}>
       <button
         type="button"
-        aria-label={`Aide : ${titre}`}
+        aria-label={`${estAstuce ? 'Astuce' : 'Aide'} : ${titre}`}
         aria-expanded={ouvert}
         onMouseEnter={() => { recalerBulle(); setSurvol(true) }}
         onMouseLeave={() => { setSurvol(false); setPosBulle(null) }}
@@ -179,15 +183,17 @@ export default function InfoGuide({ titre, court, long }) {
           setPosBulle(null)
         }}
         style={{
-          width: 16, height: 16, borderRadius: '50%', border: '1px solid #cbd5e1',
-          background: ouvert ? '#2563eb' : '#fff', color: ouvert ? '#fff' : '#64748b',
+          width: 16, height: 16, borderRadius: '50%',
+          border: `1px solid ${estAstuce ? '#ddd6fe' : '#cbd5e1'}`,
+          background: ouvert ? (estAstuce ? '#7c3aed' : '#2563eb') : '#fff',
+          color: ouvert ? '#fff' : (estAstuce ? '#7c3aed' : '#64748b'),
           fontSize: 11, fontWeight: 700, fontStyle: 'italic', lineHeight: 1,
           textTransform: 'none', fontFamily: 'Georgia, "Times New Roman", serif',
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', padding: 0, flexShrink: 0,
         }}
       >
-        i
+        {estAstuce ? 'a' : 'i'}
       </button>
 
       {/* SURVOL → bulle courte (masquée dès que la carte est épinglée, pour ne pas se superposer). */}

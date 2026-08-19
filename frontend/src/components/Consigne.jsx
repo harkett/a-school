@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { apiFetch, lireReponse, messagePourEcran, TIMEOUT_LONG } from '../utils/api.js'
 import { showError } from '../errorDialog.js'
+import { ech } from '../utils/echapperHtml.js'
 import ApportTexte from './contenus/ApportTexte.jsx'
 import JaugeAttente from './JaugeAttente.jsx'
 import SplitPane from './SplitPane.jsx'
@@ -39,13 +40,9 @@ const SOURCES_TEXTE = {
 // lui, la plupart des navigateurs suppriment les fonds pour épargner l'encre, et la feuille
 // sortirait grise.
 //
-// Tout ce qui vient du modèle est ÉCHAPPÉ ici. Le nettoyage de sortie (DOMPurify, dans
-// apercuHtml.js) reste le dernier filet, jamais le premier.
-function ech(v) {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
+// Tout ce qui vient du modèle est ÉCHAPPÉ (`ech`, utils/echapperHtml.js — une seule place pour
+// les cinq écrans qui composent une page). Le nettoyage de sortie (DOMPurify, dans apercuHtml.js)
+// reste le dernier filet, jamais le premier.
 
 const COULEURS_A_L_IMPRESSION = '-webkit-print-color-adjust:exact;print-color-adjust:exact'
 
@@ -234,19 +231,13 @@ export default function Consigne() {
             Ce qu'aSchool examine
             <InfoGuide {...aideConsigne('axes')} />
           </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <ul style={{ margin: 0, padding: '0 0 0 20px', listStyle: 'disc outside', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {AXES_CONSIGNE.map(a => (
-              <span
-                key={a.label}
-                title={a.description}
-                style={{ fontSize: '11px', fontWeight: 700, color: a.couleur.text, background: a.couleur.bg,
-                         border: `1px solid ${a.couleur.border}`, borderRadius: '12px', padding: '2px 10px',
-                         whiteSpace: 'nowrap' }}
-              >
+              <li key={a.label} title={a.description} style={{ display: 'list-item', fontSize: '13px', lineHeight: 1.5, color: '#1e293b' }}>
                 {a.label}
-              </span>
+              </li>
             ))}
-          </div>
+          </ul>
           <span style={{ fontSize: '11.5px', color: '#94a3b8' }}>
             Les cinq axes sont examinés à chaque analyse — ils ne se décochent pas.
           </span>

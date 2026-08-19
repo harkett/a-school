@@ -17,18 +17,17 @@ import SplitPane from '../SplitPane.jsx'
 import InfoGuide from '../InfoGuide.jsx'
 import { TYPES_CONTENUS } from '../../utils/typesContenus.js'
 import { IconCalendar, IconGlobe, IconPrint, IconShare, IconTrash } from '../icones.jsx'
+import { astucesEcran } from '../../utils/astuces.js'
+import { IconSeance } from '../icones.jsx'
+
+// Les astuces de cet écran, lues une fois (catalogue figé) : le « a » ne bouge pas d'un rendu à l'autre.
+const astucesContenus = astucesEcran('contenus')
 
 // Identité du type Séance (vert émeraude) — fichier commun, appliquée en petites touches
 // (mêmes endroits que le violet de la page Séquences : titre, pastille, liseré, onglets).
 const TYPE_SEA = TYPES_CONTENUS.seance
 
 // Icône du type : une « horloge » (un temps qui se déroule), devant le titre de page.
-const IconHorloge = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={TYPE_SEA.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
-  </svg>
-)
 
 
 
@@ -361,7 +360,7 @@ export default function SeancesContenus({ onOuvrirSeance, onOuvrirActivite, sess
           en haut à droite : ouvre l'écran Séance du monde neuf. */}
       <div className="flex items-center gap-3" style={{ flexShrink: 0, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div className="flex items-baseline gap-3">
-          <h2 className="text-lg font-semibold text-gray-800" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IconHorloge />Mes séances<InfoGuide {...aideSeances('ecran')} /></h2>
+          <h2 className="text-lg font-semibold text-gray-800" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IconSeance couleur={TYPE_SEA.accent} />Mes séances<InfoGuide {...aideSeances('ecran')} />{astucesContenus && <InfoGuide {...astucesContenus} />}</h2>
           {!loading && headerCount > 0 && (
             <span style={{ fontSize: 12, color: TYPE_SEA.accent, background: TYPE_SEA.fond, border: `1px solid ${TYPE_SEA.bord}`, borderRadius: 99, padding: '1px 10px', fontWeight: 600 }}>
               {headerCount} séance{headerCount > 1 ? 's' : ''} créée{headerCount > 1 ? 's' : ''}

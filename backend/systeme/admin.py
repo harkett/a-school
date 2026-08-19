@@ -3338,6 +3338,11 @@ def _tache_a_faire_vue(t: TacheAFaire) -> dict:
         "detail": t.detail,
         "fait": t.fait,
         "fait_at": t.fait_at.isoformat() if t.fait_at else None,
+        # L'ÉPREUVE DE CETTE TÂCHE, en lecture. L'administrateur l'ouvre pour savoir ce qui sera
+        # vérifié ; c'est le dev qui la rédige et la met à jour, pas cet écran.
+        "recette": t.recette,
+        # La note est-elle partie chez une session ? Posé par « Copier », retiré par la coche.
+        "dev_en_cours": t.dev_en_cours,
         "recette_etat": t.recette_etat,
         "recette_at": t.recette_at.isoformat() if t.recette_at else None,
         "recette_detail": t.recette_detail,
@@ -3357,14 +3362,51 @@ def lister_taches_a_faire(db: Session = Depends(get_db), _: None = Depends(_requ
     return {"taches": [_tache_a_faire_vue(t) for t in lignes]}
 
 
+# LES DEUX SECTIONS QUE L'ADMINISTRATEUR N'ÉCRIT PAS (18/08/2026).
+#
+# Une note se cochera en lançant SON épreuve, et cette épreuve a deux formes : la recette, en
+# français, et le script qui la traduit. Ni l'une ni l'autre n'appartiennent à celui qui pose la
+# note — c'est le dev qui les écrit et, surtout, qui les met à jour quand le travail fait bouger
+# la cible. Une recette périmée fait tomber une case sur un travail que personne n'a vérifié.
+#
+# LES SECTIONS SONT POSÉES VIDES À LA CRÉATION, pas laissées à l'oubli : une note qui arrive sans
+# elles ne réclame rien, et le jour où on la coche il n'y a rien à jouer.
+GABARIT_RECETTE_SCRIPT = """
+
+⛔ CE QUI SUIT N'EST PAS À VOUS — ne le modifiez pas. Le dev l'écrit et le tient à jour.
+
+═══ LA RECETTE ═══
+(à écrire par le dev : les gestes qui seront vérifiés le jour où cette tâche sera cochée)
+
+═══ LE SCRIPT ═══
+(à écrire par le dev : le fichier Playwright qui traduit la recette ci-dessus, pour cette tâche
+seule ; il se réécrit dans le même geste que la recette, jamais après)"""
+
+
 @router.post("/admin/taches-a-faire", status_code=201)
 def creer_tache_a_faire(body: TacheAFaireBody, db: Session = Depends(get_db),
                         _: None = Depends(_require_admin)):
     titre = (body.titre or "").strip()
     if not titre:
         raise HTTPException(400, "Une note sans titre ne se retrouve pas : donnez-lui un titre.")
-    t = TacheAFaire(titre=titre[:200], detail=(body.detail or "").strip() or None)
+    ecrit = (body.detail or "").strip()
+    t = TacheAFaire(titre=titre[:200], detail=(ecrit + GABARIT_RECETTE_SCRIPT).strip())
     db.add(t)
+    db.commit()
+    return _tache_a_faire_vue(t)
+
+
+@router.post("/admin/taches-a-faire/{tache_id}/en-developpement")
+def marquer_en_developpement(tache_id: int, db: Session = Depends(get_db),
+                             _: None = Depends(_require_admin)):
+    """LA NOTE EST PARTIE. Copier son texte, c'est le donner à une session : la ligne le dit
+    désormais, au lieu de ressembler à une note que personne n'a ouverte.
+
+    Rien ne l'enlève ici — c'est la coche qui le fera, quand le travail sera fini et vérifié."""
+    t = db.get(TacheAFaire, tache_id)
+    if t is None:
+        raise HTTPException(404, "Note introuvable.")
+    t.dev_en_cours = True
     db.commit()
     return _tache_a_faire_vue(t)
 
@@ -3442,6 +3484,25 @@ def _appeler_le_lanceur(chemin: str, methode: str = "GET") -> dict:
     return r.json()
 
 
+# LE SCRIPT D'UNE NOTE, LU DANS SA SECTION « LE SCRIPT ».
+#
+# POURQUOI LÀ ET PAS DANS UNE COLONNE. Le dev écrit la recette et le script dans le même geste,
+# au même endroit : une colonne de plus, c'est un endroit de plus à tenir à jour, et le jour où
+# les deux divergent on ne sait plus laquelle dit vrai.
+#
+# RIEN TROUVÉ = LE LOT COMMUN. Une note sans script propre joue l'administration et les grilles,
+# comme avant : elle n'a rien de particulier à éprouver, mais elle vérifie que rien n'est cassé
+# autour.
+_SCRIPT_DE_NOTE = re.compile(r"(e2e/[A-Za-z0-9._-]+\.spec\.js)")
+
+
+def _script_de_la_note(t: TacheAFaire) -> str | None:
+    detail = t.detail or ""
+    _, _, apres = detail.partition("═══ LE SCRIPT ═══")
+    trouve = _SCRIPT_DE_NOTE.search(apres)
+    return trouve.group(1) if trouve else None
+
+
 @router.post("/admin/taches-a-faire/{tache_id}/recette")
 def lancer_la_recette(tache_id: int, db: Session = Depends(get_db),
                       _: None = Depends(_require_admin)):
@@ -3450,8 +3511,10 @@ def lancer_la_recette(tache_id: int, db: Session = Depends(get_db),
     t = db.get(TacheAFaire, tache_id)
     if t is None:
         raise HTTPException(404, "Note introuvable.")
-    etat = _appeler_le_lanceur("/lancer", "POST")
-    log_admin_action(db, "recette.lancer", f"tache #{tache_id} — {t.titre[:80]}")
+    script = _script_de_la_note(t)
+    etat = _appeler_le_lanceur(f"/lancer?fichier={script}" if script else "/lancer", "POST")
+    log_admin_action(db, "recette.lancer",
+                     f"tache #{tache_id} — {t.titre[:80]} — {script or 'lot commun'}")
     return etat
 
 
@@ -3470,11 +3533,23 @@ def suivre_la_recette(tache_id: int, db: Session = Depends(get_db),
     etat = _appeler_le_lanceur("/etat")
     verdict = etat.get("verdict")
 
+    # « IMPOSSIBLE » N'EST PAS UN VERDICT SUR LA NOTE (18/08/2026). Le lanceur le rend quand il
+    # n'a RIEN PARCOURU : l'application construite n'a pas répondu, le navigateur n'a pas
+    # démarré, le passage s'est interrompu. Écrire « recette à refaire » là-dessus accuserait un
+    # travail que personne n'a regardé. La note reste donc exactement comme elle était, et
+    # l'écran dit qu'elle n'a jamais été testée.
+    if verdict == "impossible":
+        etat["tache"] = _tache_a_faire_vue(t)
+        return etat
+
     if not etat.get("enCours") and verdict:
         t.recette_etat = verdict
         t.recette_at = maintenant_utc()
         t.recette_detail = etat.get("detail")
         if verdict == "verte":
+            # LA COCHE FERME LE DÉVELOPPEMENT. La note était partie chez une session ; elle
+            # revient vérifiée, la mention « Développement en cours » n'a plus lieu d'être.
+            t.dev_en_cours = False
             if not t.fait:
                 t.fait = True
                 t.fait_at = maintenant_utc()

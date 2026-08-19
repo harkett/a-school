@@ -12,6 +12,8 @@ Lancer : docker compose exec backend python -m pytest tests/test_programmes_couv
 """
 
 
+from datetime import date
+
 import backend.core.database as dbmod
 from backend.main import app
 from fastapi.testclient import TestClient
@@ -37,7 +39,8 @@ def test_niveau_sans_matiere_est_present_et_a_venir():
 
 
 def test_ref_disponible_vrai_seulement_avec_un_chunk():
-    from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+    from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
+                                        ReferentielDocument)
     with dbmod.SessionLocal() as db:
         cy = Cycle(nom='CV-Creche', ordre=901)
         db.add(cy); db.flush()
@@ -47,7 +50,10 @@ def test_ref_disponible_vrai_seulement_avec_un_chunk():
         ref = Referentiel(niveau_id=n_ok.id, nom_fixe='cv_avec', collection='cv_avec',
                           filtres=None, fichier='doc.pdf', texte_epure='TEXTE')
         db.add(ref); db.flush()
-        db.add(ReferentielChunk(referentiel_id=ref.id, chunk_index=0, option_ab='', page=1,
+        doc = ReferentielDocument(referentiel_id=ref.id, fichier='doc.pdf')
+        db.add(doc); db.flush()
+        db.add(ReferentielChunk(referentiel_id=ref.id, document_id=doc.id, portee='matiere',
+                                valide_du=date.today(), chunk_index=0, option_ab='', page=1,
                                 texte='x', embedding=[0.1] * 1024, embedding_model='test'))
         db.commit()
     par_nom = {n['nom']: n['refDisponible'] for n in _couverture()['CV-Creche']}

@@ -24,12 +24,14 @@ reviennent tels quels à travers la colonne Vector(1024).
 
 Lancer : docker compose exec backend python -m pytest tests/test_restauration_chunks.py -q
 """
+from datetime import date
 import json
 
 import pytest
 
 import backend.core.database as dbmod
-from backend.core.models_db import Cycle, Niveau, Referentiel, ReferentielChunk
+from backend.core.models_db import (Cycle, Niveau, Referentiel, ReferentielChunk,
+                                    ReferentielDocument)
 from backend.rag import pgvector_store
 
 MODELE = "BAAI/bge-m3"
@@ -60,8 +62,12 @@ def _couple(nom: str, ordre: int, nb_chunks: int, modele: str = MODELE) -> tuple
         ref = Referentiel(niveau_id=niv.id, nom_fixe=f"rc_{nom}", collection=f"rc_{nom}")
         db.add(ref); db.flush()
         rid = ref.id
+        # Le document du référentiel : une unité restaurée doit retrouver le sien.
+        doc = ReferentielDocument(referentiel_id=rid, fichier=f"{nom}.pdf")
+        db.add(doc); db.flush()
         for c in attendus:
-            db.add(ReferentielChunk(referentiel_id=rid, **c))
+            db.add(ReferentielChunk(referentiel_id=rid, document_id=doc.id, portee="matiere",
+                                    valide_du=date.today(), **c))
         db.commit()
     return rid, attendus
 
@@ -177,7 +183,10 @@ def test_l_etat_courant_est_sauvegarde_avant_d_etre_ecrase(tmp_path, monkeypatch
     # L'état change : on remplace les 4 chunks par 1 seul.
     _purger(rid)
     with dbmod.SessionLocal() as db:
-        db.add(ReferentielChunk(referentiel_id=rid, chunk_index=0, option_ab="", page=1,
+        doc = db.query(ReferentielDocument).filter(
+            ReferentielDocument.referentiel_id == rid).first()
+        db.add(ReferentielChunk(referentiel_id=rid, document_id=doc.id, portee="matiere",
+                                valide_du=date.today(), chunk_index=0, option_ab="", page=1,
                                 texte="etat intermediaire", embedding=_vecteur(99),
                                 embedding_model=MODELE))
         db.commit()

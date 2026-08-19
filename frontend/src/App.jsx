@@ -26,6 +26,10 @@ import Accueil from './components/Accueil'
 import Ambiguites from './components/Ambiguites'
 import Consigne from './components/Consigne'
 import Equite from './components/Equite.jsx'
+import GrillesContenus from './components/contenus/GrillesContenus.jsx'
+import GrilleEcran from './components/GrilleEcran.jsx'
+import GrilleNouvelle from './components/GrilleNouvelle.jsx'
+import FenetreGuideGrilles from './components/FenetreGuideGrilles.jsx'
 import FenetreGuideConsigne from './components/FenetreGuideConsigne.jsx'
 import FenetreGuideEquite from './components/FenetreGuideEquite.jsx'
 import MonProfil from './components/MonProfil'
@@ -120,6 +124,12 @@ function MainApp() {
   // (`profil_en_travaux` a disparu le 07/08/2026 avec le mécanisme de blocage : plus personne
   // ne détache la matière d'un prof, la base refuse de supprimer une matière qu'il porte.)
   const profilIncomplet = user && (!user.subject || user.profil_coherent === false)
+  // ÊTRE DANS « MON PROFIL » FIGE LE RESTE (16/08/2026). Le profil est la clé de tout ce que
+  // l'application fabrique : tant qu'on y touche sans avoir validé, aucun autre écran ne peut
+  // travailler juste. Le prof pouvait vider sa matière, filer dans Mes contenus et créer une
+  // activité sur la matière d'AVANT, toujours affichée en haut — un contenu faux, sans qu'un
+  // seul message ne prévienne. Menu et boutons du bandeau deviennent donc inertes le temps
+  // qu'il est sur cet écran ; ni le logo ni la consigne ne s'éteignent.
   const profilNomIncomplet = user && (!user.prenom || !user.nom)
 
   // Écran forcé : tant que le profil n'a pas de matière (couple absent), l'écran affiché est
@@ -320,6 +330,15 @@ function MainApp() {
     } catch { /* relecture impossible : on retombe sur la liste */ }
     naviguer('contenus-sequences')
   }
+  // Écran Grille (Mes évals) : l'identifiant de la grille ouverte. La liste ne porte que des
+  // compteurs — l'écran relit la grille entière de toute façon, il n'y a rien à lui passer
+  // d'autre. Null = aucune grille ouverte.
+  const [grilleOuverte, setGrilleOuverte] = useState(null)
+  function ouvrirGrille(id) {
+    setGrilleOuverte(id)
+    setPage('grille')
+  }
+
   // Écran Activité du monde MES CONTENUS : ligne cliquée (reprise) ou null (création).
   const [activiteContenusOuverte, setActiviteContenusOuverte] = useState(null)
   // Séance PARENTE d'une création d'activité (bouton « Créer une activité ici » de l'écran
@@ -380,9 +399,13 @@ function MainApp() {
   }
 
   // Routeur de navigation.
-  function naviguer(p) {
+  function naviguer(p, opts = null) {
     setAideSection(null)   // navigation normale (sidebar) -> l'Aide s'ouvre sur sa section par défaut
     setFenetreGuide(false) // la fenêtre « Comment ça marche » ne suit pas d'un écran à l'autre
+    // Seule la page Grille prend un argument : « Dupliquer » ouvre la COPIE, dont l'écran ne
+    // connaît pas encore l'identifiant. Rien d'autre ne passe par ici — un routeur qui accepte
+    // n'importe quel état devient l'endroit où l'on range ce qu'on ne sait pas ranger.
+    if (p === 'grille' && opts && opts.id) setGrilleOuverte(opts.id)
     setPage(p)
   }
 
@@ -448,6 +471,17 @@ function MainApp() {
     'equite': () => (
       <FenetreGuideEquite onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('equite')} />
     ),
+    // Les DEUX pages Grilles partagent un seul guide : ce sont deux vues d'un même objet, et
+    // deux textes auraient divergé au premier ajustement.
+    'eval-grilles': () => (
+      <FenetreGuideGrilles onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('comment')} />
+    ),
+    'grille': () => (
+      <FenetreGuideGrilles onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('comment')} />
+    ),
+    'grille-nouvelle': () => (
+      <FenetreGuideGrilles onFermer={() => setFenetreGuide(false)} onOuvrirAide={() => ouvrirAideDepuisGuide('comment')} />
+    ),
     'seance': () => (
       <FenetreGuideSeance onFermer={() => setFenetreGuide(false)} onOuvrirAide={ouvrirAideDepuisGuide} />
     ),
@@ -489,6 +523,7 @@ function MainApp() {
       <div>
         <Header
         bloque={profilIncomplet}
+        gele={page === 'mon-profil'}
         matiere={matiereLabel}
         niveau={user?.travail_niveau}
         email={user?.email}
@@ -507,8 +542,8 @@ function MainApp() {
       </div>
 
       <div className="flex flex-1 min-h-0" style={{ paddingTop: HAUTEUR_HEADER }}>
-        <div className="flex" style={profilIncomplet ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
-             aria-hidden={profilIncomplet || undefined}>
+        <div className="flex" style={(profilIncomplet || page === 'mon-profil') ? { opacity: 0.35, pointerEvents: 'none', filter: 'grayscale(1)' } : undefined}
+             aria-hidden={(profilIncomplet || page === 'mon-profil') || undefined}>
           {/* LE COUPLE PASSE À LA BARRE, et il n'y sert qu'à une chose : l'entrée
               « Démonstration » interroge le serveur une fois par couple, pas une fois pour
               toutes. Au sortir de l'inscription le profil est vide, la réponse est « pas de
@@ -517,7 +552,7 @@ function MainApp() {
                    couple={`${user?.travail_matiere || user?.subject || ''}|${user?.travail_niveau || user?.niveau || ''}`} />
         </div>
 
-        <main className={`flex-1 p-6 flex flex-col gap-4 ${['accueil', 'ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 flex flex-col gap-4 ${['accueil', 'ambiguites', 'consigne', 'equite', 'activite', 'mes-contenus', 'seance', 'sequence', 'contenus-sequences', 'contenus-seances', 'contenus-activites', 'eval-grilles', 'grille', 'grille-nouvelle'].includes(page) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {page === 'accueil' && (
             <Accueil
               user={user}
@@ -631,6 +666,27 @@ function MainApp() {
               le porte, et le serveur le résout en base. */}
           {page === 'equite' && (
             <Equite />
+          )}
+
+          {/* Mes évals → Grilles. DEUX pages, comme Mes contenus : la liste (d'où naît une
+              grille) et l'éditeur du tableau. `key` sur l'identifiant — passer d'une grille à
+              l'autre (« Dupliquer ») remonte un écran neuf plutôt que de recycler son état. */}
+          {page === 'eval-grilles' && (
+            <GrillesContenus
+              onOuvrirGrille={ouvrirGrille}
+              onNouvelleGrille={() => naviguer('grille-nouvelle')}
+              sessionMatiere={sessionMatiere}
+              sessionNiveau={params.niveau}
+            />
+          )}
+
+          {/* « Nouvelle grille » est un ÉCRAN, pas un panneau déplié dans la liste : on quitte la
+              liste, comme « Nouvelle activité » la fait disparaître. La grille écrite, on revient
+              à la liste — elle y est. */}
+          {page === 'grille-nouvelle' && <GrilleNouvelle onNavigate={naviguer} />}
+
+          {page === 'grille' && grilleOuverte && (
+            <GrilleEcran key={grilleOuverte} grilleId={grilleOuverte} onNavigate={naviguer} />
           )}
 
           {page === 'bientot-disponible' && <BientotDisponible />}

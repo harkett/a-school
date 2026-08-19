@@ -52,7 +52,7 @@ TABLES_PROPRIETAIRES = {
     "matiere_niveaux", "matieres_candidates", "fiches_matieres",
 }
 
-# --- DETTE — état des lieux GELÉ au 31/07/2026 (9 + 1 colonnes) ---------------------------
+# --- DETTE — état des lieux gelé au 31/07/2026, rouvert le 17/08/2026 (11 + 1 colonnes) ---
 # À corriger un jour : la colonne texte doit devenir `<nom>_id` avec sa clé étrangère.
 DETTE = {
     "sequences.matiere":      "models_db.py:255 — recopie matieres.nom",
@@ -64,6 +64,15 @@ DETTE = {
     "seance_versions.style":  "models_db.py:342 — recopie seance_styles.code",
     "activites.matiere":      "models_db.py:384 — recopie matieres.nom",
     "activites.niveau":       "models_db.py:385 — recopie niveaux.nom",
+    # AJOUTÉES LE 17/08/2026, sur décision explicite de l'utilisateur (chantier Grilles). La
+    # table `grilles` reprend le moule de `sequences`/`seances`/`activites`, dont les six
+    # colonnes équivalentes sont déjà ci-dessus. Poser `matiere_id` sur la seule table neuve
+    # aurait fait une septième table qui range autrement que ses six voisines, sans rien pour
+    # relier les deux formes : la dette se vide sur les quatre d'un coup, ou elle ne se vide pas.
+    # Ce sont bien des copies VIVANTES, donc une dette — pas des instantanés figés comme
+    # `incidents.matiere/niveau`, qui sont, eux, des exceptions permanentes.
+    "grilles.matiere":        "models_db.py:536 — recopie matieres.nom",
+    "grilles.niveau":         "models_db.py:537 — recopie niveaux.nom",
     # Dette RECONNUE PAR LE MODÈLE LUI-MÊME : « `code` est là pour la clé étrangère du jour
     # où » (models_db.py:294). Le modèle annonce la réparation, donc c'est une dette, pas une
     # exception permanente.
@@ -144,11 +153,20 @@ def test_la_dette_est_reelle_elle_ne_se_perime_pas_en_silence():
     )
 
 
-def test_le_compte_de_la_dette_est_celui_du_31_07_2026():
+def test_le_compte_de_la_dette_est_celui_du_17_08_2026():
     """Le chiffre de départ, écrit noir sur blanc. Il ne bouge qu'en BAISSE, et une baisse fait
-    tomber ce test — c'est voulu : réparer une dette se conclut en corrigeant ce nombre."""
-    assert len(DETTE) == 10, (
-        f"Dette « nom recopié » : {len(DETTE)} entrées, 10 attendues (état gelé du 31/07/2026). "
+    tomber ce test — c'est voulu : réparer une dette se conclut en corrigeant ce nombre.
+
+    10 -> 12 le 17/08/2026, SUR DÉCISION EXPLICITE DE L'UTILISATEUR (chantier Grilles) : la table
+    neuve `grilles` reprend le moule de `sequences`/`seances`/`activites`, dont les six colonnes
+    équivalentes sont déjà dans la liste. Poser `matiere_id` sur la seule table neuve aurait fait
+    une septième table qui range autrement que ses six voisines, sans rien pour relier les deux
+    formes. La dette se vide sur les quatre en un chantier, ou elle ne se vide pas.
+
+    C'est la SEULE façon dont ce nombre monte : jamais un ajout silencieux, et l'en-tête du
+    fichier le dit — un ajout non décidé vaut suppression du test."""
+    assert len(DETTE) == 12, (
+        f"Dette « nom recopié » : {len(DETTE)} entrées, 12 attendues (état du 17/08/2026). "
         "Une réparation ? Baisse le nombre ici. Une entrée nouvelle ? Elle n'a rien à faire "
         "dans cette liste sans décision de l'utilisateur."
     )

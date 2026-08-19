@@ -14,6 +14,7 @@ Garde-fous : BDD de test PostgreSQL dédiée (aschool_test, via conftest.py — 
 user de test fictif, JWT signé via create_access_token (secret jamais exposé).
 Verrouille l'existant contre une régression — n'introduit aucun comportement nouveau.
 """
+from datetime import date
 from unittest.mock import patch
 
 
@@ -191,7 +192,7 @@ def test_programmes_niveau_ref_disponible_expose():
     # un référentiel réellement ingéré (>= 1 chunk). Référentiel sans chunk => faux ;
     # pas de référentiel du tout => faux.
     from backend.core.models_db import (
-        Cycle, Niveau, Matiere, Referentiel, ReferentielChunk,
+        Cycle, Niveau, Matiere, Referentiel, ReferentielChunk, ReferentielDocument,
     )
     db = dbmod.SessionLocal()
     cyc = Cycle(nom="NT-Cycle", ordre=60); db.add(cyc); db.flush()
@@ -210,7 +211,10 @@ def test_programmes_niveau_ref_disponible_expose():
     # lui, n'a pas de référentiel : il ne peut porter aucune matière, donc il n'apparaît pas.
     db.add(Matiere(referentiel_id=refDispo.id, nom="NT-Mat", ordre=60, validee=True))
     db.add(Matiere(referentiel_id=refSansChunk.id, nom="NT-Mat", ordre=60, validee=True))
-    db.add(ReferentielChunk(referentiel_id=refDispo.id, chunk_index=0, option_ab="A",
+    docDispo = ReferentielDocument(referentiel_id=refDispo.id, fichier="doc.pdf")
+    db.add(docDispo); db.flush()
+    db.add(ReferentielChunk(referentiel_id=refDispo.id, document_id=docDispo.id,
+                            portee="matiere", valide_du=date.today(), chunk_index=0, option_ab="A",
                             page=1, texte="x", embedding=[0.0] * 1024, embedding_model="test"))
     db.commit(); db.close()
 

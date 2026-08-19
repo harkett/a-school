@@ -19,6 +19,29 @@ import { useEffect, useRef, useState } from 'react'
 
 const SONDAGE_MS = 1200
 
+// LES DEUX PANNES DE L'OUTILLAGE, dites en clair (18/08/2026). « La recette n'a pas pu démarrer »
+// laissait l'administrateur devant un mur : ni la cause, ni le geste. Ces textes ne servent que
+// de repli — le backend donne d'ordinaire un motif plus précis, qui passe devant.
+const MSG_SERVICE_MUET =
+  'Le service de recette ne répond pas. Il ne démarre pas avec les autres, il faut le demander :\n' +
+  'docker compose --profile recette up -d recette'
+const MSG_SUIVI_MUET =
+  'Le service de recette a cessé de répondre pendant le passage. Son journal dit pourquoi :\n' +
+  'docker compose logs recette'
+
+// LE MESSAGE DIT TOUJOURS CE QUI EST REVENU. Une réponse d'erreur n'est pas toujours du JSON —
+// un proxy qui tombe, un serveur qui redémarre renvoient du texte ou du HTML. Le code était
+// alors perdu, et l'écran accusait le service de recette d'être éteint alors qu'il tournait :
+// c'est exactement ce qui a fait chercher une panne inexistante le 18/08/2026.
+async function motifErreur(r, repli) {
+  const corps = await r.text().catch(() => '')
+  let detail = null
+  try { detail = JSON.parse(corps).detail } catch { /* pas du JSON : on garde le texte brut */ }
+  if (detail) return detail
+  const extrait = corps.trim().slice(0, 140)
+  return `${repli}\n\nRéponse reçue : ${r.status}${extrait ? ` — ${extrait}` : ' (corps vide)'}`
+}
+
 // Les animations, écrites une fois. Une jauge qui saute d'un coup de 20 % à 40 % donne
 // l'impression que la machine hoquette ; la même transition en 400 ms donne l'impression qu'elle
 // travaille. C'est toute la différence entre un écran d'amateur et un écran de métier.
@@ -116,7 +139,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
       if (arretRef.current) return
       try {
         const r = await fetch(`/api/admin/taches-a-faire/${tacheId}/recette`, { credentials: 'include' })
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'Le suivi ne répond pas.')
+        if (!r.ok) throw new Error(await motifErreur(r, MSG_SUIVI_MUET))
         const e = await r.json()
         if (arretRef.current) return
         setEtat(e)
@@ -140,7 +163,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
           minuteur = setTimeout(sonder, 0)
           return
         }
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'La recette n’a pas pu démarrer.')
+        if (!r.ok) throw new Error(await motifErreur(r, MSG_SERVICE_MUET))
         if (arretRef.current) return
         setEtat(await r.json())
         minuteur = setTimeout(sonder, SONDAGE_MS)
@@ -178,8 +201,12 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
   const verdict = erreur ? null : etat?.verdict
   const fini = !attente
   const total = etat?.total || 0
+  // ELLE N'A PAS TOURNÉ : soit l'écran n'a pas pu joindre le service, soit le service lui-même
+  // rapporte « impossible » — l'application construite n'a pas répondu, le navigateur n'a pas
+  // démarré. Dans les deux cas AUCUN scénario n'a été parcouru, et la note n'a pas bougé.
+  const pasTourne = !!erreur || verdict === 'impossible'
 
-  const bandeau = erreur
+  const bandeau = pasTourne
     ? { fond: '#fef2f2', bord: '#fecaca', couleur: '#dc2626', titre: 'La recette n’a pas pu tourner' }
     : verdict === 'verte'
       ? { fond: '#f0fdf4', bord: '#bbf7d0', couleur: '#16a34a', titre: 'Recette verte' }
@@ -262,17 +289,18 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
           {/* ── 3. RATÉE, ou PAS TOURNÉ — deux fins rouges, deux sens différents. Ratée : la
                  recette a parcouru l'application et quelque chose a lâché. Pas tournée : elle
                  n'a rien parcouru du tout, et la note en ressort intacte. ── */}
-          {fini && verdict !== 'verte' && (
+          {fini && (pasTourne || verdict === 'ratee') && (
             <>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '14px 16px',
                             borderRadius: 10, background: bandeau.fond, border: `1px solid ${bandeau.bord}` }}>
                 <Pastille couleur="#dc2626" fond="#fee2e2"><Croix /></Pastille>
                 <div style={{ fontSize: 14, color: '#7f1d1d', lineHeight: 1.6 }}>
-                  {erreur ? (
+                  {pasTourne ? (
                     <>
-                      <strong>La recette n’a pas tourné.</strong>
+                      <strong>La tâche n’a jamais été testée.</strong>
                       <div style={{ marginTop: 4, color: '#991b1b' }}>
-                        Rien n’a changé. La tâche est comme avant.
+                        Aucun écran n’a été parcouru : on ne sait toujours pas si ce travail
+                        tient. La tâche reste à faire tant qu’une recette ne l’a pas validée.
                       </div>
                     </>
                   ) : (
@@ -288,7 +316,7 @@ export default function FenetreRecette({ tacheId, titre, onFini }) {
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, color: '#94a3b8',
                               textTransform: 'uppercase', marginBottom: 6 }}>
-                  {erreur ? 'Ce qui s’est passé' : 'Ce qui a lâché'}
+                  {pasTourne ? 'Pourquoi, et quoi faire' : 'Ce qui a lâché'}
                 </div>
                 <div style={{ padding: '11px 13px', borderRadius: 8, background: '#f8fafc',
                               border: '1px solid #e2e8f0', fontSize: 13, color: '#334155',

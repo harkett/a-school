@@ -18,9 +18,9 @@
 # `alembic stamp` ferait taire l'erreur en laissant la base dans un etat que personne ne
 # connait ; c'est exactement ce qu'on ne veut pas.
 #
-# LES CINQ SCHEMAS DE DEMONSTRATION SUIVENT LE MEME CHEMIN, chacun avec sa propre table de
-# version. Les oublier laisserait cinq bases a une revision disparue, et le prochain
-# deploiement echouerait pour eux seuls, sans que rien ne le dise.
+# LES SCHEMAS DE DEMONSTRATION SUIVENT LE MEME CHEMIN, chacun avec sa propre table de
+# version. Les oublier les laisserait a une revision disparue, et le prochain deploiement
+# echouerait pour eux seuls, sans que rien ne le dise.
 #
 # LES DEUX BASES SONT DUMPEES AVANT LE PREMIER GESTE. Un downgrade supprime des tables : ici
 # `ambiguite_exemples`, que la refonte a abandonnee avec l'ecran qui la lisait. Si le contenu

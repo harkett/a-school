@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 // IA › Statistiques — ce que l'IA a consommé, et ce que ça coûte.
@@ -17,13 +17,22 @@ const ONGLETS = [
     entete: 'Modèle', cout: true, origine: true },
   { cle: 'tache',   label: 'Par tâche',   champ: 'par_outil',
     quoi: 'La même consommation, vue par usage : découpe d’un référentiel, rédaction d’une activité, détections…',
-    entete: 'Tâche', cout: false },
+    // `cout` : le total de la ligne. Il était caché sur ces deux onglets alors que la donnée
+    // arrivait déjà du serveur — l'admin voyait des tokens et devait deviner le montant.
+    // `detail` : la ligne se déplie sur les appels qui la composent.
+    entete: 'Tâche', cout: true, detail: 'outil' },
   { cle: 'jour',    label: 'Par jour',    champ: 'par_jour',
     quoi: 'L’évolution dans le temps, pour repérer une dérive avant la facture.',
-    entete: 'Jour', cout: false },
+    entete: 'Jour', cout: true, detail: 'jour' },
 ]
 
 const nb = n => (n ?? 0).toLocaleString('fr-FR')
+
+// La ligne « Non précisé » de l'onglet « Par tâche » regroupe les appels dont l'outil est vide :
+// son détail se demande par ce mot réservé, que le serveur traduit en « outil IS NULL ». Sans lui,
+// le bouton envoyait la chaîne « null » et le tableau répondait « aucun appel » — faux.
+const SANS_OUTIL = '__sans_outil__'
+const cleDetail = l => (l.cle == null || l.cle === '' ? SANS_OUTIL : String(l.cle))
 
 // Un coût par appel se compte en centimes : 2 décimales afficheraient « 0,00 $ » sur une découpe
 // à 30 centimes de dollar. On descend à 4 décimales tant que le total reste sous le dollar.
@@ -34,6 +43,11 @@ export default function AdminIAStatistiques() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur]   = useState('')
+  // LE DÉTAIL D'UNE LIGNE (une journée, ou une tâche). Une seule ouverte à la fois : deux lignes
+  // dépliées côte à côte se lisent moins bien qu'une seule, et le tableau du dessus reste la vue
+  // d'ensemble. `null` = rien d'ouvert. Changer d'onglet referme — la clé n'y voudrait plus rien.
+  const [ligneOuverte, setLigneOuverte] = useState(null)
+  const [detail, setDetail] = useState(null)   // { cle, lignes } | { cle, erreur }
   const navigate = useNavigate()
 
   // Fenêtre d'observation : le DÉFAUT du serveur, sans réglage à l'écran. Le paramètre `jours`
@@ -56,6 +70,32 @@ export default function AdminIAStatistiques() {
 
   const courant = ONGLETS.find(o => o.cle === onglet)
   const lignes  = data?.[courant.champ] || []
+
+  // Le détail vient du JOURNAL, la même table que les cumuls : l'écran n'invente aucune source,
+  // il ouvre celle qui existe — sur une date (`jour`) ou sur une tâche (`outil`). Recliquer sur
+  // la même ligne referme.
+  function ouvrirDetail(cle) {
+    if (ligneOuverte === cle) { setLigneOuverte(null); setDetail(null); return }
+    setLigneOuverte(cle)
+    setDetail(null)
+    const url = `/api/admin/ia/journal?${courant.detail}=${encodeURIComponent(cle)}&limite=500`
+    fetch(url, { credentials: 'include' })
+      .then(r => {
+        if (r.status === 401) { navigate('/admin/login'); return null }
+        if (!r.ok) throw new Error('lecture impossible')
+        return r.json()
+      })
+      .then(d => { if (d) setDetail({ cle, lignes: d.lignes || [] }) })
+      .catch(() => setDetail({ cle, erreur: 'Impossible de lire le détail de cette ligne.' }))
+  }
+
+  // Changer d'onglet ferme ce qui était ouvert : la clé d'une journée n'a aucun sens dans la
+  // liste des tâches, et laisser le dépliage ouvert afficherait le détail d'une autre ligne.
+  function changerOnglet(cle) {
+    setOnglet(cle)
+    setLigneOuverte(null)
+    setDetail(null)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,7 +146,7 @@ export default function AdminIAStatistiques() {
           return (
             <button
               key={o.cle}
-              onClick={() => setOnglet(o.cle)}
+              onClick={() => changerOnglet(o.cle)}
               title={o.quoi}
               style={{
                 padding: '7px 14px', fontSize: 12, fontWeight: actif ? 600 : 500,
@@ -163,11 +203,13 @@ export default function AdminIAStatistiques() {
                   Coût estimé
                 </th>
               )}
+              {courant.detail && <th style={{ width: 1 }} />}
             </tr>
           </thead>
           <tbody>
             {lignes.map((l, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+              <Fragment key={i}>
+              <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
                 <td style={{ padding: '7px 8px', color: '#374151' }}>{l.libelle}</td>
                 {/* Un appel dont l'outil n'est pas encore nommé garde sa ligne et le dit en gris :
                     l'effacer ferait disparaître une dépense bien réelle du tableau. */}
@@ -188,16 +230,111 @@ export default function AdminIAStatistiques() {
                 <td style={{ padding: '7px 8px', textAlign: 'right', color: '#6b7280' }}>{nb(l.tokens_sortie)}</td>
                 {courant.cout && (
                   <td style={{ padding: '7px 8px', textAlign: 'right', color: l.cout_usd == null ? '#9ca3af' : '#374151' }}
-                      title={l.cout_usd == null ? 'Tarif non renseigné pour ce modèle' : undefined}>
+                      title={l.cout_usd == null
+                        ? 'Tarif non renseigné pour ce modèle'
+                        : (l.cout_partiel ? 'Total partiel : un des modèles de cette ligne n’a pas de tarif renseigné' : undefined)}>
                     {usd(l.cout_usd)}
                   </td>
                 )}
+                {/* LE DÉTAIL DE LA LIGNE. Le tableau du dessus dit COMBIEN ; celui-ci dit QUOI —
+                    l'heure de chaque appel, son modèle, son origine, ce qu'il a coûté. */}
+                {courant.detail && (
+                  <td style={{ padding: '7px 8px', textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => ouvrirDetail(cleDetail(l))}
+                      title={ligneOuverte === cleDetail(l)
+                        ? 'Replier ce détail'
+                        : (courant.cle === 'jour'
+                            ? 'Voir les appels de cette journée, un par ligne'
+                            : 'Voir les appels de cette tâche, un par ligne')}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+                        background: 'none', border: '1px solid #d1d5db', borderRadius: 6,
+                        padding: '3px 9px', fontSize: 11, fontWeight: 600, color: '#374151',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                           strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                           style={{ transform: ligneOuverte === cleDetail(l) ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                      Détail
+                    </button>
+                  </td>
+                )}
               </tr>
+              {courant.detail && ligneOuverte === cleDetail(l) && (
+                <tr>
+                  <td colSpan={6} style={{ padding: 0, background: '#fafafa', borderBottom: '1px solid #f3f4f6' }}>
+                    <DetailAppels etat={detail} cle={cleDetail(l)} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
       )}
     </div>
+  )
+}
+
+// Le détail d'UNE ligne — une journée ou une tâche : un appel par ligne, dans l'ordre du journal
+// (le plus récent en haut). Les colonnes sont celles qui servent devant une facture ou un
+// incident — l'heure, le modèle, qui a déclenché, ce qui est parti, ce qui est revenu, le prix,
+// et comment ça s'est terminé. Un refus ou un rejeu du cache n'a pas de prix : la case reste
+// vide, jamais à zéro.
+function DetailAppels({ etat, cle }) {
+  if (!etat || etat.cle !== cle) {
+    return <p className="text-xs text-gray-400" style={{ padding: '12px 16px' }}>Chargement du détail…</p>
+  }
+  if (etat.erreur) {
+    return <p className="text-xs" style={{ color: '#ef4444', padding: '12px 16px' }}>{etat.erreur}</p>
+  }
+  if (!etat.lignes.length) {
+    return <p className="text-xs text-gray-400" style={{ padding: '12px 16px' }}>Aucun appel ici.</p>
+  }
+  const heure = q => (q ? new Date(q).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—')
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+      <thead>
+        <tr style={{ color: '#6b7280', borderBottom: '1px solid #e5e7eb' }}>
+          <th style={{ textAlign: 'left',  padding: '6px 8px', fontWeight: 600 }}>Heure</th>
+          <th style={{ textAlign: 'left',  padding: '6px 8px', fontWeight: 600 }}>Modèle</th>
+          <th style={{ textAlign: 'left',  padding: '6px 8px', fontWeight: 600 }}>Origine</th>
+          <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Envoyés</th>
+          <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Produits</th>
+          <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Durée</th>
+          <th style={{ textAlign: 'right', padding: '6px 8px', fontWeight: 600 }}>Coût estimé</th>
+          <th style={{ textAlign: 'left',  padding: '6px 8px', fontWeight: 600 }}>Résultat</th>
+        </tr>
+      </thead>
+      <tbody>
+        {etat.lignes.map(u => (
+          <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+            <td style={{ padding: '6px 8px', color: '#374151' }}>{heure(u.quand)}</td>
+            <td style={{ padding: '6px 8px', color: '#374151' }}>{u.modele || '—'}</td>
+            <td style={{ padding: '6px 8px', color: u.outil ? '#374151' : '#9ca3af' }}>{u.origine}</td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#6b7280' }}>{nb(u.tokens_entree)}</td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#6b7280' }}>{nb(u.tokens_sortie)}</td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', color: '#6b7280' }}>
+              {u.duree_ms == null ? '—' : `${(u.duree_ms / 1000).toFixed(1)} s`}
+            </td>
+            <td style={{ padding: '6px 8px', textAlign: 'right', color: u.cout_usd == null ? '#9ca3af' : '#374151' }}
+                title={u.depuis_cache ? 'Rejeu du cache : rien ne part chez le fournisseur, rien n\u2019est payé.' : undefined}>
+              {u.cout_usd == null ? '—' : usd(u.cout_usd)}
+            </td>
+            <td style={{ padding: '6px 8px', color: u.resultat === 'ok' ? '#6b7280' : '#b91c1c' }}
+                title={u.code_http ? `Réponse du fournisseur : ${u.code_http}` : undefined}>
+              {u.depuis_cache ? 'cache' : (u.resultat || '—')}
+              {u.motif_arret === 'max_tokens' && ' · coupée'}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

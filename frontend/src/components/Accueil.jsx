@@ -1,43 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchWithTimeout, lireReponse, messagePourEcran, TIMEOUT_STD } from '../utils/api.js'
 import { showError } from '../errorDialog'
-import useIsMobile from '../hooks/useIsMobile'
-
-const TIPS = [
-  {
-    texte: 'Si votre navigateur propose de traduire cette page, choisissez « Ne jamais traduire ce site ». La traduction automatique perturbe la génération des activités.',
-    lien: { label: 'Pourquoi ?' },
-    modal: {
-      titre: 'Pourquoi ne pas traduire la page ?',
-      lignes: [
-        'La traduction automatique modifie le texte source et les consignes — aSchool reçoit alors des mots incorrects et génère des activités incohérentes ou vides.',
-        'La page aSchool est entièrement en français : la traduction n\'apporte rien et perturbe tout.',
-        '— Edge : cliquez sur l\'icône de traduction dans la barre d\'adresse → « Ne jamais traduire ce site ».',
-      ],
-    },
-  },
-  {
-    texte: 'aSchool apprend votre style : plus vous créez d\'activités du même type, plus il s\'adapte à votre façon d\'enseigner.',
-    lien: { label: 'En savoir plus' },
-    modal: {
-      titre: 'Comment aSchool apprend votre style ?',
-      lignes: [
-        'Chaque activité que vous créez est enregistrée automatiquement — elle sert d\'exemple à aSchool.',
-        'À partir de la 3ème activité d\'un même type et d\'un même niveau, il s\'en inspire automatiquement pour adapter le ton, la formulation des questions et le niveau de langue.',
-        'Cela fonctionne par type d\'activité ET par classe : vos exemples de résumés n\'influencent pas vos analyses, et votre 6e n\'influence pas votre 3e.',
-        'Plus vous créez, plus les activités générées vous ressemblent.',
-      ],
-    },
-  },
-  { texte: 'Votre niveau par défaut est mémorisé d\'une session à l\'autre — vous n\'avez pas à le resélectionner à chaque connexion.' },
-  { texte: 'L\'option « Avec correction » génère automatiquement un corrigé complet sous l\'activité.' },
-  { texte: 'Depuis « Mes contenus », rouvrez n\'importe quelle activité : tout est enregistré automatiquement, vous la retrouvez telle quelle et pouvez changer son texte de départ.' },
-  { texte: 'Complétez votre profil (matière, niveau par défaut) pour que aSchool s\'adapte à votre contexte dès la connexion.' },
-  { texte: 'La précision « Mélange » demande à aSchool de combiner tous les types disponibles pour cette activité. Le détail des types s\'affiche sous le sélecteur.' },
-  { texte: 'Pour retrouver un texte dont vous avez un souvenir vague, consultez Gallica (gallica.bnf.fr) ou Wikisource, puis copiez-collez dans aSchool.' },
-  { texte: 'Problème de connexion persistant ? Supprimez les cookies du site : F12 → Application → Cookies → tout supprimer.' },
-]
+import InfoGuide from './InfoGuide.jsx'
+import Nouveautes from './Nouveautes.jsx'
+import { astucesEcran } from '../utils/astuces.js'
+import { TYPES_CONTENUS } from '../utils/typesContenus.js'
+import { IconSequence, IconSeance, IconActivite, IconAmbiguites, IconConsigne, IconEquite } from './icones.jsx'
+import { TYPES_ANALYSES } from '../utils/typesAnalyses.js'
 
 function getPhrase(count) {
   if (count === 0) return 'Votre premier cours personnalisé est à portée de clic.'
@@ -47,15 +17,48 @@ function getPhrase(count) {
   return `${count} activités créées — vous faites partie des profs les plus actifs de la plateforme.`
 }
 
-const SUB_LABEL = { fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }
+// Les astuces de l'écran, lues une fois : le « a » ne bouge pas d'un rendu à l'autre.
+const astucesAccueil = astucesEcran('accueil')
+
+// Les trois analyses — l'Accueil est leur SECONDE porte : les phrases disent la même chose que
+// les bulles du menu, sous peine d'annoncer ici autre chose que là.
+const ANALYSES = [
+  { page: 'ambiguites', label: 'Ambiguïtés', Icon: IconAmbiguites, ...TYPES_ANALYSES.ambiguites,
+    total: 'mes_ambiguites', nom: 'analyse d’ambiguïtés', pluriel: 'analyses d’ambiguïtés',
+    phrase: "Détecter les ambiguïtés cognitives d'un énoncé ou d'un exercice" },
+  { page: 'consigne', label: 'Consignes', Icon: IconConsigne, ...TYPES_ANALYSES.consigne,
+    total: 'mes_consignes', nom: 'analyse de consigne', pluriel: 'analyses de consignes',
+    phrase: "Analyser la qualité didactique d'une consigne" },
+  { page: 'equite', label: 'Équité', Icon: IconEquite, ...TYPES_ANALYSES.equite,
+    total: 'mes_equites', nom: 'analyse d’équité', pluriel: 'analyses d’équité',
+    phrase: "Repérer ce qui pénalise certains élèves pour une raison étrangère à ce qui est évalué" },
+]
+
+const TYPES = [
+  { type: 'sequence', champ: 'derniere_sequence', total: 'mes_sequences', nom: 'séquence', Icon: IconSequence, label: 'Séquence', page: 'contenus-sequences',
+    ...TYPES_CONTENUS.sequence, vide: "Aucune séquence pour l'instant.",
+    titreOuvrir: 'Rouvrir cette séquence dans Mes contenus', titreListe: 'Voir toutes mes séquences dans Mes contenus', lienListe: 'Voir toutes mes séquences' },
+  { type: 'seance', champ: 'derniere_seance', total: 'mes_seances', nom: 'séance', Icon: IconSeance, label: 'Séance', page: 'contenus-seances',
+    ...TYPES_CONTENUS.seance, vide: "Aucune séance pour l'instant.",
+    titreOuvrir: 'Rouvrir cette séance dans Mes contenus', titreListe: 'Voir toutes mes séances dans Mes contenus', lienListe: 'Voir toutes mes séances' },
+  { type: 'activite', champ: 'derniere_activite', total: 'mes_activites', nom: 'activité', Icon: IconActivite, label: 'Activité', page: 'contenus-activites',
+    ...TYPES_CONTENUS.activite, vide: "Aucune activité pour l'instant.",
+    titreOuvrir: 'Rouvrir cette activité dans Mes contenus', titreListe: 'Voir toutes mes activités dans Mes contenus', lienListe: 'Voir toutes mes activités' },
+]
+
 const EMPTY_MSG = { fontSize: 12, color: '#cbd5e1', fontStyle: 'italic' }
 
-export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvrir }) {
-  const [tipModal, setTipModal] = useState(null)
-  const [tipIndex, setTipIndex] = useState(
-    () => parseInt(localStorage.getItem('aschool_tip_index') || '0') % TIPS.length
+function Total({ n, bloc }) {
+  if (!n) return null
+  const mot = n > 1 ? (bloc.pluriel || `${bloc.nom}s`) : bloc.nom
+  return (
+    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+      vous avez {n} {mot} au total
+    </span>
   )
-  const isMobile = useIsMobile()   // réagit au redimensionnement ; calculé une fois, il était figé
+}
+
+export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvrir }) {
 
   // Le tableau de bord, lu en base — react-query tient la lecture. Une lecture ratée se DIT
   // (modale + « Réessayer ») : elle ne se déguise jamais en tableau de bord vide.
@@ -67,34 +70,33 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
   useEffect(() => { if (error) showError(messagePourEcran(error)) }, [error])
   const charger = () => refetch()
 
-  function goTip(dir) {
-    setTipIndex(i => {
-      const next = (i + dir + TIPS.length) % TIPS.length
-      localStorage.setItem('aschool_tip_index', String(next))
-      return next
-    })
-  }
-
   const hour     = new Date().getHours()
   const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir'
   const prenom   = user?.prenom || ''
   const phrase   = data !== null ? getPhrase(data.mes_activites) : ''
-  const tip      = TIPS[tipIndex]
-  const derniereActivite = data?.derniere_activite ?? null
-  const derniereSeance   = data?.derniere_seance ?? null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, height: '100%', minHeight: 0 }}>
 
-      {/* ── Bandeau de bienvenue ── */}
+      {/* ZONE HAUTE — fixe. Elle ne défile pas et ne rétrécit pas : c'est l'identité de l'écran
+          (qui je suis, ma matière, mon niveau), elle reste sous les yeux quoi qu'il arrive. */}
       <div style={{
         background: 'linear-gradient(135deg, #1e40af 0%, #5b21b6 55%, var(--bordeaux) 100%)',
         borderRadius: 12, padding: '22px 28px', color: '#fff',
-        position: 'relative', overflow: 'hidden',
+        position: 'relative', overflow: 'hidden', flexShrink: 0,
       }}>
+        {/* LA NOUVEAUTÉ SE POSE ICI, à droite du bandeau : c'est le premier endroit que l'œil
+            balaie en arrivant, et le seul qui ne défile pas. Elle se lit sans qu'on la clique —
+            mais elle reste une bande, elle ne prend pas la place du travail. */}
+        <div style={{
+          position: 'absolute', top: 16, right: 22, zIndex: 2,
+        }}>
+          <Nouveautes onNavigate={onNavigate} />
+        </div>
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em' }}>
             {greeting}{prenom ? `, ${prenom}` : ''} !
+            {astucesAccueil && <InfoGuide {...astucesAccueil} />}
           </div>
           <div style={{ fontSize: 12, opacity: 0.72, marginTop: 3 }}>
             {matiereLabel} · Niveau {niveau}
@@ -109,12 +111,13 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
         <div style={{ position: 'absolute', right: 70, bottom: -28, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
       </div>
 
-      {/* ── Contenu principal ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 210px', gap: 12, alignItems: 'start' }}>
+      {/* ZONE BASSE — la seule qui défile. Elle porte son propre ascenseur : rien ne passe
+          jamais derrière le bandeau, les deux zones ne se recouvrent pas. */}
+      <div className="sidebar-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, flex: '1 1 auto', minHeight: 0, paddingRight: 4 }}>
 
         {/* ── Mes dernières créations — MONDE NEUF : les cartes rouvrent dans Mes contenus ── */}
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Mes dernières créations</div>
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Mes dernières créations</div>
 
           {chargementRate && (
             <button onClick={charger} className="btn-primary" style={{ alignSelf: 'flex-start' }}
@@ -123,179 +126,83 @@ export default function Accueil({ user, matiereLabel, niveau, onNavigate, onOuvr
             </button>
           )}
 
-          {/* Activité */}
-          <div>
-            <div style={SUB_LABEL}>Activité</div>
-            {derniereActivite ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {derniereActivite.titre}
+          {/* LES TROIS TYPES, DANS L'ORDRE DU MENU (16/08/2026). L'écran n'en montrait que deux —
+              la séquence n'était ni calculée par le serveur ni prévue ici — et ses trois
+              sous-titres étaient en gris pâle, sans la couleur que le reste de l'application
+              donne pourtant à chaque type. Une seule boucle : trois blocs qui ne peuvent plus
+              diverger, chacun à sa couleur et à son icône. */}
+          {TYPES.map(t => {
+            const dernier = data?.[t.champ] ?? null
+            const total = data?.[t.total] ?? 0
+            return (
+              <div key={t.type}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+                  <t.Icon taille={15} couleur={t.accent} />
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.01em' }}>{t.label}</span>
+                  <Total n={total} bloc={t} />
+                </div>
+                {dernier ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <div style={{ minWidth: 0, flex: '1 1 auto' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {dernier.titre}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                        {[dernier.matiere, dernier.niveau,
+                          dernier.duree_minutes ? `${dernier.duree_minutes} min` : null]
+                          .filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onOuvrir(t.type, dernier.id)}
+                      title={t.titreOuvrir}
+                      className="btn-secondary"
+                      style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
+                    >
+                      Ouvrir →
+                    </button>
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                    {[derniereActivite.matiere, derniereActivite.niveau].filter(Boolean).join(' · ')}
-                  </div>
+                ) : (
+                  <div style={EMPTY_MSG}>{t.vide}</div>
+                )}
+                <button onClick={() => onNavigate(t.page)} title={t.titreListe}
+                  style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
+                  {t.lienListe} →
+                </button>
+              </div>
+            )
+          })}
+
+          {/* LES TROIS ANALYSES, ÉCRITES COMME LES TROIS TYPES (16/08/2026) : même icône en tête,
+              même titre en gras à leur couleur, même ligne teintée avec son « Ouvrir ». Elles
+              étaient trois boutons gris sous une étiquette « ANALYSE » — l'étiquette a disparu,
+              le nom de chaque analyse la remplace. */}
+          {ANALYSES.map(a => (
+            <div key={a.page}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+                <span style={{ color: a.accent, display: 'inline-flex' }}><a.Icon taille={15} /></span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.01em' }}>{a.label}</span>
+                <Total n={data?.[a.total] ?? 0} bloc={a} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, color: '#475569', minWidth: 0, flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.phrase}
                 </div>
                 <button
-                  onClick={() => onOuvrir('activite', derniereActivite.id)}
-                  title="Rouvrir cette activité dans Mes contenus"
-                  style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'none', border: '1px solid var(--bordeaux)', borderRadius: 5, color: 'var(--bordeaux)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  onClick={() => onNavigate(a.page)}
+                  title={a.phrase}
+                  className="btn-secondary"
+                  style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
                 >
                   Ouvrir →
                 </button>
               </div>
-            ) : (
-              <div style={EMPTY_MSG}>Aucune activité pour l'instant.</div>
-            )}
-            <button onClick={() => onNavigate('contenus-activites')} title="Voir toutes mes activités dans Mes contenus"
-              style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
-              Voir toutes mes activités →
-            </button>
-          </div>
-
-          {/* Séance */}
-          <div>
-            <div style={SUB_LABEL}>Séance</div>
-            {derniereSeance ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 12px', borderRadius: 7, background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {derniereSeance.titre}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                    {[derniereSeance.matiere, derniereSeance.niveau,
-                      derniereSeance.duree_minutes ? `${derniereSeance.duree_minutes} min` : null]
-                      .filter(Boolean).join(' · ')}
-                  </div>
-                </div>
-                <button
-                  onClick={() => onOuvrir('seance', derniereSeance.id)}
-                  title="Rouvrir cette séance dans Mes contenus"
-                  style={{ flexShrink: 0, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'none', border: '1px solid #7c3aed', borderRadius: 5, color: '#7c3aed', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >
-                  Ouvrir →
-                </button>
-              </div>
-            ) : (
-              <div style={EMPTY_MSG}>Aucune séance pour l'instant.</div>
-            )}
-            <button onClick={() => onNavigate('contenus-seances')} title="Voir toutes mes séances dans Mes contenus"
-              style={{ marginTop: 7, background: 'none', border: 'none', padding: 0, fontSize: 11, color: '#64748b', cursor: 'pointer', textDecoration: 'underline' }}>
-              Voir toutes mes séances →
-            </button>
-          </div>
-
-          {/* Analyse */}
-          <div>
-            <div style={SUB_LABEL}>Analyse</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[
-                // L'Accueil est la SECONDE porte vers cet écran : il doit toujours dire la même
-                // chose que le menu, sous peine d'ouvrir ce que l'autre annonce fermé.
-                { label: 'Ambiguïtés', page: 'ambiguites', title: 'Analyser un texte pour détecter les ambiguïtés cognitives d\'un exercice ou énoncé' },
-                { label: 'Consignes',  page: 'consigne',   title: 'Analyser la qualité didactique d\'une consigne' },
-                { label: 'Équité',     page: 'equite',     title: 'Repérer ce qui pénalise certains élèves pour une raison étrangère à ce qui est évalué' },
-              ].map(a => (
-                <button
-                  key={a.page}
-                  // « bientôt » était GRISÉ MAIS CLIQUABLE : le clic ouvrait quand même l'écran.
-                  // La carte disait une chose et en faisait une autre — c'est ce qui rendait le
-                  // grisage inutile. Pas de handler, et le curseur dit non avant le clic.
-                  onClick={a.bientot ? undefined : () => onNavigate(a.page)}
-                  title={a.title}
-                  aria-disabled={a.bientot || undefined}
-                  style={{ padding: '5px 12px', fontSize: 11, fontWeight: 600, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6,
-                           cursor: a.bientot ? 'not-allowed' : 'pointer',
-                           color: a.bientot ? '#94a3b8' : '#475569' }}
-                >
-                  {a.label}{a.bientot ? ' · bientôt' : ' →'}
-                </button>
-              ))}
             </div>
-          </div>
+          ))}
 
         </div>
 
-        {/* ── Colonne droite ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-          {/* CTA — l'entrée de création = Mes contenus (le monde neuf) */}
-          <div style={{ background: 'var(--bordeaux)', borderRadius: 10, padding: '18px 14px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>Prêt à créer ?</div>
-            <button
-              onClick={() => onNavigate('contenus-activites')}
-              title="Aller dans Mes contenus pour créer une activité, une séance ou une séquence"
-              style={{ background: '#fff', border: 'none', borderRadius: 7, padding: '8px 14px', fontSize: 13, fontWeight: 700, color: 'var(--bordeaux)', cursor: 'pointer' }}
-            >
-              Mes contenus →
-            </button>
-          </div>
-
-          {/* Lien vers stats */}
-          <button
-            onClick={() => onNavigate('mes-stats')}
-            title="Consulter mes statistiques et la vitalité de la plateforme"
-            style={{ background: '#f0f9ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: '12px 14px', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1d4ed8' }}>Mes statistiques</div>
-            <div style={{ fontSize: 11, color: '#3b82f6', lineHeight: 1.4 }}>Activités, séances, score d'adaptation et vitalité →</div>
-          </button>
-
-          {/* Astuce — texte clampé à 4 lignes */}
-          <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: 10, padding: '12px 13px', fontSize: '11.5px', color: '#5b21b6', display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#7c3aed' }}>Astuce</span>
-              <span style={{ fontSize: 10, color: '#a78bfa' }}>{tipIndex + 1}/{TIPS.length}</span>
-            </div>
-            <p style={{
-              margin: 0, lineHeight: 1.55,
-              display: '-webkit-box',
-              WebkitLineClamp: 4,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-            }}>
-              {tip.texte}
-            </p>
-            {tip.lien && (
-              <button onClick={() => setTipModal(tip.modal)} style={{ background: 'none', border: 'none', padding: 0, color: '#5b21b6', textDecoration: 'underline', cursor: 'pointer', fontSize: '11px', textAlign: 'left' }}>
-                {tip.lien.label} →
-              </button>
-            )}
-            <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-              <button onClick={() => goTip(-1)} title="Astuce précédente" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <button onClick={() => goTip(1)} title="Astuce suivante" style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: 4, padding: '3px 6px', cursor: 'pointer', color: '#5b21b6', display: 'flex', alignItems: 'center' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-          </div>
-
-        </div>
       </div>
-
-      {/* Modal astuce */}
-      {tipModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600 }}
-          onClick={e => { if (e.target === e.currentTarget) setTipModal(null) }}
-        >
-          <div style={{ background: '#fff', borderRadius: 10, padding: 24, width: 420, maxWidth: '92vw', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#3b0764' }}>{tipModal.titre}</div>
-              <button onClick={() => setTipModal(null)} title="Fermer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, lineHeight: 1, flexShrink: 0, padding: '0 2px' }}>×</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {tipModal.lignes.map((l, i) => (
-                <p key={i} style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>{l}</p>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setTipModal(null)} title="Fermer" style={{ padding: '7px 20px', fontSize: 13, borderRadius: 6, border: 'none', background: '#5b21b6', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Compris</button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   )

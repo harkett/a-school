@@ -733,7 +733,7 @@ def proposer_theme_seance(
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Thème de séance de {matiere or 'la matière du prof'}, niveau {niveau} : notions et objectifs du programme"
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-theme] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -801,7 +801,7 @@ def proposer_competences_seance(
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Compétences et attendus du programme de {matiere or 'la matière du prof'}, niveau {niveau}, autour de : {theme}"
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-competences] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -1179,7 +1179,7 @@ def proposer_objectif_sequence(
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Objectif de séquence de {matiere or 'la matière du prof'}, niveau {niveau} : notions et objectifs du programme"
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-objectif] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)
@@ -1236,7 +1236,7 @@ def proposer_competences_sequence(
     filters = json.loads(filtres_json) if filtres_json else None
     requete = f"Compétences et attendus du programme de {matiere or 'la matière du prof'}, niveau {niveau}, autour de : {objectif}"
     chunks = retrieve_pg(collection, requete, filters=filters, top_k=get_rag_top_k(db),
-                         schema=schema_de_session(db), annee=niveau)
+                         schema=schema_de_session(db), annee=niveau, matiere=matiere)
     chunks = [c for c in chunks if c.get("score") is not None and c["score"] >= seuil]
     if not chunks:
         log.info("[proposer-competences-seq] aucun chunk >= seuil %s (%s, %s) → available=false", seuil, collection, niveau)

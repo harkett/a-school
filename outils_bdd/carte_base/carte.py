@@ -111,19 +111,23 @@ DOMAINS = {
         ["cycles", "niveaux", "matieres", "types_activite", "seance_modes",
          "seance_styles", "langues_lv", "ambiguite_criteres", "equite_criteres"]),
     "ref":      ("Referentiels & RAG", "#d97706", "#fef3c7", "#78350f",
-        ["referentiels", "referentiel_niveaux", "referentiel_chunks",
-         "types_activite", "referentiel_type_precisions"]),
+        ["referentiels", "referentiel_niveaux", "referentiel_documents", "referentiel_chunks",
+         "referentiel_chunk_matieres", "types_activite", "referentiel_type_precisions"]),
+    # Les quatre tables de la GRILLE D'EVALUATION (17/08/2026) sont ici, avec `activites` et
+    # `seances` : c'est du contenu de prof, ecrit par lui, possede par lui. Non nommees, elles
+    # seraient tombees dans « systeme » par le garde-fou des tables inconnues (plus bas).
     "contenu":  ("Contenu prof & retours", "#9333ea", "#f3e8ff", "#581c87",
         ["activites", "activite_versions", "sequences", "seances", "seance_versions",
+         "grilles", "grille_criteres", "grille_niveaux_maitrise", "grille_cellules",
          "cahiers_prof", "feedbacks", "feedback_statuts", "feedback_messages",
          "feature_votes", "features_votables", "tool_usage_logs"]),
     # `usage_llm` : une ligne par appel LLM reussi (modele, outil, tokens, duree). Elle est du
     # meme cote que `ai_modeles` — la configuration de l'IA et ce qu'elle consomme se lisent
     # ensemble : le cout d'un appel est ses tokens multiplies par le tarif porte par sa fiche.
     "systeme":  ("Config, e-mail & systeme", "#e11d48", "#ffe4e6", "#881337",
-        # `demos` : la FICHE d'une base de demonstration (nom de la base, adresse de l'instance
-        # qui la sert, etat d'avancement). Elle ne contient aucune donnee pedagogique — celles-ci
-        # vivent dans l'autre base. C'est un objet d'exploitation, au meme titre qu'`incidents`.
+        # `demos` : la FICHE d'une demonstration (compartiment de donnees, adresse, compteurs).
+        # Elle ne contient aucune donnee pedagogique — celles-ci vivent ailleurs. C'est un objet
+        # d'exploitation, au meme titre qu'`incidents`.
         # `fonctionnalites` : l'inventaire de ce que la plateforme sait faire et de son
         # avancement — la moitie du tableau de bord qui ne se derive d'aucune table. Objet de
         # pilotage, tenu par migration, jamais une donnee pedagogique.
